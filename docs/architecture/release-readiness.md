@@ -336,7 +336,7 @@ credentials/submissions. It is not a second release pipeline. Both slices are
 checked against the macOS 13 floor. The existing private publication script
 requires the resulting SBOM assets but publication remains unauthorized.
 
-The [package guide](../development/release-packages.md) records exact baselines,
+The [maintainer packaging guide](../development/release-packaging-maintainers.md) records exact baselines,
 runtime layout, strict plugin discovery, Linux X11/XWayland and system C++/TLS
 dependencies, and first-party/mixed syntax-data distribution approval still
 pending. At M6, G7's Ubuntu 24.04/RHEL 10 and Windows definitions were not qualified

@@ -25,7 +25,8 @@ tools; GitHub Actions stays disabled and has no role in the release workflow.
      Signing for application/helpers and installer.
    - [Linux](references/linux.md): Ubuntu 26.04 x86_64 DEB, per-user
      archives and approved OpenPGP signing.
-3. Read `docs/development/release-packages.md` and
+3. Read `docs/development/release-packaging-maintainers.md`,
+   `docs/development/release-packages.md` and
    `docs/security/release-policy.md`. Check the current
    `docs/verification/RFC-BPR-0038.md` ledger and applicable native cards;
    historical approvals do not qualify changed artifacts or another platform.

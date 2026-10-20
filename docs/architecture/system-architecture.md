@@ -555,7 +555,7 @@ whether a suitable library should be allowed instead.
   and `sha256_cng.cpp`; only the Windows branch links system `bcrypt`, while
   CommonCrypto comes from libSystem. Initialization refusal selects HACL;
   established native-state failure terminates rather than emitting a wrong
-  digest. [Build guidance](../development/build-and-test.md#core-sha-256-selection)
+  digest. [Build guidance](../development/build-and-test-reference.md#core-sha-256-selection)
   records allocation and copy/move behavior. No other OS capability is adopted.
 - dtl is approved only for per-line intraline comparison and Review Cycle
   suggestion hunks' line edit bounded at 512 changes, never the diff engine's

@@ -77,7 +77,7 @@ not implement phase-2 controls or authorize a live service read.
 Focused native/provider/sanitizer, real file, blocked-stderr cleanup and composed
 application checks pass on macOS. Development and tests-disabled Release builds
 pass; the core-only graph omits Quill. See [[BPR-0602]] for exact evidence and
-[local logging instructions](../development/build-and-test.md#basic-local-diagnostics).
+[local logging instructions](../development/build-and-test-reference.md#basic-local-diagnostics).
 Windows file logging is explicitly unavailable; Linux native evidence, advanced
 controls and full RFC closeout remain deferred. No new live sign-in ran during
 that foundation slice. The subsequent approved BPR-0559 observation used this

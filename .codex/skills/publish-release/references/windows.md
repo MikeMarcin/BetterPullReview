@@ -114,7 +114,7 @@ Extract the final MSI in an isolated root and audit its actual runtime using
 `scripts/verify_release_package.py` with the matching build/SPDX/source/commit
 and `--windows-redist-root`. If the exact discarded SDK marker requires the
 reviewed metadata specimen, supply `--windows-import-library` as described in
-`docs/development/release-packages.md`; missing or changed specimen bytes refuse,
+`docs/development/release-packaging-maintainers.md`; missing or changed specimen bytes refuse,
 and the specimen establishes no historical LINK selection. Check installed first-party signatures using
 `signtool verify /pa /all /v` and `Get-AuthenticodeSignature`; require publisher
 `Michael Marcin` and a timestamp. MSI/runtime ZIP equivalence and native Windows

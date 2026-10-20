@@ -3,7 +3,7 @@
 RFC-BPR-0014 M9 applies this policy to an exact source revision and the exact
 delivered package bytes. Passing a build, a signature command, or the mechanical
 checks below is not independent release acceptance. The existing
-[release workflow](../development/release-packages.md) and `publish-release`
+[release workflow](../development/release-packaging-maintainers.md) and `publish-release`
 skill remain the only macOS release path. Offline preparation cannot authorize
 signing, notarization, trust enrollment or publication.
 

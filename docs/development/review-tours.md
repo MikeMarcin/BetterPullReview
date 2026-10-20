@@ -1,167 +1,252 @@
-# Prepare and maintain a review tour
+# Prepare and maintain a Review Tour
 
-A review tour explains a change through a short Problem, a Solution, and an
-ordered set of source comments. Start with **Prepare review tour** in Overview
-or the Pull Request menu (`Alt+T`). It opens the Tour page beside Comments and
-Notes. Preparation, preview, navigation and local saving work without AI.
+A Review Tour walks reviewers through a pull request. It has a short
+**Problem**, a **Solution**, and an ordered route of stops, each a comment on
+selected source lines. This page is for pull-request authors: how to write a
+tour, preview it, publish it to GitHub, keep it up to date and remove it.
 
-The local authoring and fixture publication paths are implemented, and live
-publication is on by the owner's 2026-10-09 amendment on
-[BPR-1222](../issues/40-parked/BPR-1222-qualify-live-github-review-tours.md):
-Publish asks to confirm the exact plan before any write. Operations the
-BPR-Test course did not try (off-hunk and file-subject batches, standalone
-fallbacks, pending root edits, ambiguous-result reconciliation, GHES) are untried
-rather than qualified. The index and each stop's Previous and Next link to the
-comment on the Files changed tab (`…/pull/N/files#rID`); the Tour overview link
-stays on the Conversation tab. Existing ordinary review commands retain their
-own support. The [qualification course](../verification/RFC-BPR-0039-0043.manual-course.md)
-and [evidence ledger](../verification/RFC-BPR-0039-0043.md) record the outstanding
-server, other-platform and installed-provider/model checks. The seven prepared
-Mac native judgments are accepted on their recorded candidates. Do not interpret
-an available ordinary comment action as support for a pending tour batch.
+Writing, previewing, navigating and saving a tour all work without AI.
 
-RFC-BPR-0039–0043 close only the verified implementation under the owner's
-[r2 amendment](../verification/RFC-BPR-0039-0043.owner-closeout-r2.md).
-Standalone Blocked BPR-1222–1226 retain all unobserved qualification and original
-predecessor acceptance. The eleven live-operation rows remain unavailable;
-actual model quality and installed-provider restrictions remain unqualified.
+> [!NOTE]
+> Publishing a tour writes to GitHub only after you confirm the exact plan.
+> Some publication cases have not yet been tried against live GitHub:
+> off-hunk and file-level batches, standalone fallback comments, pending
+> edits to the Start here comment, reconciling an ambiguous result, and
+> GitHub Enterprise Server. Treat them as untested.
+
+## Start a tour
+
+Choose **Prepare review tour** in Overview or the **Pull Request** menu
+(`Alt+T`). The **Tour** page opens beside **Comments** and **Notes**.
 
 ## Write the brief and route
 
-1. Write what was wrong, missing or difficult in **Problem**, then describe the
-   central approach and limits in **Solution**. A sentence can be enough. Keep
-   durable contracts in source/documentation and change-specific explanation here.
-2. Select actual code lines and use **Add tour stop** (`Alt+Shift+T`). Give the
-   stop a meaningful title and explain a decision, invariant, tradeoff, uncertainty
-   or point that needs scrutiny. The new stop is inserted after the current stop
-   and selected; Redo restores that selection. Related source links can supply context.
-3. Right-click a stop to **Insert after**, **Duplicate**, **Merge**, replace its
-   source or **Remove** it. Shift-click selects a range; Command-click on macOS
-   (Control-click elsewhere) selects individual stops. Merge requires two or more
-   adjacent stops and combines their explanation bytes in route order, retaining
-   related sources. Drag the dotted handles to reorder selected stops; the
-   keyboard alternative is `Alt+Shift+Up/Down`. With the outline focused,
-   `Cmd+D` (`Ctrl+D` elsewhere) duplicates and Delete removes the selection.
-   These actions each have one structural Undo step.
-4. Use **Ready and next** (`Alt+Return`) after reading the current explanation
-   against its source. This is private preparation state. It does not mark code
-   reviewed, resolve a thread or approve a change. Previous, Next and Return to
-   tour let you explore code and resume the route.
-5. Inspect the brief, explanations and exact source links in Preview. The native
-   Markdown reader is read-only and has HTML/disclosure limitations. Raw Markdown
-   remains the publication source; preview does not promise GitHub pixel parity.
+1. **Write the brief.** In **Problem**, say what was wrong, missing or
+   difficult. In **Solution**, describe the central approach and its limits.
+   A sentence can be enough. Keep lasting design rules in source and
+   documentation; keep change-specific explanation here.
+2. **Add stops.** Select code lines and choose **Add tour stop**
+   (`Alt+Shift+T`). Give the stop a meaningful title. Explain a decision,
+   invariant, tradeoff, uncertainty or point that needs scrutiny. The new stop
+   goes after the current stop and is selected. Related source links can add
+   context.
+3. **Arrange stops.** Right-click a stop to **Insert after**, **Duplicate**,
+   **Merge**, replace its source or **Remove** it.
+   - Shift-click selects a range. Command-click (macOS) or Control-click
+     (Windows and Linux) selects individual stops.
+   - **Merge** needs two or more adjacent stops. It joins their explanations in
+     route order and keeps their related sources.
+   - Drag the dotted handles to reorder the selected stops, or press
+     `Alt+Shift+Up` / `Alt+Shift+Down`.
+   - With the outline focused, `Cmd+D` (macOS) or `Ctrl+D` (Windows and Linux)
+     duplicates the selection and Delete removes it.
+   - Each of these actions is one Undo step.
+4. **Check each stop.** Read the explanation against its source, then choose
+   **Ready and next** (`Alt+Return`). Ready is private to you. It does not mark
+   code reviewed, resolve a thread or approve the change. **Previous**,
+   **Next** and **Return to tour** let you explore the code and pick the route
+   back up.
+5. **Preview.** Check the brief, explanations and source links in **Preview**.
+   The preview uses a read-only Markdown reader with limited HTML and
+   disclosure support. The raw Markdown is what gets published; the preview
+   does not promise to look exactly like GitHub.
 
-Each stop has a small status icon before its number: a pencil for Editing, a
-circled check for Ready, a sparkle for Suggested / unvisited, and a warning
-triangle for Needs attention. The dotted drag handle is separate. Hover a row for
-its full status; assistive technology receives the number, title and status.
+### Stop status icons
 
-Local saves are automatic and profile/account scoped. A failed save says that
-text is not yet durable; keep the editor open and use the offered retry/recovery.
-Conflicting windows retain both versions. Tab and Shift+Tab move between controls
-without inserting tabs into prose. The focused control scrolls into view and has
-a visible focus outline. Standard Undo/Redo (`Cmd+Z` / `Cmd+Shift+Z`
-on macOS) reverses the latest arrangement while its history is available,
-including adding a stop or dragging it. Subsequent text editing clears that
-bounded structural history and gives Undo/Redo to the native text editor, so
-restoring an older arrangement cannot erase newer prose. Undo and Redo work
-through the normal shortcuts throughout the Tour panel.
-Undo after publication changes only the local draft.
+Each stop shows a small icon before its number. The dotted drag handle is
+separate.
 
-The local ceiling is 256 stops, 64 KiB UTF-8 per field, 32 related sources per
-stop and 4 MiB per encoded draft including baselines and metadata. There are at
-most 128 saved drafts per profile, with no automatic eviction. A refused oversized
-edit remains available for shortening, copying or Undo. Provider limits are
-smaller: a pending line batch permits at most 100 comments and 64 KiB of encoded
-request data, including JSON overhead. A locally valid tour can therefore be too
-large to publish as one review. The application does not silently truncate it or
-split a promised single submission.
+| Icon | Status |
+|---|---|
+| Pencil | Editing |
+| Circled check | Ready |
+| Sparkle | Suggested / unvisited |
+| Warning triangle | Needs attention |
 
-## Publish only a qualified plan
+Hover a row to see its full status. Screen readers announce the number, title
+and status.
 
-On an exactly qualified host/transport, Prepare publication shows the acting
-account, current head, each source/body, proposed remote operations and separate
-optional description edit. **Publish** authorizes only that captured finite plan.
-Native supported line/range stops are staged pending, bound to returned comment
-IDs, wired and verified before one explicit COMMENT submission. Reviewers receive
-ordinary comments and a Start here index with Previous/Next/overview links; they
-need no BPR installation, hidden marker or special syntax to read and reply.
+### Saving, keyboard and Undo
 
-Historical, unchanged or unsupported source subjects may require normal file or
-PR conversation comments with exact commit-pinned links. The preview must state
-that compatibility publication has several visible writes. Pending file-thread
-support is a separate qualification from standalone file comments. Unknown,
-denied or ambiguous outcomes do not authorize switching representation.
+- **Saving is automatic** and kept per profile and account. If a save fails,
+  the tour says the text is not yet saved. Keep the editor open and use the
+  offered retry or recovery. If two windows conflict, both versions are kept.
+- **Tab** and **Shift+Tab** move between controls; they do not insert tabs
+  into your text. The focused control scrolls into view and shows a focus
+  outline.
+- **Undo** and **Redo** (`Cmd+Z` / `Cmd+Shift+Z` on macOS) reverse the latest
+  change to the route, such as adding or dragging a stop, while that history is
+  available. Once you edit text, that route history is cleared and Undo/Redo
+  go to the text editor, so restoring an older arrangement can never erase
+  newer writing. The normal shortcuts work throughout the Tour panel.
+- Undo after publishing changes only your local draft, not GitHub.
 
-A description edit changes only the body and preserves unrelated template
-content. It updates mapped Problem/Solution sections, or previews inserting both
-at the beginning when neither exists. Partial or duplicate sections require
-mapping before publication. It is separate from review submission; failure can leave a published
-tour with a description update still needing attention. Opening or publishing a
-tour does not make a draft PR ready, assign reviewers, merge or close it.
+### Size limits
 
-## Reopen, update and recover
+| Limit | Value |
+|---|---|
+| Stops per tour | 256 |
+| Text per field | 64 KiB (UTF-8) |
+| Related sources per stop | 32 |
+| Saved draft, including baselines and metadata | 4 MiB |
+| Saved drafts per profile | 128 (never removed automatically) |
 
-Reopening reads current GitHub content. To recover from a fresh local profile,
-select an available root explicitly in the import choices. Its index supplies
-order and returned links supply comment identities. Custom or ambiguous Markdown
-needs explicit mapping; unknown private preparation/AI history stays unknown.
-Merely importing or previewing sends no normalization edits.
+An edit that would exceed a limit is refused but stays available, so you can
+shorten it, copy it or Undo.
 
-Website edits are compared with the last observed baseline and your local text.
-Overlapping changes show **Baseline**, **Local** and **Website** versions; resolve
-them explicitly. Unrelated description/template bytes are retained. A missing
-page or network failure leaves stale text visible and does not prove deletion.
-Preflight reads and reconciliation cannot eliminate a simultaneous website edit;
-these endpoints have no evidenced conditional body-write guarantee.
+GitHub's limits are smaller. One pending review can hold at most 100 line
+comments and 64 KiB of request data, including JSON overhead. A tour that fits
+the local limits can still be too large to publish as one review.
+BetterPullReview never silently truncates a tour or splits what it promised as
+a single submission.
 
-Reorder updates affected navigation and the index while keeping comment IDs and
-replies. Insertions create new destinations before updating the root. Removing a
-stop changes membership and keeps the original discussion. Retargeting an immutable
-subject creates a linked replacement and preserves the old source and replies.
-After a changed head, inspect the original and proposed mapping and explicitly
-reaffirm or retarget; identical selected bytes do not establish unchanged context.
+## Publish a tour
 
-**Stop** revokes remaining authority and retains confirmed effects. Restart reads
-and reconciles what may have happened; inspect a fresh preview and use **Resume**
-for remaining writes. A Stop between writes reports the confirmed pending,
-partial-update or published state, including a separate description update still
-needing attention. Cancellation alone does not establish a remote conflict.
-An unknown outcome is not proof of failure and must not be
-reposted blindly. During partial maintenance, each stop keeps an overview escape
-link and the existing root remains the route until its final update.
+1. Choose **Prepare publication**. It shows the account that will publish, the
+   current head commit, each stop's source and text, the GitHub operations it
+   will perform, and an optional pull-request description edit, listed
+   separately.
+2. Choose **Publish**. This confirms only the plan you saw.
+
+For stops on supported lines and line ranges, BetterPullReview creates them as
+pending review comments, links each one to the next, checks the result, and
+then submits one **Comment** review.
+
+Reviewers see ordinary GitHub comments plus a **Start here** index with
+**Previous**, **Next** and overview links. They need no BetterPullReview
+installation, hidden marker or special syntax to read and reply. The index and
+each stop's **Previous** and **Next** link to the comment on the **Files
+changed** tab (`…/pull/N/files#rID`). The tour overview link stays on the
+**Conversation** tab.
+
+### Stops GitHub cannot hold as line comments
+
+A stop on historical, unchanged or unsupported source may have to be published
+as a file comment or a pull-request conversation comment, with an exact link to
+the commit. The preview says so when publishing will take several separate
+visible writes. If an outcome is unknown, denied or ambiguous,
+BetterPullReview does not switch to another kind of comment on its own.
+
+### The pull-request description
+
+A description edit changes only the description body. It updates the existing
+Problem and Solution sections, or, when neither exists, previews inserting both
+at the beginning. Other template content is kept. If only one section exists,
+or a section appears twice, you must map them before publishing.
+
+The description edit is separate from the review. If it fails, the tour can be
+published while the description still needs attention.
+
+Opening or publishing a tour does not mark a draft pull request ready, assign
+reviewers, merge it or close it.
+
+## Reopen and update a published tour
+
+Reopening a tour reads the current content from GitHub.
+
+### Recover a tour into a fresh profile
+
+In the import choices, select the tour's **Start here** comment explicitly. Its
+index supplies the stop order, and its links identify the comments. Custom or
+ambiguous Markdown needs you to map it by hand. Private preparation and AI
+history cannot be recovered. Importing or previewing sends no edits.
+
+### Edits made on GitHub
+
+Edits made on the website are compared with the last version
+BetterPullReview saw and with your local text. When changes overlap, you see
+**Baseline**, **Local** and **Website** versions and choose how to resolve
+them. Unrelated description and template text is kept.
+
+A missing page or a network failure leaves the last known text visible; it
+does not mean the comment was deleted.
+
+> [!WARNING]
+> Someone can edit on GitHub at the same moment you publish an update. Checks
+> before and after publishing cannot rule this out, because GitHub offers no
+> conditional update for these comments.
+
+### Change the route
+
+- **Reorder** updates the affected navigation and the index. Comment IDs and
+  replies stay the same.
+- **Insert** creates the new comments first, then updates the index.
+- **Remove** takes the stop out of the route and leaves its discussion on
+  GitHub.
+- **Retarget** a stop to different source creates a linked replacement,
+  because a published comment cannot be moved. The old comment and its
+  replies stay.
+- **After the head changes**, review the original and proposed mapping, then
+  reaffirm or retarget each stop. Identical selected lines do not prove the
+  surrounding code is unchanged.
+
+### Stop, resume and recover
+
+- **Stop** halts the remaining writes and keeps what has been confirmed. It
+  reports what state was reached: pending, partly updated or published,
+  including a description update that still needs attention.
+- After a restart, BetterPullReview reads what may have happened. Check the
+  fresh preview and choose **Resume** to finish the remaining writes.
+- Cancelling does not by itself mean there is a conflict on GitHub.
+- An unknown outcome is not proof of failure. Do not repost blindly.
+- While an update is partly done, every stop keeps a link back to the overview,
+  and the existing **Start here** comment remains the route until its final
+  update.
 
 ## Optional writing assistance
 
-[Settings → Agents & context → AI assistance · Writing instructions](settings.md#review-preparation-writing-hooks)
-holds four independent tour hooks: Problem statement, Solution summary, Tour outline
-and Tour-stop comment. A fifth, Review feedback, is for comment workshop requests,
-not tour fields. Each has a versioned effective source, Restore default and
-an explicitly invoked nonpublishing Test. Changes are profile scoped.
+**Settings > Agents & context > AI assistance > Writing instructions** holds
+four separate tour instructions: **Problem statement**, **Solution summary**,
+**Tour outline** and **Tour-stop comment**. A fifth, **Review feedback**, is
+for the comment workshop, not tour fields. Each one has a versioned source,
+**Restore default** and a **Test** that you run yourself and that publishes
+nothing. Changes apply to the current profile. See
+[Settings](settings.md#review-preparation-writing-hooks).
 
-The field button rewrites the captured selection, including whitespace, or the
-whole nonempty field when nothing is selected. Empty brief fields first recover
-an unambiguous description section without inference. Other drafting needs bounded
-approved context. One successful result is one undoable local edit; Redo reuses
-received bytes. Editing, navigation, IME, account/window changes or a stale result
-cannot redirect the replacement to newer text. Failure leaves the field unchanged.
+### Rewrite a field
 
-**Suggest tour outline** supplies titles, source suggestions and private reasons,
-without explanation bodies. Insert selected skeletons, visit each stop with its
-source, write manually or explicitly Generate comment, then choose Ready and next
-for that current text. There is no bulk generation or bulk completion command.
-No action publishes AI text automatically or retrieves linked tickets or runs
-repository instructions. Review unsupported claims yourself; schema validation
-and canned-process tests do not prove model quality. Installed-provider restrictions
-and actual model quality remain unqualified; an unsupported selected protocol
-leaves manual editing available.
+The field's assist button rewrites the selected text, including whitespace, or
+the whole field when nothing is selected and the field is not empty.
+
+- An empty Problem or Solution field first takes a matching section from the
+  pull-request description, when there is exactly one, without guessing.
+- Other drafting needs approved context, within limits.
+- A successful result is one undoable edit. Redo reuses the text that was
+  received.
+- If you edit, navigate, switch account or window, use an input method, or the
+  result is stale, the result is not applied to the newer text.
+- A failure leaves the field unchanged.
+
+### Suggest an outline
+
+**Suggest tour outline** proposes stop titles, sources and private reasons, but
+no explanations. Insert the stops you want, then visit each one with its
+source. Write the explanation yourself or choose **Generate comment**, then
+choose **Ready and next** for that text. There is no command that generates or
+completes every stop at once.
+
+> [!NOTE]
+> AI text is never published automatically. The assistant does not fetch
+> linked tickets or run repository instructions. Check any claims yourself:
+> passing format checks and tests does not prove the model's quality. Model
+> quality and installed-provider restrictions are not yet qualified. If the
+> selected provider's protocol is not supported, manual editing still works.
 
 ## Retention and removal
 
-Private drafts, editable remote baselines, conflict versions and generated-stop
-provenance are retained in the admitted tour store. The existing publication
-recovery store keeps bounded frozen operations and returned identities. Profile
-purge includes these known stores; unsent work and private history can be lost.
-Published comments stay on GitHub. Uninstalling program files is not profile
-purge. External backups may retain copies; keep them under the same privacy
-controls as source and review text. See [Storage and diagnostics](storage-and-diagnostics.md).
+BetterPullReview keeps these on this computer, in the profile's private
+storage:
+
+- private drafts, the last-seen GitHub versions, conflict versions and the
+  record of which stops were generated;
+- a bounded record of publication operations and the comment IDs GitHub
+  returned, for recovery.
+
+Purging the profile removes these, so unsent work and private history can be
+lost. Published comments stay on GitHub. Uninstalling the program does not
+purge the profile. Backups may keep copies; protect them like your source and
+review text. See [Storage and diagnostics](storage-and-diagnostics.md).
+
+Related: the [tour CLI](tour-cli.md), the
+[qualification course](../verification/RFC-BPR-0039-0043.manual-course.md) and
+the [evidence ledger](../verification/RFC-BPR-0039-0043.md).

@@ -3,7 +3,7 @@
 # already instrumented every first-party unit; a target here adds only the
 # libFuzzer driver at link time. docs/verification/BPR-0970-parser-fuzzing.md
 # holds the inventory these targets answer, and
-# docs/development/build-and-test.md the configure and campaign commands.
+# docs/development/build-and-test-reference.md the configure and campaign commands.
 #
 # The release harnesses beside these files (release_*_fuzz.cpp) keep their own
 # release-policy recipe and are not registered here.

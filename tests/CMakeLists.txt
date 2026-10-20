@@ -279,7 +279,7 @@ set_tests_properties(
 
 # Only the inventory half runs here. The tests-disabled Release absence scan
 # needs a build this graph does not contain, so it stays a closeout command
-# documented in docs/development/build-and-test.md.
+# documented in docs/development/build-and-test-reference.md.
 # BPR-0528: the inventory shells `ctest --show-only`, which needs the
 # drive-letter translation a lowbox token is refused, so inside the
 # AppContainer CTest lists the Python-driven tests with no command at all;
@@ -343,7 +343,7 @@ endif()
 # configured graph and anchors itself on whether Qt and the loopback fixture
 # were built; the shipped-artifact scan needs a tests-disabled Release build
 # this graph does not contain, so it stays a closeout command documented in
-# docs/development/build-and-test.md and named in the RFC-BPR-0016 ledger.
+# docs/development/build-and-test-reference.md and named in the RFC-BPR-0016 ledger.
 # BPR-0528: the inventory shells `ctest --show-only`, which needs the
 # drive-letter translation a lowbox token is refused, so inside the
 # AppContainer CTest lists the Python-driven tests with no command at all;

@@ -1,392 +1,572 @@
 # Settings
 
-Open Settings from the application menu, the Settings button, or `Command+,`
-on macOS (`Ctrl+,` on Windows and Linux). The title identifies the BPR profile
-being edited. Windows in the same profile share one modeless Settings window;
-opening it from another review brings that profile's window forward and supplies
-the invoking review's context. Another BPR profile has separate preferences.
+This guide walks through the Settings window page by page, in the order the
+pages appear in its sidebar. It is for people using BetterPullReview; the
+engineering record of where each setting is stored and how it is verified is
+the [Settings authority inventory](settings-authority-inventory.md).
 
-Choose a category in the sidebar. Each page scrolls within the window and keeps
-its position when you switch categories. Tab reaches controls below the visible
-area. Escape first belongs to an active editor, picker or confirmation; an
-unhandled Escape closes Settings and returns focus to the invoking window.
+## Open Settings
 
-To find a setting, type in **Search settings** at the top of the sidebar, or
-press `Command+F` on macOS (`Ctrl+F` on Windows and Linux) ([[BPR-1289]]).
-While the field holds text, the page list becomes the matching settings,
-grouped by page in sidebar order and by section within a page. Each result
-names the setting and, under it in smaller, quieter type, its page and section.
-A page or a section that matches is a result of its own, on one line. The
-letters the search matched are set heavier; where the section matched, it
-rises to the name's ink. A setting is found by its name: as the search's text,
-at the start of a word or inside one, or failing that as its letters in order
-where each word they enter is entered at its start ("lnum" finds Code line
-number text). It is also found by its section, or by its description where the
-search starts one of its words; a description, which the list does not show,
-counts only when no name, section or page holds the search. With nothing else
-found, a small typing slip is forgiven. The best match starts chosen; Up and
-Down choose another while the caret stays in the field, and Tab moves into the
-list. Return or a click opens the result's page, scrolls the setting into view
-and focuses it, and changes nothing; a setting that cannot take the keyboard
-is shown and its page takes it. Escape clears the field, or, from the list,
-returns to the field; with the field empty, Escape closes Settings as before.
-When nothing matches, the sidebar says so and offers Clear. The search reads
-the pages as they are shown, so a withdrawn page is never searched. The
-ranking is the core's `fuzzy_match`; its provenance is in
-[Ported code provenance](ported-code-provenance.md).
+Open Settings from the application menu, the **Settings** button, or
+`Command+,` on macOS (`Ctrl+,` on Windows and Linux).
 
-Ordinary changes apply immediately after their owning host accepts them; there
-is no global Apply button. A refused change returns to the accepted value and
-shows its reason. Closing Settings cancels an uncommitted colour preview or
-pending import. It does not undo an accepted save or cancel a committed storage
-operation. If a store is unavailable, only that domain loses durable changes;
-where session changes remain possible, the page labels them session-only.
+- The window title names the profile you are editing. Each BetterPullReview
+  profile has its own preferences.
+- All windows in one profile share one Settings window. Opening Settings from
+  another review brings that window forward and uses the review you opened it
+  from as its context.
+- Choose a page in the sidebar. Each page scrolls on its own and keeps its
+  position when you switch pages. `Tab` reaches controls below the visible area.
+- `Escape` first goes to whatever is active (an editor, a picker or a
+  confirmation). When nothing else handles it, `Escape` closes Settings and
+  returns focus to the window you came from.
+
+To find a setting quickly, see [Search settings](#search-settings).
 
 ## General
 
-New windows start on Home. Profile/window restoration is managed by the desktop
-lifecycle, not by an editable startup preference on this page. The present
-release-update panel is supplied by RFC-BPR-0035 and uses application-wide
-preferences even though Settings belongs to a profile. It explains unavailable
-platform or installation capabilities. See [Application updates and
-recovery](application-updates.md) for the defaults, explicit release-access
-account, checks, download, installation and cancellation behavior.
+New windows start on Home. There is no startup preference here: restoring
+profiles and windows is handled by the app when it starts.
+
+This page holds the release-update panel. Its preferences apply to the whole
+application, not just the current profile. If updates are unavailable on your
+platform or installation, the panel says why. See
+[Application updates and recovery](application-updates.md) for the defaults,
+the release-access account, checks, downloads, installation and cancelling.
 
 ## Accounts & hosts
 
-Each configured server has a card showing its connection state, account and
-available access. Details contains capability, rate-budget and diagnostic facts.
-Those facts describe the current session; they are not editable authority.
-Credentials are never shown or copied by the card.
+Each configured server has a card showing its connection state, the signed-in
+account and the access available. **Details** lists capabilities, rate limits
+and diagnostic facts for the current session; these are information only, not
+settings. A card never shows or copies credentials.
 
-Use Sign in to open the dedicated sign-in flow. Supported GitHub.com device
-sign-in starts the code flow directly; the code and browser action remain
-reachable while waiting. Cancel discards that setup request. Manual token entry
-remains available, including for enterprise servers whose device flow is
-unavailable. GitHub CLI access, where supported, requires its own explicit trust
-choice naming the selected account and host. BPR uses its existing gh sign-in
-transiently and saves no token; remembered reuse lasts until sign out or replacement.
-The existing details disclose executable, certificate, redirect and helper trust.
-Ordinary review/comment/tour publishing requires its own exact one-use authority,
-with no additional CLI warning. A pending PR destination resumes only after its exact host accepts
-authentication; cancelling setup keeps the existing review usable.
+### Sign in
 
-Add enterprise server validates and remembers the hostname and optional account
-selection as local configuration. This does not grant access. Forget server
-confirms removal of that configuration; it does not remove remote data or sign
-out a session. Sign out removes the exact remembered device binding and its
-vault token slots. Manual-token sessions are session-only; device grants can
-survive orderly Quit and are revalidated on startup. Changing servers never
-reuses another host's credentials.
+Choose **Sign in** to start the sign-in flow.
 
-Public preview is available on macOS, Windows and Linux for GitHub.com only. It
-has no authenticated viewer or publishing authority. GHES refuses it. CLI and
-native-device capabilities also depend on the selected
-platform and configured host. The page reports these limitations rather than
-silently selecting another transport.
+- **GitHub.com device sign-in** starts the code flow straight away. The code and
+  the button that opens your browser stay available while you wait. **Cancel**
+  discards the request.
+- **Manual token entry** is always available, including for enterprise servers
+  that do not offer device sign-in.
+- **GitHub CLI access** (macOS only, where supported) asks you to trust it
+  explicitly, naming the account and host. BetterPullReview uses your existing
+  `gh` sign-in while it needs it and saves no token. It keeps reusing that
+  sign-in until you sign out or replace it. The details disclose which
+  executable, certificates, redirects and helpers are trusted. Publishing a
+  review, comment or tour through it asks for no extra warning.
 
-## Home & queue, Review and Comments
+If you were opening a pull request when sign-in started, it continues once that
+host accepts your sign-in. Cancelling sign-in leaves the review you already had
+open usable.
 
-Until [[BPR-1597]] these were one page, Reviews & queue. The owner found it "too
-much of a big grab bag of settings" (2026-10-17) and picked an organisation by
-task, with the middle page named Review: **Home & queue** (what Home lists),
-**Review** (how a pull request opens and reads) and **Comments** (labels, the
-comment workshop, images in comments). They follow Repositories in the sidebar.
-Every stored preference and key is unchanged, and Settings search
-([[BPR-1289]]) finds each row on its new page and section. These choices change
-local behaviour, not GitHub assignments or subscriptions. Saved preferences
-belong to the current BPR profile.
+### Add or forget an enterprise server
 
-| Page | Group | Default | Reset scope |
-|---|---|---|---|
-| Review | Opening | Open on Overview; return comparison Whole PR | These two choices |
-| Review | Reading | Mark read by hand; comments drawer All | These two choices |
-| Review | Layout | Drawer controls Hidden; Line details Shown; center ribbon width 28 px | These three choices |
-| Comments | Labels | Label marks Icons (or Letters, each label's two letters; [[BPR-1083]]), with a six-mark preview beside the choices; Overview counts Open; no Overview chips ([[BPR-1088]]) | These three choices |
-| Comments | Comment workshop | Feedback guidance off ([[BPR-1568]]) | This choice |
-| Comments | Descriptions and comments | Images load | This choice |
-| Home & queue | Queue defaults | Any role, observer reason, attention bucket and repository; any quiet/current state; core priority order | Queue filters and sort only |
+**Add enterprise server** checks the hostname and remembers it, with an
+optional account choice, as local configuration. This does not sign you in or
+grant access.
 
-**Center ribbon width** sets the space connecting the two source panes, in
-logical pixels (16–256). It defaults to 28 px, half the former fixed 56 px.
-The accepted value updates every window of the profile and survives restart;
-Layout's Reset restores 28 px, shows Line details and hides the drawer controls.
+**Forget server** asks for confirmation and removes that local configuration.
+It does not remove anything on the server or sign out a session.
 
-Comments › Labels ([[BPR-1088]]). A label typed out in full, or chosen with the
-chip, is recognized and counted either way. **Overview counts** is where a pull
-request's Overview starts, Open (unresolved threads) or All; switching
-on an Overview changes only that view. **Overview chips** lists the twelve
-labels: tick one to give it its own count in the Overview's Comments column,
-and drag a ticked one, or press Alt+Up or Alt+Down (⌥↑ ⌥↓ on macOS), to set
-the order. **Mark colours** opens Appearance › Colours with the filter set to
-"label". The Comments drawer's own first filter, on Review › Reading, is
-separate and never changed by these rows. If the saved chips name a label this build
-does not know, or one label twice, the row says how many were left out; the
-rest keep their order, and changing a chip or Reset saves the list as shown.
-Above the rows, **About Conventional Comments** ([[BPR-1566]]) opens
-conventionalcomments.org, where the labels come from, in the browser; the
-comment label menu ends with the same item.
+### Sign out and how long sign-ins last
 
-Comments › Comment workshop ([[BPR-1568]], folded into [[BPR-1597]]).
-**Feedback guidance**, "Send with comment workshop requests", is the stored label
-helper preference: on, each comment workshop request carries the Review feedback
-guidance (see below); off, the default, requests go without it. Its info glyph
-says what the guidance is. **Guidance text** ("Agents & context › Review
-feedback ›") opens the writing instructions with that hook chosen. The group's
-Reset turns it off and changes nothing else. Until [[BPR-1565]] the helper also
-turned on the comment editor's leading `:xx:` codes, which the owner removed on
-2026-10-16; until [[BPR-1597]] it was a Comment labels row named Label helper.
+- **Sign out** removes the remembered device sign-in for that server and its
+  stored token.
+- Manual-token sign-ins last only for the current session.
+- Device sign-ins can survive an orderly **Quit** and are checked again at
+  startup.
+- Switching servers never reuses another server's credentials.
 
-Observer rules match local repository, author or path facts. Add/remove changes
-the local rule and its matched membership. Observer rules stay on this page
-because they are queue behaviour over any repository, not the saved list.
-Saved repositories have their own page; **Open Repositories** under Saved
-repositories goes there.
+### Public preview
+
+You can read a public GitHub.com pull request without signing in on macOS,
+Windows and Linux. Public preview is read-only: there is no signed-in account
+and nothing can be published. It is not available for GitHub Enterprise
+Server.
+
+Which sign-in methods are available depends on your platform and the server.
+When one is unavailable, the page says so; it never quietly switches to
+another method.
 
 ## Repositories
 
-This page follows Accounts & hosts in the sidebar and holds only the saved
-repositories (RFC-BPR-0062; owner verdicts of 2026-10-07 and 2026-10-08). It is
-laid out the way Accounts & hosts is. One card names the exact account and host
-("Saved for @account on host") and lists that account's repositories by exact
-owner/name, as tall as its rows up to ten and scrolling beyond; a row's tooltip
-and accessible description repeat its host and account. With nothing saved the
-card says "No repositories yet." Signed out there is no displayed account, so
-every kept record is listed with its account and host and Remove is unavailable
-until sign-in.
+This page lists your saved repositories. Saved repositories let Home find pull
+requests you wrote or were asked to review.
 
-**Add repository**, a bordered button under the card, opens a **New
-repository** card in its edit state, as Add enterprise server does on Accounts
-& hosts; there is no dialog. Every Add repository (this button, Home's first
-**Add a repository** button and Home's ordinary row) opens this page with the
-card open and its **Repository** field focused. The card shows the exact
-destination ("Save for @account on host"). Enter an HTTPS repository root or
-owner/name for that host and choose **Add** or press Return. The record belongs
-to that BPR profile and account. It starts the bounded authored/requested
-discovery owned by RFC-BPR-0026; it changes no GitHub subscription or review and
-opens no pull request. Progress and refusals are said beside the field and
-announced; a refusal keeps the draft for an explicit retry, and a duplicate has
-its own sentence. A durable save closes the card into the list, says "Added
-owner/name." under Add repository and in the window's status bar, and returns
-the keyboard to Add repository.
+### The repository list
 
-A different repository host requires explicit account/server preparation with
-**Choose account or set up server…**. Preparation keeps the draft on the page;
-cancelling it saves nothing, and returning from sign-in requires checking the
-destination and choosing Add again. **Cancel** or Escape in the field discards
-the draft and returns the keyboard to Add repository without closing Settings.
+One card names the account and host the list belongs to ("Saved for @account
+on host") and lists that account's repositories as owner/name. It grows with
+its rows up to ten and then scrolls. A row's tooltip repeats its host and
+account. With nothing saved, the card says "No repositories yet."
 
-**Remove** (or Delete/Backspace on the list) removes the selected exact record
-through the existing saved-repository intent and store. It affects the local
-saved record only; a failed change preserves the accepted list. Removing the
-last repository brings back Home's first **Add a repository** button. The
-open-PR Save Repository shortcut continues to save its known repository
-directly through the same persistence and result path.
+When you are signed out there is no current account, so every saved record is
+listed with its account and host, and **Remove** is unavailable until you sign
+in.
+
+### Add a repository
+
+1. Choose **Add repository** under the card. A **New repository** card opens
+   on the page, with its **Repository** field focused. (Home's **Add a
+   repository** buttons open this same card.)
+2. Check the destination the card shows ("Save for @account on host").
+3. Enter an HTTPS repository URL or owner/name for that host.
+4. Choose **Add** or press `Return`.
+
+Progress and problems are shown beside the field. If the repository cannot be
+added, your text stays so you can fix it and try again; a repository that is
+already saved gets its own message. Once saved, the card closes into the list,
+"Added owner/name." appears under **Add repository** and in the status bar, and
+the keyboard returns to **Add repository**.
+
+Saving a repository starts a search for your authored and requested pull
+requests in it. It changes no GitHub subscription or review and opens no pull
+request. The saved record belongs to the current profile and account.
+
+To save a repository on a different host, choose **Choose account or set up
+server…** first. Your text stays on the page while you do this. Cancelling
+saves nothing; after you sign in, check the destination and choose **Add**
+again.
+
+**Cancel**, or `Escape` in the field, discards the text and returns the
+keyboard to **Add repository** without closing Settings.
+
+From an open pull request, **Save Repository** saves its repository directly,
+in the same way.
+
+### Remove a repository
+
+Select a row and choose **Remove**, or press `Delete` or `Backspace`. This
+removes only the local saved record. If removal fails, the list stays as it
+was. Removing the last repository brings back Home's **Add a repository**
+button.
+
+## Home & queue
+
+These choices change what Home shows on this machine. They never change GitHub
+assignments or subscriptions.
+
+### Queue defaults
+
+| Setting | Default |
+|---|---|
+| Role, observer reason, attention bucket, repository | Any |
+| Quiet/current state | Any |
+| Sort | Priority order |
+
+**Reset** on this group resets only the queue filters and sort.
+
+### Observer rules
+
+Observer rules add pull requests to your queue by matching a repository,
+author or path. Adding or removing a rule changes only the local rule and the
+pull requests it matched. Rules apply across all repositories, not only saved
+ones.
+
+**Open Repositories** under **Saved repositories** takes you to the
+[Repositories](#repositories) page.
+
+## Review
+
+How a pull request opens and reads.
+
+| Group | Setting | Default |
+|---|---|---|
+| Opening | Open on | Overview |
+| Opening | Return comparison | Whole PR |
+| Reading | Mark read | By hand |
+| Reading | Comments drawer filter | All |
+| Layout | Drawer controls | Hidden |
+| Layout | Line details | Shown |
+| Layout | Center ribbon width | 28 px |
+
+Each group's **Reset** restores only that group's settings.
+
+**Center ribbon width** is the space between the two source panes, in logical
+pixels, from 16 to 256. A change updates every window of the profile and is
+kept after restart.
+
+## Comments
+
+### Labels
+
+| Setting | Default |
+|---|---|
+| Label marks | Icons |
+| Overview counts | Open |
+| Overview chips | None |
+
+- **Label marks** shows each comment label as an icon or as **Letters** (the
+  label's two letters). A six-mark preview sits beside the choices. A label
+  typed out in full or chosen from the chip is recognised and counted either
+  way.
+- **Overview counts** sets whether a pull request's Overview starts by counting
+  **Open** (unresolved) threads or **All**. Switching it on an Overview changes
+  only that view.
+- **Overview chips** lists the twelve labels. Tick a label to give it its own
+  count in the Overview's Comments column. Drag a ticked label, or press
+  `Alt+Up` / `Alt+Down` (`Option+Up` / `Option+Down` on macOS), to change the
+  order.
+- **Mark colours** opens **Appearance > Colours** filtered to "label".
+- **About Conventional Comments** opens conventionalcomments.org, where the
+  labels come from, in your browser. The comment label menu ends with the same
+  item.
+
+The Comments drawer's own filter (on the [Review](#review) page) is separate
+and is never changed by these settings.
+
+If your saved chips name a label this version does not know, or the same label
+twice, the row says how many were left out. The rest keep their order. Changing
+a chip or choosing **Reset** saves the list as shown.
+
+### Comment workshop
+
+**Feedback guidance** ("Send with comment workshop requests") is off by
+default. When it is on, each comment workshop request includes the
+[Review feedback](#review-feedback-guidance) guidance. Its info icon explains
+what the guidance is. **Guidance text** opens the writing instructions on
+**Agents & context** with the Review feedback hook selected. **Reset** turns
+Feedback guidance off and changes nothing else.
+
+### Descriptions and comments
+
+Images in descriptions and comments load by default.
 
 ## Appearance
 
-System is the default mode. Explicit Light, Dark, High contrast system,
-High contrast light and High contrast dark choices are also available. Interface and code
-fonts start from the platform's respective native defaults; code tabs default
-to four spaces, ligatures off, and bold/italic syntax emphasis on. Type controls
-set family, size and weight independently for interface and code, plus interface
-line height and code options. The preview reports the accepted values.
+### Mode and type
 
-Each theme keeps its own customized semantic colours. Filter the colour-role
-list and choose a swatch to preview. Keep changes saves that theme's palette;
-Cancel or closing Settings discards the preview. Import validates a bounded
-theme document before previewing it. Export saved theme writes the accepted
-palette for the theme on screen, excluding unsaved previews. Theme files contain
-colour roles, not credentials, review content or an application-data archive.
+The mode defaults to **System**. You can also choose **Light**, **Dark**,
+**High contrast system**, **High contrast light** or **High contrast dark**.
 
-Reset appearance mode restores System. Reset type restores the platform-derived
-font defaults and code options. Reset all colours clears only the current
-theme's overrides. Other themes and unrelated preferences remain intact. Dif is
-shown by default with System motion; reduced or unobservable system motion uses
-the static pose. Its separate reset restores visibility and motion preferences.
-Appearance storage failure permits labelled session changes and returns to
-defaults after restart under the same failure.
+Interface and code fonts start from your platform's native defaults. You can set
+family, size and weight separately for interface and code, plus interface line
+height and code options. Code defaults:
+
+| Code option | Default |
+|---|---|
+| Tab width | 4 spaces |
+| Ligatures | Off |
+| Bold and italic syntax emphasis | On |
+
+The preview shows the values in effect.
+
+### Colours
+
+Each theme keeps its own custom colours.
+
+1. Filter the colour-role list and choose a swatch to preview a change.
+2. Choose **Keep changes** to save that theme's palette, or **Cancel** to
+   discard the preview. Closing Settings also discards it.
+
+**Import** checks a theme file (size-limited) before previewing it. **Export
+saved theme** writes the saved palette for the theme on screen; unsaved
+previews are not included. Theme files hold colour roles only, never
+credentials, review content or other app data.
+
+### Dif
+
+Dif is shown by default and follows the system's motion setting. When the
+system asks for reduced motion, or the setting cannot be read, Dif uses its
+still pose.
+
+### Resets
+
+| Reset | Restores |
+|---|---|
+| Reset appearance mode | System |
+| Reset type | Platform font defaults and code options |
+| Reset all colours | Removes custom colours for the current theme only |
+| Dif reset | Visibility and motion |
+
+Other themes and unrelated preferences are not touched.
+
+> [!NOTE]
+> If appearance settings cannot be saved, you can still make changes for the
+> current session (they are labelled as such). They return to the defaults
+> after restart while the problem lasts.
 
 ## Notifications
 
-Review notifications default enabled and not paused. These durable preferences
-are separate from operating-system permission. Reset notification preferences
-changes only enablement and pause; Reset queue defaults does not change them.
+Review notifications are on and not paused by default. These preferences are
+separate from your operating system's notification permission. **Reset
+notification preferences** changes only on/off and pause; resetting queue
+defaults does not change them.
 
-Preview for selected Home review uses the existing notification path and reports
-whether a request was submitted. Submission does not prove that the system
-displayed a banner. Payloads contain repository, review number, attention category
-and unread count, without titles, source code or comment text. A notification
-can activate only its exact accepted review. Native delivery and activation may
-be unavailable or limited; the current tray implementation retains at most the
-first actionable payload in a process because the platform callback carries no
-per-message identity.
+**Preview for selected Home review** sends a test notification and reports
+whether it was handed to the system. That does not prove the system showed a
+banner.
+
+A notification contains the repository, review number, attention category and
+unread count. It never contains titles, source code or comment text. Clicking a
+notification opens only the review it is about.
+
+> [!NOTE]
+> System notifications and clicking them may be unavailable or limited on your
+> platform. The current delivery shows at most one notification each time the
+> app runs, and only the first click on it opens its review, because the
+> system does not say which notification was clicked.
 
 ## Agents & context
 
-Open a review to see the agent profiles its host permits. The profile, selected
-private notes, private draft and existing-working-copy choice apply to the next
-explicit request in that review; they are not saved as global defaults. Private
-context is included only when selected. Start and cancel remain in the review's
-agent panel. Settings cannot create an agent credential, broaden host policy or
-publish an agent's output. Unsupported launch capabilities remain explained.
+### Per-review agent choices
 
-Under **Claude**, **Process wrapper** is saved for the profile ([[BPR-1301]]):
-the full path to a program run in place of `claude` for every Claude request,
-with Claude's own arguments, folder and environment and never through a shell.
-Set it to the `claude` you installed (for example the path `which claude`
-prints) or to a program that prepares your provider and then runs Claude.
-Left empty, a launch runs the first `claude` it finds on the application's
-`PATH` or, after that, in the usual install folders (`~/.local/bin`,
-`~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.npm-global/bin`;
-on Windows `%USERPROFILE%\.local\bin\claude.exe`), and the row says which in a
-read-only line: "Using /opt/homebrew/bin/claude (found on PATH)." or "claude
-not found on PATH or in the usual install folders; set a wrapper." A saved
-wrapper always wins ([[BPR-1301]], owner 2026-10-07). **Choose…** picks the file;
-**Save** or Return saves the typed path; an empty field saved clears it. The
-path is checked before it is saved and again before every launch, and a
-refused path is not saved: the row says why in one line (not absolute, starts
-with `~`, nothing there, a folder, not executable, and on Windows not an `.exe`
-or a `.bat`/`.cmd`, which only `cmd.exe` runs). **Model** ([[BPR-1375]],
-owner 2026-10-09) is the Claude model saved for the profile, for example
-`claude-sonnet-5-5`, passed to `claude` as `--model` for tour writing and Ask
-agent requests; empty uses Claude's own default. **Save** or Return saves it.
-A name `--model` could not take as one plain argument (a space, a quote, a
-leading `-`, anything but letters, digits and `. _ - : @ / [ ]`, or more than
-128 bytes) is not saved, and the row says so. Review Cycle Send to Agent does
-not use it yet. The **Sign-in** line reads
-"Claude and your wrapper handle sign-in. BetterPullReview never asks." Every
-line under Claude is set in the page's own text colour and size, at 4.5:1 or
-better against the page in each theme, and wraps without being cut off.
-See the [AI agent boundary](../architecture/ai-agent-boundary.md#claude-process-wrapper).
+Open a review to see the agent profiles allowed for it. The profile, the
+private notes and draft you select, and whether to use the existing working
+copy apply only to your next request in that review; they are not saved as
+defaults. Private context is sent only when you select it. Start and cancel
+agent work from the review's agent panel.
 
-## Storage & privacy
+Settings cannot create an agent credential, loosen what an agent is allowed to
+do, or publish an agent's output. Launch options a profile does not support
+are explained on the page.
 
-The local data location is read-only. It contains repository caches, retained
-history, drafts, notes, receipts and preferences. Relocation, all-profiles purge
-and automatic retention editing are not available here.
+### Claude
 
-Prune selected epochs and Delete repository cache use the current review's exact
-accepted scope and require confirmation. Cancel is the default choice; accepted
-maintenance follows its own cancellation boundary. Pruning can make an older
-comparison unavailable. These operations do not change GitHub or a developer
-working copy. They are separate from resetting preferences.
+**Process wrapper** is saved for the profile. It is the full path to a
+program run in place of `claude` for every Claude request. It gets Claude's own
+arguments, folder and environment, and is never run through a shell. Set it to
+the `claude` you installed (for example, the path `which claude` prints) or to
+a program that prepares your provider and then runs Claude.
 
-Help → Diagnostics raises this page while signed out. Profile capture controls
-show Standard/Verbose and independent Anonymized/Include locally choices as
-paired buttons. On/Off and the accepted Open logs/Clear controls remain nearby;
-About local diagnostics explains recent context and recording limits.
+When the wrapper is empty, BetterPullReview runs the first `claude` it finds on
+the app's `PATH`, then in the usual install folders:
 
-Help also offers **Export anonymized diagnostics…** and **Export with identifying
-details…** directly, without opening Settings. Each opens a compact frozen
-preview with **Save…** and **Cancel**. Export options and exact records expand
-on request. The identifying preview discloses irreversible capture omissions;
-**Save with identifying details…** confirms that policy before choosing a file.
-Nothing is uploaded. See the
-[diagnostics guide](storage-and-diagnostics.md#preview-and-export-diagnostics).
+- `~/.local/bin`, `~/.claude/local`, `/opt/homebrew/bin`, `/usr/local/bin`,
+  `~/.npm-global/bin`
+- On Windows, `%USERPROFILE%\.local\bin\claude.exe`
 
-Expand **Profile maintenance** for the destructive preparation controls below.
+A read-only line under the field says which one it found, for example "Using
+/opt/homebrew/bin/claude (found on PATH)." or "claude not found on PATH or in
+the usual install folders; set a wrapper." A saved wrapper always takes
+priority.
 
-**Prepare diagnostic cleanup…** and **Prepare profile purge…** first warn that
-the selected profile and all its producers will stop before an exact inventory
-is captured. Preparation deletes nothing. The corresponding **Clear prepared
-diagnostics…** or **Purge prepared profile data…** action requires confirmation
-of that inventory. **Cancel maintenance** does not restart a stopped profile,
-and cannot reverse an operation past its commit boundary. Shared registry and
-updater data, sibling profiles, exports and documented empty roots/locks remain.
-Purge is not uninstall or secure erasure.
+To set it, choose **Choose…** to pick the file, or type a path and choose
+**Save** or press `Return`. Saving an empty field clears it. The path is checked
+when you save and again before every launch. A rejected path is not saved, and
+the row says why: not absolute, starts with `~`, nothing there, a folder, not
+executable, or on Windows not an `.exe` (a `.bat` or `.cmd` is refused because
+only `cmd.exe` runs those).
 
-**Troubleshooting** ([[BPR-1602]]) ends the page with four rows: **Clear
-caches…**, **Reset settings…**, **Reset review data…** and **Reset everything…**,
-each a name, one short line and a button. Each button asks a confirmation that
-lists what the reset removes and what it keeps; Cancel is the default and
-Escape. Reset review data and Reset everything also need "I understand my
-private notes and unsent comments will be deleted" ticked, and offer a copy of
-the removed data in Downloads, on by default. A confirmed reset closes the
-profile's windows, runs before any store reopens, and reopens the profile on
-Home, whose status bar says what was reset. No reset signs out or touches
-diagnostic logs; Reset settings keeps saved repositories, servers and observer
-rules and restores only Home's queue display choices. See
-[Reset this profile's local data](storage-and-diagnostics.md#reset-this-profiles-local-data).
+**Model** is the Claude model saved for the profile, for example
+`claude-sonnet-5-5`. It is passed to `claude` as `--model` for tour writing
+and **Ask agent** requests; empty uses Claude's own default. Choose **Save** or
+press `Return` to save it. A name is refused if it contains a space, a quote,
+a leading `-`, any character other than letters, digits and `. _ - : @ / [ ]`,
+or is longer than 128 bytes. Review Cycles **Send to Agent** does not use this
+model yet.
 
-The [storage, diagnostics and removal guide](storage-and-diagnostics.md) gives
-the exact scope, recovery rules and residuals. Native vault/crash/full-removal
-qualification remains with RFC-BPR-0038; visible controls are not evidence of
-those pending courses. Uninstalling the application retains local state and
-system credential entries. Sign out of remembered device sessions through
-Accounts & hosts before removal if you want those bindings removed.
+The **Sign-in** line reads "Claude and your wrapper handle sign-in.
+BetterPullReview never asks."
 
-## Ownership and verification
-
-The [authority inventory](settings-authority-inventory.md) identifies the typed
-host, store, schema, reset and failure boundary for each group. The
-[RFC-0018 closeout](../issues/60-done/BPR-0593-close-rfc-0018.md) records
-which automated, native and attended claims have actually been verified. Later
-Accounts/Appearance and update work has its own acceptance; this guide does not
-turn those RFCs into closed work or imply release approval. The RFC-0014
-foundation dependency is accepted; its remaining qualification is RFC-0038.
-Owner amendment r2 closes the recorded Settings scope while BPR-0974 remains
-open for the Windows complete native course and current inventory; on
-2026-09-25 the owner chose its Defender disposition (lower the image's static
-signals) and it is Ready. BPR-0975 is Done by a 2026-09-25 owner amendment
-that accepts WSLg's refusal of application activation, and BPR-1122 (Blocked,
-`upstream-wslg`) reruns the Linux full focus/lifetime course once WSLg ships
-the fix. The finding is not declared a false positive, and neither the Linux
-inventory-only pass nor the WSLg diagnosis course is a complete native course.
+For how Claude is launched, see the
+[AI agent boundary](../architecture/ai-agent-boundary.md#claude-process-wrapper).
 
 ### Review preparation writing hooks
 
-Review preparation instructions live under Agents & context → AI assistance.
-Problem statement, Solution summary, Tour outline and Tour-stop comment have
-separate profile overrides, Restore default, and effective source/version labels.
-Save and Restore do not run an agent. Test saved hook uses the selected allowed
-agent for one explicit, nonpublishing request in the current review; its result
-is private and changes no tour field. An unavailable agent or source context
-leaves manual preparation available. Overrides contain text instructions only;
-they grant no tool, publication or broader editing authority.
+**Agents & context > AI assistance · Writing instructions** holds the
+instructions an agent follows when you ask it to help write a review tour.
+There are four tour hooks:
+
+| Hook | Helps write |
+|---|---|
+| Problem statement | The tour's problem statement |
+| Solution summary | The tour's solution summary |
+| Tour outline | Suggested tour stops (no comment text) |
+| Tour-stop comment | The explanation for one tour stop |
+
+For each hook you can edit the instructions and choose **Save instructions**,
+or choose **Restore default** to follow the shipped text again. Labels show
+which text is in effect and its version. Your saved text is kept across
+upgrades. Changes apply to the current profile. Instructions are text only:
+they give an agent no tools, no publishing and no wider editing.
+
+Saving or restoring never runs an agent. **Test saved hook (no publishing)**
+runs the selected agent once, in the open review, on a sample passage. The
+result is private, changes no draft and no tour field, and publishes nothing.
+
+**Using a hook while writing a tour.** A writing button sends your selection
+(including its whitespace), or the whole field when nothing is selected.
+
+- An empty Problem or Solution field first picks up a matching section from
+  the existing pull-request description, exactly as written.
+- Other empty fields need existing material to work from; an empty tour stop
+  also needs its pinned source to be available.
+- Context is gathered only when you press the button: the author's description
+  and comments (size-limited), your private brief, surrounding text and the
+  selected stop's code. Linked pages are never fetched.
+- An accepted result is a single undo step. Undo restores your text and
+  selection; redo reuses the result without running the agent again.
+- Notes the agent marks as recovered, inferred or unclear stay private and out
+  of the tour text.
+- **Tour outline** returns suggestions without comment text. Insert the stops
+  you want from the **Tour stops** page, then visit each one and write its
+  explanation against its source.
+
+If no supported agent or source is available, you can still write by hand.
+
+| Limit | Size |
+|---|---|
+| Selection sent | 6,000 bytes (UTF-8) |
+| Returned replacement text | 16,384 bytes |
+
+If your selection is too large, you are asked to select less.
+
+> [!NOTE]
+> Writing assistance works only with the **Approved Claude stream JSON**
+> profile, which runs Claude with every tool turned off. Other profiles,
+> including the Codex profiles, report writing assistance as unavailable.
+> BetterPullReview's launch options do not change your own Claude
+> configuration. Installed-provider and model quality have not yet been
+> qualified.
+
+See [Prepare and maintain a review tour](review-tours.md) for the tour workflow,
+and the [AI agent boundary](../architecture/ai-agent-boundary.md#review-tour-writing-boundary)
+for how the request is restricted.
 
 #### Review feedback guidance
 
-The same list holds a fifth hook below a separator, **Review feedback**
-([[BPR-1090]], owner decision 2026-10-08). Its default is the conventions guidance
-shipped as `review-feedback-v1`: the twelve labels, the decorations, and the
-difference between a `suggestion` label and a GitHub suggested change and between
-a label and a review decision. Comment workshop requests carry it only while
-Comments › Comment workshop › Feedback guidance is on ([[BPR-1597]]); a line under
-the source label says On or Off and names that place. It writes no tour field, so its Test button is unavailable. Save
-keeps the profile's text across upgrades; Restore default follows the shipped text
-again. `bpr tour hooks show|edit|reset feedback` reads and changes the same override.
+Below a separator, the same list holds a fifth hook, **Review feedback**. Its
+default text explains the conventions behind comment labels: the twelve
+labels, the decorations, how a `suggestion` label differs from a GitHub
+suggested change, and how a label differs from a review decision.
 
-#### Tool-free review-preparation delivery
+Comment workshop requests include it only while **Comments > Comment workshop
+> Feedback guidance** is on; a line under the source label says On or Off and
+links there. It writes no tour field, so **Test** is unavailable for it.
+**Save instructions** keeps your text across upgrades; **Restore default**
+follows the shipped text again. From the command line,
+`bpr tour hooks show|edit|reset feedback` reads and changes the same text.
 
-The writing buttons use the currently selected agent profile. The bounded writing
-path currently supports **Approved Claude stream JSON** with explicit empty tools,
-a deny-all tool rule, an empty strict MCP configuration, no settings-source discovery,
-bare mode and disabled hooks/session persistence. The response protocol must confirm
-an empty tool/MCP list; tool blocks and finding payloads are refused. Other profiles,
-including the Codex profiles, report writing assistance unavailable until their
-protocol has an enforceable and qualified tool-exclusion boundary. Ordinary manual
-writing and the separately explicit agent controls retain their existing behavior.
-The application's flags do not change the developer's installed global configuration.
-The CLI flag contract is documented in the [provider's CLI reference](https://code.claude.com/docs/en/cli-reference);
-actual installed-provider and model-quality qualification is still required.
+## Storage & privacy
 
-A request captures one selection (including whitespace), otherwise its whole field.
-Empty Problem/Solution fields first recover an unambiguous existing description
-section, byte for byte, without inference. Other empty requests need approved
-evidence; an empty stop also needs its exact currently available pinned source.
-Context is collected only on that gesture: bounded author description/comments,
-private brief text, surrounding prose and the selected stop's code. No linked
-resource is fetched. Input selection is capped at 6,000 UTF-8 bytes, supplied
-evidence at 8,192, and the complete existing agent message at 16,384. Over-limit
-requests ask for a smaller selection. Returned replacement text is capped at
-16,384 bytes and the complete result at 32,768; extra keys, invalid provenance,
-malformed UTF-8, duplicate or stale responses cannot alter the field.
+### Local data
 
-One accepted result is one native undo transaction. Undo restores raw Markdown
-and selection; redo uses received bytes and never runs the agent again. Private
-Recovered/Inferred/Unclear notes stay outside the tour body. A saved-hook test
-uses a synthetic sample bound to the open review and has no draft destination.
-The outline hook returns body-free suggestions. Insert selected skeleton stops
-from the Tour stops page, then visit and complete each current explanation against
-its source. See [Prepare and maintain a review tour](review-tours.md).
+The local data location is shown read-only. It holds repository caches,
+retained history, drafts, notes, receipts and preferences. You cannot move it,
+purge all profiles or edit automatic retention here.
+
+### Prune history and delete caches
+
+**Prune selected epochs** and **Delete repository cache** apply to the current
+review and ask for confirmation, with **Cancel** as the default. Pruning can
+make an older comparison unavailable. Neither changes GitHub or your working
+copy, and neither resets preferences.
+
+### Diagnostics
+
+**Help > Diagnostics** opens this page, even when you are signed out.
+
+- Capture detail is **Standard** or **Verbose**.
+- Identifying details are **Anonymized** or **Include locally**, chosen
+  separately.
+- **On**/**Off**, **Open logs** and **Clear** are nearby. **About local
+  diagnostics** explains what recent context is kept and the recording limits.
+
+The **Help** menu also has **Export anonymized diagnostics…** and **Export with
+identifying details…**, which work without opening Settings. Each opens a
+preview of exactly what will be saved, with **Save…** and **Cancel**; options
+and the full records expand on request. The identifying preview lists what
+capture could not omit, and **Save with identifying details…** asks you to
+confirm before you choose a file. Nothing is uploaded. See
+[Preview and export diagnostics](storage-and-diagnostics.md#preview-and-export-diagnostics).
+
+### Profile maintenance
+
+Expand **Profile maintenance** for the cleanup controls.
+
+1. **Prepare diagnostic cleanup…** or **Prepare profile purge…** warns that
+   the profile and everything writing to it will stop, then lists exactly what
+   will be removed. Preparing deletes nothing.
+2. **Clear prepared diagnostics…** or **Purge prepared profile data…** asks
+   you to confirm that list, then removes it.
+
+**Cancel maintenance** does not restart a stopped profile and cannot undo an
+operation that has already started removing data.
+
+> [!WARNING]
+> Purge removes only this profile's data. Shared updater and registry data,
+> other profiles, your exports and some empty folders and lock files remain.
+> Purge is not uninstall and not secure erasure.
+
+### Troubleshooting
+
+The page ends with four resets, each with a short description and a button:
+
+| Reset | Removes | Keeps |
+|---|---|---|
+| **Clear caches…** | Downloaded repository data, images in descriptions and comments, pull-request summaries on Home, context snapshots kept for agents | Notes, drafts, read marks, settings |
+| **Reset settings…** | Every choice in Settings, Home's queue filters and sort, notification choices, window layout and which windows reopen | Saved repositories and servers, observer rules, review data and caches |
+| **Reset review data…** | Read and seen marks, private notes and their threads, unsent comments, replies and reviews, review tours, Review Cycles | Everything posted on GitHub, settings and caches, files you saved or exported |
+| **Reset everything…** | All three of the above, including saved repositories and observer rules, plus Insights statistics and history | Other profiles, your Git checkouts and exported files |
+
+> [!WARNING]
+> Clearing caches can make comparisons with earlier pushes of a force-pushed
+> pull request impossible to rebuild, because GitHub may no longer have them.
+
+Each asks for confirmation, listing what it removes and what it keeps;
+**Cancel** is the default and `Escape` cancels. **Reset review data** and
+**Reset everything** also need "I understand my private notes and unsent
+comments will be deleted" ticked, and offer to save a copy of the removed data
+in Downloads (on by default).
+
+A confirmed reset closes the profile's windows, runs, and reopens the profile
+on Home, whose status bar says what was reset. No reset signs you out or
+touches diagnostic logs. See
+[Reset this profile's local data](storage-and-diagnostics.md#reset-this-profiles-local-data).
+
+### Uninstalling
+
+> [!WARNING]
+> Uninstalling the app keeps your local data and system credential entries. To
+> remove remembered device sign-ins, sign out on **Accounts & hosts** before
+> uninstalling. Native vault, crash-reporting and full-removal behaviour are not
+> yet qualified.
+
+The [storage, diagnostics and removal guide](storage-and-diagnostics.md) gives
+the full scope, recovery rules and what remains after each operation.
+
+## Search settings
+
+Type in **Search settings** at the top of the sidebar, or press `Command+F` on
+macOS (`Ctrl+F` on Windows and Linux).
+
+While the field has text, the sidebar lists matching settings, grouped by page
+in sidebar order and by section within a page. Each result shows the setting's
+name with its page and section below in smaller type. A matching page or
+section is a result of its own. Matched letters are shown in bold.
+
+A setting matches when your text:
+
+- appears in its name, at the start of a word or inside one;
+- or, failing that, matches its letters in order, where each word you enter
+  starts at the beginning of a word ("lnum" finds Code line number text);
+- appears in its section;
+- starts a word in its description (descriptions are not shown, and count only
+  when no name, section or page matches).
+
+If nothing else matches, a small typing slip is forgiven.
+
+| Key | Action |
+|---|---|
+| `Up` / `Down` | Choose another result while typing |
+| `Tab` | Move into the result list |
+| `Return` or click | Open the result's page, scroll to the setting and focus it |
+| `Escape` | Clear the field; from the list, return to the field; with the field empty, close Settings |
+
+Opening a result changes nothing. A setting that cannot take the keyboard is
+shown and its page takes focus. When nothing matches, the sidebar says so and
+offers **Clear**. Search covers only the pages currently shown.
+
+## How changes apply
+
+- Changes apply as soon as they are accepted; there is no **Apply** button.
+- A change that is refused goes back to the previous value and shows why.
+- Closing Settings cancels an unsaved colour preview or a pending theme import.
+  It does not undo a saved change or cancel a storage operation that has
+  started.
+- If one kind of setting cannot be saved, only that kind is affected. Where
+  changes still work for the current session, the page labels them
+  session-only.

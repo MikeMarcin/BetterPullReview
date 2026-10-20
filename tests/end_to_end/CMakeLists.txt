@@ -106,7 +106,7 @@ function(bpr_bound_automated_run bpr_test_name)
     set_tests_properties("${bpr_test_name}" PROPERTIES TIMEOUT ${arg_TIMEOUT})
 endfunction()
 
-# Sizing and failure-reporting rule: docs/development/build-and-test.md,
+# Sizing and failure-reporting rule: docs/development/build-and-test-reference.md,
 # "Run budgets and row timeouts" (BPR-0905).
 # Budgets, each read together with the timeout it sits inside. See
 # `bpr_bound_automated_run` above and `default_automated_run_budget` in
@@ -210,7 +210,7 @@ bpr_bound_automated_run(
 # combined row would hide which. Each drives the shipped binary, so the
 # evidence is the composed application rather than a helper that links the same
 # symbols. The tests-disabled Release absence scan is a separate closeout
-# command in docs/development/build-and-test.md, exactly as the CLI one is: a
+# command in docs/development/build-and-test-reference.md, exactly as the CLI one is: a
 # tests-enabled graph cannot prove what a tests-disabled binary omits.
 bpr_add_network_isolated_test(
     NAME application_device_authorization_public_path
@@ -1108,14 +1108,14 @@ elseif(APPLE)
     # build. A warm tree passed alone in 43.1 s. 600 s cut it off twice under
     # heavier load, in the 0.2.0 baseline gate and beside other builds. Three
     # times the contended completion, rounded up to a minute, per the run-budget
-    # rule in docs/development/build-and-test.md.
+    # rule in docs/development/build-and-test-reference.md.
     set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 1560)
 elseif(UNIX AND NOT APPLE)
     # [[BPR-1258]]. Alone on Linux (bpr-main-linux: WSL2, 20 cores, GCC 15.2,
     # load about 2, its own build, 2026-10-01) the eight cases passed in 700.4 s,
     # about 658 s of it the nested tests-disabled Release configure and
     # `--parallel 2` build; 600 s cut it off. Three times that, rounded up to a
-    # minute, per the run-budget rule in docs/development/build-and-test.md.
+    # minute, per the run-budget rule in docs/development/build-and-test-reference.md.
     set_tests_properties(application_composition_contract PROPERTIES TIMEOUT 2160)
 endif()
 
@@ -3924,7 +3924,7 @@ if(TARGET app_bpr)
     # Measured on JaegAW 2026-10-04 in the Release tree.
     # Timeout: macOS Release ran the row in 225.31 s (M4 Pro, 2026-10-04); three
     # times that, rounded up. Windows and Linux are provisional at 2,400 s
-    # until the stations measure them (build-and-test.md, run budgets).
+    # until the stations measure them (build-and-test-reference.md, run budgets).
     if(APPLE)
         set(bpr_large_project_timeout 720)
     else()

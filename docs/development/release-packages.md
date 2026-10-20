@@ -1,659 +1,364 @@
-# Local release packages
+# Install and verify BetterPullReview packages
 
-RFC-BPR-0014 supplies the package/maintenance foundation; RFC-BPR-0038 owns
-remaining native and release-security qualification. Available-host composition
-evidence is candidate-specific. The native matrix, release trust and vulnerability gates remain open;
-the exact macOS source-distribution approval has the limits recorded below.
-The existing project `publish-release` skill and
-`tools/release.sh` remain the sole macOS release workflow. GitHub Actions is not
-used. See the [release-readiness allocation](../architecture/release-readiness.md)
-and [evidence ledger](../verification/RFC-BPR-0014.md) for exact candidates and
-open native/security gates.
+This guide is for people who download, install or redistribute BetterPullReview.
+It covers which package to choose, how to check a download before you install
+it, what each package needs from the system, how to remove it, and what the
+licences of the bundled components ask of you.
 
-## Native inputs and outputs
+If you build or publish packages, see the
+[packaging guide for maintainers](release-packaging-maintainers.md).
 
-All distribution graphs use Release, `BUILD_TESTING=OFF`,
-`BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.12.0 and the audited dependencies.
-Build from committed, clean source. `app-release` is a development build;
-`core-only` remains independently buildable/testable without Qt/providers.
-There is no new core SDK or embedding API.
+## Choose a package
 
-The owner accepted macOS 14.4+ for future Qt6.12 builds on 2026-10-19
-([upgrade evidence](../verification/RFC-BPR-0088.md)); the published v0.3.0
-packages retain their recorded macOS 13 requirement. New packages need fresh
-native, trust and vulnerability qualification for their exact Qt6.12 bytes.
+Each release offers one native package per platform, plus checksums, an SPDX
+inventory and a separate corresponding-source archive.
 
-| Native build host | Definition and route | Required operator inputs |
+| Platform | Package | Notes |
 |---|---|---|
-| macOS | `macos-release`; universal x86_64/arm64, minimum macOS 14.4; app/ZIP, full release also DMG | Existing Qt/macOS toolchain; local prepare mode needs no Apple credential |
-| Windows 10/11 x64 | `windows-app-release`; WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
-| Ubuntu 26.04 LTS x86_64 (including WSL2 producer) | `linux-package`; DEB and per-user archive | C++23 compiler/library meeting the build's checks, Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools and libsecret and libxcb development files |
+| macOS 14.4 or later, Apple Silicon and Intel | `*-macos-universal.dmg` | Universal app (arm64 and x86_64). The app is also published as `*-macos-universal.zip`. |
+| Windows 10/11 x64 | `*-windows-x64.msi` | Per-user installer. The `*-windows-x64-runtime.zip` beside it is an inventory for auditing, not a portable installation. |
+| Ubuntu 26.04 LTS x86_64 | `*-linux-ubuntu-26.04-x64.deb` | Installed system-wide through the package manager. |
+| Ubuntu 26.04 LTS x86_64 | `*-linux-ubuntu-26.04-x64-user.tar.gz` | Per-user archive with the same runtime as the DEB. |
 
-Build prerequisites include CMake 4.4.2, Ninja, Python 3.10+ and a C++23
-compiler/library accepted by the root feature checks. The inspected macOS release
-configuration records AppleClang `21.0.0.21000101`. M9's native Windows producer
-records MSVC `19.51.36257.0` / toolset `14.51.36231`, Visual Studio 18 Community,
-WiX 4.0.6 and Qt's `msvc2022_64` package. BPR-1179's agent-free MSI on the
-`bpr-main-win` station used the WiX .NET tool 5.0.2 and `WixToolset.UI.wixext`
-5.0.2, both MS-RL, with no CMake change. WiX 6 and later ship under the Open
-Source Maintenance Fee EULA, a term beyond their OSI license; the owner chose
-5.0.2 for that reason. These identify observed producers, not
-every compatible toolchain. No Linux compiler/libstdc++ package baseline has yet
-completed native qualification. Installed Git 2.39+ is required for the Git path;
-optional `gh` and agents are separately installed and explicitly selected.
+> [!NOTE]
+> v0.3.0 packages require macOS 13 or later. Packages built with Qt 6.12
+> require macOS 14.4 or later.
 
-The owner's 2026-10-11 next-release amendment selects Ubuntu 26.04 and removes
-Ubuntu 24.04 and RHEL from the selected release set. Ubuntu packaging rejects
-obsolete/undeclared Ubuntu versions and enforces a glibc 2.43 ceiling on required
-ELF symbol versions. WSL2 may produce ordinary Linux binaries. WSL/WSLg testing
-does not establish clean Ubuntu desktop, Secret Service or installer qualification.
-Retained optional RHEL 10 RPM mechanics keep glibc 2.39/x86-64-v3 constraints;
-they require no producer for the selected release. The
-staged runtime records actual GLIBCXX requirements; the native system package
-dependency generator supplies corresponding system-library constraints. A newer
-C++23 toolchain is not permission to raise the runtime baseline. Exact compiler,
-libstdc++, CPU and installability evidence must be qualified on each native target.
-Qt libraries/plugins are private; libstdc++/libgcc, OpenSSL, X11/XCB, libsecret and
-other OS libraries are system dependencies, not silently bundled libraries.
-Linux selects X11 (`qxcb`) with XWayland on Wayland desktops. Native Wayland
-plugins are not included or claimed.
+Linux packages run on X11 through `qxcb`; on a Wayland desktop they use
+XWayland. Native Wayland is not included or supported.
 
-## Unpublished preparation
+An RPM for RHEL 10 (`linux-rhel-10-x64`) can be built but is not part of the
+selected release set.
 
-Run from the checkout. Choose a new output directory each time:
+Some releases may also offer packages built without agent integrations or local
+automation. Their names end in `-agent-free` or `-agent-free-automation-off`; see
+[Packages without agent integrations or local automation](#packages-without-agent-integrations-or-local-automation).
 
-```sh
-tools/release.sh --version 0.1.3 --prepare-only --skip-tests \
-  --output-dir build/releases/local-candidate
-```
+## Verify a download
 
-This uses the existing universal build, restricted Qt deployment, both-slice
-dependency/deployment-floor checks and relocated launch smoke. It includes
-notices/source references, applies only an offline ad-hoc signature, and emits
-an app, local ZIP, separate version-bound source ZIP, SPDX SBOM and checksums.
-The relocated self-test explicitly selects `QT_QPA_PLATFORM=offscreen` with an
-isolated `HOME`, retaining the private-profile and production bundle-identity
-checks. The package still ships only the Cocoa platform plugin. The smoke
-first copies the sealed app into a private assessment bundle and verifies
-complete byte equality before adding the release build's exact `Qt6_DIR`
-offscreen plugin to that clone. It checks universal slices and packaged
-Qt/system dependencies, and redirects that plugin's RPATH to the clone's
-frameworks. It seals the plugin and clone with the selected identity (ad-hoc
-for prepare-only), verifies them, and logs plugin hashes and signing team.
-Resealing changes the assessment signatures; no equality after resealing is
-claimed. The original app's complete fingerprint and executable hash must
-remain unchanged after the course, and its signature must still verify.
-The dependency never enters the delivered app or release assets; external
-plugin paths are excluded, preserving distribution startup's own plugin-path
-restriction. This unattended smoke cannot qualify a native Cocoa window or desktop
-interaction; those require their separate isolated or attended courses.
+Check each file before you install it. Get the package, its checksum file, the
+SPDX inventory, the corresponding-source archive with its checksum, and the
+publisher's identity through the channel you trust, such as the GitHub
+release page. A checksum that came from an untrusted source proves
+nothing about who made the file. Keep the published file names unchanged.
 
-It does not read signing identities, change
-Keychain, contact Apple, sign with Developer ID, tag, push or publish. Ad-hoc
-sealing permits local execution; it is not Gatekeeper or distribution trust.
-`--skip-notarize` is different: it still uses Developer ID signing.
+### Check checksums
 
-Windows (inside the activated native x64 toolchain environment):
-
-```sh
-cmake --preset windows-app-release
-python packaging/package.py --build build/windows-app-release \
-  --generator WIX --output build/releases/windows-candidate
-```
-
-Linux on its exact baseline:
-
-```sh
-cmake --preset linux-package
-python3 packaging/package.py --build build/linux-package \
-  --generator DEB --output build/releases/ubuntu-candidate
-# Ubuntu's CPack default is DEB; the per-user archive uses the same runtime.
-```
-
-The native driver builds the application and both helpers, runs CPack, requires
-one native installer/inventory, and emits checksums, an SPDX sidecar, a separate
-version-bound source ZIP and source revision provenance. Linux also emits
-`*-user.tar.gz` from the same audited runtime; Windows emits `*-runtime.zip`
-for inventory auditing, not a qualified portable install. Unsigned preparation
-is the default. Optional Windows `--signtool`, `--azure-dlib`, `--azure-metadata`
-and `--publisher` must be supplied together: the driver signs first-party
-producer images, including the declared source-built xdiff DLL, after building
-and before CPack inventory generation, verifies
-staged bytes, then signs the MSI before final hashing. Linux `--gpg-key` takes an
-approved full fingerprint; RPM is signed/verified first, then final products and
-metadata receive verified detached signatures. Neither route provisions keys,
-discovers credentials or publishes. Optional Ubuntu WSL
-`--gpg-vault-config /absolute/producer-local/config.json` automatically unlocks
-one approved Windows Credential Manager credential before any output/build,
-then signs in its exact GPG home with pinentry disabled. Missing/wrong credentials
-stop production. One-time human enrollment uses the maintained hidden console
-helper; private keys stay encrypted and no secret is transferred to the Mac.
-See the platform guides in
-`.codex/skills/publish-release/references/` for commands and human prerequisites.
-
-The native Windows package/security auditors accept an optional explicit
-`--windows-import-library C:/absolute/reviewed-sdk/bcrypt.lib`. This is a
-reviewed metadata specimen, not proof of which library LINK selected. The
-complete file must match SHA-256
-`9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785`;
-missing, malformed or different bytes supply no exception. BPR-1654 binds this
-specimen's static `.idata$6` DLL-name marker to only the exact same-owner,
-static-table, flag-free, non-executable, image-base address and exact 32-bit
-wrap observed after its name contribution was discarded. A normally validated
-same-owner null descriptor, actual native import absence and ASCII/wide
-DLL-name absence are also required. Every symbol remains in the fixture and
-composition scans, and normal address/identity checks remain mandatory.
-An `rc.exe` SDK path does not establish LINK's response-file or library-search
-selection. Changed specimens require new review. Packaging/signing and offline
-manifest preflight need no new argument; this input belongs only to the native
-PE audit and grants no installation, security or distribution qualification.
-
-Windows Qt provenance compares deployed filenames case-insensitively, matching
-PE producer inspection; Darwin/Linux keep their native exact filename identity.
-Qt provenance and the native PE audit select the producer's exact `qtbase`
-SPDX plus `qtsvg` for the deployed Svg library and `qtimageformats` for the
-WebP plugin. This includes Windows `Qt6Svg.dll`, Darwin's `QtSvg` framework
-image and Linux's versioned `libQt6Svg.so` names. Missing required module
-documents, ambiguous file records, escaped producer paths, changed bytes and
-invalid upstream checksum/signature evidence refuse; filenames select required
-evidence and cannot authorize a DLL. Installed notices, source offers, Qt
-provenance and final SPDX use the same selected closure. The separate
-corresponding-source asset already includes the pinned QtBase, QtSvg and
-QtImageFormats archives, including their licence and replacement obligations.
-A correction to generated metadata requires fresh packages; never update an
-old signed runtime or its inventory in place.
-
-Signed production emits `*.release.json` binding installer, runtime archive,
-SPDX, separate source ZIP, final checksums/provenance and signature receipts.
-[[BPR-1657]]. Linux Qt6.12.0 requires ICU73.2's data, uc and i18n
-companions. Packaging admits only that exact trio from the selected Qt provider,
-with the official Qt archive and raw file hashes pinned in
-`packaging/dependencies.json`. Those prebuilt inputs lack immediate binding;
-the delivered trio is rebuilt from the exact pinned ICU source with the selected
-native compilers, PIC, stack protection, frame pointers, FORTIFY3 and full
-RELRO/NOW/nonexecutable stack. This does not modify the shared Qt provider.
-
-`packaging/linux_icu.py` uses a private out-of-source prefix; a cached producer
-must match source, recipe, compiler/make identities, flags, the extracted source
-and all three output hashes. `ThirdParty/icu-runtime-provenance.json` names that
-actual source build. `runtime-closure.json` keeps official Qt input, source-built
-producer and relocated output hashes distinct. Native audits reproduce the
-loader-path operation on disposable producer copies and compare complete files.
-Wrong origins, unknown ICU names, changed producer/delivered bytes, incomplete
-trios and source-build provenance drift fail closed. The existing ELF hardening
-gate remains unchanged.
-
-The Linux source asset now carries21 upstream archives and eight build inputs
-(29 entries): the previous20 archives/six xdiff helpers plus ICU source, its
-standalone Python recipe and recipient README. Its installed notices contain the
-complete ICU mixed third-party text; the canonical ICU package retains
-`NOASSERTION` for a single aggregate licence conclusion. The upstream Qt SPDX's
-separate ICU73.2 record stays unchanged. macOS/Windows selected component and
-notice sets are unchanged. Practical recipient instructions are under
-`ICU-73.2-build/third_party/icu/rebuild/README.md`; final native trust, material
-review, scan/applicability decisions and broad qualification remain separate.
-
-Selected Linux names and installed source URLs include `linux-ubuntu-26.04-x64`;
-reconfigure older distribution builds before production. Optional RPM names
-remain `linux-rhel-10-x64` and are not required assets.
-`tools/publish-release.sh --manifest PATH` accepts these manifests repeatedly;
-`--macos` includes the existing standard macOS set. Native manifest preflight
-verifies the complete archive inventory and byte/source bindings before remote
-mutations, but does not independently verify native trust or equate installer
-payloads with the archive. Extract and audit final installers and verify native
-signatures separately. Clean desktop qualification, owner/legal approval,
-recipient access/retention and the recorded security gaps remain release gates.
-
-Publication defaults to requiring `MikeMarcin/BetterPullReview` to be private.
-After a separately authorized visibility change, add `--public` to both the
-dry run and the actual publication command to require that repository to be
-public. The flag never changes visibility or permits both states. The publisher
-checks the selected visibility and exact repository identity at preflight and
-again before the atomic push and release creation. It also requires one
-canonical GitHub HTTPS or SSH push URL for `origin`; custom aliases, embedded
-credentials and multiple push destinations are refused without printing them.
-Use the same approved selection throughout one release. A state change after
-the push can leave the tag pushed without a release: inspect existing state
-before continuing, and do not retag, force-push or blindly retry.
-
-```sh
-# Only after BPR is already public and this release is authorized:
-tools/publish-release.sh --public --version X.Y.Z --notes-file /absolute/notes.md \
-  --macos --manifest /absolute/windows/INSTALLER.msi.release.json --dry-run
-```
-
-Remove `--dry-run` only for the authorized publication. It still checks GitHub
-and the remote during preflight; the standalone artifact verifiers are offline.
-GitHub Actions stays disabled and supplies no release or secret-scan gate.
-
-For future coordinated releases, the Mac host can publish the combined set after
-its own macOS producer and the signing PC's native Windows / Ubuntu 26.04 WSL2
-producers finish. Every producer uses the same committed source and selected
-version. Keep private signing credentials/keys on the approved producer PC.
-Return complete final asset directories and manifests to the Mac publisher,
-preserving source names, digests and signature receipts. Use absolute manifest
-paths for the shared dry-run preflight and separately verify native trust before
-publication. This preparation changes no version and starts no remote station;
-the owner requests the actual release later. The 2026-10-11 preparation observed
-the dedicated Windows Azure profile signer and one signed disposable probe,
-and the approved encrypted Linux key's local sign/public-only verify/tamper
-smoke. Reuse the approved producer-local nonsecret configs and isolated Azure
-CLI profile; Azure may still require renewed human login/MFA. The vault helper
-binds one named generic credential to the exact key/home, validates before
-retrieval and forwards the passphrase only to the fixed preset command's stdin.
-Local synthetic vault/WSL evidence does not prove remote station logon access,
-clean Windows/Ubuntu product vaults, final artifacts or native/security/legal
-release gates. See the existing `publish-release` skill's selected platform guides
-and [BPR-1402 evidence](../issues/60-done/BPR-1402-reuse-release-signing-vault-and-native-verifier.md).
-
-## Installation and removal boundaries
-
-Per-user installation is the default: copy the macOS app to the user's
-Applications folder; use the Windows MSI's per-user route; or unpack the Linux
-`*-user.tar.gz` into a dedicated versioned directory under the user's local
-application directory and run its `better_pull_review` executable. Linux archive
-dependencies must already be present; the matching DEB/RPM metadata records them.
-Do not set global Qt or library paths. Managed DEB/RPM installation uses `/usr`
-and the package manager's administrative route instead. Those packages install
-the launcher, desktop entry and scalable hicolor icon, plus the private runtime
-under `/usr/lib/betterpullreview`.
-
-The installed app locates its MCP helper and agent supervisor beside its actual
-executable, with the platform-emitted filenames (a package built without agent
-integrations has no MCP helper; see below). macOS additionally carries
-`bpr_update_helper`. Plugin paths are restricted before QApplication, ambient
-plugin-path overrides are removed, and arbitrary plugin-loading CLI options are
-refused. The app never uses developer Qt paths as a fallback.
-
-On Windows the tests-disabled image keeps its compressed Qt resources outside
-itself ([[BPR-0974]]): the application icon, the Dif strips and the
-KSyntaxHighlighting syntax definitions ship as `better_pull_review.rcc` beside
-the executable, and the installer and runtime inventory carry it as declared
-runtime data. The image registers that file before it reads any resource and
-refuses to start, printing `INSTALLED_RESOURCES_REFUSED:better_pull_review.rcc:`
-and `missing`, `unreadable`, `digest-mismatch` or `not-a-resource-file`, unless
-the file is byte for byte the one it was built with. KSyntaxHighlighting's 54 KB
-theme data stays inside the image, because the pinned framework initializes it
-unconditionally. Each shipped Windows image (application and both helpers) has
-a `VERSIONINFO` resource naming the vendor, product, description, version and
-original file name, and a Release image names its program database by file name
-only (`/DEBUG /PDBALTPATH:%_PDB%`). The database stays in the build tree and is
-not installed. These resources are not signatures. Unsigned preparation still produces unsigned
-images; the optional signing path requires the approved Azure identity and client.
-
-The Windows MSI remembers its selected per-user directory in its own HKCU
-installer value so repair/uninstall resolve the same directory, including a
-custom location. CPack supplies the normal installed-location metadata. Use
-native backslash paths with `msiexec`; M8's forwarded-slash command was refused
-before installation. The native M8 run used an elevated SSH token and therefore
-does not prove the ordinary-user desktop route. M9 now audits stripped PE images
-with byte-identical producers, full linker maps and exact upstream DLL evidence;
-its 16-image Windows audit passes for the recorded unsigned artifact. The map is
-trusted build evidence, not publisher trust or proof of complete CFG call-site
-coverage. That artifact also predates the separate-source disposition: a revised
-native MSI still needs production and qualification.
-
-Current Windows producer inputs also bind the fixed private-library package
-identity to its exact CMake target file. The source-built xdiff DLL requires a
-byte-identical producer, full public/static linker map and the same signing and
-staged-byte receipts as the application/helpers. Reconfigure older builds before
-production; an unknown DLL, a foreign build path or missing map is refused.
-This does not change xdiff's separate LGPL library/source arrangement or establish
-independent package trust.
-
-Uninstalling program files does not purge profiles, credentials, exported user
-files, desktop registry or update-recovery records. Storage & privacy's explicit
-profile purge retires that profile first; cancellation does not restart it.
-See [Storage, diagnostics and removal](storage-and-diagnostics.md) for the actual
-controls, migration/recovery, credentials and exact residuals, and the
-[maintenance ownership contract](../architecture/release-maintenance.md#m6-retained-lease-maintenance-composition).
-Windows/Linux and managed installations retain manual updates. Only the existing
-qualified, user-confirmed macOS updater exception applies to eligible trusted
-bundles; an ad-hoc candidate does not qualify.
-
-## Packages without agent integrations or local automation
-
-[[BPR-1179]] (RFC-BPR-0060) adds two independent CMake switches, both ON by
-default. Each removes code from the build, not just a control from the window.
-
-| Switch | `OFF` removes | Still present |
-|---|---|---|
-| `BPR_BUILD_AGENT_INTEGRATIONS` | The agent launch adapter and its protocol loop (`src/adapters/agent`), the application's invocation, chat, finding, comment-workshop and re-alignment hosts, the agent launch builder and provider protocol decoders in `agent_launch.cpp`, the MCP context helper executable and its supervisor, and their composition. The window withdraws the launch panel, side chat, finding queue, comment workshop, tour writing assistance, the private Ask agent and agent-assisted composition, and the Agents & context settings page. No agent profile is offered or resolved. | Review, local cycles, notes and suggestions, Copy, Save and the bundle, capture, comparisons, responses, verification, publication, private notes and private history, and every stored record, including those an agent wrote earlier |
-| `BPR_BUILD_LOCAL_AUTOMATION` | The desktop's owner command endpoint (no listener is bound) and the forwarded cycle commands it serves. `BPR_BUILD_TOUR_CLI` requires it, so the graph cannot build `bpr`. | Everything above, the single-instance activation endpoint, and the desktop's own in-process tour routing |
-
-The configure presets are `macos-release-agent-free`,
-`windows-app-release-agent-free` and `linux-package-agent-free`, and the same
-names ending `-agent-free-automation-off`, which turn both families off. Each
-inherits its full preset and has its own build directory. The `tour-cli` preset
-builds without agent integrations: the `TourCLI` install component (`bpr`, the
-supervisor and its private Qt) is the agent-free command-line package. It is a
-CMake install component, not a release artifact: `packaging/package.py` builds
-only the desktop's `Runtime` component, and the installed `TourCLI` tree
-carries no notices, SBOM or corresponding-source reference ([[BPR-1068]]).
-
-```sh
-# macOS, unpublished local preparation of either variant
-tools/release.sh --version 0.1.3 --prepare-only --skip-tests \
-  --variant agent-free --output-dir build/releases/agent-free-candidate
-tools/release.sh --version 0.1.3 --prepare-only --skip-tests \
-  --variant agent-free-automation-off --output-dir build/releases/manual-candidate
-
-# Windows (native x64 tools environment) and Linux (exact baseline)
-cmake --preset windows-app-release-agent-free
-python packaging/package.py --build build/windows-app-release-agent-free \
-  --generator WIX --output build/releases/windows-agent-free-candidate
-cmake --preset linux-package-agent-free
-python3 packaging/package.py --build build/linux-package-agent-free \
-  --generator DEB --output build/releases/ubuntu-agent-free-candidate
-```
-
-What the release records say:
-
-- `_bpr/package-inputs.json` names the families built (`families`) and the
-  artifact suffix (`variant`), and lists only the helpers that ship.
-- Artifact names end `-agent-free` or `-agent-free-automation-off`.
-- The product package's SPDX `sourceInfo` ends `; agent integrations absent`
-  and, without automation, `; local automation absent`. A full package's
-  text is unchanged.
-- `runtime-closure.json` and the native provenance record `families`.
-- The SPDX file list is computed from the installed bytes, so it never names
-  a helper that is not there.
-
-`scripts/verify_release_package.py` reads the families from the build. It
-requires the MCP helper only with agent integrations, and refuses a package
-built without them that still carries one. It audits the application image
-with `scripts/verify_composed_hosts.py`: agent anchors are required in a full
-image and forbidden in an agent-free one. The anchors are the agent hosts, the
-launcher, the protocol decoder, the MCP supervisor and the Send to Agent round
-sender ([[BPR-1180]]). The cycle owner service
-is required with local automation and forbidden without it. Run the verifier
-alone with `--without-agent-integrations` and `--without-local-automation`.
-
-Compatibility decision: `better_pull_review_agent_supervisor` ships in every
-package, the agent-free ones included. [[BPR-0622]] made it the process owner
-that guarded Git launches run inside, on macOS, Linux and Windows. It holds no
-agent protocol, provider knowledge or credential. Its file name is kept so that
-the Git path, the installers and the earlier evidence all name the same file.
-
-Removal keeps data. Every variant has the same package identity: the macOS
-bundle identifier, the Linux package name and the Windows upgrade code. So
-installing one variant over another replaces program files only; on Windows
-and Linux that replacement is a native qualification that is still owed. Profiles,
-cycles, rounds, suggestions, responses, verification records, private history
-and credentials stay where they were, and an agent-free build reopens them. A
-disposable agent workspace left by a full install is still cleaned up by the
-Git workspace recovery. To uninstall `bpr`, delete the files CMake recorded in
-`build/tour-cli/install_manifest_TourCLI.txt`. The desktop is unaffected.
-
-On macOS, `tests/end_to_end/installed_cycle_package_course.py` ([[BPR-1182]])
-checks the three prepared packages from outside, since nothing inside a
-tests-disabled package can be driven. It installs the full, agent-free,
-agent-free automation-off and full packages in turn into one place over one
-profile, starts each on Cocoa, and requires that each composes the profile,
-starts no child process, holds no network socket, runs none of the agent-named
-canaries placed first on PATH, binds its activation endpoint, and binds the
-owner command endpoint exactly when it was built with local automation. A cycle
-made with `bpr` before the first swap must read back byte for byte after every
-package ran. Prepare each variant into its own output folder, then name the
-folder holding all three (the course expects the names `bpr1182-full`,
-`bpr1182-agent-free` and `bpr1182-agent-free-automation-off`) and any `bpr`:
-
-```sh
-python3 /absolute/checkout/tests/end_to_end/installed_cycle_package_course.py \
-  --package-root /absolute/package-root --bpr /absolute/install/root/bin/bpr
-```
-
-It prints `INSTALLED_CYCLE_PACKAGE_COURSE_OK`. Its root is made under the
-account's home and removed afterwards. It does not cover Windows or Linux
-installers, signing or the GUI round trip a person drives.
-
-## Exact dependency and license evidence
-
-`packaging/package_runtime.py` creates a closed runtime inventory and hashes
-deployed bytes after relocation (and after final macOS sealing/stapling). It
-joins the selected Qt producer's SPDX graph with statically compiled SQLite,
-KSyntaxHighlighting, Quill/fmt, Glaze, zlib ([[BPR-1435]]), utf8proc ([[BPR-1434]]),
-pinned fmt apart from Quill's copy ([[BPR-1439]]), sha1collisiondetection for
-every SHA-1 Git identity ([[BPR-1450]]), HACL*'s generated SHA-2 for the
-core SHA-256 ([[BPR-1451]]), header-only rapidfuzz-cpp for the diff engine's
-line-pair similarity ([[BPR-1480]]), header-only dtl for its intraline
-ranges ([[BPR-1481]]) and the Review Cycle suggestion hunks ([[BPR-1498]]), RE2 with its Abseil LTS
-([[BPR-1431]]),
-the macOS-only LibArchive input and the embedded JetBrains Mono NL faces
-([[BPR-1270]]), and Git 2.56.0's xdiff, the diff engine's primary line
-matcher, which ships as its own shared library ([[BPR-1485]]; see
-[xdiff, a dynamically linked LGPL library](#xdiff-a-dynamically-linked-lgpl-library)).
-`packaging/dependencies.json` pins their complete source archives; cached or
-downloaded mismatches are refused. ECM is identified as build-only. The font's
-OFL and its authors list are retained under `third_party/jetbrains-mono/` and
-carried whole into `THIRD-PARTY-NOTICES.txt` (`NOTICE_FILES` in
-`packaging/package_runtime.py`, which the security audit checks too); its SPDX
-package is declared `OFL-1.1`.
-
-The installed `ThirdParty` directory (macOS: `Contents/Resources/ThirdParty`)
-contains `THIRD-PARTY-NOTICES.txt`, `SOURCE-OFFERS.txt`, source provenance and
-selected Qt producer provenance. Corresponding source is a separate asset:
-`Source-BetterPullReview-VERSION-PLATFORM-corresponding-source.zip`, where PLATFORM is
-`macos-universal`, `windows-x64` or `linux-ubuntu-26.04-x64` for the selected set.
-Optional RPM uses `linux-rhel-10-x64`; historical Linux candidates used
-`linux-ubuntu-24.04-x64` or `linux-x64`. It is not embedded in the app,
-installer or per-user archive. Both installed notices and source offers point
-to its exact `releases/download/vVERSION/ASSET` location and SHA-256; the
-installed provenance also binds the producer commit and upstream input hashes.
-The SPDX hashes those installed references, and package audits verify the
-separate asset's digest and complete source inventory. macOS preparation writes
-it beside the app ZIP; CPack stages it outside the installed tree and the native
-driver copies it beside the MSI/DEB/RPM. The corresponding checksum and native
-provenance include it. Qt stays dynamically linked. The source-offer document
-describes replacement with ABI-compatible modified libraries and local resealing of a macOS copy; it grants
-no updater trust. All embedded syntax/theme attribution and complete licensed
-data are retained, not mislabeled as MIT just because the engine is MIT.
-
-Every binary recipient must have equivalent source access at no additional
-charge. The GitHub release holds binaries and source under the same access
-policy, whether the repository is private or public. Corporate/offline redistribution must deliver the exact source
-asset alongside its binaries; if repository access changes or the URL is
-unavailable, the distributor must supply the asset through the original
-distribution channel. Keep the asset, digest and version tag immutable while
-any matching binary is distributed and throughout every applicable retention
-period afterward. Retention is indefinite until the accountable distribution
-owner documents that all source-offer/license obligations have ended. Package
-checks cannot prove future retention or recipient access; release readiness
-requires the owner to establish and maintain those arrangements.
-
-Original BPR code and documentation use the root MIT licence. Aggregate mixed
-MIT/LGPL/GPL syntax-data and other dependency obligations remain separate and
-need exact-release review. The exact revised macOS inventory
-from `1c429749` received that scoped source/distribution decision at M9 event 469,
-hand-back 470. It does not approve revised Windows/Linux artifacts, different
-bytes, vulnerabilities, trust or publication. Actual source access and retention
-remain ongoing distribution obligations. Metadata uses `NOASSERTION`
-where no single license has been concluded; it is not a waiver. Windows also
-requires the native operator's applicable Microsoft runtime notice. Exact
-artifact license/source completeness remains an independent M9 release gate.
-
-The full existing macOS path emits DMG, app ZIP, SPDX and source ZIP plus four
-checksum files. The publication script requires all eight
-assets and verifies the source reference inside the actual app ZIP against
-the SPDX and separate source ZIP before any remote operation. Its nonmutating
-offline sub-check is `packaging/verify_release_sources.py`; `--help` lists the
-explicit artifact and producer arguments. No source URL is fetched by it.
-Do not run the publication script, submit notarization, or apply release signatures without explicit
-authority for the prepared version.
-
-### xdiff, a dynamically linked LGPL library
-
-The owner accepted Git's xdiff (LGPL-2.1-or-later) only "if xdiff is
-dynamically linked as its own shared library, as Qt is" (RFC-BPR-0082 Q1,
-2026-10-13), so it ships under the same arrangement as Qt ([[BPR-1485]]):
-
-- **Linkage.** `cmake/BprXdiffProvider.cmake` builds the pinned archive's
-  `xdiff/` as the shared library `bpr_xdiff` and nothing else; only the xdiff
-  adapter links it, and no BetterPullReview binary holds a copy. The package
-  carries it where the application loads it: `Contents/Frameworks/libbpr_xdiff.dylib`
-  on macOS, `bpr_xdiff.dll` beside `better_pull_review.exe` on Windows and
-  `libbpr_xdiff.so` beside the application in `lib/betterpullreview` on Linux
-  (`PRIVATE_LIBRARIES` in `packaging/package_runtime.py`). Linux deployment
-  accepts it only from the package itself, and the package audit refuses a
-  package without it.
-- **Licences and SPDX.** Every file is LGPL-2.1-or-later except
-  `xhistogram.c`, which derives from JGit and is under the Eclipse
-  Distribution License 1.0, which SPDX matches as `BSD-3-Clause`. The
-  `git-xdiff` entry in `packaging/dependencies.json`, and so the release SPDX
-  package `SPDXRef-git-xdiff`, declares `LGPL-2.1-or-later AND BSD-3-Clause`.
-  `third_party/git-xdiff/PROVENANCE.md` records the per-file licences
-  confirmed against the pinned source.
-- **Notices.** `third_party/git-xdiff/NOTICE` (copyright lines, licences, the
-  library's location in each package and where its source is), the full
-  `LGPL-2.1` and the `xhistogram.c` licence header are carried whole into
-  `THIRD-PARTY-NOTICES.txt`; the security audit requires them.
-- **Corresponding source.** The separate corresponding-source asset carries
-  the unmodified `git-xdiff-2.56.0.tar.xz` archive and, under
-  `git-xdiff-2.56.0-build/`, BetterPullReview's two compatibility headers
-  that replace Git's `git-compat-util.h`, the original provider, standalone
-  recipient CMake project/README and its self-contained hardening helper:
-  the `buildInputs` of the `git-xdiff` entry, pinned by SHA-256.
-  Preparing the asset refuses a build input whose bytes changed, and the
-  audits verify each entry's digest. Change a pinned file and update its
-  digest in the same commit; `package_runtime_tests` names the stale one.
-- **Recipient rebuild.** Start at
-  `git-xdiff-2.56.0-build/third_party/git-xdiff/rebuild/README.md` in the asset.
-  Verify and extract the supplied Git archive, then configure that standalone
-  CMake directory with the absolute extracted source path. It compiles the same
-  seven C11 sources into the separately replaceable shared library, using only
-  the local shims and shipped hardening helper. No application checkout, CPM,
-  shared cache or network is required. Recipients may modify their extracted
-  source and rebuild; pinning the original archive does not prohibit that.
-  Platform architecture, output/import-library and local resealing instructions
-  are included. The original acquisition provider remains provenance, rather
-  than the recipient entry point ([[BPR-1656]]).
-- **Replacement.** `SOURCE-OFFERS.txt` states that xdiff is a separately
-  replaceable shared library, names the file on each platform and permits
-  replacing it with a modified build exporting the same C interface
-  (`xdiff/xdiff.h` of Git 2.56.0), with the macOS local resealing step used
-  for Qt. Replacement grants no updater trust.
-
-Recipient access and retention are those of the whole source asset, above.
-xdiff is one more LGPL relinking obligation. The owner approved this
-arrangement for the 0.2.0 release on 2026-10-13: xdiff ships as its own
-LGPL-2.1 shared library, `libbpr_xdiff.dylib`, as Qt does, with its notice in
-`THIRD-PARTY-NOTICES.txt`, a source offer stating that it is separately
-replaceable, and the unmodified Git source with BetterPullReview's build
-script and two build headers in the corresponding-source asset. The
-[RFC-BPR-0038 ledger](../verification/RFC-BPR-0038.md) records the decision.
-It covers that arrangement only; the remaining first-party, syntax-data,
-toolchain and build/relink approval above, and vulnerability, trust and
-publication decisions, are unchanged.
-
-## Recipient verification and release stop conditions
-
-Obtain the package, its checksum, SPDX, corresponding-source ZIP/checksum and
-publisher identity through the approved distribution channel. A checksum from an
-untrusted source is not authentication. Verify the actual downloaded bytes before
-installation and preserve the exact asset names. On macOS/Linux, run from the
-asset directory so relative filenames inside checksum files resolve correctly:
+On macOS or Linux, run the check from the folder that holds the downloads, so
+the file names inside each checksum file resolve:
 
 ```sh
 cd /absolute/path/to/downloaded-release
-shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal.zip.sha256
+shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal.dmg.sha256
 shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal.spdx.json.sha256
-shasum -a 256 -c BetterPullReview-X.Y.Z-macos-universal-corresponding-source.zip.sha256
+shasum -a 256 -c Source-BetterPullReview-X.Y.Z-macos-universal-corresponding-source.zip.sha256
 ```
 
-Replace the version/platform with the exact delivered names and verify the DMG
-or installer checksum as well. On Windows, `Get-FileHash -Algorithm SHA256
--LiteralPath 'C:\absolute\candidate.msi'` must match the supplied digest; do the
-same for the source asset and SPDX. Hash verification does not install anything.
+Replace the version and platform with the names you actually downloaded.
+Not every file has a `.sha256` beside it: where a release publishes only a
+`.asc` signature (the Linux source archive, for example), verify that
+signature instead, as described below.
 
-Independent trust checks for a *signed* candidate use these native interfaces:
+On Windows, compare the output of
+`Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\absolute\candidate.msi'` with
+the published digest. Do the same for the source archive and the SPDX file.
 
-| Platform | Check and required result |
-|---|---|
-| macOS | `codesign --verify --deep --strict --verbose=2 /absolute/BetterPullReview.app`; inspect `codesign -d --verbose=4` for bundle `com.gamecoretech.betterpullreview`, expected team `YTQKP2V2A8` and hardened runtime. `xcrun stapler validate /absolute/BetterPullReview.app` and `spctl --assess --type execute --verbose=4 /absolute/BetterPullReview.app` must pass. Validate the DMG staple and assess it with `spctl --assess --type open --context context:primary-signature --verbose=4 /absolute/candidate.dmg`. |
-| Windows | `signtool verify /pa /all /v C:\absolute\candidate.msi`, plus each signed delivered executable/DLL as applicable. Compare the signer/chain and timestamp with the approved publisher, not merely a zero exit. The current MSI is unsigned. |
-| Linux | `rpmkeys --checksig /absolute/candidate.rpm` requires the independently provisioned approved signing key. For a DEB/archive delivered with a detached signature, `gpg --verify /absolute/candidate.deb.asc /absolute/candidate.deb` requires the approved key fingerprint. Corporate repository distribution instead validates its signed repository metadata and package digest under that repository's policy. The driver optionally produces verified signatures using `--gpg-key`; missing approved key/trust or final native qualification remains a release blocker. |
+Checking a hash installs nothing.
 
-Do not disable OS trust checks, clear quarantine or enroll an unknown certificate
-to make a candidate pass. Record source/artifact/signature identities and results
-separately from package production. An ad-hoc `codesign` verification proves only
-the local seal; it cannot satisfy the Developer ID/notarization checks.
+### Check signatures
 
-The [release security policy](../security/release-policy.md) defines emitted
-hardening, analysis, sanitizer/fuzz, secret and vulnerability gates. M9's recorded
-32 macOS / 30 Windows Qt 6.11.2 Grype matches remain unresolved (both raw gates
-exit 2; earlier 21/19 reports remain historical), as do the full native
-vault/privacy/runtime matrix and external dependency hardening. The
-[corporate security packet](../security/corporate-security-overview.md) records
-their implications. A completed documentation milestone changes none of these
-release stop conditions.
+A signed package can also be checked with the platform's own tools.
 
-## Focused candidate audit and hostile course
-
-`scripts/verify_release_package.py` audits an expanded candidate without
-building, signing or publishing. Supply its actual build directory, SPDX and
-exact clean producer revision. A later verifier/documentation-only revision
-may reuse the package only while product/build/package inputs are unchanged.
-The audit requires the separate source ZIP beside the supplied SPDX (or an
-explicit `--source-archive` path), all installed file hashes, helper/plugin capability names,
-declared static provenance, tests-disabled compile graph and native symbol/byte
-evidence. macOS also checks every packaged native library reference and RPATH.
-Native Windows/Linux loaded origins and full trust/license review are separate
-qualification evidence, not implied by the static check.
-
-Linux's pinned prebuilt Qt libraries and declared plugins may lack regular
-symbol tables. Their audit uses actual defined dynamic symbols only after the
-canonical selected producer matches its upstream SPDX file/checksum and an
-independently relocated copy matches the delivered bytes. Empty, malformed,
-unowned or changed images refuse. The application, helpers, xdiff and source-built
-ICU retain the full-symbol requirement; the production application retains its
-composition anchors. Byte, fixture, dependency and hardening checks still apply
-to every image. This is a specific producer class, not a general fallback for
-stripped binaries ([[BPR-1658]]).
-
-A separately pinned read-only verifier may audit an older signed candidate
-when product, build, packaging and corresponding-source inputs are unchanged.
-Record the tool revision/hash separately from the artifact producer revision,
-bind both verifier and runtime source context to the actual producer checkout,
-and retain its actual compilation database and all mandatory graph regions.
-Running from another checkout must not silently omit those compilation units.
-Preserve original failed audit results and actual artifact hashes. This narrow
-tool correction does not grant native, security, material or publication approval.
-
-For the macOS hostile course, use an external canonical disposable root and the
-installed qualification guard. Every path argument below expands absolutely;
-replace the checkout, candidate and producer revision with the exact inputs:
+**macOS**
 
 ```sh
-repo=/absolute/path/to/BetterPullReview
-candidate="$repo/build/releases/local-candidate"
-producer_revision=REPLACE_WITH_EXACT_40_CHARACTER_SOURCE_COMMIT
-scratch=$(mktemp -d /Users/your-user/bpr-package-course.XXXXXX)
-python3 "$repo/.agents/skills/implement-rfc/scripts/qualification_guard.py" \
-  --allowed-root "$scratch" --target-root "$scratch" --live-root "$repo" \
-  --live-file "$repo/.mask/skill-config/implement-rfc/project.json" \
-  --live-file "$repo/.mask.lock.json" -- \
-  python3 "$repo/tests/end_to_end/release_package_course.py" \
-  --package "$candidate/BetterPullReview.app" \
-  --build "$repo/build/macos-release" \
-  --sbom "$candidate/BetterPullReview-0.1.3-macos-universal-local.spdx.json" \
-  --source-revision "$producer_revision"
+codesign --verify --deep --strict --verbose=2 /absolute/BetterPullReview.app
+codesign -d --verbose=4 /absolute/BetterPullReview.app
+xcrun stapler validate /absolute/BetterPullReview.app
+spctl --assess --type execute --verbose=4 /absolute/BetterPullReview.app
+spctl --assess --type open --context context:primary-signature --verbose=4 /absolute/candidate.dmg
 ```
 
-The course alters only a copy, isolates the child home, observes the shipped
-Cocoa plugin, sockets/processes and positive packaged Qt loading, then exercises
-missing helpers/plugins, unsafe loader overrides, identity/hash/byte/RPATH
-controls and real MCP snapshot read/traversal/stale-binding refusals. It restores
-and reaudits the copy and original, reaps children and removes its internal
-temporary directory. Remove the now-empty outer scratch root after completion.
-It does not certify install/uninstall, real authentication/vault, crash artifacts,
-signing trust or another native architecture.
+- The first command must pass.
+- The `codesign -d` output must show bundle identifier
+  `com.gamecoretech.betterpullreview`, team `YTQKP2V2A8` and the hardened
+  runtime.
+- The staple validation and both `spctl` assessments must pass. Validate the
+  DMG's staple as well as the app's.
 
-`verify_runtime_surface.py --native-platform /absolute/path/to/executable`
-selects Cocoa, Windows or XCB instead of development's offscreen plugin. That
-switch alone does not isolate the user's home or perform the complete package
-course; use the guarded course for an installed macOS candidate. The manual
-`runtime_surface_native_probe.py` checks the inspector against its own loopback
-listener/connected socket and child process. Run it under the station lease and
-qualification guard in a disposable root on remote stations. A passing WSL
-probe records only its observed operations; it does not qualify a clean Ubuntu
-desktop, Secret Service or the delivered installer.
+**Windows**
+
+```sh
+signtool verify /pa /all /v C:\absolute\candidate.msi
+```
+
+Check each signed executable and DLL you received the same way. A zero exit
+code is not enough: compare the signer, certificate chain and timestamp with
+the expected publisher. An unsigned MSI has no signature to check.
+
+**Linux**
+
+For a DEB or per-user archive delivered with a detached `.asc` signature, use
+the publisher's signing key, identified by its full fingerprint:
+
+```sh
+gpg --verify /absolute/candidate.deb.asc /absolute/candidate.deb
+```
+
+Each GitHub release explains how to obtain the key in its
+**Linux signature verification** section. An RPM is checked with
+`rpmkeys --checksig /absolute/candidate.rpm`, which needs the signing key
+installed separately. If you install from a corporate repository, that
+repository's signed metadata and package digest take the place of these
+checks, under its own policy.
+
+> [!WARNING]
+> Never disable the operating system's trust checks, clear the macOS
+> quarantine attribute or enrol an unknown certificate to make a package pass.
+> An ad-hoc `codesign` signature only proves the local seal; it is not a
+> Developer ID signature or notarization.
+
+## Install
+
+Install for your own account unless you need a managed system-wide install.
+
+### macOS
+
+Open the DMG and copy **BetterPullReview** into your Applications folder
+(`~/Applications`).
+
+### Windows
+
+Run the MSI. It installs for the current user into
+`%LOCALAPPDATA%\Programs\BetterPullReview` unless you choose another folder.
+The installer remembers the folder you chose, so repair and uninstall find it.
+
+If you run `msiexec` from a command line, give it native backslash paths.
+Paths with forward slashes are refused before installation.
+
+### Ubuntu: DEB package
+
+Install the DEB with your package manager, which needs administrator rights.
+It installs into `/usr`:
+
+- the `better_pull_review` launcher,
+- a desktop entry and a scalable icon in the `hicolor` theme,
+- the private runtime under `/usr/lib/betterpullreview`.
+
+The package declares the system libraries it needs, so the package manager
+installs them.
+
+### Ubuntu: per-user archive
+
+1. Make sure the system libraries the DEB declares are installed. The archive
+   does not install them.
+2. Unpack `*-user.tar.gz` into its own versioned folder under your local
+   application directory.
+3. Run the `better_pull_review` executable inside it.
+
+Do not set global Qt or library search paths for it.
+
+### What the installed app contains
+
+- **Helpers.** The MCP context helper and `better_pull_review_agent_supervisor`
+  sit beside the main executable. On macOS the bundle also has
+  `bpr_update_helper`. The supervisor ships in every package because Git runs
+  inside it.
+- **Plugins.** The app loads Qt plugins only from its own installation. It
+  ignores plugin-path environment overrides, refuses command-line options that
+  load arbitrary plugins, and never falls back to a developer Qt installation.
+- **Licences.** A `ThirdParty` folder holds the notices and source offers (see
+  [Licences and corresponding source](#exact-dependency-and-license-evidence)).
+- **Windows resources.** The app icon, diff strips and syntax definitions ship
+  as `better_pull_review.rcc` beside the executable. The app checks that this
+  file is exactly the one it was built with. If it is not, the app does not
+  start and prints `INSTALLED_RESOURCES_REFUSED:better_pull_review.rcc:`
+  followed by `missing`, `unreadable`, `digest-mismatch` or
+  `not-a-resource-file`. Reinstall to fix it.
+- **Windows file properties.** The application and both helpers name the
+  vendor, product, description, version and original file name. These
+  properties are not a signature. Debug symbol files are not installed.
+
+## System requirements
+
+| Requirement | Detail |
+|---|---|
+| Git 2.39 or later | Needed for pull-request history and comparisons. Install it yourself. |
+| GitHub CLI (optional) | macOS only. Needs `gh` 2.96+ and Git 2.49+. Install it yourself and select it in Settings. |
+| AI agents (optional) | Installed separately and selected explicitly. |
+| Linux system libraries | libstdc++/libgcc, OpenSSL, X11/XCB, libsecret and other OS libraries come from the system, not the package. |
+| Linux C library | The package requires no glibc symbol version newer than 2.43. |
+
+Qt's libraries and plugins are bundled privately with the app on every
+platform. On Linux the package also carries its own build of ICU 73.2, the
+Unicode library Qt uses.
+
+## Updates
+
+- **macOS:** an eligible signed installation can use **Check for Updates…**,
+  which asks before it installs anything. See
+  [Application updates](application-updates.md). Ad-hoc signed builds are not
+  eligible.
+- **Windows, Linux and managed installations:** update by installing the new
+  package yourself.
+
+## Remove BetterPullReview
+
+> [!WARNING]
+> Uninstalling removes program files only. Profiles, credentials, files you
+> exported, desktop registration and update-recovery records stay behind, and
+> reviews already published to GitHub are unaffected.
+
+To remove your data as well, do it while the app is still installed:
+
+1. Finish or reconcile any publication in progress, and any update that is
+   being installed.
+2. Sign out of each account.
+3. Use the explicit profile purge in **Settings > Storage & privacy** for each
+   profile. The purge retires that profile first, and cancelling does not
+   restart it. It does not touch shared updater and registry state.
+
+[Storage, diagnostics and removal](storage-and-diagnostics.md) lists exactly
+what remains afterwards.
+
+To remove the program, quit BetterPullReview, then:
+
+- **macOS:** delete the app from its Applications folder.
+- **Windows:** uninstall it from **Installed apps**, or uninstall the MSI.
+- **Linux:** remove the per-user versioned folder, or remove the DEB with the
+  package manager.
+
+<a id="exact-dependency-and-license-evidence"></a>
+
+## Licences and corresponding source
+
+Original BetterPullReview code and documentation are under the
+[MIT License](../../LICENSE). Bundled third-party components keep their own
+licences. They include Qt (QtBase, QtSvg and QtImageFormats), SQLite,
+KSyntaxHighlighting with its syntax and theme data, Quill, fmt, Glaze, zlib,
+utf8proc, sha1collisiondetection, HACL*'s SHA-2, rapidfuzz-cpp, dtl, RE2 with
+Abseil, Git's xdiff, the JetBrains Mono NL font (SIL OFL 1.1), LibArchive on
+macOS and ICU 73.2 on Linux.
+
+### What each package includes
+
+The installed `ThirdParty` folder (`Contents/Resources/ThirdParty` on macOS)
+contains:
+
+- `THIRD-PARTY-NOTICES.txt`: every component's licence and notice text,
+  including the full syntax and theme attributions, the font's licence and
+  authors, ICU's mixed third-party text, and the full LGPL-2.1.
+- `SOURCE-OFFERS.txt`: where to get the corresponding source and how to
+  replace the LGPL libraries.
+- Provenance records for the source and for the Qt build used.
+
+Syntax and theme data keep their own licences (a mix of MIT, LGPL and GPL);
+they are not relabelled MIT because the highlighting engine is MIT. Where the
+SPDX inventory says `NOASSERTION`, no single licence has been concluded for
+that component; it is not a waiver. On Windows the distributor must also
+supply Microsoft's applicable runtime redistribution notice.
+
+### Corresponding source
+
+The corresponding source for each platform is a separate release asset:
+
+`Source-BetterPullReview-VERSION-PLATFORM-corresponding-source.zip`
+
+where PLATFORM is `macos-universal`, `windows-x64` or `linux-ubuntu-26.04-x64`
+(`linux-rhel-10-x64` for the optional RPM; older Linux packages used
+`linux-ubuntu-24.04-x64` or `linux-x64`). It is not embedded in the app,
+installer or archive. The installed notices and source offers give its exact
+download location (`releases/download/vVERSION/ASSET`) and SHA-256. It holds
+the pinned upstream archives, including Qt's, with BetterPullReview's build
+inputs. On Linux it also carries the ICU source with a standalone rebuild
+recipe; start at `ICU-73.2-build/third_party/icu/rebuild/README.md`.
+
+> [!IMPORTANT]
+> Everyone who receives the binaries must be able to get the exact
+> corresponding source at no additional charge.
+>
+> - The GitHub release holds binaries and source under the same access rules,
+>   whether the repository is private or public.
+> - If you redistribute the binaries inside a company or offline, deliver the
+>   exact source archive with them.
+> - If the repository's access changes or the download URL stops working, the
+>   distributor must supply the source archive through the channel that
+>   delivered the binaries.
+> - Keep the source archive, its digest and the version tag unchanged for as
+>   long as any matching binary is distributed, and for every retention period
+>   that applies afterwards. Retention lasts until the accountable distributor
+>   documents that every source-offer and licence obligation has ended.
+>
+> Package checks cannot prove future access or retention; the distributor has
+> to arrange and maintain both.
+
+### Replace Qt or xdiff with your own build
+
+Qt and Git's xdiff are LGPL libraries linked dynamically, so you can replace
+them with your own modified builds. `SOURCE-OFFERS.txt` describes how.
+
+- **Qt:** replace the libraries with ABI-compatible modified builds.
+- **xdiff:** BetterPullReview's line matcher is Git 2.56.0's xdiff, shipped as
+  its own shared library. You may replace it with a modified build that
+  exports the same C interface (`xdiff/xdiff.h` of Git 2.56.0). It is:
+
+  | Platform | File |
+  |---|---|
+  | macOS | `Contents/Frameworks/libbpr_xdiff.dylib` |
+  | Windows | `bpr_xdiff.dll` beside `better_pull_review.exe` |
+  | Linux | `libbpr_xdiff.so` beside the application in `lib/betterpullreview` |
+
+  Its files are LGPL-2.1-or-later, except `xhistogram.c`, which comes from
+  JGit under the Eclipse Distribution License 1.0 (SPDX `BSD-3-Clause`).
+
+  To rebuild it, start at
+  `git-xdiff-2.56.0-build/third_party/git-xdiff/rebuild/README.md` in the
+  source archive. Verify and extract the supplied Git archive, then configure
+  the standalone CMake project with the absolute path of the extracted source.
+  It compiles the same seven C11 sources into the replaceable library using
+  only the included compatibility headers and hardening helper. No
+  BetterPullReview checkout, shared cache or network access is needed, and you
+  may modify the extracted source before you build. The README covers each
+  platform's architecture, output and import-library names, and resealing.
+
+On macOS, a modified copy has to be resealed locally after any replacement.
+Replacing a library gives that copy no update trust: it will not be eligible
+for **Check for Updates…**.
+
+## Packages without agent integrations or local automation
+
+BetterPullReview can be built without its AI agent features, and optionally
+without local automation as well. The code is removed from the build, not just
+hidden in the window.
+
+| Package name ends in | Removed | Still works |
+|---|---|---|
+| `-agent-free` | Agent launching, side chat, the finding queue, the comment workshop, tour writing assistance, the private **Ask agent**, agent-assisted composition, **Send to Agent**, the MCP context helper and the **Agents & context** settings page. No agent profile is offered. | Review, Review Cycles, notes and suggestions, **Copy**, **Save** and the bundle, capture, comparisons, responses, verification, publication, private notes and history, and every stored record, including ones an agent wrote earlier. |
+| `-agent-free-automation-off` | All of the above, plus the local command endpoint that `bpr` talks to. There is no `bpr` for this package. | Everything above, single-instance activation, and tour routing inside the app. |
+
+Things to know:
+
+- `better_pull_review_agent_supervisor` still ships in every package, because
+  guarded Git launches run inside it. It contains no agent protocol, provider
+  knowledge or credentials.
+- All variants share the same package identity (the macOS bundle identifier,
+  the Linux package name and the Windows upgrade code). Installing one over
+  another replaces program files only. Profiles, cycles, rounds, suggestions,
+  responses, verification records, private history and credentials stay, and
+  an agent-free build opens them. Replacing one variant with another on
+  Windows and Linux has not yet been qualified natively.
+- A disposable agent workspace left by a full install is still cleaned up.
+- The `bpr` command-line tool is not a release package. If you installed it
+  from a build with CMake, uninstall it by deleting the files listed in
+  `build/tour-cli/install_manifest_TourCLI.txt`. The desktop app is unaffected.
+
+To build these packages, see
+[Build packages without agent integrations](release-packaging-maintainers.md#build-packages-without-agent-integrations).
+
+## Known limitations
+
+Native installation, signing trust, vault, accessibility, removal, crash-privacy
+and vulnerability qualification are not complete on every platform. The
+[release stop conditions](release-packaging-maintainers.md#release-stop-conditions)
+list what is still open, and each release's notes record its own known
+limitations.

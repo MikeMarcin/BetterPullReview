@@ -94,7 +94,7 @@ if(BPR_BUILD_FUZZERS)
         message(
             FATAL_ERROR
             "BPR_BUILD_FUZZERS needs Clang or Apple clang on macOS or Linux "
-            "(see docs/development/build-and-test.md)"
+            "(see docs/development/build-and-test-reference.md)"
         )
     endif()
     # -O1 keeps a campaign fast enough to matter; line tables keep its stacks

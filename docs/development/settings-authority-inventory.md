@@ -174,3 +174,58 @@ unsaved disable, and a refused load cannot authorize CLI execution. These are
 existing connection status/recovery responsibilities, with no new Settings
 layout or credential field. Profile purge inventories/removes metadata and
 sidecars without touching gh-owned credentials or global authentication.
+
+## Verification status and implementation notes
+
+Moved from the [Settings guide](settings.md) when it became a user-facing
+page-by-page guide.
+
+### Ownership and verification
+
+This inventory identifies the typed host, store, schema, reset and failure
+boundary for each group. The
+[RFC-0018 closeout](../issues/60-done/BPR-0593-close-rfc-0018.md) records
+which automated, native and attended claims have actually been verified. Later
+Accounts/Appearance and update work has its own acceptance; the Settings guide
+does not turn those RFCs into closed work or imply release approval. The
+RFC-0014 foundation dependency is accepted; its remaining qualification is
+RFC-0038 (native vault, crash and full-removal courses; visible Storage
+controls are not evidence of those pending courses).
+
+Owner amendment r2 closes the recorded Settings scope while BPR-0974 remains
+open for the Windows complete native course and current inventory; on
+2026-09-25 the owner chose its Defender disposition (lower the image's static
+signals) and it is Ready. BPR-0975 is Done by a 2026-09-25 owner amendment
+that accepts WSLg's refusal of application activation, and BPR-1122 (Blocked,
+`upstream-wslg`) reruns the Linux full focus/lifetime course once WSLg ships
+the fix. The finding is not declared a false positive, and neither the Linux
+inventory-only pass nor the WSLg diagnosis course is a complete native course.
+
+### Page and row notes
+
+- Settings search ([[BPR-1289]]) ranks with the core's `fuzzy_match`; its
+  provenance is in [Ported code provenance](ported-code-provenance.md). Search
+  reads the pages as shown, so a withdrawn page is never searched.
+- [[BPR-1597]] split the former Reviews & queue page into **Home & queue**,
+  **Review** and **Comments** (owner, 2026-10-17: "too much of a big grab bag
+  of settings"). Every stored preference and key is unchanged. Comment
+  workshop's Feedback guidance ([[BPR-1568]]) was previously the Comment labels
+  row named Label helper; until [[BPR-1565]] it also turned on the comment
+  editor's leading `:xx:` codes (removed 2026-10-16). Label marks are
+  [[BPR-1083]], Overview counts and chips [[BPR-1088]], About Conventional
+  Comments [[BPR-1566]].
+- The Repositories page is RFC-BPR-0062 (owner verdicts 2026-10-07 and
+  2026-10-08); saving starts the bounded discovery owned by RFC-BPR-0026
+  through the existing saved-repository intent and store.
+- Center ribbon width defaults to 28 px, half the former fixed 56 px.
+- Claude **Process wrapper** is [[BPR-1301]] (a saved wrapper always wins,
+  owner 2026-10-07) and **Model** is [[BPR-1375]] (owner 2026-10-09). Every
+  line under Claude is set in the page's own text colour and size, at 4.5:1 or
+  better against the page in each theme, and wraps without being cut off.
+- The Review feedback writing hook is [[BPR-1090]] (owner decision
+  2026-10-08); its shipped default is `review-feedback-v1`.
+- Troubleshooting resets are [[BPR-1602]]; a confirmed reset runs before any
+  store reopens.
+- The release-update panel on General is supplied by RFC-BPR-0035.
+- Review-preparation writing protocol, request and result bounds are recorded
+  in the [AI agent boundary](../architecture/ai-agent-boundary.md#review-tour-writing-boundary).

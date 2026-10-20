@@ -1,157 +1,191 @@
 # Application updates and recovery
 
-RFC-BPR-0035 implements a user-confirmed updater for eligible production-signed
-macOS installations. **Check for Updates…** is in the application menu, including
-with no review windows open. General Settings uses the same application-wide
-service and preferences. Windows, Linux and administrator-managed installations
-use manual distribution. The [verification ledger](../verification/RFC-BPR-0035.md)
-records the qualified Apple Silicon packages, Intel follow-up and outstanding live
-private-service evidence; implementation does not mean final release acceptance.
+This page covers updating BetterPullReview from inside the app, what to do if
+an installation is interrupted, and where update data is stored.
 
-## Updating
+Self-update is available only for eligible, production-signed macOS
+installations. Windows, Linux and administrator-managed installations are
+updated manually from the
+[release page](https://github.com/MikeMarcin/BetterPullReview/releases/latest).
 
-1. No sign-in is needed. Releases are public, so the updater reads them without
-   a credential and there is no account to choose ([[BPR-1669]], [[BPR-1671]]).
-2. Use **Check for Updates…**, or **Check Now** under **Software Update** in
-   General Settings. An unavailable or inaccessible release is an error, not an
-   up-to-date result. **Open Release Page** opens the fixed repository in the
-   system browser; it is offered beside an offer and wherever this copy cannot
-   update itself.
-3. For a newer stable version, **Download** streams and verifies the exact
-   universal ZIP. **Cancel** leaves the installed application unchanged.
-   **Later** dismisses this offer; **Skip This Version** suppresses just this
-   version from automatic offers. A manual check can offer it again. The panel
-   shows only the commands that apply now.
-4. Choose **Install and Restart** for the verified version. Release identity and
-   native trust are rechecked. Every participating window/process must save its
-   state and quit cooperatively. A failed save or timeout stops installation;
-   the updater never kills another application process.
-5. After restart, check the installed version and last installation result.
-   Success means the replacement acknowledged healthy startup after its state
-   stores were ready. Saved review text appears in a read-only recovery window.
-   Copy it deliberately into the appropriate review. An indeterminate publication
-   must be reconciled with GitHub before another Publish gesture; updating never
-   retries that write.
+## Check for updates
 
-Automatic checks default on for eligible installations and run at most daily.
-They use the same public release access. Failures wait for the next daily
-opportunity or a manual retry; manual checks still obey server rate limits. The
-panel shows the last successful check; a previous installation result appears
-only when that installation did not finish. Turning automatic checks off does not
-remove the manual action. The panel warns when preferences cannot be saved.
+No sign-in is needed. Releases are public, so the updater reads them without a
+credential and there is no account to choose.
 
-Unsigned/ad-hoc builds, App Translocation, mounted images, read-only volumes,
-unwritable installations and unsupported platforms explain their limitation and
-offer the release page. Install outside the DMG before using self-update. A
-corporate `BPRManagedUpdates=true` preference in the application's preference
-domain disables automatic traffic and self-replacement; follow the administrator's
-distribution process. There is no privilege elevation.
+1. Choose **Check for Updates…** in the application menu. It is available even
+   with no review windows open. You can also use **Check Now** under **Software
+   Update** in **General** settings; both use the same service and preferences.
+2. If a newer stable version is available, choose **Download**.
+   BetterPullReview downloads the exact universal ZIP and verifies it.
+3. Choose **Install and Restart**. The release's identity and macOS trust are
+   checked again. Every BetterPullReview window and process must save its state
+   and quit on its own.
+4. After the restart, check the installed version and the last installation
+   result in **General** settings.
 
-Releases predating the signed helper and startup-receipt protocol require a
-manual bootstrap update. The historical 0.1.3 package is staging/trust evidence,
-not a participating baseline. The disposable 0.0.350–0.0.352 qualification versions
-are unpublished and numerically below 0.1.3; do not distribute them as an upgrade.
+The panel shows only the commands that apply at the moment:
 
-## Interrupted installation
+| Command | What it does |
+|---|---|
+| **Cancel** | Stops the download. The installed app is unchanged. |
+| **Later** | Dismisses this offer. |
+| **Skip This Version** | Stops automatic checks from offering this version. A manual check can still offer it. |
+| **Open Release Page** | Opens the release page in your browser. Shown beside an offer and wherever this copy cannot update itself. |
 
-If the application still runs, use normal Quit in every process using that exact
-installation. A helper waits up to 30 seconds for cooperative shutdown. After
-replacement it waits up to 60 seconds for the healthy-start receipt. An old backup
-is retained if the replacement has not acknowledged startup. Recovery never
-starts both versions on the same state root or forces a process to exit.
+An unavailable or unreachable release is reported as an error, never as "up to
+date".
 
-An interrupted active transaction can refuse ordinary startup before a window
-appears. The current recovery interface is the bundled helper below; there is no
-automatic recovery wizard. The signed backup-helper course has been exercised on
-Apple Silicon. The instructions are operator guidance, not an attended usability
-or Intel qualification claim.
+### What a successful install means
 
-An operator must resolve the exact absolute installation path and its control
-directory before running recovery. The control directory is a sibling named
-`.bpr-update-<first 24 lowercase hex characters of SHA-256 of the absolute
-installation path's UTF-8 bytes, without a newline>`. It is owner-private. Read
-its `active.json` locally and verify that `installed` is the intended application,
-`schema` is `bpr.update.transaction.v1`, and `transaction` names the exact
-`transaction-<id>` directory. Do not edit the journal, rename bundles by hand,
-remove locks or choose a directory merely because it is old. Neither a PID nor
-a directory name authorizes replacement. The helper checks native signatures,
-the journal, held locks, tree identities and recorded inodes itself.
+Success means the new version started, its storage was ready, and it confirmed
+a healthy start.
 
-The following are command templates, **not literal installation paths**. Replace
-every `/absolute/...` path and `EXACT-TRANSACTION-ID` with the values just resolved.
-Every file argument is absolute; the current working directory has no meaning.
-First inspect the selected journal:
+- If a save fails or times out, installation stops. The updater never forces
+  another app process to quit.
+- Saved review text appears in a read-only recovery window after the restart.
+  Copy it into the right review yourself.
 
-```sh
-/usr/bin/plutil -p "/absolute/install-parent/.bpr-update-EXACT-HASH/active.json"
-```
+> [!WARNING]
+> If a publish to GitHub was in progress and its result is unknown, check
+> GitHub before you publish again. Updating never retries that write.
 
-If `BetterPullReview.app` exists, use its signed helper:
+### Automatic checks
 
-```sh
-/usr/bin/env -i "/absolute/install-parent/BetterPullReview.app/Contents/MacOS/bpr_update_helper" --recover "/absolute/install-parent/BetterPullReview.app" EXACT-TRANSACTION-ID
-```
+- On by default for eligible installations, and run at most once a day.
+- Use the same public release access as manual checks.
+- A failed check waits for the next daily check or a manual retry. Manual
+  checks still respect GitHub's rate limits.
+- The panel shows the last successful check. A previous installation result
+  appears only when that installation did not finish.
+- Turning automatic checks off leaves **Check for Updates…** available.
+- The panel warns you if the preferences cannot be saved.
 
-If the first rename removed the installed path, use the helper in that exact
-journal-owned backup instead, still naming the original installation path:
+### When self-update is unavailable
 
-```sh
-/usr/bin/env -i "/absolute/install-parent/.bpr-update-EXACT-HASH/transaction-EXACT-TRANSACTION-ID/backup.app/Contents/MacOS/bpr_update_helper" --recover "/absolute/install-parent/BetterPullReview.app" EXACT-TRANSACTION-ID
-```
+These installations explain why they cannot update themselves and offer the
+release page instead:
 
-A zero helper exit means the recovery operation completed, not that a newer
-version installed. Launch the exact installed application normally and check
-General Settings and any recovered draft text. A nonzero exit can mean a live
-participant/helper, untrusted or changed material, or an incomplete journal.
-Keep all copies and obtain operator assistance; repeated forced launches, deleting
-the control directory or clearing quarantine are not recovery procedures. If the
-normal helper is unavailable or fails trust checks, preserve the complete
-transaction for diagnosis before an administrator performs manual installation.
+- unsigned or ad-hoc-signed builds;
+- an app run from App Translocation, a mounted disk image or a read-only
+  volume;
+- an installation the app cannot write to;
+- unsupported platforms.
 
-## Local storage and removal
+Copy the app out of the DMG before using self-update. The updater never asks
+for administrator privileges.
 
-Application-wide update preferences and the opaque selected-account binding live
-in `state/v1/release-update.sqlite3` beneath the application's private registry
-root. Each profile's inert recovered text lives in
-`state/v1/update-draft-recovery.sqlite3`. The installer records the canonical state
-root and its inode, so its empty-environment relaunch cannot choose another store.
-Credentials stay in the native vault; review state never moves with the app bundle.
+**Managed installations.** Setting the `BPRManagedUpdates=true` preference in
+the application's preference domain turns off automatic update traffic and
+self-replacement. Follow your administrator's distribution process instead.
 
-Downloaded staging is private and transaction-owned. Replacement state is in the
-sibling control directory: `active.json`, `last-result.json`, locks, participant
-records and exact transaction directories. A matching healthy receipt permits
-backup cleanup using the saved inode inventory. Changed/new entries are preserved.
-Terminal journals and failed candidates can remain for diagnosis; there is no
-age-based purge or implemented general updater-storage removal UI. Removing the
-app alone can therefore leave private preferences, draft recovery and transaction
-data. Preserve an active transaction before a deliberate uninstall; RFC-BPR-0014
-still owns the complete uninstall/purge qualification.
+**Older releases.** Releases from before the signed update helper and its
+startup check must be updated manually once, by downloading and installing the
+new version yourself.
 
-## Release operator gate
+## If an installation is interrupted
 
-Build from an identified committed source with tests disabled using the documented
-[local release workflow](../../packaging/README.md). The universal ZIP must contain
-exactly `BetterPullReview.app`, including `Contents/MacOS/bpr_update_helper`, both
-CPU slices, the expected bundle identifier/team and the deployed runtime/notices.
-Sign all nested code, use hardened runtime and secure timestamps, notarize and
-staple the package, and repeat native signature/trust and relocation checks. A
-checksum is integrity metadata, not a publisher trust root. Signing rotation
-needs a separately reviewed trust migration.
+If the app is still running, quit it normally in every process using that
+installation.
 
-Before distributing an updater-bearing release, retain source/archive/executable
-digests and exercise a participating older signed package through explicit
-Download and Install, healthy receipt, retained state, shutdown timeout,
-missing-receipt recovery and interrupted-rename recovery. Record native Apple
-Silicon and Intel execution separately; universal headers or Rosetta do not prove
-Intel hardware acceptance. Use disposable roots and synthetic review state. A
-live private-release/vault check requires its own explicitly authorized account
-and target, including the observed asset redirect route and revocation. Fixtures
-cannot establish those live observations.
+| Stage | Timeout |
+|---|---|
+| Waiting for every process to quit | 30 seconds |
+| Waiting for the new version to confirm a healthy start | 60 seconds |
 
-The current recorded package course is Apple Silicon only. Owner amendment r3
-defers Intel updater validation to [[BPR-0950]], outside M4 and RFC-BPR-0035
-closeout; it does not report Intel success or amend RFC-BPR-0014's wider matrix.
-Authorized live private-service/vault evidence remains on [[BPR-0911]], with
-the explicit RFC-BPR-0014 dependency on [[BPR-0912]]. Building, signing or notarizing a
-local artifact grants no tag, push, GitHub release or installed-app replacement
-authority. Publication is a separate authorized operation.
+Until the new version confirms a healthy start, the old version is kept as a
+backup. Recovery never starts both versions on the same data, and never forces
+a process to quit.
+
+An interrupted installation can stop the app from starting before any window
+appears. There is no automatic recovery wizard; recover with the update helper
+bundled in the app, as described below.
+
+> [!NOTE]
+> These recovery steps are for an administrator or experienced user. They
+> have been tested on Apple Silicon only.
+
+### Find the installation's control directory
+
+1. Find the exact absolute path of the installation, for example
+   `/Users/you/Applications/BetterPullReview.app`.
+2. The control directory sits next to it, named `.bpr-update-<hash>`. `<hash>`
+   is the first 24 lowercase hex characters of the SHA-256 of the absolute
+   installation path's UTF-8 bytes, with no trailing newline. The directory is
+   private to its owner.
+3. Read its `active.json` on this computer and check that:
+   - `installed` is the application you mean;
+   - `schema` is `bpr.update.transaction.v1`;
+   - `transaction` names an exact `transaction-<id>` directory.
+
+> [!WARNING]
+> Do not edit the journal, rename app bundles by hand, remove lock files, or
+> pick a directory because it looks old. A process ID or a directory name is
+> never enough to decide what to replace. The helper checks signatures, the
+> journal, held locks, file-tree identities and recorded inodes itself.
+
+### Run the recovery helper
+
+The commands below are templates, **not literal paths**. Replace every
+`/absolute/...` path, `EXACT-HASH` and `EXACT-TRANSACTION-ID` with the values
+you found. Every file argument must be absolute; the current directory is not
+used.
+
+1. Inspect the journal:
+
+   ```sh
+   /usr/bin/plutil -p "/absolute/install-parent/.bpr-update-EXACT-HASH/active.json"
+   ```
+
+2. If `BetterPullReview.app` exists, run its signed helper:
+
+   ```sh
+   /usr/bin/env -i "/absolute/install-parent/BetterPullReview.app/Contents/MacOS/bpr_update_helper" --recover "/absolute/install-parent/BetterPullReview.app" EXACT-TRANSACTION-ID
+   ```
+
+   If the installation was already moved aside and `BetterPullReview.app` is
+   missing, run the helper inside that transaction's backup instead, still
+   naming the original installation path:
+
+   ```sh
+   /usr/bin/env -i "/absolute/install-parent/.bpr-update-EXACT-HASH/transaction-EXACT-TRANSACTION-ID/backup.app/Contents/MacOS/bpr_update_helper" --recover "/absolute/install-parent/BetterPullReview.app" EXACT-TRANSACTION-ID
+   ```
+
+3. Check the result:
+   - **Exit code 0** means recovery finished. It does not mean the newer
+     version was installed. Start the app normally, then check **General**
+     settings and any recovered draft text.
+   - **A nonzero exit code** can mean another app process or helper is still
+     running, something is untrusted or changed, or the journal is incomplete.
+     Keep every copy and get help from an administrator.
+
+If the helper is missing or fails its trust checks, keep the whole transaction
+directory for diagnosis before an administrator reinstalls the app by hand.
+Repeatedly forcing the app to launch, deleting the control directory or
+clearing quarantine do not recover an installation.
+
+## Where update data is stored
+
+| Data | Location |
+|---|---|
+| Update preferences (automatic checks, skipped version, last check and result) | `state/v1/release-update.sqlite3` in the application's private registry folder, shared by all profiles |
+| Recovered review text after an update | `state/v1/update-draft-recovery.sqlite3` in each profile |
+| Downloads in progress | Private staging owned by the update transaction |
+| Installation journal, last result, locks, process records and transaction folders | The control directory next to the app: `active.json`, `last-result.json` and `transaction-<id>` folders |
+
+Credentials stay in the system's secure credential store. Your review data
+never moves with the app bundle. The installer records where your data lives,
+so the restarted app cannot pick a different store.
+
+After a healthy start, the old backup is cleaned up using the saved file
+list. Files that changed or were added are kept. Finished journals and failed
+downloads can stay behind for diagnosis.
+
+> [!NOTE]
+> There is no automatic age-based cleanup and no menu command to remove
+> update data. Removing only the app can leave private preferences, recovered
+> drafts and transaction data behind. If an installation is in progress, keep
+> its transaction before you uninstall. Complete uninstall and purge are not
+> yet qualified.
+
+Maintainers: see the [release operator gate](application-updates-release-gate.md).

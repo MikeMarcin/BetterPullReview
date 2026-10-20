@@ -4,7 +4,7 @@ This is the committed report [RFC-BPR-0080](../rfcs/RFC-BPR-0080-hashing-replace
 AC01 asks for. [[BPR-1446]] produced it on macOS arm64. Immutable
 RFC_BASE_SHA: `5620a9f15a391dde7750112294f7562f2f64a32f`. The harness is
 `tests/hash_evaluation` at the revision each raw file names; how to run it is
-in [Build and Test](../development/build-and-test.md#hash-evaluation).
+in [Build and Test](../development/build-and-test-reference.md#hash-evaluation).
 Windows ([[BPR-1448]]) and Linux ([[BPR-1449]]) have not run. Nothing below
 claims a result for them.
 

@@ -1364,8 +1364,49 @@ Only bounded admitted context accompanies the request; credentials, general
 private notes, unrelated drafts and linked-ticket retrieval are excluded. Current
 editor/owner/hook/source generations must still match at delivery. Outline output
 contains no comment bodies, Ready flags or publication authority; retained entries
-need individual visible author completion. See the [settings contract](../development/settings.md)
-and [tour operator guide](../development/review-tours.md) for exact limits and undo.
+need individual visible author completion. See the
+[Settings guide](../development/settings.md#review-preparation-writing-hooks)
+and [tour operator guide](../development/review-tours.md) for the user-facing
+behaviour.
+
+### Writing request and result bounds
+
+Moved from the Settings guide. Writing hooks hold text instructions only and
+grant no tool, publication or broader editing authority. Save and Restore
+default do not run an agent. A saved-hook Test is one explicit, nonpublishing
+request with the selected allowed agent on a synthetic sample bound to the open
+review; it has no draft destination and changes no tour field. The Review
+feedback hook writes no tour field, so its Test is unavailable.
+
+A request captures one selection (including whitespace), otherwise its whole
+field. Empty Problem/Solution fields first recover an unambiguous existing
+description section, byte for byte, without inference. Other empty requests
+need approved evidence; an empty stop also needs its exact currently available
+pinned source. Context is collected only on that gesture: bounded author
+description/comments, private brief text, surrounding prose and the selected
+stop's code. No linked resource is fetched.
+
+| Bound | Limit |
+|---|---|
+| Input selection | 6,000 UTF-8 bytes |
+| Supplied evidence | 8,192 bytes |
+| Complete outgoing agent message | 16,384 bytes |
+| Returned replacement text | 16,384 bytes |
+| Complete result | 32,768 bytes |
+
+Over-limit requests ask for a smaller selection. Extra keys, invalid
+provenance, malformed UTF-8, duplicate or stale responses cannot alter the
+field; the response protocol must confirm an empty tool/MCP list, and tool
+blocks and finding payloads are refused. One accepted result is one native
+undo transaction: undo restores raw Markdown and selection, and redo uses the
+received bytes without running the agent again. Private
+Recovered/Inferred/Unclear notes stay outside the tour body. The outline hook
+returns body-free suggestions.
+
+The application's flags do not change the developer's installed global
+configuration. The CLI flag contract is documented in the
+[provider's CLI reference](https://code.claude.com/docs/en/cli-reference);
+actual installed-provider and model-quality qualification is still required.
 
 ## Review Cycles and agents
 

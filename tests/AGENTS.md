@@ -38,7 +38,7 @@ Tests are direct evidence, not naming evidence.
   row needs: a row inside the AppContainer needs the container's SID.
 - A course's application data root is the `data` child of a temporary
   directory the course has narrowed to owner-private, made by that language's
-  helper (`docs/development/build-and-test.md`, "A course's data root sits one
+  helper (`docs/development/build-and-test-reference.md`, "A course's data root sits one
   owned level down"). Every row fails on `AGENT_WORKSPACE_RECOVERY_REFUSED`
   unless it registers `EXPECTS_WORKSPACE_RECOVERY_REFUSAL`.
 - A pull request named in the Home bar opens on Overview, which shows no

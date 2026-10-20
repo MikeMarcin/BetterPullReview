@@ -87,7 +87,7 @@ The [installed-Git adapter](../../../../src/adapters/git/src/installed_git_proce
 already runs Git as an isolated child: `GIT_CONFIG_NOSYSTEM`, a controlled
 global config, and a kill on stop. It already runs `diff-tree -p` for
 publication. Git is admitted from 2.39 onward
-([build and test](../../../development/build-and-test.md#retained-git-history-and-epoch-storage)).
+([build and test](../../../development/build-and-test-reference.md#retained-git-history-and-epoch-storage)).
 Review Cycle material comparisons (`review_cycle_comparison.cpp`) and agent
 realignment (`agent_realignment.cpp`) call the core engine directly and use no
 Git.

@@ -1,393 +1,510 @@
 # Storage, diagnostics and removal
 
-These instructions describe the composed RFC-BPR-0014 maintenance controls.
-The [native qualification ledger](../verification/RFC-BPR-0014.md) still has
-open clean-account, credential-vault, crash-privacy and complete removal courses.
-An implemented control or passing fixture does not certify every platform.
+This guide explains what BetterPullReview stores on your computer, how long it
+keeps it, and how to export diagnostics, reset or purge a profile, and
+uninstall the app. It is written for people using the app and for IT staff who
+need to know what is stored where and what removal leaves behind.
 
-## Locate the selected profile
+> [!WARNING]
+> Native qualification of clean-account installs, credential-vault handling,
+> crash privacy and complete removal is not finished on every platform. A
+> working control does not mean every platform has been certified. The
+> [qualification record](../verification/RFC-BPR-0014.md) lists what is still open.
 
-The application uses Qt's `AppLocalDataLocation` with organization and application
-both named `BetterPullReview`. Typical base locations are:
+## Find your data
 
-| Platform | Base location |
+BetterPullReview keeps each profile's data in a private folder under your
+user account.
+
+| Platform | Default location |
 |---|---|
 | macOS | `~/Library/Application Support/BetterPullReview/BetterPullReview` |
 | Windows | `%LOCALAPPDATA%\BetterPullReview\BetterPullReview` |
 | Linux | `$XDG_DATA_HOME/BetterPullReview/BetterPullReview`, normally `~/.local/share/BetterPullReview/BetterPullReview` |
 
-OS redirection and managed environments can change the base. The legacy/default
-profile uses that base; isolated profiles use `profiles/<opaque root identity>`
-under it. A profile's display name or numeric CLI ID is not that directory name.
-Confirm the selected profile in Settings before maintenance. Root admission
-rejects unsafe permissions and symlink/reparse substitutions; it does not make
-an arbitrary path safe because it resembles one of these examples.
+- The **Default** profile uses that folder directly.
+- Each additional profile lives in `profiles/<id>` under it. The `<id>` is an
+  opaque identifier: it is not the profile's display name or its numeric CLI ID.
+- OS folder redirection and managed environments can move the base folder.
+- Confirm which profile is selected in **Settings** before any maintenance.
 
-Native private directories/files use owner-only modes on POSIX and validated
-private ACLs/handles on Windows. A kernel-held exclusive lease prevents two
-writers from owning the same profile. Same-user/admin access, backups and disk
-encryption are separate OS controls. Do not copy or edit live databases, remove
-locks, or treat a root directory as a recursive deletion target.
+Each profile also has a sibling folder for disposable agent workspaces, named
+`<profile-folder-name>-agent-workspaces-v1`.
 
-### When the status bar says agent workspaces are unavailable
+### How the folder is protected
 
-Disposable agent workspaces live beside the profile root, in
-`<profile-root-leaf>-agent-workspaces-v1`. Suppose startup recovery refuses
-that area. Then every window of the profile adds "Disposable agent workspaces
-are unavailable: their folder needs repair or has reached its limit." to its
-status bar ([[BPR-0817]]). A launch from a terminal also attempts to print
-`AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:<reason>` to standard
-error. The refusal does not change the exit code: an orderly quit still exits 0.
+- Private folders and files are readable only by your account (owner-only
+  permissions on macOS and Linux, private access lists on Windows).
+- Only one running copy of BetterPullReview can own a profile at a time.
+- BetterPullReview refuses to open a profile folder with unsafe permissions,
+  or one where a folder has been swapped for a link. Having a path that looks
+  like the examples above does not make it safe.
+- Other processes running as you, administrators, backups and disk encryption
+  are governed by your OS, not by BetterPullReview.
 
-The usual reason is `repair-required`. It means one of two things:
+> [!WARNING]
+> Do not copy or edit live databases, delete lock files, or delete a profile
+> folder recursively. Use the reset and purge controls described below.
 
-- The folder that holds the area can be written by another user or group.
-- An entry in the area is not the one BetterPullReview recorded.
+## What is stored
 
-BetterPullReview never changes the mode, owner or contents of a folder it did
-not create.
+All locations are relative to the selected profile's folder. Notes, drafts and
+receipts are private data: they cannot be rebuilt from GitHub.
 
-On Linux and macOS, the common case is an earlier install that ran under umask
-`0002` and left the folder that holds the Default profile group-writable. On
-Linux that folder is normally `~/.local/share/BetterPullReview`. Current
-versions create missing folders owner-only, but they do not repair one that
-already exists. If `ls -ld` shows group or other write on that folder, remove
-it with `chmod go-w`, then start BetterPullReview again. On Windows, remove
-any write permission that another principal holds on that folder. Do not
-repair an entry inside the area by hand. Instead, keep it for diagnosis:
-recovery refuses anything whose recorded identity it cannot prove.
-
-## Preserve inline comments before recovery
-
-Inline comments are private data in `<selected-profile-root>/state/v1/review-ledger.sqlite3`. Ordinary draft text is in `private_draft.body`; a composition-linked draft references `private_content.body` through its `content_id`. Its serialized record retains target, original head, state and revision. An older head or unavailable publish control does not establish that these rows were deleted.
-
-Quit the application normally before making a backup. Copy the selected profile directory into a fresh owner-private backup, retaining any SQLite `-wal` and `-shm` sidecars with their database. Keep the original in place; do not copy a live database by itself, remove locks, edit records or open the only copy in a tool that may write it. A copied profile contains private review text and should stay outside repositories and shared logs.
-
-The product's **Finish review > Saved comments** viewer can inspect earlier-head text in its original account/PR scope. Storage architecture and a passing fixture cannot establish that a particular owner's text was committed; actual recovery requires that profile's own evidence. BPR-1520's owner reported recovering their comments with a SQLite browser; the agent did not inspect or alter that profile.
-
-## Inventory and retention
-
-The profile's `review-ledger.sqlite3` stores RFC-BPR-0023 private threads,
-immutable turns, run provenance, exact composition sources, local drafts and
-publication lineage. Schema 9 migrates supported v1–v8 ledgers atomically;
-old notes retain their bytes and become `legacy_unknown` revisions. Pages and
-scope quotas are bounded; an oversized admission refuses the whole transaction.
-The [ledger contract](../architecture/review-ledger.md) lists exact page, body
-and scope limits. A killed writer leaves the last committed state; remote success
-with a failed local lineage commit is reconciled from the existing request and
-server truth without a second POST. Profile purge removes this private store
-through the admitted inventory, not a GitHub comment or shared updater state.
-Diagnostic output uses identities and digests rather than private bodies or
-credentials. See the [operator workflow](../ux/private-review-workflow.md).
-
-| Data | Location relative to the admitted profile root | Removal behavior |
+| Data | Location | Kept until |
 |---|---|---|
-| Preferences, queue, private ledger, window destinations, device-binding metadata, publication recovery and epochs | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `review-tours.sqlite3`, `review-cycles.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, plus admitted sidecars | Explicit profile purge includes the exact known files. Notes, drafts and receipts are private data, not merely a reconstructible cache. |
-| Body images (RFC-BPR-0084) | `state/v1/markdown-images.sqlite3` and its admitted sidecars: encoded image bytes keyed by a digest of host, account and source | Bounded to 128 MiB, least recently used first; an entry expires seven days after its last use. Profile purge removes it. |
-| Retained Git data | Managed repository/cache/catalog layout and its identity manifests | No automatic TTL/LRU pruning. Exact epoch pruning leaves tombstones and does not promise immediate byte reclamation. Explicit repository-cache deletion removes that cache's bytes; never-observed history cannot be recovered. |
-| Agent and MCP material | Adjacent `<profile-root-leaf>-agent-workspaces-v1` ownership area; profile `agent-workspace-ownership-v1` and `mcp-snapshot` | Original owners reconcile active/interrupted work before purge. Populated or unknown workspace state can block it; no broad sweep is used. Existing developer checkouts are outside purge. |
-| Diagnostics | `logs/session-<opaque-session>-<segment>.jsonl`; legacy `logs/diagnostics.log` is read for compatibility | New files rotate before 5 MiB. Coordinated retention bounds the profile to 50 MiB and 64 files, pruning inactive history older than 30 days and oldest inactive files under pressure. Explicit cleanup removes the prepared logs; `logs/.retention.lock` remains. |
-| Shared/excluded state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their admitted sidecars | Current-profile purge excludes them. Updater draft recovery may contain private text even when stored within a profile. There is no general all-profiles/updater-storage removal UI. |
-| Credentials | Native Keychain/Credential Manager/Secret Service; tokens are outside SQLite | Sign out deletes exact access/refresh slots. Profile purge deletes known remembered bindings through their existing owner before removing binding metadata. |
+| Preferences, Home queue, private review notes and drafts, window layout, sign-in metadata, publication recovery, comparison history | `state/v1/`: `appearance-settings.sqlite3`, `workbench-settings.sqlite3`, `diagnostic-preferences.sqlite3`, `review-queue.sqlite3`, `review-ledger.sqlite3`, `review-tours.sqlite3`, `review-cycles.sqlite3`, `window-restoration.sqlite3`, `device-bindings.sqlite3`, `review-mutation-recovery.sqlite3`, `epoch-catalog.sqlite3`, and their sidecar files | You reset or purge the profile |
+| Images shown in comment and description bodies | `state/v1/markdown-images.sqlite3` and its sidecars | Seven days after last use; the oldest are removed first once the cache reaches 128 MiB |
+| Retained Git history for pull requests | The profile's managed repository and cache folders | You clear caches, reset or purge. There is no automatic expiry |
+| Agent and MCP material | The sibling `-agent-workspaces-v1` folder; `agent-workspace-ownership-v1` and `mcp-snapshot` in the profile | Purge, after any active or interrupted work is settled |
+| Published Review Cycle candidates | `publication-git-v1/` | You reset review data or purge |
+| Diagnostic logs | `logs/session-<id>-<segment>.jsonl` (older versions wrote `logs/diagnostics.log`, which is still read) | See [Diagnostic logs](#diagnostic-logs) |
+| Shared state | `profiles/`, `updates/`, `state/v1/profile-registry.sqlite3`, `release-update.sqlite3`, `update-draft-recovery.sqlite3` and their sidecars | Not removed by any profile reset or purge |
+| Sign-in tokens | macOS Keychain, Windows Credential Manager or Linux Secret Service, never in SQLite | You sign out, or purge the profile |
 
-Review tours retain private authored Markdown, editable raw remote baselines and
-outline provenance (supplied anchor identifier, private reason/question and visit state),
-bounded to 64 KiB per field, 4 MiB per encoded draft and 128 drafts per profile.
-There is no automatic eviction. The exact profile/account/host/repository/PR key
-is retained; a save conflict keeps both copies. These drafts are not server-backed.
-Profile purge removes the admitted tour store and sidecars without changing any
-GitHub comment. See the [tour storage contract](../architecture/review-tours.md).
+### Private review notes and drafts
 
-Review Cycles keep everything in `state/v1/review-cycles.sqlite3`: each
-cycle's binding, captured revisions, notes and suggestions with every wording,
-round drafts, frozen rounds, delivery observations, responses, verifications,
-grants, the disclosure policy, publication plans and journals, and pull request
-links. Captured bytes and frozen payloads are content-addressed objects in the
-same store, pinned while a revision or round names them. A captured file is at
-most 128 MiB (a larger one is listed as too large), and retained objects are
-held within a 768 MiB budget: an install that would exceed it is refused with
-the store's inventory rather than evicting pinned evidence, and reclaiming
-removes only objects nothing references. Removing a cycle needs a preview whose token still
-matches and loses its history irrecoverably; GitHub cannot restore it. Rounds the
-reviewer saved or exported, and `.bpr-review.zip` bundles, are the reviewer's
-own files and stay where they were written. None of this is encrypted by
-BetterPullReview. Publishing a cycle (Share notes > Publish as Pull Request…)
-also makes the profile's `publication-git-v1/`, a BPR-owned Git store for the
-candidate's objects. Profile purge includes that folder by its exact layout
-(the installed Git isolation files, empty work and cache directories, and the
-`publication/v1` bare object stores); anything else inside it blocks the purge
-as an incomplete inventory ([[BPR-1283]]). The [domain model](../architecture/domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)
-gives the store's recovery and pin rules.
+`review-ledger.sqlite3` holds your private conversations, their individual
+turns, which agent run produced what, the exact sources a review was composed
+from, local drafts, and the record of what you published. Older notes keep
+their exact text when the store is upgraded. Page and per-scope size limits
+are listed in the [ledger contract](../architecture/review-ledger.md); a
+change that would exceed them is refused as a whole.
 
-Manual-token sessions are session-only and remove their exact slots on orderly
-quit. Settled device grants survive orderly quit and are revalidated on restart.
-Sign out also disables the resumable binding; replacing a device grant with a
-manual token removes the previous grant. A crash or missing binding metadata
-can leave unresumable vault material. Neither purge nor uninstall enumerates a
-whole credential namespace. External `gh` and AI credentials belong to those
-applications and are not removed by BetterPullReview.
+If the app is killed mid-write, the last saved state survives. If GitHub
+accepted a publish but the local record failed to save, BetterPullReview
+reconciles it from the original request and GitHub's state, without posting a
+second time. See the [private review workflow](../ux/private-review-workflow.md).
 
-Retention runs at logger startup and before backend writes. Each active session
-holds its current file; completed segments may be pruned while that session
-continues. Idle files can remain past the age limit until the next retention
-pass. If active files exhaust capacity, recording reports full or startup busy
-without deleting them. Unsafe links, unknown entries and changed directory/file
-identities refuse logging. These bounds apply to cooperating application writers;
-external modification is not a disk quota. A crash may leave a partial final
-record. Restart creates a new session file and never appends to that tail.
+### Review tours
+
+Tour drafts keep your authored Markdown, an editable copy of the remote
+version, and outline details (anchors, private reasons and questions, and
+which stops you visited).
+
+| Limit | Value |
+|---|---|
+| Per field | 64 KiB |
+| Per draft | 4 MiB |
+| Drafts per profile | 128 |
+
+Drafts are never evicted automatically and are not stored on GitHub. Each is
+keyed to its profile, account, host, repository and pull request. If two saves
+conflict, both copies are kept. See the
+[tour storage contract](../architecture/review-tours.md).
+
+### Review Cycles
+
+Everything for Review Cycles is in `state/v1/review-cycles.sqlite3`: each
+cycle's binding, captured revisions, notes and suggestions (with every
+wording), round drafts and frozen rounds, delivery observations, responses,
+verifications, grants, the disclosure policy, publication plans and journals,
+and pull-request links.
+
+- A captured file can be at most 128 MiB. A larger file is listed as too large.
+- Captured content is held within a 768 MiB budget. When a capture would
+  exceed it, the capture is refused and the store's contents are shown; nothing
+  that a revision or round still uses is evicted. Reclaiming space removes only
+  content nothing refers to.
+- Removing a cycle asks for a preview first and permanently loses its history.
+  GitHub cannot restore it.
+- Rounds you saved or exported, and `.bpr-review.zip` bundles, are your own
+  files and stay where you wrote them.
+- BetterPullReview does not encrypt any of this.
+
+**Share notes > Publish as Pull Request…** also creates `publication-git-v1/`
+in the profile, a Git store that BetterPullReview owns for the candidate's
+objects. Purge removes it only when its contents match the layout
+BetterPullReview created; anything else inside it stops the purge. The
+[domain model](../architecture/domain-and-state-model.md#review-cycle-identities-rfc-bpr-0053)
+describes the store's recovery and pinning rules.
+
+### Retained Git history
+
+Retained pull-request history is never pruned automatically. When a
+comparison point is pruned, a marker remains and disk space may not be freed
+straight away. Deleting a repository cache removes its bytes. History
+BetterPullReview never observed cannot be recovered.
+
+### Sign-in credentials
+
+- **Manual tokens** last for one session. BetterPullReview removes them on a
+  normal quit.
+- **Device sign-ins** survive a normal quit and are checked again on restart.
+- **Sign out** deletes the stored access and refresh tokens and stops the
+  sign-in from resuming. Replacing a device sign-in with a manual token
+  removes the earlier one.
+- A crash, or missing sign-in metadata, can leave tokens in the vault that
+  BetterPullReview can no longer find.
+- Neither purge nor uninstall removes every entry in the vault namespace.
+  Purge removes only the sign-ins it knows about.
+- Credentials held by `gh` or an AI agent belong to those tools.
+  BetterPullReview never removes them.
+
+## Back up inline comments before recovery
+
+Inline comment drafts are private data in
+`state/v1/review-ledger.sqlite3`. Each draft keeps its target, the head
+commit it was written against, its state and revision. A draft written
+against an older head, or one whose **Publish** button is unavailable, has
+not been deleted.
+
+To make a safe copy:
+
+1. Quit BetterPullReview normally.
+2. Copy the whole selected profile folder into a new folder only you can
+   read. Keep each database's `-wal` and `-shm` files with it.
+3. Leave the original in place.
+
+Do not copy a live database on its own, remove locks, edit records, or open
+your only copy in a tool that might write to it. The copy contains private
+review text, so keep it out of repositories and shared logs.
+
+To read earlier text in the app, open **Finish review > Saved comments**. It
+shows comments written against earlier heads, for the account and pull
+request they belong to.
 
 ## Diagnostic controls
 
-Open **Help → Diagnostics**, or profile **Settings → Storage & privacy**.
-The controls remain available while signed out and are shared by the profile's
-windows; other profiles have independent preferences and logs.
+Open **Help > Diagnostics…** or **Settings > Storage & privacy**. The
+controls work while you are signed out and apply to every window of the
+profile. Each profile has its own diagnostic settings and logs.
 
-- **Record local diagnostics** defaults to On. Off stops new file and recent
-  context capture after acknowledgement; it keeps older files.
-- **Detail** defaults to Standard. Verbose adds bounded intermediate provider
-  steps and their timestamps. Warnings/errors are recorded in either mode.
-- **Identity privacy** defaults to Anonymized and is independent of detail.
-  Request/window joins use opaque typed labels. **Include locally** asks for
-  confirmation before also retaining their numeric identities. Current producers
-  do not admit account/repository names, paths or review bodies in either mode.
-- **Open logs folder** requests the OS handler for this profile's logs directory.
-  A successful handoff does not prove a file manager displayed it; refusal is shown.
-- **Clear local diagnostics** confirms this profile's scope, invalidates pending
-  records, resets recent context and removes admitted logs. It preserves exports,
-  preferences and other profile data. A fresh empty session segment and the
-  coordination lock remain. Another active session returns Busy; unsafe storage
-  and partial deletion have explicit failure results.
+| Control | Default | What it does |
+|---|---|---|
+| **Record local diagnostics** | On | Off stops writing new log records and recent context once the change is applied. Existing log files are kept. |
+| **Detail** | Standard | **Verbose** also records the intermediate steps of provider calls and their timestamps. Warnings and errors are recorded either way. |
+| **Identity privacy** | Anonymized | Links between requests and windows use opaque labels. **Include locally** asks for confirmation, then also keeps their numeric IDs. Account and repository names, paths and review text are not recorded in either mode. |
+| **Open logs folder** | | Asks your OS to show this profile's `logs` folder. An error is shown if the OS refuses. |
+| **Clear local diagnostics** | | After you confirm, removes this profile's logs and recent context. Exports, preferences and other data are kept. A new empty log file and the lock file remain. |
 
-The accepted selection is shown until the effect and writer barrier complete.
-Preferences live in the owner-private `state/v1/diagnostic-preferences.sqlite3`.
-Restart loads them before recording starts. Unknown detail/privacy values use
-Standard/Anonymized and preserve a valid Off choice; an unreadable store disables
-capture and editing, with visible safe-default status. Explicit choices can
-repair readable compatible rows. Failed storage does not appear as accepted.
+**Clear local diagnostics** reports **Busy** if another session is using the
+logs, and reports unsafe storage or a partial deletion as a failure.
 
-Recent sanitized intermediate context remains in memory in either detail mode:
-at most three minutes, 512 events and 2 MiB. Expired entries cannot be read and
-idle backend maintenance retires them. Off, detail/privacy changes, Clear,
-Sign out and logger retirement clear transient context; privacy changes also
-reset identity joins. Off collects no hidden ring. Export includes this context
-only when its separate recent-context checkbox is selected. Historical logs are never silently reprocessed
-when a preference changes. Sanitized explanation text can still be contextual.
+Your settings are saved in `state/v1/diagnostic-preferences.sqlite3` and load
+before recording starts.
 
-Status shows availability, cumulative loss, recent context size and control
-failures. Loss includes contention, capacity and invalid events; saturation or
-failure can prevent an event reaching disk. Normal ingress uses up to 3,584
-events/7 MiB with reserved warning/error room inside 4,096 events/8 MiB. Smaller
-per-thread Quill queues can drop earlier. These are bounds, not delivery promises.
+- The new setting is shown as soon as you choose it, and takes effect once
+  pending log writes finish. A setting that could not be saved is not shown
+  as applied.
+- If the settings store cannot be read, recording and editing are turned off
+  and the panel says it is using safe defaults.
+- Changing a setting never rewrites existing logs.
+
+### Recent context
+
+In either detail mode, BetterPullReview keeps a short in-memory history of
+recent, sanitized steps: at most three minutes, 512 events and 2 MiB. It is
+never written to disk unless you include it in an export.
+
+It is cleared when you turn recording off, change detail or privacy, clear
+diagnostics, or sign out. Changing privacy also resets identity labels. When
+recording is off, no hidden history is kept. Sanitized explanation text can
+still carry some context.
+
+### Status and dropped records
+
+The panel shows whether recording is available, how many records have been
+lost, the size of recent context, and any control failures. Records can be
+lost to contention, a full log, or invalid events; under load an event may
+not reach disk. The limits are bounds, not a delivery guarantee. The
+[storage reference](storage-reference.md#diagnostic-recording-limits) lists
+the queue sizes.
+
+## Diagnostic logs
+
+| Limit | Value |
+|---|---|
+| Size of one log file before a new one starts | 5 MiB |
+| Total logs per profile | 50 MiB and 64 files |
+| Inactive logs removed after | 30 days, or oldest first when space runs out |
+
+- Old logs are pruned when logging starts and before writes. An idle file can
+  outlive 30 days until the next pass.
+- The file a running session is writing is never pruned. If active files fill
+  the space, recording reports **full** or **busy** instead of deleting them.
+- Recording stops if the logs folder contains links, unknown entries, or files
+  that were replaced.
+- These limits apply to BetterPullReview's own writing. They are not a disk
+  quota against other programs.
+- A crash can leave a partial last record. The next start writes a new file
+  and never appends to it.
+
+The log file you can read in the logs folder is not an export. It can contain
+older provider text and identifying details recorded by earlier versions;
+upgrading does not rewrite old records.
 
 ## Preview and export diagnostics
 
-1. Choose **Help → Export anonymized diagnostics…**, available while signed out.
-   The same action is in **Settings → Storage & privacy**. It automatically
-   freezes a bounded selection of retained logs for this profile and opens the
-   preview. Session, request and window joins receive fresh opaque labels.
-2. Inspect the scope, time range, categories, size and omissions. **Show records**
-   expands the exact file text. Recognized sanitized explanations and operational
-   facts remain; these can still reveal context.
-3. Choose **Save…** and a new local filename, or **Cancel**. Existing files are
-   refused. Later appends are excluded; original files remain intact.
-   Each Save starts in the OS-reported Downloads folder, then Documents or home
-   if the earlier folder cannot satisfy the local output policy. You can navigate
-   elsewhere and rename the file. Cancelling the chooser keeps the exact preview.
-   If all three folders are unavailable, the preview stays open with a retry
-   explanation beside Save. Make a user folder available and try Save again.
-   Choosing a default creates nothing and stores no directory history.
-4. **Export options** offers current-session selection and optional recent
-   sanitized context (excluded by default). Changing an option cancels the old
-   snapshot; **Update preview** freezes the revised selection before Save enables.
-5. **Help → Export with identifying details…** uses the same short flow with
-   an explicit disclosure and **Save with identifying details…** confirmation.
-   Cancel is the default. Export cannot recover identities removed during
-   recording. Credentials and review content are excluded in either mode.
+Exports let you look at exactly what would be shared before you save it.
 
-Every export is a local write. No upload, support message, repository attachment
-or transmission to an agent occurs. Closing the export dialog or its Settings window cancels its preview. A
-frozen preview can contain explicitly selected recent context until cancelled or
-consumed; it receives no new records after preparation.
+1. Choose **Help > Export anonymized diagnostics…** (also in **Settings >
+   Storage & privacy**). This works while signed out. BetterPullReview takes a
+   bounded snapshot of this profile's logs and opens a preview. Sessions,
+   requests and windows get fresh opaque labels.
+2. Check the scope, time range, categories, size and anything omitted.
+   **Show records** shows the exact file text. Sanitized explanations and
+   operational facts remain and can still reveal context.
+3. Optionally open **Export options** to limit the export to the current
+   session or to include recent context (off by default). Changing an option
+   discards the old snapshot; choose **Update preview** before saving.
+4. Choose **Save…** and a new file name, or **Cancel**.
 
-Input work across the selected directory is bounded to 16 MiB and 65,536 records; a larger retained set reports a limit instead of silently truncating. Each incomplete file tail is counted as one omitted record, independently of the next file. Legacy v1 lines admit at
-most 8,192 bytes; canonical v2/v3 JSONL records admit at most 16 KiB including the
-newline. The JSONL parser accepts the writer's exact field order and bounded ASCII
-scalar grammar, and omits unsupported encodings or extra fields. Every rich
-field is classified again; legacy v1 retains only its small metadata prefix.
-Unrecognized detail is explicitly omitted. Output is at most 1,024 records and
-256 KiB; excess records are counted as omissions. Duplicate file/ring events
-are counted once. Unknown/incomplete records are omitted and counted. An unsafe source, changed target or limit refusal is not a successful export.
-An empty admitted selection explicitly reports zero records. After an export failure, preview again and choose a new filename.
-If publication succeeded before a final durability failure, the selected file
-may remain; inspect it before retrying. Cancel before the commit boundary is
-advisory, and an operation already committed may still report success.
+To include identifying details, choose **Help > Export with identifying
+details…** instead. It shows an explicit disclosure and asks you to confirm
+with **Save with identifying details…**; **Cancel** is the default. It keeps
+the session and numeric IDs that were recorded, but cannot restore identities
+that were never recorded. Credentials and review content are excluded in both
+kinds of export.
 
-The readable log is not the export. New capability-error details use classified
-explanations and public query symbols with explicit unknown-content omissions.
-Existing retained files can contain earlier sanitized provider prose and identity
-information; this change does not rewrite historical records. Do not send raw logs, databases, MCP snapshots
-or OS crash reports as if they had passed the preview's policy. BetterPullReview
-does not automatically upload them; OS crash collection has its own settings.
-Current crash evidence does not establish redaction of resident source/comments/
-tokens across the supported matrix.
+> [!NOTE]
+> An export only writes a file on your computer. Nothing is uploaded, sent to
+> support, attached to a repository or passed to an agent.
 
-New records carry an opaque logger `session`, an increasing `sequence`, UTC and
-monotonic time, stable event/category/severity and source/toolchain build identity.
-The [local logging guide](build-and-test.md#basic-local-diagnostics) defines these
-fields and their bounds. Each newly constructed profile logger creates a fresh
-session; older records remain unchanged. These diagnostic identities grant no
-authority. Anonymized export remaps their joins independently for each preview;
-identifying export retains the session and captured numeric IDs.
+### Where the file is saved
 
-Epoch records carry originating `window_label` and `request_label` joins.
-Include locally additionally retains numeric `window_session` and epoch-local
-`request` (`0` during catalog opening before request allocation).
-CLI Git acquisition refusals also carry a closed `git_step`, separating tool
-version probes/qualification, identity probes, clone, object checks, local
-store/pack work and pack reading. Other transports leave it `none`. These
-fields record where a refusal occurred, not its unobserved underlying cause:
-`clone` plus `unavailable` does not establish an authentication or size limit.
-They contain no executable path, command output, repository identity or source.
-Export applies the selected privacy policy to every classified field; the
-legacy metadata-only API remains available for compatibility. Older records
-are not retroactively enriched.
+- The save dialog starts in your Downloads folder, then Documents, then your
+  home folder if the earlier one cannot be used. You can pick another folder
+  and rename the file.
+- An existing file is never overwritten.
+- Cancelling the save dialog keeps the preview as it was.
+- If none of the three folders is available, the preview stays open with an
+  explanation beside **Save…**. Make a folder available and try again.
+- Picking a starting folder creates nothing and remembers no folder history.
+
+### What the export contains
+
+- Records added after the snapshot are not included. Original log files are
+  left untouched.
+- Closing the export dialog, or the Settings window it came from, cancels the
+  preview. Until then, a preview can hold the recent context you selected.
+- An export reads at most 16 MiB and 65,536 records. A larger set reports a
+  limit instead of being cut silently.
+- An export contains at most 1,024 records and 256 KiB. Records beyond that,
+  unrecognized or incomplete records, and unknown detail are omitted and
+  counted. Duplicates are counted once.
+- An empty selection says it contains zero records.
+
+### If an export fails
+
+An unsafe source, a changed target or a size limit means the export did not
+succeed. Preview again and choose a new file name.
+
+If the file was written but a final save step failed, the file may still be
+there; check it before trying again. Cancelling near the end is best effort,
+and an export that already finished may still report success.
+
+> [!WARNING]
+> Do not send raw logs, databases, MCP snapshots or OS crash reports as if
+> they had been through the export preview. BetterPullReview never uploads
+> them; OS crash reporting has its own settings. Crash reports are not yet
+> shown to keep source, comments and tokens out on every supported platform.
+
+The [storage reference](storage-reference.md#diagnostic-record-format)
+describes the record fields and how exports parse them.
 
 ## Reset this profile's local data
 
-[[BPR-1602]]. When the application misbehaves because a profile's local data is
-in a bad state, **Settings → Storage & privacy → Troubleshooting** offers four
-resets. None of them signs out, reads or deletes a credential, changes GitHub,
-removes diagnostic logs, or touches another profile, the shared registry and
-updater state, agent workspaces, exported files or a Git checkout.
+If BetterPullReview misbehaves because a profile's data is damaged, open
+**Settings > Storage & privacy > Troubleshooting**. Each reset keeps you
+signed in and reopens the profile's windows.
+
+No reset signs you out, reads or deletes a credential, changes anything on
+GitHub, removes diagnostic logs, or touches another profile, the shared
+profile list and update state, agent workspaces, exported files or a Git
+checkout.
 
 | Reset | Removes (whole files with their sidecars) | Keeps |
 |---|---|---|
-| Clear caches | `repositories/`, `incoming/`, `locks/`, `quarantine/`, `mcp-snapshot/`, `state/v1/epoch-catalog.sqlite3` and its lock, `markdown-images.sqlite3`, `review-overviews.sqlite3` | everything else |
-| Reset settings | `appearance-settings`, `workbench-settings`, `diagnostic-preferences`, `window-restoration`; Home's queue display choices are restored inside `review-queue` | saved repositories, servers, observer rules, review data, caches |
-| Reset review data | `review-ledger`, `review-tours`, `review-cycles`, `review-mutation-recovery`, `publication-git-v1/` | settings, caches, saved sources |
-| Reset everything | all of the above and `review-queue` (saved repositories, servers, observer rules, Home's queue) | sign-in (`device-bindings`, `remembered-connections` and the vault), logs |
+| **Clear caches** | `repositories/`, `incoming/`, `locks/`, `quarantine/`, `mcp-snapshot/`, `state/v1/epoch-catalog.sqlite3` and its lock, `markdown-images.sqlite3`, `review-overviews.sqlite3` | Everything else |
+| **Reset settings** | `appearance-settings`, `workbench-settings`, `diagnostic-preferences`, `window-restoration`; Home's queue display choices are reset inside `review-queue` | Saved repositories, servers, observer rules, review data, caches |
+| **Reset review data** | `review-ledger`, `review-tours`, `review-cycles`, `review-mutation-recovery`, `publication-git-v1/` | Settings, caches, saved sources |
+| **Reset everything** | All of the above, plus `review-queue` (saved repositories, servers, observer rules and Home's queue) | Sign-in (`device-bindings`, `remembered-connections` and the vault) and logs |
 
-Clearing caches also discards the record of earlier pushes; pushes that GitHub
-no longer has after a force-push cannot be compared again. Reset review data
-deletes private notes, unsent comments and Review Cycles that exist only on
-this computer, so its confirmation needs an explicit acknowledgement and offers
-**Save a copy of the removed data in Downloads first** (on by default). The copy
-is a new owner-private folder named `BetterPullReview reset <date> <time>` in
-Downloads, else Documents or home, holding the removed `state/v1` files; a reset
-whose copy cannot be made removes nothing.
+> [!WARNING]
+> **Clear caches** also discards the record of earlier pushes. Pushes that
+> GitHub no longer has after a force-push cannot be compared again.
+>
+> **Reset review data** deletes private notes, unsent comments and Review
+> Cycles that exist only on this computer.
 
-A confirmed reset closes the profile's windows, so its stores and logger close
-and the runtime lease is released. The profile then starts again: under its new
-lease, after maintenance recovery and before any store opens, the reset records
-its exact inventory in the `.bpr-maintenance-v1` journal and removes it. A crash
-part-way leaves the journal, and the next start finishes exactly that inventory
-before the profile opens. Anything unexpected inside a removed folder (a link, a
-file another account owns, a folder where a store belongs) refuses the reset and
-removes nothing. The reopened window's status bar says what was reset, or why it
-did not run.
+**Reset review data** and **Reset everything** ask you to acknowledge the
+loss. Their confirmation offers **Save a copy of the removed data in Downloads
+first**, which is on by default. The copy is a new private folder named
+`BetterPullReview reset <date> <time>` in Downloads (or Documents, or your
+home folder) holding the removed `state/v1` files. If the copy cannot be
+made, nothing is removed.
+
+When you confirm, the profile's windows close and the profile starts again.
+The reset runs before any data opens. If the app crashes part-way, the next
+start finishes the same reset before the profile opens. If a removed folder
+contains anything unexpected (a link, a file owned by another account, a
+folder where a database should be), the reset removes nothing. The reopened
+window's status bar says what was reset, or why it did not run.
 
 ### When a profile cannot open
 
-Most damaged stores do not stop a profile opening: the feature that uses them
-fails, and a reset above clears it. Some do: a damaged comparison history
-(`epoch-catalog.sqlite3`) stops the profile at start. The application then shows
-**Profile "…" couldn't open** with **Clear caches and try again** (the default),
-**Reset everything…** (which asks its confirmation) and **Quit**. A chosen reset
-runs before the profile's stores open, and the profile opens again in the same
-process; a second failure offers the dialog once more.
+Most damaged data does not stop a profile opening: only the feature that uses
+it fails, and a reset clears it. A damaged comparison history
+(`epoch-catalog.sqlite3`) does stop the profile at start. BetterPullReview
+then shows **Profile "…" couldn't open** with:
 
-Start the application with `--reset-profile-data` to open the same dialog
-before anything in the profile loads, for example when the profile crashes
-before it can show it. `--reset-profile-data-scope caches|settings|review-data|everything`
-runs that reset directly (naming a destructive one is its acknowledgement), and
-`--reset-profile-data-copy` adds the copy. On macOS run the executable inside
-the application bundle, for example
-`/Applications/BetterPullReview.app/Contents/MacOS/BetterPullReview --reset-profile-data`.
+- **Clear caches and try again** (the default)
+- **Reset everything…**, which asks for confirmation
+- **Quit**
+
+The chosen reset runs before the profile's data opens, and the profile then
+opens again without restarting the app. If it fails again, the dialog appears again.
+
+### Reset from the command line
+
+Use these options when a profile crashes before it can show the dialog.
+
+| Option | Effect |
+|---|---|
+| `--reset-profile-data` | Shows the same dialog before anything in the profile loads |
+| `--reset-profile-data-scope caches\|settings\|review-data\|everything` | Runs that reset directly. Naming a destructive reset counts as its acknowledgement |
+| `--reset-profile-data-copy` | Also saves the copy. Use it with `--reset-profile-data-scope review-data` or `everything` |
+
+On macOS, run the executable inside the app bundle, for example:
+
+```sh
+/Applications/BetterPullReview.app/Contents/MacOS/BetterPullReview --reset-profile-data
+```
+
 Damage to the profile list shared by all profiles (`profile-registry.sqlite3`)
 is outside these resets.
 
-## Clear diagnostics or purge a profile
+## Purge a profile or clear its diagnostics
 
-1. Finish or save work in every window of the selected profile. In **Storage &
-   privacy**, select **Prepare diagnostic cleanup…** or **Prepare profile purge…**.
-2. Read the preparation warning and choose **Stop profile and prepare**. This
-   retires its windows and drains producers/stores before inventory; it deletes
-   nothing. Cancel is the default. Once stopped, cancellation does not restart
-   the profile automatically.
-3. Inspect the prepared profile, categories and exact entry count. Use **Clear
-   prepared diagnostics…** or **Purge prepared profile data…** to confirm that
-   inventory. Clear removes only the prepared diagnostics. Purge includes the
-   profile's private stores, retained history, managed agent/MCP material and
-   exact remembered credential bindings. GitHub reviews and developer worktrees
-   are unaffected.
-4. Read the terminal result. Close the maintenance-only Settings shell to release
-   ownership, then reopen the profile deliberately if needed. Other profiles
-   have independent lifetimes.
+Purge permanently removes a profile's private data. The same flow can clear
+only its diagnostic logs.
 
-Preparation refuses unknown/changed entries, unsafe roots, pending original-owner
-recovery or more than 4,096 targets. Do not bypass a refusal with a directory
-delete. Reconcile the named owning feature and prepare again. During irreversible
-cleanup, cancellation cannot roll back deleted files. A failure may require
-recovery and keep the profile stopped.
+1. Finish or save work in every window of the profile.
+2. In **Settings > Storage & privacy**, choose **Prepare profile purge…** or
+   **Prepare diagnostic cleanup…**.
+3. Read the warning and choose **Stop profile and prepare**. This closes the
+   profile's windows and lists what would be removed; it deletes nothing yet.
+   **Cancel** is the default. Once the profile has stopped, cancelling does
+   not restart it.
+4. Check the profile, the categories and the number of entries, then confirm
+   with **Purge prepared profile data…** or **Clear prepared diagnostics…**.
+5. Read the result. Close the Settings window to release the profile, then
+   reopen the profile if you want to. Other profiles are not affected.
 
-The `.bpr-maintenance-v1` journal binds the original inventory and credential
-receipt. On restart, recovery runs under the lease before any producer/store
-opens. It can finish deletion of that exact inventory; it refuses corrupt,
-foreign, new or replaced objects. Preserve the journal and remaining private
-files if startup refuses. Do not edit the journal, reconstruct credential keys
-from labels or remove a lock to force admission. There is no general repair or
-secure-erasure command; obtain an exact-scope operator diagnosis.
+| Choice | Removes | Leaves alone |
+|---|---|---|
+| **Clear prepared diagnostics…** | The listed diagnostic logs | Everything else |
+| **Purge prepared profile data…** | The profile's private stores, retained Git history, managed agent and MCP material, and the sign-ins it remembers | GitHub reviews and comments, your own checkouts and worktrees, shared update state |
 
-Purge intentionally leaves the profile root/runtime lock, excluded shared stores
-and containers, sibling profiles, external exports and admitted empty workspace/
-state parents. It does not erase backups or guarantee physical erasure from
-SSD/WAL/journal media. Keep those residuals in a corporate removal inventory.
+Preparation is refused when the folder has unknown or changed entries, is
+unsafe, has unfinished recovery for a feature, or holds more than 4,096 items.
+An agent workspace with active, interrupted or unknown work also blocks purge
+until that work is settled. Do not work around a refusal by deleting folders:
+settle the named feature and prepare again.
 
-## Migration, update and uninstall
+Once deletion starts it cannot be undone, even if you cancel. A failure can
+leave the profile stopped until recovery runs. On the next start,
+BetterPullReview finishes deleting exactly what was listed, and refuses
+anything that was changed or added. If startup refuses, keep the remaining
+files and the `.bpr-maintenance-v1` journal, and do not edit it or remove
+locks. There is no general repair or secure-erase command.
 
-Each SQLite store validates its application/schema identity and performs its own
-transactional migration. Future-version, foreign or corrupt stores can be
-refused; optional-store failures may leave a visibly limited/session-only UI.
-There is no generic migration switch and no promise that an older application
-can open data written by a newer one. If preserving private state, quit every
-owner and use a consistent corporate backup of the exact stores/sidecars;
-copying one live `.sqlite3` file is not a backup protocol. A filesystem backup
-does not back up or authorize credentials in a native vault.
+### What purge leaves behind
 
-For complete departure, first finish or reconcile attempted publications and
-any active updater transaction, sign out of each native account, then perform
-explicit profile cleanup while the app is still installed. Inspect every
-profile and the excluded shared/update/export locations separately. If a native
-credential deletion fails, retain its binding/recovery metadata for diagnosis.
-Deleting metadata first can remove the exact key needed for cleanup.
+- The profile folder itself and its lock file
+- Shared state: `profiles/`, `updates/`, the profile list and update stores
+- Other profiles
+- Files you exported, saved or copied elsewhere
+- Empty workspace and `state` folders
+- Backups, and any data that SSDs, write-ahead logs or file-system journals
+  still hold physically
 
-After normal Quit, remove the macOS app from its chosen Applications folder;
-use Windows Installed apps/MSI uninstall; remove a Linux per-user versioned
-installation or use the corresponding DEB/RPM package-manager removal. These
-remove program files and retain user state. Package removal cannot retract
-reviews already published to GitHub. Keep the matching source asset available
-for recipients under the [distribution policy](release-packages.md).
+Update draft recovery (`update-draft-recovery.sqlite3`) can hold private text
+even when it sits inside a profile, and purge does not remove it. There is no
+app control that removes all profiles or update storage at once. IT teams
+should record these items in their removal inventory.
 
-Windows/Linux and managed packages update manually. The separate
-[macOS update/recovery guide](application-updates.md) owns the qualified helper,
-healthy-start receipt, backup and sibling transaction directory. A current-profile
-purge does not replace that recovery procedure or erase updater draft text.
+## Update, migrate and uninstall
 
-Implementation owners are `profile_storage_root.cpp`, `release_maintenance_files.cpp`
-and `profile_runtime_lease.cpp` under `src/adapters/sqlite/src/`,
-`src/application/src/release_profile_cleanup.cpp`,
-`src/application/src/release_diagnostic_snapshot.cpp`,
-`src/app/src/profile_desktop.cpp` and
-`src/adapters/qt/src/release_maintenance_panel.cpp`. The
-[maintenance contract](../architecture/release-maintenance.md) records typed
-authority, failure ordering, direct tests and remaining native evidence.
+### Updates and data upgrades
 
-### Actor-conflict provenance
+Each database checks its own identity and upgrades itself in one step. A
+database written by a newer version, a foreign file or a damaged one can be
+refused. If an optional database fails, the related feature may run in a
+limited or session-only mode.
 
-A rejected pull-request snapshot can report `actor_conflict=` with two closed
-collection names and `ascii_case_only` or `different`. This identifies where
-the observations disagreed without including logins, actor IDs or provider
-content. Anonymized and identifying exports use the same closed grammar;
-unclassified or malformed detail is omitted. The classification does not make
-conflicting observations admissible. Original incident exports without this
-field do not establish their actor provenance.
+An older version is not guaranteed to open data written by a newer one. To
+keep private data across a change, quit every copy of BetterPullReview and
+back up the complete set of databases and their sidecar files. Copying one
+live `.sqlite3` file is not a backup. A file backup does not include
+credentials in the OS vault.
+
+Windows, Linux and managed packages update manually. Eligible macOS
+installations use the [application update guide](application-updates.md),
+which covers the updater, its backups and recovery. Purging a profile does
+not replace that recovery procedure or remove updater draft text.
+
+### Leave completely
+
+To remove BetterPullReview and its data:
+
+1. Finish or settle any publish in progress and any update in progress.
+2. Sign out of each account.
+3. Purge every profile while the app is still installed. Check each profile,
+   and the shared, update and export locations, separately.
+4. Quit normally, then uninstall:
+   - **macOS:** delete the app from the Applications folder you chose.
+   - **Windows:** use **Installed apps** or the MSI uninstaller.
+   - **Linux:** remove the per-user installation folder, or remove the DEB or
+     RPM package with your package manager.
+
+> [!WARNING]
+> Uninstalling removes program files only. Profiles, logs, shared state,
+> exports and backups stay on disk. Uninstalling cannot withdraw reviews
+> already published to GitHub.
+
+If deleting a credential fails, keep the sign-in and recovery metadata so the
+failure can be diagnosed: deleting the metadata first can remove the exact
+key needed to clean up the vault.
+
+Keep the matching source archive available to anyone you redistribute the app
+to, as the [distribution policy](release-packages.md) requires.
+
+## Troubleshooting: agent workspaces are unavailable
+
+If the status bar of every window says **Disposable agent workspaces are
+unavailable: their folder needs repair or has reached its limit.**, startup
+recovery refused the `-agent-workspaces-v1` folder. Launched from a terminal,
+BetterPullReview also prints
+`AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:<reason>` to standard error.
+The app still exits normally (code 0) when you quit.
+
+The usual reason is `repair-required`, which means either:
+
+- the folder that holds the area can be written by another user or group, or
+- an entry in the area is not the one BetterPullReview recorded.
+
+BetterPullReview never changes the permissions, owner or contents of a folder
+it did not create.
+
+To fix it:
+
+- **macOS and Linux:** an earlier install that ran with umask `0002` often
+  left the folder holding the Default profile group-writable (on Linux,
+  normally `~/.local/share/BetterPullReview`). Current versions create new
+  folders owner-only but do not repair existing ones. If `ls -ld` shows group
+  or other write permission, run `chmod go-w` on that folder and start
+  BetterPullReview again.
+- **Windows:** remove any write permission that another account holds on that
+  folder.
+
+Do not repair an entry inside the area by hand; keep it for diagnosis.
+Recovery refuses anything whose recorded identity it cannot prove.
+
+## Related
+
+- [Storage reference](storage-reference.md): log record format, export parsing
+  and maintenance recovery details
+- [Maintenance contract](../architecture/release-maintenance.md)
+- [Basic local diagnostics](build-and-test-reference.md#basic-local-diagnostics)

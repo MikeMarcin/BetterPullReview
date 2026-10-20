@@ -71,7 +71,7 @@ reported only BPR-0816's two sites. At the base it builds clean with the ten
 `src/` sites below still present. So the survey asks GCC.
 
 `scripts/survey_gcc_aggregate_cleanups.py`
-([build-and-test](../development/build-and-test.md#gcc-15-can-destroy-a-braced-aggregate-member-twice)):
+([build-and-test](../development/build-and-test-reference.md#gcc-15-can-destroy-a-braced-aggregate-member-twice)):
 
 1. **Calibration.** It compiles an embedded reproducer of 25 shapes with the
    build's compiler and runs it. It then requires the detector to flag exactly
@@ -280,7 +280,7 @@ The logs are `asan-typed{0,1}-{observation,note}.log` and
 - **No style rule in `_coding-standard/STANDARD.md`.** It cannot cover omitted
   members without asking every aggregate initialization to name every nested
   member. The hazard is recorded where compiler-specific classes already live,
-  in [build-and-test](../development/build-and-test.md#gcc-15-can-destroy-a-braced-aggregate-member-twice).
+  in [build-and-test](../development/build-and-test-reference.md#gcc-15-can-destroy-a-braced-aggregate-member-twice).
 - **The guard is the survey.** `scripts/survey_gcc_aggregate_cleanups.py` is
   the only method that finds these sites. It calibrates itself against the
   compiler it runs with, so a GCC upgrade that changes the lowering or fixes

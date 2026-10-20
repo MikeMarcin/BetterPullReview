@@ -2,7 +2,7 @@
 
 BPR-0905 surveys the current Mac registration at `97a7564b` plus its four
 bound corrections against existing station-run logs. This is an inventory,
-not new platform qualification. The [authoring rule](build-and-test.md#run-budgets-and-row-timeouts)
+not new platform qualification. The [authoring rule](build-and-test-reference.md#run-budgets-and-row-timeouts)
 explains sizing and expiry diagnostics.
 
 ## Method and coverage

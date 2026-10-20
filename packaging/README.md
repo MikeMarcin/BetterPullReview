@@ -4,7 +4,7 @@ This root owns distribution metadata and platform packaging. RFC-BPR-0014 M6
 adds tests-disabled Windows per-user x64 MSI and baseline Linux DEB/RPM
 definitions, and extends the existing universal macOS release path with exact
 SBOM, notices and corresponding source. See the
-[local package operator guide](../docs/development/release-packages.md).
+[packaging guide for maintainers](../docs/development/release-packaging-maintainers.md).
 Native matrix qualification, distribution terms and release trust remain
 separate gates; definitions and local artifacts do not certify a release.
 
@@ -12,7 +12,7 @@ Agent integrations and local automation are removable at build time
 ([[BPR-1179]]). The `-agent-free` and `-agent-free-automation-off` presets
 produce packages without them. `Install.cmake` installs only the helpers
 those families keep, and the package records name what was left out; see
-[packages without agent integrations or local automation](../docs/development/release-packages.md#packages-without-agent-integrations-or-local-automation).
+[build packages without agent integrations](../docs/development/release-packaging-maintainers.md#build-packages-without-agent-integrations).
 
 Packaging must preserve the core/application/adapters/composition dependency
 graph and restrict Qt plugin discovery to trusted installation paths. No browser
