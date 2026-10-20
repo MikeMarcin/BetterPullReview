@@ -1668,6 +1668,10 @@ function(bpr_compute_full_application_digest source_variable out_variable)
     set(${out_variable} "${bpr_full_digest}" PARENT_SCOPE)
 endfunction()
 
+# BPR-1664: over 12ef1db53, only the supported-platform public-preview
+# selection changes. Anonymous authority/provider/refusals are reused exactly;
+# no mutation-branch or source inventory changes. Native courses own acceptance.
+#
 # BPR-1614: reviewed passive Work observer wiring, bounded display labels,
 # dispatcher latency observation and shutdown drain. No grant, credential,
 # provider or mutation admission changes; mutation-branch digest unchanged.
@@ -1678,7 +1682,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"e6f152e5458fb2e80477828ef7e139bb7cf239bd4335bba97cbb1742e6a7ccc5"
+		"6772ef802856e717409a376af170f736cb92afbbeaac79fa29928134b31b44c8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1898,7 +1902,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8eabdc7c01467cced18d0a9019c07d5d3f346444157ed77fd94bdac97c67ce4f"
+        "4a4dd8ebbc1b1884ec8382c168251cc3fb5309f27157834c41c2ad8a9b6e3de4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

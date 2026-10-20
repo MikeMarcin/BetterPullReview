@@ -2356,18 +2356,13 @@ namespace bpr::app {
 			bool Available = false;
 		};
 
-		// BPR-0316 enables macOS after its native candidate proof. Linux and
-		// Windows retain their verified unavailable selection; enabling either
-		// requires its own target-native acceptance slice.
+		// BPR-1664 extends the existing anonymous composition to Windows and
+		// Linux under the same credential-free GitHub.com-only authority.
 		[[nodiscard]] constexpr auto shipped_public_preview_capability() noexcept
 			-> public_preview_capability
 		{
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__linux__) || defined(_WIN32)
 			return { .Available = true };
-#elif defined(__linux__)
-			return { .Available = false };
-#elif defined(_WIN32)
-			return { .Available = false };
 #else
 			return { .Available = false };
 #endif

@@ -771,14 +771,14 @@ bpr_bound_automated_run(
 
 # RFC-BPR-0017's independent expected platform selection. Activating a mode
 # sends nothing. The historical unavailable row explicitly names GHES, which
-# remains refused on enabled macOS and unavailable on the other platforms.
+# remains refused on every supported platform.
 set(bpr_public_preview_selection_self_test_expression
     "PUBLIC_PREVIEW_COMPOSED:false[\r\n]+PUBLIC_PREVIEW_STAGE:unavailable[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_UNAVAILABLE_OK"
 )
 set(bpr_public_preview_enterprise_self_test_expression
     "${bpr_public_preview_selection_self_test_expression}"
 )
-if(APPLE)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(bpr_public_preview_selection_self_test_expression
         "PUBLIC_PREVIEW_COMPOSED:true[\r\n]+PUBLIC_PREVIEW_STAGE:enabled[\r\n]+PUBLIC_PREVIEW_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_HEADER_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_VAULT_EFFECTS:0[\r\n]+PUBLIC_PREVIEW_SIGN_IN_REQUESTS:0[\r\n]+PUBLIC_PREVIEW_ENABLED_OK"
     )
