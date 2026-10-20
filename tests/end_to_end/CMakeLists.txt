@@ -3626,6 +3626,19 @@ bpr_add_network_isolated_test(NAME application_release_update_public_path WINDOW
 set_tests_properties(application_release_update_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
     PASS_REGULAR_EXPRESSION "release-update-public-path:pass")
+# [[BPR-1671]]. The updater panel's states through the real updater
+# composition with fixture release access; `--attended` leaves the update
+# window and Settings open beside look controls for the owner's look.
+bpr_add_executable(test_release_update_look release_update_look.cpp)
+target_link_libraries(test_release_update_look PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_release_update_look PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_release_update_look PRIVATE cxx_std_23)
+bpr_enable_hardening(test_release_update_look)
+bpr_enable_warnings(test_release_update_look)
+bpr_add_network_isolated_test(NAME application_release_update_look COMMAND test_release_update_look)
+set_tests_properties(application_release_update_look PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 90
+    PASS_REGULAR_EXPRESSION "release-update-look:pass")
 
 bpr_add_executable(test_profile_multi_window_public_path profile_multi_window_public_path_tests.cpp)
 target_link_libraries(test_profile_multi_window_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
