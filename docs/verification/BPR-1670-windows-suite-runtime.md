@@ -74,7 +74,12 @@ unchanged. No owner profile, keychain, account or live network is selected.
 
 The configuration/runner policy fails closed for missing declarations, wrong
 platforms, platform overrides, missing locks, unknown modes and explicit
-exclusivity. Eight runner/configuration contract methods pass locally, including
+exclusivity. Self-review also rejects differently cased environment aliases,
+which Windows treats as the same name: a retained negative control shows the
+previous guard admitted `QT_QPA_PLATFORM=offscreen` plus
+`qt_qpa_platform=windows`, while the corrected guard refuses it. No maintained
+row uses such an alias; its metadata and native course are unchanged.
+Eight runner/configuration contract methods pass locally, including
 positive graph checks for preserved locks, fixtures, labels and deadlines.
 The four-row native causal control passes; expanded-cohort and full native
 acceptance remain pending. The uncommitted path experiment was discarded without

@@ -70,7 +70,7 @@ def validate_schedule(manifest: dict) -> None:
     for row in manifest["tests"]:
         props = {prop["name"]: prop["value"] for prop in row.get("properties", [])}
         directory = props.get("WORKING_DIRECTORY", "").replace("\\", "/")
-        platforms = [item for item in props.get("ENVIRONMENT", []) if item.startswith("QT_QPA_PLATFORM=")]
+        platforms = [item for item in props.get("ENVIRONMENT", []) if item.upper().startswith("QT_QPA_PLATFORM=")]
         labels = props.get("LABELS", [])
         course = "/tests/end_to_end" in directory or "/tests/adapters_qt" in directory
         declared = "bpr_isolated_correctness" in labels
@@ -84,7 +84,7 @@ def validate_schedule(manifest: dict) -> None:
                 or mode_labels == ["bpr_correctness_offscreen"] and platforms == ["QT_QPA_PLATFORM=offscreen"]
             )
             valid_lock = any(re.fullmatch(r"bpr_isolated_correctness_[a-z0-9_]+", lock) for lock in locks)
-            platform_override = any(item.startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))
+            platform_override = any(item.upper().startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))
             platform_argument = any(
                 item in {"-platform", "--platform"} or item.startswith(("-platform=", "--platform="))
                 for item in row.get("command", [])

@@ -94,8 +94,11 @@ class SuiteRunnerTests(unittest.TestCase):
             ("RESOURCE_LOCK", []),
             ("RESOURCE_LOCK", ["some_unrelated_lock"]),
             ("ENVIRONMENT", ["QT_QPA_PLATFORM=cocoa"]),
+            ("ENVIRONMENT", ["qt_qpa_platform=offscreen"]),
             ("ENVIRONMENT", ["QT_QPA_PLATFORM=offscreen", "QT_QPA_PLATFORM=windows"]),
+            ("ENVIRONMENT", ["QT_QPA_PLATFORM=offscreen", "qt_qpa_platform=windows"]),
             ("ENVIRONMENT_MODIFICATION", ["QT_QPA_PLATFORM=set:windows"]),
+            ("ENVIRONMENT_MODIFICATION", ["qt_qpa_platform=set:windows"]),
             ("RUN_SERIAL", True),
             ("LABELS", ["bpr_correctness_offscreen"]),
             ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_native"]),
@@ -176,9 +179,13 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
             (declaration.replace("TESTS one", "TESTS missing"), "QT_QPA_PLATFORM=offscreen", ""),
             (declaration.replace("TESTS one", "TESTS explicit"), "QT_QPA_PLATFORM=offscreen", ""),
             (declaration, "QT_QPA_PLATFORM=cocoa", ""),
+            (declaration, "qt_qpa_platform=offscreen", ""),
             (declaration, "QT_QPA_PLATFORM=offscreen;QT_QPA_PLATFORM=windows", ""),
+            (declaration, "QT_QPA_PLATFORM=offscreen;qt_qpa_platform=windows", ""),
             (declaration, "QT_QPA_PLATFORM=offscreen", 'set_tests_properties(one PROPERTIES ENVIRONMENT_MODIFICATION "QT_QPA_PLATFORM=set:windows")'),
+            (declaration, "QT_QPA_PLATFORM=offscreen", 'set_tests_properties(one PROPERTIES ENVIRONMENT_MODIFICATION "qt_qpa_platform=set:windows")'),
             (declaration.replace("MODE offscreen", "MODE headless"), "QT_QPA_PLATFORM=offscreen", ""),
+            (declaration.replace("MODE offscreen", "MODE headless"), "qt_qpa_platform=offscreen", ""),
         ]
         for expression, environment, before in cases:
             with self.subTest(declaration=expression, environment=environment, before=before):
