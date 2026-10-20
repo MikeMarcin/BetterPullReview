@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1668"
 title: "Mark a new Discuss card read when it opens"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
