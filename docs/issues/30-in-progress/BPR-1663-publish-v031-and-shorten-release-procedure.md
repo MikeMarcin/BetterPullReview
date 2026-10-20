@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate":"Owner requested publication of v0.3.1 and a faster procedure; confirmed full macOS, Windows and Ubuntu 26.04 packages","baseline":"5aff89be6"}
+metadata: {"mandate":"Owner requested publication of v0.3.1 and a faster procedure; confirmed full macOS, Windows and Ubuntu 26.04 packages","baseline":"5aff89be6","milestone_plan":{"id":"release-v031","path":"docs/rfcs/plans/release-v031/milestone-plan.json"}}
 ---
 
 # BPR-1663: Publish v0.3.1 and shorten the release procedure

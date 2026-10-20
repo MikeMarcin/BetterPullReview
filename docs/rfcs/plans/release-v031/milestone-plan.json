@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v031",
+  "scope": {
+    "issues": [
+      "BPR-1663"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "publish-three-platforms",
+      "outcome": "Stable v0.3.1 from one Qt6.12 and scroll-repaired committed source is signed, audited, published and download-verified on the selected three platforms.",
+      "work": [
+        {
+          "issue": "BPR-1663",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "One clean source binds all producers, accurate release notes, full native gates and exact signed runtime/source/SPDX inventories.",
+        "Required current material/security dispositions and native trust are supplied before publication; historical broader qualification gaps and the exact owner RSS exception stay explicit.",
+        "Public tag/release/selected assets and downloaded hashes, source binding and native trust are verified; measured procedure findings, tracker and quiescent command handoff are durable."
+      ],
+      "boundary": "BPR-1663 release engineering in the assigned Qt6.12 worktree, scoped clean-main integration and deterministic native Windows/Ubuntu producer commands; no unrelated source changes or model delegation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

@@ -7,7 +7,7 @@ tools/release.sh --version X.Y.Z
 ```
 
 This authoritative path runs the normal test gate, builds a tests-disabled
-universal x86_64/arm64 app (macOS 13 minimum), deploys restricted Qt, signs with
+universal x86_64/arm64 app (macOS 14.4 minimum), deploys restricted Qt, signs with
 Developer ID and hardened runtime, submits/staples app and DMG, runs Gatekeeper,
 and writes DMG/ZIP/SPDX/checksums and separate source under
 `build/releases/X.Y.Z/`.

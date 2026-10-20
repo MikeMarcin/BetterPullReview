@@ -224,8 +224,8 @@ verify_dependency_policy() {
             minimum="$(otool -arch "${architecture}" -l "${binary}" |
                 awk '$1 == "minos" { print $2 } $1 == "cmd" && $2 == "LC_VERSION_MIN_MACOSX" { getline; getline; print $2 }')"
             [[ -n "${minimum}" ]] || fail "Deployment floor is absent: ${binary} (${architecture})"
-            awk -v minimum="${minimum}" 'BEGIN { split(minimum,v,"."); exit !(v[1] < 13 || (v[1] == 13 && v[2] == 0)) }' || \
-                fail "Mach-O exceeds macOS 13 floor: ${minimum} (${binary}, ${architecture})"
+            awk -v minimum="${minimum}" 'BEGIN { split(minimum,v,"."); exit !(v[1] < 14 || (v[1] == 14 && (v[2] < 4 || (v[2] == 4 && v[3] == 0)))) }' || \
+                fail "Mach-O exceeds macOS 14.4 floor: ${minimum} (${binary}, ${architecture})"
             while IFS= read -r dependency; do
                 dependency="${dependency#"${dependency%%[![:space:]]*}"}"
                 dependency="${dependency%% (compatibility version*}"
