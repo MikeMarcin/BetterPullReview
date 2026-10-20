@@ -33,7 +33,7 @@ credential fallback, new provider, network permission or UI design is added.
 - PLATFORM-2: each target passes the existing applicable anonymous composition,
   authority, provider/transport, Git/cache, SQLite and Qt course selectors;
   a bounded production-factory read of MikeMarcin/BPR-Test#1 observes a public
-  snapshot, no credential effects and at most nine forwarded REST requests.
+  snapshot, no credential effects and at most twelve forwarded REST requests.
 - PLATFORM-3: macOS selection stays enabled; public documentation states the
   actual verified platforms, documentation and focused composition gates pass,
   and the exact candidate/evidence and remaining qualification limits are recorded.
@@ -50,3 +50,17 @@ the original RFC's legacy plan or change any protected attended candidate.
 Reconcile station writers, then implement the selection/expectations and run the
 native courses. Native acceptance remains pending until supplied; an unavailable
 station is recorded as a blocker, never a passing platform.
+
+## Execution reconciliation: diagnostic budget
+
+The first Linux read of PR 1 forwarded nine successful first pages but could
+not finish. Source inspection identifies the subsequent commit-status read
+added at `34f62d7e3`; the diagnostic's historical nine-request ceiling predates
+it. PR metadata and review counts exclude target pagination as the cause.
+The production anonymous catalog already admits twelve REST kinds, including
+statuses, timeline and merge-base reads. Raise only the test-only diagnostic
+ceiling to twelve, retain first-error retry suppression and a separate literal
+self-check of twelve forwards/thirteenth refusal across shared wrappers.
+The owner mandate permits this bounded verification repair. It adds no
+production operation or authority; PR 1 remains the designated public target.
+Preflight requires at least thirty anonymous requests remaining before a run.

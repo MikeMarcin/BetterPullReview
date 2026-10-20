@@ -1938,8 +1938,9 @@ namespace bpr::app {
 				// rather than forwarded, so the retry costs nothing outside
 				// the process. A refused request is neither counted nor
 				// recorded, because the count is what reached the wire.
-				// Pagination is part of the same budget: nine operations can
-				// otherwise issue arbitrarily many successful page requests.
+				// Pagination shares this fixed diagnostic budget. Twelve slots
+				// cover the current REST catalog, including statuses, timeline
+				// and merge-base reads, without allowing an unbounded page stream.
 				if (Log->failed() || !reserve_request()) {
 					return adapters::github::detail::github_wire_cancelled{
 						.Correlation = aRequest.Correlation,
@@ -1981,7 +1982,7 @@ namespace bpr::app {
 			[[nodiscard]] auto reserve_request() noexcept -> bool
 			{
 				auto count = Requests->load(std::memory_order_relaxed);
-				while (count < 9U) {
+				while (count < 12U) {
 					if (Requests->compare_exchange_weak(
 							count, count + 1U, std::memory_order_relaxed)) {
 						return true;
@@ -21382,7 +21383,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& requests->load(std::memory_order_relaxed) == 1U
 				&& log->records().size() == 1U;
 
-			// An all-successful page stream must stop after nine forwards,
+			// An all-successful page stream must stop after twelve forwards,
 			// even if the factory creates another wrapper over the same budget.
 			auto successful   = std::make_shared<stub_wire_transport>(false);
 			auto pageRequests = std::make_shared<std::atomic<std::size_t>>(0U);
@@ -21390,7 +21391,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto pages        = counting_anonymous_wire_transport{
 				successful, pageRequests, probes, pageLog
 			};
-			for (auto page = std::uint32_t{ 1 }; page <= 9U; ++page) {
+			for (auto page = std::uint32_t{ 1 }; page <= 12U; ++page) {
 				request.Correlation.Page = page;
 				if (!std::holds_alternative<adapters::github::detail::github_wire_success>(
 						pages.perform(request, std::stop_token{ }))) {
@@ -21400,15 +21401,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto replacement = counting_anonymous_wire_transport{
 				successful, pageRequests, probes, pageLog
 			};
-			request.Correlation.Page = 10U;
+			request.Correlation.Page = 13U;
 			const auto refusedPage   = replacement.perform(request, std::stop_token{ });
 			const auto refusedRetry  = pages.perform(request, std::stop_token{ });
 			return forwardedFirst && refusedSecond
 				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(refusedPage)
 				&& std::holds_alternative<adapters::github::detail::github_wire_cancelled>(refusedRetry)
-				&& successful->forwarded() == 9U
-				&& pageRequests->load(std::memory_order_relaxed) == 9U
-				&& pageLog->records().size() == 9U;
+				&& successful->forwarded() == 12U
+				&& pageRequests->load(std::memory_order_relaxed) == 12U
+				&& pageLog->records().size() == 12U;
 		} catch (...) {
 			return false;
 		}

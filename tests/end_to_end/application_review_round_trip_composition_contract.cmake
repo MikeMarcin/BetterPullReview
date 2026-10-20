@@ -1668,6 +1668,11 @@ function(bpr_compute_full_application_digest source_variable out_variable)
     set(${out_variable} "${bpr_full_digest}" PARENT_SCOPE)
 endfunction()
 
+# BPR-1664 diagnostic repair over 64b15f6fc: test-only bounded live
+# counting/self-check ceiling follows the existing twelve-kind REST catalog.
+# No product provider/mutation/authority change; native failure and recheck
+# are retained on BPR-1664.
+#
 # BPR-1664: over 12ef1db53, only the supported-platform public-preview
 # selection changes. Anonymous authority/provider/refusals are reused exactly;
 # no mutation-branch or source inventory changes. Native courses own acceptance.
@@ -1682,7 +1687,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"6772ef802856e717409a376af170f736cb92afbbeaac79fa29928134b31b44c8"
+		"ff27be8d542c5ad240e67f5c54ed3728e88496097f892ab277ec7e9e9c9d6eab"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1902,7 +1907,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4a4dd8ebbc1b1884ec8382c168251cc3fb5309f27157834c41c2ad8a9b6e3de4"
+        "38a8de869e3fb9bfed53050dee2f19c55dfbd723e8ab86caf3c5c369fdc8e8b4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

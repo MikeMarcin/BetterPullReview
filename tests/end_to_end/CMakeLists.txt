@@ -2734,7 +2734,7 @@ bpr_bound_automated_run(
 )
 
 # The signed-out read, end to end against the recorded public path. The fixture
-# replays the nine baseline credential-free operations followed by the
+# replays the baseline credential-free operations (including statuses), then the
 # independent update timeline, so what this row proves is not
 # that a recording exists but that the composed host reaches it: the mode is
 # entered, the pull request opens through the credential-free authority, the
