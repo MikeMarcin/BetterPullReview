@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1664"
 title: "Enable public preview on Windows and Linux"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0017"]
 depends_on: ["BPR-0314", "BPR-0315", "BPR-0316"]
 priority: "P1"
