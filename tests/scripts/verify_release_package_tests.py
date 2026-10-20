@@ -57,9 +57,19 @@ class ReleasePackageTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "producer-record"):
                         audit.linux_qt_symbol_evidence(binary, root, info)
                 outside = base / "outside"
-                outside.write_bytes(binary.read_bytes())
                 producer.unlink()
-                producer.symlink_to(outside)
+                if sys.platform == "win32":
+                    # AppContainers cannot acquire the symlink privilege. A
+                    # real directory junction exercises the same resolved
+                    # producer escape without changing the contained token.
+                    import _winapi
+                    outside.mkdir()
+                    (outside / producer.name).write_bytes(binary.read_bytes())
+                    producer.parent.rmdir()
+                    _winapi.CreateJunction(str(outside), str(producer.parent))
+                else:
+                    outside.write_bytes(binary.read_bytes())
+                    producer.symlink_to(outside)
                 with self.assertRaisesRegex(ValueError, "producer-origin"):
                     audit.linux_qt_symbol_evidence(binary, root, info)
 
