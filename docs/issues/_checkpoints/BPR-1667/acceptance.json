@@ -1,0 +1,42 @@
+{
+  "approved": true,
+  "decision": "done",
+  "records": [
+    {
+      "criterion": "AC1",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Final exact-test negative controls substitute only the original818de projection, then only its summary renderer. Raw projection fails both Overview-new-comments GUI and real permalink placement tests (child1, CTest8;1.04s/3.41s); old summary renderer independently fails the empty Approved-summary assertion (child1, CTest8;1.10s). Sources restored byte-for-byte; all3 affected checks pass10.64s. Logs /tmp/bpr-qt612-run/discuss-final-negative-*.log and results.json."
+      }
+    },
+    {
+      "criterion": "AC2",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Real Home Open -> admitted read host -> Overview new comments -> Discuss -> exact comment context menu Open in Review preserves raw Markdown, copy bytes and identity. Raw-only changed body under same identity updates; present-empty raw remains empty despite stale display text, absent raw falls back to legacy display. GraphQL root/reply, REST group root and issue comment stay separate. Real raw-permalink placement contract passes. Candidate route passes100/125/200 under normal network-deny wrapper."
+      }
+    },
+    {
+      "criterion": "AC3",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "Owner confirmed Approved and Commented cards. Empty review summaries explicitly say no overall review comment and name linked file-comment count; exact filename/line link and accessible Review destination are asserted. Empty approval without file comments retains explicit contextual absence; actual empty issue and inline bodies retain No body provided. No body is borrowed. Inspected offscreen summary and original-body renders; existing exact summary-link action dispatch still passes."
+      }
+    },
+    {
+      "criterion": "AC4",
+      "outcome": "pass",
+      "revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+      "evidence": {
+        "kind": "observation",
+        "detail": "At ffa429dd7 final7-row integration passes37.94s: architecture, composed GitHub100, cards, composed Markdown100, raw/summary route100, actual permalink and real application read/reply persistence. Reader100/125/200 passes3/3 in4.27s; same isolated route125/200 passes1.63/2.09s. Strict clang-format22.1.8 checks9 touched files; strict clang-tidy22 passes all8 touched TUs (5 unchanged passing units from r2,3 final changed). DOCUMENTATION_OK;67/67 verifier tests; diff check. Release owner retains nativeWindows/Linux/package qualification."
+      }
+    }
+  ]
+}

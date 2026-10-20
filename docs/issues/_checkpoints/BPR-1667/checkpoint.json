@@ -1,0 +1,128 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "discuss-body-blocker",
+  "segment_id": "r2",
+  "mandate_revision": "discuss-body-blocker-r2-auto-read",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:b236a31fbebd1a5d2cca1db05ac16f48fcd011dbc312f2d64c00f72dffbe2b14",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "BPR-1667",
+  "binding": {
+    "plan_id": "bpr-1667-discuss-body",
+    "plan_path": "docs/rfcs/plans/bpr-1667-discuss-body/milestone-plan.json",
+    "milestone_id": "repair-discuss-body",
+    "definition_fingerprint": "sha256:280e662fde27ab9deb037769a2122d8962010e9398500d9c282bec87c551117e",
+    "obligations": [
+      {
+        "id": "BPR-1667:AC1",
+        "source": "BPR-1667",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:311255959cc872d871ff3f121f2259a80f954475895324a07c76489178b5bc40"
+      },
+      {
+        "id": "BPR-1667:AC2",
+        "source": "BPR-1667",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:311255959cc872d871ff3f121f2259a80f954475895324a07c76489178b5bc40"
+      },
+      {
+        "id": "BPR-1667:AC3",
+        "source": "BPR-1667",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:311255959cc872d871ff3f121f2259a80f954475895324a07c76489178b5bc40"
+      },
+      {
+        "id": "BPR-1667:AC4",
+        "source": "BPR-1667",
+        "selector": "AC4",
+        "source_fingerprint": "sha256:311255959cc872d871ff3f121f2259a80f954475895324a07c76489178b5bc40"
+      },
+      {
+        "id": "BPR-1668:AC1",
+        "source": "BPR-1668",
+        "selector": "AC1",
+        "source_fingerprint": "sha256:5f66efec0f71fc48784fd865dcd343f1e568f4a0c189a5aa435c5f05dc9257df"
+      },
+      {
+        "id": "BPR-1668:AC2",
+        "source": "BPR-1668",
+        "selector": "AC2",
+        "source_fingerprint": "sha256:5f66efec0f71fc48784fd865dcd343f1e568f4a0c189a5aa435c5f05dc9257df"
+      },
+      {
+        "id": "BPR-1668:AC3",
+        "source": "BPR-1668",
+        "selector": "AC3",
+        "source_fingerprint": "sha256:5f66efec0f71fc48784fd865dcd343f1e568f4a0c189a5aa435c5f05dc9257df"
+      }
+    ],
+    "obligation_fingerprint": "sha256:f0313c147e1b216420820074ad141204fae70521c9c500fbb4ef6dd5a5be8405",
+    "exit_criteria": [
+      {
+        "id": "repair-discuss-body:exit:1",
+        "text": "The old candidate fails the production-route regression and the repaired candidate passes."
+      },
+      {
+        "id": "repair-discuss-body:exit:2",
+        "text": "Focused verification and upkeep are complete, and all task-owned commands are quiescent."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false,
+    "work": [
+      {
+        "issue": "BPR-1667",
+        "criteria": [
+          "AC1",
+          "AC2",
+          "AC3",
+          "AC4"
+        ]
+      },
+      {
+        "issue": "BPR-1668",
+        "criteria": [
+          "AC1",
+          "AC2",
+          "AC3"
+        ]
+      }
+    ]
+  },
+  "target_milestones": [
+    "repair-discuss-body"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/.codex/worktrees/discuss-comment-body-fix/BetterPullReview",
+    "workflow_root": "/Users/jaeger/.codex/worktrees/discuss-comment-body-fix/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "codex/discuss-comment-body-fix",
+    "source_revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8",
+    "workflow_branch": "codex/discuss-comment-body-fix",
+    "workflow_revision": "ffa429dd7af67de7ed2e5b0e5a2aedfeb8ba49f8"
+  }
+}
