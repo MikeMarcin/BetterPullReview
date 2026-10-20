@@ -1,0 +1,1897 @@
+{
+  "schema": "bpr.publication-cutover.v1",
+  "repository": "MikeMarcin/BetterPullReview",
+  "owner_authorization": "Push main, make BPR public, enable private vulnerability reporting, verify anonymous release/source access, and keep GitHub Actions disabled.",
+  "completed_at": "2026-10-20T01:57:00.004285+00:00",
+  "preparation_receipt": "docs/verification/publication-preparation-2026-10-19.json",
+  "preparation_receipt_sha256": "89aeeed42d366895c7a98d4f9515d300b9d1e49384adf2b3ad8432fd6807ed4d",
+  "main_at_visibility_change": "293f315c430f27f264b198f6df431576f0702831",
+  "documentation_followup": "The commit containing this receipt updates SECURITY.md and documents the completed cutover; no executable or artifact bytes change in that follow-up.",
+  "preflight": {
+    "checked_at": "2026-10-20T01:45:29.946884+00:00",
+    "repository_private": true,
+    "actions_enabled": false,
+    "remote_refs": 29,
+    "remote_refs_unchanged": true,
+    "new_or_missing_git_objects": 0,
+    "retained_releases": 10,
+    "retained_assets_rehashed": 99,
+    "retained_asset_identity_name_size_digest_updated_at_unchanged": true,
+    "workflow_files_at_remote_tips": 0,
+    "fresh_metadata_scan": {
+      "metadata_files": 20,
+      "metadata_bytes": 380649,
+      "metadata_findings": 0,
+      "retired_token_occurrences": 0,
+      "network_denied": true,
+      "refs_unchanged": true,
+      "assets_unchanged": true,
+      "scanner": "BetterLeaks 1.9.0",
+      "exceptions": []
+    },
+    "api_inventory": [
+      {
+        "surface": "repository",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 1,
+        "rate_remaining": 4995,
+        "sha256": "1881ea918656beed8cf2bba938e10e558f05fa0019b5105808b0254e104e773d"
+      },
+      {
+        "surface": "releases",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 10,
+        "rate_remaining": 4994,
+        "sha256": "783f14c9edc1c0f5870e6c86b31b1067f0cbdac12d797208aabf29b921164754"
+      },
+      {
+        "surface": "refs",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 29,
+        "rate_remaining": 4993,
+        "sha256": "a68a81625223264442b4b91ec0777bbe2ea742f2c2d03f0cfc837f4e316ae1e4"
+      },
+      {
+        "surface": "issues",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4992,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "issue_comments",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4991,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "pull_requests",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4990,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "review_comments",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4989,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "commit_comments",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4988,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "actions_runs",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 1,
+        "rate_remaining": 4987,
+        "sha256": "8d828218495e2ee7ea4a83bc387c0d979ab359d948a960a46753441e30330010"
+      },
+      {
+        "surface": "actions_artifacts",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4999,
+        "sha256": "e37ba7ec8d5c087245f4b4c44bb380cfdec5a188e050a8c9d6ce003450b5443e"
+      },
+      {
+        "surface": "actions_caches",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4998,
+        "sha256": "65d2a98ed7041cc5c7d889cc15d12581bf7ec3a4a49d5a2e5c65df51474745f0"
+      },
+      {
+        "surface": "actions_variables",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4997,
+        "sha256": "65c2c88e39fee8e34a248845bc8bc3575a6b0147a0c9e87a58ad014d4f98cfbf"
+      },
+      {
+        "surface": "deployments",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4986,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "environments",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 4985,
+        "sha256": "22808ca69dac1b0e619c699a0de1d17a95d2010dc9603062ebe8fe6c62ce27c3"
+      },
+      {
+        "surface": "webhooks",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 0,
+        "rate_remaining": 499,
+        "sha256": "93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d"
+      },
+      {
+        "surface": "workflows",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 1,
+        "rate_remaining": 4996,
+        "sha256": "46e63bbd3b4e5839f6d13cfa8307dddd21094169baa49b1b5057aa78547a2a86"
+      },
+      {
+        "surface": "actions_jobs_30498222845",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 4,
+        "rate_remaining": 4984,
+        "sha256": "2b40280f8378e2a3f954249978ef9a1453f11021ef35c2bf996cba37b1359f02"
+      },
+      {
+        "surface": "actions_permissions",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 1,
+        "rate_remaining": 4995,
+        "sha256": "e080ca772d5d934c35b444c291cec356a65f7dee2eddc40cbc963cb8e7af435e"
+      },
+      {
+        "surface": "main_branch",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 1,
+        "rate_remaining": 4983,
+        "sha256": "8393a280fc78b39ea8ad95ec834d79d2e8f51b9ac99d5871fe6bd8b36391e527"
+      },
+      {
+        "surface": "private_reporting",
+        "http_status": 404,
+        "complete": false,
+        "rate_remaining": 4994
+      },
+      {
+        "surface": "secret_alerts",
+        "http_status": 404,
+        "complete": false,
+        "rate_remaining": 4982
+      },
+      {
+        "surface": "advisories",
+        "http_status": 404,
+        "complete": false,
+        "rate_remaining": 4981
+      },
+      {
+        "surface": "rulesets",
+        "http_status": 403,
+        "complete": false,
+        "rate_remaining": 4980
+      },
+      {
+        "surface": "latest_release",
+        "http_status": 200,
+        "complete": true,
+        "pages": 1,
+        "count": 1,
+        "rate_remaining": 4993,
+        "sha256": "48021d28daa0b6f9a9ed6eaa71e8cf9a869bd52920e28e965268f0390f4654ad"
+      }
+    ]
+  },
+  "cutover": {
+    "repository": "MikeMarcin/BetterPullReview",
+    "target_main": "293f315c430f27f264b198f6df431576f0702831",
+    "remote_main_before": "7819c22e48bfeb1fcfbd095728946d22dd4c1199",
+    "started_at": "2026-10-20T01:46:44.454744+00:00",
+    "requests": [
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview",
+        "status": 200,
+        "rate_remaining": 4979
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/git/ref/heads/main",
+        "status": 200,
+        "rate_remaining": 4978
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4992
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/git/ref/heads/main",
+        "status": 200,
+        "rate_remaining": 4977
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4991
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview",
+        "status": 200,
+        "rate_remaining": 4989
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4988
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/private-vulnerability-reporting",
+        "status": 200,
+        "rate_remaining": 4987
+      },
+      {
+        "method": "PUT",
+        "route": "repos/MikeMarcin/BetterPullReview/private-vulnerability-reporting",
+        "status": 204,
+        "rate_remaining": 4986
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/private-vulnerability-reporting",
+        "status": 200,
+        "rate_remaining": 4985
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/permissions",
+        "status": 200,
+        "rate_remaining": 4984
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/workflows/323328391",
+        "status": 200,
+        "rate_remaining": 4983
+      },
+      {
+        "method": "GET",
+        "route": "repos/MikeMarcin/BetterPullReview/actions/runs?per_page=100",
+        "status": 200,
+        "rate_remaining": 4982
+      }
+    ],
+    "mutations": [
+      {
+        "operation": "push_main",
+        "exit_code": 0,
+        "remote_main": "293f315c430f27f264b198f6df431576f0702831",
+        "confirmed": true
+      },
+      {
+        "operation": "set_visibility_public",
+        "exit_code": 0,
+        "visibility": "public",
+        "confirmed": true
+      },
+      {
+        "operation": "enable_private_vulnerability_reporting",
+        "response_status": 204
+      }
+    ],
+    "actions_enabled_before": false,
+    "actions_enabled_after_visibility": false,
+    "private_vulnerability_reporting_enabled": true,
+    "repository_private": false,
+    "license": "MIT",
+    "actions_enabled_final": false,
+    "historical_workflow_state": "disabled_manually",
+    "actions_runs": 1,
+    "new_actions_runs": 0,
+    "completed_at": "2026-10-20T01:46:52.393656+00:00"
+  },
+  "anonymous_access": {
+    "started_at": "2026-10-20T01:47:50.046324+00:00",
+    "authentication": "none",
+    "cookies": "none",
+    "client": "Python urllib with a fresh opener, no cookie jar, no credential provider or netrc, and ProxyHandler({})",
+    "repository": "https://github.com/MikeMarcin/BetterPullReview",
+    "checks": [
+      {
+        "url": "https://api.github.com/repos/MikeMarcin/BetterPullReview",
+        "http_status": 200,
+        "bytes": 5594,
+        "sha256": "0683ffd528b8cddc0fe6ee3f8b32ab7317b0c102fc418a51a37fa6794afa0b76",
+        "final_host": "api.github.com",
+        "rate_remaining": 59,
+        "private": false,
+        "visibility": "public",
+        "license": "MIT"
+      },
+      {
+        "url": "https://api.github.com/repos/MikeMarcin/BetterPullReview/git/ref/heads/main",
+        "http_status": 200,
+        "bytes": 352,
+        "sha256": "b30baf6f0d950aaf8f92d544f1fcd06faea92b6f8006459a3e3f1e5906b75552",
+        "final_host": "api.github.com",
+        "rate_remaining": 58,
+        "main_commit": "293f315c430f27f264b198f6df431576f0702831"
+      },
+      {
+        "url": "https://api.github.com/repos/MikeMarcin/BetterPullReview/releases?per_page=100",
+        "http_status": 200,
+        "bytes": 218168,
+        "sha256": "6c93da8d9298b1e2b061b6f5454b1dc2b6c620c802ab4a92505076d63aab3497",
+        "final_host": "api.github.com",
+        "rate_remaining": 57,
+        "releases": 10,
+        "assets": 99,
+        "identities_match_audit": true
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview",
+        "http_status": 200,
+        "bytes": 340778,
+        "sha256": "17bfd81d4fb92666b2fdfb1da36a93f1a7c64e53e7e252699291b8f8a937dd1a",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases",
+        "http_status": 200,
+        "bytes": 460498,
+        "sha256": "eeace853ac133e58ea867b3891ab98d7d7f3ab828749e21920319ae1a0e1475f",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/latest",
+        "http_status": 200,
+        "bytes": 199882,
+        "sha256": "c27a17f99ccd862fe35e248084090d84098f3f7db1d230053a71e0bcf71d4c56",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/security",
+        "http_status": 200,
+        "bytes": 176088,
+        "sha256": "13948dd49953c4f8139ea9cf86249a538689217e087be6c7fc11371a14674844",
+        "final_host": "github.com",
+        "rate_remaining": null,
+        "private_report_link_present": true
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/security/policy",
+        "http_status": 200,
+        "bytes": 180452,
+        "sha256": "bd1152197f1746b6583df6adda89bdb889acae211da2eac771f884d40379eff8",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.4",
+        "http_status": 200,
+        "bytes": 191479,
+        "sha256": "21efda79096d47406e421f217f8e85405bfd3a64b8e9bc5e8e8cd2ea986ef015",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.5",
+        "http_status": 200,
+        "bytes": 191772,
+        "sha256": "ce71d4094a871d5fdbc00591d942cf75ca398052fd57e9133d386df1045a303d",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.6",
+        "http_status": 200,
+        "bytes": 192561,
+        "sha256": "3a09811bda7b5c55ff0be9700a61e4a09a232327cb6a63bcfd822871514890bc",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.7",
+        "http_status": 200,
+        "bytes": 191640,
+        "sha256": "23818472d911fade19545c61afea9f2d33f63732f60d4efb46c8d149bf1ce1f4",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.8",
+        "http_status": 200,
+        "bytes": 192389,
+        "sha256": "2b25f8bdacbd8bbf4fff150c7db14cebbb72bb08139f360490316b11c3ec7cbf",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.1.9",
+        "http_status": 200,
+        "bytes": 192334,
+        "sha256": "d4dcaf473204aaa1e48c113ef3bd260f7268dead7e3e821c758ec5ffb0e9f53e",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.2.0",
+        "http_status": 200,
+        "bytes": 200315,
+        "sha256": "41b94d3fc50bbfc4a44d3220bdda0ba653a274c951b17f6457986d552da3a4bf",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.2.1",
+        "http_status": 200,
+        "bytes": 193200,
+        "sha256": "1b85d5450c5adcaaa6e553004cab1925ba7740118090934fbd03a6471ab22883",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.2.2",
+        "http_status": 200,
+        "bytes": 192105,
+        "sha256": "b06f6e364dd426b3db5f2fa4328771ed03d6cade44e4f86479aaf53572a0befe",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.0",
+        "http_status": 200,
+        "bytes": 199882,
+        "sha256": "cb42e80e02adbccb0e45be8b84f05d9988c3dd4d93ba9442229f1b795bd6c153",
+        "final_host": "github.com",
+        "rate_remaining": null
+      },
+      {
+        "url": "https://raw.githubusercontent.com/MikeMarcin/BetterPullReview/293f315c430f27f264b198f6df431576f0702831/LICENSE",
+        "http_status": 200,
+        "bytes": 1086,
+        "sha256": "598123e427835be2e530fa36e12ec7c39ff4405bfacbc7a2e1ffc17e9d00ff08",
+        "final_host": "raw.githubusercontent.com",
+        "rate_remaining": null,
+        "matches_committed_file": true
+      },
+      {
+        "url": "https://raw.githubusercontent.com/MikeMarcin/BetterPullReview/293f315c430f27f264b198f6df431576f0702831/SECURITY.md",
+        "http_status": 200,
+        "bytes": 2366,
+        "sha256": "803b7c821b73261486e328f8bab52d06d3326fbc6b4c6110932dab05ecbe4be6",
+        "final_host": "raw.githubusercontent.com",
+        "rate_remaining": null,
+        "matches_committed_file": true
+      }
+    ],
+    "assets": [
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790525,
+        "name": "BetterPullReview-0.1.4-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790529,
+        "name": "BetterPullReview-0.1.4-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 130,
+        "sha256": "6dd7af0ed82db737ce0220adf24fc628e4cb80fa4e835f5a48391e6954b0bfe9",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790509,
+        "name": "BetterPullReview-0.1.4-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 55248823,
+        "sha256": "36f62aebc681c041f8c36224e4c6d8263f6146f4d46525e2655fa4518dc1be63",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790498,
+        "name": "BetterPullReview-0.1.4-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "08ad229be664a89d86b2f6e8429270db0766f080e1968301b50297ade1fb0e65",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790504,
+        "name": "BetterPullReview-0.1.4-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 178819,
+        "sha256": "28a0ff45c974ff497e998b42e1f467728589a82ed5d244fa5cbec3b4b765cbd7",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790520,
+        "name": "BetterPullReview-0.1.4-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "54e8e964b3a1720e0a98d8423b7e8e5428c5cc4fe4e3a6c1494f14fdd7bfd638",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790502,
+        "name": "BetterPullReview-0.1.4-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 49561626,
+        "sha256": "e71edfc72990828ffe3378d1bd57edf400051235229c4e2b35c8ce41fe206ef5",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.4",
+        "asset_id": 619790511,
+        "name": "BetterPullReview-0.1.4-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.4/BetterPullReview-0.1.4-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "d3aad2d6b32fc1f41b44043c3c5f5580b03e0718c7d668f817c16b813e7c66b3",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467435,
+        "name": "BetterPullReview-0.1.5-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467440,
+        "name": "BetterPullReview-0.1.5-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 130,
+        "sha256": "b52bb31481c26c1d64af80cf7b384d439c649716751aa4b1b58e8025850314b4",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467442,
+        "name": "BetterPullReview-0.1.5-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 55637308,
+        "sha256": "b7c9378cc93c93c6435b1970456596281d346f09d45202fb558a92ae32e2e727",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467445,
+        "name": "BetterPullReview-0.1.5-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "b5956f0fd09060bee1fc48bfb3cbb9ca3072f5e20ba691600780783ff2ca071c",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467433,
+        "name": "BetterPullReview-0.1.5-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 178819,
+        "sha256": "54cabc0949e2730d4fa6d2cb3fab13b53d5c9ac9445ba4c63125026b6bc319b6",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467478,
+        "name": "BetterPullReview-0.1.5-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "6b45d13fdb6b3446b63159ef34954eee05290c1e771b65fa4621aaf659eff8a9",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467487,
+        "name": "BetterPullReview-0.1.5-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 49656744,
+        "sha256": "169996cefedcd692c149199d1ab01e7aaedc62a93e6d79c9662161fc1ad3f074",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.5",
+        "asset_id": 622467488,
+        "name": "BetterPullReview-0.1.5-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.5/BetterPullReview-0.1.5-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "912d2bdb9230cec4cc7dbcd3752123e2148f03b025601e396d1f4acb10a726c1",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305667,
+        "name": "BetterPullReview-0.1.6-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305668,
+        "name": "BetterPullReview-0.1.6-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 130,
+        "sha256": "d3efa58176b8977bc774a79260f5f22a5e8c2269e8c5dfc80dfedb492abb8982",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305649,
+        "name": "BetterPullReview-0.1.6-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 56615740,
+        "sha256": "00440c2ad6ba119b3caeb536b6b7d7e0a47e9f98dbea099d31b13343750eeab5",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305648,
+        "name": "BetterPullReview-0.1.6-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "701f68599fcfeb4e4228fb964ac645578ce99f0d1e5923921b2e577113585c32",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305644,
+        "name": "BetterPullReview-0.1.6-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 178819,
+        "sha256": "6a4fcd6a623266aad04b87577e399928455880724380053af015aac227cf6a91",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305666,
+        "name": "BetterPullReview-0.1.6-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "19b79a2b23e2826b8b404f02223689d95329db6b70b64fc617409a6069d8e62d",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305650,
+        "name": "BetterPullReview-0.1.6-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 50591292,
+        "sha256": "008ffea720e7181ccad6e27af86e06e2cc946b1371da6522a08526bd303c2084",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.6",
+        "asset_id": 628305647,
+        "name": "BetterPullReview-0.1.6-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.6/BetterPullReview-0.1.6-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "8114928588cf8950b12f4cadec5f079f66f79fa7d450d87cc21f2b6e199be3b9",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021039,
+        "name": "BetterPullReview-0.1.7-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/BetterPullReview-0.1.7-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 56580059,
+        "sha256": "13290891e016fa4945847bbc8a6aec40f6a04079552dd05bf4122dccefda80e1",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021036,
+        "name": "BetterPullReview-0.1.7-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/BetterPullReview-0.1.7-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "97e0d018511455976e903202ecb3495eba51515d9a078b309d87129586252ad6",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021033,
+        "name": "BetterPullReview-0.1.7-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/BetterPullReview-0.1.7-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 178819,
+        "sha256": "679dbfc565179d1721e4e165a1daf528615f6c31cd62ccee28091819c4b77c54",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021067,
+        "name": "BetterPullReview-0.1.7-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/BetterPullReview-0.1.7-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "c8cc0b383f8de71e01a686d86e0edabcfa84052620cad5b75226d14f06ef5d54",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021038,
+        "name": "BetterPullReview-0.1.7-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/BetterPullReview-0.1.7-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 50628857,
+        "sha256": "45433f1b64d43c2772741e678e9c1990d427d5043b0cec10ee68562b16e34a6a",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021035,
+        "name": "BetterPullReview-0.1.7-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/BetterPullReview-0.1.7-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "5167de933b589220fea7176522d495dac3984315cb1bc315cb6755e972922719",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021065,
+        "name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021066,
+        "name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 137,
+        "sha256": "eca7347086cff0720af921bd277130a5a07dab21cc962e6033110b6fdc87de3f",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001193,
+        "name": "BetterPullReview-0.1.8-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 56589964,
+        "sha256": "da2c39c5f13e12c134e471a5193b0982fb97eb5be3ef7f93cc56c9232d715ce7",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001192,
+        "name": "BetterPullReview-0.1.8-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "e12d8b49e94c9241a83493ded7404b7f17f7a126b8d3f5db62a3aa8f4b66d408",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001187,
+        "name": "BetterPullReview-0.1.8-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 178819,
+        "sha256": "811042ca016c22a0546741a3eac5f63ffb92e100d0819a875e2c9020a77708d7",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001213,
+        "name": "BetterPullReview-0.1.8-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "4ee5ec085b084e0c24afa6975c9d9e6f623088db16956fa00bb371711d25307a",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001196,
+        "name": "BetterPullReview-0.1.8-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 50639827,
+        "sha256": "6830b8afaa6346f9dff22b758aa75ae4acee5e0525885f721623236d2e00fd08",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001195,
+        "name": "BetterPullReview-0.1.8-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "5b55f3305d6eb62f4d492bcf2f03ddd82d77a82471aa6eace5c17ded64874bbb",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001215,
+        "name": "Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001220,
+        "name": "Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/Source-BetterPullReview-0.1.8-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 137,
+        "sha256": "ada4e747626959e8e4ec33448865455578df39d18a89cfc495173a0b1bb031ba",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399366,
+        "name": "BetterPullReview-0.1.9-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 56701107,
+        "sha256": "7390aa062c3b6b0e5bb158c8a64e9b11a47adec0b8fd6ffbf0e67b50740f8cde",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399364,
+        "name": "BetterPullReview-0.1.9-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "3919d73d9175a9a5a2510519746b07023cc983f9be3b6f1f97354a9bed53f157",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399374,
+        "name": "BetterPullReview-0.1.9-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 178819,
+        "sha256": "c7df978a9e1198a01f96946dfaf7e1a68db844c1a6a6bc134c396a820d5a89f3",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399395,
+        "name": "BetterPullReview-0.1.9-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "867a796b9d2e92227ca6c6884b7590d6eeb2850355d405acedacce1f237c4788",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399362,
+        "name": "BetterPullReview-0.1.9-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 50876677,
+        "sha256": "8ae14a16c77bc9d6dd78c6a51055769eb455595ad2625250c858bfe91f273c38",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399367,
+        "name": "BetterPullReview-0.1.9-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "5c3e7b046871c9fea1cef219c782d791bd296d19b8276055da3055ac92e3e88d",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399405,
+        "name": "Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399406,
+        "name": "Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/Source-BetterPullReview-0.1.9-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 137,
+        "sha256": "3c94dd61a9a79dd115e0170d5c35d07c6cc2687bfb5d81791322d5c33b707413",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241017,
+        "name": "BetterPullReview-0.2.0-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 58846607,
+        "sha256": "cab1066872f0368c99a6c1704fb12ecd0fb14ca6904cdf9ba6a60930f9339495",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241026,
+        "name": "BetterPullReview-0.2.0-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "5e85a63ff8856dd269d06ac0814ffd0b3fe375e13b0fe927c118e94f0a3b46cb",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241023,
+        "name": "BetterPullReview-0.2.0-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 188055,
+        "sha256": "7eda1faa9829a4ad63d836b6abc36e914cd4bde7d629cd18cd1fcbca7374bcbe",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241048,
+        "name": "BetterPullReview-0.2.0-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "f41893bfefc65e3f025f473c2e87c84d0a9ce2f63f57735ea4d080e15282335e",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241020,
+        "name": "BetterPullReview-0.2.0-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 52877195,
+        "sha256": "311e0706988fb33144c088343417f297d4cff210ac8aede9d4a6e72da859b5d7",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241022,
+        "name": "BetterPullReview-0.2.0-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "b09365382cf9da285dcda06fa4394b16bfd73db86a1a3aecba71482bcdfa6809",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241060,
+        "name": "Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 99922057,
+        "sha256": "45dd4b46978c92e1382b835ab32f3b89fb86e0ec4a01e5f2ebae4efbbdd44cd9",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241066,
+        "name": "Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/Source-BetterPullReview-0.2.0-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 137,
+        "sha256": "55d5ebc6543c73a1f6ebc4e802fd64c3240456e3a46e960eda08f4047e6d3bf8",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170213,
+        "name": "BetterPullReview-0.2.1-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 59251696,
+        "sha256": "5ec36d7ba6007c2611845166357c69de290370b5c3cf707e321710465e9a4a78",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170214,
+        "name": "BetterPullReview-0.2.1-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "822256f240e89bb72a1f110de0f9132ba276c86d41ce0f267912429a6211ca84",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170217,
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 188055,
+        "sha256": "db51b084a3641c0e674b0ab5b9e689ba2d68ba0d79c89370157d9ffd47b21f38",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170291,
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "d4bf87d93afbb23ddfad8eca855a275e0435693385f5c5032e03b75791a0548b",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170220,
+        "name": "BetterPullReview-0.2.1-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 52990187,
+        "sha256": "8a635a4b8a99caaf5cb7db3aa2344772749e8bd8080272d63004a9f80c4ac4f8",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170208,
+        "name": "BetterPullReview-0.2.1-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "4f54f88b9904900fca598f69f3e426798d9591643f4ecba6af3397ebf90a605b",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170295,
+        "name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 99922057,
+        "sha256": "45dd4b46978c92e1382b835ab32f3b89fb86e0ec4a01e5f2ebae4efbbdd44cd9",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170297,
+        "name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 137,
+        "sha256": "1e21a125fa2677752abe1c0b7865984a3f069855c23f5696d14f7a1718afec08",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464657,
+        "name": "BetterPullReview-0.2.2-windows-x64-runtime.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64-runtime.zip",
+        "http_status": 200,
+        "bytes": 27323831,
+        "sha256": "e7321a46b9ee0aafea2bf75a6ae7413f65de029202032460e750b53050631b82",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464652,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64.msi",
+        "http_status": 200,
+        "bytes": 23646208,
+        "sha256": "b3e2a5420893604ebb6b30d7708cb2405d090a16e09dc459d049bf1155a50f85",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464660,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.provenance.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64.msi.provenance.json",
+        "http_status": 200,
+        "bytes": 2595,
+        "sha256": "fadd9250b6be2c5a7a9fe810f282aa14654224f58b8c00417f7589912fede416",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464743,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.release.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64.msi.release.json",
+        "http_status": 200,
+        "bytes": 3130,
+        "sha256": "a45837d418ebb762d53224a43476a173233bc83d89351858c9c303cb79bf3102",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464659,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64.msi.sha256",
+        "http_status": 200,
+        "bytes": 470,
+        "sha256": "01263787a5dd80b8bcf0cbca15177035af5e258ff6430cf8b59b93de73c6aca7",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464655,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64.msi.spdx.json",
+        "http_status": 200,
+        "bytes": 175134,
+        "sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464709,
+        "name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 93304239,
+        "sha256": "504b38551e2d6560ca5c67ad6a563c92cac1e75c75605d5a11937621dd62dbe1",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657396738,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz",
+        "http_status": 200,
+        "bytes": 49887293,
+        "sha256": "a3546a3c3eeefee3e7df52f6593634eed2a3cd4f1f47a9af97dc40c36144d838",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657422803,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-user.tar.gz.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "d0afe2a52efc238170dec9f066e6da5ff17c598edb868e96217e2336f962f7cd",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657422901,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb",
+        "http_status": 200,
+        "bytes": 50130090,
+        "sha256": "1be8a2d30d74b0d7cb35afc4a9f6986a909fb8a207954b215c5bb1beab4f6ad3",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657433771,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "e03482933886f4e08e0a8210c8d19047a880658c63d7eefc5794dd54a7966c03",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657433904,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.provenance.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.provenance.json",
+        "http_status": 200,
+        "bytes": 2870,
+        "sha256": "cb9903f00e57836a2af72b8a9ab258354a5484a3b2dd4724b14fc5dd6bd4717b",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657433984,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.provenance.json.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.provenance.json.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "c7997ac746b8343d8d3f3a8754e7769eb3ec22a023c7a58bc5f618c1e492aab3",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657442340,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.release.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.release.json",
+        "http_status": 200,
+        "bytes": 4398,
+        "sha256": "8fb25d77fe1ba17539a0074778742b4b606318a282e1d23f7270d30861bb4f22",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657434042,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.sha256",
+        "http_status": 200,
+        "bytes": 1036,
+        "sha256": "e7280dba78db0e89709263930d19103c1e9702db8d3c8bb02c8e344eb572f343",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657434095,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.sha256.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.sha256.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "215dd6182feb0f7c0a772986f98ed946efc95875c765db136d937d847d4957da",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657434168,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.spdx.json",
+        "http_status": 200,
+        "bytes": 195210,
+        "sha256": "e725e767b65b515dbabbdf9d07506890b3a600881ea4e37e472dfcb5fd897301",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657434363,
+        "name": "BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.spdx.json.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-linux-ubuntu-26.04-x64.deb.spdx.json.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "de604ef1798470a1ce3a7e921740da0484443dd4541cd9640a7ee10985944a8f",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377948,
+        "name": "BetterPullReview-0.3.0-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 62837875,
+        "sha256": "d78ab029303feb1c17a7f1d24eee49ae7fb5cd28de2c3c1f5d9dd073b82fed50",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377955,
+        "name": "BetterPullReview-0.3.0-macos-universal.dmg.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.dmg.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "1be3d7278913b0f88c9269daab94cd475135ca9c8ba9a55510c74c3b07ec1b69",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377954,
+        "name": "BetterPullReview-0.3.0-macos-universal.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.spdx.json",
+        "http_status": 200,
+        "bytes": 213246,
+        "sha256": "c32963151806c15c85e629bb4edf9c047ecd397c140ffbc19e24c9c3d68770e0",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377993,
+        "name": "BetterPullReview-0.3.0-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "ef4881afe373d9edff6400200618c1c348e4f51248be0e4121c5e94191067e20",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377952,
+        "name": "BetterPullReview-0.3.0-macos-universal.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.zip",
+        "http_status": 200,
+        "bytes": 56289541,
+        "sha256": "764369e65e6aa216ff802dee6c97e555f9fac852497b5c0e169d78e973a948db",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377949,
+        "name": "BetterPullReview-0.3.0-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "ef0ca41ae40eb9ab68a6ec93d9cd0661405217df9245d45d898950b127305eea",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657378080,
+        "name": "BetterPullReview-0.3.0-windows-x64-runtime.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-windows-x64-runtime.zip",
+        "http_status": 200,
+        "bytes": 28925242,
+        "sha256": "5bd0e4a5a40485c02b0d5543e9e2e1287f705e8f920e2ed2b3d163b775aed1f8",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657378153,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-windows-x64.msi",
+        "http_status": 200,
+        "bytes": 24952832,
+        "sha256": "2e3ddd16384481b1990a35586542c5c783280a31795277b9846c3d2d0a2287d5",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657394658,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.provenance.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-windows-x64.msi.provenance.json",
+        "http_status": 200,
+        "bytes": 2595,
+        "sha256": "3b1cd9d5c350c3c925e2a306110229970a9fde60f6ce34968cdb744baf00feed",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657396511,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.release.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-windows-x64.msi.release.json",
+        "http_status": 200,
+        "bytes": 3130,
+        "sha256": "de718ae1a254db32a7a780a7cee94455e155cd903a6c32036dd8d4ecab5e7239",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657394748,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-windows-x64.msi.sha256",
+        "http_status": 200,
+        "bytes": 470,
+        "sha256": "645bd1b72a9137862f3567d0080a27f8b97f2c93da06da92e45669b96e67d0e0",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657394901,
+        "name": "BetterPullReview-0.3.0-windows-x64.msi.spdx.json",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-windows-x64.msi.spdx.json",
+        "http_status": 200,
+        "bytes": 197308,
+        "sha256": "37f410dbe206a97d7382216347d3c8da0fe9c837bb2c39f9b84a28121ba04b41",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657434483,
+        "name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 124341823,
+        "sha256": "4f2f01310271ae8ec25a282935e81f83cc13ab04fc99f91b2479c9b199b63b24",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657442223,
+        "name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "cfff958d9f46debf092f469003c787d73e56ead192bc0ad8af26f832ec9560c7",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377998,
+        "name": "Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 104428744,
+        "sha256": "c25f50e9ad273974ec966166a4edacf3571695d3723ed8c576a4ff19749cd407",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657378061,
+        "name": "Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/Source-BetterPullReview-0.3.0-macos-universal-corresponding-source.zip.sha256",
+        "http_status": 200,
+        "bytes": 137,
+        "sha256": "b85b407742bf4ffd3bf7a62f83629e5ca5128a1c7edb0c755a35ccacc36bd643",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657395278,
+        "name": "Source-BetterPullReview-0.3.0-windows-x64-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/Source-BetterPullReview-0.3.0-windows-x64-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 97810926,
+        "sha256": "f5629e19b71c15184da469cb7f550482914c7ac6721972cbbf80b61411491255",
+        "matches_audit": true,
+        "final_host": "release-assets.githubusercontent.com"
+      }
+    ],
+    "failures": [],
+    "verified_asset_count": 99,
+    "verified_asset_bytes": 2254693496,
+    "binary_assets": 24,
+    "source_archives": 12,
+    "native_installers_executed": false,
+    "signed_redirect_queries_recorded": false,
+    "completed_at": "2026-10-20T01:57:00.004285+00:00",
+    "initial_connection_failures": [
+      {
+        "asset_id": 657377993,
+        "error": "URLError; diagnostics withheld"
+      },
+      {
+        "asset_id": 657442223,
+        "error": "URLError; diagnostics withheld"
+      },
+      {
+        "asset_id": 645170208,
+        "error": "RemoteDisconnected; diagnostics withheld"
+      },
+      {
+        "asset_id": 646464659,
+        "error": "URLError; diagnostics withheld"
+      },
+      {
+        "asset_id": 634399366,
+        "error": "URLError; diagnostics withheld"
+      },
+      {
+        "asset_id": 641241022,
+        "error": "URLError; diagnostics withheld"
+      },
+      {
+        "asset_id": 630001193,
+        "error": "URLError; diagnostics withheld"
+      },
+      {
+        "asset_id": 629021065,
+        "error": "TimeoutError; diagnostics withheld"
+      }
+    ],
+    "retry_client": "curl -q with no configuration, authentication, cookies, netrc or proxies; streamed to a disposable file and SHA-256 checked",
+    "retries": [
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657377993,
+        "name": "BetterPullReview-0.3.0-macos-universal.spdx.json.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/BetterPullReview-0.3.0-macos-universal.spdx.json.sha256",
+        "http_status": 200,
+        "bytes": 115,
+        "sha256": "ef4881afe373d9edff6400200618c1c348e4f51248be0e4121c5e94191067e20",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.3.0",
+        "asset_id": 657442223,
+        "name": "Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.0/Source-BetterPullReview-0.3.0-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+        "http_status": 200,
+        "bytes": 228,
+        "sha256": "cfff958d9f46debf092f469003c787d73e56ead192bc0ad8af26f832ec9560c7",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.2.1",
+        "asset_id": 645170208,
+        "name": "BetterPullReview-0.2.1-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.1/BetterPullReview-0.2.1-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "4f54f88b9904900fca598f69f3e426798d9591643f4ecba6af3397ebf90a605b",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.2.2",
+        "asset_id": 646464659,
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/BetterPullReview-0.2.2-windows-x64.msi.sha256",
+        "http_status": 200,
+        "bytes": 470,
+        "sha256": "01263787a5dd80b8bcf0cbca15177035af5e258ff6430cf8b59b93de73c6aca7",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.1.9",
+        "asset_id": 634399366,
+        "name": "BetterPullReview-0.1.9-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.9/BetterPullReview-0.1.9-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 56701107,
+        "sha256": "7390aa062c3b6b0e5bb158c8a64e9b11a47adec0b8fd6ffbf0e67b50740f8cde",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.2.0",
+        "asset_id": 641241022,
+        "name": "BetterPullReview-0.2.0-macos-universal.zip.sha256",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.0/BetterPullReview-0.2.0-macos-universal.zip.sha256",
+        "http_status": 200,
+        "bytes": 109,
+        "sha256": "b09365382cf9da285dcda06fa4394b16bfd73db86a1a3aecba71482bcdfa6809",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.1.8",
+        "asset_id": 630001193,
+        "name": "BetterPullReview-0.1.8-macos-universal.dmg",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.8/BetterPullReview-0.1.8-macos-universal.dmg",
+        "http_status": 200,
+        "bytes": 56589964,
+        "sha256": "da2c39c5f13e12c134e471a5193b0982fb97eb5be3ef7f93cc56c9232d715ce7",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      },
+      {
+        "tag": "v0.1.7",
+        "asset_id": 629021065,
+        "name": "Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.1.7/Source-BetterPullReview-0.1.7-macos-universal-corresponding-source.zip",
+        "http_status": 200,
+        "bytes": 74236806,
+        "sha256": "fdf51558c58f302c0f65a72f6f42699dc33d84b505e3dc18bb504d361ed7d156",
+        "matches_audit": true,
+        "verified_on_retry": true,
+        "curl_exit_code": 0
+      }
+    ],
+    "private_report_form": {
+      "url": "https://github.com/MikeMarcin/BetterPullReview/security/advisories/new",
+      "http_status_after_redirect": 200,
+      "final_host": "github.com",
+      "final_path": "/login",
+      "authentication": "none",
+      "cookies": "none",
+      "submission_attempted": false
+    }
+  },
+  "source_binding": {
+    "binary_payloads": 24,
+    "corresponding_source_archives": 12,
+    "release_tags": 10,
+    "evidence": "docs/verification/publication-preparation-2026-10-19.json source_bindings",
+    "basis": "All installed source names, digests, versions and URLs were reconciled in the preparation audit. All matching binary and source assets were now downloaded anonymously in full and exactly match those audited bytes."
+  },
+  "security_status": {
+    "started_at": "2026-10-20T01:50:20.871500+00:00",
+    "checks": [
+      {
+        "surface": "repository",
+        "http_status": 200,
+        "rate_remaining": 4971,
+        "rate_limit": 5000,
+        "complete": true,
+        "visibility": "public",
+        "private": false,
+        "license": "MIT",
+        "security_and_analysis": {
+          "secret_scanning": {
+            "status": "disabled"
+          },
+          "secret_scanning_push_protection": {
+            "status": "disabled"
+          },
+          "dependabot_security_updates": {
+            "status": "disabled"
+          },
+          "secret_scanning_non_provider_patterns": {
+            "status": "disabled"
+          },
+          "secret_scanning_validity_checks": {
+            "status": "disabled"
+          }
+        }
+      },
+      {
+        "surface": "main_branch",
+        "http_status": 200,
+        "rate_remaining": 4970,
+        "rate_limit": 5000,
+        "complete": true,
+        "sha": "293f315c430f27f264b198f6df431576f0702831",
+        "protected": false
+      },
+      {
+        "surface": "rulesets",
+        "http_status": 200,
+        "rate_remaining": 4969,
+        "rate_limit": 5000,
+        "complete": true,
+        "count": 0,
+        "rulesets": []
+      },
+      {
+        "surface": "secret_alerts",
+        "http_status": 404,
+        "rate_remaining": 4967,
+        "rate_limit": 5000,
+        "complete": false
+      },
+      {
+        "surface": "advisories",
+        "http_status": 200,
+        "rate_remaining": 4966,
+        "rate_limit": 5000,
+        "complete": true,
+        "count": 0,
+        "advisories": []
+      }
+    ],
+    "secret_values_and_response_bodies_retained": false,
+    "settings_changed": false,
+    "checked_at": "2026-10-20T01:50:39.724107+00:00"
+  },
+  "validation": {
+    "platform": "macOS 26.6.2 arm64",
+    "scanner": "Pinned digest-verified BetterLeaks 1.9.0",
+    "acquisition_separate_from_offline_scan": true,
+    "scan_network_denial": "macOS sandbox-exec Seatbelt (version 1)(allow default)(deny network*)",
+    "fresh_metadata_findings": 0,
+    "anonymous_content_reuses_previous_secret_audit_by_exact_hash": true,
+    "synthetic_fixture_exceptions_added": false,
+    "credential_validation_performed": false,
+    "new_native_release_built_or_executed": false,
+    "new_github_actions_runs": 0,
+    "history_rewritten": false,
+    "support_ticket_filed": false,
+    "documentation_gate": {
+      "command": "python3 scripts/verify_documentation.py --root .",
+      "PYTHONPATH": "/Users/jaeger/.agents/skills/implement-rfc/scripts",
+      "network_denied": true,
+      "result": "DOCUMENTATION_OK",
+      "exit_code": 0
+    },
+    "staged_scan": {
+      "command": "python3 scripts/betterleaks.py staged",
+      "selected_files": 5,
+      "findings": 0,
+      "network_denied": true,
+      "exit_code": 0
+    },
+    "diff_check": {
+      "command": "git diff --cached --check",
+      "exit_code": 0
+    }
+  },
+  "remaining_limits": [
+    "Existing v0.3.0 native, vulnerability and wider M8/M9 qualification bounds remain unchanged; public availability does not close them.",
+    "History retains the known retired loopback token; no new BPR credential was established by the audits.",
+    "Main is unprotected and the available ruleset inventory is empty. Protection settings were inspected but not changed.",
+    "Repository secret-scanning, push-protection and validity-check settings report disabled. The alerts API returns 404, which is not evidence of an empty alert inventory.",
+    "Private report enablement and the anonymous Security-page link were checked; no test vulnerability report was submitted.",
+    "The native installer binaries were downloaded and hashed, not newly executed or requalified."
+  ]
+}

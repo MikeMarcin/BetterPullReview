@@ -1,5 +1,15 @@
 # RFC-BPR-0038 qualification ledger
 
+## Public repository access, 2026-10-19
+
+The owner-authorized [public cutover](../security/publication-cutover-2026-10-19.md)
+made the repository and retained releases public, enabled private vulnerability
+reporting, and kept GitHub Actions disabled. Anonymous full downloads of all
+99 retained assets, including every matching source archive, reproduce their
+audited sizes and SHA-256 values. No artifact or tag changed. This adds public
+access evidence; the exact native qualifications, dispositions and open gaps
+below remain unchanged.
+
 ## Coordinated private stable 0.3.0 published, 2026-10-19
 
 [Private stable v0.3.0](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.0)

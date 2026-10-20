@@ -2,19 +2,18 @@
 
 ## Reporting a vulnerability
 
-Check the repository's [Security page](https://github.com/MikeMarcin/BetterPullReview/security)
-for **Report a vulnerability**, and use that private reporting form when it is
-available. Do not put exploit details, private repository content, credentials
-or diagnostic databases in a public issue or pull request.
+Use GitHub's private [Report a vulnerability](https://github.com/MikeMarcin/BetterPullReview/security/advisories/new)
+form, also linked from the repository's [Security page](https://github.com/MikeMarcin/BetterPullReview/security).
+Sign in to GitHub to submit a report. Do not put exploit details, private
+repository content, credentials or diagnostic databases in a public issue or
+pull request.
 
-GitHub private vulnerability reporting is unavailable while this repository is
-private. Existing recipients should use their established private contact with
-the repository owner. If you have no private channel and the reporting form is
-unavailable, [open an issue](https://github.com/MikeMarcin/BetterPullReview/issues/new)
+If the form is unavailable, existing recipients may use their established
+private contact with the repository owner. If you have no private channel,
+[open an issue](https://github.com/MikeMarcin/BetterPullReview/issues/new)
 containing only a request for a private security contact, with no vulnerability
 details. Wait for that channel before sharing a reproduction. Maintainers must
-enable and verify the private reporting form when making the repository public;
-this policy does not claim the form is already enabled.
+keep private vulnerability reporting enabled while this repository is public.
 
 Include the affected version or commit, operating system and architecture,
 expected and observed behavior, security impact, and a minimal reproduction

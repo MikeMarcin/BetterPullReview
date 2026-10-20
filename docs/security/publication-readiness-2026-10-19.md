@@ -1,5 +1,10 @@
 # BPR publication readiness — 2026-10-19
 
+The owner subsequently authorized publication. The
+[completed public cutover](publication-cutover-2026-10-19.md) records the push,
+visibility change, private reporting and anonymous access checks. The sections
+below preserve the preparation decisions and evidence from before that cutover.
+
 ## Decision
 
 Keep BPR private while completing the publication steps below. Retain the
