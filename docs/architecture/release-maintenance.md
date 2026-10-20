@@ -499,6 +499,13 @@ says how many older records and files were left out. A record is about 800
 bytes, so under the limits of that change a retained-sessions export held
 roughly the newest 300.
 
+[[BPR-PENDING-AU]] takes the running session as the newest whatever its wall
+clock says. Its records order by sequence, after every other session's, so a
+clock set back (by the owner, a time zone change gone wrong or a virtual
+machine resumed) cannot make its latest records look older than an earlier
+session's and leave them out. Other sessions still order by time, and the
+output is still written oldest first within the limits [[BPR-1722]] set.
+
 ### Limits sized for a day of heavy use ([[BPR-1722]])
 
 The owner asked for limits that make an export useful for diagnosis. They are

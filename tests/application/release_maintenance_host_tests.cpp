@@ -660,6 +660,46 @@ namespace {
 			   "the metadata export keeps the newest records too");
 	}
 
+	/// [[BPR-PENDING-AU]]. The running session is the newest whatever its
+	/// clock says: one whose wall clock was set back, behind an older
+	/// session's, still keeps every record under the limit, in sequence order.
+	void test_export_keeps_running_session_through_clock_rollback()
+	{
+		constexpr std::string_view old = "1111222233334444aaaabbbbccccdddd";
+		const auto                 at  = [](unsigned aSequence, std::string_view aSession, std::uint64_t aUtc) {
+			auto       line    = structured_line(aSequence, true);
+			const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+				for (auto found = line.find(aFrom); found != std::string::npos; found = line.find(aFrom, found + aTo.size())) {
+					line.replace(found, aFrom.size(), aTo);
+				}
+			};
+			replace(session, aSession);
+			replace("1780000000000", std::to_string(aUtc));
+			return line;
+		};
+		constexpr unsigned older = core::release_diagnostic_record_limit + 200U;
+		std::string        input;
+		for (unsigned sequence = 1U; sequence <= older; ++sequence) {
+			input += at(sequence, old, 1780000000000ULL + sequence);
+		}
+		// Its clock is behind the older session's, and set back again before its third record.
+		input += at(1U, session, 1770000500000ULL) + at(3U, session, 1770000100000ULL) + at(2U, session, 1770000550000ULL);
+		const application::diagnostic_export_capture capture{ std::string{ session }, 3U, { }, { } };
+		const auto                                   document = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::identifying }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document.has_value(), "an export over its limits still prepares");
+		const auto& bytes      = document->Bytes;
+		const auto& descriptor = document->Descriptor;
+		const auto  record     = [&bytes](unsigned aSequence) { return bytes.find(R"("session":")" + std::string{ session } + R"(","sequence":)" + std::to_string(aSequence) + ","); };
+		expect(record(1U) != std::string::npos && record(2U) != std::string::npos && record(3U) != std::string::npos && descriptor.Sessions == 2U,
+			   "every record of the running session is kept although its clock is behind");
+		expect(record(1U) < record(2U) && record(2U) < record(3U) && bytes.find(R"("session":")" + std::string{ old }, record(1U)) == std::string::npos,
+			   "and it is written last, in sequence order");
+		expect(descriptor.Records + descriptor.LimitOmittedRecords == older + 3U && descriptor.LimitOmittedRecords == older + 3U - core::release_diagnostic_record_limit,
+			   "the limit leaves out the older session's oldest records instead");
+		expect(bytes.contains("\"utc_ms\":" + std::to_string(1780000000000ULL + older) + ",") && descriptor.FirstUtcMs == 1770000100000ULL,
+			   "the older session's newest record is kept and the time range covers the running session");
+	}
+
 	void test_preview_export()
 	{
 		fixture test;
@@ -785,6 +825,7 @@ auto main() -> int
 	test_git_tool_failure_export();
 	test_rich_export();
 	test_export_keeps_newest();
+	test_export_keeps_running_session_through_clock_rollback();
 	test_review_submission_ending_export();
 	test_export_keeps_long_session();
 	test_export_archive_compresses();
