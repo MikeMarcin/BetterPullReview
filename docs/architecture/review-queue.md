@@ -361,14 +361,26 @@ start and end in the profile's diagnostics log, and each read a start
 (verbose detail) and an end. The detail is one `core::discovery_diagnosis`
 line of fixed keys, enums and counts:
 `discovery=SCOPE refresh=N read=N reason=REASON state=STATE repositories=N
-pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N`. A read's end
-carries the wire requests it sent, how long it waited for its turn on the
-provider's lane and how long it then ran, as the provider measured them
-(`personal_discovery_cost`); on a GitHub CLI connection each of those requests
-also costs the account lease's viewer reads, which are not counted. A
-refresh's end says how it ended (current, partial, stale, stopped, or
-cancelled by a session change) and sums its reads, failures, requests and lane
-waits, with its whole duration. Refreshes and reads are numbered, not
+pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N credential_ms=N
+wire_ms=N decision_ms=N http_403=N http_429=N http_5xx=N timeouts=N
+backoff_s=N`. A read's end carries the wire requests it sent, how long it
+waited for its turn on the provider's lane and how long it then ran, as the
+provider measured them (`personal_discovery_cost`); on a GitHub CLI connection
+each of those requests also costs the account lease's viewer reads, which are
+not counted. [[BPR-PENDING-AU]] splits the run: `credential_ms` is the start
+of its account operation (on a CLI connection a `gh` credential process),
+`wire_ms` the time its requests spent in the transport, lease checks and
+process start included, so the rest of the run is local work, and
+`decision_ms` how long its answer then waited for the host's decision lane.
+It counts the read's HTTP 403, 429 and 5xx answers and transport timeouts,
+optional reads' included, so a refresh slowed by rate limits or server errors
+shows it even when every read succeeded. A refresh's end says how it ended
+(current, partial, stale, stopped, or cancelled by a session change) and sums
+its reads, failures, requests, lane waits, timing split and answer counts,
+with its whole duration and, when a rate limit stopped it, the seconds
+`backoff_s` the next refresh must wait. The spans overlap (wire time is part
+of the run, the run part of the refresh), so they are not added together. A
+line ending at `run_ms`, as earlier builds wrote it, still reads. Refreshes and reads are numbered, not
 identified, so the lines correlate without a request identity, and nothing in
 them names a host, repository, account or pull request. The logger drops a
 discovery event whose detail is anything else, and the anonymized export keeps

@@ -353,13 +353,50 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 			{
 				Requests.fetch_add(1U, std::memory_order_relaxed);
-				return Inner.perform(aRequest, std::move(aStop));
+				// [[BPR-PENDING-AU]]. Its time in the transport and what kind of
+				// answer it was; a request that throws counts only its time.
+				const auto started = std::chrono::steady_clock::now();
+				struct wire_time
+				{
+					std::atomic<std::uint64_t>&           Total;
+					std::chrono::steady_clock::time_point Started;
+					~wire_time() { Total.fetch_add(static_cast<std::uint64_t>(std::max<std::int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - Started).count(), 0)), std::memory_order_relaxed); }
+				} timed{ WireMicroseconds, started };
+				auto completion = Inner.perform(aRequest, std::move(aStop));
+				if (const auto* const success = std::get_if<github_wire_success>(&completion)) {
+					const auto status = success->Response.Status;
+					if (status == 403) {
+						Forbidden.fetch_add(1U, std::memory_order_relaxed);
+					} else if (status == 429) {
+						Throttled.fetch_add(1U, std::memory_order_relaxed);
+					} else if (status >= 500 && status <= 599) {
+						ServerErrors.fetch_add(1U, std::memory_order_relaxed);
+					}
+				} else if (const auto* const error = std::get_if<github_wire_error>(&completion); error != nullptr && error->Error.Failure == application::github_provider_failure::timeout) {
+					Timeouts.fetch_add(1U, std::memory_order_relaxed);
+				}
+				return completion;
 			}
 			[[nodiscard]] auto requests() const noexcept -> std::uint32_t { return Requests.load(std::memory_order_relaxed); }
+			/// \brief The answer counts and wire time into `aCost`.
+			void add_to(application::personal_discovery_cost& aCost) const noexcept
+			{
+				aCost.Requests         = requests();
+				aCost.WireMilliseconds = static_cast<std::uint32_t>(std::min<std::uint64_t>(WireMicroseconds.load(std::memory_order_relaxed) / 1000U, std::numeric_limits<std::uint32_t>::max()));
+				aCost.Forbidden        = Forbidden.load(std::memory_order_relaxed);
+				aCost.Throttled        = Throttled.load(std::memory_order_relaxed);
+				aCost.ServerErrors     = ServerErrors.load(std::memory_order_relaxed);
+				aCost.Timeouts         = Timeouts.load(std::memory_order_relaxed);
+			}
 
 		private:
 			github_wire_transport_port& Inner;
 			std::atomic<std::uint32_t>  Requests{ 0U };
+			std::atomic<std::uint64_t>  WireMicroseconds{ 0U };
+			std::atomic<std::uint32_t>  Forbidden{ 0U };
+			std::atomic<std::uint32_t>  Throttled{ 0U };
+			std::atomic<std::uint32_t>  ServerErrors{ 0U };
+			std::atomic<std::uint32_t>  Timeouts{ 0U };
 		};
 
 		/// [[BPR-1680]]. Whole milliseconds between two steady instants, saturated.
@@ -2989,14 +3026,19 @@ namespace bpr::adapters::github::detail {
 				} release{ ended };
 				// [[BPR-1680]]. What the read cost: its wait for this lane, its
 				// run, and the requests it sent.
-				const auto started = std::chrono::steady_clock::now();
-				auto       counted = std::optional<counting_wire_transport>{ };
-				const auto cost    = [&] {
-					return application::personal_discovery_cost{
-						.Requests         = counted ? counted->requests() : 0U,
-						.WaitMilliseconds = milliseconds_between(submitted, started),
-						.RunMilliseconds  = milliseconds_between(started, std::chrono::steady_clock::now()),
+				const auto started    = std::chrono::steady_clock::now();
+				auto       counted    = std::optional<counting_wire_transport>{ };
+				auto       credential = std::uint32_t{ 0U };
+				const auto cost       = [&] {
+					auto result = application::personal_discovery_cost{
+						.WaitMilliseconds       = milliseconds_between(submitted, started),
+						.RunMilliseconds        = milliseconds_between(started, std::chrono::steady_clock::now()),
+						.CredentialMilliseconds = credential,
 					};
+					if (counted) {
+						counted->add_to(result);
+					}
+					return result;
 				};
 				try {
 					// [[BPR-1679]]. A read cancelled while it waited for its
@@ -3009,8 +3051,12 @@ namespace bpr::adapters::github::detail {
 						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;
 					}
-					auto operation = lane ? accountTransport->Transport->begin_background_operation(*lane, job->Stop.get_token())
-										  : accountTransport->Transport->begin_operation(job->Stop.get_token());
+					// [[BPR-PENDING-AU]]. Beginning the operation acquires the
+					// credential, on a GitHub CLI account with a process of its own.
+					const auto beginning = std::chrono::steady_clock::now();
+					auto       operation = lane ? accountTransport->Transport->begin_background_operation(*lane, job->Stop.get_token())
+												: accountTransport->Transport->begin_operation(job->Stop.get_token());
+					credential           = milliseconds_between(beginning, std::chrono::steady_clock::now());
 					if (!operation) {
 						if (finish_job(state, job)) {
 							delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });

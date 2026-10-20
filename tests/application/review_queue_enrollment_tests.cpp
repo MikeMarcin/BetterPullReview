@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <functional>
 #include <initializer_list>
@@ -17,6 +18,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1608,6 +1610,18 @@ namespace {
 				expect(event.Operation == application::diagnostic_operation::discovery && parsed.has_value() && event.Request == 0U && event.WindowSession == 0U,
 					   "every discovery event is a discovery line with no request or window identity");
 				result.push_back(*parsed);
+				// [[BPR-PENDING-AU]]. Measured on the steady clock, so only
+				// `decisions()` reports it.
+				result.back().DecisionMilliseconds = 0U;
+			}
+			return result;
+		}
+		/// [[BPR-PENDING-AU]]. Each line's wait for the decision lane, in order.
+		[[nodiscard]] auto decisions() const -> std::vector<std::uint32_t>
+		{
+			auto result = std::vector<std::uint32_t>{ };
+			for (const auto& event : Events) {
+				result.push_back(core::parse_discovery_diagnosis(event.Summary.text()).value_or(core::discovery_diagnosis{ }).DecisionMilliseconds);
 			}
 			return result;
 		}
@@ -2187,8 +2201,8 @@ namespace {
 			fixture.settle();
 		};
 		fixture.Clock.Now += 2;
-		answer(provider.rows({ row(5U) }), { .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U });
-		answer(provider.failure(application::github_provider_failure::permission), { .Requests = 1U, .WaitMilliseconds = 7U, .RunMilliseconds = 400U });
+		answer(provider.rows({ row(5U) }), { .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U, .CredentialMilliseconds = 60U, .WireMilliseconds = 700U, .Throttled = 1U, .ServerErrors = 1U });
+		answer(provider.failure(application::github_provider_failure::permission), { .Requests = 1U, .WaitMilliseconds = 7U, .RunMilliseconds = 400U, .CredentialMilliseconds = 50U, .WireMilliseconds = 300U, .Forbidden = 1U, .Timeouts = 1U });
 		answer(provider.rows({ }), { .Requests = 1U, .RunMilliseconds = 300U });
 		answer(provider.rows({ }), { .Requests = 1U, .RunMilliseconds = 200U });
 		const auto& events = fixture.Diagnostics.Events;
@@ -2201,16 +2215,16 @@ namespace {
 				   && lines[2] == core::discovery_diagnosis{ .Scope = scope::read, .Refresh = 1U, .Read = 2U, .Reason = reason::authored, .Repositories = 1U }
 				   && events[1].Outcome == application::diagnostic_outcome::started && events[1].Detail == application::diagnostic_detail::verbose,
 			   "each submitted read starts, numbered within its refresh, at verbose detail");
-		expect(lines[3] == core::discovery_diagnosis{ .Scope = scope::read, .Refresh = 1U, .Read = 1U, .Reason = reason::requested, .Repositories = 1U, .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U }
+		expect(lines[3] == core::discovery_diagnosis{ .Scope = scope::read, .Refresh = 1U, .Read = 1U, .Reason = reason::requested, .Repositories = 1U, .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U, .CredentialMilliseconds = 60U, .WireMilliseconds = 700U, .Throttled = 1U, .ServerErrors = 1U }
 				   && events[3].Outcome == application::diagnostic_outcome::succeeded && events[3].Detail == application::diagnostic_detail::standard,
 			   "an answered read ends with its requests, lane wait and run time");
 		expect(lines[4].Read == 3U && lines[5].Read == 2U && events[5].Outcome == application::diagnostic_outcome::failed
 				   && events[5].GithubFailure == application::diagnostic_github_failure{ core::github_failure::permission },
 			   "a failed read ends failed with its failure");
 		expect(lines[6].Read == 4U && lines[7].Read == 3U && lines[8].Read == 4U, "the later reads start as earlier ones end");
-		expect(lines[9] == core::discovery_diagnosis{ .Scope = scope::refresh, .Refresh = 1U, .State = state::stale, .Repositories = 2U, .Reads = 4U, .Failed = 1U, .Requests = 7U, .WaitMilliseconds = 10U, .RunMilliseconds = 2'000U }
+		expect(lines[9] == core::discovery_diagnosis{ .Scope = scope::refresh, .Refresh = 1U, .State = state::stale, .Repositories = 2U, .Reads = 4U, .Failed = 1U, .Requests = 7U, .WaitMilliseconds = 10U, .RunMilliseconds = 2'000U, .CredentialMilliseconds = 110U, .WireMilliseconds = 1'000U, .Forbidden = 1U, .Throttled = 1U, .ServerErrors = 1U, .Timeouts = 1U }
 				   && events[9].Outcome == application::diagnostic_outcome::succeeded,
-			   "the refresh's end says how it ended, its reads, failures, requests, lane wait and duration");
+			   "the refresh's end says how it ended, its reads, failures, requests, lane wait, duration, timing split and answer counts");
 		expect(fixture.Discovery.statistics().Requests == 7U, "the statistics count the requests the reads reported");
 
 		fixture.Discovery.refresh();
@@ -2223,6 +2237,37 @@ namespace {
 				   return aLine.Scope == scope::refresh && aLine.Refresh == 2U && aLine.State == state::cancelled;
 			   }),
 			   "a refresh a session change stops ends cancelled");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-PENDING-AU]]. How long an answer waited for the decision lane is
+	/// its read's `decision_ms`, apart from the provider's wait and run, and
+	/// the refresh's end sums it.
+	void test_discovery_records_the_decision_lane_wait()
+	{
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		auto& provider = fixture.Provider;
+		provider.answer(provider.rows({ }));
+		std::this_thread::sleep_for(std::chrono::milliseconds{ 30 });
+		fixture.settle();
+		const auto& events = fixture.Diagnostics.Events;
+		const auto  ended  = static_cast<std::size_t>(std::ranges::find_if(events, [](const application::diagnostic_event& aEvent) {
+														return aEvent.Outcome == application::diagnostic_outcome::succeeded;
+													  })
+													  - events.begin());
+		expect(ended < events.size() && fixture.Diagnostics.lines()[ended].Scope == core::discovery_diagnosis_scope::read && fixture.Diagnostics.decisions()[ended] >= 30U
+				   && fixture.Diagnostics.lines()[ended].RunMilliseconds == 0U,
+			   "an answer left waiting for the decision lane says so, not as provider time");
+		while (fixture.Discovery.status().State == application::queue_discovery_state::refreshing) {
+			provider.answer(provider.rows({ }));
+			fixture.settle();
+		}
+		const auto refresh = fixture.Diagnostics.lines().back();
+		expect(refresh.Scope == core::discovery_diagnosis_scope::refresh && refresh.State == core::discovery_diagnosis_state::current
+				   && fixture.Diagnostics.decisions().back() >= 30U,
+			   "the refresh's end sums its reads' decision lane waits");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -2510,6 +2555,10 @@ namespace {
 				   && limited.RetryAfterSeconds == std::optional<std::uint32_t>{ 120U } && limited.LastSuccess == std::optional<std::int64_t>{ 1'000 },
 			   "a rate limit leaves the list stale with its last success and how long to wait");
 		expect(fixture.Provider.Requests.size() == cycleStart + 2U && fixture.Provider.Cancelled.size() == 1U, "the rest of that refresh is cancelled, not sent");
+		// [[BPR-PENDING-AU]]. The refresh's end says how long the limit holds.
+		const auto stopped = fixture.Diagnostics.lines().back();
+		expect(stopped.Scope == core::discovery_diagnosis_scope::refresh && stopped.State == core::discovery_diagnosis_state::stopped && stopped.BackoffSeconds == 120U,
+			   "a refresh a rate limit stopped ends with the backoff it leaves");
 		fixture.Provider.answer(application::personal_discovery_cancelled{ .Request = fixture.Provider.next() });
 		fixture.settle();
 		expect(fixture.item(5).has_value(), "the cached row survives the failure");
@@ -3211,6 +3260,7 @@ auto main() -> int
 	test_ignores_survive_restart_and_closed_ones_are_pruned();
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
 	test_discovery_records_each_refresh_and_read();
+	test_discovery_records_the_decision_lane_wait();
 	test_discovery_searches_reuse_the_refresh_retained_reads();
 	test_discovery_searches_several_repositories_at_once();
 	test_discovery_batches_retained_reads();

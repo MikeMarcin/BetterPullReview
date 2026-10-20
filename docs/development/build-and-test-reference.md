@@ -3442,10 +3442,15 @@ start and end, each read's end, and each read's start at verbose detail. The
 detail is one line of fixed keys, enums and decimal counts from
 `bpr/core/discovery_diagnosis.hpp`:
 `discovery=SCOPE refresh=N read=N reason=REASON state=STATE repositories=N
-pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N`. A read's end
-counts its wire requests and splits its time into the wait for the provider's
-lane and the run; a refresh's end sums them and gives its duration and how it
-ended. A failed read carries its `failure` in the `github` domain. Refreshes
+pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N credential_ms=N
+wire_ms=N decision_ms=N http_403=N http_429=N http_5xx=N timeouts=N
+backoff_s=N`. A read's end counts its wire requests and splits its time into
+the wait for the provider's lane and the run, and ([[BPR-PENDING-AU]]) of the
+run the account operation's start and the time in the transport, then its
+answer's wait for the decision lane; it counts its 403, 429 and 5xx answers
+and timeouts. A refresh's end sums them and gives its duration, how it ended
+and any rate-limit backoff. A line that ends at `run_ms`, from an earlier
+build, still parses. A failed read carries its `failure` in the `github` domain. Refreshes
 and reads are numbered within the session, never identified, and no host,
 repository, account or pull request appears, so the line is safe for a
 protected GitHub Enterprise Server; the logger refuses any other detail on the

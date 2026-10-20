@@ -4,6 +4,7 @@
 #include "bpr/core/home_discovery_plan.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <deque>
 #include <limits>
 #include <map>
@@ -249,16 +250,23 @@ namespace bpr::application {
 		[[nodiscard]] auto refresh_diagnosis(const core::discovery_diagnosis_state aState) const -> core::discovery_diagnosis
 		{
 			return core::discovery_diagnosis{
-				.Scope            = core::discovery_diagnosis_scope::refresh,
-				.Refresh          = saturated(Cycle),
-				.State            = aState,
-				.Repositories     = saturated(Searched.size()),
-				.PullRequests     = CycleRetained,
-				.Reads            = CycleReads,
-				.Failed           = CycleFailedReads,
-				.Requests         = CycleRequests,
-				.WaitMilliseconds = CycleWait,
-				.RunMilliseconds  = saturated(static_cast<std::uint64_t>(std::max<std::int64_t>(Clock.elapsed_milliseconds() - CycleStarted, 0))),
+				.Scope                  = core::discovery_diagnosis_scope::refresh,
+				.Refresh                = saturated(Cycle),
+				.State                  = aState,
+				.Repositories           = saturated(Searched.size()),
+				.PullRequests           = CycleRetained,
+				.Reads                  = CycleReads,
+				.Failed                 = CycleFailedReads,
+				.Requests               = CycleRequests,
+				.WaitMilliseconds       = CycleWait,
+				.RunMilliseconds        = saturated(static_cast<std::uint64_t>(std::max<std::int64_t>(Clock.elapsed_milliseconds() - CycleStarted, 0))),
+				.CredentialMilliseconds = CycleCost.CredentialMilliseconds,
+				.WireMilliseconds       = CycleCost.WireMilliseconds,
+				.DecisionMilliseconds   = CycleDecision,
+				.Forbidden              = CycleCost.Forbidden,
+				.Throttled              = CycleCost.Throttled,
+				.ServerErrors           = CycleCost.ServerErrors,
+				.Timeouts               = CycleCost.Timeouts,
 			};
 		}
 
@@ -274,19 +282,35 @@ namespace bpr::application {
 			};
 		}
 
-		/// [[BPR-1680]]. A read's end, with what it says it cost.
-		void record_read(const job& aJob, const personal_discovery_completion& aCompletion)
+		/// [[BPR-1680]]. A read's end, with what it says it cost and
+		/// ([[BPR-PENDING-AU]]) how long its answer waited for this lane.
+		void record_read(const job& aJob, const personal_discovery_completion& aCompletion, const std::uint32_t aDecisionMilliseconds)
 		{
-			const auto cost            = cost_of(aCompletion);
-			auto       diagnosis       = read_diagnosis(aJob);
-			diagnosis.Requests         = cost.Requests;
-			diagnosis.WaitMilliseconds = cost.WaitMilliseconds;
-			diagnosis.RunMilliseconds  = cost.RunMilliseconds;
+			const auto cost                  = cost_of(aCompletion);
+			auto       diagnosis             = read_diagnosis(aJob);
+			diagnosis.Requests               = cost.Requests;
+			diagnosis.WaitMilliseconds       = cost.WaitMilliseconds;
+			diagnosis.RunMilliseconds        = cost.RunMilliseconds;
+			diagnosis.CredentialMilliseconds = cost.CredentialMilliseconds;
+			diagnosis.WireMilliseconds       = cost.WireMilliseconds;
+			diagnosis.DecisionMilliseconds   = aDecisionMilliseconds;
+			diagnosis.Forbidden              = cost.Forbidden;
+			diagnosis.Throttled              = cost.Throttled;
+			diagnosis.ServerErrors           = cost.ServerErrors;
+			diagnosis.Timeouts               = cost.Timeouts;
 			Statistics.Requests += cost.Requests;
 			const auto* const error = std::get_if<personal_discovery_error>(&aCompletion);
 			if (current(aJob)) {
-				CycleRequests = saturated(std::uint64_t{ CycleRequests } + cost.Requests);
-				CycleWait     = saturated(std::uint64_t{ CycleWait } + cost.WaitMilliseconds);
+				const auto add = [](std::uint32_t& aTotal, const std::uint32_t aValue) { aTotal = saturated(std::uint64_t{ aTotal } + aValue); };
+				add(CycleRequests, cost.Requests);
+				add(CycleWait, cost.WaitMilliseconds);
+				add(CycleCost.CredentialMilliseconds, cost.CredentialMilliseconds);
+				add(CycleCost.WireMilliseconds, cost.WireMilliseconds);
+				add(CycleCost.Forbidden, cost.Forbidden);
+				add(CycleCost.Throttled, cost.Throttled);
+				add(CycleCost.ServerErrors, cost.ServerErrors);
+				add(CycleCost.Timeouts, cost.Timeouts);
+				add(CycleDecision, aDecisionMilliseconds);
 				CycleFailedReads += error != nullptr ? 1U : 0U;
 			}
 			const auto outcome = error != nullptr ? diagnostic_outcome::failed
@@ -682,6 +706,8 @@ namespace bpr::application {
 			CycleFailedReads = 0U;
 			CycleRequests    = 0U;
 			CycleWait        = 0U;
+			CycleCost        = { };
+			CycleDecision    = 0U;
 			ClosedThisCycle.clear();
 			CycleRetainedRows.clear();
 			CycleRetainedReads.clear();
@@ -767,10 +793,13 @@ namespace bpr::application {
 					// The lane outlives the host, so a completion is always
 					// posted; only the lane's turn reads the host, and only if
 					// it still exists.
+					// [[BPR-PENDING-AU]]. The answer's wait for the lane is timed
+					// on the steady clock, which needs nothing the host owns.
 					Provider.discover(std::move(next.Request), [&lane = DecisionLane, weak = weak_from_this(), request](personal_discovery_completion aCompletion) {
-						lane.post([weak, request, completion = std::move(aCompletion)]() mutable {
+						lane.post([weak, request, answered = std::chrono::steady_clock::now(), completion = std::move(aCompletion)]() mutable {
 							if (const auto host = weak.lock(); host != nullptr) {
-								host->finish(request, std::move(completion));
+								const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - answered).count();
+								host->finish(request, std::move(completion), saturated(static_cast<std::uint64_t>(std::max<std::int64_t>(waited, 0))));
 							}
 						});
 					});
@@ -815,7 +844,7 @@ namespace bpr::application {
 			}
 		}
 
-		void finish(const core::request_id aRequest, personal_discovery_completion aCompletion)
+		void finish(const core::request_id aRequest, personal_discovery_completion aCompletion, const std::uint32_t aDecisionMilliseconds)
 		{
 			const auto found = std::ranges::find_if(Active, [aRequest](const job& aJob) { return aJob.Request.Context.Request == aRequest; });
 			if (found == Active.end()) {
@@ -827,7 +856,7 @@ namespace bpr::application {
 			if (Closing) {
 				return;
 			}
-			record_read(finished, aCompletion);
+			record_read(finished, aCompletion, aDecisionMilliseconds);
 			// A repository forgotten while its read was in flight publishes
 			// nothing: the reviewer has said it is not theirs to watch.
 			const auto saved      = Session ? partition() : std::vector<std::string>{ };
@@ -1060,7 +1089,9 @@ namespace bpr::application {
 				Status.Problem = queue_discovery_problem::no_saved_repository;
 			}
 			publish();
-			record(CycleStopped ? diagnostic_outcome::failed : diagnostic_outcome::succeeded, refresh_diagnosis(ended_state()));
+			auto ended           = refresh_diagnosis(ended_state());
+			ended.BackoffSeconds = Status.RetryAfterSeconds.value_or(0U);
+			record(CycleStopped ? diagnostic_outcome::failed : diagnostic_outcome::succeeded, ended);
 			// A repository saved while this refresh ran is searched now.
 			if (!backing_off(now) && unsearched(partition())) {
 				start_cycle();
@@ -1111,13 +1142,16 @@ namespace bpr::application {
 		std::uint32_t CycleFailedReads = 0U;
 		std::uint32_t CycleRequests    = 0U;
 		std::uint32_t CycleWait        = 0U;
-		bool          CycleRunning     = false;
-		bool          CycleFailed      = false;
-		bool          CycleStopped     = false;
-		bool          Searching        = false;
-		bool          MetadataFailed   = false;
-		bool          Closing          = false;
-		bool          Yielding         = false;
+		/// [[BPR-PENDING-AU]]. Its reads' summed timing split and answer counts.
+		personal_discovery_cost CycleCost;
+		std::uint32_t           CycleDecision  = 0U;
+		bool                    CycleRunning   = false;
+		bool                    CycleFailed    = false;
+		bool                    CycleStopped   = false;
+		bool                    Searching      = false;
+		bool                    MetadataFailed = false;
+		bool                    Closing        = false;
+		bool                    Yielding       = false;
 	};
 
 	personal_discovery_host::personal_discovery_host(personal_discovery_port&             aProvider,

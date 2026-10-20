@@ -251,7 +251,11 @@ namespace {
 			for (const std::string_view detail : { "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900",
 												   "discovery=refresh refresh=3 read=0 reason=none state=stale repositories=5 pull_requests=20 reads=30 failed=1 requests=220 wait_ms=4100 run_ms=143000",
 												   "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 repository=PRIVATE_REPOSITORY",
-												   "discovery=read refresh=3 read=7 reason=PRIVATE_LOGIN state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900" }) {
+												   "discovery=read refresh=3 read=7 reason=PRIVATE_LOGIN state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900",
+												   // [[BPR-PENDING-AU]]. With the timing split and answer counts.
+												   "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=700 wire_ms=2900 decision_ms=45 http_403=0 http_429=1 http_5xx=0 timeouts=0 backoff_s=0",
+												   "discovery=refresh refresh=3 read=0 reason=none state=stopped repositories=5 pull_requests=20 reads=30 failed=1 requests=220 wait_ms=4100 run_ms=143000 credential_ms=9000 wire_ms=120000 decision_ms=800 http_403=0 http_429=1 http_5xx=2 timeouts=3 backoff_s=60",
+												   "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=700 wire_ms=2900 decision_ms=45 http_403=0 http_429=1 http_5xx=0 timeouts=0 backoff_s=0 token=PRIVATE_TOKEN" }) {
 				auto       line    = structured_line(1U, true);
 				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
 					const auto at = line.find(aFrom);

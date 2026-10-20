@@ -383,7 +383,7 @@ try {
 		{
 			// [[BPR-1680]]. A Home discovery read's end: its counts and
 			// timings, and nothing else, reach the file.
-			const auto diagnosis = core::discovery_diagnosis{ .Scope = core::discovery_diagnosis_scope::read, .Refresh = 2U, .Read = 5U, .Reason = core::discovery_diagnosis_reason::requested, .Repositories = 1U, .Requests = 6U, .WaitMilliseconds = 40U, .RunMilliseconds = 3900U };
+			const auto diagnosis = core::discovery_diagnosis{ .Scope = core::discovery_diagnosis_scope::read, .Refresh = 2U, .Read = 5U, .Reason = core::discovery_diagnosis_reason::requested, .Repositories = 1U, .Requests = 6U, .WaitMilliseconds = 40U, .RunMilliseconds = 3900U, .CredentialMilliseconds = 650U, .WireMilliseconds = 3100U, .DecisionMilliseconds = 12U, .Forbidden = 1U, .Timeouts = 1U };
 			auto       event     = application::diagnostic_event{ .Operation = application::diagnostic_operation::discovery, .Outcome = application::diagnostic_outcome::failed, .GithubFailure = core::github_failure::permission };
 			const auto text      = core::describe(diagnosis);
 			std::ranges::copy(text, event.Summary.Text.begin());
@@ -498,7 +498,7 @@ try {
 			   && first.find("\"failure_domain\":\"review_submission\",\"failure\":\"comment_page_too_large\"") != std::string::npos,
 		   "[[BPR-1540]] the reason is kept locally as its domain, name and counts");
 	expect(first.find("\"event\":\"github.discovery.failed\"") != std::string::npos
-			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900\"") != std::string::npos
+			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900 credential_ms=650 wire_ms=3100 decision_ms=12 http_403=1 http_429=0 http_5xx=0 timeouts=1 backoff_s=0\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"permission\"") != std::string::npos,
 		   "[[BPR-1680]] a discovery read's end is kept locally with its counts, timings and failure");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,

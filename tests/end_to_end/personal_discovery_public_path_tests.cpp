@@ -179,11 +179,20 @@ namespace {
 			if (end == std::string::npos) {
 				break;
 			}
-			const auto line = core::parse_discovery_diagnosis(std::string_view{ log }.substr(start + key.size(), end - start - key.size()));
+			const auto detail = std::string_view{ log }.substr(start + key.size(), end - start - key.size());
+			const auto line   = core::parse_discovery_diagnosis(detail);
+			// [[BPR-PENDING-AU]]. This build writes every line with its
+			// timing split and answer counts, and a read's wire time is
+			// part of its run.
+			expect(line.has_value() && detail.contains(" credential_ms=") && detail.contains(" backoff_s=")
+					   && (line->Scope == core::discovery_diagnosis_scope::refresh || line->WireMilliseconds <= line->RunMilliseconds),
+				   "the composed profile writes each discovery line in full");
 			if (line && line->Scope == core::discovery_diagnosis_scope::refresh && line->State != core::discovery_diagnosis_state::none) {
 				std::cerr << aLabel << " refresh=" << line->Refresh << " state=" << core::name(line->State) << " repositories=" << line->Repositories
 						  << " retained=" << line->PullRequests << " reads=" << line->Reads << " failed=" << line->Failed << " requests=" << line->Requests
-						  << " wait_ms=" << line->WaitMilliseconds << " run_ms=" << line->RunMilliseconds << '\n';
+						  << " wait_ms=" << line->WaitMilliseconds << " run_ms=" << line->RunMilliseconds << " credential_ms=" << line->CredentialMilliseconds
+						  << " wire_ms=" << line->WireMilliseconds << " decision_ms=" << line->DecisionMilliseconds << " http_403=" << line->Forbidden
+						  << " http_429=" << line->Throttled << " http_5xx=" << line->ServerErrors << " timeouts=" << line->Timeouts << " backoff_s=" << line->BackoffSeconds << '\n';
 				result.push_back(*line);
 			}
 		}

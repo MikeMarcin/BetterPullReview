@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <deque>
@@ -26,6 +27,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -190,8 +192,11 @@ namespace {
 		[[nodiscard]] auto begin_background_operation(const std::size_t aLane, std::stop_token) -> github_wire_operation override
 		{
 			BackgroundOperations.push_back(aLane);
+			std::this_thread::sleep_for(BackgroundBegin);
 			return std::shared_ptr<github_wire_transport_port>{ };
 		}
+		/// [[BPR-PENDING-AU]]. How long beginning a background operation takes.
+		std::chrono::milliseconds                                     BackgroundBegin{ 0 };
 		std::size_t                                                   BackgroundLanes = 0U;
 		std::vector<std::size_t>                                      BackgroundOperations;
 		std::vector<application::github_credential_operation_context> PublicationContexts;
@@ -3001,14 +3006,39 @@ namespace {
 				   "a foreign account, generation, lease or credential provenance is refused before any effect");
 		}
 		completions.clear();
-		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
-			return github_wire_cancelled{ .Correlation = aWire.Correlation };
-		};
 		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
 		fixture.Provider->cancel_discovery(request);
 		fixture.Effects.run_next();
 		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front()),
 			   "cancelling a queued discovery read still delivers exactly one terminal");
+
+		// [[BPR-PENDING-AU]]. A read's cost splits out its time in the
+		// transport and counts its answers by kind: 403, 429, 5xx, timeout.
+		for (const auto answer : { 403, 429, 502, 0 }) {
+			completions.clear();
+			fixture.Transport->ReadHandler = [answer](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 15 });
+				if (answer == 0) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::timeout } };
+				}
+				auto response   = viewer_response();
+				response.Status = answer;
+				response.Body   = "{}";
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_error>(completions.front()), "a refused, limited, failing or timed-out search fails the read once");
+			const auto& cost = std::get<application::personal_discovery_error>(completions.front()).Cost;
+			expect(cost.Requests >= 1U && cost.WireMilliseconds >= 15U * cost.Requests && cost.WireMilliseconds <= cost.RunMilliseconds,
+				   "the read's time in the transport is part of its run");
+			expect(cost.Forbidden == (answer == 403 ? cost.Requests : 0U) && cost.Throttled == (answer == 429 ? cost.Requests : 0U)
+					   && cost.ServerErrors == (answer == 502 ? cost.Requests : 0U) && cost.Timeouts == (answer == 0 ? cost.Requests : 0U),
+				   "each answer is counted by its kind");
+		}
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_cancelled{ .Correlation = aWire.Correlation };
+		};
 
 		// [[BPR-1680]]. Discovery's own lanes: a transport with background
 		// lanes reads there, round robin, each on the background lane of the
@@ -3025,7 +3055,8 @@ namespace {
 		fixture.Transport->BackgroundLanes = 2U;
 		expect(fixture.Provider->discovery_beside_reads(lease), "a transport with background lanes reads beside the window");
 		completions.clear();
-		const auto reads = fixture.Transport->ReadRequests.size();
+		fixture.Transport->BackgroundBegin = std::chrono::milliseconds{ 20 };
+		const auto reads                   = fixture.Transport->ReadRequests.size();
 		for (auto index = 0; index < 3; ++index) {
 			fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
 		}
@@ -3036,6 +3067,12 @@ namespace {
 		expect(completions.size() == 3U && fixture.Transport->ReadRequests.size() == reads + 3U
 				   && fixture.Transport->BackgroundOperations == std::vector<std::size_t>{ 0U, 1U, 0U },
 			   "each read began its operation on the background lane of its discovery lane and reached the transport");
+		expect(std::ranges::all_of(completions, [](const application::personal_discovery_completion& aCompletion) {
+				   const auto* const cancelled = std::get_if<application::personal_discovery_cancelled>(&aCompletion);
+				   return cancelled != nullptr && cancelled->Cost.CredentialMilliseconds >= 20U && cancelled->Cost.CredentialMilliseconds <= cancelled->Cost.RunMilliseconds;
+			   }),
+			   "beginning the account operation is timed apart, inside the run");
+		fixture.Transport->BackgroundBegin = std::chrono::milliseconds{ 0 };
 		completions.clear();
 		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
 		fixture.Provider->cancel_discovery(request);
