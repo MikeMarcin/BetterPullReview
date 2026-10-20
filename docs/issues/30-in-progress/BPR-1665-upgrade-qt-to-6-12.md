@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1665"
 title: "Upgrade the pinned Qt runtime to 6.12.0"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0088"]
 depends_on: []
 priority: "P1"
