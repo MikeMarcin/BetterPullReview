@@ -14,6 +14,7 @@ CMakeUserPresets.json
 /artifacts/
 /build/
 /out/
+/.cache/betterleaks/
 __pycache__/
 /bpr-public-path-*/
 .remote-station.json

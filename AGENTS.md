@@ -77,6 +77,9 @@ network, or process effects.
 - Every attended review opens its own new, short session (a fresh `--state`
   directory). Never add candidates to or restart the long default session
   `cbd48b91…`; the owner asked for short sessions on 2026-10-04.
+- Never copy authenticated attended-review or wizard URLs into tracked files.
+  Record the session ID, external state directory and lifecycle status instead;
+  keep credential-bearing URLs in the external session state.
 - Implementers never drive or capture the owner's live macOS desktop
   (`screencapture`, `cliclick`, foreground windows): it may be screen-shared.
   Use offscreen renders and the frozen build; the owner looks themselves.
