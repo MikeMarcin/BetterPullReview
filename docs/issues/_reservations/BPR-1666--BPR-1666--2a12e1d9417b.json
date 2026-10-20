@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1666"
+  ],
+  "reserve_for": "codex-thread-scroll-fix",
+  "purpose": "Repair v0.3.0 New Threads Review scroll snapping and idle layout feedback before v0.3.1",
+  "created": "2026-10-20T05:07:08.892158+00:00",
+  "base": "b93af9e53e438f3d921bc101da012b0f22595e49"
+}
