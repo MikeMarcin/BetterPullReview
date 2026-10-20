@@ -1,5 +1,49 @@
 # RFC-BPR-0038 qualification ledger
 
+## Public stable 0.3.1 published, 2026-10-20
+
+[Stable v0.3.1](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1)
+is public and Latest, with 28 assets, no draft/prerelease flag and annotated tag
+`728e6e75ad4df34a45b7801551272106bde456d5` peeled to
+`2ed7e5f98641d75678f861dad0edbe658b5f5d22`. The
+[publication record](release-v031-publication.json) binds every final asset,
+normal gate, material decision and post-download native check. The
+[engineering record](release-v031-engineering.md#published-coordinated-031-2026-10-20)
+retains failures, timings and the exact owner exception.
+
+All three full native normal suites completed: 2,389 passes and three configured
+Debug cache-course skips across 2,392 rows, with no missing/unexpected rows.
+The registered optimized Release course passes on macOS and Windows. Ubuntu's
+strict course remains FAIL, exit 8, at its unchanged 216 MiB RSS-growth bound.
+The owner extended only the existing sampled/lifetime RSS exception; the
+supplemental lifecycle diagnostic remains an always-failing observation,
+and BPR-1653 remains open for causal repair after publication.
+
+Every asset was downloaded anonymously and matched its final producer SHA-256.
+Fresh downloaded-byte checks pass for macOS Developer ID/notarization/Gatekeeper
+and DMG/ZIP equivalence; Windows MSI/four first-party images plus 11 Qt DLLs,
+with fresh independent five-file native verification and exact 29-file extracted
+MSI/runtime equality; and Ubuntu's six signatures, public-only key, tamper
+rejection, checksums and source binding. All three exact source assets have the
+same public access as binaries at no additional charge. Source, first-party
+snapshot, digests and the annotated tag are retained read-only indefinitely;
+recipient access, original-channel fallback and offline redistribution remain
+ongoing obligations.
+
+The owner accepted each platform's exact Qt6.12 distribution material in two
+short attended sessions. Independent factual reviews cover all 21/19/21 raw
+Grype matches; each scan remains exit 2, with 52/44/61 flagged coverage rows.
+Expiry is 2026-11-19 or an earlier named input/advisory change. Windows' affected
+zlib gzip-writer source remains present and unpatched; only the current closed
+caller composition supports its bounded nonapplicability disposition.
+No applicable-risk or unknown-coverage waiver is inferred.
+
+RFC0038, BPR-0958–0962 and BPR-0973 remain open for the broader native/vault,
+Intel/desktop/accessibility, upgrade/removal, crash/privacy, external-hardening
+and complete vulnerability/fuzz qualifications. Publication does not close
+those criteria. The prior source/tag/assets and historical evidence below
+remain unchanged.
+
 ## Public repository access, 2026-10-19
 
 The owner-authorized [public cutover](../security/publication-cutover-2026-10-19.md)

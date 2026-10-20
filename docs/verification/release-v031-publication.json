@@ -1,0 +1,403 @@
+{
+  "schema": "bpr.release-publication.v1",
+  "version": "0.3.1",
+  "sourceCommit": "2ed7e5f98641d75678f861dad0edbe658b5f5d22",
+  "mandateRevision": "release-v031-qt612-scroll-r1",
+  "assignment": "/root/release031_publish",
+  "milestone": "release-v031/publish-three-platforms",
+  "publishedUtc": "2026-10-20T18:32:59.984614+00:00",
+  "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1",
+  "releaseID": 418732973,
+  "tag": "v0.3.1",
+  "annotatedTagObject": "728e6e75ad4df34a45b7801551272106bde456d5",
+  "peeledTagCommit": "2ed7e5f98641d75678f861dad0edbe658b5f5d22",
+  "visibility": "PUBLIC",
+  "draft": false,
+  "prerelease": false,
+  "stableLatest": true,
+  "notesSHA256": "9b2e7975b74174e6336ec0d2781e07383afe23b3d8f0c3e536fa159b7929664b",
+  "assets": [
+    {
+      "name": "BetterPullReview-0.3.1-macos-universal.dmg",
+      "bytes": 62911412,
+      "sha256": "7038afc96c1a73ddaa4ed957bc9dddb34b854bba7d9eefe71a7e57a09b3f86de",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.dmg"
+    },
+    {
+      "name": "BetterPullReview-0.3.1-macos-universal.dmg.sha256",
+      "bytes": 109,
+      "sha256": "05c5da86eda1a1f97bc38d332e5df86eb256b1ead0d6a80d1a904364e407301b",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.dmg.sha256"
+    },
+    {
+      "name": "BetterPullReview-0.3.1-macos-universal.spdx.json",
+      "bytes": 212083,
+      "sha256": "5a49937d2648a65ef3eec06576f5dbc31f149efb22330b5043de1e24732d4c0e",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.spdx.json"
+    },
+    {
+      "name": "BetterPullReview-0.3.1-macos-universal.spdx.json.sha256",
+      "bytes": 115,
+      "sha256": "2c601e9f21f7507e8e1c256e36e6a09819d386e59002674f75758b4ed9f7b2f6",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.spdx.json.sha256"
+    },
+    {
+      "name": "BetterPullReview-0.3.1-macos-universal.zip",
+      "bytes": 56689048,
+      "sha256": "07de4909fa0ead694bf8ae9cca70c08811f1f70f3a89dc7e78705104b60e3ffc",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.zip"
+    },
+    {
+      "name": "BetterPullReview-0.3.1-macos-universal.zip.sha256",
+      "bytes": 109,
+      "sha256": "533ac1520cc06178032c7c300ced7b34b3aa5b8f786f1a6ab60221a78e76e86a",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.zip.sha256"
+    },
+    {
+      "name": "Source-BetterPullReview-0.3.1-macos-universal-corresponding-source.zip",
+      "bytes": 104865778,
+      "sha256": "e45a93763e3495ff06aa58f78bfa461e995ae09c5e9cd738c2cf340a1e116a49",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/Source-BetterPullReview-0.3.1-macos-universal-corresponding-source.zip"
+    },
+    {
+      "name": "Source-BetterPullReview-0.3.1-macos-universal-corresponding-source.zip.sha256",
+      "bytes": 137,
+      "sha256": "a9ee0b591a8bf876ebc4309e9b240c3ed019ab7118ff3b41f0e6c1a9eead363c",
+      "platform": "macos",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/Source-BetterPullReview-0.3.1-macos-universal-corresponding-source.zip.sha256"
+    },
+    {
+      "platform": "windows",
+      "name": "BetterPullReview-0.3.1-windows-x64-runtime.zip",
+      "sha256": "92fbe0a735b68413962b44ed48894e5cf80d921b4faa8f1dbf837afb30b2087f",
+      "bytes": 29090207,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64-runtime.zip"
+    },
+    {
+      "platform": "windows",
+      "name": "BetterPullReview-0.3.1-windows-x64.msi",
+      "sha256": "ec3c38198f1d2d6333691cb16148970e9d6442f5338d09db1331f2933c475064",
+      "bytes": 25096192,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi"
+    },
+    {
+      "platform": "windows",
+      "name": "BetterPullReview-0.3.1-windows-x64.msi.provenance.json",
+      "sha256": "43f57b792909e58d079662e08207dbade27dfe9ea179bb9a6616cb753c1d6931",
+      "bytes": 2595,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi.provenance.json"
+    },
+    {
+      "platform": "windows",
+      "name": "BetterPullReview-0.3.1-windows-x64.msi.sha256",
+      "sha256": "f770cd7ae45679d8b781f4f79e0e9e33148f5cf904bf93723735521409e8f373",
+      "bytes": 470,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi.sha256"
+    },
+    {
+      "platform": "windows",
+      "name": "BetterPullReview-0.3.1-windows-x64.msi.spdx.json",
+      "sha256": "ecb1bff07aeb122ecb8e328d000f19a5156b405ce53a21e376efb06c9217c32e",
+      "bytes": 196047,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi.spdx.json"
+    },
+    {
+      "platform": "windows",
+      "name": "Source-BetterPullReview-0.3.1-windows-x64-corresponding-source.zip",
+      "sha256": "86a992204490401c7cbf093337c4ac37b841624bfede8c18f0ede2b3c45e3d48",
+      "bytes": 98247960,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/Source-BetterPullReview-0.3.1-windows-x64-corresponding-source.zip"
+    },
+    {
+      "platform": "windows",
+      "name": "BetterPullReview-0.3.1-windows-x64.msi.release.json",
+      "sha256": "b294e3b9913f2eabc1b8de9bb31fc9bb36fba1c3b351b33dbe7781b7627f502a",
+      "bytes": 3130,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi.release.json"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-user.tar.gz",
+      "sha256": "c1eae92348ceb80f122b0288ffcfe423d1d5372c2e78d5319b3a9ef718242408",
+      "bytes": 50061392,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-user.tar.gz"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-user.tar.gz.asc",
+      "sha256": "ee458282ff9b565420b691814f2ad63b1f43ece526b1501636e930c118f592d1",
+      "bytes": 228,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-user.tar.gz.asc"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb",
+      "sha256": "c302a973317244a83be3d6fc6649874e6f57b82cb57d2acc3fddf7df65894a2b",
+      "bytes": 50305546,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.asc",
+      "sha256": "f036b9d4c490a0b109c55a083e28c89d80eca0851d2f6d4614d5cc11b0d70f82",
+      "bytes": 228,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.asc"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.provenance.json",
+      "sha256": "a2c54efc5c85ccc7d511cfae804a475b1f527a588d0cebb1330c346ca231341d",
+      "bytes": 2870,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.provenance.json"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.provenance.json.asc",
+      "sha256": "2782ead5433e74a49903ebc30dba6e6ee9ebe68b83a366151b68b42c7e2f9940",
+      "bytes": 228,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.provenance.json.asc"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.sha256",
+      "sha256": "bddd3caced6b077c9818a3282423952a5c888a834e042549953592ca77e01421",
+      "bytes": 1036,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.sha256"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.sha256.asc",
+      "sha256": "1f3cbefd9dae70aaff0b9bd7a252cde7ad71ce9c9dc96bcf33bb5963fdda48f8",
+      "bytes": 228,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.sha256.asc"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.spdx.json",
+      "sha256": "21c90367c9fd32e2197971c5bbf0c0dbe49685d0cc63408ac6dfb3ff973cc6a4",
+      "bytes": 195307,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.spdx.json"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.spdx.json.asc",
+      "sha256": "a3f96df01737a7c0b1f29f68bc5ba9c222ba7d63cd59f5642d1cac0026288a54",
+      "bytes": 228,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.spdx.json.asc"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "Source-BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-corresponding-source.zip",
+      "sha256": "53970026baec1a0fafdb5e9318cd2adff78711d15f0eb2af097656431a35ec3b",
+      "bytes": 124780063,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/Source-BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-corresponding-source.zip"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "Source-BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+      "sha256": "94512da0223dd4792591b532848b8c03fd3f70e1fbd59eb96db8503eca4d69fe",
+      "bytes": 228,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/Source-BetterPullReview-0.3.1-linux-ubuntu-26.04-x64-corresponding-source.zip.asc"
+    },
+    {
+      "platform": "ubuntu",
+      "name": "BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.release.json",
+      "sha256": "db687f05fc4e3381c754a8b90664204e6f0acec0d636f2080825ff9da8944e66",
+      "bytes": 4398,
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb.release.json"
+    }
+  ],
+  "nativeNormalGates": {
+    "macos": {
+      "rows": 815,
+      "passed": 814,
+      "configuredDebugSkipped": 1,
+      "failed": 0,
+      "ctestExitCode": 0,
+      "jobs": 4,
+      "wallSeconds": 3150.7421887500095,
+      "skip": "application_large_review_cache_bytes requires optimized Release"
+    },
+    "windows": {
+      "rows": 784,
+      "passed": 783,
+      "configuredDebugSkipped": 1,
+      "failed": 0,
+      "ctestExitCode": 0,
+      "jobs": 4,
+      "wallSeconds": 9563.163747000042,
+      "skip": "application_large_review_cache_bytes requires optimized Release",
+      "junitSHA256": "270f3dd79aa3b96855fc32dc529e4a885c449abbd6fa577c4de1130680c7faad"
+    },
+    "ubuntu": {
+      "rows": 793,
+      "passed": 792,
+      "configuredDebugSkipped": 1,
+      "failed": 0,
+      "ctestExitCode": 0,
+      "jobs": 4,
+      "wallSeconds": 3275.8966777399764,
+      "skip": "application_large_review_cache_bytes requires optimized Release",
+      "junitSHA256": "fd3f06a96c1916e60a226f0dc16cbfd029515e120bae9d07d3ddcfada6970b11"
+    }
+  },
+  "optimizedCourses": {
+    "macos": {
+      "exitCode": 0,
+      "seconds": 81.655538,
+      "cacheBytes": 66882248,
+      "maximumLifetimeFootprintGrowthBytes": 177357208,
+      "footprintLimitMiB": 184
+    },
+    "windows": {
+      "exitCode": 0,
+      "seconds": 282.294,
+      "cacheBytes": 64707704,
+      "sampledRSSGrowthBytes": 197259264,
+      "lifetimeRSSGrowthBytes": 203464704,
+      "RSSLimitMiB": 208
+    },
+    "ubuntu": {
+      "exitCode": 8,
+      "seconds": 60.0851,
+      "result": "FAIL",
+      "sampledRSSGrowthBytes": 230252544,
+      "RSSLimitMiB": 216,
+      "cacheBytes": 66888890,
+      "cacheLimitMiB": 64,
+      "laterStrictAssertions": "not reached",
+      "ownerException": "Only unchanged sampled and lifetime 216MiB RSS-growth predicates; raw strict8 and always-failing supplemental1 remain FAIL",
+      "supplemental": "All non-RSS lifecycle assertions reached; no acceptance marker; no whole-course pass",
+      "exceptionAdoptionSHA256": "ce69a60e46ed777b7f79bbdc793007170ad96961cf7ef1ea9edf1c7fc8685017"
+    }
+  },
+  "security": {
+    "macos": {
+      "independentReportSHA256": "dff7e4fe1741804434ed866248761e5c12372fe6d6d0009cb60f37a7d7489770",
+      "rawScannerExitCode": 2,
+      "rawMatches": 21,
+      "coverageFlaggedPackageRows": 52,
+      "expiresUtc": "2026-11-19",
+      "scope": "All seven named bounded factual propositions and21 exact raw-match dispositions; no blocking counterexample in this Mac packet. No applicable-risk waiver, unknown-coverage acceptance, human material approval, global release approval or RFC closeout."
+    },
+    "windows": {
+      "independentReportSHA256": "26e42d2fac0fc4ac0103159aaa6d3effd8524f41e178fb74fd741d0d23e4ed27",
+      "rawScannerExitCode": 2,
+      "rawMatches": 19,
+      "coverageFlaggedPackageRows": 44,
+      "expiresUtc": "2026-11-19",
+      "scope": "Six bounded factual propositions and all19 raw-match dispositions supported; no blocking counterexample in current closed caller composition. No risk waiver, unknown coverage acceptance, human material judgment, global release approval or RFC closeout."
+    },
+    "ubuntu": {
+      "independentReportSHA256": "52beb36896d0ab47a2187a22e3e633025c48974f3aca94e6f56436cdb6b4dae0",
+      "rawScannerExitCode": 2,
+      "rawMatches": 21,
+      "coverageFlaggedPackageRows": 61,
+      "expiresUtc": "2026-11-19",
+      "scope": "Seven bounded factual propositions and all21 raw-match dispositions supported; no blocking counterexample. No applicable-risk waiver, unknown coverage acceptance, human material/native qualification/publication approval or RFC closeout."
+    }
+  },
+  "windows85091": "Unpatched affected gzwrite.c present in Qt bundled-zlib target; independent current closed-caller nonapplicability only, no code-safe/absent claim.",
+  "materialDecisions": {
+    "macos": {
+      "session": "ef14a1dd152900aac8f1a87a98c27e6f",
+      "consumedCursor": 5,
+      "candidate": "v031-qt612-macos-material-v001",
+      "fingerprint": "f62126c2754dee7594dce7cb6b33eb53e084727484dcf03b8f381240c71f533f",
+      "decisionId": "7b9f818f-bd6b-4ecf-ab96-d1ace55d0af6",
+      "outcome": "accept"
+    },
+    "pc": {
+      "session": "211242b66f40bbc63b26a201e1b1100c",
+      "consumedCursor": 11,
+      "accepted": [
+        {
+          "candidate": "v031-qt612-windows-material-v001",
+          "revision": "2ed7e5f98641d75678f861dad0edbe658b5f5d22-windowssource-86a99220-material-123d4ea48d096c8f",
+          "fingerprint": "b008a5e104f854cb1617dc7d6abcfe1726011c5665b705c79b3cf7112b9f9519",
+          "decisionId": "aa4e8be1-df71-4e5e-9573-d03d2e0c0be3",
+          "outcome": "accept",
+          "actor": "human",
+          "materialRecordsRehashed": 13,
+          "assetRecordsRehashed": 7,
+          "evidenceManifestSHA256": "123d4ea48d096c8f2d89f9097accb2ab3c1b6c8eebf9981fea88f8eb55eaf8be"
+        },
+        {
+          "candidate": "v031-qt612-ubuntu-material-v001",
+          "revision": "2ed7e5f98641d75678f861dad0edbe658b5f5d22-ubuntusource-53970026-material-116275f7948e143b",
+          "fingerprint": "de285f0400345a6c11e2d77d0983c39fea38629f2b7190a69cb3fe0f015c6d61",
+          "decisionId": "2c8246b5-a36a-444a-ab98-8ee39c9b4200",
+          "outcome": "accept",
+          "actor": "human",
+          "materialRecordsRehashed": 15,
+          "assetRecordsRehashed": 13,
+          "evidenceManifestSHA256": "116275f7948e143b0c194cb50506ebe2b51b4acb0c6f57c7720e251da0c3f1ba"
+        }
+      ],
+      "pending": []
+    }
+  },
+  "postpublicationEvidence": {
+    "anonymousDownloads": {
+      "receiptName": "v0.3.1-2ed7e5f9-public-downloads-final-r2/receipt.json",
+      "sha256": "3cbebba76c5981dc17b00fc7609b5168c66b6dc17a32c509923b2f12a5368daf",
+      "startedUtc": "2026-10-20T18:33:19.080107+00:00",
+      "completedUtc": "2026-10-20T18:33:52.858184+00:00",
+      "scope": "Anonymous read-only final GitHub release/access/tag/download/hash and offline source-binding verification; native trust remains a separate exact-download step."
+    },
+    "macosNative": {
+      "receiptName": "macos-public-trust-final-r2/receipt.json",
+      "sha256": "0c257024a35a074c4854d08425e9d32d7759f327b33a641d06210151bb6f4656",
+      "startedUtc": "2026-10-20T18:34:18.178814+00:00",
+      "completedUtc": "2026-10-20T18:34:41.424316+00:00",
+      "scope": "Fresh native DeveloperID/hardened runtime/universal architecture/app+DMG notarization-staple/Gatekeeper and source/SPDX/runtime audits on actual anonymous downloads. No application/desktop launch or global native qualification."
+    },
+    "windowsNative": {
+      "receiptName": "qt612-v031-final-r2-public-trust-windows-r1/receipt.json",
+      "sha256": "9d08160f63eb190bf28ba7ae120c746bbe64b883add6e368fb7341a073deedd9",
+      "startedUtc": "2026-10-20T18:35:27.768524+00:00",
+      "completedUtc": "2026-10-20T18:35:38.287205+00:00",
+      "scope": "Native trust and source/manifest checks on the exact bytes downloaded anonymously on Mac and transferred unchanged. No signing/authentication/private key use, installation or broad native qualification."
+    },
+    "ubuntuNative": {
+      "receiptName": "qt612-v031-final-r2-public-trust-ubuntu-r1/receipt.json",
+      "sha256": "e3536252ce95dd0bec75da6d573d936d1a017cc094982ed9f9c7a050035643db",
+      "startedUtc": "2026-10-20T18:35:38.547784+00:00",
+      "completedUtc": "2026-10-20T18:35:52.280380+00:00",
+      "scope": "Native public-key signature and source/manifest verification on exact anonymous Mac downloads transferred unchanged. Disposable public-only GPG home; no private key/credential, installation or clean native-desktop qualification."
+    },
+    "windowsMSIArchiveEquality": {
+      "receiptName": "native-public-trust-collected-final-r2/msi-equality-receipt.json",
+      "sha256": "bc4760ba395e0464340f150fdf45684a82f544b378d4fbe259273d745341b823",
+      "startedUtc": "2026-10-20T18:40:24.197959+00:00",
+      "completedUtc": "2026-10-20T18:40:26.003947+00:00",
+      "scope": "Administrative extraction of actual anonymously downloaded MSI and exact runtime ZIP/SPDX equality; no installation/launch/credential/signing or source change."
+    },
+    "independentWindowsPostdownload": {
+      "reportName": "independent-postdownload-native-trust.md",
+      "sha256": "1e6eb3ee324973ed5c4eab959f827809f019b780d7f8bd636bd4620f9992cfea",
+      "reviewer": "/root/mac_release_security",
+      "result": "PASS",
+      "scope": "Fresh native MSI and four first-party PE SignTool/Authenticode signatures, exact before/after hashes and runtime ZIP members; no broader native qualification"
+    }
+  },
+  "sourceRetention": {
+    "publishedSealManifestSHA256": "88c86b0b2ce5c2c9db636cc8698c482c6468e83c1010f2387b2dd3a3cb74a60d",
+    "allThreeSourceAssetsDownloadedAnonymously": true,
+    "access": "Same public release channel as binaries at no additional charge; original-channel/corporate/offline duties continue",
+    "retention": "Indefinite and immutable until accountable owner documents all obligations ended; never ends while matching binaries remain distributed",
+    "firstPartySnapshotSHA256": "5f0eef92b0af6aa6d7d24e7f8bb793a7cfe788b6a7ec7ce9df52c3f469e4bb1b"
+  },
+  "reviewLifecycle": "Coordinator stopped both completed short-session servers after decisions; protections/candidates retained",
+  "commandState": "Own publication/download/native/equality commands completed; native scheduled trust task removed after0 and PID absence; unrelated waiter37820 untouched",
+  "qualificationComplete": false,
+  "openQualification": "RFC0038/M8/M9 clean-account install/auth/vault, Intel, Windows/Ubuntu desktop/accessibility, upgrade/removal, resident crash privacy, external hardening and complete vulnerability/fuzz coverage remain open",
+  "recordedUtc": "2026-10-20T18:44:16.345068+00:00"
+}
