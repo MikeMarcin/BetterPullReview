@@ -287,6 +287,21 @@ class InventoryTable(unittest.TestCase):
         self.assertEqual(str(caught.exception),
                          "selector-anchor-table-mismatch")
 
+    def test_partial_build_keeps_unrelated_names_but_requires_selector_commands(self) -> None:
+        import json
+        completed = mock.Mock(returncode=0, stdout=json.dumps({"tests": [
+            {"name": "unbuilt_unrelated"},
+            {"name": CORE, "command": ["core_tests"]},
+        ]}))
+        with mock.patch.object(self.module.shutil, "which", return_value="ctest"), \
+                mock.patch.object(self.module.subprocess, "run", return_value=completed):
+            self.assertEqual(self.module.registered_tests(BUILD, "Debug"), [
+                ("unbuilt_unrelated", ()), (CORE, ("core_tests",))])
+            completed.stdout = json.dumps({"tests": [{"name": CORE}]})
+            with self.assertRaisesRegex(self.module.InventoryFailure,
+                                        "ctest-inventory-command-absent:" + CORE):
+                self.module.registered_tests(BUILD, "Debug")
+
     def test_build_dir_is_the_ledger_spelling_of_build_root(self) -> None:
         with mock.patch.object(
             sys, "argv",
