@@ -228,9 +228,14 @@ namespace {
 		QMouseEvent                      press{ QEvent::MouseButtonPress, from, list->viewport()->mapToGlobal(from), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
 		QApplication::sendEvent(list->viewport(), &press);
 		QTimer::singleShot(100, list, [&] {
-			QDragEnterEvent enter{ to, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
+#if QT_VERSION >= QT_VERSION_CHECK(6, 12, 0)
+			const QPointF dragPosition{ to };
+#else
+			const QPoint dragPosition{ to };
+#endif
+			QDragEnterEvent enter{ dragPosition, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
 			QApplication::sendEvent(list->viewport(), &enter);
-			QDragMoveEvent move{ to, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
+			QDragMoveEvent move{ dragPosition, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
 			QApplication::sendEvent(list->viewport(), &move);
 			QDropEvent drop{ to, Qt::MoveAction, mime.get(), Qt::LeftButton, Qt::NoModifier };
 			QApplication::sendEvent(list->viewport(), &drop);
