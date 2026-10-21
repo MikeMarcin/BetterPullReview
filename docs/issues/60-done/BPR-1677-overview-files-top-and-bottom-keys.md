@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1677"
 title: "Overview files: Command-Up and Command-Down go to the top and bottom"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner request 2026-10-20","owner_note":"in the overview page on the file listing i want cmd+up and down to go to the top and bottom of the files list","related_rfcs":["RFC-BPR-0037"],"related_cards":["BPR-1213","BPR-1269","BPR-1328","BPR-1567"]}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"24d4ee645","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_pull_request_overview_page$'","detail":"test_document_keys_go_to_the_top_and_bottom_of_the_files on 44 files that scroll: Command-Down makes README.md (last file of the last open folder) current in the same column, one row selected, list at its bottom with the row in view, focus kept, accessible cell selected and focused, no dispatch; with that folder closed it lands on the folder row. Failing-before control: with the new branch in handle_files_key disabled the test fails at 'the end makes the last file current, in the same column'. macOS; Windows and Linux station runs owed, not gating."}},{"criterion":"AC2","outcome":"pass","revision":"24d4ee645","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_pull_request_overview_page$'","detail":"Command-Up makes the top folder row current and selected, list at its top, focus and accessibility kept, no dispatch; pressed again it stays; Up still steps one row; after clear() both keys leave no current index. macOS."}},{"criterion":"AC3","outcome":"pass","revision":"24d4ee645","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_pull_request_overview_page|qt_pull_request_overview_(chips_scale|folder_rows)_(125|200)|qt_overview_read_marks|qt_keyboard_shortcuts_scale_(100|125|200)|qt_change_end_keys|qt_workbench_window_scale_(100|125|200)|architecture_boundaries|architecture_boundary_contract)$'","detail":"files_ends is a read entry, In Overview's files, Ctrl+Up/Ctrl+Down on macOS (Ctrl+Home/Ctrl+End elsewhere); document_edge_for answers the catalogue keys and macOS's keypad-flagged arrows and refuses Down, Alt+Down and Ctrl+Alt+Down; the presented description names both spoken keys. The keyboard-shortcuts page, change-end keys and the window's comparison-edge test pass on the shared classifier. coding-format-check (clang-format 22.1.8) and clang-tidy on the four changed units pass. macOS."}}]
 ---
 
 # BPR-1677: Overview files: Command-Up and Command-Down go to the top and bottom
