@@ -527,11 +527,18 @@ operations outside the recorded snapshot manifest:
   as letters, digits, hyphen and underscore, so it cannot become another
   qualifier. One page of at most 100 items is read and a continuation is
   never followed: `incomplete_results`, a total above the page, or a `next`
-  link makes the answer partial.
+  link makes the answer partial. [[BPR-1680]]: one search may name up to ten
+  saved repositories, `repo:OWNER/NAME repo:A repo:B ...`
+  (`semantic_read_request::SearchRepositories` after the first), each two
+  safe path components, none repeated in any case, the whole query at most 256
+  bytes; each item is attributed to the named repository its `repository_url`
+  folds to, and an item of any other repository is refused.
 - `ListRequestedReviewers`: `GET {rest}/repos/OWNER/NAME/pulls/N/requested_reviewers`
-  for at most 30 rows of one answer. An authored row takes its awaited
-  reviewer count from it; a requested row is kept only when the users it
-  lists include the viewer, so a team-only request is not discovered.
+  for at most 30 rows of one answer, under the row's own repository. An
+  authored row takes its awaited reviewer count from it; a requested row is
+  kept only when the users it lists include the viewer, so a team-only request
+  is not discovered. A row the refresh's retained read already read in full
+  ([[BPR-1680]]) is returned `Reused` with no detail read.
 
 The search's wire parent is a `core::repository_request_context`: the same
 application session, profile, host, account and identity generation a pull

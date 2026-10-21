@@ -65,6 +65,10 @@ namespace bpr::application {
 		/// number order, this refresh already read in full. A found row for
 		/// one of them comes back `Reused`, without its own detail reads.
 		std::vector<personal_discovery_known> Known;
+		/// [[BPR-1680]]. A search only: every saved repository the one search
+		/// names, in order, starting with the context's; empty means the
+		/// context's repository alone. Each row says which it belongs to.
+		std::vector<core::repository_locator> Repositories;
 
 		auto operator<=>(const personal_discovery_request&) const = default;
 	};
@@ -110,6 +114,9 @@ namespace bpr::application {
 		core::queue_change_facts Change;
 		/// [[BPR-1680]]. A search row for a `Known` pull request, not read again.
 		bool Reused = false;
+		/// [[BPR-1680]]. The repository of the request the row belongs to, as
+		/// the request names it.
+		core::repository_locator Repository;
 		/// [[BPR-1680]]. A retained read: its requested reviewers name the
 		/// viewer as a user, not only through a team.
 		bool RequestsViewer = false;

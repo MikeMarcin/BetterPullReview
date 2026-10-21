@@ -1645,7 +1645,12 @@ namespace {
 									   { .Host = "github.com", .Account = "someone-else", .Repository = "octo/other" },
 									   { .Host = "ghe.example", .Account = "reviewer", .Repository = "octo/app" },
 								   },
-								   std::vector<application::enrollment_record> aRetained = { }, const bool aRestore = true)
+								   std::vector<application::enrollment_record> aRetained = { }, const bool aRestore = true,
+								   // [[BPR-1680]]. The scheduler's own tests search each repository
+								   // on its own, the shape they were written for; the batching
+								   // tests pass the production options.
+								   const application::personal_discovery_options aOptions = { .SearchRepositories = 1U })
+			: Options{ aOptions }
 		{
 			Windows.Live                  = { queue_window(1U), queue_window(2U) };
 			Store.State.SavedRepositories = std::move(aSaved);
@@ -1688,7 +1693,8 @@ namespace {
 		recording_discovery                        Provider;
 		manual_clock                               Clock;
 		recording_diagnostics                      Diagnostics;
-		application::personal_discovery_host       Discovery{ Provider, Decisions, Queue, Clock, &Diagnostics };
+		application::personal_discovery_options    Options;
+		application::personal_discovery_host       Discovery{ Provider, Decisions, Queue, Clock, &Diagnostics, Options };
 	};
 
 	[[nodiscard]] auto metadata_row(const std::uint32_t aNumber, const bool aReviewed = false, const bool aMoved = false)
@@ -2197,6 +2203,113 @@ namespace {
 		provider.answer(provider.rows({ }));
 		fixture.settle();
 		expect(!fixture.item(11), "a row the provider calls reused for an unknown pull request is dropped");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-1680]] option 3. With the production options one search per
+	/// reason names every saved repository of the account; each row is
+	/// applied to the repository it belongs to, each repository's answer is as
+	/// complete as the search. A search GitHub refuses, or whose page or
+	/// detail bound cannot say whose rows it left out, is asked again one
+	/// repository at a time, and a repository refused alone is searched alone
+	/// for the rest of the session.
+	void test_discovery_searches_several_repositories_at_once()
+	{
+		auto fixture = discovery_fixture{ {
+											  { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" },
+											  { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
+											  { .Host = "github.com", .Account = "reviewer", .Repository = "octo/web" },
+										  },
+										  { },
+										  true,
+										  { } };
+		fixture.Discovery.adopt(discovery_session());
+		auto&      provider = fixture.Provider;
+		const auto app      = core::repository_locator{ "octo", "app" };
+		const auto tools    = core::repository_locator{ "octo", "tools" };
+		const auto web      = core::repository_locator{ "octo", "web" };
+		expect(provider.Requests.size() == 2U && provider.Requests[0].Reason == application::personal_discovery_reason::requested
+				   && provider.Requests[1].Reason == application::personal_discovery_reason::authored
+				   && provider.Requests[0].Repositories == std::vector{ app, tools, web } && provider.Requests[0].Context.Repository == app
+				   && provider.Requests[1].Repositories == provider.Requests[0].Repositories,
+			   "two searches, one per reason, each naming the three saved repositories in order");
+		const auto in = [](application::personal_discovery_row aRow, const core::repository_locator& aRepository) {
+			aRow.Repository = aRepository;
+			return aRow;
+		};
+		provider.answer(provider.rows({ in(row(5U), tools), in(row(6U), web) }));
+		provider.answer(provider.rows({ in(row(7U, true, 1U), app) }));
+		fixture.settle();
+		expect(provider.Requests.size() == 2U && fixture.Discovery.status().State == application::queue_discovery_state::current,
+			   "the two searches are the whole refresh");
+		expect(fixture.item(5) && fixture.item(5)->Ref.Repository == "octo/tools" && fixture.item(5)->Membership.Requested
+				   && fixture.item(6) && fixture.item(6)->Ref.Repository == "octo/web" && fixture.item(7) && fixture.item(7)->Ref.Repository == "octo/app"
+				   && fixture.item(7)->Membership.Authored,
+			   "each row is applied to the repository it belongs to");
+		expect(fixture.Discovery.status().Repositories == 3U && fixture.Discovery.statistics().Split == 0U, "Home says three repositories were searched");
+
+		// The next refresh's requested search finds nothing in octo/tools: a
+		// complete answer withdraws #5 there, as one per repository would.
+		fixture.Discovery.refresh();
+		while (provider.Answered < provider.Requests.size() && provider.next().Reason == application::personal_discovery_reason::retained) {
+			provider.answer(provider.rows({ metadata_row(provider.next().Number->value()) }));
+			fixture.settle();
+		}
+		provider.answer(provider.rows({ in(row(6U), web) }));
+		provider.answer(provider.rows({ }, application::personal_discovery_completeness::result_limit));
+		fixture.settle();
+		expect(!fixture.record(5) || !fixture.record(5)->Membership.Requested, "a complete shared answer withdraws what it no longer finds");
+		expect(fixture.Discovery.statistics().Split == 1U && provider.Requests.size() == provider.Answered + 2U
+				   && provider.next().Repositories.empty() && provider.next().Context.Repository == app
+				   && provider.Requests[provider.Answered + 1U].Context.Repository == tools,
+			   "a shared search past its page is asked again one repository at a time, ahead of the rest");
+		provider.answer(provider.rows({ row(7U, true, 1U) }));
+		fixture.settle();
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(fixture.record(7) && fixture.record(7)->Membership.Authored && fixture.Discovery.status().State == application::queue_discovery_state::current,
+			   "each repository gets its own answer and the refresh ends current");
+
+		// GitHub refuses a shared search when one repository cannot be read.
+		fixture.Discovery.refresh();
+		while (provider.Answered < provider.Requests.size() && provider.next().Reason == application::personal_discovery_reason::retained) {
+			provider.answer(provider.rows({ metadata_row(provider.next().Number->value()) }));
+			fixture.settle();
+		}
+		provider.answer(provider.failure(application::github_provider_failure::permission));
+		fixture.settle();
+		expect(fixture.Discovery.statistics().Split == 2U && provider.Requests.back().Context.Repository == app && provider.Requests.back().Repositories.empty(),
+			   "a refused shared search is asked again one repository at a time");
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(provider.next().Context.Repository == tools, "octo/tools is asked on its own");
+		provider.answer(provider.failure(application::github_provider_failure::permission));
+		fixture.settle();
+		while (provider.Answered < provider.Requests.size()) {
+			provider.answer(provider.rows({ }));
+			fixture.settle();
+		}
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::repository_unavailable,
+			   "only the repository refused alone is unreadable");
+		fixture.Discovery.refresh();
+		while (provider.Answered < provider.Requests.size() && provider.next().Reason == application::personal_discovery_reason::retained) {
+			provider.answer(provider.rows({ metadata_row(provider.next().Number->value()) }));
+			fixture.settle();
+		}
+		expect(provider.next().Repositories == std::vector{ app, web } && provider.Requests[provider.Answered + 1U].Repositories == std::vector{ app, web },
+			   "the others share one search per reason");
+		provider.answer(provider.rows({ }));
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(provider.next().Repositories.empty() && provider.next().Context.Repository == tools
+				   && provider.Requests[provider.Answered + 1U].Repositories.empty() && provider.Requests[provider.Answered + 1U].Context.Repository == tools,
+			   "the repository refused alone is searched alone, for both reasons");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -2963,6 +3076,7 @@ auto main() -> int
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
 	test_discovery_records_each_refresh_and_read();
 	test_discovery_searches_reuse_the_refresh_retained_reads();
+	test_discovery_searches_several_repositories_at_once();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();
 	test_discovery_refuses_stale_and_foreign_answers();

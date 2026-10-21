@@ -204,6 +204,11 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1589]]. The team (`Organization`, `Team` slug) and the login
 		/// `get_team_membership` asks about; empty for every other operation.
 		std::string Organization, Team, Login;
+		/// [[BPR-1680]]. `search_personal_pull_requests` only: the saved
+		/// repositories, `owner/name`, the one search names after `Owner` and
+		/// `Repository`, in order; empty for one repository and every other
+		/// operation.
+		std::vector<std::string> SearchRepositories;
 
 		auto operator==(const semantic_read_request&) const -> bool = default;
 	};

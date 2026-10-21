@@ -172,8 +172,11 @@ namespace bpr::application {
 		{
 			personal_discovery_request Request;
 			std::string                Repository;
-			std::uint64_t              Generation = 0U;
-			std::uint64_t              Cycle      = 0U;
+			/// [[BPR-1680]]. A search: every saved repository it names, in the
+			/// request's order, the first being `Repository`.
+			std::vector<std::string> Repositories;
+			std::uint64_t            Generation = 0U;
+			std::uint64_t            Cycle      = 0U;
 			/// [[BPR-1679]]. Cancelled to give way; asked again if that is
 			/// what answers it.
 			bool Preempted = false;
@@ -183,12 +186,13 @@ namespace bpr::application {
 
 		implementation(personal_discovery_port& aProvider, decision_executor& aDecisionLane,
 					   review_queue_application_host& aQueue, const personal_discovery_clock_port& aClock,
-					   diagnostic_log_port* aLog)
+					   diagnostic_log_port* aLog, const personal_discovery_options aOptions)
 			: Provider{ aProvider }
 			, DecisionLane{ aDecisionLane }
 			, Queue{ aQueue }
 			, Clock{ aClock }
 			, Log{ aLog }
+			, Options{ aOptions }
 		{
 			Status.State   = queue_discovery_state::unavailable;
 			Status.Problem = queue_discovery_problem::no_account;
@@ -251,7 +255,7 @@ namespace bpr::application {
 				.Refresh      = saturated(aJob.Cycle),
 				.Read         = aJob.Read,
 				.Reason       = diagnosis_reason(aJob.Request.Reason),
-				.Repositories = 1U,
+				.Repositories = saturated(std::max<std::size_t>(aJob.Repositories.size(), 1U)),
 				.PullRequests = aJob.Request.Number ? 1U : 0U,
 			};
 		}
@@ -314,6 +318,7 @@ namespace bpr::application {
 			LastEnded.reset();
 			BackoffUntil.reset();
 			MetadataConsidered.clear();
+			RefusedAlone.clear();
 			if (!Session) {
 				Status = queue_discovery_status{ .State = queue_discovery_state::unavailable, .Problem = queue_discovery_problem::no_account };
 				publish();
@@ -435,7 +440,7 @@ namespace bpr::application {
 		}
 
 		void enqueue(const std::string& aRepository, const personal_discovery_reason aReason,
-					 const std::optional<core::pull_request_number> aNumber = std::nullopt, std::vector<personal_discovery_known> aKnown = { })
+					 const std::optional<core::pull_request_number> aNumber = std::nullopt)
 		{
 			auto context       = Session->Context;
 			context.Request    = core::request_id{ NextRequest++ };
@@ -450,7 +455,6 @@ namespace bpr::application {
 					.Reason                = aReason,
 					.AuthenticationSession = Session->AuthenticationSession,
 					.Number                = aNumber,
-					.Known                 = std::move(aKnown),
 				},
 				.Repository = aRepository,
 				.Generation = Generation,
@@ -473,27 +477,130 @@ namespace bpr::application {
 			return known;
 		}
 
-		void enqueue_searches()
+		/// [[BPR-1680]]. One search of the saved repositories \p aRepositories,
+		/// in locator order, knowing what this refresh's retained reads read.
+		[[nodiscard]] auto search_job(const std::vector<std::string>& aRepositories, const personal_discovery_reason aReason) -> job
 		{
-			Searching = true;
-			for (const auto& repository : Searched) {
-				for (const auto reason : { personal_discovery_reason::requested, personal_discovery_reason::authored }) {
-					enqueue(repository, reason, std::nullopt, known_in(repository));
+			auto context       = Session->Context;
+			context.Request    = core::request_id{ NextRequest++ };
+			context.Repository = *locator_of(aRepositories.front());
+			auto result        = job{
+				.Request = {
+					.Context               = std::move(context),
+					.ProfileAuthority      = Session->ProfileAuthority,
+					.Viewer                = Session->Viewer,
+					.CapabilityEvidence    = Session->CapabilityEvidence,
+					.AccountTransport      = Session->AccountTransport,
+					.Reason                = aReason,
+					.AuthenticationSession = Session->AuthenticationSession,
+				},
+				.Repository   = aRepositories.front(),
+				.Repositories = aRepositories,
+				.Generation   = Generation,
+				.Cycle        = Cycle,
+			};
+			for (const auto& repository : aRepositories) {
+				auto known = known_in(repository);
+				result.Request.Known.insert(result.Request.Known.end(), known.begin(), known.end());
+				if (aRepositories.size() > 1U) {
+					result.Request.Repositories.push_back(*locator_of(repository));
 				}
 			}
+			std::ranges::sort(result.Request.Known);
+			return result;
+		}
+
+		/// [[BPR-1680]]. The saved repositories by locator, in locator order,
+		/// which is the order a search names them in.
+		[[nodiscard]] auto searched_by_locator() const -> std::vector<std::pair<core::repository_locator, std::string>>
+		{
+			auto result = std::vector<std::pair<core::repository_locator, std::string>>{ };
+			for (const auto& repository : Searched) {
+				result.emplace_back(*locator_of(repository), repository);
+			}
+			std::ranges::sort(result);
+			return result;
+		}
+
+		/// [[BPR-1680]]. One search per reason for as many saved repositories
+		/// as the core's query bound lets one search name, instead of one per
+		/// repository; a repository refused on its own before is searched on
+		/// its own.
+		void enqueue_searches()
+		{
+			Searching          = true;
+			const auto byName  = searched_by_locator();
+			auto       names   = std::vector<core::repository_locator>{ };
+			auto       refused = std::vector<core::repository_locator>{ };
+			for (const auto& [locator, repository] : byName) {
+				names.push_back(locator);
+				if (RefusedAlone.contains(repository)) {
+					refused.push_back(locator);
+				}
+			}
+			const auto requested = core::plan_discovery_searches(core::discovery_search_reason::requested, Session->Viewer.Login, names, refused, Options.SearchRepositories);
+			const auto authored  = core::plan_discovery_searches(core::discovery_search_reason::authored, Session->Viewer.Login, names, refused, Options.SearchRepositories);
+			const auto enqueue   = [&](const std::vector<core::repository_locator>& aSearch, const personal_discovery_reason aReason) {
+				auto repositories = std::vector<std::string>{ };
+				for (const auto& locator : aSearch) {
+					repositories.push_back(std::ranges::lower_bound(byName, locator, { }, &std::pair<core::repository_locator, std::string>::first)->second);
+				}
+				Queued.push_back(search_job(repositories, aReason));
+			};
+			// Both reasons of the same repositories go out together, as one
+			// search per repository and reason always did.
+			for (std::size_t index = 0U; index < std::max(requested.size(), authored.size()); ++index) {
+				if (index < requested.size()) {
+					enqueue(requested[index], personal_discovery_reason::requested);
+				}
+				if (index < authored.size()) {
+					enqueue(authored[index], personal_discovery_reason::authored);
+				}
+			}
+		}
+
+		/// [[BPR-1680]]. A search of several repositories that cannot speak
+		/// for each of them is asked again, one repository at a time, ahead of
+		/// the rest; a repository forgotten meanwhile is not.
+		void split(const job& aJob)
+		{
+			const auto saved = partition();
+			for (auto repository = aJob.Repositories.rbegin(); repository != aJob.Repositories.rend(); ++repository) {
+				if (std::ranges::find(saved, *repository) != saved.end()) {
+					Queued.push_front(search_job({ *repository }, aJob.Request.Reason));
+				}
+			}
+			++Statistics.Split;
+		}
+
+		/// [[BPR-1680]]. The saved repository a search row belongs to: the one
+		/// of the search the adapter attributed it to, or, for a search of one
+		/// repository, that one.
+		[[nodiscard]] static auto repository_of(const job& aJob, const personal_discovery_row& aRow) -> std::optional<std::string>
+		{
+			if (aJob.Repositories.size() <= 1U) {
+				return aJob.Repository;
+			}
+			for (const auto& repository : aJob.Repositories) {
+				if (locator_of(repository) == aRow.Repository) {
+					return repository;
+				}
+			}
+			return std::nullopt;
 		}
 
 		/// [[BPR-1680]]. A search row the adapter did not read again, with
 		/// the detail this refresh's retained read established, or none when
 		/// the core says the row is not the viewer's or nothing stands for it.
-		[[nodiscard]] auto reused_row(const job& aJob, const personal_discovery_row& aRow) const -> std::optional<queue_discovered_pull_request>
+		[[nodiscard]] auto reused_row(const job& aJob, const std::string& aRepository, const personal_discovery_row& aRow) const -> std::optional<queue_discovered_pull_request>
 		{
-			const auto ref      = queue_ref(aJob.Repository, aRow.Number);
+			const auto locator  = *locator_of(aRepository);
+			const auto ref      = queue_ref(aRepository, aRow.Number);
 			const auto retained = CycleRetainedRows.find(ref);
 			const auto read     = std::ranges::find_if(CycleRetainedReads, [&](const core::discovery_retained_read& aRead) {
-				return aRead.Repository == aJob.Request.Context.Repository && aRead.Number == aRow.Number;
+				return aRead.Repository == locator && aRead.Number == aRow.Number;
 			});
-			const auto known    = std::ranges::binary_search(aJob.Request.Known, personal_discovery_known{ .Repository = aJob.Request.Context.Repository, .Number = aRow.Number });
+			const auto known    = std::ranges::binary_search(aJob.Request.Known, personal_discovery_known{ .Repository = locator, .Number = aRow.Number });
 			const auto reason   = aJob.Request.Reason == personal_discovery_reason::requested ? core::discovery_search_reason::requested : core::discovery_search_reason::authored;
 			if (!known || retained == CycleRetainedRows.end() || read == CycleRetainedReads.end() || !core::keeps_reused_row(reason, *read)) {
 				return std::nullopt;
@@ -682,8 +789,10 @@ namespace bpr::application {
 			record_read(finished, aCompletion);
 			// A repository forgotten while its read was in flight publishes
 			// nothing: the reviewer has said it is not theirs to watch.
-			const auto saved = Session ? partition() : std::vector<std::string>{ };
-			if (!current(finished) || !Session || (finished.Request.Reason == personal_discovery_reason::retained ? !still_enrolled(finished) : std::ranges::find(saved, finished.Repository) == saved.end())) {
+			const auto saved      = Session ? partition() : std::vector<std::string>{ };
+			const auto stillSaved = [&saved](const std::string& aRepository) { return std::ranges::find(saved, aRepository) != saved.end(); };
+			if (!current(finished) || !Session
+				|| (finished.Request.Reason == personal_discovery_reason::retained ? !still_enrolled(finished) : std::ranges::none_of(finished.Repositories, stillSaved))) {
 				++Statistics.StaleCompletions;
 				pump();
 				return;
@@ -709,43 +818,25 @@ namespace bpr::application {
 							apply_metadata(finished, aResult);
 							return;
 						}
-						auto answer = queue_discovery_answer{
-							.Session      = Session->Queue,
-							.Repository   = finished.Repository,
-							.Requested    = finished.Request.Reason == personal_discovery_reason::requested,
-							.Complete     = aResult.Completeness == personal_discovery_completeness::complete && !MetadataFailed,
-							.PullRequests = { },
-						};
-						answer.FactRevision = finished.Request.FactRevision;
-						answer.PullRequests.reserve(aResult.Rows.size());
-						for (auto& row : aResult.Rows) {
-							if (ClosedThisCycle.contains(queue_ref(finished.Repository, row.Number))) {
-								continue;
-							}
-							// [[BPR-1680]]. Not read again: the retained read stands for it.
-							if (row.Reused) {
-								if (auto reused = reused_row(finished, row)) {
-									++Statistics.Reused;
-									answer.PullRequests.push_back(std::move(*reused));
-								}
-								continue;
-							}
-							answer.PullRequests.push_back({
-								.Number           = static_cast<std::int64_t>(row.Number.value()),
-								.Title            = std::move(row.Title),
-								.Author           = std::move(row.Author),
-								.Detailed         = row.Detailed,
-								.ReviewersAwaited = row.ReviewersAwaited,
-								.Draft            = row.Draft,
-								.Waiting          = row.Waiting,
-								.Change           = row.Change,
-							});
+						// [[BPR-1680]]. A shared search that cannot speak for
+						// each of its repositories is asked again alone.
+						if (core::splits_discovery_search(finished.Repositories.size(), search_outcome(aResult.Completeness))) {
+							split(finished);
+							return;
 						}
-						if (aResult.Completeness != personal_discovery_completeness::complete && CycleProblem == queue_discovery_problem::none) {
-							CycleProblem = problem_of(aResult.Completeness);
-						}
-						Queue.apply(std::move(answer));
+						apply_search(finished, aResult);
 					} else if constexpr (std::is_same_v<result_type, personal_discovery_error>) {
+						const auto refused = aResult.Error.Failure == github_provider_failure::permission;
+						if (finished.Request.Reason != personal_discovery_reason::retained
+							&& core::splits_discovery_search(finished.Repositories.size(), refused ? core::discovery_search_outcome::refused : core::discovery_search_outcome::failed)) {
+							split(finished);
+							return;
+						}
+						// [[BPR-1680]]. Refused on its own: searched on its own
+						// while this session lasts, so it costs no shared search.
+						if (refused && finished.Request.Reason != personal_discovery_reason::retained && finished.Repositories.size() == 1U) {
+							RefusedAlone.insert(finished.Repository);
+						}
 						++Statistics.Failed;
 						const auto problem = problem_of(aResult.Error);
 						if (aResult.Error.Failure == github_provider_failure::rate_limit) {
@@ -760,6 +851,72 @@ namespace bpr::application {
 				},
 				aCompletion);
 			pump();
+		}
+
+		[[nodiscard]] static auto search_outcome(const personal_discovery_completeness aCompleteness) noexcept -> core::discovery_search_outcome
+		{
+			switch (aCompleteness) {
+			case personal_discovery_completeness::complete:           return core::discovery_search_outcome::complete;
+			case personal_discovery_completeness::incomplete_results: return core::discovery_search_outcome::incomplete_results;
+			case personal_discovery_completeness::result_limit:       return core::discovery_search_outcome::result_limit;
+			case personal_discovery_completeness::detail_limit:       return core::discovery_search_outcome::detail_limit;
+			}
+			return core::discovery_search_outcome::failed;
+		}
+
+		/// One answer per saved repository the search names, each with the
+		/// rows the adapter attributed to it; a repository forgotten while the
+		/// search ran gets none.
+		void apply_search(const job& aJob, personal_discovery_success& aResult)
+		{
+			const auto saved = partition();
+			auto       rows  = std::map<std::string, std::vector<queue_discovered_pull_request>>{ };
+			for (auto& row : aResult.Rows) {
+				const auto repository = repository_of(aJob, row);
+				if (!repository) {
+					fail(queue_discovery_problem::failed, false);
+					continue;
+				}
+				if (ClosedThisCycle.contains(queue_ref(*repository, row.Number))) {
+					continue;
+				}
+				// [[BPR-1680]]. Not read again: the retained read stands for it.
+				if (row.Reused) {
+					if (auto reused = reused_row(aJob, *repository, row)) {
+						++Statistics.Reused;
+						rows[*repository].push_back(std::move(*reused));
+					}
+					continue;
+				}
+				rows[*repository].push_back({
+					.Number           = static_cast<std::int64_t>(row.Number.value()),
+					.Title            = std::move(row.Title),
+					.Author           = std::move(row.Author),
+					.Detailed         = row.Detailed,
+					.ReviewersAwaited = row.ReviewersAwaited,
+					.Draft            = row.Draft,
+					.Waiting          = row.Waiting,
+					.Change           = row.Change,
+				});
+			}
+			if (aResult.Completeness != personal_discovery_completeness::complete && CycleProblem == queue_discovery_problem::none) {
+				CycleProblem = problem_of(aResult.Completeness);
+			}
+			RefusedAlone.erase(aJob.Repository);
+			for (const auto& repository : aJob.Repositories) {
+				if (std::ranges::find(saved, repository) == saved.end()) {
+					continue;
+				}
+				auto answer = queue_discovery_answer{
+					.Session      = Session->Queue,
+					.Repository   = repository,
+					.Requested    = aJob.Request.Reason == personal_discovery_reason::requested,
+					.Complete     = aResult.Completeness == personal_discovery_completeness::complete && !MetadataFailed,
+					.PullRequests = std::move(rows[repository]),
+				};
+				answer.FactRevision = aJob.Request.FactRevision;
+				Queue.apply(std::move(answer));
+			}
 		}
 
 		void apply_metadata(const job& aJob, const personal_discovery_success& aResult)
@@ -855,11 +1012,15 @@ namespace bpr::application {
 		review_queue_application_host&            Queue;
 		const personal_discovery_clock_port&      Clock;
 		diagnostic_log_port*                      Log = nullptr;
+		personal_discovery_options                Options;
 		std::optional<personal_discovery_session> Session;
 		std::deque<job>                           Queued;
 		std::vector<std::string>                  Searched;
 		std::set<core::pull_request_ref>          MetadataConsidered;
 		std::set<core::pull_request_ref>          ClosedThisCycle;
+		/// [[BPR-1680]]. Saved repositories whose own search GitHub refused in
+		/// this session: searched alone, so a shared search is not refused.
+		std::set<std::string> RefusedAlone;
 		/// [[BPR-1680]]. What this refresh's retained reads applied, which its
 		/// searches reuse rather than read again.
 		std::map<core::pull_request_ref, personal_discovery_row> CycleRetainedRows;
@@ -894,8 +1055,9 @@ namespace bpr::application {
 													 decision_executor&                   aDecisionLane,
 													 review_queue_application_host&       aQueue,
 													 const personal_discovery_clock_port& aClock,
-													 diagnostic_log_port*                 aLog)
-		: Implementation{ std::make_shared<implementation>(aProvider, aDecisionLane, aQueue, aClock, aLog) }
+													 diagnostic_log_port*                 aLog,
+													 const personal_discovery_options     aOptions)
+		: Implementation{ std::make_shared<implementation>(aProvider, aDecisionLane, aQueue, aClock, aLog, aOptions) }
 	{ }
 
 	personal_discovery_host::~personal_discovery_host()

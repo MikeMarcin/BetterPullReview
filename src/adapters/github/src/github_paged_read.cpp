@@ -1,5 +1,6 @@
 #include "github_paged_read.hpp"
 #include "bpr/application/review_queue_facts.hpp"
+#include "bpr/core/home_discovery_plan.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "github_http_helpers.hpp"
 #include "github_review_comment_grouping.hpp"
@@ -23,6 +24,7 @@
 #include <new>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -4325,16 +4327,25 @@ namespace bpr::adapters::github::detail {
 				: (aRequest.Reason == application::personal_discovery_reason::authored
 				   || aRequest.Reason == application::personal_discovery_reason::requested)
 					&& !aRequest.Number;
-			// [[BPR-1680]]. A search's known pull requests are of its own
-			// repository, valid, in order and once each.
+			// [[BPR-1680]]. A search names its context's repository first and
+			// any further ones in order, once each, inside the core's bound; a
+			// retained read names none.
+			const auto& repositories      = aRequest.Repositories;
+			const auto  repositoriesValid = repositories.empty()
+				|| (aRequest.Reason != application::personal_discovery_reason::retained && repositories.size() <= core::maximum_discovery_search_repositories
+					&& repositories.front() == context.Repository && std::ranges::all_of(repositories, [](const core::repository_locator& aRepository) { return core::valid(aRepository); })
+					&& std::ranges::adjacent_find(repositories, std::greater_equal<>{ }) == repositories.end());
+			// [[BPR-1680]]. Its known pull requests are of its repositories,
+			// valid, in order and once each.
 			const auto& known      = aRequest.Known;
 			const auto  knownValid = known.empty()
 				|| (aRequest.Reason != application::personal_discovery_reason::retained && known.size() <= application::maximum_personal_discovery_retained
-					&& std::ranges::all_of(known, [&context](const application::personal_discovery_known& aKnown) {
-						   return aKnown.Repository == context.Repository && aKnown.Number.value() != 0U && aKnown.Number.value() <= core::maximum_pull_request_number;
+					&& std::ranges::all_of(known, [&context, &repositories](const application::personal_discovery_known& aKnown) {
+						   const auto named = repositories.empty() ? aKnown.Repository == context.Repository : std::ranges::binary_search(repositories, aKnown.Repository);
+						   return named && aKnown.Number.value() != 0U && aKnown.Number.value() <= core::maximum_pull_request_number;
 					   })
 					&& std::ranges::adjacent_find(known, std::greater_equal<>{ }) == known.end());
-			return reason && knownValid && limits_valid(aLimits) && application::detail::valid_context(context)
+			return reason && repositoriesValid && knownValid && limits_valid(aLimits) && application::detail::valid_context(context)
 				&& (!aRequest.AuthenticationSession || aRequest.AuthenticationSession->value() != 0U)
 				&& application::valid(authority) && aRequest.AccountTransport != nullptr
 				&& aRequest.Viewer.Account.value() != 0U && aRequest.Viewer.Account == context.Account
@@ -4362,11 +4373,13 @@ namespace bpr::adapters::github::detail {
 
 		/// [[BPR-0988]]. One search item, checked against the exact repository
 		/// the read is scoped to. The name compares without case: a saved
-		/// repository may be written in another case than GitHub's.
-		[[nodiscard]] auto parse_discovery_item(const page_json_value&                         aValue,
-												const application::personal_discovery_request& aRequest,
-												const validated_github_host_profile&           aProfile,
-												const github_paged_read_limits&                aLimits)
+		/// repository may be written in another case than GitHub's. A search
+		/// of several repositories ([[BPR-1680]]) attributes the row to the one
+		/// it names, as the request names it.
+		[[nodiscard]] auto parse_discovery_item(const page_json_value&                    aValue,
+												std::span<const core::repository_locator> aRepositories,
+												const validated_github_host_profile&      aProfile,
+												const github_paged_read_limits&           aLimits)
 			-> std::expected<application::personal_discovery_row, github_paged_read_failure>
 		{
 			if (!json_is_object(aValue)
@@ -4387,21 +4400,25 @@ namespace bpr::adapters::github::detail {
 				|| (!json_is_null(user) && (!json_is_object(user) || !nonempty_string(json_member(json_object(user), "login"))))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			const auto expected = std::string{ aProfile.rest_root() } + "/repos/" + aRequest.Context.Repository.Owner + "/"
-				+ aRequest.Context.Repository.Name;
-			if (!application::detail::ascii_equal_fold(text(json_member(object, "repository_url")), expected)) {
+			const auto url        = text(json_member(object, "repository_url"));
+			const auto repository = std::ranges::find_if(aRepositories, [&aProfile, &url](const core::repository_locator& aRepository) {
+				return application::detail::ascii_equal_fold(url, std::string{ aProfile.rest_root() } + "/repos/" + aRepository.Owner + "/" + aRepository.Name);
+			});
+			if (repository == aRepositories.end()) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 			const auto author = json_is_null(user) ? std::string{ } : text(json_member(json_object(user), "login"));
 			if (!bounded_text(author, aLimits.Records.MaximumLoginBytes)) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			return application::personal_discovery_row{
+			auto row = application::personal_discovery_row{
 				.Number = core::pull_request_number{ *number },
 				.Title  = title,
 				.Author = author,
 				.Draft  = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
+			row.Repository = *repository;
+			return row;
 		}
 
 		struct requested_reviewers
@@ -4665,6 +4682,7 @@ namespace bpr::adapters::github::detail {
 				.Draft            = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
+			row.Repository     = context.Repository;
 			// [[BPR-1680]]. What the requested-reviewers read would say of the
 			// viewer, so a search row in the same refresh need not ask it.
 			row.RequestsViewer = std::ranges::any_of(json_array(users), [&aRequest](const page_json_value& aUser) {
@@ -4807,8 +4825,10 @@ namespace bpr::adapters::github::detail {
 			const auto requested     = aRequest.Reason == application::personal_discovery_reason::requested;
 			auto       limits        = aLimits;
 			limits.MaximumTotalPages = 1U;
+			// [[BPR-1680]]. The saved repositories this one search names.
+			const auto                repositories = aRequest.Repositories.empty() ? std::vector<core::repository_locator>{ aRequest.Context.Repository } : aRequest.Repositories;
 			production_read_execution search{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession, nullptr };
-			const auto                semantic = semantic_read_request{
+			auto                      semantic = semantic_read_request{
 				.Server            = *server,
 				.Operation         = read_operation::search_personal_pull_requests,
 				.Owner             = aRequest.Context.Repository.Owner,
@@ -4819,6 +4839,9 @@ namespace bpr::adapters::github::detail {
 				.Page              = 1U,
 				.GraphqlPage       = std::nullopt,
 			};
+			for (std::size_t index = 1U; index < repositories.size(); ++index) {
+				semantic.SearchRepositories.push_back(repositories[index].Owner + "/" + repositories[index].Name);
+			}
 			auto page = search.fetch(semantic);
 			if (!page.has_value()) {
 				auto failure = page.error();
@@ -4857,13 +4880,13 @@ namespace bpr::adapters::github::detail {
 			} else if (more) {
 				result.Completeness = application::personal_discovery_completeness::result_limit;
 			}
-			auto seen = std::unordered_set<std::uint32_t>{ };
+			auto seen = std::set<std::pair<core::repository_locator, std::uint32_t>>{ };
 			for (const auto& value : items) {
-				auto row = parse_discovery_item(value, aRequest, aProfile, aLimits);
+				auto row = parse_discovery_item(value, repositories, aProfile, aLimits);
 				if (!row.has_value()) {
 					return std::unexpected{ search.enrich(row.error()) };
 				}
-				if (!seen.insert(row->Number.value()).second) {
+				if (!seen.emplace(row->Repository, row->Number.value()).second) {
 					return search.terminal_failure(application::github_provider_failure::malformed_response);
 				}
 				// A search expansion may name another actor; only the viewer's
@@ -4877,14 +4900,14 @@ namespace bpr::adapters::github::detail {
 			auto       details    = std::size_t{ 0U };
 			auto       kept       = std::vector<application::personal_discovery_row>{ };
 			auto       overflow   = false;
-			const auto known      = [&aRequest](const core::pull_request_number aNumber) {
-				return std::ranges::binary_search(aRequest.Known, application::personal_discovery_known{ .Repository = aRequest.Context.Repository, .Number = aNumber });
+			const auto known      = [&aRequest](const application::personal_discovery_row& aRow) {
+				return std::ranges::binary_search(aRequest.Known, application::personal_discovery_known{ .Repository = aRow.Repository, .Number = aRow.Number });
 			};
 			for (auto& row : result.Rows) {
 				// [[BPR-1680]]. Read in full by this refresh's retained read:
 				// no requested-reviewers, pull request or summary read again,
 				// and no detail read spent.
-				if (known(row.Number)) {
+				if (known(row)) {
 					row.Reused = true;
 					kept.push_back(std::move(row));
 					continue;
@@ -4897,12 +4920,15 @@ namespace bpr::adapters::github::detail {
 					continue;
 				}
 				++details;
-				production_read_execution detail{ aTransport, aProfile, requested_reviewers_parent(aRequest.Context, row.Number), limits, aStop, rates, aRequest.AuthenticationSession, nullptr };
+				// Each row's detail is read under its own repository.
+				auto rowContext       = aRequest.Context;
+				rowContext.Repository = row.Repository;
+				production_read_execution detail{ aTransport, aProfile, requested_reviewers_parent(rowContext, row.Number), limits, aStop, rates, aRequest.AuthenticationSession, nullptr };
 				auto                      reviewers = detail.fetch(semantic_read_request{
 					.Server            = *server,
 					.Operation         = read_operation::list_requested_reviewers,
-					.Owner             = aRequest.Context.Repository.Owner,
-					.Repository        = aRequest.Context.Repository.Name,
+					.Owner             = row.Repository.Owner,
+					.Repository        = row.Repository.Name,
 					.PullRequestNumber = row.Number.value(),
 					.HeadOid           = { },
 					.SearchTerms       = { },
@@ -4928,7 +4954,7 @@ namespace bpr::adapters::github::detail {
 					auto summaryLimits                          = aLimits;
 					summaryLimits.MaximumTotalPages             = std::min(summaryLimits.MaximumTotalPages, std::size_t{ 32 });
 					summaryLimits.MaximumAggregateResponseBytes = std::min(summaryLimits.MaximumAggregateResponseBytes, std::size_t{ 8U * 1024U * 1024U });
-					const auto                context           = requested_reviewers_parent(aRequest.Context, row.Number);
+					const auto                context           = requested_reviewers_parent(rowContext, row.Number);
 					production_read_execution summaryExecution{ aTransport, aProfile, context, summaryLimits, aStop, rates, aRequest.AuthenticationSession, nullptr, &homeBudget };
 					const auto                metadata = summaryExecution.fetch(semantic_request_for(*server, context, read_operation::get_pull_request));
 					if (metadata && json_is_object(metadata->Document)) {

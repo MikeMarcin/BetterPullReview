@@ -2073,11 +2073,16 @@ namespace bpr::app::detail {
 			const auto& semantic = aRequest.Semantic;
 			auto        response = adapters::github::detail::wire_response{ .Status = 200, .Completeness = page_completeness::complete };
 			response.Headers.push_back({ .Name = "Content-Type", .Value = "application/json; charset=utf-8" });
-			const auto ours = semantic.Owner == aState.Descriptor.Owner && semantic.Repository == aState.Descriptor.Name;
 			const auto fold = [](std::string aText) {
 				std::ranges::transform(aText, aText.begin(), [](const unsigned char aCharacter) { return static_cast<char>(std::tolower(aCharacter)); });
 				return aText;
 			};
+			// [[BPR-1680]]. A personal search may name several saved
+			// repositories; the fixture's own is the one with pull requests.
+			const auto own  = std::string{ aState.Descriptor.Owner } + "/" + std::string{ aState.Descriptor.Name };
+			const auto ours = (semantic.Owner == aState.Descriptor.Owner && semantic.Repository == aState.Descriptor.Name)
+				|| (aRequest.Operation == read_operation::search_personal_pull_requests
+					&& std::ranges::any_of(semantic.SearchRepositories, [&](const std::string& aRepository) { return fold(aRepository) == fold(own); }));
 			if (aRequest.Operation == read_operation::get_pull_request || aRequest.Operation == read_operation::list_reviews) {
 				const auto found = std::ranges::find(fixture.OpenPullRequests, semantic.PullRequestNumber, &github_personal_discovery_fixture::pull_request::Number);
 				if (!ours || found == fixture.OpenPullRequests.end()) {
@@ -3027,9 +3032,14 @@ namespace bpr::app::detail {
 						State->RecordingFailure = -5;
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
 					}
+					// [[BPR-1680]]. GitHub refuses the whole search when any
+					// repository it names cannot be read.
+					const auto& searched = aRequest.Wire.Semantic;
+					const auto  own      = std::string{ State->Descriptor.Owner } + "/" + std::string{ State->Descriptor.Name };
 					if (const auto& refused = State->PersonalDiscovery->OtherRepositoriesRefused;
 						aRequest.Wire.Operation == read_operation::search_personal_pull_requests && refused && refused->load()
-						&& (aRequest.Wire.Semantic.Owner != State->Descriptor.Owner || aRequest.Wire.Semantic.Repository != State->Descriptor.Name)) {
+						&& (searched.Owner != State->Descriptor.Owner || searched.Repository != State->Descriptor.Name
+							|| std::ranges::any_of(searched.SearchRepositories, [&own](const std::string& aRepository) { return aRepository != own; }))) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::permission) };
 					}
 					if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {

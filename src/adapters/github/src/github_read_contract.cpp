@@ -1,4 +1,5 @@
 #include "github_read_contract.hpp"
+#include "bpr/core/home_discovery_plan.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "bpr/core/markdown_image.hpp"
 #include "github_graphql_operation_policy.hpp"
@@ -115,6 +116,34 @@ namespace bpr::adapters::github::detail {
 				return std::isalnum(aCharacter) != 0 || aCharacter == '-'
 					|| aCharacter == '_' || aCharacter == '.';
 			});
+		}
+
+		/// [[BPR-1680]]. The further repositories one personal search names:
+		/// each `owner/name` of safe components, none repeated in any case nor
+		/// the search's own, at most the core's repository bound in all, and
+		/// the whole query inside the core's query bound.
+		[[nodiscard]] auto safe_search_repositories(const std::string_view aOwner, const std::string_view aRepository, const std::string_view aTerms,
+													const std::vector<std::string>& aRepositories) -> bool
+		{
+			if (aRepositories.empty()) {
+				return true;
+			}
+			if (aRepositories.size() + 1U > core::maximum_discovery_search_repositories) {
+				return false;
+			}
+			auto named = std::vector<std::string>{ std::string{ aOwner } + "/" + std::string{ aRepository } };
+			auto bytes = std::string_view{ "is:pr is:open " }.size() + aTerms.size() + std::string_view{ " repo:" }.size() + named.front().size();
+			for (const auto& repository : aRepositories) {
+				const auto slash = repository.find('/');
+				if (slash == std::string::npos || !safe_path_component(std::string_view{ repository }.substr(0U, slash))
+					|| !safe_path_component(std::string_view{ repository }.substr(slash + 1U))
+					|| std::ranges::any_of(named, [&repository](const std::string& aNamed) { return ascii_equal_fold(aNamed, repository); })) {
+					return false;
+				}
+				named.push_back(repository);
+				bytes += std::string_view{ " repo:" }.size() + repository.size();
+			}
+			return bytes <= core::maximum_discovery_search_query_bytes;
 		}
 
 		[[nodiscard]] auto hexadecimal_oid(const std::string_view aOid) noexcept -> bool
@@ -1869,6 +1898,8 @@ namespace bpr::adapters::github::detail {
 				searchTermsRequired
 				&& !safe_search_terms(aRequest.SearchTerms))
 			|| (personalTerms && !safe_personal_search_terms(aRequest.SearchTerms))
+			|| (personalTerms && !safe_search_repositories(aRequest.Owner, aRequest.Repository, aRequest.SearchTerms, aRequest.SearchRepositories))
+			|| (!personalTerms && !aRequest.SearchRepositories.empty())
 			|| (!searchTermsRequired && !personalTerms
 				&& !aRequest.SearchTerms.empty())) {
 			return failure(contract_failure_code::invalid_search_terms);
@@ -2043,9 +2074,13 @@ namespace bpr::adapters::github::detail {
 			break;
 		}
 		case read_operation::search_personal_pull_requests: {
-			result.Path           = std::string{ *prefix } + "/search/issues";
-			const auto expression = "is:pr is:open " + aRequest.SearchTerms + " repo:"
+			result.Path     = std::string{ *prefix } + "/search/issues";
+			auto expression = "is:pr is:open " + aRequest.SearchTerms + " repo:"
 				+ aRequest.Owner + "/" + aRequest.Repository;
+			// [[BPR-1680]]. One search for several saved repositories.
+			for (const auto& repository : aRequest.SearchRepositories) {
+				expression += " repo:" + repository;
+			}
 			result.Query = "page=" + std::to_string(aRequest.Page)
 				+ "&per_page=100&q=" + percent_encode(expression);
 			break;

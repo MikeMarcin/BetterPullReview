@@ -3735,12 +3735,13 @@ namespace {
 		};
 	}
 
-	[[nodiscard]] auto discovery_item(const std::uint32_t aNumber, const std::string_view aLogin, const std::string_view aRoot = "https://api.github.com") -> std::string
+	[[nodiscard]] auto discovery_item(const std::uint32_t aNumber, const std::string_view aLogin, const std::string_view aRoot = "https://api.github.com",
+									  const std::string_view aRepository = "Review-Repository") -> std::string
 	{
 		const auto number = std::to_string(aNumber);
 		return "{\"number\":" + number + ",\"title\":\"Pull request " + number + "\",\"state\":\"open\",\"draft\":false,"
 			+ "\"pull_request\":{\"url\":\"" + std::string{ aRoot } + "/repos/octo-org/review-repository/pulls/" + number + "\"},"
-			+ "\"repository_url\":\"" + std::string{ aRoot } + "/repos/Octo-Org/Review-Repository\","
+			+ "\"repository_url\":\"" + std::string{ aRoot } + "/repos/Octo-Org/" + std::string{ aRepository } + "\","
 			+ "\"user\":{\"login\":\"" + std::string{ aLogin } + "\",\"node_id\":\"U_" + std::string{ aLogin } + "\"}}";
 	}
 
@@ -3786,7 +3787,9 @@ namespace {
 		explicit discovery_fixture_transport(const bool aEnterprise = false)
 			: Enterprise{ aEnterprise }
 		{ }
-		bool                                                     Enterprise = false;
+		bool Enterprise = false;
+		/// [[BPR-1680]]. Further repositories a shared search may name.
+		std::vector<std::string>                                 Others;
 		std::vector<github_wire_request>                         Requests;
 		std::function<wire_response(const github_wire_request&)> Search;
 		std::function<wire_response(std::uint32_t)>              Reviewers;
@@ -3798,7 +3801,8 @@ namespace {
 			Requests.push_back(aRequest);
 			expect(validate_github_wire_request(Enterprise ? enterprise_profile() : profile(), aRequest).has_value(), "every discovery request passes production wire validation");
 			const auto& semantic = aRequest.Wire.Semantic;
-			expect(semantic.Owner == "octo-org" && semantic.Repository == "review-repository", "discovery reads only the named repository");
+			expect(semantic.Owner == "octo-org" && (semantic.Repository == "review-repository" || std::ranges::find(Others, semantic.Repository) != Others.end()),
+				   "discovery reads only the named repositories");
 			if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
 				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent), "the search is scoped to the repository");
 				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Search(aRequest) };
@@ -3883,6 +3887,74 @@ namespace {
 			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 1U && result->Rows[0].Number.value() == 8U
 					   && result->Rows[0].Detailed && result->Rows[0].Author == "author-a",
 				   "only a request that names the viewer as a user is kept; a team-only request is not the viewer's");
+		}
+		{
+			// [[BPR-1680]]. One search names several saved repositories; each
+			// row belongs to the one GitHub says, and its detail is read there.
+			auto transport   = discovery_fixture_transport{ };
+			transport.Others = { "tools" };
+			transport.Search = [](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository%20repo%3Aocto-org%2Ftools"
+						   && aRequest.Wire.Semantic.SearchRepositories == std::vector<std::string>{ "octo-org/tools" },
+					   "the shared search names both repositories, in order");
+				return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(5U, "octo-reviewer", "https://api.github.com", "TOOLS"), discovery_item(6U, "octo-reviewer", "https://api.github.com", "tools") }, 3U);
+			};
+			transport.Reviewers  = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+			auto       request   = discovery_request(reason::authored);
+			const auto tools     = core::repository_locator{ .Owner = "octo-org", .Name = "tools" };
+			request.Repositories = { request.Context.Repository, tools };
+			request.Known        = { { .Repository = tools, .Number = core::pull_request_number{ 6U } } };
+			const auto result    = perform_personal_discovery_read(transport, profile(), request, { });
+			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 3U
+					   && result->Rows[0].Repository == request.Context.Repository && result->Rows[0].Number.value() == 5U && result->Rows[0].Detailed
+					   && result->Rows[1].Repository == tools && result->Rows[1].Number.value() == 5U && result->Rows[1].Detailed
+					   && result->Rows[2].Repository == tools && result->Rows[2].Reused,
+				   "the same number in two repositories is two rows, each attributed as the request names it");
+			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
+					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/repos/octo-org/tools/pulls/5/requested_reviewers"; })
+					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
+				   "one search; each row's detail is read under its own repository");
+			transport.Search = [](const github_wire_request&) {
+				return discovery_search({ discovery_item(5U, "octo-reviewer", "https://api.github.com", "web") }, 1U);
+			};
+			transport.Requests.clear();
+			expect(!perform_personal_discovery_read(transport, profile(), request, { }), "a row of a repository the search did not name is refused");
+			const auto web  = core::repository_locator{ .Owner = "octo-org", .Name = "web" };
+			auto       many = std::vector<core::repository_locator>{ request.Context.Repository };
+			for (auto index = 0; index < 10; ++index) {
+				many.push_back({ .Owner = "octo-org", .Name = "zz-" + std::to_string(index) });
+			}
+			for (const auto& refused : {
+					 std::vector<core::repository_locator>{ tools, request.Context.Repository },
+					 std::vector<core::repository_locator>{ request.Context.Repository, web, tools },
+					 std::vector<core::repository_locator>{ request.Context.Repository, tools, tools },
+					 std::vector<core::repository_locator>{ request.Context.Repository, core::repository_locator{ .Owner = "octo-org", .Name = "" } },
+					 many,
+				 }) {
+				auto hostile         = discovery_request(reason::authored);
+				hostile.Repositories = refused;
+				transport.Requests.clear();
+				expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
+					   "a shared search names its own repository first, then others in order, once each, at most ten");
+			}
+			auto retained         = discovery_request(reason::retained);
+			retained.Repositories = { retained.Context.Repository };
+			expect(!perform_personal_discovery_read(transport, profile(), retained, { }) && transport.Requests.empty(), "a retained read names no shared search");
+			auto unnamed  = discovery_request(reason::authored);
+			unnamed.Known = { { .Repository = tools, .Number = core::pull_request_number{ 6U } } };
+			expect(!perform_personal_discovery_read(transport, profile(), unnamed, { }) && transport.Requests.empty(), "a known pull request is of a repository the search names");
+			auto semantic               = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::search_personal_pull_requests, .Owner = "octo-org", .Repository = "app", .SearchTerms = "author:octo-reviewer" };
+			semantic.SearchRepositories = { "Octo-Org/App" };
+			expect(!compile_read_request(semantic), "the wire never names one repository twice in any case");
+			semantic.SearchRepositories = { std::string(100U, 'o') + "/" + std::string(100U, 'n') };
+			expect(!compile_read_request(semantic), "the wire never sends a shared query past the core's bound");
+			semantic.SearchRepositories = { "octo-org/x/secret" };
+			expect(!compile_read_request(semantic), "every named repository is two safe path components");
+			semantic.SearchRepositories = { "octo-org/tools" };
+			expect(compile_read_request(semantic).has_value(), "a well-formed shared search compiles");
+			semantic.Operation   = read_operation::search_pull_requests;
+			semantic.SearchTerms = "is:open";
+			expect(!compile_read_request(semantic), "only the personal search names further repositories");
 		}
 		{
 			// [[BPR-1680]]. Pull requests the refresh's retained read already

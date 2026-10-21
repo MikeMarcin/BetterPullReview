@@ -128,12 +128,73 @@ namespace {
 		expect(keeps_reused_row(discovery_search_reason::requested, read(app, 7U, true, true, true)), "a requested row stays when the viewer is asked by name");
 		expect(!keeps_reused_row(discovery_search_reason::requested, read(app, 3U)), "and goes when only a team is asked, as its own read would decide");
 	}
+	/// Option 3: one search for several saved repositories, split where the
+	/// query would grow too long, and asked again alone when it cannot speak
+	/// for each repository.
+	void test_search_plan()
+	{
+		const auto repository = [](const std::string_view aOwner, const std::string_view aName) {
+			return repository_locator{ .Owner = std::string{ aOwner }, .Name = std::string{ aName } };
+		};
+		const auto app   = repository("octo", "app");
+		const auto tools = repository("octo", "tools");
+		expect(discovery_search_query(discovery_search_reason::authored, "octo-reviewer", std::vector{ app }) == "is:pr is:open author:octo-reviewer repo:octo/app",
+			   "a search of one repository is the query it always was");
+		expect(discovery_search_query(discovery_search_reason::requested, "octo-reviewer", std::vector{ app, tools })
+				   == "is:pr is:open review-requested:octo-reviewer repo:octo/app repo:octo/tools",
+			   "several repositories are named in order, one qualifier each");
+
+		const auto five = std::vector{ app, tools, repository("octo", "docs"), repository("other-org", "service"), repository("octo", "web") };
+		const auto plan = plan_discovery_searches(discovery_search_reason::authored, "octo-reviewer", five);
+		expect(plan.size() == 1U && plan.front() == five, "five short repositories are one search");
+
+		auto many = std::vector<repository_locator>{ };
+		for (auto index = 0; index < 25; ++index) {
+			many.push_back(repository("organization-" + std::to_string(index), "repository-with-a-name"));
+		}
+		for (const auto reason : { discovery_search_reason::authored, discovery_search_reason::requested }) {
+			const auto searches = plan_discovery_searches(reason, "octo-reviewer", many);
+			auto       covered  = std::vector<repository_locator>{ };
+			for (const auto& search : searches) {
+				expect(!search.empty() && search.size() <= maximum_discovery_search_repositories
+						   && discovery_search_query(reason, "octo-reviewer", search).size() <= maximum_discovery_search_query_bytes,
+					   "every search stays inside the query and repository bounds");
+				covered.insert(covered.end(), search.begin(), search.end());
+			}
+			expect(covered == many && searches.size() > 1U && searches.size() < many.size(), "the repositories are split into a few searches, each once, in order");
+		}
+
+		const auto alone = plan_discovery_searches(discovery_search_reason::authored, "octo-reviewer", five, std::vector{ tools, repository("octo", "web") });
+		expect(alone.size() == 3U && alone[0] == std::vector{ app, repository("octo", "docs"), repository("other-org", "service") }
+				   && alone[1] == std::vector{ tools } && alone[2] == std::vector{ repository("octo", "web") },
+			   "a repository refused before is searched on its own, after the rest, which stay together");
+		const auto longName = repository(std::string(39U, 'o'), std::string(100U, 'n'));
+		const auto longOnes = plan_discovery_searches(discovery_search_reason::requested, std::string(39U, 'l'), std::vector{ app, longName, longName, tools });
+		expect(longOnes.size() == 2U && longOnes[0] == std::vector{ app, longName } && longOnes[1] == std::vector{ longName, tools },
+			   "two of the longest names never share a search; each shares with a short one");
+		for (const auto& search : longOnes) {
+			expect(discovery_search_query(discovery_search_reason::requested, std::string(39U, 'l'), search).size() <= maximum_discovery_search_query_bytes,
+				   "and every search stays inside the bound");
+		}
+		expect(plan_discovery_searches(discovery_search_reason::authored, "octo-reviewer", { }).empty(), "no repository, no search");
+		const auto cased = plan_discovery_searches(discovery_search_reason::authored, "octo-reviewer", std::vector{ repository("Octo", "App"), app, tools });
+		expect(cased.size() == 2U && cased[0] == std::vector{ repository("Octo", "App") } && cased[1] == std::vector{ app, tools },
+			   "two names of one repository in different case never share a search");
+
+		for (const auto outcome : { discovery_search_outcome::refused, discovery_search_outcome::result_limit, discovery_search_outcome::detail_limit }) {
+			expect(splits_discovery_search(2U, outcome) && !splits_discovery_search(1U, outcome), "a shared search that cannot speak for each repository is asked again alone");
+		}
+		for (const auto outcome : { discovery_search_outcome::complete, discovery_search_outcome::incomplete_results, discovery_search_outcome::failed }) {
+			expect(!splits_discovery_search(5U, outcome), "a complete answer, GitHub's incomplete search and other failures stand for every repository");
+		}
+	}
 } // namespace
 
 auto main() -> int
 {
 	test_diagnosis_line();
 	test_known_pull_requests();
+	test_search_plan();
 	std::cout << "home discovery core tests passed\n";
 	return EXIT_SUCCESS;
 }

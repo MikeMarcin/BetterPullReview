@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner report, 2026-10-20: Home takes a long time to refresh on a GHE environment; anonymized diagnostic export supplied out of band (not committed)","reservation":"docs/issues/_reservations/BPR-1680--BPR-1681--3313b46dcf00.json","related_cards":["BPR-1681","BPR-1679","BPR-0988","BPR-0989","BPR-0990","BPR-1370","BPR-1379","BPR-1436"],"owner_decision":"2026-10-21: options 1 to 5 approved, in order, one commit each; options 6 and 7 not approved"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"option 1 commit on 97c35a45b","evidence":{"kind":"command","detail":"core_home_discovery (line format, read-back, every refusal), application_review_queue_enrollment's new test_discovery_records_each_refresh_and_read (ten lines for one refresh of four reads: starts, verbose read starts, read ends with requests, lane wait and run time, a failed read's failure, the refresh's totals and duration; a session change ends a refresh cancelled), quill_logging (a discovery read's end reaches the real file with its failure; any other detail is dropped), application_release_maintenance's new test_discovery_export (both export policies keep exactly the counts-only line and omit one with a repository or login in it), and application_personal_discovery_public_path and its CLI variant reading the composed profile's own diagnostics file (every refresh with its reads and requests, read ends, no viewer login or repository name) pass. application_home_waiting_public_path and application_home_open_feedback_public_path pass."}},{"criterion":"AC2","outcome":"pass","revision":"option 2 commit over the option 1 commit","evidence":{"kind":"command","detail":"core_home_discovery's test_known_pull_requests (only open, fully read pull requests, ordered, once each; a requested row stays only when the viewer is asked by name), github_paged_read (known rows come back Reused with no requested-reviewer, pull request or summary read; known rows of another repository, out of order, invalid, or on a retained read are refused before any request; a retained read reports RequestsViewer in any case), application_review_queue_enrollment's new test_discovery_searches_reuse_the_refresh_retained_reads (both searches know the three fully read pull requests and not the bounded one; two rows reused; a team-only reused row is not requested; an authored reused row takes the retained detail; a search-only row is read as before; an unknown Reused row is dropped), and the four fixture courses pass. application_personal_discovery_public_path asserts three reuses on its explicit Refresh: 19 requests before, 13 after; its restart refresh 23 before, 17 after."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"option 1 commit on 97c35a45b","evidence":{"kind":"command","detail":"core_home_discovery (line format, read-back, every refusal), application_review_queue_enrollment's new test_discovery_records_each_refresh_and_read (ten lines for one refresh of four reads: starts, verbose read starts, read ends with requests, lane wait and run time, a failed read's failure, the refresh's totals and duration; a session change ends a refresh cancelled), quill_logging (a discovery read's end reaches the real file with its failure; any other detail is dropped), application_release_maintenance's new test_discovery_export (both export policies keep exactly the counts-only line and omit one with a repository or login in it), and application_personal_discovery_public_path and its CLI variant reading the composed profile's own diagnostics file (every refresh with its reads and requests, read ends, no viewer login or repository name) pass. application_home_waiting_public_path and application_home_open_feedback_public_path pass."}},{"criterion":"AC2","outcome":"pass","revision":"option 2 commit over the option 1 commit","evidence":{"kind":"command","detail":"core_home_discovery's test_known_pull_requests (only open, fully read pull requests, ordered, once each; a requested row stays only when the viewer is asked by name), github_paged_read (known rows come back Reused with no requested-reviewer, pull request or summary read; known rows of another repository, out of order, invalid, or on a retained read are refused before any request; a retained read reports RequestsViewer in any case), application_review_queue_enrollment's new test_discovery_searches_reuse_the_refresh_retained_reads (both searches know the three fully read pull requests and not the bounded one; two rows reused; a team-only reused row is not requested; an authored reused row takes the retained detail; a search-only row is read as before; an unknown Reused row is dropped), and the four fixture courses pass. application_personal_discovery_public_path asserts three reuses on its explicit Refresh: 19 requests before, 13 after; its restart refresh 23 before, 17 after."}},{"criterion":"AC3","outcome":"pass","revision":"option 3 commit over the option 2 commit","evidence":{"kind":"command","detail":"core_home_discovery's test_search_plan (exact queries; five short repositories in one search; 25 long ones split, each search inside the 256-byte and ten-repository bounds, every repository once and in order; refused ones alone and after; two of the longest names never share; case-different names never share; split only for a shared search refused or past its page or detail bound), github_paged_read (the shared query names both repositories in order; the same number in two repositories is two attributed rows; each detail read under its own repository; an item of an unnamed repository refused; shared repositories out of order, repeated, invalid, more than ten, on a retained read, or a known pull request of an unnamed repository refused before any request; compile refuses a case-insensitive repeat, a query past the bound, a path with a further slash, and the field on another operation), application_review_queue_enrollment's new test_discovery_searches_several_repositories_at_once (two searches for three repositories; rows applied to their repositories; a complete shared answer withdraws; past its page and refused shared searches split ahead of the rest; only the repository refused alone is unreadable; the next refresh searches it alone and the others together), and the four fixture courses pass. application_personal_discovery_public_path: Save Repository 11 requests to 9, explicit Refresh 13 to 11, restart refresh 17 to 19 (the refused shared search asked again alone, once per session)."}}]
 ---
 
 # Home refresh is slow on GitHub Enterprise
@@ -193,3 +193,35 @@ The three reused rows save two fixture requests each; on a real server each
 saves about six (requested reviewers, the pull request, review requests, merge
 assessment, check runs, commit statuses). The course now asserts the three
 reuses and its detail-read count; Home lists the same rows.
+
+**Option 3, done.** `core::plan_discovery_searches` packs the saved
+repositories, for each reason, into searches of at most ten repositories and
+a whole query of at most 256 bytes (qualifiers counted, the conservative
+reading of GitHub's limit), never two names of one repository in different
+case. The request names them all (`Repositories`), the wire query is
+`is:pr is:open author:LOGIN repo:A repo:B ...`
+(`semantic_read_request::SearchRepositories`, validated on compile), the
+adapter attributes each item by its `repository_url`, reads its detail under
+its own repository and refuses an item of any other, and the host applies one
+answer per named, still-saved repository. Per-repository completeness and
+readability are kept by `core::splits_discovery_search`: a shared search GitHub
+refuses (a 422 names no repository) or whose page or detail bound left rows
+out is asked again one repository at a time, ahead of the rest, and a
+repository then refused alone is searched alone for the rest of the session.
+GitHub's own incomplete search and other failures apply to each named
+repository, as they would have alone. `personal_discovery_options` bounds the
+repositories per search; the host's older scheduler tests set it to one, the
+shape they were written for, and the new tests and the composition use the
+production bound.
+
+| Course refresh | Before | Option 2 | Option 3 |
+|---|---|---|---|
+| Save Repository (2 repositories, 0 retained): reads, requests | 4, 11 | 4, 11 | 2, 9 |
+| explicit Refresh (2 repositories, 4 retained) | 8, 19 | 8, 13 | 6, 11 |
+| restart, 4 repositories, 3 refused | 12, 23 | 12, 17 | 14, 19 |
+
+The restart refresh costs two more searches than option 2: the shared search
+is refused because three of its repositories are, and is then asked one
+repository at a time; later refreshes in the session search the refused three
+alone, so this is paid once. On the owner's example of five saved
+repositories, the ten searches of a refresh become two.

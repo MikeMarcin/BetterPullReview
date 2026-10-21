@@ -257,8 +257,9 @@ scheduler of a profile, beside its queue host; every window sees what it
 finds through the queue's projection. It adopts one account session — host,
 account and identity generation, named exactly as the queue names its
 session — and searches the saved repositories of that server and account only,
-both reasons for each through `personal_discovery_port` ([[BPR-0988]]), at
-most two reads at a time.
+for both reasons, through `personal_discovery_port` ([[BPR-0988]]), at most
+two reads at a time; one search names several repositories ([[BPR-1680]],
+below).
 
 It runs when a session is adopted, on activation when the last refresh that
 ran to its end is older than five minutes, when a repository it has not searched is saved (at
@@ -291,6 +292,29 @@ at once and the first refresh under the adopted session supplies it again.
 A discovery answer is stored before it is shown. A refused write rolls the
 update back and reports the queue's store unavailable, exactly as any other
 queue write; it is never answered from another profile's store.
+
+**One search for several repositories** ([[BPR-1680]]). The searches no
+longer go one per repository and reason. For each reason,
+`core::plan_discovery_searches` packs the saved repositories, in locator
+order, into as few searches as fit: at most ten repositories
+(`maximum_discovery_search_repositories`, a `personal_discovery_options`
+value the host's own tests set to one) and a whole query of at most 256 bytes
+(`maximum_discovery_search_query_bytes`, counting qualifiers, so no server's
+reading of GitHub's length rule refuses it), never two names of one repository
+in different case. The request carries every repository it names
+(`personal_discovery_request::Repositories`) and the wire query is
+`is:pr is:open author:LOGIN repo:A repo:B ...`; the adapter attributes each
+row to the repository its `repository_url` names, reads its detail under that
+repository, and refuses a row of any other. The host applies one answer per
+named repository that is still saved, each as complete as the search. A
+search of one repository could say on its own whether that repository was
+complete and readable; a shared one cannot when GitHub refuses it (a 422 names
+no repository) or when its page or detail bound left rows out, so
+`core::splits_discovery_search` asks such a search again one repository at a
+time, ahead of the rest of the refresh, and a repository then refused on its
+own is searched on its own for the rest of the session. GitHub's own
+incomplete search and every other failure stand for each repository the
+search named, as they would have for each of them alone.
 
 **One read per pull request per refresh** ([[BPR-1680]]). A refresh reads its
 retained pull requests before it searches, so a pull request both retained and

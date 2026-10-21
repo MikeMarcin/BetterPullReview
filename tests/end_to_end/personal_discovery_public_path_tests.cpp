@@ -602,20 +602,21 @@ try {
 
 	// Save Repository: the repository is searched at once, with exactly the
 	// personal reads, and Home lists what they found under its reasons.
+	// [[BPR-1680]]. One search per reason names both saved repositories.
 	const auto before = evidence().AccountReadOperations.size();
 	save->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 2U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "saving the repository runs one discovery refresh", diagnose);
 	const auto served = evidence();
 	const auto reads  = reads_since(served, before, cliCourse);
-	if (served.DiscoverySearches != 6U || reads.size() != 8U) {
+	if (served.DiscoverySearches != 4U || reads.size() != 9U) {
 		std::cerr << "searches=" << served.DiscoverySearches << " details=" << served.DiscoveryDetailReads << " reads:";
 		for (const auto& read : reads) {
 			std::cerr << ' ' << read;
 		}
 		std::cerr << '\n';
 	}
-	expect(served.DiscoverySearches == 6U && served.DiscoveryDetailReads == 5U && reads.size() == 11U && only_discovery(reads),
+	expect(served.DiscoverySearches == 4U && served.DiscoveryDetailReads == 5U && reads.size() == 9U && only_discovery(reads),
 		   "one refresh uses personal searches and bounded reviewer/metadata reads; no files, diffs or conversations");
 	auto terms = served.DiscoverySearchTerms;
 	std::ranges::sort(terms);
@@ -852,7 +853,7 @@ try {
 	expect(afterWindow.AccountReadOperations.size() == beforeWindow.AccountReadOperations.size() && afterWindow.VaultStoreAttempts == beforeWindow.VaultStoreAttempts
 			   && afterWindow.VaultRetrieveAttempts == beforeWindow.VaultRetrieveAttempts && afterWindow.VaultDeleteAttempts == beforeWindow.VaultDeleteAttempts,
 		   "presenting the session in the second window reads no account and touches no vault");
-	expect(evidence().DiscoverySearches == 6U && discovery().Statistics.Refreshes == 2U, "a second window adds no discovery request");
+	expect(evidence().DiscoverySearches == 4U && discovery().Statistics.Refreshes == 2U, "a second window adds no discovery request");
 	// [[BPR-1414]]. The real strip actions must survive the host round trip.
 	{
 		const auto allRows = queue_numbers(*windowA);
@@ -903,7 +904,7 @@ try {
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
 	std::cerr << "refresh searches=" << evidence().DiscoverySearches << " details=" << evidence().DiscoveryDetailReads << " reads=" << reads_since(evidence(), beforeRefresh, cliCourse).size() << " reused=" << discovery().Statistics.Reused << "\n";
-	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads <= 12U && reads_since(evidence(), beforeRefresh, cliCourse).size() <= 32U
+	expect(evidence().DiscoverySearches == 6U && evidence().DiscoveryDetailReads <= 12U && reads_since(evidence(), beforeRefresh, cliCourse).size() <= 32U
 			   && only_discovery(reads_since(evidence(), beforeRefresh, cliCourse)),
 		   "Refresh reads retained PR metadata and review summaries before the bounded personal searches");
 	// [[BPR-1680]]. #4001, #4002 and #4003 were read as retained pull
@@ -958,7 +959,7 @@ try {
 	openAddition();
 	addDraft(QStringLiteral("octo-org/offline-repository"));
 	wait_for([&] { return notice().contains(QStringLiteral("could not be saved locally")); }, "real storage refusal is visible", diagnose);
-	expect(savedCount() == 2 && windowA->saved_repository_name()->text() == QStringLiteral("octo-org/offline-repository") && evidence().DiscoverySearches == 10U,
+	expect(savedCount() == 2 && windowA->saved_repository_name()->text() == QStringLiteral("octo-org/offline-repository") && evidence().DiscoverySearches == 6U,
 		   "storage refusal retains the draft, no record or discovery or review is created");
 	expect(sqlite3_exec(raw, "ROLLBACK", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture releases durable queue lock");
 	blocker.reset();

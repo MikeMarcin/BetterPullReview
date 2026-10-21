@@ -6,6 +6,7 @@
 #include "bpr/application/personal_discovery_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
+#include "bpr/core/home_discovery_plan.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -62,6 +63,16 @@ namespace bpr::application {
 	/// \brief The wait a secondary limit without its own retry-after asks for.
 	inline constexpr std::uint32_t personal_discovery_default_retry_seconds = 60U;
 
+	/// \brief [[BPR-1680]]. How discovery shapes its reads.
+	struct personal_discovery_options
+	{
+		/// The most saved repositories one personal search names. One searches
+		/// each repository on its own, as discovery did before.
+		std::size_t SearchRepositories = core::maximum_discovery_search_repositories;
+
+		auto operator<=>(const personal_discovery_options&) const = default;
+	};
+
 	struct personal_discovery_statistics
 	{
 		std::uint64_t Refreshes         = 0U;
@@ -81,6 +92,9 @@ namespace bpr::application {
 		/// [[BPR-1680]]. Search rows answered from the refresh's retained
 		/// read instead of reads of their own.
 		std::uint64_t Reused = 0U;
+		/// [[BPR-1680]]. Searches of several repositories asked again one
+		/// repository at a time.
+		std::uint64_t Split = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};
@@ -91,9 +105,10 @@ namespace bpr::application {
 	/// profile's queue host, so there is one scheduler however many windows
 	/// are open. Each cycle first refreshes bounded metadata and submitted
 	/// reviews for retained PRs, then searches the saved repositories of the
-	/// adopted account's server and account, both reasons for each (a pull
-	/// request its retained read already read in full is not read again by a
-	/// search, [[BPR-1680]]), at most
+	/// adopted account's server and account for both reasons, one search per
+	/// reason naming as many repositories as `personal_discovery_options`
+	/// and the core's query bound allow (a pull request its retained read
+	/// already read in full is not read again by a search, [[BPR-1680]]), at most
 	/// `maximum_personal_discovery_in_flight` reads at a time, and tags every
 	/// read with its session generation and refresh: a completion from an
 	/// earlier session or refresh is refused. It runs when a session is
@@ -119,7 +134,8 @@ namespace bpr::application {
 								decision_executor&                   aDecisionLane,
 								review_queue_application_host&       aQueue,
 								const personal_discovery_clock_port& aClock,
-								diagnostic_log_port*                 aLog = nullptr);
+								diagnostic_log_port*                 aLog     = nullptr,
+								personal_discovery_options           aOptions = { });
 		~personal_discovery_host();
 
 		personal_discovery_host(const personal_discovery_host&)                    = delete;
