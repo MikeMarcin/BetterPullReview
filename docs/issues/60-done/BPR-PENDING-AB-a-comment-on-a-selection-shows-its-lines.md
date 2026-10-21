@@ -8,7 +8,7 @@ depends_on: ["BPR-1212"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"ux","origin":"owner report 2026-10-21 (relayed by the coordinator)","owner_note":"Am I supposed to be able to leave comments on a line range? Seems like I can only do it on a single line. / I would expect to be able to do it from the right click context menu. / On a selection","related_cards":["BPR-1212","BPR-1335","BPR-1564","BPR-1713"],"related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"frontend_design":"frontend-design:frontend-design loaded before the menu labels and the range thread's wash, header and mark wording"}
-acceptance: [{"criterion":"AC1: right lines selected by a drag either way, a Shift-click or Shift+Down, then Add comment from a right-click inside them, on their code or a line number, or Return, give one draft on all of them; Suggest change fills its block with exactly their lines; a right-click outside takes its own line; base lines take one comment only with GitHub's numbering, and say why otherwise","outcome":"pass","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_a_selection_takes_a_range_comment_from_its_menu drives every gesture through QWindowSystemInterface with the event loop turning between events, opens the window's popup and clicks its item on it. Failing before: 'Add comment and Suggest change name the lines they take: Add comment', and a right-click on a line number opened no menu."}},{"criterion":"AC2: on several lines the menu's items name them (\"Add comment on lines a–b\", \"on base lines a–b\")","outcome":"pass","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_workbench_line_draft|application_line_draft_contract)$'","detail":"The Qt course and the composed course read the item's text on the popup the window opened."}},{"criterion":"AC3: a published thread on several lines is shown on all of them: \"Thread on lines a–b\", header \"a–b\", mark \"Lines a–b: N posts\", open wash and gutter bar across them","outcome":"pass","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_conversation_cards_view|qt_workbench_line_draft|application_line_draft_contract)$'","detail":"Cards view: a thread with start_line 12 and line 13 is named for both, its header shows 12–13 and its mark spans both; one with no start line keeps 'Thread on line 13'. Window: the thread opened from the menu's Open thread has the open mark with FirstLine 2 for lines 3–5. Composed: the thread the conversations show after Publish has line start+3 and first line start+1. Failing before: 'Thread on line 13'."}},{"criterion":"AC4: the composed application publishes a mouse-made range; related suites, gates and docs","outcome":"pass","evidence":{"kind":"command","command":"ctest --preset dev -R '^(application_line_draft_contract|application_label_authoring_contract|qt_workbench_conversation_reveal|qt_workbench_window_scale_100|qt_diff_workbench_scale_100|qt_composed_github_scale_100|qt_composed_inline_drawer_scale_100|qt_composed_long_thread_scale_100|command_correctness_registry_contract|application_review_round_trip_composition_contract)$'; cmake --build --preset dev --target coding-format-check; python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <changed units>; python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py","detail":"LINE_DRAFT_EVIDENCE:11111111. Results in the Verification section."}}]
+acceptance: [{"criterion":"AC1: right lines selected by a drag either way, a Shift-click or Shift+Down, then Add comment from a right-click inside them, on their code or a line number, or Return, give one draft on all of them; Suggest change fills its block with exactly their lines; a right-click outside takes its own line; base lines take one comment only with GitHub's numbering, and say why otherwise","outcome":"pass","revision":"8cf884360a72130df936f80051dcbdfbd0c1fa5d","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_a_selection_takes_a_range_comment_from_its_menu drives every gesture through QWindowSystemInterface with the event loop turning between events, opens the window's popup and clicks its item on it. Failing before: 'Add comment and Suggest change name the lines they take: Add comment', and a right-click on a line number opened no menu."}},{"criterion":"AC2: on several lines the menu's items name them (\"Add comment on lines a–b\", \"on base lines a–b\")","outcome":"pass","revision":"8cf884360a72130df936f80051dcbdfbd0c1fa5d","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_workbench_line_draft|application_line_draft_contract)$'","detail":"The Qt course and the composed course read the item's text on the popup the window opened."}},{"criterion":"AC3: a published thread on several lines is shown on all of them: \"Thread on lines a–b\", header \"a–b\", mark \"Lines a–b: N posts\", open wash and gutter bar across them","outcome":"pass","revision":"8cf884360a72130df936f80051dcbdfbd0c1fa5d","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_conversation_cards_view|qt_workbench_line_draft|application_line_draft_contract)$'","detail":"Cards view: a thread with start_line 12 and line 13 is named for both, its header shows 12–13 and its mark spans both; one with no start line keeps 'Thread on line 13'. Window: the thread opened from the menu's Open thread has the open mark with FirstLine 2 for lines 3–5. Composed: the thread the conversations show after Publish has line start+3 and first line start+1. Failing before: 'Thread on line 13'."}},{"criterion":"AC4: the composed application publishes a mouse-made range; related suites, gates and docs","outcome":"pass","revision":"8cf884360a72130df936f80051dcbdfbd0c1fa5d","evidence":{"kind":"command","command":"ctest --preset dev -R '^(application_line_draft_contract|application_label_authoring_contract|qt_workbench_conversation_reveal|qt_workbench_window_scale_100|qt_diff_workbench_scale_100|qt_composed_github_scale_100|qt_composed_inline_drawer_scale_100|qt_composed_long_thread_scale_100|command_correctness_registry_contract|application_review_round_trip_composition_contract)$'; cmake --build --preset dev --target coding-format-check; python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <changed units>; python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py","detail":"LINE_DRAFT_EVIDENCE:11111111. Results in the Verification section."}}]
 ---
 
 # BPR-PENDING-AB: A comment on a selection shows its lines, from the menu to the published thread
@@ -129,21 +129,35 @@ line's own draft, not the selection's. These are follow-ups.
 
 ## Verification
 
-macOS (Apple silicon), 2026-10-21, the `dev` preset's Debug configuration
-built with `-g0` and the main checkout's CPM cache.
+Implementation `8cf884360`, rebased on main `cb5679683`; macOS (Apple
+silicon), 2026-10-21, the `dev` preset's Debug configuration built with `-g0`
+and the main checkout's CPM cache.
 
 - **Failing before.** The Qt course run against the unchanged Qt sources
   fails at "Add comment and Suggest change name the lines they take: Add
   comment"; the line-number right-click opened no popup; the cards view's
-  range thread was "Thread on line 13". The composed course with the menu
-  check relaxed to "Add comment" published the range exactly
-  (`LINE_DRAFT_EVIDENCE:11111111`), so the range path itself held.
+  range thread was "Thread on line 13" (main's two cards sources swapped in,
+  then restored). The composed course on the unchanged Qt sources, with its
+  menu check relaxed to "Add comment" and before its read-back of the thread,
+  opened and published the range exactly, so the range path itself held.
 - **Suites pass:** `qt_workbench_line_draft`, `qt_conversation_cards_view`,
   `qt_workbench_conversation_reveal`, `qt_workbench_window_scale_100`,
   `qt_diff_workbench_scale_100`, `qt_composed_github_scale_100`,
   `qt_composed_inline_drawer_scale_100`, `qt_composed_long_thread_scale_100`,
   `application_line_draft_contract` (three variants) and
-  `application_label_authoring_contract`.
+  `application_label_authoring_contract`, then, on the rebased and resealed
+  candidate, `command_correctness_registry_contract` and
+  `application_review_round_trip_composition_contract` with them: 12 of 12.
+- **Gates.** `coding-format-check` (clang-format 22.1.8) passes on 1,725
+  files. clang-tidy (LLVM 22) with warnings as errors passes on the changed
+  product units (`conversation_cards_view.cpp`, `conversation_open_card.cpp`,
+  `diff_workbench.cpp`, `workbench_window.cpp`, `main.cpp`,
+  `github_application.cpp`) and `conversation_cards_view_tests.cpp`. It
+  reports only two existing `std::endl` uses in `workbench_window_tests.cpp`'s
+  case tracer, which this change does not touch. Both reseal checks report
+  nothing left to reseal. `verify_documentation_tests.py` passes 67 of 67.
+  `verify_documentation.py`, run with `.agents` linked, refuses only this
+  card's provisional ID format.
 - **Renders.** Offscreen renders of the range menu and of an open thread on
   lines 3–5 were checked by eye and kept outside the repository: the items
   read "Add comment on lines 4–6" and "Suggest change on lines 4–6", and the
