@@ -2,9 +2,121 @@
 
 [[BPR-1670]] implements owner mandate `windows-suite-speedup-r1`:
 “Have an implementer look into why the Windows suite takes almost 3 hours and
-speed it up without weakening the tests.” This investigation remains in
-progress. A focused scheduling speedup is measured; complete candidate and
-full-suite acceptance remain pending.
+speed it up without weakening the tests.” The bounded correction is verified
+by matched native controls, one complete native course, and focused recovery
+of a missing portable tooling prerequisite. The raw complete course remains
+failed evidence; it is not presented as a zero-exit full invocation.
+
+## Final native result and qualification boundary
+
+| Measurement | Retained release | Bounded candidate |
+|---|---:|---:|
+| Full CTest wall | 9563.164 s / 159.39 min | 8161.116 s / 136.02 min |
+| Summed row durations | 11649.085 s | 11462.178 s |
+| Serial rows / summed duration | 408 / 8866.900 s | 374 / 6889.284 s |
+| Complete inventory | 784 | 784, no missing or extra rows |
+| Raw pass / fail / configured Debug skip | 783 / 0 / 1 | 780 / 3 / 1 |
+| Raw CTest exit | 0 | 8, retained unchanged |
+
+The observed full-course difference is 1402.048 seconds (23.37 minutes, 14.66%).
+It is consistent with the same-binary scheduling discriminator below, but it is
+not an exact same-source causal estimate: the release and candidate sources,
+cost history and warm nested build differ. The four-row matched control is the
+causal scheduling evidence. No complete release-time saving or 30-minute
+release is claimed.
+
+The complete course ran at `d989efb5cebabbb180bed7faaf8fecee66d66ca5`, four jobs,
+Qt 6.12 Debug, in the approved native interactive context. Source stayed clean.
+Both prior real release regressions, review navigation and diff zoom, passed.
+The only skip remains `application_large_review_cache_bytes`, configured for
+Debug in both manifests. All eight composition methods passed in 118.855 seconds
+(119.00 seconds CTest); the transcript records `COMPOSITION_BUILD_JOBS: 8`.
+This reused the existing nested compiler outputs; it does not measure cold
+speedup. No assertion, workload, timeout, security boundary or test was removed.
+
+The three failures were `documentation_structure`,
+`documentation_issue_graph_contract` and `issue_id_allocation_contract`:
+the isolated clone omitted the declared, ignored implement-rfc test tooling.
+Their combined failed duration was 0.41625 seconds. Native MASK's ordinary
+offline preview resolved every package to the committed lock, including
+implement-rfc commit `5285995cf454d806a549817b0f3934d9c4c34292`, payload
+`728ef9c6f6cd3061b1bce99147cc0d0c348f61e9207b1c191789860ea6a3f3c3`.
+Initial role preparation refused the bundle-clone origin spelling. Correcting
+only this owned clone's origin metadata to the canonical project URL, followed
+by matching-plan repair, passed native `status --check`. There was no fetch,
+upgrade, global credential change or producer mutation. Agent host loading
+remains explicitly unverified and is not a test prerequisite claim.
+
+At readiness candidate `6757e91b0c4d59eb2ac42e8509071c4f3d525e05`, the actual
+three checks passed as prerequisite preflight in 23.826 seconds, then all four
+selected rows (the three checks and updated runner contract) passed in 5.939
+seconds; total runner wall was 29.866 seconds. The runner contract retains its
+original nine methods and adds three prerequisite controls, including a real
+CTest failure/success sentinel. Failed, skipped, incomplete or unexpected
+preflight results cannot start the expensive graph. Passing preflight still
+runs every row in the selected full inventory, including the prerequisite rows
+again; report-only and graphs without these rows keep their existing behavior.
+The lock declaration is recorded; deployment verification remains MASK's job.
+
+The recovery's exact source delta is two Python files and two operator documents.
+No CMake registration, runtime payload or fixture changed. Its actual default
+784-row manifest equals the completed run's manifest. All 472 maintained
+executable/DLL identities match before and after the complete course and focused
+recovery, including Qt dependencies. The earlier configure-only helper exception
+is precisely scoped below; recovery performed no configure or build. Optional
+bpr-cycle/pr-tour deployment-copy rows are absent in both 784-row configurations,
+so no missing optional branch is being treated as equivalent coverage.
+
+Qualification is combined evidence: the complete native runtime course plus
+all three repaired prerequisite checks and the new orchestration controls.
+The raw full invocation still has exit 8 and its three failures. No second
+136-minute invocation was spent solely on restored ignored tooling and this
+Python-only early guard. Pre-build commands invoke the actual owning checks;
+the runner also retains separate preflight, full CTest and total wall timings.
+
+Raw full tar SHA-256:
+`f71c5896e7727eeb742063c7c7fdbf05c35c2f6222d3e4da0a8311c3c0b6fb6e`.
+Focused recovery, bootstrap/status, source/binary/graph bridge and exact
+16-task cleanup tar SHA-256:
+`12fdd8f1a92f4442eefb85968ca07c4b3feacffd7963fa3733f5c2ebf5c12562`.
+Both native and collected local hashes match. The source/build roots remain
+retained; all task-owned native commands and collectors finished, no owned
+process remained, and the PC lease was returned. No human acceptance is pending.
+
+## Release target and future portfolio work
+
+The owner subsequently set a 30-minute target from release request through
+verified publication, including builds, native qualification, signing, audit,
+source assets, scans, review and public downloads. The owner also requested an
+Astra Max read-only architecture/portfolio peer to examine necessity, overlap
+and cost of tests. This is a user-authorized design peer, not an additional
+engineering implementer. This bounded milestone preserves the existing graph;
+it does not adopt a reduced portfolio or silently waive any acceptance.
+
+The retained authoritative future design is external at
+`/Users/jaeger/Documents/Codex/releases/release-30min-design-20261020/architecture.md`,
+with `analysis.json`, `updater-patch-impact.json` and `retention.json` alongside.
+Report SHA-256:
+`ad0157d3693bf0ffda63d71504e7ee76c59a90c4fcb9185cfbff6ee0764812d1`.
+The remaining 114.82 minutes of exclusive work and 191.04 minutes of summed
+Windows work cannot fit 30 minutes merely by selecting four same-host jobs.
+The design proposes a regression-owned portfolio, exact-input qualification
+reuse, better build invalidation and independent native capacity with explicit
+proof requirements. These are future decisions and engineering, not delivered
+savings. For the simulated updater patch, broad diagnostic-stamp invalidation
+adds only one target / 1.68 seconds beyond its already-large direct target
+closure; it does not explain away that patch's actual qualification cost.
+
+Cold work is not hidden outside the clock. This investigation's isolated Debug
+remainder alone took 515.489 seconds (744 objects already existed); the failed
+cold composition attempt took 1302.970 seconds, including 1132.090 seconds of
+Ninja commands. Adding just those two known stages to the final full course is
+9979.574 seconds / 166.33 minutes, before earlier bootstrap, focused diagnosis,
+guards and recovery. This is a lower bound on the investigation's actual work,
+not an uninterrupted clean release benchmark. A clean bootstrap-to-publication
+course was not measured here, and no cold compiler saving is claimed. The
+bounded changes address overbroad scheduling, early invalid-candidate feedback,
+and the existing compiler-job setting; they do not meet the new release target.
 
 ## Owner amendment: systemic diagnosis
 
@@ -41,10 +153,15 @@ Qt Python driver). Different hardware/OS/Debug libraries and diagnostics prevent
 a causal compiler/configuration claim. No Debug Qt or diagnostic switch is
 proposed. The slow Windows work multiplies the cost of overbroad exclusivity.
 
-Some apparent sharing opportunities are unsafe: workbench scale rows write
-some common PNG names; timed composed interaction cases carry 100 ms limits;
-restoration phases must actually restart and some later phases depend on
-earlier catalog/vault bytes. Candidate scheduling must audit outputs, private
+Restoration phases must actually restart, and some later phases depend on
+earlier catalog/vault bytes. An earlier binary-wide audit incorrectly attributed
+a 100 ms drawer assertion and fixed PNG names to the default workbench scale
+commands. The assertion belongs to `--conversation-reveal`; the fixed ribbon
+render belongs to `--center-ribbon-width`. Default render helpers prefix their
+scale-specific output basename. No collision among those three actual default
+commands has been established. They remain conservatively exclusive in this
+bounded cohort; a future exact-argv/reachable-output audit may justify more.
+This correction does not change the retained policy or raw native evidence. Candidate scheduling must audit outputs, private
 profile/store/vault ownership, native desktop use, metrics and deadlines,
 and preserve existing resource locks and fixture dependencies.
 
@@ -79,10 +196,10 @@ which Windows treats as the same name: a retained negative control shows the
 previous guard admitted `QT_QPA_PLATFORM=offscreen` plus
 `qt_qpa_platform=windows`, while the corrected guard refuses it. No maintained
 row uses such an alias; its metadata and native course are unchanged.
-Nine runner/configuration contract methods pass locally, including
+The initial nine runner/configuration contract methods pass locally, including
 positive graph checks for preserved locks, fixtures, labels and deadlines.
-The four-row native causal control and expanded 34-row course pass; full native
-acceptance remains pending. The uncommitted path experiment was discarded without
+The four-row native causal control and expanded 34-row course pass; final
+complete-course and focused recovery evidence is recorded above. The uncommitted path experiment was discarded without
 native compilation. The unchanged history course already in flight is retained.
 No full gate is justified by the checker gain alone.
 The unchanged history control passed in 425.723 seconds (170.949 seconds of
@@ -239,7 +356,7 @@ eight-job ceiling, defaults to two when unset/empty, and rejects invalid or
 nonpositive values. The row remains exclusive; the compiler subprocess exits
 before every original binary/runtime check. No build input/target/configuration,
 assertion or timeout changes, and no tree is discarded for another cold build.
-The final gate will record the actual selected setting; cold speedup remains
+The final transcript records eight jobs; cold speedup remains
 unmeasured and is not inferred from the worker-count ratio.
 Nine maintained runner-contract methods pass locally, including the new
 unset/empty/valid/clamped/invalid job-setting cases. An external control also
@@ -348,7 +465,7 @@ of sampled CPU. Inclusive percentages overlap. The raw sampler has incomplete
 Qt symbols; application caller symbols come from the matching PDB. No compiler,
 Debug Qt library or diagnostic configuration has been weakened.
 
-## Bounded experiments and pending acceptance
+## Bounded experiments
 
 The Settings parent experiment was rejected and reverted in `28887de99`.
 It constructed the same nine Settings roots under their final page parents.
@@ -394,7 +511,10 @@ failure despite exit zero; it supplies no accepted CPU sample. A separate
 explicit profiler session supplied the target-process sample and was stopped
 and collected. All actual failures retain their original meaning.
 
-The card and authored milestone remain In Progress. Full native acceptance,
-final evidence hashes, self-review and integration upkeep remain open.
+The bounded milestone uses the complete course and focused prerequisite
+recovery above. Self-review found no net production/fixture change or weakened
+acceptance; intentional tracker closeout records the exact evidence boundary.
+Main integration belongs to the coordinator. The unrelated local MASK
+declaration changes remain outside this slice.
 RFC-BPR-0038 native/security qualification, the release's known limitations and
 publication authority are outside this mandate and remain unchanged.

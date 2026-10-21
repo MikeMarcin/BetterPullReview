@@ -124,7 +124,13 @@ The [Windows runtime investigation](BPR-1670-windows-suite-runtime.md) separates
 configure/build/bridge overhead. Blanket serialization accounted for 147.78
 minutes of exclusive work. A matched four-row native correctness pilot with
 identical executable/dependency hashes passed in 169.36 seconds versus 443.07
-seconds serially; full-suite acceptance of its bounded allowlist remains pending.
+seconds serially. The complete native follow-up exercised all 784 rows in
+136.02 minutes versus the retained 159.39 minutes (14.66% observed reduction);
+its three missing-tooling failures remain raw failed evidence, with exact-pin
+focused recovery passing separately. The report binds that combined evidence
+and the unchanged graph/binaries. This does not meet the owner’s subsequent
+30-minute end-to-end release target; the external architecture/portfolio design
+is linked from the investigation.
 The maintained policy permits only explicitly audited process-private correctness
 courses to overlap, preserving locks and exclusive timing/native/global-resource
 courses. This refines the scheduling guidance above; it changes no v0.3.1 asset
