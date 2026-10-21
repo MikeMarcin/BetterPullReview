@@ -158,13 +158,27 @@ namespace {
 
 	/// [[BPR-1365]]. The ground a row is painted with, in the window's render,
 	/// left of the row's text where only its ground and any selection are drawn.
-	[[nodiscard]] auto ground(QWidget& aWindow, const QAbstractItemView& aView, const QModelIndex& aIndex) -> QColor
+	[[nodiscard]] auto ground(QWidget& aWindow, const std::function<found_row()>& aRow) -> QColor
 	{
 		const auto image = aWindow.grab().toImage();
 		const auto ratio = image.devicePixelRatio();
-		const auto rect  = aView.visualRect(aIndex);
-		const auto at    = aView.viewport()->mapTo(&aWindow, QPoint{ rect.left() + 6, rect.center().y() });
+		const auto row   = aRow();
+		const auto rect  = row.View->visualRect(row.Index);
+		const auto at    = row.View->viewport()->mapTo(&aWindow, QPoint{ rect.left() + 6, rect.center().y() });
 		return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+	}
+
+	void window_system_click(const std::function<found_row()>& aRow)
+	{
+		QListView* view = nullptr;
+		QPoint     point;
+		{
+			const auto row = aRow();
+			expect(row.View != nullptr && row.Index.isValid(), "the mouse target still names a Home row");
+			view  = row.View;
+			point = view->visualRect(row.Index).center();
+		}
+		tests::window_system_clicks(*view->viewport(), QPointF{ point }, 1);
 	}
 
 	[[nodiscard]] auto near_colour(const QColor& aActual, const QColor& aExpected, const int aTolerance) -> bool
@@ -289,34 +303,44 @@ try {
 		}
 		window->home_list()->ensureWidgetVisible(recent);
 		QApplication::processEvents();
-		const auto queued = row_of(*window, served_name);
-		const auto failed = row_of(*window, failing_name);
-		expect(queued.View != nullptr && queued.View->isVisible() && failed.View != nullptr, "both pull requests are on Home");
-		expect(queued.Index.data(qt::home_row_role::reviewing).toBool() && !failed.Index.data(qt::home_row_role::reviewing).toBool(),
-			   "the queue's row of the open pull request says so, and no other");
-		expect(queued.Index.data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
-			   "and says it to assistive technology");
-		tests::window_system_clicks(*queued.View->viewport(), QPointF{ queued.View->visualRect(queued.Index).center() }, 1);
+		// A click or render can publish a refreshed queue projection. Its proxy
+		// mappings may then be replaced, so retain the identity, never an index.
+		const auto queued        = [&] { return row_of(*window, served_name); };
+		const auto recentEntry   = [&] { return found_row{ recent, recent->model()->index(recentRow(), 0) }; };
+		const auto queueSelected = [&] {
+			const auto row = queued();
+			return row.View->selectionModel()->isSelected(row.Index);
+		};
+		{
+			const auto current = queued();
+			const auto failed  = row_of(*window, failing_name);
+			expect(current.View != nullptr && current.View->isVisible() && failed.View != nullptr, "both pull requests are on Home");
+			expect(current.Index.data(qt::home_row_role::reviewing).toBool() && !failed.Index.data(qt::home_row_role::reviewing).toBool(),
+				   "the queue's row of the open pull request says so, and no other");
+			expect(current.Index.data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
+				   "and says it to assistive technology");
+		}
+		window_system_click(queued);
 		expect(!phase(*window).has_value() && window->showing_home(), "the click only selects");
-		expect(queued.View->selectionModel()->isSelected(queued.Index) && recent->selectedItems().isEmpty(),
+		expect(queueSelected() && recent->selectedItems().isEmpty(),
 			   "the queue's row is Home's one selection; Recently viewed selects nothing");
-		const auto recentIndex = recent->model()->index(recentRow(), 0);
-		const auto highlight   = recent->palette().color(QPalette::Active, QPalette::Highlight);
-		expect(near_colour(ground(*window, *queued.View, queued.Index), queued.View->palette().color(QPalette::Active, QPalette::Highlight), 24),
+		const auto highlight       = recent->palette().color(QPalette::Active, QPalette::Highlight);
+		const auto queuedHighlight = queued().View->palette().color(QPalette::Active, QPalette::Highlight);
+		expect(near_colour(ground(*window, queued), queuedHighlight, 24),
 			   "the selected row keeps the native selection colour");
-		expect(!near_colour(ground(*window, *recent, recentIndex), highlight, 24), "the open review is not painted in the selection colour");
-		expect(near_colour(ground(*window, *recent, recentIndex), recent->palette().color(QPalette::Active, QPalette::AlternateBase), 6),
+		expect(!near_colour(ground(*window, recentEntry), highlight, 24), "the open review is not painted in the selection colour");
+		expect(near_colour(ground(*window, recentEntry), recent->palette().color(QPalette::Active, QPalette::AlternateBase), 6),
 			   "the open review sits on the theme's quiet tint");
 		renders(aName);
 
 		// The selection follows the keyboard to Recently viewed and back.
-		tests::window_system_clicks(*recent->viewport(), QPointF{ recent->visualRect(recentIndex).center() }, 1);
-		expect(!phase(*window).has_value() && recent->item(recentRow())->isSelected() && !queued.View->selectionModel()->hasSelection(),
+		window_system_click(recentEntry);
+		expect(!phase(*window).has_value() && recent->item(recentRow())->isSelected() && !queued().View->selectionModel()->hasSelection(),
 			   "a click on Recently viewed moves the one selection there");
-		expect(near_colour(ground(*window, *recent, recentIndex), highlight, 24), "selected, the open review is the native selection");
+		expect(near_colour(ground(*window, recentEntry), highlight, 24), "selected, the open review is the native selection");
 		renders(aName + QStringLiteral("-recent-selected"));
-		tests::window_system_clicks(*queued.View->viewport(), QPointF{ queued.View->visualRect(queued.Index).center() }, 1);
-		expect(queued.View->selectionModel()->isSelected(queued.Index) && recent->selectedItems().isEmpty(), "and back to the queue");
+		window_system_click(queued);
+		expect(queueSelected() && recent->selectedItems().isEmpty(), "and back to the queue");
 	};
 
 	delay->Milliseconds = delay_ms;

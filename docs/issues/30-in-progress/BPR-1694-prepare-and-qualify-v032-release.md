@@ -79,3 +79,45 @@ row render directory, preserving unset/set handling and Unicode paths. No
 product code, warning policy, test assertion or budget changes. Both Mac
 100%/200% commit-filter view courses pass and write their requested PNGs into
 a temporary Unicode directory; the directory is removed after observation.
+
+## Native Home fixture lifetime failure
+
+Candidate `6bc681a005b1b894242a0d303205597f7a965266` builds successfully
+in Windows Release, then its eight affected public courses return seven
+passes and one failure: Home's open-feedback course loses its expected queue
+selection when returning from Recently viewed. Unchanged native observations
+also crash. The simulated #4001 network error printed by the course is expected.
+A passing instrumented run and a passing debugger run are retained as diagnostic
+observations, not accepted retries.
+
+A process-local exception trace preserves the failing original gesture sequence
+and captures access violation `c0000005` in `QSortFilterProxyModel::parent`,
+through `QListView::rectForIndex` and `QListView::visualRect`. The fixture retains
+plain proxy indexes across mouse helpers that process events and across renders.
+Its later projection adoption can replace the proxy mapping. Temporary diagnostic
+sources and binaries are restored after every native observation.
+
+The repair retains only row identity across those boundaries: mouse helpers
+resolve the target immediately before dispatch and release the index before
+processing events; colour sampling resolves the row after grabbing the image;
+selection checks reacquire current indexes. All original gestures, four themes,
+selection/colour/accessibility assertions, network waits, deadlines and Home
+preemption checks remain. No product code changes.
+
+## Historical snapshot contamination
+
+The Mac comprehensive Release attempt also fails two network-isolation source
+checks because ignored historical scan snapshots under `.mask/sessions` are
+counted as extra CMake registrations. After stopping only the owned producer
+process tree, both snapshots are moved outside the checkout, every file's size
+and SHA-256 is verified, and their original paths remain directory symlinks for
+historical receipts. The checker is unchanged and does not follow directory
+links. Both focused source checks pass in 1.58 s. The failing/incomplete suite
+is retained; final comprehensive qualification is still required.
+
+The repaired exact fixture passes the full native Windows Release course in
+64.26 s and Mac Release in 64.24 s. Focused clang-format 22 and clang-tidy 22
+warnings-as-errors pass; documentation and whitespace checks pass. The native
+engineering observation is built with only the repaired fixture substituted;
+its original source and binary are restored afterward. Final committed-source
+comprehensive gates remain due.
