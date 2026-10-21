@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1653"
 title: "Diagnose Ubuntu optimized cache footprint growth"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
 metadata: {"assigned_implementer":"/root/ubuntu_rss_fix","mandate":"bpr1653-measured-ubuntu-rss-budget-r1","baseline":"f25a65274763066ed4519aa6aec6283ae1c0a4cb","reservation":"docs/issues/_reservations/BPR-1653--BPR-1653--c646fbf2f786.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["tests/end_to_end/large_review_benchmark.cpp"],"boundary":"Owner-authorized measured Ubuntu RSS-growth budget adjustment only; retain independent live-heap216MiB, workload/cache/accounting/lifecycle/registration and all other limits; no causal memory-reduction claim","checkpoint":"docs/issues/_checkpoints/BPR-1653/rss-budget.md"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f25a65274763066ed4519aa6aec6283ae1c0a4cb","evidence":{"kind":"observation","detail":"Original uninstrumented registered Ubuntu Release course retained: CTest8,21 samples incl failure, VmRSS baseline29585408 and growth226512896 vs216MiB; owner2026-10-20 amendment permits modest RSS budget resolution without causal-reduction claim. Original/rejected/R18 evidence retained."}},{"criterion":"AC2","outcome":"pass","revision":"d6ac721037e242ef7ef4b934a003a26b9c60534a","evidence":{"kind":"observation","detail":"Owner-authorized Linux scalar216→240MiB only; independent liveheap216, cache64MiB/64entries/accounting/admission, workload, fixture, lifecycle, other platform/default/input/cleanup budgets and900s serial registration unchanged. No product/core/ownership rewrite."}},{"criterion":"AC3","outcome":"pass","revision":"d6ac721037e242ef7ef4b934a003a26b9c60534a","evidence":{"kind":"command","command":"ctest --test-dir /home/mmarcin/bpr1653-rss/build/release --tests-regex ^application_large_review_cache_bytes$ --no-tests=error --output-on-failure --verbose --output-junit /home/mmarcin/bpr1653-budget-evidence/adjusted-240-r1/junit.xml","detail":"Complete uninstrumented native course PASS0/marker51.3084s; sampled growth235143168, lifetime239308800<251658240; independent sampled heap166351056<226492416.20 selections/32 retained epochs/eviction/revisit/supersession/loaded-close/shutdown/destruction complete; raw/full evidence archive18cdf89582f10ec12855bbf277c841d978a37a22f94b5b07d21e95f254d9c929. Format22/docs/67 controls pass; native commands drained."}},{"criterion":"AC4","outcome":"pass","revision":"d6ac721037e242ef7ef4b934a003a26b9c60534a","evidence":{"kind":"artifact","detail":"All historical fixture-move/equality/altered-field/control/restoration evidence and published assets preserved. Abandoned nine-path compact candidate ZIP3b8114a573ba096d2ac555f3c8b35ed68f51ccffba5491ee3be27ce75ca142e0 remains external; old unaccepted ownership lineage excluded. No production/app fixture input change, composition reseal, package/version/publication change or broad native acceptance claimed."}}]
 ---
 
 # BPR-1653: Diagnose Ubuntu optimized cache footprint growth
@@ -294,4 +295,24 @@ live-heap ceiling remains 226492416 bytes (216 MiB); it is separated from the
 previously shared RSS scalar. The historical normal v0.3.1 growth observation
 was 219.5859375 MiB, so the proposed margin also covers that retained evidence.
 Instrumented/latched R6/R6g and supplemental measurements do not calibrate this
-limit. Full adjusted-course acceptance is pending in the checkpoint.
+limit. The implementation changes the existing Linux platform scalar; it does
+not detect Ubuntu at runtime or establish acceptance on other Linux systems.
+
+The complete adjusted registered course at
+`d6ac721037e242ef7ef4b934a003a26b9c60534a` passes in 51.3084 seconds (CTest exit
+0, `LARGE_REVIEW_CACHE_BYTES_OK`, AllocationProfile false, BudgetsEnforced true).
+Its before-application VmRSS is 30027776 bytes. Maximum sampled absolute VmRSS
+is 265170944 bytes, growth 235143168 (224.25 MiB); maximum VmHWM is 269336576,
+growth 239308800 (228.22265625 MiB), leaving 11.77734375 MiB below 240 MiB.
+The independent sampled heap peak is 166620864 minus its 269808-byte sampler
+baseline, growth 166351056, below the unchanged 226492416-byte ceiling.
+Maximum observed cache bytes are 66888888, below the unchanged 67108864 bound.
+
+All 20 selections, 32 retained epochs, exact source/rendering, byte eviction,
+index eviction, revisit, held supersession, live loaded close, epoch storage,
+shutdown and destruction checks complete. Final cache/entry/job counts are
+zero. The 900-second serial registration, Debug skip and all other limits and
+assertions are unchanged. This is the owner-authorized budget resolution;
+there is no claim of lower memory use, a repaired leak or broader native/release
+qualification. Original failures and the exact source/binary evidence remain
+preserved in the checkpoint.
