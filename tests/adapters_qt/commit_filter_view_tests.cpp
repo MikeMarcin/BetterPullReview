@@ -407,9 +407,10 @@ namespace {
 namespace {
 	void render(QWidget& aWidget, const std::string& aName)
 	{
-		if (const auto* directory = std::getenv("BPR_RFC0089_RENDER_DIR"); directory != nullptr) {
-			const auto path = std::filesystem::path{ directory } / (aName + "-" + std::to_string(static_cast<int>(aWidget.devicePixelRatioF() * 100.0)) + ".png");
-			aWidget.grab().save(QString::fromStdString(path.string()));
+		// Qt's own environment read and paths: MSVC deprecates std::getenv (C4996).
+		if (qEnvironmentVariableIsSet("BPR_RFC0089_RENDER_DIR")) {
+			const auto directory = qEnvironmentVariable("BPR_RFC0089_RENDER_DIR");
+			aWidget.grab().save(QDir{ directory }.filePath(QStringLiteral("%1-%2.png").arg(QString::fromStdString(aName)).arg(static_cast<int>(aWidget.devicePixelRatioF() * 100.0))));
 		}
 	}
 
