@@ -504,10 +504,10 @@ namespace {
 		mark.ChangePending                          = true;
 		mark.Pending                                = review_pending_mark{ "src/example.cpp", f.Binding.Revision.HeadOid, { } };
 		expect(host.change_draft(mark).has_value(), "comment is pending under its original head");
-		auto held                = mark;
-		held.Command.Kind        = review_draft_command_kind::begin_publish;
-		held.ExpectedRevision    = 2;
-		held.Pending->Submission = "original-held-review";
+		auto held             = mark;
+		held.Command.Kind     = review_draft_command_kind::begin_publish;
+		held.ExpectedRevision = 2;
+		held.Pending          = review_pending_mark{ "src/example.cpp", f.Binding.Revision.HeadOid, "original-held-review" };
 		expect(host.change_draft(held).has_value(), "original review holds its exact comment");
 		const auto original       = *f.Store->load_draft(id);
 		const auto proposal       = review_submission_proposal{ .Target = { f.Binding.Scope.Host, f.Binding.Scope.Repository, f.Binding.Scope.PullRequest, f.Binding.Revision.HeadOid }, .ActingAccount = f.Binding.Scope.Account, .Comments = { { id, 2, "src/example.cpp", diff_side::right, 1, { }, body } } };
