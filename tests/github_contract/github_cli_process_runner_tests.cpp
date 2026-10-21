@@ -1038,6 +1038,9 @@ namespace {
 		alignas(cli_sensitive_bytes) std::array<std::byte, sizeof(cli_sensitive_bytes)> storage{ };
 		auto*                                                                           bytes = std::construct_at(reinterpret_cast<cli_sensitive_bytes*>(storage.data()));
 		expect(bytes->append("runtime-canary"), "canary enters owned sensitive storage");
+		bytes->clear();
+		expect(bytes->view().empty(), "clearing resets the live sensitive length");
+		expect(bytes->append(std::string(cli_sensitive_bytes::capacity, 'q')), "cleared storage remains reusable through its full capacity");
 		std::destroy_at(bytes);
 		expect(std::ranges::all_of(storage, [](std::byte aByte) { return aByte == std::byte{ }; }), "destruction overwrites complete sensitive storage");
 	}

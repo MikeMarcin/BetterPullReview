@@ -49,11 +49,13 @@ namespace bpr::adapters::github::detail {
 		}
 		void clear() noexcept
 		{
-			volatile char* cursor = Bytes.data();
-			for (std::size_t index = 0; index < capacity; ++index) {
-				cursor[index] = '\0';
+			// Destruction may discard nonvolatile metadata stores. Wipe the
+			// whole owned representation so length and padding also remain
+			// cleared under optimization, as the destruction contract requires.
+			auto* cursor = reinterpret_cast<volatile unsigned char*>(this);
+			for (std::size_t index = 0; index < sizeof(*this); ++index) {
+				cursor[index] = 0;
 			}
-			Count = 0U;
 		}
 
 	private:
