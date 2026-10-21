@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"owner report 2026-10-20","owner_note":"When the right drawer in review gets too narrow for the full tab labels i cant tell what the tabs are easily, it looks broken. I cant tell if its because of the comments number or its just broken. Also the agents tab seems wider than necessary which might be forcing dropping to narrow labels earlier than necessary.","provisional_id":"allocated at landing","related_cards":["BPR-1134","BPR-1290","BPR-1511","BPR-1592","BPR-1594"],"requested_skill":"frontend-design"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"04119f672","evidence":{"kind":"command","command":"ctest --test-dir build/dev -I 497,497 (qt_current_file_unread_badge); QT_SCALE_FACTOR=2 better_pull_review_qt_workbench_window_tests --current-file-unread-badge","detail":"test_the_right_tray_tabs_keep_their_names_while_they_fit drags the drawer through 760, 420, 375, 340, 335, 330, 320, 310, 300, 290 and 280 pixels with and without a count, in the application's style and in every QStyleFactory style (macOS, Windows, Fusion), and requires every name exactly while the row of names fits the room the header's grid gives the tabs. The names need 299 px (macOS) or 307 px (Fusion, Windows) without a count and 321 or 329 px with one; the tools wrap below first. Before: names went at a fixed 340. 1x and 2x pass. Failing-before control: with workbench_window.cpp and .hpp at df2244530 the case fails at 'the Comments tab keeps no room for a count it is not showing (app-fusion, no count)'."}},{"criterion":"AC2","outcome":"pass","revision":"04119f672","evidence":{"kind":"command","command":"ctest --test-dir build/dev -I 497,497","detail":"Under every style the Agent tab is its spark (16 px), a 4 px gap and its name, padded as Notes is (within 1 px); Tour is padded as Notes; Comments is its name plus its count and a gap when the count shows, and keeps no room for a hidden count. Each name's own style text rectangle (a plain text tab as wide as its tab) holds the glyph, the name and the count, so no style elides it. Measured macOS-style metrics: Agent 115 px before, 85 px after; Comments without a count 116 before, 93 after; the row of names 352 before, 299 after (355 and 321 with a count)."}},{"criterion":"AC3","outcome":"pass","revision":"04119f672","evidence":{"kind":"command","command":"ctest --test-dir build/dev -I 438,440 (qt_workbench_window_scale_100/125/200); ctest --test-dir build/dev -I 497,497","detail":"Compact rows: every tab shows its glyph, only the open tab shows its name, whole; a glyph-only tab's tooltip starts with its accessible name and a newline, and every accessible name starts with the tab's name; the Comments count stays a pill inside its tab, beside the glyph; the whole row fits, nothing scrolls or is squeezed; choosing Agent in a compact row names it instead; widening brings every name back. The three window scales (with the existing right-tray case, whose wide-row names, tooltips and accessible names are unchanged) pass. coding-format-check (clang-format 22.1.8, 1695 files) passes; clang-tidy --warnings-as-errors reports nothing in workbench_window.cpp and only the two existing performance-avoid-endl findings in the test runner's case trace (main), none in this change."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ae49e2777","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R qt_current_file_unread_badge; QT_SCALE_FACTOR=2 better_pull_review_qt_workbench_window_tests --current-file-unread-badge","detail":"test_the_right_tray_tabs_keep_their_names_while_they_fit drags the drawer through 760, 420, 375, 340, 335, 330, 320, 310, 300, 290 and 280 pixels with and without a count, in the application's style and in every QStyleFactory style (macOS, Windows, Fusion), and requires every name exactly while the row of names fits the room the header's grid gives the tabs. The names need 299 px (macOS) or 307 px (Fusion, Windows) without a count and 321 or 329 px with one; the tools wrap below first. Before: names went at a fixed 340. 1x and 2x pass. Failing-before control: with workbench_window.cpp and .hpp at df2244530 the case fails at 'the Comments tab keeps no room for a count it is not showing (app-fusion, no count)'."}},{"criterion":"AC2","outcome":"pass","revision":"ae49e2777","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R qt_current_file_unread_badge","detail":"Under every style the Agent tab is its spark (16 px), a 4 px gap and its name, padded as Notes is (within 1 px); Tour is padded as Notes; Comments is its name plus its count and a gap when the count shows, and keeps no room for a hidden count. Each name's own style text rectangle (a plain text tab as wide as its tab) holds the glyph, the name and the count, so no style elides it. Measured macOS-style metrics: Agent 115 px before, 85 px after; Comments without a count 116 before, 93 after; the row of names 352 before, 299 after (355 and 321 with a count)."}},{"criterion":"AC3","outcome":"pass","revision":"ae49e2777","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R qt_workbench_window_scale_; ctest --test-dir build/dev -R qt_current_file_unread_badge","detail":"Compact rows: every tab shows its glyph, only the open tab shows its name, whole; a glyph-only tab's tooltip starts with its accessible name and a newline, and every accessible name starts with the tab's name; the Comments count stays a pill inside its tab, beside the glyph; the whole row fits, nothing scrolls or is squeezed; choosing Agent in a compact row names it instead; widening brings every name back. The three window scales (with the existing right-tray case, whose wide-row names, tooltips and accessible names are unchanged) pass. coding-format-check (clang-format 22.1.8, 1695 files) passes; clang-tidy --warnings-as-errors reports nothing in workbench_window.cpp and only the two existing performance-avoid-endl findings in the test runner's case trace (main), none in this change."}}]
 ---
 
 # BPR-PENDING-G: Right drawer tabs keep their names while they fit, and go compact on purpose
@@ -106,13 +106,18 @@ label is. It changes no state the core keeps, and no intent or selection.
 - `qt_current_file_unread_badge` and `qt_workbench_window_scale_{100,125,200}`
   pass. The 2x selector run passes too.
 - `coding-format-check` passes, and clang-tidy is clean on the change.
-- `scripts/workbench_case_inventory.py --execute-lists` agrees for every row
-  this change touches. Its one mismatch is already on main: `--keyboard-shortcuts`
-  lists `test_drawer_keys_toggle_their_drawers` ([[BPR-1678]]), which
-  the inventory lacks.
-- The documentation gate refuses only on the counter: other branches'
-  history holds BPR-1684, past main's NEXT_ID BPR-1680. That is unrelated to
-  this card.
+- The new case is in two selectors, so `tests/workbench_case_inventory.json`
+  lists it under `--current-file-unread-badge` and `<default>`. Its source
+  identity, the workbench family's source pin in
+  `tests/command_correctness_registry.json`, and the default run's case count
+  in `tests/scripts/command_correctness_registry_tests.py` (115 to 116) are
+  resealed. `scripts/workbench_case_inventory.py --execute-lists` and
+  `command_correctness_registry_contract` pass.
+- Rebased onto `571d82928`, which had changed the same files. The rebased
+  tree was rebuilt, and every row above was run again and passes.
+- The documentation gate refuses only the provisional ID. With the ID set to
+  a real one for a local check (and the counter past it), it printed
+  `DOCUMENTATION_OK`.
 
 The offscreen renders are Fusion. The native macOS look is the owner's,
 below.
@@ -136,7 +141,8 @@ criteria, because they wait on the owner.
   Each carries before and after offscreen renders at 1x or 2x, kept in
   `/Users/jaeger/.mask/bpr-pending-g-tray-tabs-v001-20261021/renders`.
 - Frozen root `/Users/jaeger/.mask/attended-review/bpr-pending-g-tray-tabs-v001.feygvcwt`
-  from `04119f672` (fixture `inline-drawer-v1`, open file
+  from `04119f672`, the change before its rebase onto `571d82928` (the rebase
+  changed none of its source lines; fixture `inline-drawer-v1`, open file
   `src/ui/conversation_cards_view.cpp`). The executable's SHA-256 is
   `f9760d4654ab…9e9353`. The launcher's own check printed
   `CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`.
