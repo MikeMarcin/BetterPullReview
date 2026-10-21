@@ -4730,11 +4730,15 @@ namespace bpr::adapters::github::detail {
 																	|| application::detail::validate_review(*review, budget, limits.Records) != application::github_read_validation_error::none) {
 																	return failed(application::github_provider_failure::malformed_response);
 																}
+																// [[BPR-PENDING-X]]. `submitted_at`, when it was read and parses.
+																const auto& submitted = review->Observation.CreatedAt;
+																const auto  at        = submitted.empty() ? std::nullopt : parse_timeline_timestamp(submitted);
 																return application::personal_discovery_review{
-																	.DatabaseId = review->DatabaseId,
-																	.Author     = review->Author ? std::optional{ review->Author->Actor } : std::nullopt,
-																	.State      = review->State,
-																	.Commit     = review->Commit,
+																	.DatabaseId  = review->DatabaseId,
+																	.Author      = review->Author ? std::optional{ review->Author->Actor } : std::nullopt,
+																	.State       = review->State,
+																	.Commit      = review->Commit,
+																	.SubmittedAt = at.transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; }),
 																};
 															});
 			if (!reviews) {
@@ -4924,10 +4928,14 @@ namespace bpr::adapters::github::detail {
 			auto seen           = std::unordered_set<std::uint64_t>{ };
 			auto reviewComments = std::uint64_t{ 0U };
 			for (const auto& node : reviews->Nodes) {
-				const auto object = json_is_object(node) ? json_object(node) : page_json_object{ };
-				const auto commit = json_member(object, "commit");
-				const auto actor  = optional_graphql_actor(json_member(object, "author"));
-				if (!has_exact_keys(object, { "author", "comments", "commit", "databaseId", "state" }) || !exact_integer(json_member(object, "databaseId"), true)
+				const auto object    = json_is_object(node) ? json_object(node) : page_json_object{ };
+				const auto commit    = json_member(object, "commit");
+				const auto actor     = optional_graphql_actor(json_member(object, "author"));
+				const auto submitted = json_member(object, "submittedAt");
+				// [[BPR-PENDING-X]]. When it was submitted: null only while pending.
+				const auto at = json_is_string(submitted) ? parse_timeline_timestamp(text(submitted)) : std::nullopt;
+				if (!has_exact_keys(object, { "author", "comments", "commit", "databaseId", "state", "submittedAt" }) || (!json_is_null(submitted) && !at)
+					|| !exact_integer(json_member(object, "databaseId"), true)
 					|| !one_of(json_member(object, "state"), { "PENDING", "COMMENTED", "APPROVED", "CHANGES_REQUESTED", "DISMISSED" }) || !actor.Valid
 					|| (!json_is_null(commit) && (!json_is_object(commit) || !hexadecimal_oid(json_member(json_object(commit), "oid"))))
 					|| !json_is_object(json_member(object, "comments")) || !exact_integer(json_member(json_object(json_member(object, "comments")), "totalCount"))
@@ -4936,10 +4944,11 @@ namespace bpr::adapters::github::detail {
 				}
 				const auto state = review_state(json_text(json_member(object, "state")));
 				row.Reviews.push_back({
-					.DatabaseId = integer(json_member(object, "databaseId")),
-					.Author     = actor.Actor ? std::optional{ actor.Actor->Actor } : std::nullopt,
-					.State      = state,
-					.Commit     = json_is_null(commit) ? std::nullopt : std::optional{ application::commit_oid{ text(json_member(json_object(commit), "oid")) } },
+					.DatabaseId  = integer(json_member(object, "databaseId")),
+					.Author      = actor.Actor ? std::optional{ actor.Actor->Actor } : std::nullopt,
+					.State       = state,
+					.Commit      = json_is_null(commit) ? std::nullopt : std::optional{ application::commit_oid{ text(json_member(json_object(commit), "oid")) } },
+					.SubmittedAt = at.transform([](const std::int64_t aMilliseconds) { return aMilliseconds / 1000; }),
 				});
 				// A pending review's comments are not yet the pull request's.
 				if (state != application::github_review_state::pending) {

@@ -109,9 +109,12 @@ namespace bpr::application {
 	}
 	// Length framing keeps remote names literal, including delimiters and newlines.
 	// [[BPR-1407]]. Version 2 appends the change facts; version 1 still reads.
+	// [[BPR-PENDING-X]]. Version 3 appends my verdict, its time and whether
+	// commits followed it; a row with no verdict keeps its version 2 bytes.
 	auto encode_queue_facts(const core::queue_item_facts& aFacts) -> std::optional<std::string>
 	{
-		auto       output   = std::string{ "2;" };
+		const auto verdict  = aFacts.MyReview.Verdict != core::my_review_verdict::none;
+		auto       output   = std::string{ verdict ? "3;" : "2;" };
 		const auto text     = [&output](std::string_view aText) { output += std::to_string(aText.size()) + ":"; output.append(aText); };
 		const auto number   = [&text](std::uint64_t aNumber) { text(std::to_string(aNumber)); };
 		const auto optional = [&number](const auto& aValue) { number(aValue ? static_cast<std::uint64_t>(*aValue) + 1 : 0); };
@@ -151,6 +154,19 @@ namespace bpr::application {
 				text({ });
 			}
 		}
+		if (verdict) {
+			const auto& mine = aFacts.MyReview;
+			if ((mine.SubmittedAt && *mine.SubmittedAt < 0) || mine.Verdict > core::my_review_verdict::dismissed) {
+				return std::nullopt;
+			}
+			number(static_cast<std::uint64_t>(mine.Verdict));
+			if (mine.SubmittedAt) {
+				number(static_cast<std::uint64_t>(*mine.SubmittedAt));
+			} else {
+				text({ });
+			}
+			number(mine.NewCommits ? 1U : 0U);
+		}
 		return output.size() <= MaximumFactsBytes ? std::optional{ std::move(output) } : std::nullopt;
 	}
 	auto decode_queue_facts(std::string_view aBytes) -> std::optional<core::queue_item_facts>
@@ -158,7 +174,7 @@ namespace bpr::application {
 		if (aBytes.empty()) {
 			return core::queue_item_facts{ };
 		}
-		if (aBytes.size() > MaximumFactsBytes || (!aBytes.starts_with("1;") && !aBytes.starts_with("2;"))) {
+		if (aBytes.size() > MaximumFactsBytes || (!aBytes.starts_with("1;") && !aBytes.starts_with("2;") && !aBytes.starts_with("3;"))) {
 			return std::nullopt;
 		}
 		const auto version = aBytes.front();
@@ -234,22 +250,34 @@ namespace bpr::application {
 				names->push_back(std::move(name));
 			}
 		}
-		if (version == '2') {
-			const auto optional = [&]() -> std::optional<std::uint64_t> {
-				if (aBytes.starts_with("0:")) {
-					aBytes.remove_prefix(2);
-					return std::nullopt;
-				}
-				return number();
-			};
-			const auto opened = optional();
-			if (opened && *opened > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+		const auto optional = [&]() -> std::optional<std::uint64_t> {
+			if (aBytes.starts_with("0:")) {
+				aBytes.remove_prefix(2);
+				return std::nullopt;
+			}
+			return number();
+		};
+		const auto seconds = [&okay](const std::optional<std::uint64_t> aValue) {
+			if (aValue && *aValue > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
 				okay = false;
 			}
-			facts.Change.OpenedAt  = opened.transform([](std::uint64_t aValue) { return static_cast<std::int64_t>(aValue); });
+			return aValue.transform([](std::uint64_t aSeconds) { return static_cast<std::int64_t>(aSeconds); });
+		};
+		if (version >= '2') {
+			facts.Change.OpenedAt  = seconds(optional());
 			facts.Change.Additions = optional();
 			facts.Change.Deletions = optional();
 			facts.Change.Comments  = optional();
+		}
+		if (version == '3') {
+			const auto verdict = number();
+			const auto at      = seconds(optional());
+			const auto moved   = number();
+			// Version 3 is written only for a verdict, so none is refused.
+			if (verdict == 0U || verdict > static_cast<std::uint64_t>(core::my_review_verdict::dismissed) || moved > 1U) {
+				okay = false;
+			}
+			facts.MyReview = { .Verdict = static_cast<core::my_review_verdict>(std::min<std::uint64_t>(verdict, static_cast<std::uint64_t>(core::my_review_verdict::dismissed))), .SubmittedAt = at, .NewCommits = moved == 1U };
 		}
 		waiting.RequestsStale   = waiting.Requests.has_value();
 		waiting.AssessmentStale = waiting.RequiredReview.has_value() || waiting.MergeBlocked.has_value();

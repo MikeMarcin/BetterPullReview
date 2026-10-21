@@ -428,7 +428,7 @@ namespace bpr::adapters::github::detail {
 		/// and whether more follow, so a longer one is read the REST way.
 		constexpr std::string_view home_pull_request_fragment = "fragment HomePullRequest on PullRequest{id number title isDraft state createdAt additions deletions headRefOid baseRefOid baseRefName"
 																" author{__typename login ... on Node{id}} comments{totalCount}"
-																" reviews(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId state author{__typename login ... on Node{id}} commit{oid} comments{totalCount}}}"
+																" reviews(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId state submittedAt author{__typename login ... on Node{id}} commit{oid} comments{totalCount}}}"
 																" reviewRequests(first:50){totalCount pageInfo{hasNextPage} nodes{id asCodeOwner requestedReviewer{__typename ... on User{id login} ... on Team{id name slug organization{login}}}}}"
 																" mergeStateStatus reviewDecision autoMergeRequest{enabledAt}"
 																" commits(last:1){nodes{commit{oid statusCheckRollup{contexts(first:50){totalCount pageInfo{hasNextPage}"

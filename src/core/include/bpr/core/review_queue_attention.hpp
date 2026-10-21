@@ -164,6 +164,65 @@ namespace bpr::core {
 		auto operator<=>(const queue_change_facts&) const = default;
 	};
 
+	/// \brief [[BPR-PENDING-X]]. The verdict of the reviewer's own latest
+	/// submitted review of a pull request, as Home says it.
+	///
+	/// \details Stored by value: append only, so every stored value keeps its
+	/// meaning.
+	enum class my_review_verdict : std::uint8_t {
+		/// No submitted review by this reviewer was read.
+		none,
+		/// Comments only, with no approval or change request standing.
+		commented,
+		changes_requested,
+		approved,
+		/// The verdict was dismissed and nothing was submitted after it.
+		dismissed,
+	};
+
+	/// \brief Returns the stable name for the supplied value.
+	[[nodiscard]] auto name(my_review_verdict aVerdict) noexcept -> std::string_view;
+
+	/// \brief [[BPR-PENDING-X]]. One review this reviewer submitted, as the
+	/// host read it, in the order the provider returned them.
+	struct my_submitted_review
+	{
+		/// Never `none`: a review that was read has a state.
+		my_review_verdict State = my_review_verdict::commented;
+		/// When it was submitted, in seconds since the epoch (UTC); none when
+		/// not read.
+		std::optional<std::int64_t> SubmittedAt;
+		/// Whether its commit is the pull request's current head; none when the
+		/// commit was not read or cannot be compared.
+		std::optional<bool> OnHead;
+
+		auto operator<=>(const my_submitted_review&) const = default;
+	};
+
+	/// \brief [[BPR-PENDING-X]]. The reviewer's standing verdict on a pull
+	/// request, carried on its item.
+	struct queue_my_review
+	{
+		my_review_verdict Verdict = my_review_verdict::none;
+		/// When the verdict's review was submitted; none when not read.
+		std::optional<std::int64_t> SubmittedAt;
+		/// Commits were pushed after the verdict's review.
+		bool NewCommits = false;
+
+		auto operator<=>(const queue_my_review&) const = default;
+	};
+
+	/// \brief [[BPR-PENDING-X]]. Decides the reviewer's standing verdict from
+	/// their submitted reviews, oldest first.
+	///
+	/// \details As GitHub keeps it: approved, changes requested and dismissed
+	/// replace one another, the latest winning, and a comment-only review
+	/// replaces none of them. A dismissed verdict stands for nothing, so a
+	/// comment after it is the verdict and a dismissed approval is never
+	/// approved. "New commits" is the verdict's own review against the current
+	/// head; an unknown commit says nothing. Reads no clock and no provider.
+	[[nodiscard]] auto my_review_for(std::span<const my_submitted_review> aReviews) noexcept -> queue_my_review;
+
 	/// \brief What the host read about a pull request, carried on its item.
 	///
 	/// \details [[BPR-0659]]. The title and author come from the observation
@@ -180,6 +239,8 @@ namespace bpr::core {
 		queue_waiting_facts Waiting;
 		std::optional<bool> Authored;
 		queue_change_facts  Change;
+		/// [[BPR-PENDING-X]]. My standing verdict, from the last retained read.
+		queue_my_review MyReview;
 
 		auto operator<=>(const queue_item_facts&) const = default;
 	};

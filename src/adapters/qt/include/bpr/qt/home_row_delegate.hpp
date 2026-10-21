@@ -16,6 +16,8 @@
 
 #include <cstdint>
 
+class QAbstractItemView;
+class QHelpEvent;
 class QPainter;
 
 namespace bpr::qt {
@@ -74,6 +76,16 @@ namespace bpr::qt {
 			/// after the identity on every row, the reviewer's own included;
 			/// empty where unknown.
 			author,
+			/// [[BPR-PENDING-X]]. The verdict chip's words ("Approved · new
+			/// commits"), drawn in a chip leading the second line; empty for
+			/// none.
+			verdict,
+			/// `int(core::my_review_verdict)`, which picks the chip's mark.
+			verdict_state,
+			/// True when commits followed the verdict, which quiets its mark.
+			verdict_stale,
+			/// The chip's tooltip: "You approved this on 14 Oct 2026."
+			verdict_tip,
 		};
 	} // namespace home_row_role
 
@@ -267,6 +279,12 @@ namespace bpr::qt {
 			-> QRect;
 		/// \brief Complete leading Draft chip, or empty for a row without that status.
 		[[nodiscard]] auto draft_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;
+		/// \brief [[BPR-PENDING-X]]. The complete verdict chip leading the second
+		/// line, in the option's coordinates; empty for a row without a verdict.
+		[[nodiscard]] auto verdict_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;
+		/// \brief [[BPR-PENDING-X]]. Shows the verdict's sentence over its chip.
+		auto helpEvent(QHelpEvent* aEvent, QAbstractItemView* aView, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex)
+			-> bool override;
 		/// \brief [[BPR-1407]]. Where the size and history are painted, in the
 		/// option's coordinates; empty for a row without either.
 		[[nodiscard]] auto facts_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect;

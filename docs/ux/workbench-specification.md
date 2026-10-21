@@ -905,7 +905,9 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   needs only #number; under Organization it needs name#number. Each queue row
   names its author beside that identity, including the viewer's own PRs; the
   login uses ordinary text ink. Assistive text keeps the full identity and
-  author. Recently viewed stores no author. [[BPR-1407]]: a queue row's right holds
+  author. Recently viewed stores no author. A queue row I have reviewed begins
+  its second line with my verdict ([My review on Home rows](#my-review-on-home-rows)).
+  [[BPR-1407]]: a queue row's right holds
   a column of facts, each on the line it is about: "+1,204 / −318" beside
   the first line, "21d" and a comment icon with "14" beside the second in
   its quiet ink. Tabular figures line the column up from row to row; the
@@ -2827,3 +2829,51 @@ contract is admitted; the UI does not infer support from host name or version.
 ## Draft status on Home
 
 [RFC-BPR-0067](../rfcs/RFC-BPR-0067-home-draft-pull-requests.md) adds a neutral outlined **Draft** chip immediately before a draft PR’s identity/title in every queue section and Recently viewed. It uses the row’s native font and selection ink, remains complete while the identity/title wrap, and adds no action or keyboard stop. Accessible row text says draft pull request before its identity. Only last accepted exact-authority metadata establishes it: ready removes it, unknown (including older stored entries) has no chip, and cached rows retain it under existing freshness reporting. Account chips, Reviewing, attention, actions, opening and authored section placement retain their behavior.
+
+## My review on Home rows
+
+[[BPR-PENDING-X]] (the owner, 2026-10-21: "On the home page I would like to
+know if I have approved a PR. Right now they go to following and I don't
+really know that I took action."). A queue row whose pull request I have
+reviewed leads its second line with a **verdict chip**: my latest review's
+verdict, in the second line's font, in a thin neutral outline with the Draft
+chip's small radius. Its mark and word are:
+
+| My latest review | Chip |
+|---|---|
+| Approved, on the current head | a check in the theme's accepted ink, "Approved" |
+| Changes requested, on the current head | a plus over a minus in the theme's defect ink, "Changes requested" |
+| Comments only | a speech bubble in quiet ink, "Commented" |
+| Any of these, with commits pushed after it | the mark in quiet ink, and " · new commits" after the word ("Approved · new commits") |
+| Dismissed, with nothing after it | no mark, "Review dismissed" in quiet ink |
+
+The word says the verdict without colour. The mark's colour is a second,
+narrow exception to colour meaning state on Home, in the same accepted and
+defect inks as lines added and removed. A selected row keeps the style's
+selected ink. The chip is complete and never elided. The second line's text
+begins beside it and wraps back under it to the row's left edge, so a narrow
+row keeps its whole width for the text. A row with room for fewer than twelve
+characters beside the chip gives the chip a line of its own, with the text
+below it. It adds no action and no keyboard stop. Hovering it shows "You
+approved this on 14 Oct 2026." ("You requested changes on…", "You commented on
+this on…"). With new commits the tooltip adds "New commits were pushed after
+it." A dismissed review says "Your review from 14 Oct 2026 was dismissed." The
+row's accessible name ends with the same sentences. With no submission time
+read, the date is left out ("You approved this.").
+
+The core decides the verdict (`core::my_review_for`) from my submitted reviews
+in the order GitHub returns them. A comment-only review never replaces an
+approval or a change request: GitHub keeps the earlier verdict standing. The
+latest of Approved, Changes requested and Dismissed wins. A dismissed review
+leaves no verdict, so it never shows as approved, and a comment after the
+dismissal shows as Commented. Pending reviews are not mine to count until
+they are submitted. "New commits" means the verdict's own review names a
+commit other than the current head. An unknown commit says nothing. The
+retained read that already supplies Home's submitted-review evidence
+(`ListHomePullRequests`, or the REST reviews) supplies the verdict too. It
+adds `submittedAt` to the batched query and no request. The verdict is stored
+with the row's other facts (queue facts version 3) and survives a restart.
+Opening the pull request keeps it, and the next retained read replaces it.
+Sections are unchanged. An approved pull request with nothing new stays in
+Following, and one with new commits is still "Changed" in Needs me, carrying
+"Approved · new commits".

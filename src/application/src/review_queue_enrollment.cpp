@@ -1568,11 +1568,14 @@ namespace bpr::application {
 			}
 			const auto found = ActivityIndex.find(aRef);
 			// [[BPR-1407]]. An open does not read the pull request's age, size
-			// or comment count; they stay what discovery last read.
+			// or comment count; they stay what discovery last read. Nor
+			// ([[BPR-PENDING-X]]) does it decide my verdict.
 			if (found != ActivityIndex.end()) {
-				facts.Change = Activity[found->second].Facts.Change;
+				facts.Change   = Activity[found->second].Facts.Change;
+				facts.MyReview = Activity[found->second].Facts.MyReview;
 			} else if (const auto retained = Enrollments.record_for(aRef); retained && retained->FactsAccount == Scheduler.session().ViewerAccount) {
-				facts.Change = retained->LastFacts.Change;
+				facts.Change   = retained->LastFacts.Change;
+				facts.MyReview = retained->LastFacts.MyReview;
 			}
 			if (found == ActivityIndex.end()) {
 				ActivityIndex.emplace(aRef, Activity.size());
@@ -1804,6 +1807,9 @@ namespace bpr::application {
 				report.Facts.Title  = std::move(aAnswer.Facts.Title);
 				report.Facts.Author = std::move(aAnswer.Facts.Author);
 				merge_queue_change(report.Facts.Change, aAnswer.Facts.Change);
+				// [[BPR-PENDING-X]]. A retained read reads every submitted
+				// review, so its verdict replaces the one kept.
+				report.Facts.MyReview = aAnswer.Facts.MyReview;
 				if (aAnswer.Facts.Draft) {
 					report.Facts.Draft = aAnswer.Facts.Draft;
 				}

@@ -547,7 +547,7 @@ operations outside the recorded snapshot manifest:
   ascending) and the variables exactly `owner` and `name`. The
   `HomePullRequest` fragment asks for the title, draft and state, head and
   base, author, comment total, the first 50 reviews (with each one's comment
-  total), review requests and last-commit check contexts, each with its total
+  total and `submittedAt`, which Home's verdict chip dates, [[BPR-PENDING-X]]), review requests and last-commit check contexts, each with its total
   and `hasNextPage`, and the merge state, review decision and auto-merge. It
   costs about six points for ten pull requests and asks for about 1,500 nodes
   (`core::discovery_batch_cost`, `core::discovery_batch_nodes`). A pull request

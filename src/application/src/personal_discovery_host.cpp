@@ -39,6 +39,20 @@ namespace bpr::application {
 			return queue_discovery_problem::failed;
 		}
 
+		/// [[BPR-PENDING-X]]. A submitted review's state as the core's verdict.
+		[[nodiscard]] auto my_review_verdict_of(const github_review_state aState) noexcept -> core::my_review_verdict
+		{
+			switch (aState) {
+			case github_review_state::approved:          return core::my_review_verdict::approved;
+			case github_review_state::changes_requested: return core::my_review_verdict::changes_requested;
+			case github_review_state::dismissed:         return core::my_review_verdict::dismissed;
+			case github_review_state::commented:
+			case github_review_state::pending:
+			case github_review_state::uninitialized:     break;
+			}
+			return core::my_review_verdict::commented;
+		}
+
 		/// Whether a failure is about the whole session rather than one
 		/// repository, so the rest of the refresh would fail the same way.
 		[[nodiscard]] auto stops_refresh(const github_provider_failure aFailure) noexcept -> bool
@@ -989,18 +1003,25 @@ namespace bpr::application {
 				ClosedThisCycle.insert(ref);
 			}
 			auto reviewedHead = std::optional<core::git_commit_oid>{ };
+			// [[BPR-PENDING-X]]. The same submitted reviews, for the core to say
+			// which verdict of mine stands.
+			auto mine = std::vector<core::my_submitted_review>{ };
 			for (const auto& review : row.Reviews) {
 				const auto commit = review.Commit ? core::parse_git_commit_oid(review.Commit->value()) : std::nullopt;
-				if (review.DatabaseId != 0U && review.Author && !Session->Viewer.Node.value().empty()
-					&& *review.Author == Session->Viewer.Node && review.State != github_review_state::pending
-					&& review.State != github_review_state::uninitialized && commit && commit->algorithm() == head->algorithm()) {
+				if (review.DatabaseId == 0U || !review.Author || Session->Viewer.Node.value().empty() || *review.Author != Session->Viewer.Node
+					|| review.State == github_review_state::pending || review.State == github_review_state::uninitialized) {
+					continue;
+				}
+				const auto comparable = commit && commit->algorithm() == head->algorithm();
+				if (comparable) {
 					reviewedHead = commit;
 				}
+				mine.push_back({ .State = my_review_verdict_of(review.State), .SubmittedAt = review.SubmittedAt, .OnHead = comparable ? std::optional{ *commit == *head } : std::nullopt });
 			}
 			Queue.apply(queue_metadata_answer{
 				.Session  = Session->Queue,
 				.Ref      = ref,
-				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft, .Change = row.Change },
+				.Facts    = { .Title = row.Title, .Author = row.Author, .Draft = row.Draft, .Change = row.Change, .MyReview = core::my_review_for(mine) },
 				.Activity = { .ReviewedByMe = reviewedHead.has_value(), .HeadMovedSinceMyReview = reviewedHead && *reviewedHead != *head, .ReviewersAwaited = row.ReviewersAwaited, .Known = true, .Waiting = row.Waiting, .FactRevision = aJob.Request.FactRevision },
 				.Closed   = row.Closed,
 				.Authored = row.AuthorIdentity ? std::optional<bool>{ *row.AuthorIdentity == Session->Viewer.Node } : std::nullopt,

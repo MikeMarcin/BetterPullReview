@@ -2176,6 +2176,7 @@ namespace bpr::app::detail {
 							{ QStringLiteral("state"), QStringLiteral("APPROVED") },
 							{ QStringLiteral("commit_id"), head },
 							{ QStringLiteral("body"), QStringLiteral("Approved") },
+							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-14T16:20:00Z") },
 						});
 					}
 					response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
@@ -2318,13 +2319,13 @@ namespace bpr::app::detail {
 				const auto large = number == 4001U, small = number == 4002U;
 				auto       reviews = QJsonArray{ };
 				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
-					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "submittedAt", "2026-10-14T16:20:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
 				}
 				// The inline comments the REST pull request counts, on a review of their own.
 				const auto inlineComments = large ? 5 : small ? 0
 															  : 2;
 				if (known && inlineComments != 0) {
-					reviews.append(QJsonObject{ { "databaseId", 72000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "contributor-reviewer" }, { "id", "U_contributor_reviewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", inlineComments } } } });
+					reviews.append(QJsonObject{ { "databaseId", 72000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "submittedAt", "2026-10-13T09:05:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "contributor-reviewer" }, { "id", "U_contributor_reviewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", inlineComments } } } });
 				}
 				auto       requests        = QJsonArray{ };
 				const auto requestsPresent = !known || !found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load();

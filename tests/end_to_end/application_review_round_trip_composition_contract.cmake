@@ -1,3 +1,9 @@
+# [[BPR-PENDING-X]] note (2026-10-21) over last matching main ad6908848: no
+# reseal. The only src/app change is the BUILD_TESTING fixture server
+# (github_public_path_fixture.cpp, outside the manifest): its batched Home
+# review nodes answer submittedAt and its REST review submitted_at, for Home's
+# verdict chip. No pinned-scope file changed; full, manifest and mutation
+# 16d135419 pins stay exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1715 note below
 # is renaming its [[BPR-PENDING-Y]] comment tags to [[BPR-1715]]; no code change.
 # [[BPR-1715]] reseal (2026-10-21) over the BPR-1714 upkeep note below,

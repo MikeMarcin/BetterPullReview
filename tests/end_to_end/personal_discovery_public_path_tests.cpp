@@ -951,6 +951,33 @@ try {
 	expect(queue_item(*windowA, 4003)->Bucket == core::attention_bucket::quiet && queue_item(*windowB, 4003)->Bucket == core::attention_bucket::quiet
 			   && contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"),
 		   "Home Refresh moves an approved unopened PR to Following in both windows");
+	// [[BPR-PENDING-X]]. And says that I approved it: the chip, its tooltip and
+	// the row's accessible name, from the same batched read.
+	const auto approvedChip = [&](qt::workbench_window& aWindow) {
+		auto* const view = aWindow.home_list()->state_view(qt::home_group::following);
+		for (auto row = 0; view != nullptr && row < view->model()->rowCount(); ++row) {
+			const auto index = view->model()->index(row, 0);
+			if (index.data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#4003")) {
+				auto option = QStyleOptionViewItem{ };
+				option.initFrom(view);
+				option.rect   = view->visualRect(index);
+				option.font   = view->font();
+				option.widget = view;
+				return std::tuple{ index.data(qt::home_row_role::verdict).toString(), index.data(qt::home_row_role::verdict_tip).toString(),
+								   index.data(Qt::AccessibleTextRole).toString(), !aWindow.home_list()->row_delegate()->verdict_rect(option, index).isEmpty() };
+			}
+		}
+		return std::tuple{ QString{ }, QString{ }, QString{ }, false };
+	};
+	expect(queue_item(*windowA, 4003)->Facts.MyReview == core::queue_my_review{ .Verdict = core::my_review_verdict::approved, .SubmittedAt = 1'791'994'800 }
+			   && queue_item(*windowB, 4003)->Facts.MyReview == queue_item(*windowA, 4003)->Facts.MyReview,
+		   "the approval and when it was submitted reach both windows' rows");
+	for (auto* const window : { windowA, windowB }) {
+		const auto [words, tip, name, drawn] = approvedChip(*window);
+		std::cerr << "approved chip: " << words.toStdString() << " | " << tip.toStdString() << '\n';
+		expect(words == QStringLiteral("Approved") && tip.startsWith(QStringLiteral("You approved this on ")) && tip.contains(QStringLiteral("2026")) && name.endsWith(tip) && drawn,
+			   "the Following row carries an Approved chip whose tooltip and accessible name say when I approved it");
+	}
 	windowA->findChild<QAction*>(QStringLiteral("homeFilterReviewerAction"))->trigger();
 	QApplication::processEvents();
 	expect(queue_numbers(*windowA).contains(4003), "Reviewer includes the accepted discovered review");
@@ -1116,6 +1143,16 @@ try {
 	}
 	expect(queue_item(*windowA, 17)->Facts.Draft == true && retainedRecentDraft, "restart preserves the exact PR draft in queue and Recent independently of recency order");
 	expect(contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"), "restored approved PR is Following before it is opened");
+	{
+		auto* const model    = windowA->home_list()->state_model(qt::home_group::following);
+		auto        restored = QString{ };
+		for (auto row = 0; model != nullptr && row < model->rowCount(); ++row) {
+			if (model->index(row, 0).data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#4003")) {
+				restored = model->index(row, 0).data(qt::home_row_role::verdict).toString();
+			}
+		}
+		expect(restored == QStringLiteral("Approved"), "[[BPR-PENDING-X]] and still says I approved it");
+	}
 	expect(std::ranges::none_of(reads_since(evidence(), beforeReconnect), [](const std::string& aOperation) {
 			   return aOperation == "GetRepository" || aOperation == "ListPullRequestFiles" || aOperation == "ListPullRequestCommits"
 				   || aOperation == "ListReviewThreads" || aOperation == "ListIssueComments";
