@@ -15420,6 +15420,182 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-PENDING-O]]. A thread picked in Threads into a file that is not
+	/// open, deep in a file long enough that its comparison is filled over
+	/// several turns ([[BPR-1264]]), opens with its line in view. The host
+	/// answers as the composition does: the placement, then the loading, the
+	/// publication and the placement again in one turn, the panes adopted and
+	/// measured only afterwards. A Return pick on a left-side thread of the
+	/// same file reveals at once, and a pick back into the file once it is
+	/// prepared waits for the file again. Its clicks and keys go to the
+	/// window in its points, so it runs in `--conversation-reveal` at 1.0
+	/// only, as [[BPR-1682]]'s case runs in `--line-draft`.
+	void test_a_pick_into_a_long_unopened_file_reveals_its_line()
+	{
+		auto  state   = core::workbench_interaction_state{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		const auto big   = core::file_identity_of("src/big.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = big, .Path = "src/big.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		const auto node = [](std::string aId, std::optional<std::string> aParent, std::string aBody, std::string aPath, std::uint32_t aLine, application::github_conversation_diff_side aSide) {
+			auto made               = application::github_conversation_projection{ };
+			made.Id                 = std::move(aId);
+			made.ParentId           = std::move(aParent);
+			made.Kind               = made.ParentId ? application::github_conversation_kind::review_comment : application::github_conversation_kind::review_thread;
+			made.AuthorLogin        = made.ParentId ? "tbutler" : "";
+			made.Body               = std::move(aBody);
+			made.Path               = std::move(aPath);
+			made.Line               = aLine;
+			made.DiffSide           = aSide;
+			made.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			return made;
+		};
+		using side                  = application::github_conversation_diff_side;
+		auto pull                   = application::github_pull_request_projection{ };
+		pull.ReviewThreadCount      = 3U;
+		pull.ReviewThreadsAvailable = true;
+		pull.Conversations          = {
+			node("review-thread:near", std::nullopt, { }, "src/file.cpp", 6U, side::right),
+			node("review-comment:near-1", "review-thread:near", "on the short file", "src/file.cpp", 6U, side::right),
+			node("review-thread:deep", std::nullopt, { }, "src/big.cpp", 2'991U, side::right),
+			node("review-comment:deep-1", "review-thread:deep", "issue: at change four", "src/big.cpp", 2'991U, side::right),
+			node("review-thread:left", std::nullopt, { }, "src/big.cpp", 2'001U, side::left),
+			node("review-comment:left-1", "review-thread:left", "question: on the removed text?", "src/big.cpp", 2'001U, side::left),
+		};
+		window.publish(application::github_presentation_update{ .PullRequest = pull });
+		auto shortText = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			shortText += "line " + std::to_string(line) + '\n';
+		}
+		auto shortLater = shortText;
+		shortLater.replace(shortLater.find("line 5"), 6U, "changed line 5");
+		// Four changes in 3,200 lines, the fourth at line 2,991: the two sides
+		// come to more than the 4,096 lines a comparison adopts in one turn.
+		auto bigText = std::string{ };
+		for (auto line = 0U; line < 3'200U; ++line) {
+			bigText += "source line " + std::to_string(line) + '\n';
+		}
+		auto bigLater = bigText;
+		for (const auto line : { 2'990U, 2'000U, 1'200U, 400U }) {
+			const auto was = "source line " + std::to_string(line) + '\n';
+			bigLater.replace(bigLater.find(was), was.size(), "changed source line " + std::to_string(line) + '\n');
+		}
+		const auto bigDiff = computed_comparison(bigText, bigLater, 3U, big);
+		expect(bigDiff.Alignment.Groups.size() == 4U && bigDiff.Alignment.LeftLineCount + bigDiff.Alignment.RightLineCount > 4'096U,
+			   "the long file has four changes and is filled over several turns");
+		// The composition's order: `request_diff` places the endpoints, then
+		// the surface loads; the publication sink places them again right
+		// after the surface takes the publication, which a long file only
+		// stages.
+		auto*      surface = window.comparison_surface();
+		const auto answer  = [&](const core::file_identity aFile, const core::computed_file_diff& aDiff) {
+			state.Navigation = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+			auto moved       = application::workbench_projection{ };
+			moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+			window.publish(moved);
+			window.set_conversation_endpoint_placement(true, true);
+			surface->set_loading(request_context(aDiff));
+			surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(aDiff), .Result = std::make_shared<const core::computed_file_diff>(aDiff) }));
+			window.set_conversation_endpoint_placement(true, true);
+			settle_geometry(*surface, "the answered comparison");
+			expect(surface->current_context().has_value() && surface->current_context()->Key.File == aFile, "the answered comparison is the one shown");
+		};
+		answer(file, computed_comparison(shortText, shortLater, 0U, file));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+		expect(surface->source_line_visible(core::diff_side::right, 0U) && !surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "the fixture starts on the short file");
+
+		// Threads, the deep thread's row, its Review button.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		auto* const finder = window.finder();
+		const auto  deep   = std::string{ "row:review-thread:deep/review-comment:deep-1" };
+		expect(window.current_modality() == qt::review_modality::threads && std::ranges::count(finder->shown_keys(), deep) == 1, "Threads lists the deep thread");
+		// Every click and key goes to the window as the platform delivers it,
+		// so Qt's own hit-testing finds the row and its button.
+		const auto press = [&window, finder](const QPoint aAt) {
+			auto* const viewport = finder->list()->viewport();
+			const auto  local    = QPointF{ viewport->mapTo(&window, aAt) };
+			const auto  global   = QPointF{ viewport->mapToGlobal(aAt) };
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				window.windowHandle(), local, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, Qt::NoModifier);
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				window.windowHandle(), local, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+			process_events();
+		};
+		const auto enter = [&window] {
+			for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+				QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), type, Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+			}
+			process_events();
+		};
+		const auto row = finder->row_rect(deep);
+		press(QPoint{ row.left() + 12, row.center().y() });
+		const auto review = finder->review_button_rect(deep);
+		expect(finder->cursor_key() == deep && !review.isEmpty(), "a click puts the cursor on the row, which shows its Review button");
+		press(review.center());
+		expect(window.current_modality() == qt::review_modality::review, "Review opens the row in Review");
+		answer(big, bigDiff);
+		auto* const cards = window.conversation_panel()->cards();
+		expect(cards->open_thread_id() == "review-thread:deep" && cards->picked_post() == "review-comment:deep-1",
+			   "once the long file shows, the thread opens in place at the picked post");
+		expect(surface->conversation_anchor().has_value() && surface->conversation_anchor()->Side == core::diff_side::right && surface->conversation_anchor()->Line == 2'990U,
+			   "the thread's line is the comparison's conversation anchor");
+		expect(surface->source_line_visible(core::diff_side::right, 2'990U) && !surface->source_line_visible(core::diff_side::right, 0U),
+			   "and the code is scrolled to it: change four at line 2,991 is in view, not line 1");
+		save_render(window, QStringLiteral("long-file-pick"));
+
+		// The same file is open: a Return pick of the left-side thread reveals
+		// its removed line at once.
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		const auto left = std::string{ "row:review-thread:left/review-comment:left-1" };
+		expect(finder->reveal("review-thread:left", "review-comment:left-1") && finder->cursor_key() == left, "the cursor is on the left-side thread");
+		enter();
+		settle_geometry(*surface, "the left-side pick");
+		expect(window.current_modality() == qt::review_modality::review && cards->open_thread_id() == "review-thread:left"
+				   && surface->conversation_anchor().has_value() && surface->conversation_anchor()->Side == core::diff_side::left && surface->conversation_anchor()->Line == 2'000U
+				   && surface->source_line_visible(core::diff_side::left, 2'000U) && !surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "a left-side thread on the open file reveals its line on the left at once");
+
+		// Away to the short file and back by a pick: the long file is prepared
+		// now, and its comparison is answered again over several turns.
+		answer(file, computed_comparison(shortText, shortLater, 0U, file));
+		expect(surface->source_line_visible(core::diff_side::right, 0U), "the short file shows from its top");
+		deliver_key(window, Qt::Key_J, Qt::ControlModifier);
+		expect(finder->reveal("review-thread:deep", "review-comment:deep-1"), "the cursor is back on the deep thread");
+		enter();
+		answer(big, bigDiff);
+		expect(cards->open_thread_id() == "review-thread:deep" && surface->conversation_anchor().has_value() && surface->conversation_anchor()->Line == 2'990U
+				   && surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "a pick into the prepared long file reveals its line too");
+		window.hide();
+	}
+
 	/// [[BPR-1356]]. Threads opens a thread in Discuss as well as in Review,
 	/// through the real core: Shift+Return, the row's Discuss button and the
 	/// row menu's Open in Discuss (right click, the menu key or Shift+F10)
@@ -19947,6 +20123,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_defect_queue_navigation_and_semantic_dispatch", &test_defect_queue_navigation_and_semantic_dispatch);
 		runCase("test_thread_defect_menus_badges_and_navigation", &test_thread_defect_menus_badges_and_navigation);
 		runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
+		runCase("test_a_pick_into_a_long_unopened_file_reveals_its_line", &test_a_pick_into_a_long_unopened_file_reveals_its_line);
 		if (!listCases) {
 			std::cout << "workbench-conversation-reveal:pass\n";
 		}

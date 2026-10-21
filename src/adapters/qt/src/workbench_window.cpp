@@ -15161,7 +15161,17 @@ namespace bpr::qt {
 			// The selection authority names the picked post itself, as a
 			// revealed comment always has; its thread stays the one open.
 			if (const auto post = ConversationPanel->model()->index_for_id(pick.Post); post.isValid()) {
+				// [[BPR-PENDING-O]]. The pick reveals its line itself, once.
+				// Choosing moves the code only through the view's current
+				// change, and a long file's comparison is adopted turns after
+				// it is published, from the surface's selection observer,
+				// whose guard drops that change: the file opened where its
+				// own selection put it, not at the thread's line. An
+				// unchanged current row sends no change either.
+				const auto applying = std::exchange(ApplyingConversationAnchor, true);
 				ConversationPanel->choose(post);
+				ApplyingConversationAnchor = applying;
+				synchronize_selected_conversation(post);
 			}
 			// [[BPR-1581]]. The post's arrival is marked, as in Discuss, and a
 			// move from Discuss leaves the keyboard on the notes.
