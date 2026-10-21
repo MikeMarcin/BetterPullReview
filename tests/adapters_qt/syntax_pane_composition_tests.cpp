@@ -432,6 +432,123 @@ namespace {
 		expect(colour("getComponent") == function, "the template call's name is painted as a function");
 		expect(colour("Type") == type, "the template argument is painted as a type");
 	}
+
+	/// \brief [[BPR-PENDING-S]]: `std` and a namespace the standard nests in it
+	/// are painted in the namespace colour on the composed surface, in Light
+	/// and Dark, while the standard name after them keeps the built-in colour.
+	///
+	/// \details With `BPR_STD_NAMESPACE_RENDER_ROOT` set, the composed
+	/// workbench is also saved there as `light.png` and `dark.png` before the
+	/// colours are judged, which is how the card's before and after renders
+	/// were made.
+	void test_std_namespace_reaches_the_pane()
+	{
+		const auto left = std::string{
+			"#include <vector>\n"
+			"\n"
+			"namespace fs = std::filesystem;\n"
+			"\n"
+			"auto load(const fs::path& aPath) -> std::vector<std::string>\n"
+			"{\n"
+			"\tusing namespace std::chrono_literals;\n"
+			"\tauto lines = std::vector<std::string>{ };\n"
+			"\tauto found = std::ranges::find(lines, \"x\");\n"
+			"\tauto limit = std::numeric_limits<int>::max();\n"
+			"\tauto align = Qt::AlignLeft;\n"
+			"\treturn lines;\n"
+			"}\n"
+		};
+		auto right = left;
+		right.replace(right.find("\"x\""), 3U, "aPath.string()");
+
+		auto       leftBytes  = std::vector<std::uint8_t>{ left.begin(), left.end() };
+		auto       rightBytes = std::vector<std::uint8_t>{ right.begin(), right.end() };
+		const auto options    = core::diff_options{ };
+		const auto outcome    = bpr::tests::product_file_diff({
+			.Key        = comparison_key(options),
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ leftBytes },
+			.RightBytes = std::span<const std::uint8_t>{ rightBytes },
+		});
+		expect(outcome.Reason == core::diff_reason_code::none && outcome.Result.has_value(),
+			   "the std comparison computes");
+
+		auto       catalog    = syntax::packaged_definition_catalog{ };
+		const auto definition = catalog.definition_for_path("review.cpp");
+		const auto classify   = [&](const std::string& aText) {
+			auto       blobs  = single_blob{ aText };
+			auto       reader = syntax::packaged_syntax_classifier{ catalog, blobs };
+			const auto result = reader.classify(
+				{
+					.Context      = { },
+					.Key          = { .Blob = blob(21U), .Definition = definition },
+					.MaximumSpans = 1'000'000U,
+				},
+				std::stop_token{ });
+			expect(result.Status == application::syntax_classification_status::available,
+				   "the packaged classifier answers for the std blob");
+			return std::make_shared<const application::token_span_list>(result.Spans);
+		};
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'120, 560);
+		workbench.show();
+		process_events();
+		const auto context = core::diff_request_context{
+			.Request            = core::request_id{ 1U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = outcome.Result->Alignment.Key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		workbench.set_loading(context);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*outcome.Result),
+		}));
+		process_events();
+		expect(workbench.adopt_token_spans(core::diff_side::left, classify(left))
+				   && workbench.adopt_token_spans(core::diff_side::right, classify(right)),
+			   "both sides' spans arrive in the order the pane requires");
+		settle_geometry(workbench);
+
+		const auto line  = static_cast<int>(line_of(left, "std::ranges::find"));
+		const auto row   = std::string_view{ "\tauto found = std::ranges::find(lines, \"x\");" };
+		const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark };
+		const auto root  = qEnvironmentVariable("BPR_STD_NAMESPACE_RENDER_ROOT");
+		for (const auto mode : modes) {
+			if (root.isEmpty()) {
+				break;
+			}
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			workbench.adopt_appearance(profile);
+			process_events();
+			const auto name = mode == core::appearance_mode::light ? QStringLiteral("/light.png") : QStringLiteral("/dark.png");
+			expect(workbench.grab().save(root + name), "the composed workbench is saved offscreen");
+		}
+		for (const auto mode : modes) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			workbench.adopt_appearance(profile);
+			process_events();
+			const auto painted = block_formats(*workbench.left_pane(), line);
+			const auto colour  = [&](const std::string_view aWord) -> std::optional<QColor> {
+				const auto column = static_cast<int>(row.find(aWord));
+				for (const auto& range : painted) {
+					if (range.start <= column && range.start + range.length >= column + static_cast<int>(aWord.size())) {
+						return range.format.foreground().color();
+					}
+				}
+				return std::nullopt;
+			};
+			const auto namespaceColour = profile.color(core::appearance_role::syntax_namespace);
+			const auto builtin         = profile.color(core::appearance_role::syntax_builtin);
+			expect(namespaceColour != builtin, "the profile paints namespaces and built-ins apart");
+			expect(colour("std") == namespaceColour, "std is painted in the namespace colour");
+			expect(colour("ranges") == namespaceColour, "std::ranges is painted in the namespace colour");
+			expect(colour("find") == builtin, "the standard name after the namespaces keeps the built-in colour");
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -442,6 +559,7 @@ auto main(int argc, char** argv) -> int
 	test_classified_blob_reaches_the_pane();
 	test_an_oversize_blob_paints_nothing_rather_than_a_prefix();
 	test_template_call_roles_reach_the_pane();
+	test_std_namespace_reaches_the_pane();
 	std::cout << "syntax-pane-composition-tests:pass\n";
 	return EXIT_SUCCESS;
 }

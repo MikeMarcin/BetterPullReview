@@ -74,12 +74,30 @@ namespace {
 		stop.request_stop();
 		expect(refine_cpp_identifiers(text, spans, 100U, stop.get_token()) == syntax_classification_status::cancelled && spans.empty(), "explicit stop publishes nothing");
 	}
+
+	/// [[BPR-PENDING-S]]: namespace qualifiers are decided in core, without Qt.
+	void test_namespace_qualifiers()
+	{
+		constexpr auto text  = std::string_view{ "using namespace outer::inner; auto a = std::ranges::find(x); auto b = outer::inner::make(); auto c = Foo::bar(); auto d = ::std::size_t{ };" };
+		auto           spans = token_span_list{ };
+		expect(refine_cpp_identifiers(text, spans, 100U, { }) == syntax_classification_status::available, "namespace refinement is available without Qt");
+		expect(role_at(spans, text.find("std")) == appearance_role::syntax_namespace, "std qualifies as the standard library namespace");
+		expect(role_at(spans, text.find("ranges")) == appearance_role::syntax_namespace, "a namespace the standard nests in std is a namespace");
+		expect(role_at(spans, text.find("find")) == appearance_role::syntax_normal, "the name after the namespaces keeps its own role");
+		expect(role_at(spans, text.rfind("outer")) == appearance_role::syntax_namespace && role_at(spans, text.rfind("inner")) == appearance_role::syntax_namespace, "a using-directive's segments qualify as namespaces elsewhere");
+		expect(role_at(spans, text.find("Foo")) == appearance_role::syntax_type, "an undeclared qualifier keeps the generic scope role");
+		expect(role_at(spans, text.rfind("std")) == appearance_role::syntax_namespace, "a globally qualified ::std is the namespace");
+		constexpr auto shadowed = std::string_view{ "namespace lib { struct std { static int x; }; auto v = std::x; }" };
+		auto           hidden   = token_span_list{ };
+		expect(refine_cpp_identifiers(shadowed, hidden, 100U, { }) == syntax_classification_status::available && role_at(hidden, shadowed.rfind("std")) == appearance_role::syntax_type, "a class the blob names std hides the namespace in its scope");
+	}
 }
 
 auto main() -> int
 try {
 	test_real_matcher();
 	test_identifier_refinement();
+	test_namespace_qualifiers();
 	std::cout << "core-computation-boundaries:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

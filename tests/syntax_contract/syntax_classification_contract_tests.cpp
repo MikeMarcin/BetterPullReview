@@ -957,8 +957,11 @@ namespace {
 		const auto freeLine = line_of(text, "BPR-FREE-LINE");
 		expect(word_has_role(spans, text, freeLine, "ProcessString", role::syntax_function),
 			   "a free function before ( is a function");
-		expect(word_has_role(spans, text, freeLine, "std::wstring", role::syntax_builtin),
-			   "the grammar's own role for std:: is kept, not overridden");
+		// [[BPR-PENDING-S]]: `std` is the standard library's namespace, and the
+		// name the grammar paints after it keeps the grammar's built-in role.
+		expect(word_has_role(spans, text, freeLine, "std", role::syntax_namespace)
+				   && word_has_role(spans, text, freeLine, "wstring", role::syntax_builtin),
+			   "std:: is a namespace and the grammar's role for the name after it is kept");
 		expect(word_stays_normal(spans, text, freeLine, "text"),
 			   "a plain parameter name stays normal");
 
@@ -1214,8 +1217,9 @@ namespace {
 			   "pointer, reference and cv-qualified arguments are types");
 		expect(is("T20", "Shape", type) && is("T20", "3", role::syntax_number) && is("T20", "MAX_SIZE", role::syntax_macro),
 			   "non-type arguments keep their own roles: a number and an ALL_CAPS constant");
-		expect(is("T21", "std::make_unique", role::syntax_builtin) && is("T21", "Widget", type),
-			   "the grammar's role for a std:: name is kept and its argument is a type");
+		expect(is("T21", "std", role::syntax_namespace) && is("T21", "make_unique", role::syntax_builtin)
+				   && is("T21", "Widget", type),
+			   "std:: is a namespace, the grammar's role for the name after it is kept and its argument is a type");
 		expect(is("T22", "Base", type), "a cast's target type is a type");
 		expect(is("T23", "Result", type), "a function type's result is a type, not a call");
 		expect(is("T24", "Colour", type) && is("T24", "Red", role::syntax_enum_member),
@@ -1266,6 +1270,113 @@ namespace {
 		std::cout << "cpp-template-contract:pass calls/arguments/types/comparisons/C/revision\n";
 	}
 
+	/// \brief [[BPR-PENDING-S]]: namespace qualifiers, through the public
+	/// classifier over a committed corpus. `std` and the namespaces the
+	/// standard nests in it are namespaces; a using-directive and a namespace
+	/// alias's target name namespaces; an undeclared qualifier, a class scope
+	/// and a `std` the blob declares as a class are not. On revision 8 every
+	/// `std` qualifier, alias-target and directive-use expectation failed;
+	/// `using namespace std` itself and the negative controls already held.
+	void cpp_namespace_qualifier_contract(const syntax::packaged_definition_catalog& aCatalog)
+	{
+		using role       = core::appearance_role;
+		const auto text  = read_fixture("cpp_namespace_qualifiers.cpp");
+		auto       blobs = fixture_blobs{ };
+		const auto oid   = blob(160U);
+		blobs.install(oid, text);
+		auto       classifier = syntax::packaged_syntax_classifier{ aCatalog, blobs };
+		const auto definition = aCatalog.definition_for_path("qualifiers.cpp");
+		const auto whole      = classifier.classify(request(oid, definition), { });
+		expect(whole.Status == app::syntax_classification_status::available, "the namespace fixture classifies");
+		const auto is = [&](const std::string_view aMarker, const std::string_view aWord, const role aRole,
+							const std::size_t aOccurrence = 0U) {
+			return word_has_role(whole.Spans, text, line_of(text, aMarker), aWord, aRole, aOccurrence);
+		};
+		const auto namespaceFree = [&](const std::string_view aMarker, const std::string_view aWord,
+									   const std::size_t aOccurrence = 0U) {
+			const auto line   = line_of(text, aMarker);
+			const auto row    = row_of(text, line);
+			auto       column = row.find(aWord);
+			for (auto skipped = std::size_t{ 0U }; skipped < aOccurrence && column != std::string_view::npos; ++skipped) {
+				column = row.find(aWord, column + 1U);
+			}
+			expect(column != std::string_view::npos, "the word is on the line");
+			return std::none_of(whole.Spans.begin(), whole.Spans.end(), [&](const app::token_span& aSpan) {
+				return aSpan.Line == line && aSpan.Role == role::syntax_namespace && aSpan.Column < column + aWord.size()
+					&& aSpan.Column + aSpan.Length > column;
+			});
+		};
+		const auto ns      = role::syntax_namespace;
+		const auto builtin = role::syntax_builtin;
+
+		// The owner's request: `std` reads as a namespace wherever it qualifies.
+		expect(is("N07", "std", ns) && is("N07", "::", role::syntax_operator) && is("N07", "vector", builtin),
+			   "std:: is a namespace, its separator an operator, and the grammar's standard name stays built-in");
+		expect(is("N09", "std", ns) && is("N09", "size_t", builtin), "a globally qualified ::std is a namespace");
+		expect(is("N04", "std", ns), "using namespace std names a namespace");
+		expect(is("N05", "std", ns) && is("N05", "chrono_literals", ns),
+			   "a using-directive through std names both namespaces");
+		expect(is("N08", "std", ns) && is("N08", "ranges", ns) && is("N08", "find", builtin),
+			   "a namespace the standard nests in std is a namespace and the call keeps the grammar's role");
+		expect(is("N10", "std", ns) && is("N10", "chrono", ns) && is("N10", "seconds", builtin, 1U),
+			   "std::chrono is a namespace and the clock type keeps the grammar's role");
+		expect(is("N20", "std", ns) && is("N20", "numeric_limits", builtin),
+			   "a std class template before its argument list keeps the grammar's role");
+
+		// Class scope under std: the standard declares no namespace `string`.
+		expect(is("N11", "std", ns) && is("N11", "string", builtin) && namespaceFree("N11", "string")
+				   && is("N11", "npos", builtin, 1U),
+			   "a std class used as a scope is not a namespace");
+
+		// Structural evidence for namespaces the blob does not declare.
+		expect(is("N01", "foo", ns) && is("N01", "bar", ns), "a nested namespace definition names both namespaces");
+		expect(is("N12", "foo", ns) && is("N12", "bar", ns) && is("N12", "baz", role::syntax_function),
+			   "a call through declared namespaces keeps both namespaces");
+		expect(is("N02", "fs", ns) && is("N02", "std", ns) && is("N02", "filesystem", ns),
+			   "a namespace alias and every segment of its target are namespaces");
+		expect(is("N03", "net", ns) && is("N03", "vendor", ns) && is("N03", "network", ns),
+			   "an alias target the blob does not declare is still a namespace");
+		expect(is("N16", "vendor", ns) && is("N16", "network", ns) && is("N16", "connect", role::syntax_function),
+			   "a use through an alias target's namespaces is a namespace use");
+		expect(is("N06", "outer", ns) && is("N06", "inner", ns), "a using-directive names every segment a namespace");
+		expect(is("N17", "outer", ns) && is("N17", "inner", ns) && is("N17", "make", role::syntax_function),
+			   "a use through a using-directive's namespaces is a namespace use");
+		expect(is("N18", "fs", ns), "a namespace alias use is a namespace");
+
+		// Without evidence a qualifier keeps the generic scope treatment.
+		// The packaged definition lists `Qt` among its Qt classes and paints the
+		// whole qualified name with that built-in role; nothing in the blob says
+		// it is a namespace, so it keeps that role.
+		expect(is("N13", "Qt::AlignLeft", builtin) && namespaceFree("N13", "Qt"),
+			   "Qt without in-blob evidence keeps the grammar's built-in role rather than becoming a namespace");
+		expect(is("N19", "mystd", role::syntax_type) && namespaceFree("N19", "mystd"),
+			   "a name that merely contains std is not std");
+		expect(is("N14", "Widget", role::syntax_type) && namespaceFree("N14", "Widget")
+				   && is("N14", "count", role::syntax_function, 1U),
+			   "a declared class used as a scope is a type");
+		expect(is("N15", "Widget", role::syntax_type) && is("N15", "Mode", role::syntax_type)
+				   && is("N15", "Fast", role::syntax_enum_member),
+			   "a class scope and its enum scope stay types and the enumerator resolves");
+		expect(namespaceFree("N21", "std", 1U), "a std the blob declares as a class is not the namespace");
+
+		// Protected regions supply no namespace.
+		expect(namespaceFree("#define STD_VECTOR", "std") && namespaceFree("N22", "std")
+				   && namespaceFree("N23", "std"),
+			   "a directive, a comment and a string name no namespace");
+
+		const auto again = classifier.classify(request(oid, definition), { });
+		expect(again.Spans == whole.Spans, "an equal blob yields equal spans");
+		const auto asC = classifier.classify(request(oid, *aCatalog.definition_named("C")), { });
+		expect(asC.Status == app::syntax_classification_status::available
+				   && !word_inside_role(asC.Spans, text, line_of(text, "N07"), "std", ns),
+			   "C reads no namespace");
+		auto old    = definition;
+		old.Version = ((syntax::cpp_identifier_heuristic_revision - 1U) << 16U) | (old.Version & 0xFFFFU);
+		expect(classifier.classify(request(oid, old), { }).Status == app::syntax_classification_status::unavailable,
+			   "spans cached under revision 8 are refused");
+		std::cout << "cpp-namespace-qualifier-contract:pass std/nested/directives/aliases/class-scope/protected/C/revision\n";
+	}
+
 } // namespace
 
 int main()
@@ -1279,6 +1390,7 @@ try {
 	cpp_context_contract(catalog);
 	cpp_gap_contract(catalog);
 	cpp_template_contract(catalog);
+	cpp_namespace_qualifier_contract(catalog);
 	builtin_type_contract(catalog);
 	windows_resource_contract(catalog);
 	plain_text_and_failure_contract(catalog);
