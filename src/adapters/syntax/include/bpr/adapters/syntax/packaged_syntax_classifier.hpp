@@ -54,7 +54,7 @@ namespace bpr::adapters::syntax {
 	/// target, and their uses, are namespaces (BPR-1710). Revision 10 resolves
 	/// a namespace after `.` and `->`, which also begins a trailing return type
 	/// (`-> std::vector<int>`), and lets a qualified class head (`struct
-	/// std::hash<Key> {`) declare nothing (BPR-PENDING-V).
+	/// std::hash<Key> {`) declare nothing (BPR-1711).
 	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 10U;
 
 	/// \brief Supplies the complete bytes of one blob.

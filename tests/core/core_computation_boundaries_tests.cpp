@@ -90,7 +90,7 @@ namespace {
 		constexpr auto shadowed = std::string_view{ "namespace lib { struct std { static int x; }; auto v = std::x; }" };
 		auto           hidden   = token_span_list{ };
 		expect(refine_cpp_identifiers(shadowed, hidden, 100U, { }) == syntax_classification_status::available && role_at(hidden, shadowed.rfind("std")) == appearance_role::syntax_type, "a class the blob names std hides the namespace in its scope");
-		// [[BPR-PENDING-V]]: a trailing return type after `->`, and a qualified class head that declares nothing.
+		// [[BPR-1711]]: a trailing return type after `->`, and a qualified class head that declares nothing.
 		constexpr auto trailing = std::string_view{ "template <> struct std::hash<int> { }; auto f() -> std::size_t; auto g = p->field;" };
 		auto           returned = token_span_list{ };
 		expect(refine_cpp_identifiers(trailing, returned, 100U, { }) == syntax_classification_status::available, "trailing return refinement is available");

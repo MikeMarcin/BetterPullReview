@@ -550,7 +550,7 @@ namespace {
 			expect(colour("std") == namespaceColour, "std is painted in the namespace colour");
 			expect(colour("ranges") == namespaceColour, "std::ranges is painted in the namespace colour");
 			expect(colour("find") == builtin, "the standard name after the namespaces keeps the built-in colour");
-			// [[BPR-PENDING-V]]: the owner's after-render left the std after -> built-in.
+			// [[BPR-1711]]: the owner's after-render left the std after -> built-in.
 			expect(colourOn(returnLine, returnRow, "std") == namespaceColour
 					   && colourOn(returnLine, returnRow, "std", returnRow.find('<')) == namespaceColour,
 				   "a trailing return type's std is painted like the std inside it");

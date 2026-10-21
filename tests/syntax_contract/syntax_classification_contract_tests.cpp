@@ -1277,7 +1277,7 @@ namespace {
 	/// and a `std` the blob declares as a class are not. On revision 8 every
 	/// `std` qualifier, alias-target and directive-use expectation failed;
 	/// `using namespace std` itself and the negative controls already held.
-	/// [[BPR-PENDING-V]]: on revision 9 a `std` after `->` or `.` (N24-N29)
+	/// [[BPR-1711]]: on revision 9 a `std` after `->` or `.` (N24-N29)
 	/// failed, and the `std::hash` specialization (N33) left no `std` in the
 	/// blob a namespace; the member-access controls already held.
 	void cpp_namespace_qualifier_contract(const syntax::packaged_definition_catalog& aCatalog)
@@ -1362,7 +1362,7 @@ namespace {
 			   "a class scope and its enum scope stay types and the enumerator resolves");
 		expect(namespaceFree("N21", "std", 1U), "a std the blob declares as a class is not the namespace");
 
-		// [[BPR-PENDING-V]]: `->` also begins a trailing return type, and a
+		// [[BPR-1711]]: `->` also begins a trailing return type, and a
 		// class declares no namespace, so a namespace resolves after `.` and `->`.
 		expect(is("N24", "std", ns) && is("N24", "vector", builtin) && is("N24", "std", ns, 1U),
 			   "the owner's report: a trailing return type's std is a namespace like the one inside it");

@@ -455,7 +455,7 @@ namespace bpr::core {
 				}
 				auto name = identifier(at) ? std::optional{ at } : std::nullopt;
 				// `struct std::hash<Key> {` names a member of a scope declared elsewhere:
-				// its qualifier is a use and nothing is declared here [[BPR-PENDING-V]].
+				// its qualifier is a use and nothing is declared here [[BPR-1711]].
 				const auto qualified = name && word(at + 1U) == "::";
 				while (name && word(*name + 1U) == "::" && identifier(*name + 2U) && !Stop.stop_requested()) {
 					name = *name + 2U;
@@ -669,7 +669,7 @@ namespace bpr::core {
 				const auto global = aFirst > 0U && word(aFirst - 1U) == "::";
 				// After `.` or `->` only a namespace resolves. A class declares none, so a
 				// namespace there scopes a base (`p->std::exception::what()`) or starts a
-				// trailing return type, which shares the token (`-> std::vector<int>`) [[BPR-PENDING-V]].
+				// trailing return type, which shares the token (`-> std::vector<int>`) [[BPR-1711]].
 				const auto member = aFirst > 0U && (word(aFirst - 1U) == "." || word(aFirst - 1U) == "->");
 				const auto kept   = [member](const std::optional<symbol>& aFound) {
 					return member && aFound && aFound->Kind != symbol_kind::name_space && aFound->Kind != symbol_kind::namespace_alias ? std::nullopt : aFound;
