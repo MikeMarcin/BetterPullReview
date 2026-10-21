@@ -35,6 +35,8 @@ namespace bpr::application {
 		[[nodiscard]] auto erase_last_reviewed_head() -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto store_defect(const durable_defect_record& aDefect) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto erase_defect(core::defect_id aDefect) -> std::expected<void, ledger_store_failure> override;
+		[[nodiscard]] auto store_generated_mark(const core::generated_file_mark& aMark) -> std::expected<void, ledger_store_failure> override;
+		[[nodiscard]] auto erase_generated_mark(const core::file_identity& aFile) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto load_private() -> std::expected<private_ledger_observation, ledger_store_failure> override;
 		[[nodiscard]] auto admit_agent_session(const agent_session_admission& aAdmission) -> std::expected<core::agent_session, ledger_store_failure> override;
 		[[nodiscard]] auto load_agent_session_catalog() -> std::expected<agent_session_catalog_state, ledger_store_failure> override;

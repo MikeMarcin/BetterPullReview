@@ -318,6 +318,20 @@ namespace bpr::adapters::sqlite::detail {
 			std::string_view{ "DROP TABLE local_note_v5" },
 		};
 
+		/// \brief RFC-BPR-0089 M2. The statement that carries schema version 10
+		/// to version 11: the reviewer's generated-file marks.
+		///
+		/// \details One row per file a mark says something about: Show as
+		/// normal (1), Treat as generated (2), and Review anyway. A row that
+		/// says nothing is refused, so no row and no mark mean the same.
+		constexpr std::string_view SchemaVersion11GeneratedMark = "CREATE TABLE generated_mark("
+																  "scope_id INTEGER NOT NULL REFERENCES review_scope(scope_id) ON DELETE CASCADE,"
+																  "file_identity BLOB NOT NULL CHECK(length(file_identity) = 32),"
+																  "mark INTEGER NOT NULL CHECK(mark BETWEEN 0 AND 2),"
+																  "review_anyway INTEGER NOT NULL CHECK(review_anyway IN (0, 1)),"
+																  "CHECK(mark <> 0 OR review_anyway = 1),"
+																  "PRIMARY KEY(scope_id, file_identity)) STRICT";
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -416,6 +430,15 @@ namespace bpr::adapters::sqlite::detail {
 			std::array<schema_table, SchemaVersion9Tables.size() + 1U> tables{ };
 			std::ranges::copy(SchemaVersion9Tables, tables.begin());
 			tables.back() = { PrivateNoteLineTable.Name, PrivateNoteLineTable.Sql };
+			std::ranges::sort(tables, { }, &schema_table::Name);
+			return tables;
+		}();
+
+		/// RFC-BPR-0089 M2. Schema 11 adds the generated mark table to schema 10.
+		constexpr auto SchemaVersion11Tables = [] {
+			std::array<schema_table, SchemaVersion10Tables.size() + 1U> tables{ };
+			std::ranges::copy(SchemaVersion10Tables, tables.begin());
+			tables.back() = { "generated_mark", SchemaVersion11GeneratedMark };
 			std::ranges::sort(tables, { }, &schema_table::Name);
 			return tables;
 		}();
@@ -589,6 +612,15 @@ namespace bpr::adapters::sqlite::detail {
 				version = 10;
 			}
 
+			if (version == 10) {
+				const std::array statements{ SchemaVersion11GeneratedMark };
+				if (auto migrated = run_all(aDatabase, statements, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+				version = 11;
+			}
+
 			if (auto recorded = execute(
 					aDatabase,
 					"UPDATE ledger_meta SET schema_format = "
@@ -693,7 +725,7 @@ namespace bpr::adapters::sqlite::detail {
 			return validate_at_version(
 				aDatabase,
 				review_ledger_schema_version,
-				SchemaVersion10Tables);
+				SchemaVersion11Tables);
 		}
 
 		struct preflight_file_image
@@ -1137,6 +1169,8 @@ namespace bpr::adapters::sqlite::detail {
 						expected = SchemaVersion9Tables;
 					} else if (*version == 10) {
 						expected = SchemaVersion10Tables;
+					} else if (*version == 11) {
+						expected = SchemaVersion11Tables;
 					} else {
 						validation = std::unexpected(failure::schema_mismatch);
 					}
@@ -1609,6 +1643,57 @@ namespace bpr::adapters::sqlite::detail {
 		return { };
 	}
 
+	auto review_ledger_database::store_generated_mark(
+		const std::int64_t               aScope,
+		const core::generated_file_mark& aMark) -> std::expected<void, failure>
+	{
+		if (!aMark.File.valid() || aMark.Mark > core::generated_mark::treat_as_generated
+			|| (aMark.Mark == core::generated_mark::none && !aMark.ReviewAnyway)) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto upsert = prepare(
+			Handle,
+			"INSERT INTO generated_mark(scope_id, file_identity, mark, review_anyway) "
+			"VALUES(?1, ?2, ?3, ?4) ON CONFLICT(scope_id, file_identity) DO UPDATE SET "
+			"mark = excluded.mark, review_anyway = excluded.review_anyway");
+		if (!upsert) {
+			return std::unexpected(upsert.error());
+		}
+		if (::sqlite3_bind_int64(upsert->Value, 1, aScope) != SQLITE_OK
+			|| bind_blob(upsert->Value, 2, aMark.File.bytes()) != SQLITE_OK
+			|| ::sqlite3_bind_int64(upsert->Value, 3, static_cast<std::int64_t>(aMark.Mark)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(upsert->Value, 4, aMark.ReviewAnyway ? 1 : 0) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
+	auto review_ledger_database::erase_generated_mark(
+		const std::int64_t         aScope,
+		const core::file_identity& aFile) -> std::expected<void, failure>
+	{
+		if (!aFile.valid()) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		auto erase = prepare(
+			Handle,
+			"DELETE FROM generated_mark WHERE scope_id = ?1 AND file_identity = ?2");
+		if (!erase) {
+			return std::unexpected(erase.error());
+		}
+		if (::sqlite3_bind_int64(erase->Value, 1, aScope) != SQLITE_OK
+			|| bind_blob(erase->Value, 2, aFile.bytes()) != SQLITE_OK) {
+			return std::unexpected(failure::unavailable);
+		}
+		if (::sqlite3_step(erase->Value) != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		return { };
+	}
+
 	auto review_ledger_database::store_defect(
 		const std::int64_t                        aScope,
 		const application::durable_defect_record& aDefect)
@@ -1866,6 +1951,43 @@ namespace bpr::adapters::sqlite::detail {
 		}
 		if (row != SQLITE_DONE) {
 			return std::unexpected(catalog_sql_failure(Handle));
+		}
+
+		// RFC-BPR-0089 M2. Ordered by identity, the order the core keeps them in.
+		auto marks = prepare(
+			Handle,
+			"SELECT file_identity, mark, review_anyway FROM generated_mark "
+			"WHERE scope_id = ?1 ORDER BY file_identity LIMIT ?2");
+		if (!marks
+			|| ::sqlite3_bind_int64(marks->Value, 1, aScope) != SQLITE_OK
+			|| ::sqlite3_bind_int64(
+				   marks->Value,
+				   2,
+				   static_cast<std::int64_t>(core::maximum_generated_file_marks) + 1)
+				!= SQLITE_OK) {
+			return std::unexpected(marks ? failure::unavailable : marks.error());
+		}
+		while ((row = ::sqlite3_step(marks->Value)) == SQLITE_ROW) {
+			if (result.GeneratedMarks.Marks.size() == core::maximum_generated_file_marks) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			const auto file   = read_digest(marks->Value, 0);
+			const auto mark   = ::sqlite3_column_int64(marks->Value, 1);
+			const auto anyway = ::sqlite3_column_int64(marks->Value, 2);
+			if (!file || mark < 0 || mark > 2 || anyway < 0 || anyway > 1) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			result.GeneratedMarks.Marks.push_back({
+				.File         = core::file_identity{ *file },
+				.Mark         = static_cast<core::generated_mark>(mark),
+				.ReviewAnyway = anyway == 1,
+			});
+		}
+		if (row != SQLITE_DONE) {
+			return std::unexpected(catalog_sql_failure(Handle));
+		}
+		if (!core::valid(result.GeneratedMarks)) {
+			return std::unexpected(failure::integrity_failure);
 		}
 		return result;
 	}

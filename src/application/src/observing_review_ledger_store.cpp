@@ -92,6 +92,22 @@ namespace bpr::application {
 		}
 		return result;
 	}
+	auto observing_review_ledger_store::store_generated_mark(const core::generated_file_mark& aMark) -> std::expected<void, ledger_store_failure>
+	{
+		auto result = Store->store_generated_mark(aMark);
+		if (result) {
+			notify(ledger_change{ .Domain = ledger_change_domain::private_records });
+		}
+		return result;
+	}
+	auto observing_review_ledger_store::erase_generated_mark(const core::file_identity& aFile) -> std::expected<void, ledger_store_failure>
+	{
+		auto result = Store->erase_generated_mark(aFile);
+		if (result) {
+			notify(ledger_change{ .Domain = ledger_change_domain::private_records });
+		}
+		return result;
+	}
 	auto observing_review_ledger_store::load_private() -> std::expected<private_ledger_observation, ledger_store_failure>
 	{
 		return Store->load_private();

@@ -185,6 +185,35 @@ namespace bpr::adapters::sqlite {
 				return { };
 			}
 
+			auto store_generated_mark(const core::generated_file_mark& aMark)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!aMark.File.valid() || aMark.Mark > core::generated_mark::treat_as_generated
+					|| (aMark.Mark == core::generated_mark::none && !aMark.ReviewAnyway)) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto stored = Database.store_generated_mark(Scope, aMark);
+				if (!stored) {
+					return std::unexpected(translate(stored.error()));
+				}
+				return { };
+			}
+
+			auto erase_generated_mark(const core::file_identity& aFile)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (!aFile.valid()) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto erased = Database.erase_generated_mark(Scope, aFile);
+				if (!erased) {
+					return std::unexpected(translate(erased.error()));
+				}
+				return { };
+			}
+
 			auto load_private() -> std::expected<
 				application::private_ledger_observation,
 				application::ledger_store_failure> override

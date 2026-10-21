@@ -217,6 +217,34 @@ namespace {
 			return { };
 		}
 
+		auto store_generated_mark(const core::generated_file_mark& aMark)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			GeneratedWrites.push_back(aMark);
+			auto&      marks = Private.GeneratedMarks.Marks;
+			const auto at    = std::ranges::lower_bound(marks, aMark.File, { }, &core::generated_file_mark::File);
+			if (at != marks.end() && at->File == aMark.File) {
+				*at = aMark;
+			} else {
+				marks.insert(at, aMark);
+			}
+			return { };
+		}
+
+		auto erase_generated_mark(const core::file_identity& aFile)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				return std::unexpected(*failure);
+			}
+			GeneratedErases.push_back(aFile);
+			std::erase_if(Private.GeneratedMarks.Marks, [&aFile](const core::generated_file_mark& aMark) { return aMark.File == aFile; });
+			return { };
+		}
+
 		auto load_private() -> std::expected<
 			application::private_ledger_observation,
 			application::ledger_store_failure> override
@@ -270,6 +298,8 @@ namespace {
 		core::file_identity                                   LastLoadedFile;
 		std::optional<core::file_receipt>                     Committed;
 		application::private_ledger_observation               Private;
+		std::vector<core::generated_file_mark>                GeneratedWrites;
+		std::vector<core::file_identity>                      GeneratedErases;
 		application::agent_session_catalog_state              Catalog{
 			.Next = core::agent_session_id{ 1U },
 		};
@@ -511,6 +541,16 @@ namespace {
 			pass();
 			return Target->erase_defect(aDefect);
 		}
+		auto store_generated_mark(const core::generated_file_mark& aMark) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->store_generated_mark(aMark);
+		}
+		auto erase_generated_mark(const core::file_identity& aFile) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->erase_generated_mark(aFile);
+		}
 		auto load_private() -> std::expected<application::private_ledger_observation, application::ledger_store_failure> override
 		{
 			pass();
@@ -700,6 +740,12 @@ namespace {
 		{
 			auto got = answer<void>{ };
 			Host.erase_last_reviewed_head(into(got));
+			return settled(got);
+		}
+		auto persist_mark(const core::generated_file_mark& aMark) -> std::expected<void, application::ledger_store_failure>
+		{
+			auto got = answer<void>{ };
+			Host.persist_generated_mark(aMark, into(got));
 			return settled(got);
 		}
 		auto admit(const application::agent_session_admission& aAdmission) -> std::expected<core::agent_session, application::ledger_store_failure>
@@ -934,6 +980,55 @@ namespace {
 				&& rigged.Host.statistics().PrivateFailures == 4U
 				&& rigged.Host.statistics().Operations == 1U,
 			"validation failures are counted without false writes, deletes or storage work");
+	}
+
+	/// \brief RFC-BPR-0089 M2. Generated marks are stored, replaced and
+	/// removed through the host, kept sorted in the private observation, and
+	/// a refused or invalid write changes nothing.
+	void test_generated_marks_round_trip_through_the_host()
+	{
+		auto       log     = event_log{ };
+		auto       store   = recording_store{ log };
+		auto       rigged  = rig{ store, log };
+		const auto lock    = core::file_identity_of("package-lock.json");
+		const auto gen     = core::file_identity_of("gen/out.c");
+		const auto first   = lock < gen ? lock : gen;
+		const auto second  = lock < gen ? gen : lock;
+		const auto treated = core::generated_file_mark{ .File = second, .Mark = core::generated_mark::treat_as_generated, .ReviewAnyway = false };
+		const auto anyway  = core::generated_file_mark{ .File = first, .Mark = core::generated_mark::none, .ReviewAnyway = true };
+
+		expect(rigged.private_observation().has_value(), "the private observation loads");
+		expect(rigged.persist_mark(treated).has_value(), "Treat as generated is stored");
+		expect(rigged.persist_mark(anyway).has_value(), "Review anyway is stored");
+		auto observed = rigged.Host.private_observation();
+		expect(observed && observed->GeneratedMarks.Marks == std::vector{ anyway, treated } && core::valid(observed->GeneratedMarks),
+			   "the host keeps the marks sorted by file");
+
+		auto normal = treated;
+		normal.Mark = core::generated_mark::show_as_normal;
+		expect(rigged.persist_mark(normal).has_value(), "Show as normal replaces the mark");
+		observed = rigged.Host.private_observation();
+		expect(observed && observed->GeneratedMarks.Marks == std::vector{ anyway, normal }, "a replaced mark is kept in place");
+
+		store.fail_next(application::ledger_store_failure::unavailable);
+		auto refusedMark   = anyway;
+		refusedMark.Mark   = core::generated_mark::treat_as_generated;
+		const auto refused = rigged.persist_mark(refusedMark);
+		expect(!refused && refused.error() == application::ledger_store_failure::unavailable, "a refused write stays typed");
+		expect(rigged.Host.private_observation()->GeneratedMarks.Marks == std::vector{ anyway, normal }, "a refused write changes nothing");
+
+		const auto silent = core::generated_file_mark{ .File = first, .Mark = core::generated_mark::none, .ReviewAnyway = false };
+		expect(rigged.persist_mark(silent).has_value(), "a mark that says nothing removes the row");
+		expect(store.GeneratedErases == std::vector{ first }, "the store erased it rather than writing an empty mark");
+		expect(rigged.Host.private_observation()->GeneratedMarks.Marks == std::vector{ normal }, "the removed mark leaves the observation");
+
+		const auto writes  = store.GeneratedWrites.size();
+		const auto invalid = rigged.persist_mark(core::generated_file_mark{ .File = core::file_identity{ }, .Mark = core::generated_mark::treat_as_generated, .ReviewAnyway = false });
+		expect(!invalid && invalid.error() == application::ledger_store_failure::invalid_record, "an invalid file is refused before the store");
+		expect(store.GeneratedWrites.size() == writes, "nothing reached the store");
+
+		const auto reloaded = rigged.private_observation();
+		expect(reloaded && reloaded->GeneratedMarks.Marks == std::vector{ normal }, "the store holds exactly what the host kept");
 	}
 
 	void test_private_records_round_trip_and_delete_through_the_host()
@@ -1386,11 +1481,14 @@ namespace {
 		expect(store.store_conversation_receipt({ .Conversation = core::review_conversation_id{ 1U } }).has_value() && changes.back().Domain == application::ledger_change_domain::conversation, "conversation success identifies domain");
 		expect(store.store_last_reviewed_head(reviewed_head()).has_value(), "head write forwarded");
 		expect(store.erase_last_reviewed_head().has_value(), "head delete forwarded");
+		expect(store.store_generated_mark({ .File = core::file_identity_of("gen.c"), .Mark = core::generated_mark::treat_as_generated, .ReviewAnyway = false }).has_value(),
+			   "generated mark write forwarded");
+		expect(store.erase_generated_mark(core::file_identity_of("gen.c")).has_value(), "generated mark delete forwarded");
 		expect(store.store_defect(private_defect()).has_value(), "defect write forwarded");
 		expect(store.erase_defect(private_defect().History.Defect.Id).has_value(), "defect delete forwarded");
 		expect(store.admit_agent_session(session_admission()).has_value(), "session admission forwarded");
 		const auto afterWrites = changes.size();
-		expect(afterWrites == 10U && changes.back().Domain == application::ledger_change_domain::private_records, "every successful mutation signals exactly once");
+		expect(afterWrites == 12U && changes.back().Domain == application::ledger_change_domain::private_records, "every successful mutation signals exactly once");
 		const auto failsSilently = [&raw, &changes, afterWrites](auto aOperation) {
 			raw->fail_next(application::ledger_store_failure::unavailable);
 			expect(!aOperation() && changes.size() == afterWrites, "failed mutation forwards failure without signal");
@@ -1400,6 +1498,8 @@ namespace {
 		failsSilently([&store] { return store.store_conversation_receipt({ .Conversation = core::review_conversation_id{ 1U } }); });
 		failsSilently([&store] { return store.store_last_reviewed_head(reviewed_head()); });
 		failsSilently([&store] { return store.erase_last_reviewed_head(); });
+		failsSilently([&store] { return store.store_generated_mark({ .File = core::file_identity_of("gen.c"), .Mark = core::generated_mark::treat_as_generated, .ReviewAnyway = false }); });
+		failsSilently([&store] { return store.erase_generated_mark(core::file_identity_of("gen.c")); });
 		failsSilently([&store] { return store.store_defect(private_defect()); });
 		failsSilently([&store] { return store.erase_defect(private_defect().History.Defect.Id); });
 		failsSilently([&store] { return store.admit_agent_session(session_admission()); });
@@ -1948,6 +2048,7 @@ auto main() -> int
 	test_statistics_account_for_every_command();
 	test_private_records_are_validated_before_the_store();
 	test_private_records_round_trip_and_delete_through_the_host();
+	test_generated_marks_round_trip_through_the_host();
 	test_material_observation_loads_carries_and_publishes_in_order();
 	test_material_load_failure_is_typed_and_changes_nothing();
 	test_agent_sessions_validate_admit_and_load_through_the_host();

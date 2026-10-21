@@ -3,6 +3,7 @@
 
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/defect_workflow.hpp"
+#include "bpr/core/generated_files.hpp"
 #include "bpr/core/note_placement.hpp"
 #include "bpr/core/review_ledger.hpp"
 
@@ -152,6 +153,9 @@ namespace bpr::application {
 		std::vector<local_note_record>      Notes;
 		std::optional<core::git_commit_oid> LastReviewedHead;
 		std::vector<durable_defect_record>  Defects;
+		/// RFC-BPR-0089 M2. The reviewer's generated-file marks for this
+		/// review: Show as normal, Treat as generated and Review anyway.
+		core::generated_file_marks GeneratedMarks;
 
 		auto operator<=>(const private_ledger_observation&) const = default;
 	};
@@ -287,6 +291,17 @@ namespace bpr::application {
 
 		/// \brief Removes one defect identity. Missing is an idempotent success.
 		[[nodiscard]] virtual auto erase_defect(core::defect_id aDefect)
+			-> std::expected<void, ledger_store_failure> = 0;
+
+		/// \brief RFC-BPR-0089 M2. Replaces one file's generated mark. A mark
+		/// that says nothing is refused as `invalid_record`.
+		[[nodiscard]] virtual auto store_generated_mark(
+			const core::generated_file_mark& aMark)
+			-> std::expected<void, ledger_store_failure> = 0;
+
+		/// \brief RFC-BPR-0089 M2. Removes one file's generated mark. Missing
+		/// is an idempotent success.
+		[[nodiscard]] virtual auto erase_generated_mark(const core::file_identity& aFile)
 			-> std::expected<void, ledger_store_failure> = 0;
 
 		/// \brief Loads the bounded private records for this store's exact scope.

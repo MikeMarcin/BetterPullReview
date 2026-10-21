@@ -342,6 +342,10 @@ namespace bpr::application {
 		/// \brief Clears the last-reviewed head.
 		void erase_last_reviewed_head(ledger_completion<void> aDone);
 
+		/// \brief RFC-BPR-0089 M2. Persists one file's generated mark, or removes
+		/// it when the mark says nothing, and keeps it in the private observation.
+		void persist_generated_mark(const core::generated_file_mark& aMark, ledger_completion<void> aDone);
+
 		/// \brief Persists one validated local defect and its retained history.
 		void persist(const durable_defect_record& aDefect, ledger_completion<void> aDone);
 

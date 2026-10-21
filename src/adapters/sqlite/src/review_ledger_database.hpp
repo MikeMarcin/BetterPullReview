@@ -25,7 +25,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// migration mechanism whose only version is the initial one has never
 	/// migrated anything, and would be first exercised by a user's database.
 	/// [[BPR-1591]] Version 10 adds the private note line.
-	inline constexpr std::int64_t review_ledger_schema_version = 10;
+	inline constexpr std::int64_t review_ledger_schema_version = 11;
 
 	/// \brief Classifies a valid defect write at the SQLite authority boundary.
 	enum class defect_store_outcome : std::uint8_t {
@@ -152,6 +152,16 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto erase_defect(
 			std::int64_t    aScope,
 			core::defect_id aDefect) -> std::expected<void, failure>;
+
+		/// \brief RFC-BPR-0089 M2. Upserts one file's generated mark.
+		[[nodiscard]] auto store_generated_mark(
+			std::int64_t                     aScope,
+			const core::generated_file_mark& aMark) -> std::expected<void, failure>;
+
+		/// \brief RFC-BPR-0089 M2. Removes one file's generated mark.
+		[[nodiscard]] auto erase_generated_mark(
+			std::int64_t               aScope,
+			const core::file_identity& aFile) -> std::expected<void, failure>;
 
 		[[nodiscard]] auto load_private(std::int64_t aScope)
 			-> std::expected<application::private_ledger_observation, failure>;

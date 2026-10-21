@@ -421,6 +421,20 @@ namespace {
 			return { };
 		}
 
+		[[nodiscard]] auto store_generated_mark(const core::generated_file_mark&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("store_generated_mark");
+			return { };
+		}
+
+		[[nodiscard]] auto erase_generated_mark(const core::file_identity&)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("erase_generated_mark");
+			return { };
+		}
+
 		[[nodiscard]] auto load_private() -> std::expected<
 			application::private_ledger_observation,
 			application::ledger_store_failure> override

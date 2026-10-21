@@ -2679,7 +2679,7 @@ namespace {
 			expect(migrated.has_value(), "a schema 9 ledger migrates");
 			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
 			const auto rows    = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM private_note_line");
-			expect(version && *version == review_ledger_schema_version && *version == 10 && rows && *rows == 0, "schema 9 migrates to 10 with an empty note line table");
+			expect(version && *version == review_ledger_schema_version && rows && *rows == 0, "schema 9 migrates to the current schema with an empty note line table");
 			const auto state = migrated->load_private(scope);
 			expect(state && state->Notes == std::vector{ old } && !state->Notes.front().Attachment->Line, "a schema 9 note keeps text, revision, attachment and path, with no line");
 
@@ -2703,7 +2703,7 @@ namespace {
 		}
 		{
 			auto reopened = review_ledger_database::open(path, { });
-			expect(reopened.has_value(), "the schema 10 ledger reopens");
+			expect(reopened.has_value(), "the migrated ledger reopens");
 			const auto state = reopened->load_private(scope);
 			const auto found = state ? std::ranges::find(state->Notes, application::local_note_id{ 2U }, &application::local_note_record::Id) : state->Notes.end();
 			expect(state && found != state->Notes.end() && found->Attachment->Line == written.Attachment->Line && found->Note.Text == "edited later", "the line and its blob survive restart");
@@ -2724,6 +2724,68 @@ namespace {
 			expect(reopened->erase_note(scope, found->Id, found->Revision).has_value(), "the line note is deleted");
 			const auto rows = scalar_integer(reopened->handle(), "SELECT COUNT(*) FROM private_note_line");
 			expect(rows && *rows == 1, "deleting a note deletes its line, and only its line");
+		}
+	}
+
+	/// \brief RFC-BPR-0089 M2. A schema 10 ledger gains an empty generated
+	/// mark table; marks round-trip by scope in identity order, are replaced
+	/// and erased, survive restart, and a mark that says nothing is refused.
+	void test_generated_marks_migrate_and_round_trip()
+	{
+		const scratch_directory directory;
+		const auto              path  = directory.file("generated-marks.db");
+		std::int64_t            scope = 0;
+		std::int64_t            other = 0;
+		{
+			auto database = review_ledger_database::open(path, { });
+			expect(database.has_value(), "the generated-mark fixture opens");
+			const auto id      = database->scope_id(scope_of("github.com", "octo", "app", 12));
+			const auto otherId = database->scope_id(scope_of("github.com", "octo", "app", 13));
+			expect(id.has_value() && otherId.has_value(), "two scopes resolve");
+			scope = *id;
+			other = *otherId;
+			bpr::tests::sqlite_contract::restore_v10_fixture(database->handle());
+		}
+		const auto lock    = core::file_identity_of("package-lock.json");
+		const auto gen     = core::file_identity_of("gen/out.c");
+		const auto first   = lock < gen ? lock : gen;
+		const auto second  = lock < gen ? gen : lock;
+		const auto treated = core::generated_file_mark{ .File = second, .Mark = core::generated_mark::treat_as_generated, .ReviewAnyway = false };
+		const auto anyway  = core::generated_file_mark{ .File = first, .Mark = core::generated_mark::none, .ReviewAnyway = true };
+		{
+			auto migrated = review_ledger_database::open(path, { });
+			expect(migrated.has_value(), "a schema 10 ledger migrates");
+			const auto version = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			const auto rows    = scalar_integer(migrated->handle(), "SELECT COUNT(*) FROM generated_mark");
+			expect(version && *version == review_ledger_schema_version && *version == 11 && rows && *rows == 0, "schema 10 migrates to 11 with an empty generated mark table");
+			const auto empty = migrated->load_private(scope);
+			expect(empty && empty->GeneratedMarks.Marks.empty(), "a migrated review has no marks");
+
+			expect(migrated->store_generated_mark(scope, treated).has_value(), "Treat as generated is stored");
+			expect(migrated->store_generated_mark(scope, anyway).has_value(), "Review anyway is stored");
+			expect(migrated->store_generated_mark(other, treated).has_value(), "another review keeps its own mark");
+			const auto silent = core::generated_file_mark{ .File = first, .Mark = core::generated_mark::none, .ReviewAnyway = false };
+			expect(!migrated->store_generated_mark(scope, silent), "a mark that says nothing is refused");
+			expect(!migrated->store_generated_mark(scope, { .File = core::file_identity{ }, .Mark = core::generated_mark::treat_as_generated, .ReviewAnyway = false }),
+				   "an invalid file is refused");
+			expect(!execute(migrated->handle(), "INSERT INTO generated_mark VALUES(1, zeroblob(32), 0, 0)", { }).has_value(),
+				   "the table itself refuses a row that says nothing");
+		}
+		{
+			auto reopened = review_ledger_database::open(path, { });
+			expect(reopened.has_value(), "the schema 11 ledger reopens");
+			const auto state = reopened->load_private(scope);
+			expect(state && state->GeneratedMarks.Marks == std::vector{ anyway, treated } && core::valid(state->GeneratedMarks),
+				   "marks survive restart, by identity");
+			auto normal = treated;
+			normal.Mark = core::generated_mark::show_as_normal;
+			expect(reopened->store_generated_mark(scope, normal).has_value(), "Show as normal replaces the mark");
+			expect(reopened->erase_generated_mark(scope, first).has_value(), "a mark is erased");
+			expect(reopened->erase_generated_mark(scope, first).has_value(), "erasing a missing mark succeeds");
+			const auto changed = reopened->load_private(scope);
+			expect(changed && changed->GeneratedMarks.Marks == std::vector{ normal }, "only the replaced mark remains");
+			const auto isolated = reopened->load_private(other);
+			expect(isolated && isolated->GeneratedMarks.Marks == std::vector{ treated }, "marks do not cross reviews");
 		}
 	}
 
@@ -2868,6 +2930,7 @@ try {
 	test_a_receipt_does_not_cross_scopes();
 	test_conversation_receipts_round_trip_by_scope();
 	test_private_records_survive_restart_isolate_and_delete();
+	test_generated_marks_migrate_and_round_trip();
 	test_private_record_bounds_and_anchor_honesty_are_enforced();
 #if !defined(_WIN32)
 	test_a_killed_write_discards_only_the_uncommitted_work();

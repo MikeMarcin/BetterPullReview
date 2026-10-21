@@ -1409,6 +1409,35 @@ namespace bpr::application {
 			std::move(aDone));
 	}
 
+	void review_ledger_application_host::persist_generated_mark(const core::generated_file_mark& aMark, ledger_completion<void> aDone)
+	{
+		const auto remove = aMark.Mark == core::generated_mark::none && !aMark.ReviewAnyway;
+		const auto valid  = aMark.File.valid() && aMark.Mark <= core::generated_mark::treat_as_generated;
+		private_write(
+			*Implementation, valid, remove,
+			[aMark, remove](review_ledger_store_port& aStore) {
+				return remove ? aStore.erase_generated_mark(aMark.File) : aStore.store_generated_mark(aMark);
+			},
+			[aMark, remove](implementation& aSelf) {
+				if (!aSelf.Private) {
+					return;
+				}
+				auto&      marks = aSelf.Private->GeneratedMarks.Marks;
+				const auto at    = std::ranges::lower_bound(marks, aMark.File, { }, &core::generated_file_mark::File);
+				const auto found = at != marks.end() && at->File == aMark.File;
+				if (remove) {
+					if (found) {
+						marks.erase(at);
+					}
+				} else if (found) {
+					*at = aMark;
+				} else {
+					marks.insert(at, aMark);
+				}
+			},
+			std::move(aDone));
+	}
+
 	void review_ledger_application_host::persist(const durable_defect_record& aDefect, ledger_completion<void> aDone)
 	{
 		private_write(
