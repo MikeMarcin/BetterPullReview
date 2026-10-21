@@ -1047,7 +1047,7 @@
         "Release"
       ],
       "unset_environment": [],
-      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
+      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset. Windows admission is withdrawn after the M3 Release parallel course failed a real source-comparison deadline; native Windows keeps the default exclusive schedule in both configurations.",
       "rows": [
         {
           "name": "application_overview_summary_1",
@@ -1055,7 +1055,6 @@
           "executable": "overview_summary_public_path",
           "arguments": [],
           "platforms": [
-            "Windows",
             "Darwin",
             "Linux"
           ],
@@ -1073,7 +1072,6 @@
           "executable": "overview_summary_public_path",
           "arguments": [],
           "platforms": [
-            "Windows",
             "Darwin",
             "Linux"
           ],
@@ -1091,7 +1089,6 @@
           "executable": "overview_summary_public_path",
           "arguments": [],
           "platforms": [
-            "Windows",
             "Darwin",
             "Linux"
           ],

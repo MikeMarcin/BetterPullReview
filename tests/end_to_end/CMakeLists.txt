@@ -1092,7 +1092,6 @@ bpr_add_network_isolated_test(
 # rows execute all eight methods once, without substituting a package image.
 bpr_add_network_isolated_test(
     NAME application_composition_source_contract
-    WINDOWS_UNCONTAINED
     COMMAND ${bpr_application_composition_contract_command}
         CompositionContractTests.test_production_mutation_authority_issuers_are_language_sealed
         CompositionContractTests.test_whole_review_authority_is_distinct_and_test_factory_is_private
