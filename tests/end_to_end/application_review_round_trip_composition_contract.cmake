@@ -1,3 +1,5 @@
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1699 note below
+# is renaming its [[BPR-PENDING-M]] comment tags to [[BPR-1699]]; no code change.
 # [[BPR-1699]] reseal (2026-10-21) over last matching main d8a3f6b97,
 # linear. Pinned-scope change: Mark all comments as read, and all from one
 # author, on this card's own commit. Inside the manifest only
