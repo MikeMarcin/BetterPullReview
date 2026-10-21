@@ -453,7 +453,14 @@ namespace bpr::core {
 				while (word(at) == "[" && Tokens[at].Match != NoIndex) {
 					at = Tokens[at].Match + 1U;
 				}
-				const auto name = identifier(at) ? std::optional{ at } : std::nullopt;
+				auto name = identifier(at) ? std::optional{ at } : std::nullopt;
+				// `struct std::hash<Key> {` names a member of a scope declared elsewhere:
+				// its qualifier is a use and nothing is declared here [[BPR-PENDING-V]].
+				const auto qualified = name && word(at + 1U) == "::";
+				while (name && word(*name + 1U) == "::" && identifier(*name + 2U) && !Stop.stop_requested()) {
+					name = *name + 2U;
+				}
+				at = name.value_or(at);
 				if (name) {
 					paint(*name, role::syntax_type);
 					Tokens[*name].Declaration = true;
@@ -470,7 +477,7 @@ namespace bpr::core {
 					return;
 				}
 				const auto kind  = enumeration ? symbol_kind::enumeration : symbol_kind::type;
-				const auto child = name ? declare_scope(aScope, word(*name), kind, word(at) == "{") : new_scope(aScope, enumeration);
+				const auto child = name && !qualified ? declare_scope(aScope, word(*name), kind, word(at) == "{") : new_scope(aScope, enumeration);
 				if (word(at) == "{") {
 					Opens[at] = child;
 				}
@@ -660,9 +667,14 @@ namespace bpr::core {
 			void classify_chain(const std::size_t aFirst, const std::size_t aLast)
 			{
 				const auto global = aFirst > 0U && word(aFirst - 1U) == "::";
-				auto       found  = aFirst > 0U && (word(aFirst - 1U) == "." || word(aFirst - 1U) == "->")
-					? std::optional<symbol>{ }
-					: find_symbol(global ? 0U : Tokens[aFirst].Scope, word(aFirst), !global);
+				// After `.` or `->` only a namespace resolves. A class declares none, so a
+				// namespace there scopes a base (`p->std::exception::what()`) or starts a
+				// trailing return type, which shares the token (`-> std::vector<int>`) [[BPR-PENDING-V]].
+				const auto member = aFirst > 0U && (word(aFirst - 1U) == "." || word(aFirst - 1U) == "->");
+				const auto kept   = [member](const std::optional<symbol>& aFound) {
+					return member && aFound && aFound->Kind != symbol_kind::name_space && aFound->Kind != symbol_kind::namespace_alias ? std::nullopt : aFound;
+				};
+				auto found = kept(find_symbol(global ? 0U : Tokens[aFirst].Scope, word(aFirst), !global));
 				// Once a namespace qualifies the chain, every later separator the
 				// grammar's built-in chain covered is an operator too.
 				auto qualified = false;
@@ -685,7 +697,7 @@ namespace bpr::core {
 					}
 					if (at < aLast) {
 						found = found && found->Child != NoIndex && found->Kind != symbol_kind::unknown
-							? find_symbol(found->Child, word(at + 2U), false)
+							? kept(find_symbol(found->Child, word(at + 2U), false))
 							: std::nullopt;
 					}
 				}

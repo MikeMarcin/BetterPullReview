@@ -51,8 +51,11 @@ namespace bpr::adapters::syntax {
 	/// a type where a PascalCase word would be (BPR-1559). Revision 9 reads
 	/// namespace qualifiers: `std` and the namespaces the standard nests in
 	/// it, every segment of a using-directive and of a namespace alias's
-	/// target, and their uses, are namespaces (BPR-1710).
-	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 9U;
+	/// target, and their uses, are namespaces (BPR-1710). Revision 10 resolves
+	/// a namespace after `.` and `->`, which also begins a trailing return type
+	/// (`-> std::vector<int>`), and lets a qualified class head (`struct
+	/// std::hash<Key> {`) declare nothing (BPR-PENDING-V).
+	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 10U;
 
 	/// \brief Supplies the complete bytes of one blob.
 	///

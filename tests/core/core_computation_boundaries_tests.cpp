@@ -90,6 +90,13 @@ namespace {
 		constexpr auto shadowed = std::string_view{ "namespace lib { struct std { static int x; }; auto v = std::x; }" };
 		auto           hidden   = token_span_list{ };
 		expect(refine_cpp_identifiers(shadowed, hidden, 100U, { }) == syntax_classification_status::available && role_at(hidden, shadowed.rfind("std")) == appearance_role::syntax_type, "a class the blob names std hides the namespace in its scope");
+		// [[BPR-PENDING-V]]: a trailing return type after `->`, and a qualified class head that declares nothing.
+		constexpr auto trailing = std::string_view{ "template <> struct std::hash<int> { }; auto f() -> std::size_t; auto g = p->field;" };
+		auto           returned = token_span_list{ };
+		expect(refine_cpp_identifiers(trailing, returned, 100U, { }) == syntax_classification_status::available, "trailing return refinement is available");
+		expect(role_at(returned, trailing.find("std")) == appearance_role::syntax_namespace, "a specialization's std qualifier is the namespace");
+		expect(role_at(returned, trailing.rfind("std")) == appearance_role::syntax_namespace, "std after -> is the namespace");
+		expect(role_at(returned, trailing.find("field")) == appearance_role::syntax_normal, "unqualified member access is unchanged");
 	}
 }
 

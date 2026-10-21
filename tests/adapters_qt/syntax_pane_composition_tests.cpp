@@ -511,10 +511,12 @@ namespace {
 			   "both sides' spans arrive in the order the pane requires");
 		settle_geometry(workbench);
 
-		const auto line  = static_cast<int>(line_of(left, "std::ranges::find"));
-		const auto row   = std::string_view{ "\tauto found = std::ranges::find(lines, \"x\");" };
-		const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark };
-		const auto root  = qEnvironmentVariable("BPR_STD_NAMESPACE_RENDER_ROOT");
+		const auto line       = static_cast<int>(line_of(left, "std::ranges::find"));
+		const auto row        = std::string_view{ "\tauto found = std::ranges::find(lines, \"x\");" };
+		const auto returnLine = static_cast<int>(line_of(left, "auto load"));
+		const auto returnRow  = std::string_view{ "auto load(const fs::path& aPath) -> std::vector<std::string>" };
+		const auto modes      = std::array{ core::appearance_mode::light, core::appearance_mode::dark };
+		const auto root       = qEnvironmentVariable("BPR_STD_NAMESPACE_RENDER_ROOT");
 		for (const auto mode : modes) {
 			if (root.isEmpty()) {
 				break;
@@ -531,22 +533,27 @@ namespace {
 			static_cast<void>(profile.select_mode(mode));
 			workbench.adopt_appearance(profile);
 			process_events();
-			const auto painted = block_formats(*workbench.left_pane(), line);
-			const auto colour  = [&](const std::string_view aWord) -> std::optional<QColor> {
-				const auto column = static_cast<int>(row.find(aWord));
-				for (const auto& range : painted) {
+			const auto colourOn = [&](const int aLine, const std::string_view aRow, const std::string_view aWord,
+									  const std::size_t aFrom = 0U) -> std::optional<QColor> {
+				const auto column = static_cast<int>(aRow.find(aWord, aFrom));
+				for (const auto& range : block_formats(*workbench.left_pane(), aLine)) {
 					if (range.start <= column && range.start + range.length >= column + static_cast<int>(aWord.size())) {
 						return range.format.foreground().color();
 					}
 				}
 				return std::nullopt;
 			};
+			const auto colour          = [&](const std::string_view aWord) { return colourOn(line, row, aWord); };
 			const auto namespaceColour = profile.color(core::appearance_role::syntax_namespace);
 			const auto builtin         = profile.color(core::appearance_role::syntax_builtin);
 			expect(namespaceColour != builtin, "the profile paints namespaces and built-ins apart");
 			expect(colour("std") == namespaceColour, "std is painted in the namespace colour");
 			expect(colour("ranges") == namespaceColour, "std::ranges is painted in the namespace colour");
 			expect(colour("find") == builtin, "the standard name after the namespaces keeps the built-in colour");
+			// [[BPR-PENDING-V]]: the owner's after-render left the std after -> built-in.
+			expect(colourOn(returnLine, returnRow, "std") == namespaceColour
+					   && colourOn(returnLine, returnRow, "std", returnRow.find('<')) == namespaceColour,
+				   "a trailing return type's std is painted like the std inside it");
 		}
 	}
 } // namespace

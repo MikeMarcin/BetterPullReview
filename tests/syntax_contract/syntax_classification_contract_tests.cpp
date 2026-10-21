@@ -1277,6 +1277,9 @@ namespace {
 	/// and a `std` the blob declares as a class are not. On revision 8 every
 	/// `std` qualifier, alias-target and directive-use expectation failed;
 	/// `using namespace std` itself and the negative controls already held.
+	/// [[BPR-PENDING-V]]: on revision 9 a `std` after `->` or `.` (N24-N29)
+	/// failed, and the `std::hash` specialization (N33) left no `std` in the
+	/// blob a namespace; the member-access controls already held.
 	void cpp_namespace_qualifier_contract(const syntax::packaged_definition_catalog& aCatalog)
 	{
 		using role       = core::appearance_role;
@@ -1359,6 +1362,41 @@ namespace {
 			   "a class scope and its enum scope stay types and the enumerator resolves");
 		expect(namespaceFree("N21", "std", 1U), "a std the blob declares as a class is not the namespace");
 
+		// [[BPR-PENDING-V]]: `->` also begins a trailing return type, and a
+		// class declares no namespace, so a namespace resolves after `.` and `->`.
+		expect(is("N24", "std", ns) && is("N24", "vector", builtin) && is("N24", "std", ns, 1U),
+			   "the owner's report: a trailing return type's std is a namespace like the one inside it");
+		expect(is("N25", "std", ns) && is("N25", "string", builtin), "a lambda's trailing return type names std");
+		expect(is("N26", "std", ns) && is("N26", "size_t", builtin), "a lambda without parameters names std after ->");
+		expect(is("N27", "std", ns) && is("N27", "convertible_to", builtin) && is("N27", "std", ns, 1U),
+			   "a compound requirement's type constraint names std after ->");
+		expect(is("N28", "std", ns) && is("N28", "exception", builtin) && is("N29", "std", ns),
+			   "a namespace qualifying a base member after -> or . is a namespace");
+		expect(word_stays_normal(whole.Spans, text, line_of(text, "N30"), "field") && namespaceFree("N30", "field"),
+			   "member access without a qualifier is unchanged");
+		expect(is("N31", "Widget", role::syntax_type) && namespaceFree("N31", "Widget")
+				   && is("N31", "count", role::syntax_function),
+			   "a class qualifying a member after -> stays a type");
+		expect(is("N32", "Widget", role::syntax_type) && is("N32", "Mode", role::syntax_type)
+				   && !is("N32", "Fast", role::syntax_enum_member),
+			   "after member access a class scope still resolves no enumerator");
+
+		// A qualified class head declares nothing, so std stays the namespace in
+		// every line of the blob, before the specialization and after it.
+		expect(is("N33", "std", ns) && is("N33", "hash", builtin) && is("N33", "std", ns, 1U),
+			   "a specialization of a std template names std and keeps the template built-in");
+		expect(is("N34", "foo", ns) && is("N34", "bar", ns) && is("N34", "Gadget", role::syntax_type),
+			   "a class defined through declared namespaces keeps them namespaces");
+
+		// The other places a qualified name starts already resolved; they are pinned.
+		for (const auto occurrence : { 0U, 1U, 2U, 3U }) {
+			expect(is("N35", "std", ns, occurrence), "std after (, ,, < and a cast or decltype is a namespace");
+		}
+		for (const auto occurrence : { 0U, 1U, 2U, 3U, 4U, 5U }) {
+			expect(is("N36", "std", ns, occurrence),
+				   "std after requires, a template's >, noexcept(, throw, co_return and return is a namespace");
+		}
+
 		// Protected regions supply no namespace.
 		expect(namespaceFree("#define STD_VECTOR", "std") && namespaceFree("N22", "std")
 				   && namespaceFree("N23", "std"),
@@ -1373,8 +1411,8 @@ namespace {
 		auto old    = definition;
 		old.Version = ((syntax::cpp_identifier_heuristic_revision - 1U) << 16U) | (old.Version & 0xFFFFU);
 		expect(classifier.classify(request(oid, old), { }).Status == app::syntax_classification_status::unavailable,
-			   "spans cached under revision 8 are refused");
-		std::cout << "cpp-namespace-qualifier-contract:pass std/nested/directives/aliases/class-scope/protected/C/revision\n";
+			   "spans cached under revision 9 are refused");
+		std::cout << "cpp-namespace-qualifier-contract:pass std/nested/directives/aliases/class-scope/member-access/class-heads/contexts/protected/C/revision\n";
 	}
 
 } // namespace

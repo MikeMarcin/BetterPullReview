@@ -23,6 +23,19 @@ auto path = fs::path{ }; // N18
 auto other = mystd::thing(); // N19
 auto limits = std::numeric_limits<int>::max(); // N20
 namespace lib { struct std { static int x; }; auto local = std::x; } // N21
+auto load(const fs::path& aPath) -> std::vector<std::string>; // N24
+auto lambda = [](int aValue) -> std::string { return { }; }; // N25
+auto bare = [] -> std::size_t { return 0U; }; // N26
+template <typename T> concept Sized = requires(T aValue) { { aValue.size() } -> std::convertible_to<std::size_t>; }; // N27
+auto what = pointer->std::exception::what(); // N28
+auto message = error.std::exception::what(); // N29
+auto read = pointer->field; // N30
+auto member = pointer->Widget::count(); // N31
+auto scoped = object.Widget::Mode::Fast; // N32
+template <> struct std::hash<Widget> { auto operator()(const Widget& aValue) const -> std::size_t; }; // N33
+struct foo::bar::Gadget { }; // N34
+auto contexts = f(std::move(a), g<std::size_t>(b), static_cast<std::size_t>(c), decltype(std::declval<int>()){ }); // N35
+template <typename T> requires std::integral<T> std::vector<T> keywords() noexcept(std::is_nothrow_swappable_v<T>) { if (x) { throw std::runtime_error{ "x" }; } co_return std::move(y); return std::move(y); } // N36
 // std::vector in a comment N22
 const char* text = "std::vector N23";
 // clang-format on
