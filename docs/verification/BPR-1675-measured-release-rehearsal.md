@@ -29,7 +29,8 @@ invocations. Generic runner callers retain the comprehensive default.
 Current incremental scope covers updater, HTTP and UI changes, plus focused
 qualification-tooling regressions. Five exact native Debug commands always
 remain in the diagnostic lane, with affected patch rows. They retain all 237
-ordered case occurrences and Debug Qt/CRT/STL behavior. Release retains its
+ordered case occurrences, active first-party Debug assertions and the recorded
+platform-specific Qt/CRT/STL identities. Release retains its
 larger workloads, four 100 ms drawer assertions and allocation sweeps. Neither
 configuration is a semantic superset. Qt/toolchain/platform/ownership/broad or
 unclassified changes request comprehensive native Release and Debug. No
@@ -66,7 +67,9 @@ unchanged. The source seals were renewed through that review, preserving the
 original failure and unchanged mutation digest
 `16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1`.
 
-Mac/Windows’s first portfolio and products are bound to
+The first normal invocations are bound to Mac `642d5b2f156e`, Windows
+`c94601c9b250` and Ubuntu `471d24982e06`; their raw failures remain. The
+first recovered Mac/Windows product candidate is
 `f25a65274763066ed4519aa6aec6283ae1c0a4cb`. Current recovery source is
 `67cfff2dc82aa7a2ae833c899979827bd9528225`, whose executable inputs are
 `7d1371d0a318ba003749f4c7bafa7bcb363edcab`. Refreshed affected native and
@@ -135,7 +138,7 @@ request wall. All transfer/preflight/failure observations retain their scope.
 | Normal selected runner, including preflight |398.621s|626.187s|327.120s|
 | Selected rows in that normal invocation |496 (2 initial failures)|482 (3 initial failures)|491 (3 initial failures)|
 | Current focused native recovery wrapper |33.109s|44.990s|86.002s including source checks|
-| Complete current Debug patch/residual behavior |30rows,118.411s|28rows,274.006s|28row union,72.169+42.849s|
+| Complete current Debug patch/residual selection |30rows,118.411s|28rows,274.006s|28row union,72.169+42.849s|
 | Current unsigned producer + fresh offline audit |71.355+3.028s|93.101s|50.085s|
 | Current Release configure + affected build |290.242s build|55.811+166.663s|9.322+83.542s|
 | Current Debug configure + affected build |360.076+10.766s build|184.196s|42.520+306.572+20.851s|
@@ -247,7 +250,15 @@ graph) gives **39m15.0s before signing/publication**, about9m15s beyond30minutes
 Those builds are not an unchanged warm floor or a cold-build benchmark. A patch
 with warmer unaffected targets can cost less; Qt/toolchain/broad changes require
 heavy/comprehensive work and cost materially more. No precise future
-request-to-publication prediction or30-minute guarantee is supported.
+request-to-publication prediction or 30-minute guarantee is supported.
+
+The public release entrypoint still builds the configured complete test graph
+before selecting normal execution. This rehearsal used explicit affected target
+sets during focused recovery; a complete normal-only build-target closure was
+not proved or implemented. Therefore the rebuild component model is not an
+exact public-entrypoint benchmark and that entrypoint may do additional work.
+Heavy execution is decoupled; first-time or invalidated heavy-target compilation
+remains a concrete opportunity and cost, not a claimed saving.
 
 The remaining recurring costs include fresh source/compiler and hostile-tool
 contracts, current native rebuilds and artifact/security/source mechanics.

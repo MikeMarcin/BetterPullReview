@@ -39,7 +39,7 @@ retain failures, focused recovery, source/configuration/cache identities and all
 producers bind `67cfff2dc82aa7a2ae833c899979827bd9528225`, with executable inputs
 `7d1371d0a318ba003749f4c7bafa7bcb363edcab`. Earlier normal measurements are
 Mac 398.621 s / Windows 626.187 s / Ubuntu 327.120 s; every initial failed row
-has explicit current-source recovery. Actual complete affected Debug behavior
+has explicit current-source recovery. Actual complete affected Debug selected row
 counts are Mac 30 / Windows 28 / Ubuntu union 28. The existing 237 ordered native
 baseline case occurrences and active assertion controls pass per configuration.
 Old comprehensive failures and partial retirement remain recorded.
