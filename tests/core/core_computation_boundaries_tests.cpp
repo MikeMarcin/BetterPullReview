@@ -75,7 +75,7 @@ namespace {
 		expect(refine_cpp_identifiers(text, spans, 100U, stop.get_token()) == syntax_classification_status::cancelled && spans.empty(), "explicit stop publishes nothing");
 	}
 
-	/// [[BPR-PENDING-S]]: namespace qualifiers are decided in core, without Qt.
+	/// [[BPR-1710]]: namespace qualifiers are decided in core, without Qt.
 	void test_namespace_qualifiers()
 	{
 		constexpr auto text  = std::string_view{ "using namespace outer::inner; auto a = std::ranges::find(x); auto b = outer::inner::make(); auto c = Foo::bar(); auto d = ::std::size_t{ };" };

@@ -957,7 +957,7 @@ namespace {
 		const auto freeLine = line_of(text, "BPR-FREE-LINE");
 		expect(word_has_role(spans, text, freeLine, "ProcessString", role::syntax_function),
 			   "a free function before ( is a function");
-		// [[BPR-PENDING-S]]: `std` is the standard library's namespace, and the
+		// [[BPR-1710]]: `std` is the standard library's namespace, and the
 		// name the grammar paints after it keeps the grammar's built-in role.
 		expect(word_has_role(spans, text, freeLine, "std", role::syntax_namespace)
 				   && word_has_role(spans, text, freeLine, "wstring", role::syntax_builtin),
@@ -1270,7 +1270,7 @@ namespace {
 		std::cout << "cpp-template-contract:pass calls/arguments/types/comparisons/C/revision\n";
 	}
 
-	/// \brief [[BPR-PENDING-S]]: namespace qualifiers, through the public
+	/// \brief [[BPR-1710]]: namespace qualifiers, through the public
 	/// classifier over a committed corpus. `std` and the namespaces the
 	/// standard nests in it are namespaces; a using-directive and a namespace
 	/// alias's target name namespaces; an undeclared qualifier, a class scope

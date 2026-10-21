@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1710"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "C++ std qualifier reads as a namespace",
+  "created": "2026-10-21T19:53:33.713067+00:00",
+  "base": "9cbe6395140d338aafa521b7f850d557ceda215c"
+}

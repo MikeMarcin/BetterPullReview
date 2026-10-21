@@ -43,7 +43,7 @@ namespace bpr::core {
 
 		/// \brief The namespaces ISO C++ nests in `std`, and the literal ones.
 		///
-		/// \details [[BPR-PENDING-S]]. `std` is the namespace the language itself
+		/// \details [[BPR-1710]]. `std` is the namespace the language itself
 		/// names ([namespace.std]) and a program may not add to it, so this set is
 		/// closed by the standard rather than guessed. They are predeclared as if
 		/// the blob declared them, so its own declarations, `::std` and a `struct
@@ -358,7 +358,7 @@ namespace bpr::core {
 			}
 
 			/// \brief Records every segment of a using-directive's or a namespace
-			/// alias target's name as a namespace ([[BPR-PENDING-S]]).
+			/// alias target's name as a namespace ([[BPR-1710]]).
 			/// \details Only a namespace may be named there and a class cannot
 			/// enclose one. A known segment keeps its identity: a namespace is
 			/// entered, anything else ends the record rather than being overridden.

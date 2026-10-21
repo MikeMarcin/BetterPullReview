@@ -433,7 +433,7 @@ namespace {
 		expect(colour("Type") == type, "the template argument is painted as a type");
 	}
 
-	/// \brief [[BPR-PENDING-S]]: `std` and a namespace the standard nests in it
+	/// \brief [[BPR-1710]]: `std` and a namespace the standard nests in it
 	/// are painted in the namespace colour on the composed surface, in Light
 	/// and Dark, while the standard name after them keeps the built-in colour.
 	///
