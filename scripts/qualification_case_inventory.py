@@ -42,7 +42,7 @@ def validate(manifest: dict, log: str, configuration: str, platform: str, root: 
     if set(blocks) != PILOT:
         raise ValueError("Missing or unknown executed qualification command")
     selected = [row for row in manifest["tests"] if row["name"] in PILOT]
-    if len(selected) != len(PILOT) or any(row.get("config", configuration) != configuration for row in selected):
+    if len(selected) != len(PILOT) or any(row.get("config") != configuration for row in selected):
         raise ValueError("Wrong or duplicate qualification configuration")
     optimized = configuration == "Release"
     records = []
@@ -51,8 +51,10 @@ def validate(manifest: dict, log: str, configuration: str, platform: str, root: 
         prefix = "WORKBENCH" if name.startswith("qt_workbench") else "QUALIFICATION"
         began = re.findall(rf"(?m)^{prefix}_CASE_BEGIN:([^:\r\n]+)", body)
         ended = re.findall(rf"(?m)^{prefix}_CASE_END:([^:\r\n]+)", body)
-        if began != expected[name] or ended != expected[name] or "Test Passed." not in body:
+        if began != expected[name] or ended != expected[name] or ("Test Passed." not in body and "Test Pass Reason:" not in body):
             raise ValueError(f"Incomplete or failed qualification occurrences: {name}")
+        if platform == "Windows" and "TEST_RUNNER_CHILD_EXIT:0" not in body:
+            raise ValueError("A CTest pass regex cannot replace a successful native child exit")
         build = re.findall(rf"(?m)^{prefix}_BUILD:([^\r\n]+)", body)
         if len(build) != 1 or f"NDEBUG={int(optimized)}" not in build[0]:
             raise ValueError("Qualification binary has wrong assertion mode")

@@ -32,7 +32,7 @@ class QualificationInventoryTests(unittest.TestCase):
                 text += 'BPR-1112 throwing shutdown: 5 allocations\nBPR-1112 start_delete: 8 allocations\n'
             if name == 'qt_composed_inline_drawer_scale_100':
                 text += ''.join(f'INLINE_LATENCY_ASSERTION:{key};limit-ms=100\n' for key in ('open', 'scroll', 'tick-go-to', 'markdown-open'))
-            blocks.append(text + 'Test Passed.\n')
+            blocks.append(text + 'TEST_RUNNER_CHILD_EXIT:0\nTest Pass Reason:\n')
         return manifest, ''.join(blocks)
 
     def test_complete_inventory_and_rejections(self):
@@ -43,9 +43,12 @@ class QualificationInventoryTests(unittest.TestCase):
                               ('stop-lines=40000', 'stop-lines=6000'), ('cancel-lines=30000', 'cancel-lines=6000'),
                               ('limit-ms=100', 'limit-ms=0'), ('NDEBUG=1', 'NDEBUG=0'),
                               ('ITERATOR_DEBUG_LEVEL=0', 'ITERATOR_DEBUG_LEVEL=2'), ('5 allocations', '0 allocations'),
-                              ('Test Passed.', 'Test Failed.')]:
+                              ('Test Pass Reason:', 'Test Failed.'), ('TEST_RUNNER_CHILD_EXIT:0', 'TEST_RUNNER_CHILD_EXIT:9')]:
             with self.subTest(before=before), self.assertRaises(ValueError):
                 inventory.validate(manifest, log.replace(before, after, 1), 'Release', 'Windows')
+        unknown = {'tests': [{k: v for k, v in row.items() if k != 'config'} for row in manifest['tests']]}
+        with self.assertRaises(ValueError):
+            inventory.validate(unknown, log, 'Release', 'Windows')
         manifest['tests'][0]['config'] = 'Debug'
         with self.assertRaises(ValueError):
             inventory.validate(manifest, log, 'Release', 'Windows')

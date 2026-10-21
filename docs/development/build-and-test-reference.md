@@ -267,10 +267,24 @@ MASK bootstrap/readiness receipt; the lock record alone does not prove a loaded
 skill or matching deployment. A failed, skipped or incomplete preflight returns
 failure, records `full_graph_started: false`, and lists the entire full graph as
 not run. It does not synthesize skips or a successful complete gate. A successful
-preflight still runs every full-graph row, including these checks again. Presets
-without these rows and historical report-only mode require no extra tooling.
+preflight may satisfy those same rows in the selected graph within this single
+locked invocation. It requires a matching live invocation ID and unchanged
+source/manifest/environment/tool/deployed-helper input seal; otherwise the rows
+run fresh. Receipts show this bounded reuse separately. Missing/stale/failed or
+interrupted proof never authorizes cross-request reuse, and changed input across
+execution refuses complete qualification. Presets without these rows and
+historical report-only mode require no extra tooling.
 
-Each invocation saves `manifest.json`, `ctest.log`, `junit.xml` and
+An explicit `--tests-regex` selects a bounded subset after the complete schedule
+has been validated; the actual three configured bootstrap checks still run first.
+`full_graph_selected: false` prevents the bounded result becoming full-suite credit.
+Python assertions must be enabled. `qualification-release` and
+`windows-qualification-release` are tests-enabled ordinary Release presets for
+additional qualification. Their optimized workloads, limits and diagnostic changes
+are covered in the [M2 ledger](../verification/BPR-1674-input-scoped-qualification.md).
+They do not replace the normal Debug gate or the distribution build.
+
+Each invocation saves `manifest.json`, normally `ctest.log` and `junit.xml`, and
 `timings.json` in a new directory under `build/test-results/dev/`. The report
 distinguishes full CTest wall time from summed test durations, preflight wall
 time and total runner wall time, lists the slowest rows, and names failures and
