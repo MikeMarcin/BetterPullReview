@@ -5,6 +5,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <optional>
@@ -206,6 +207,22 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" }
 		};
 
+		/// \brief The table version 11 adds ([[BPR-PENDING-C]]).
+		///
+		/// \details The pull requests ignored on Home, by the same whole
+		/// identity an enrollment has. Nothing about the pull request is
+		/// stored beside its name.
+		constexpr std::array SchemaVersion11{
+			std::string_view{
+				"CREATE TABLE home_ignore("
+				"host TEXT NOT NULL,"
+				"account TEXT NOT NULL,"
+				"repository TEXT NOT NULL,"
+				"pull_request INTEGER NOT NULL CHECK(pull_request > 0),"
+				"PRIMARY KEY(host, account, repository, pull_request)"
+				") STRICT" }
+		};
+
 		struct schema_table
 		{
 			std::string_view Name;
@@ -276,6 +293,16 @@ namespace bpr::adapters::sqlite::detail {
 		constexpr std::array SchemaVersion9Tables{
 			schema_table{ "enrollment", SchemaVersion9[0] },
 			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "observer_rule", SchemaVersion2[0] },
+			schema_table{ "presentation_preferences", SchemaVersion7[1] },
+			schema_table{ "saved_repository", SchemaVersion4[0] },
+			schema_table{ "saved_server", SchemaVersion5[0] },
+		};
+
+		constexpr std::array SchemaVersion11Tables{
+			schema_table{ "enrollment", SchemaVersion9[0] },
+			schema_table{ "enrollment_meta", SchemaVersion1[0] },
+			schema_table{ "home_ignore", SchemaVersion11[0] },
 			schema_table{ "observer_rule", SchemaVersion2[0] },
 			schema_table{ "presentation_preferences", SchemaVersion7[1] },
 			schema_table{ "saved_repository", SchemaVersion4[0] },
@@ -518,8 +545,11 @@ namespace bpr::adapters::sqlite::detail {
 				return validate_exact_version(aDatabase, 9, SchemaVersion9Tables);
 			}
 			// [[BPR-1407]]. Version ten keeps version nine's tables.
+			if (*version == 10) {
+				return validate_exact_version(aDatabase, 10, SchemaVersion9Tables);
+			}
 			if (*version == queue_enrollment_schema_version) {
-				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion9Tables);
+				return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion11Tables);
 			}
 			return std::unexpected(failure::schema_mismatch);
 		}
@@ -665,6 +695,12 @@ namespace bpr::adapters::sqlite::detail {
 					}
 				}
 			}
+			if (*current < 11) {
+				if (auto migrated = run_all(aDatabase, SchemaVersion11, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+			}
 			if (auto meta = execute(
 					aDatabase,
 					"UPDATE enrollment_meta SET schema_format = "
@@ -691,7 +727,7 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto validate(::sqlite3* aDatabase)
 			-> std::expected<void, failure>
 		{
-			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion9Tables);
+			return validate_exact_version(aDatabase, queue_enrollment_schema_version, SchemaVersion11Tables);
 		}
 
 		[[nodiscard]] auto text_of(::sqlite3_stmt* aStatement, const int aColumn)
@@ -989,6 +1025,97 @@ namespace bpr::adapters::sqlite::detail {
 			});
 		}
 		return records;
+	}
+
+	auto queue_enrollment_database::apply_home_ignores(
+		const std::span<const core::home_ignore_delta> aDeltas, std::stop_token aStop)
+		-> std::expected<void, failure>
+	{
+		if (aDeltas.size() > core::maximum_home_ignores
+			|| !std::ranges::all_of(aDeltas, [](const core::home_ignore_delta& aDelta) { return core::ignorable(aDelta.Ref); })) {
+			return std::unexpected(failure::integrity_failure);
+		}
+		if (auto begun = execute(Handle, "BEGIN IMMEDIATE", aStop); !begun) {
+			return begun;
+		}
+		const auto rollback = [this]() noexcept {
+			(void)::sqlite3_exec(Handle, "ROLLBACK", nullptr, nullptr, nullptr);
+		};
+		for (const auto& delta : aDeltas) {
+			if (aStop.stop_requested()) {
+				rollback();
+				return std::unexpected(failure::cancelled);
+			}
+			const auto adding = delta.Change == core::home_ignore_change::ignored;
+			// The bound is the core's: an insert past it changes no row, while
+			// one already there is kept as it is and is not refused.
+			auto statement = prepare(
+				Handle,
+				adding ? "INSERT INTO home_ignore(host, account, repository, pull_request) "
+						 "SELECT ?1, ?2, ?3, ?4 "
+						 "WHERE (SELECT COUNT(*) FROM (SELECT 1 FROM home_ignore LIMIT ?5)) < ?5 "
+						 "OR EXISTS(SELECT 1 FROM home_ignore WHERE host = ?1 AND account = ?2 AND repository = ?3 AND pull_request = ?4) "
+						 "ON CONFLICT(host, account, repository, pull_request) DO UPDATE SET pull_request = excluded.pull_request"
+					   : "DELETE FROM home_ignore WHERE host = ?1 AND account = ?2 AND repository = ?3 AND pull_request = ?4");
+			if (!statement) {
+				rollback();
+				return std::unexpected(statement.error());
+			}
+			if (::sqlite3_bind_text(statement->Value, 1, delta.Ref.Host.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+				|| ::sqlite3_bind_text(statement->Value, 2, delta.Ref.Account.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+				|| ::sqlite3_bind_text(statement->Value, 3, delta.Ref.Repository.c_str(), -1, SQLITE_TRANSIENT) != SQLITE_OK
+				|| ::sqlite3_bind_int64(statement->Value, 4, delta.Ref.Number) != SQLITE_OK
+				|| (adding && ::sqlite3_bind_int64(statement->Value, 5, static_cast<std::int64_t>(core::maximum_home_ignores)) != SQLITE_OK)
+				|| ::sqlite3_step(statement->Value) != SQLITE_DONE) {
+				rollback();
+				return std::unexpected(failure::unavailable);
+			}
+			if (adding && ::sqlite3_changes(Handle) == 0) {
+				rollback();
+				return std::unexpected(failure::quota_exceeded);
+			}
+		}
+		if (auto committed = execute(Handle, "COMMIT", aStop); !committed) {
+			rollback();
+			return committed;
+		}
+		return { };
+	}
+
+	auto queue_enrollment_database::load_home_ignores()
+		-> std::expected<std::vector<core::pull_request_ref>, failure>
+	{
+		auto statement = prepare(
+			Handle,
+			"SELECT host, account, repository, pull_request FROM home_ignore "
+			"ORDER BY host, account, repository, pull_request");
+		if (!statement) {
+			return std::unexpected(statement.error());
+		}
+		auto ignored = std::vector<core::pull_request_ref>{ };
+		for (;;) {
+			const auto stepped = ::sqlite3_step(statement->Value);
+			if (stepped == SQLITE_DONE) {
+				break;
+			}
+			if (ignored.size() >= core::maximum_home_ignores) {
+				return std::unexpected(failure::quota_exceeded);
+			}
+			if (stepped != SQLITE_ROW) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			auto ref = core::pull_request_ref{
+				.Host       = text_of(statement->Value, 0),
+				.Account    = text_of(statement->Value, 1),
+				.Repository = text_of(statement->Value, 2),
+				.Number     = ::sqlite3_column_int64(statement->Value, 3),
+			};
+			if (!core::ignorable(ref)) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			ignored.push_back(std::move(ref));
+		}
+		return ignored;
 	}
 
 	auto queue_enrollment_database::store_saved_repository(

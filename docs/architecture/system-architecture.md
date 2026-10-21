@@ -1941,6 +1941,25 @@ The core's `home_section_for` classifies each accepted queue row from its own au
 
 The host's window-owned `home_view_state` adds bit 16 for My pull requests without changing the original collapse bits. Workbench settings schema 19 widens the private window row's collapse bound to 31 and transactionally rebuilds older tables with all existing fields copied. The new bit starts zero on upgrade; named group/band collapse remains window-session state. Profile defaults carry no Home view.
 
+## Ignored Home pull requests ([[BPR-PENDING-C]])
+
+`core::home_ignore_list` (`bpr/core/home_ignore.hpp`) is the reviewer's
+ignore set, keyed by the whole `pull_request_ref` (host, account, repository,
+number). It takes typed `home_ignore_intent`s and observations of each
+retained enrollment's place (`open`, `closed`, `left`). It returns
+`home_ignore_delta`s: `ignored`, `unignored`, `pruned_closed` or
+`pruned_left`. Only an open row can be ignored. An ignore is pruned once the
+queue holds its pull request as departed, and a pull request with no record is
+not observed. `queue_item::Ignored` puts the item in `home_queue_section::ignored`,
+`queue_precedes` orders ignored items after all others, and
+`notification_for` refuses them. The queue host decides from its register,
+persists each delta batch through `queue_enrollment_store_port::apply_home_ignores`
+before keeping it, and settles prunes after each stored departure and after
+restore. The SQLite queue store keeps them in `home_ignore` (schema 11, a new
+table; older files gain it empty). Qt projects the section: one neutral
+Ignored panel after Recently viewed whose collapse is window-session state,
+starting collapsed.
+
 ## Draft Home metadata allocation (RFC-BPR-0067)
 
 Home’s Draft chip projects an optional accepted GitHub metadata fact. Personal

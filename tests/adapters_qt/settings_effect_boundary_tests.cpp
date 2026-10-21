@@ -119,6 +119,12 @@ namespace {
 			expect(false, "preference gesture must not store servers");
 			return { };
 		}
+		auto apply_home_ignores(std::span<const core::home_ignore_delta>, std::stop_token)
+			-> std::expected<void, application::queue_store_failure> override
+		{
+			expect(false, "preference gesture must not store ignores");
+			return { };
+		}
 		application::durable_queue_state State;
 
 	private:

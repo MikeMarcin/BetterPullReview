@@ -8270,6 +8270,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
+			// [[BPR-PENDING-C]]. Ignore is the queue's too, and local.
+			Window->set_home_ignore_dispatch(
+				[this](core::home_ignore_intent aIntent) {
+					if (!Closing && QueueHost != nullptr) {
+						QueueHost->apply(std::move(aIntent));
+					}
+				});
 			// [[BPR-1407]]. Home's row ages are measured to discovery's clock.
 			Window->set_home_clock([this]() -> std::optional<std::int64_t> {
 				return DiscoveryClock != nullptr ? std::optional{ DiscoveryClock->now_seconds() } : std::nullopt;

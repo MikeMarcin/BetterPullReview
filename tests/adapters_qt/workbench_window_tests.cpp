@@ -17307,6 +17307,10 @@ namespace {
 		auto*      page  = window.open_on_github_action();
 		auto*      again = window.home_recent_resume_action();
 		auto*      drop  = window.home_recent_remove_action();
+		// [[BPR-PENDING-C]]. Ignore, after Open on GitHub, for a queue row only.
+		auto* ignore  = window.home_ignore_action();
+		auto  ignores = std::vector<core::home_ignore_intent>{ };
+		window.set_home_ignore_dispatch([&ignores](core::home_ignore_intent aIntent) { ignores.push_back(std::move(aIntent)); });
 
 		// The menu, on a queue row.
 		auto menuAt = QContextMenuEvent{ QContextMenuEvent::Mouse, row.center(), view->viewport()->mapToGlobal(row.center()) };
@@ -17314,9 +17318,11 @@ namespace {
 		process_events();
 		const auto items = menu->actions();
 		expect(menu->isVisible() && view->currentIndex() == index, "a right click makes the queue row current and opens its menu");
-		expect(items.size() == 7 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page
-				   && items[5]->isSeparator() && items[6] == drop && menu->defaultAction() == open,
-			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open on GitHub, then Remove from Recently Viewed");
+		expect(items.size() == 9 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page
+				   && items[5]->isSeparator() && items[6] == ignore && items[7]->isSeparator() && items[8] == drop && menu->defaultAction() == open,
+			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open on GitHub, Ignore, then Remove from Recently Viewed");
+		expect(ignore->isVisible() && ignore->isEnabled() && ignore->text() == QStringLiteral("Ignore") && ignore->shortcut().isEmpty(),
+			   "on a queue row Ignore is offered, and its Delete is the list's, never the window's");
 		expect(open->text() == QStringLiteral("Open Review") && fresh->text() == QStringLiteral("Open Review in New Window") && open->isEnabled() && fresh->isEnabled()
 				   && !again->isVisible() && !drop->isVisible() && page->isEnabled(),
 			   "on a queue row both are offered and neither Resume nor Remove is");
@@ -17326,6 +17332,9 @@ namespace {
 			   "each item shows its key, and the keys are the lists' own, never a window shortcut");
 		save_open_review_render(*menu, QStringLiteral("queue-row-menu"));
 		save_open_review_render(window, QStringLiteral("queue-row-menu-window"));
+		ignore->trigger();
+		expect(ignores.size() == 1U && ignores.back().Ref == mine && ignores.back().Action == core::home_ignore_action::ignore,
+			   "Ignore asks the queue to ignore the row the menu was opened on");
 		fresh->trigger();
 		menu->hide();
 		process_events();
@@ -17346,6 +17355,9 @@ namespace {
 		expect(windows.size() == 2U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 1U, "⌘Return opens the current row in a new window");
 		deliver_key(window, Qt::Key_Return, Qt::NoModifier);
 		expect(opens.size() == 2U && windows.size() == 2U, "Return opens it here");
+		deliver_key(window, Qt::Key_Delete, Qt::NoModifier);
+		expect(ignores.size() == 2U && ignores.back().Ref == mine && ignores.back().Action == core::home_ignore_action::ignore && opens.size() == 2U,
+			   "Delete on the current row asks to ignore it, and opens nothing");
 
 		// The pointer: ⌘-click and middle-click open in a new window and keep
 		// the row selected; a plain click only selects ([[BPR-1364]]) and a
@@ -17377,6 +17389,7 @@ namespace {
 			   "on a Recently viewed row the menu adds Resume with ⇧Return");
 		expect(drop->isVisible() && drop->isEnabled() && drop->text() == QStringLiteral("Remove from Recently Viewed") && drop->shortcut().isEmpty(),
 			   "and Remove from Recently Viewed, whose Delete the list reads rather than the window");
+		expect(!ignore->isVisible(), "a Recently viewed row is not ignored from its menu");
 		save_open_review_render(*menu, QStringLiteral("recent-row-menu"));
 		fresh->trigger();
 		menu->hide();

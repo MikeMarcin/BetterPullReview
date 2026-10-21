@@ -4244,6 +4244,22 @@ namespace bpr::qt {
 		menuKey(*HomeOpenReviewWindowAction, shortcut_command::home_open_window);
 		HomeOpenReviewWindowAction->setEnabled(false);
 		connect(HomeOpenReviewWindowAction, &QAction::triggered, this, [this] { open_home_review(true); });
+		// [[BPR-PENDING-C]]. Ignore, a queue row's only; Unignore on an ignored
+		// row. Delete (or Backspace) is read by the lists. Delete is the tour
+		// editor's Remove in this window, so, as Remove from Recently Viewed,
+		// the action claims no sequence; the catalogue names the key.
+		HomeIgnoreAction = new QAction{ home_ignore_text(), this };
+		HomeIgnoreAction->setObjectName(QStringLiteral("homeIgnoreAction"));
+		HomeIgnoreAction->setStatusTip(QStringLiteral("Moves this pull request to Ignored at the bottom of Home; nothing changes on GitHub"));
+		HomeIgnoreAction->setEnabled(false);
+		connect(HomeIgnoreAction, &QAction::triggered, this, [this] {
+			if (const auto target = home_review_target(); target.has_value()) {
+				if (const auto* const item = std::get_if<core::queue_item>(&*target)) {
+					dispatch_home_ignore(*item);
+				}
+			}
+		});
+		HomeList->set_ignore_dispatch([this](const core::queue_item& aItem) { dispatch_home_ignore(aItem); });
 		OpenOnGithubAction->setShortcutVisibleInContextMenu(true);
 		HomeRowMenu = new QMenu{ this };
 		HomeRowMenu->setObjectName(QStringLiteral("homeRowMenu"));
@@ -4255,6 +4271,8 @@ namespace bpr::qt {
 		}
 		HomeRowMenu->addSeparator();
 		HomeRowMenu->addAction(OpenOnGithubAction);
+		HomeRowMenu->addSeparator();
+		HomeRowMenu->addAction(HomeIgnoreAction);
 		if (HomeRecentRemoveAction != nullptr) {
 			HomeRowMenu->addSeparator();
 			HomeRowMenu->addAction(HomeRecentRemoveAction);
@@ -12922,6 +12940,37 @@ namespace bpr::qt {
 		// when that is.
 		HomeOpenReviewWindowAction->setEnabled(target.has_value() && ReviewWindowDispatch && NewBprWindowAction != nullptr
 											   && NewBprWindowAction->isEnabled());
+		if (HomeIgnoreAction != nullptr) {
+			// [[BPR-PENDING-C]]. The action names what it will do to this row.
+			const auto* const item = target.has_value() ? std::get_if<core::queue_item>(&*target) : nullptr;
+			HomeIgnoreAction->setText(item != nullptr && item->Ignored ? home_unignore_text() : home_ignore_text());
+			HomeIgnoreAction->setStatusTip(item != nullptr && item->Ignored
+											   ? QStringLiteral("Puts this pull request back in its section; nothing changes on GitHub")
+											   : QStringLiteral("Moves this pull request to Ignored at the bottom of Home; nothing changes on GitHub"));
+			HomeIgnoreAction->setEnabled(item != nullptr && static_cast<bool>(HomeIgnoreDispatch));
+		}
+	}
+
+	void workbench_window::dispatch_home_ignore(const core::queue_item& aItem)
+	{
+		if (!HomeIgnoreDispatch) {
+			return;
+		}
+		HomeIgnoreDispatch(core::home_ignore_intent{
+			.Ref    = aItem.Ref,
+			.Action = aItem.Ignored ? core::home_ignore_action::unignore : core::home_ignore_action::ignore,
+		});
+	}
+
+	void workbench_window::set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch)
+	{
+		HomeIgnoreDispatch = std::move(aDispatch);
+		update_home_review_actions();
+	}
+
+	auto workbench_window::home_ignore_action() const noexcept -> QAction*
+	{
+		return HomeIgnoreAction;
 	}
 
 	void workbench_window::popup_home_row_menu(const QPoint& aGlobal)
@@ -12938,6 +12987,9 @@ namespace bpr::qt {
 				action->setVisible(recent);
 			}
 		}
+		// [[BPR-PENDING-C]]. Ignore is a queue row's; a Recently viewed row is
+		// not ignored from there.
+		HomeIgnoreAction->setVisible(!recent);
 		HomeRowMenu->popup(aGlobal);
 	}
 

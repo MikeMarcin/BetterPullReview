@@ -53,6 +53,8 @@ namespace bpr::qt {
 				return QStringLiteral("homeAuthoredPanel");
 			case home_group::waiting_on_others:
 				return QStringLiteral("homeWaitingOnOthersPanel");
+			case home_group::ignored:
+				return QStringLiteral("homeIgnoredPanel");
 			case home_group::following:
 				break;
 			}
@@ -68,6 +70,8 @@ namespace bpr::qt {
 				return QStringLiteral("homeAuthoredRows");
 			case home_group::waiting_on_others:
 				return QStringLiteral("homeWaitingOnOthersRows");
+			case home_group::ignored:
+				return QStringLiteral("homeIgnoredRows");
 			case home_group::following:
 				break;
 			}
@@ -87,6 +91,10 @@ namespace bpr::qt {
 				return application::home_collapsed_panel::my_pull_requests;
 			case home_group::waiting_on_others:
 				return application::home_collapsed_panel::waiting_on_others;
+			case home_group::ignored:
+				// [[BPR-PENDING-C]]. Not one of the window's remembered panels:
+				// Ignored starts collapsed in every window.
+				return 0U;
 			case home_group::following:
 				break;
 			}
@@ -127,6 +135,16 @@ namespace bpr::qt {
 				return std::nullopt;
 			}
 			return static_cast<home_group>(state.toInt());
+		}
+
+		/// \brief [[BPR-PENDING-C]]. The rows of a model that are not ignored.
+		[[nodiscard]] auto active_rows(const QAbstractItemModel& aModel) -> int
+		{
+			auto rows = 0;
+			for (auto row = 0; row < aModel.rowCount(); ++row) {
+				rows += state_of_row(aModel.index(row, 0)) != home_group::ignored ? 1 : 0;
+			}
+			return rows;
 		}
 
 		void connect_model_signals(QAbstractItemModel& aModel, QObject& aContext, const std::function<void()>& aChanged)
@@ -287,7 +305,10 @@ namespace bpr::qt {
 		if (!row.isValid()) {
 			return false;
 		}
-		if (State.has_value() && state_of_row(row) != State) {
+		// [[BPR-PENDING-C]]. A slice of no one state holds every state but
+		// Ignored, which has its own panel at the bottom of every arrangement.
+		const auto state = state_of_row(row);
+		if (State.has_value() ? state != State : state == home_group::ignored) {
 			return false;
 		}
 		return Key.empty() || key_of_row(Grouping, row) == Key;
@@ -466,7 +487,7 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("homeList"));
 		setAccessibleName(QStringLiteral("Pull requests"));
 		setAccessibleDescription(QStringLiteral(
-			"Needs me, then Waiting on others, then Following, then Recently viewed"));
+			"Needs me, then Waiting on others, then Following, then Recently viewed, then Ignored"));
 		setFrameShape(QFrame::NoFrame);
 		setWidgetResizable(true);
 		setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -586,6 +607,41 @@ namespace bpr::qt {
 		RecentPanel->installEventFilter(this);
 		RecentPanel->hide();
 		Layout->addWidget(RecentPanel);
+
+		// [[BPR-PENDING-C]]. Ignored, last in every arrangement and neutral: its
+		// rows have asked not to be called for, so it carries no state colour
+		// and starts collapsed to its count. Expanding it is the way back; each
+		// row's Unignore returns it to its own section.
+		IgnoredModel = new home_slice_model{ Queue, this };
+		IgnoredModel->set_state(home_group::ignored);
+		IgnoredPanel = new home_panel{ std::nullopt, home_panel_style::panel, Column };
+		IgnoredPanel->setObjectName(panel_name(home_group::ignored));
+		IgnoredPanel->header()->setObjectName(panel_name(home_group::ignored) + QStringLiteral("Header"));
+		IgnoredPanel->set_title(home_group_label(home_group::ignored));
+		auto* const ignoredContent = new QWidget{ IgnoredPanel };
+		auto* const ignoredColumn  = new QVBoxLayout{ ignoredContent };
+		ignoredColumn->setContentsMargins(0, 0, 0, 0);
+		ignoredColumn->setSpacing(0);
+		IgnoredView = new home_row_view{ ignoredContent };
+		adopt_rows(*IgnoredView, *IgnoredModel, rows_name(home_group::ignored), QStringLiteral("Ignored pull requests"));
+		IgnoredView->setAccessibleDescription(home_open_description() + QStringLiteral("; Delete unignores it"));
+		ignoredColumn->addWidget(IgnoredView);
+		IgnoredAction = new home_row_action{ *IgnoredView, home_unignore_text() };
+		IgnoredAction->setObjectName(QStringLiteral("homeIgnoredUnignoreRowButton"));
+		IgnoredAction->setToolTip(QStringLiteral("Puts this pull request back in its section; nothing changes on GitHub"));
+		IgnoredAction->set_trigger([this](const int aRow) {
+			if (const auto item = item_of(*IgnoredView, IgnoredView->model()->index(aRow, 0, IgnoredView->rootIndex()));
+				item.has_value() && IgnoreDispatch) {
+				IgnoreDispatch(*item);
+			}
+		});
+		IgnoredPanel->set_content(ignoredContent);
+		IgnoredPanel->set_collapsed(true);
+		IgnoredPanel->set_collapse_observer([this](bool) { update_sticky_headers(); });
+		IgnoredPanel->set_header_navigator([this](const int aKey) { return navigate_from_header(*IgnoredPanel, aKey); });
+		IgnoredPanel->installEventFilter(this);
+		IgnoredPanel->hide();
+		Layout->addWidget(IgnoredPanel);
 		Layout->addStretch(1);
 		setWidget(Column);
 
@@ -760,6 +816,11 @@ namespace bpr::qt {
 		RecentActionDispatch = std::move(aDispatch);
 	}
 
+	void home_list::set_ignore_dispatch(std::function<void(const core::queue_item&)> aDispatch)
+	{
+		IgnoreDispatch = std::move(aDispatch);
+	}
+
 	void home_list::set_onboarding(const bool aOnboarding)
 	{
 		Onboarding = aOnboarding;
@@ -796,6 +857,7 @@ namespace bpr::qt {
 		}
 		FlatPanel->set_state_colours(aColours);
 		RecentPanel->set_state_colours(aColours);
+		IgnoredPanel->set_state_colours(aColours);
 		for (const auto& group : Groups) {
 			group->Panel->set_state_colours(aColours);
 			for (auto* const band : group->Bands) {
@@ -954,10 +1016,13 @@ namespace bpr::qt {
 
 	void home_list::refresh()
 	{
-		RefreshPending             = false;
-		const auto* const source   = Queue.sourceModel();
-		const auto        allEmpty = QueueReady && QueueAccount && source != nullptr && source->rowCount() == 0;
-		const auto        shown    = QueueReady && QueueAccount;
+		RefreshPending           = false;
+		const auto* const source = Queue.sourceModel();
+		// [[BPR-PENDING-C]]. Ignored rows are not the queue's: a queue of only
+		// ignored rows says nothing needs me, above its Ignored panel.
+		const auto sourceRows = source != nullptr ? active_rows(*source) : 0;
+		const auto allEmpty   = QueueReady && QueueAccount && source != nullptr && sourceRows == 0;
+		const auto shown      = QueueReady && QueueAccount;
 		// [[BPR-0783]]. An empty queue has nothing to group: whatever the view
 		// asks for, it is Needs me holding one sentence and no box at all.
 		const auto stated  = shown && (allEmpty || (Grouping == application::home_grouping::none && StateHeaders));
@@ -1021,8 +1086,8 @@ namespace bpr::qt {
 		}
 
 		// [[BPR-1580]]. Rows exist and the view hides every one of them.
-		const auto hidden   = shown && !allEmpty && !Onboarding && source != nullptr ? source->rowCount() : 0;
-		const auto filtered = hidden > 0 && Queue.rowCount() == 0;
+		const auto hidden   = shown && !allEmpty && !Onboarding && source != nullptr ? sourceRows : 0;
+		const auto filtered = hidden > 0 && active_rows(Queue) == 0;
 		if (filtered) {
 			const auto said = hidden == 1 ? QStringLiteral("Filters hide the only pull request.")
 										  : QStringLiteral("Filters hide all %1 pull requests.").arg(hidden);
@@ -1033,6 +1098,11 @@ namespace bpr::qt {
 		FilteredSentence->setVisible(filtered);
 
 		RecentPanel->setVisible(RecentView != nullptr && RecentCount > 0);
+		const auto ignoredRows = IgnoredModel->rowCount();
+		IgnoredPanel->set_count(ignoredRows);
+		IgnoredPanel->set_summary(QStringLiteral("%1 ignored").arg(ignoredRows));
+		IgnoredView->setVisible(ignoredRows > 0);
+		IgnoredPanel->setVisible(shown && ignoredRows > 0);
 		if (CurrentRows != nullptr) {
 			// A list the arrangement no longer shows holds no current row.
 			const auto live = row_views();
@@ -1052,7 +1122,7 @@ namespace bpr::qt {
 		auto ordered = std::vector<std::pair<int, int>>{ };
 		ordered.reserve(static_cast<std::size_t>(Queue.rowCount()));
 		for (auto row = 0; row < Queue.rowCount(); ++row) {
-			if (const auto state = state_of_row(Queue.index(row, 0)); state.has_value()) {
+			if (const auto state = state_of_row(Queue.index(row, 0)); state.has_value() && *state != home_group::ignored) {
 				ordered.emplace_back(static_cast<int>(*state), row);
 			}
 		}
@@ -1074,10 +1144,13 @@ namespace bpr::qt {
 	{
 		auto census = std::map<home_group_key, std::vector<home_account>>{ };
 		for (auto row = 0; row < Queue.rowCount(); ++row) {
-			const auto index    = Queue.index(row, 0);
-			auto&      accounts = census[key_of_row(Grouping, index)];
-			auto       account  = home_account{ .Host  = index.data(review_landing_model::host_role).toString(),
-												.Login = index.data(review_landing_model::account_role).toString() };
+			const auto index = Queue.index(row, 0);
+			if (state_of_row(index) == home_group::ignored) {
+				continue;
+			}
+			auto& accounts = census[key_of_row(Grouping, index)];
+			auto  account  = home_account{ .Host  = index.data(review_landing_model::host_role).toString(),
+										   .Login = index.data(review_landing_model::account_role).toString() };
 			if (!std::ranges::contains(accounts, account)) {
 				accounts.push_back(std::move(account));
 			}
@@ -1279,6 +1352,7 @@ namespace bpr::qt {
 			stick(group->Panel);
 		}
 		stick(RecentPanel);
+		stick(IgnoredPanel);
 	}
 
 	void home_list::adopt_current(QAbstractItemView* const aView, const QModelIndex& aCurrent)
@@ -1553,6 +1627,9 @@ namespace bpr::qt {
 		if (&aPanel == FlatPanel) {
 			return shown(FlatView);
 		}
+		if (&aPanel == IgnoredPanel) {
+			return shown(IgnoredView);
+		}
 		for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
 			if (StatePanels[index] == &aPanel) {
 				return shown(StateViews[index]);
@@ -1607,24 +1684,26 @@ namespace bpr::qt {
 			} else {
 				keep(FlatView);
 			}
-			return views;
-		}
-		for (const auto& group : Groups) {
-			if (StateHeaders) {
-				for (auto* const band : group->BandViews) {
-					keep(band);
+		} else {
+			for (const auto& group : Groups) {
+				if (StateHeaders) {
+					for (auto* const band : group->BandViews) {
+						keep(band);
+					}
+				} else {
+					keep(group->RowsView);
 				}
-			} else {
-				keep(group->RowsView);
+			}
+			// An empty ready queue is Needs me holding one sentence whatever the
+			// grouping, so its own list is the one that is on screen.
+			if (Groups.empty()) {
+				for (auto* const view : StateViews) {
+					keep(view);
+				}
 			}
 		}
-		// An empty ready queue is Needs me holding one sentence whatever the
-		// grouping, so its own list is the one that is on screen.
-		if (Groups.empty()) {
-			for (auto* const view : StateViews) {
-				keep(view);
-			}
-		}
+		// [[BPR-PENDING-C]]. Ignored is the same in every arrangement.
+		keep(IgnoredView);
 		return views;
 	}
 
@@ -1689,6 +1768,21 @@ namespace bpr::qt {
 	auto home_list::recent_action() const noexcept -> home_row_action*
 	{
 		return RecentAction;
+	}
+
+	auto home_list::ignored_panel() const noexcept -> home_panel*
+	{
+		return IgnoredPanel;
+	}
+
+	auto home_list::ignored_view() const noexcept -> QListView*
+	{
+		return IgnoredView;
+	}
+
+	auto home_list::ignored_action() const noexcept -> home_row_action*
+	{
+		return IgnoredAction;
 	}
 
 	auto home_list::row_delegate() const noexcept -> home_row_delegate*
@@ -2031,6 +2125,17 @@ namespace bpr::qt {
 		for (auto* const view : views) {
 			if (aWatched != view) {
 				continue;
+			}
+			// [[BPR-PENDING-C]]. Delete, or Backspace as macOS lists take it,
+			// ignores the current row, as it removes a Recently viewed one; on
+			// an ignored row it unignores. Read here, so it never reaches the
+			// window's own Delete.
+			if ((key->key() == Qt::Key_Delete || key->key() == Qt::Key_Backspace) && unshifted) {
+				if (const auto item = view->currentIndex().isValid() ? item_of(*view, view->currentIndex()) : std::nullopt;
+					item.has_value() && IgnoreDispatch) {
+					IgnoreDispatch(*item);
+				}
+				return true;
 			}
 			if (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) {
 				// [[BPR-0736]]. macOS treats these as editing keys instead of

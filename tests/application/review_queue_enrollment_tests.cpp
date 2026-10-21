@@ -198,8 +198,27 @@ namespace {
 			return { };
 		}
 
-		std::size_t SavedChanges       = 0U;
-		std::size_t SavedServerChanges = 0U;
+		[[nodiscard]] auto apply_home_ignores(
+			const std::span<const core::home_ignore_delta> aDeltas,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			IgnoreWrites.emplace_back(aDeltas.begin(), aDeltas.end());
+			if (FailIgnoreStore) {
+				return std::unexpected(application::queue_store_failure::unavailable);
+			}
+			for (const auto& delta : aDeltas) {
+				std::erase(State.Ignored, delta.Ref);
+				if (delta.Change == core::home_ignore_change::ignored) {
+					State.Ignored.push_back(delta.Ref);
+				}
+			}
+			return { };
+		}
+
+		std::size_t                                       SavedChanges       = 0U;
+		std::size_t                                       SavedServerChanges = 0U;
+		std::vector<std::vector<core::home_ignore_delta>> IgnoreWrites;
+		bool                                              FailIgnoreStore = false;
 
 		application::durable_queue_state State;
 		std::size_t                      Loads               = 0U;
@@ -1904,6 +1923,79 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	[[nodiscard]] auto home_ignore(const std::int64_t aNumber, const core::home_ignore_action aAction = core::home_ignore_action::ignore)
+		-> core::home_ignore_intent
+	{
+		return { .Ref = ref(aNumber), .Action = aAction };
+	}
+
+	// [[BPR-PENDING-C]]. Ignoring is decided by the core from the retained
+	// record, durable before it is kept, and moves only the row's section.
+	void test_ignore_is_durable_and_moves_only_the_section()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } }, { .Ref = ref(18), .Membership = { .Requested = true } } } };
+		fixture.Queue.apply(home_ignore(17));
+		fixture.settle();
+		expect(fixture.Store.State.Ignored == std::vector{ ref(17) }, "the ignore is written to the store");
+		expect(fixture.item(17)->Ignored && core::home_section_for(*fixture.item(17)) == core::home_queue_section::ignored,
+			   "the ignored row is in Ignored");
+		expect(fixture.item(17)->Bucket == core::attention_bucket::initial_review_requested, "its attention is unchanged");
+		expect(!fixture.item(18)->Ignored, "the other row is not ignored");
+		const auto queue = fixture.Queue.queue();
+		expect(queue.size() == 2U && queue.front().Ref == ref(18) && queue.back().Ref == ref(17), "the ignored row sorts last");
+		expect(!fixture.First->Published.empty() && fixture.First->Published.back().Items.back().Ignored,
+			   "the window is told, with the ignored row last");
+
+		const auto writes = fixture.Store.IgnoreWrites.size();
+		fixture.Queue.apply(home_ignore(17));
+		fixture.Queue.apply(home_ignore(99));
+		fixture.settle();
+		expect(fixture.Store.IgnoreWrites.size() == writes, "ignoring it again, or a row Home does not have, writes nothing");
+
+		fixture.Queue.apply(home_ignore(17, core::home_ignore_action::unignore));
+		fixture.settle();
+		expect(fixture.Store.State.Ignored.empty() && !fixture.item(17)->Ignored, "unignoring is written and the row returns");
+		expect(fixture.Queue.statistics().IgnoreIntents == 4U, "every gesture is counted");
+
+		fixture.Store.FailIgnoreStore = true;
+		fixture.Queue.apply(home_ignore(18));
+		fixture.settle();
+		expect(fixture.Queue.ignored().size() == 0U && !fixture.item(18)->Ignored, "a refused write is not kept");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_ignores_survive_restart_and_closed_ones_are_pruned()
+	{
+		auto closedRecord           = application::enrollment_record{ .Ref = ref(19), .Membership = { .Requested = true } };
+		closedRecord.Departed       = application::enrollment_departure::closed;
+		auto fixture                = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } }, closedRecord }, false };
+		auto foreign                = ref(17);
+		foreign.Account             = "someone-else";
+		fixture.Store.State.Ignored = { ref(17), ref(19), foreign };
+		fixture.Queue.restore();
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Ignored, "a restored ignore marks its row");
+		expect(!fixture.Queue.ignored().contains(ref(19)) && fixture.Queue.ignored().contains(foreign),
+			   "a restored ignore of a closed record is pruned; one with no record is kept");
+		expect(!fixture.Store.IgnoreWrites.empty()
+				   && fixture.Store.IgnoreWrites.back() == std::vector<core::home_ignore_delta>{ { .Ref = ref(19), .Change = core::home_ignore_change::pruned_closed } },
+			   "the prune is written as a closed prune");
+
+		fixture.Discovery.adopt(discovery_session());
+		auto closed   = metadata_row(17U);
+		closed.Closed = true;
+		fixture.Provider.answer(fixture.Provider.rows({ closed }));
+		fixture.settle();
+		expect(fixture.record(17)->Departed == application::enrollment_departure::closed && !fixture.item(17),
+			   "the closed pull request leaves Home");
+		expect(!fixture.Queue.ignored().contains(ref(17)) && std::ranges::find(fixture.Store.State.Ignored, ref(17)) == fixture.Store.State.Ignored.end(),
+			   "and its ignore is pruned from the store");
+		expect(fixture.Queue.statistics().IgnoresPruned == 2U, "both prunes are counted");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_one_scheduler_discovers_the_saved_repositories_of_its_account()
 	{
 		auto fixture = discovery_fixture{ };
@@ -2711,6 +2803,8 @@ auto main() -> int
 	test_retained_metadata_budget_and_restore_after_session();
 	test_retained_failure_and_foreign_envelopes_preserve_accepted_state();
 	test_closed_metadata_cannot_be_revived_by_the_same_search_cycle();
+	test_ignore_is_durable_and_moves_only_the_section();
+	test_ignores_survive_restart_and_closed_ones_are_pruned();
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();

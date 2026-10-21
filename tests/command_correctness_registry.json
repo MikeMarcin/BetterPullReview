@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "9a5229b25a173810b692da85e577e131ee723e9fa223559f56356bee98b618d5",
+      "sha256": "1674c85d6e2857f3f58926e2053071c9ba061753d7fd52773775d85a4f3f25be",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug"
@@ -1088,7 +1088,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "16711734bd8ea0dbcaf40051172cac9f702ab3e6c885e0a80911a145f06f7748"
+          "sha256": "5ec08d26a6f13f08df3a3838d5933a5165318a5f08f15ca8e20dd14e3878b21a"
         }
       ]
     },
@@ -1176,7 +1176,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "16711734bd8ea0dbcaf40051172cac9f702ab3e6c885e0a80911a145f06f7748"
+          "sha256": "5ec08d26a6f13f08df3a3838d5933a5165318a5f08f15ca8e20dd14e3878b21a"
         }
       ]
     },
@@ -1271,7 +1271,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "16711734bd8ea0dbcaf40051172cac9f702ab3e6c885e0a80911a145f06f7748"
+          "sha256": "5ec08d26a6f13f08df3a3838d5933a5165318a5f08f15ca8e20dd14e3878b21a"
         }
       ]
     }

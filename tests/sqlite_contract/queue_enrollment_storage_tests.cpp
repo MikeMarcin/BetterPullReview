@@ -337,8 +337,10 @@ namespace {
 	// [[BPR-0989]]. The historical shapes the older-version fixtures carry.
 	// Version seven rebuilt the enrollment and preference tables, so a fixture
 	// made from the current store rebuilds them as they were before.
+	// [[BPR-PENDING-C]]. Every version before eleven had no ignored table.
 	constexpr std::string_view downgrade_enrollment_to_version_one
-		= "CREATE TABLE old_enrollment AS SELECT host, account, repository, pull_request, role, matched_rule,"
+		= "DROP TABLE home_ignore;"
+		  "CREATE TABLE old_enrollment AS SELECT host, account, repository, pull_request, role, matched_rule,"
 		  " rule_kind, rule_pattern, rule_excluding, departed FROM enrollment;"
 		  "DROP TABLE enrollment;"
 		  "CREATE TABLE enrollment(host TEXT NOT NULL,account TEXT NOT NULL,repository TEXT NOT NULL,pull_request INTEGER NOT NULL,"
@@ -1172,7 +1174,7 @@ namespace {
 		record.Draft = false;
 		expect(store->store(record).has_value() && store->load_all() == std::vector{ record }, "ready remains observed false");
 		store = std::unexpected(failure::unavailable);
-		execute_raw_sql(path, "ALTER TABLE enrollment DROP COLUMN home_facts; ALTER TABLE enrollment DROP COLUMN facts_account; ALTER TABLE enrollment DROP COLUMN draft; ALTER TABLE enrollment DROP COLUMN draft_account; UPDATE enrollment_meta SET schema_format=7; PRAGMA user_version=7;");
+		execute_raw_sql(path, "DROP TABLE home_ignore; ALTER TABLE enrollment DROP COLUMN home_facts; ALTER TABLE enrollment DROP COLUMN facts_account; ALTER TABLE enrollment DROP COLUMN draft; ALTER TABLE enrollment DROP COLUMN draft_account; UPDATE enrollment_meta SET schema_format=7; PRAGMA user_version=7;");
 		record.Draft.reset();
 		record.DraftAccount = { };
 		auto migrated       = queue_enrollment_database::open(path, { });
@@ -1192,12 +1194,66 @@ namespace {
 			auto store = queue_enrollment_database::open(path, { });
 			expect(opened_ok(store) && store->store(record).has_value(), "the version-nine fixture starts with a titled enrollment");
 		}
-		execute_raw_sql(path, "UPDATE enrollment SET home_facts = '1;' || substr(home_facts, 3, length(home_facts) - 10); UPDATE enrollment_meta SET schema_format = 9 WHERE singleton = 1; PRAGMA user_version = 9;");
+		execute_raw_sql(path, "DROP TABLE home_ignore; UPDATE enrollment SET home_facts = '1;' || substr(home_facts, 3, length(home_facts) - 10); UPDATE enrollment_meta SET schema_format = 9 WHERE singleton = 1; PRAGMA user_version = 9;");
 		auto migrated = queue_enrollment_database::open(path, { });
 		expect(opened_ok(migrated) && migrated->load_all() == std::vector{ record }, "a version-nine file's first-encoding facts survive the upgrade with nothing invented");
-		expect(scalar_integer(migrated->handle(), "PRAGMA user_version") == 10, "the file is stamped version ten");
+		expect(scalar_integer(migrated->handle(), "PRAGMA user_version") == queue_enrollment_schema_version, "the file is stamped current");
 		record.LastFacts.Change = { .OpenedAt = 1'791'285'300, .Additions = 236U, .Deletions = 0U, .Comments = 3U };
 		expect(migrated->store(record).has_value() && migrated->load_all() == std::vector{ record }, "age, size and comment count round-trip, a zero kept as zero");
+	}
+
+	// [[BPR-PENDING-C]]. Ignores are kept by whole identity, survive a reopen,
+	// are pruned by the same write path, and a version-ten file gains the table.
+	void test_home_ignores_round_trip_and_upgrade()
+	{
+		const scratch_directory directory;
+		const auto              path  = directory.file("queue.db");
+		auto                    other = ref(17);
+		other.Account                 = "second-account";
+		{
+			auto store = queue_enrollment_database::open(path, { });
+			expect(opened_ok(store), "the store opens");
+			expect(store->load_home_ignores() == std::vector<core::pull_request_ref>{ }, "a new store ignores nothing");
+			const auto ignored = std::vector<core::home_ignore_delta>{
+				{ .Ref = ref(18), .Change = core::home_ignore_change::ignored },
+				{ .Ref = other, .Change = core::home_ignore_change::ignored },
+				{ .Ref = ref(17), .Change = core::home_ignore_change::ignored },
+				{ .Ref = ref(17), .Change = core::home_ignore_change::ignored },
+			};
+			expect(store->apply_home_ignores(ignored, { }).has_value(), "ignores are written, a repeat included");
+			const auto absent = std::vector<core::home_ignore_delta>{ { .Ref = ref(99), .Change = core::home_ignore_change::unignored } };
+			expect(store->apply_home_ignores(absent, { }).has_value(), "unignoring what is not there succeeds");
+			const auto invalid = std::vector<core::home_ignore_delta>{
+				{ .Ref = ref(19), .Change = core::home_ignore_change::ignored },
+				{ .Ref = ref(0), .Change = core::home_ignore_change::ignored },
+			};
+			expect(!store->apply_home_ignores(invalid, { }).has_value(), "an unusable reference refuses the whole write");
+		}
+		{
+			auto reopened = queue_enrollment_database::open(path, { });
+			expect(opened_ok(reopened), "the store reopens");
+			expect(reopened->load_home_ignores() == std::vector{ ref(17), ref(18), other },
+				   "every ignore survives the reopen, in identity order, the other account's apart, and the refused write left nothing");
+			const auto pruned = std::vector<core::home_ignore_delta>{
+				{ .Ref = ref(17), .Change = core::home_ignore_change::pruned_closed },
+				{ .Ref = ref(18), .Change = core::home_ignore_change::unignored },
+			};
+			expect(reopened->apply_home_ignores(pruned, { }).has_value() && reopened->load_home_ignores() == std::vector{ other },
+				   "a prune and an unignore remove exactly their own pull requests");
+		}
+
+		const scratch_directory older;
+		const auto              olderPath = older.file("queue.db");
+		{
+			auto store = queue_enrollment_database::open(olderPath, { });
+			expect(opened_ok(store) && store->store(application::enrollment_record{ .Ref = ref(17), .Membership = { .Followed = true } }).has_value(),
+				   "the version-ten fixture starts with an enrollment");
+		}
+		execute_raw_sql(olderPath, "DROP TABLE home_ignore; UPDATE enrollment_meta SET schema_format = 10 WHERE singleton = 1; PRAGMA user_version = 10;");
+		auto migrated = queue_enrollment_database::open(olderPath, { });
+		expect(opened_ok(migrated) && migrated->load_all().has_value() && migrated->load_all()->size() == 1U, "a version-ten file opens with its enrollment");
+		expect(scalar_integer(migrated->handle(), "PRAGMA user_version") == queue_enrollment_schema_version, "and is stamped current");
+		expect(migrated->load_home_ignores() == std::vector<core::pull_request_ref>{ }, "with nothing ignored");
 	}
 
 } // namespace
@@ -1213,6 +1269,7 @@ try {
 	test_enrollment_survives_a_separate_process();
 #endif
 	test_version_nine_facts_upgrade_and_change_facts_round_trip();
+	test_home_ignores_round_trip_and_upgrade();
 	test_a_newer_database_fails_closed();
 	test_a_foreign_version_one_database_is_not_migrated();
 	test_a_legal_version_one_database_migrates_to_current();

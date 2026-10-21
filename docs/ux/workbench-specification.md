@@ -895,6 +895,16 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Repositories; observer rules are reached from View's Open Home & queue.
   No empty
   box is drawn in any arrangement.
+- **Ignored** ([[BPR-PENDING-C]], the owner, 2026-10-20). A queue row's menu
+  offers Ignore, and Delete (or Backspace) on the row does the same. The row
+  moves to Ignored, a neutral panel after Recently viewed in every grouping
+  and with State headers on or off. Its rows keep their reason sentence, but
+  the panel draws no state colour. Ignored starts collapsed to its count
+  ("2 ignored") in every window. Its collapse lasts while the window is open
+  and is not part of the remembered view. Expanded, each row carries Unignore
+  on hover and focus, in its menu and on the same key, and returns to its own
+  section. An ignored pull request that closes or merges leaves Home and is
+  forgotten. Nothing changes on GitHub.
 - **Group by** offers None (the default), Organization, Repository and
   Account. A group is a neutral panel headed by its owner's avatar
   ([People's avatars](#peoples-avatars)) — round for an account, a small

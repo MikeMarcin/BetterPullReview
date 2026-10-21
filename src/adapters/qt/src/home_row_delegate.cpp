@@ -448,6 +448,8 @@ namespace bpr::qt {
 			return MyPullRequests;
 		case home_group::waiting_on_others:
 			return WaitingOnOthers;
+		case home_group::ignored:
+			return { };
 		case home_group::following:
 			break;
 		}

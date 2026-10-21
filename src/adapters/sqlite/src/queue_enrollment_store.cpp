@@ -68,12 +68,17 @@ namespace bpr::adapters::sqlite {
 				if (!servers) {
 					return std::unexpected(translate(servers.error()));
 				}
+				auto ignored = Database->load_home_ignores();
+				if (!ignored) {
+					return std::unexpected(translate(ignored.error()));
+				}
 				return application::durable_queue_state{
 					.Rules             = std::move(*rules),
 					.Enrollments       = std::move(*enrollments),
 					.Preferences       = std::move(*preferences),
 					.SavedRepositories = std::move(*saved),
 					.SavedServers      = std::move(*servers),
+					.Ignored           = std::move(*ignored),
 				};
 			}
 
@@ -178,6 +183,20 @@ namespace bpr::adapters::sqlite {
 					return ready;
 				}
 				auto stored = Database->store_all(aRecords, aStop);
+				return stored
+					? std::expected<void, application::queue_store_failure>{ }
+					: std::unexpected(translate(stored.error()));
+			}
+
+			auto apply_home_ignores(
+				const std::span<const core::home_ignore_delta> aDeltas,
+				std::stop_token                                aStop)
+				-> std::expected<void, application::queue_store_failure> override
+			{
+				if (auto ready = ensure_open(aStop); !ready) {
+					return ready;
+				}
+				auto stored = Database->apply_home_ignores(aDeltas, aStop);
 				return stored
 					? std::expected<void, application::queue_store_failure>{ }
 					: std::unexpected(translate(stored.error()));

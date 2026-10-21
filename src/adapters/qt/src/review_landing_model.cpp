@@ -43,6 +43,8 @@ namespace bpr::qt {
 			return QStringLiteral("My pull requests");
 		case home_group::waiting_on_others:
 			return QStringLiteral("Waiting on others");
+		case home_group::ignored:
+			return QStringLiteral("Ignored");
 		case home_group::following:
 			break;
 		}
@@ -106,6 +108,16 @@ namespace bpr::qt {
 			break;
 		}
 		return QStringLiteral("Quiet");
+	}
+
+	auto home_ignore_text() -> QString
+	{
+		return QStringLiteral("Ignore");
+	}
+
+	auto home_unignore_text() -> QString
+	{
+		return QStringLiteral("Unignore");
 	}
 
 	auto home_identity(const core::queue_item& aItem) -> QString
@@ -270,6 +282,10 @@ namespace bpr::qt {
 		case home_group::following:
 			summary = QStringLiteral("%1 followed").arg(QString::number(aRows.size()));
 			break;
+		case home_group::ignored:
+			// [[BPR-PENDING-C]]. Ignored rows ask nothing, so their summary
+			// counts them and says nothing else about them.
+			return QStringLiteral("%1 ignored").arg(QString::number(aRows.size()));
 		}
 		const auto blocked = std::ranges::count_if(aRows, [](const auto& aRow) { return core::merge_blocked(aRow.Facts.Waiting); });
 		const auto waiting = std::ranges::count_if(aRows, [](const auto& aRow) { return core::review_waiting(aRow.Facts.Waiting); });
@@ -483,6 +499,10 @@ namespace bpr::qt {
 			if (const auto change = home_change_sentence(item->Facts.Change, Now); !change.isEmpty()) {
 				why += QStringLiteral(". %1").arg(change);
 			}
+			// [[BPR-PENDING-C]]. An ignored row says so first, as its panel does.
+			if (item->Ignored) {
+				why = QStringLiteral("Ignored; %1").arg(why);
+			}
 			// [[BPR-1365]]. The open review is said in words, as it is drawn.
 			return Reviewing == item->Ref ? QStringLiteral("%1; %2").arg(home_reviewing_description(), why) : why;
 		}
@@ -512,7 +532,8 @@ namespace bpr::qt {
 			}
 			return QString{ };
 		case group_role:
-			return static_cast<int>(core::home_section_for(item->Membership, item->Bucket));
+			// [[BPR-PENDING-C]]. The decided item's section, ignored included.
+			return static_cast<int>(core::home_section_for(*item));
 		case unseen_role:
 			return item->Facts.UnseenComments > 0U;
 		// [[BPR-0776]]. The roles Home's one row anatomy reads. Time and
@@ -530,6 +551,11 @@ namespace bpr::qt {
 		case home_row_role::reason_word:
 			return item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket);
 		case home_row_role::state:
+			// [[BPR-PENDING-C]]. Colour means state; an ignored row has asked
+			// to be left alone, so it carries none and is drawn neutral.
+			if (item->Ignored) {
+				return { };
+			}
 			return static_cast<int>(home_group_of(item->Bucket));
 		case home_row_role::account_chip:
 			// [[BPR-0783]]. The chip is drawn only when the queue names more than
@@ -551,9 +577,11 @@ namespace bpr::qt {
 			return home_age_text(item->Facts.Change, Now);
 		case home_row_role::comments:
 			return home_comments_text(item->Facts.Change);
+		case home_row_role::row_action:
+			// [[BPR-PENDING-C]]. An ignored row's own action, on hover and focus.
+			return item->Ignored ? home_unignore_text() : QString{ };
 		case home_row_role::time:
 		case home_row_role::progress:
-		case home_row_role::row_action:
 			return QString{ };
 		default:
 			break;
