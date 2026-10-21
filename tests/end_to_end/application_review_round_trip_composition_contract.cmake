@@ -1,3 +1,20 @@
+# Upkeep reseal (2026-10-21) over last matching 1ce075976..57cae1ba7, linear.
+# Pinned-scope commits: RFC-BPR-0089 M1 95aa8a5b5, 50eb0cdfc and 1b0f28183
+# ([[BPR-1685]]..[[BPR-1687]]), and [[BPR-1680]] 87d04edf2 and c229ebd9d.
+# Only github_application.cpp and main.cpp changed inside the manifest. M1
+# composes a window's local commit filter: the Commits tab and chips, the
+# filtered file set the workbench and Overview observe, its own ledger receipt
+# key per filtered diff, chain tree reads through the epoch host, suspended
+# thread marks and a commit page opened through the window's browser. 1b0f28183
+# adds only the BUILD_TESTING commit-filter-v1 fixture host label and main.cpp
+# selection. BPR-1680 adds a monotonic clock for logged refresh durations, the
+# discovery host's diagnostic log, and Home discovery lanes the provider runs a
+# CLI account's discovery reads on, drained at close, beside the window reads
+# home_loading_yields no longer waits for. No credential, grant, provider
+# selection, publication, mutation or source-inventory change; the fixture and
+# CLI-runtime edits in the range are outside the manifest. Full and manifest
+# pins bind these bytes; mutation 16d135419 stays exact. Reviews are on the
+# owning cards; the original drift refusal precedes this renewal.
 # [[BPR-1675]] final integration over main b0e643531 and measured67cfff2dc:
 # source review retains main's window-owned Home read-lane yield and local Ignore
 # intent, plus its unset-by-default recorded repository-refusal fixture field.
@@ -1747,7 +1764,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"126f2ede8fdd2e209a558afcbe46cfc51c3f9a83004de157aa2d2010ad0af8bc"
+		"95c28c3d8e27c61b4921bc77ee6dad5329f975bc56e50119f82289fa7de5ed30"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1967,7 +1984,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0cc702d3f8f32b407116737536bc14d6e9c2edc09223cecefffa06a551dc4506"
+        "580a134095b97a3c96d9271d03c7a60791ebfe453b275db2d5f142f00c7e454b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
