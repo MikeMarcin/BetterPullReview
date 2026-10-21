@@ -2334,6 +2334,32 @@ set_tests_properties(qt_refresh_feedback_window PROPERTIES
     PASS_REGULAR_EXPRESSION "refresh-feedback-window-tests:pass"
     TIMEOUT 120)
 
+# [[BPR-PENDING-AA]]. Help › About: content, Copy version info, links and
+# documents through the host's actions, the menu item, keyboard access, the
+# logo at the device's own pixel size and contrast in the built-in themes, at
+# 1x and 2x, each saving its Light and Dark renders.
+bpr_add_executable(test_better_pull_review_qt_about_window_tests about_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_about_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_about_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_about_window_tests)
+foreach(bpr_about_scale IN ITEMS 100 200)
+    math(EXPR bpr_about_whole "${bpr_about_scale} / 100")
+    math(EXPR bpr_about_fraction "${bpr_about_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_about_window_scale_${bpr_about_scale}
+        COMMAND test_better_pull_review_qt_about_window_tests
+            --render-directory "${CMAKE_CURRENT_BINARY_DIR}/about-window"
+    )
+    set_tests_properties(
+        qt_about_window_scale_${bpr_about_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_about_whole}.${bpr_about_fraction}"
+            PASS_REGULAR_EXPRESSION "about-window-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
 # [[BPR-1579]]. Every disclosure bar in the four built-in themes: the title at
 # 4.5:1 or more on BPR-1513's raised surface, the chevron in the text colour,
 # and the old platform-drawn bar refused (on macOS, the native bezel).

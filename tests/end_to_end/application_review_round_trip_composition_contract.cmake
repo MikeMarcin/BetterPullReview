@@ -1,3 +1,15 @@
+# [[BPR-PENDING-AA]] reseal (2026-10-21) over last matching main ae867c2db,
+# linear. Pinned-scope change: Help > About BetterPullReview, on this card's
+# own commit. The source inventory gains src/about_desktop.cpp and .hpp, in
+# both lists: make_about_menu builds the page's facts (compiled version and
+# configuration, the commit cmake/BprBuildIdentity.cmake records, the running
+# Qt and system) and opens its two links through the core's named reference
+# pages and the existing system browser opener, and its two installed legal
+# documents with the platform viewer only while each is a regular file.
+# profile_desktop.cpp makes the menu and attaches it to each window's bar and
+# the empty desktop's, after the updater. No review mutation, publication,
+# credential, grant, provider selection or ledger change. Only the manifest
+# pin changes; the full-application and mutation 16d135419 pins stay exact.
 # [[BPR-1718]] note (2026-10-21) over last matching main ad6908848: no
 # reseal. The only src/app change is the BUILD_TESTING fixture server
 # (github_public_path_fixture.cpp, outside the manifest): its batched Home
@@ -1967,6 +1979,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
 		"main.cpp"
+		"src/about_desktop.cpp"
+		"src/about_desktop.hpp"
 		"src/command_line.cpp"
 		"src/designated_live_macos_supervisor.cpp"
 		"src/designated_live_macos_supervisor_identity.cpp"
@@ -2045,6 +2059,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+        "src/about_desktop.cpp"
+        "src/about_desktop.hpp"
         "src/command_line.cpp"
         "src/cycle_cli.cpp"
         "src/cycle_cli.hpp"
@@ -2160,7 +2176,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4d8f589a4746e2f986de8073f0bea8240d401078989a31f9d43bddc5bc3ed0d5"
+        "409766a3dd6a29009e53e181c1f37f99d5bd592728af76e9c17317f60dec32fe"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

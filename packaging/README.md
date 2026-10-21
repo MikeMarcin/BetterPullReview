@@ -78,6 +78,20 @@ generation, installation paths, dependency collection, signing, notarization,
 and release evidence. Any later production input or rights change must update
 the provenance and notice disposition before packaging.
 
+## About page logo
+
+Help › About shows the Game Core Tech logo
+([`src/adapters/qt/assets/about`](../src/adapters/qt/assets/about/README.md)).
+The mark is the owner's own, copied from their AllTheThings project, and is a
+first-party asset under this project's licence and copyright: it has no
+attribution, SBOM component or third-party notice. Every graph embeds the one
+640-pixel PNG as a Qt resource (`/bpr/about`), and a tests-disabled Windows
+image carries it in its resource bundle with the others.
+
+The page opens the installed `THIRD-PARTY-NOTICES.txt` and `SOURCE-OFFERS.txt`
+from `legal_root` (`packaging/package_runtime.py`). Moving those files means
+moving `installed_legal_folder` in `src/app/src/about_desktop.cpp` with them.
+
 ## RFC-BPR-0002 dependency record
 
 This section retains historical foundation candidates and their original

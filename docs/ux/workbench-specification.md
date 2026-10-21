@@ -2197,6 +2197,80 @@ line-number visibility is workbench-surface state and an inactive workbench
 disables every workbench command. A reader who opens **View** on a freshly
 launched window sees the entry greyed.
 
+### About BetterPullReview
+
+**Help > About BetterPullReview** ([[BPR-PENDING-AA]]; owner, 2026-10-21:
+"We need an about page. We can take inspiration fom the AllTheThings about
+page and copy it's GCT logo") is Help's last item. Its About role puts it first
+in the macOS application menu, above Check for Updates…; on Windows and Linux
+it ends Help under a rule. Every workbench window's bar and the resident
+desktop bar carry it, and it works on both: a window's page is that window's
+child and takes its theme, following a change to it, and the empty desktop
+shows one page of its own in the system's colours. Like Keyboard Shortcuts it
+is non-modal, the item again raises the same page, and Esc or Close hides it.
+
+The page follows AllTheThings' About window: one centred column under the
+maker's mark. From the top:
+
+- **The Game Core Tech logo** on its own dark plate, 176 logical pixels square
+  with rounded corners and a hairline edge in the text colour, which shows in a
+  dark theme where the plate would otherwise sink into the window. The mark is
+  the owner's own and is this project's asset
+  ([`src/adapters/qt/assets/about`](../../src/adapters/qt/assets/about/README.md)).
+  Its only source is a 1254-pixel PNG, so the page carries a 640-pixel master
+  and scales it once, with area averaging, to the exact device size: one image
+  pixel to each device pixel at 1x, 2x and between.
+- **BetterPullReview**, at 1.75 times the window font, demibold; **Version
+  0.14.0** under it; and the build line, "Commit 0123456789 from 2026-10-21":
+  the first ten hex digits of the commit the build was made from and that
+  commit's date, with ", with local changes" when tracked files differed. Its
+  tooltip is the whole commit. A tree that is not its own checkout says "No
+  commit is recorded for this build". The commit's date is used rather than
+  the build's, so two builds of one commit say the same.
+  `cmake/BprBuildIdentity.cmake` records the three facts on every build and
+  rewrites its header only when one changes.
+- **Copy version info** puts a bug report's facts on the clipboard, one a
+  line: `BetterPullReview 0.14.0`, `Commit: <whole commit> (<date>)`,
+  `Configuration:`, `Qt:` (the runtime's) and `System:` (product and
+  architecture). The button reads "Copied" for two seconds without changing
+  width, and assistive technology hears "Version info copied".
+- **Made by Game Core Tech**, then two links: **gamecoretech.com** and
+  **Source code** (github.com/MikeMarcin/BetterPullReview). They are the core's
+  named reference pages `game_core_tech` and `source_repository`, opened
+  through the system browser opener as every reference page is; the page holds
+  no address.
+- After a rule, the terms: "© 2026 BetterPullReview contributors. Released
+  under the MIT License." and "Qt 6.12.0 is used under the GNU LGPL version 3;
+  you may replace it.", with the running Qt's version. Then
+  **Third-party notices** and **Corresponding source**, which open the
+  installed `THIRD-PARTY-NOTICES.txt` and `SOURCE-OFFERS.txt` in the system's
+  viewer; the offer names this release's source asset and how to rebuild and
+  replace Qt and xdiff. The composition looks for both where a release
+  installs them (`Contents/Resources/ThirdParty` in a macOS bundle,
+  `ThirdParty` beside the executable elsewhere) and opens one only while it is
+  a regular file there. A build made from source has neither, so the two links
+  give way to "Built from source, so no notices or source offer are
+  installed."
+- **Close**, the default button.
+
+A link or document that does not open says so on the page, under the terms:
+"The browser could not open github.com/MikeMarcin/BetterPullReview. Open that
+address yourself.", "There is no browser to open gamecoretech.com with.", or
+"The third-party notices did not open. They are in <folder>.". The line goes
+when a link next opens.
+
+Close has the keyboard when the page opens, and Return closes. Tab goes to
+gamecoretech.com, Source code, Copy version info, Third-party notices,
+Corresponding source and back to Close, each with the window's focus ring;
+Space activates the focused one. Every control has an accessible name and the
+logo is named "Game Core Tech logo". Secondary lines use the theme's
+placeholder text, and links its link colour, lightened where needed to read at
+4.5:1. The column's width comes from the font, so the page is alike at every
+scale. `qt_about_window_scale_{100,200}` covers the content, the copy, the
+links and documents through fake host actions, the menu item, the keyboard,
+the logo's device size, a theme change while open, and contrast in Light, Dark
+and both High Contrast themes.
+
 ### The empty desktop
 
 Closing a window closes a window. No chooser, and no other window, is

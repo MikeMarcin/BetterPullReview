@@ -13377,6 +13377,10 @@ namespace bpr::qt {
 		auto page = QString{ };
 		switch (aPage) {
 		case core::reference_page::conventional_comments: page = QStringLiteral("conventionalcomments.org"); break;
+		// Help › About opens these itself ([[BPR-PENDING-AA]]); named here so
+		// the switch stays whole.
+		case core::reference_page::game_core_tech:    page = QStringLiteral("gamecoretech.com"); break;
+		case core::reference_page::source_repository: page = QStringLiteral("github.com/MikeMarcin/BetterPullReview"); break;
 		}
 		QString message;
 		switch (result) {
