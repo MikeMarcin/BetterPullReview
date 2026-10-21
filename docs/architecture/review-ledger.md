@@ -55,7 +55,7 @@ material changes, the core reopens its receipt and the same-process refresh
 returns that file to the actionable order without detaching the rendered diff.
 Only the shown file's receipt can withhold it, so leaving a read or excluded
 file for another returns it to the order and the Files drawer at once
-([[BPR-PENDING-Q]]).
+([[BPR-1702]]).
 
 The review bar's named Accept button ([[BPR-1507]]) presents the same acceptance
 `QAction` as the private-progress menu. Its command, enablement, checked state

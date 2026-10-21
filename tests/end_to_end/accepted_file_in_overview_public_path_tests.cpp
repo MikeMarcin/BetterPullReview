@@ -15,7 +15,7 @@
 // its Accepted step does: Read off leaves a file seen and Overview counts it
 // not read; Seen off an accepted file leaves it accepted and done.
 //
-// [[BPR-PENDING-Q]]. A read file the reviewer leaves returns to the Files
+// [[BPR-1702]]. A read file the reviewer leaves returns to the Files
 // drawer, so Enter on its Overview row opens it again.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
@@ -309,7 +309,7 @@ try {
 		   "the revoked file shows its read state again");
 	expect(filesRead() == doneOf(2U) && page->files_heading()->text().endsWith(notRead(2U)), "the summary counts one fewer done");
 
-	// [[BPR-PENDING-Q]]. A read file leaves the Files drawer's order only
+	// [[BPR-1702]]. A read file leaves the Files drawer's order only
 	// while it is the file shown. Opening the second file left the read
 	// third one, so the drawer lists it again and Enter on its Overview row
 	// opens it. Before, it stayed out of the drawer and Enter left Review on

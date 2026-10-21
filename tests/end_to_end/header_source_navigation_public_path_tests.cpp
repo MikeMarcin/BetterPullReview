@@ -294,7 +294,7 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return !window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(); }, "excluded header withheld from actionable order");
 	const auto withheldRows = window.files_drawer()->contents()->rowCount();
 	open(*application, "src/widget.cpp");
-	// [[BPR-PENDING-Q]]. Only the shown file's receipt withholds it: the
+	// [[BPR-1702]]. Only the shown file's receipt withholds it: the
 	// header left behind is unselected material, conservatively actionable.
 	wait_for([&] { return window.files_drawer()->contents()->rowCount() == withheldRows + 1
 					   && window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(); },

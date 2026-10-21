@@ -18360,7 +18360,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
 			}
-			// [[BPR-PENDING-Q]]. The order withholds only the retained receipt's
+			// [[BPR-1702]]. The order withholds only the retained receipt's
 			// file, and only while that receipt says it needs nothing. Once the
 			// receipt goes, the file's material is unknown and it is actionable
 			// again, as a new observation would answer, so the host restores it
