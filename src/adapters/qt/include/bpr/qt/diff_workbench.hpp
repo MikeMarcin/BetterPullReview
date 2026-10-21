@@ -375,6 +375,15 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
+		/// \brief [[BPR-PENDING-AE]]. The one-pane comparison's source, shown
+		/// while `one_pane_enabled`.
+		[[nodiscard]] auto unified_pane() const noexcept -> QPlainTextEdit*;
+		/// \brief [[BPR-PENDING-AE]]. Before a pane's code menu opens at a
+		/// viewport point: selects the line the point's row shows unless the
+		/// selected lines hold it. In one pane a row is its head line, or the
+		/// base line a removed row shows.
+		/// \returns Whether the point is on a line of the shown pane.
+		auto select_line_for_menu(QPlainTextEdit* aPane, QPoint aPosition) -> bool;
 		/// \brief Focuses the visible source editor in split or unified presentation.
 		void focus_source();
 		/// \brief Returns source focus to the exact side selected by an external occurrence.
@@ -636,10 +645,23 @@ namespace bpr::qt {
 		/// \brief [[BPR-1212]]. Up, Down and Return on one pane; true when taken.
 		[[nodiscard]] auto handle_line_key(QPlainTextEdit* aPane, QEvent* aEvent) -> bool;
 		auto               move_pane_line_cursor(QPlainTextEdit* aPane, int aStep, bool aExtend) -> bool;
-		auto               move_unified_line_cursor(int aStep, bool aExtend) -> bool;
-		void               announce_line_selection();
-		void               clear_projection(QString aStatus);
-		void               set_idle(bool aIdle);
+		/// \brief The rows a pane shows lines on: a side's lines, or the one
+		/// pane's rows.
+		[[nodiscard]] auto pane_row_count(const QPlainTextEdit* aPane) const -> std::uint32_t;
+		/// \brief Where a pane's line cursor is: its anchor row and its moving
+		/// row, which are the selected line's when it holds no selection.
+		[[nodiscard]] auto line_cursor_ends(QPlainTextEdit* aPane) const -> std::optional<std::pair<std::uint32_t, std::uint32_t>>;
+		/// \brief Selects the line a pane's row shows.
+		[[nodiscard]] auto select_pane_row(QPlainTextEdit* aPane, std::uint32_t aRow) -> bool;
+		/// \brief Holds whole rows from the anchor to the next in the pane's
+		/// text cursor, keeping its scroll.
+		void place_line_cursor(QPlainTextEdit* aPane, std::uint32_t aAnchor, std::uint32_t aNext);
+		/// \brief [[BPR-PENDING-AE]]. A click (`aExtend` false), Shift-click or
+		/// drag on a line number.
+		void select_numbered_line(QPlainTextEdit* aPane, std::uint32_t aRow, bool aExtend);
+		void announce_line_selection();
+		void clear_projection(QString aStatus);
+		void set_idle(bool aIdle);
 
 		QLabel* Status = nullptr;
 		struct find_presentation;

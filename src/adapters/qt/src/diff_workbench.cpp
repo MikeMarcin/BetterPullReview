@@ -686,6 +686,70 @@ namespace bpr::qt {
 				set_add_hover(std::nullopt);
 			}
 
+			/// \brief [[BPR-PENDING-AE]]. Told when a line's number is clicked
+			/// (`false`), or Shift-clicked or dragged onto (`true`), with its
+			/// zero-based row: GitHub's way of selecting lines by their numbers.
+			void set_number_dispatch(std::function<void(std::uint32_t, bool)> aDispatch)
+			{
+				NumberDispatch = std::move(aDispatch);
+				NumberDrag.reset();
+			}
+
+			/// \brief [[BPR-PENDING-AE]]. The row whose number a point of the
+			/// gutter is on, or none: the heading row and below the last line
+			/// are no row's.
+			[[nodiscard]] auto number_line_at(const QPoint aGutterPoint) const -> std::optional<std::uint32_t>
+			{
+				const auto y    = aGutterPoint.y() - gutter_header();
+				const auto line = line_at(y);
+				if (!line.has_value()) {
+					return std::nullopt;
+				}
+				const auto row = line_row_rect(*line);
+				if (row.isEmpty() || y < row.top() || y > row.bottom()) {
+					return std::nullopt;
+				}
+				return line;
+			}
+
+			/// \brief [[BPR-PENDING-AE]]. A press on a line's number selects it,
+			/// or with Shift extends the selection to it, and starts a drag
+			/// over the numbers. The code takes the keyboard, so Return and
+			/// Shift+arrows go on from there. Returns whether it was taken.
+			auto press_number(const std::uint32_t aLine, const bool aExtend) -> bool
+			{
+				if (!NumberDispatch) {
+					return false;
+				}
+				NumberDrag = aLine;
+				setFocus(Qt::MouseFocusReason);
+				const auto dispatch = NumberDispatch;
+				dispatch(aLine, aExtend);
+				return true;
+			}
+			/// \brief [[BPR-PENDING-AE]]. A drag over the numbers extends the
+			/// selection to the line under the pointer.
+			void extend_number_drag(const int aGutterY)
+			{
+				if (!NumberDrag.has_value() || !NumberDispatch) {
+					return;
+				}
+				const auto line = line_at(aGutterY - gutter_header());
+				if (line.has_value() && *line != *NumberDrag) {
+					NumberDrag          = line;
+					const auto dispatch = NumberDispatch;
+					dispatch(*line, true);
+				}
+			}
+			void finish_number_drag()
+			{
+				NumberDrag.reset();
+			}
+			[[nodiscard]] auto add_dragging() const noexcept -> bool
+			{
+				return AddDrag.has_value();
+			}
+
 			/// \brief Shows the "+" button on a line, or hides it. A drag in
 			/// progress keeps its button where it started.
 			void set_add_hover(std::optional<std::uint32_t> aLine);
@@ -1309,19 +1373,23 @@ namespace bpr::qt {
 			/// [[BPR-1335]]. A drag on the "+": the line it started on and the
 			/// line under the pointer.
 			std::optional<std::pair<std::uint32_t, std::uint32_t>> AddDrag;
-			std::function<void(const diff_line_mark&)>             MarkDispatch;
-			QColor                                                 ThreadMarkColor{ 0xD2, 0x99, 0x22 };
-			QColor                                                 NewThreadMarkColor{ 0x09, 0x69, 0xDA };
-			std::uint64_t                                          PaintedRules       = 0U;
-			std::uint64_t                                          PaintedLineNumbers = 0U;
-			std::uint64_t                                          PaintedWhiteSpace  = 0U;
-			std::optional<core::line_span>                         SelectedLines;
-			core::white_space_drawing                              WhiteSpace = core::white_space_drawing::none;
-			std::function<void()>                                  FontObserver;
-			QPointer<QTextDocument>                                CachedTextDocument;
-			QList<QTextCursor>                                     CachedTextCursors;
-			QColor                                                 SelectionNormal;
-			core::appearance_variant                               SelectionVariant = core::appearance_variant::light;
+			/// [[BPR-PENDING-AE]]. A drag over the numbers: the line under the
+			/// pointer.
+			std::function<void(std::uint32_t, bool)>   NumberDispatch;
+			std::optional<std::uint32_t>               NumberDrag;
+			std::function<void(const diff_line_mark&)> MarkDispatch;
+			QColor                                     ThreadMarkColor{ 0xD2, 0x99, 0x22 };
+			QColor                                     NewThreadMarkColor{ 0x09, 0x69, 0xDA };
+			std::uint64_t                              PaintedRules       = 0U;
+			std::uint64_t                              PaintedLineNumbers = 0U;
+			std::uint64_t                              PaintedWhiteSpace  = 0U;
+			std::optional<core::line_span>             SelectedLines;
+			core::white_space_drawing                  WhiteSpace = core::white_space_drawing::none;
+			std::function<void()>                      FontObserver;
+			QPointer<QTextDocument>                    CachedTextDocument;
+			QList<QTextCursor>                         CachedTextCursors;
+			QColor                                     SelectionNormal;
+			core::appearance_variant                   SelectionVariant = core::appearance_variant::light;
 		};
 
 		/// \brief Paints one pane's own line numbers beside its own text.
@@ -1360,12 +1428,30 @@ namespace bpr::qt {
 			}
 			/// [[BPR-1290]], [[BPR-1335]]. A thread's tinted number opens or
 			/// closes it.
+			/// [[BPR-PENDING-AE]]. Anywhere else on a number, a click selects its
+			/// line, a Shift-click extends the selection to it, and a drag
+			/// selects the lines it crosses, as on GitHub. Shift on a tinted
+			/// number extends too. The "+" column's part in the number's
+			/// padding stays the "+"'s, shown or not, so a press there never
+			/// selects instead of adding a comment.
 			void mousePressEvent(QMouseEvent* const aEvent) override
 			{
 				if (aEvent->button() == Qt::LeftButton) {
-					if (const auto* const mark = Pane->mark_at(aEvent->position().toPoint()); mark != nullptr) {
+					const auto point = aEvent->position().toPoint();
+					const auto shift = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+					if (const auto* const mark = Pane->mark_at(point); mark != nullptr && !shift) {
 						const auto pressed = *mark;
 						Pane->press_mark(pressed);
+						aEvent->accept();
+						return;
+					}
+					if (const auto add = Pane->add_line_under(mapToParent(point)); add.has_value()) {
+						Pane->set_add_hover(add);
+						Pane->begin_add_drag(*add);
+						aEvent->accept();
+						return;
+					}
+					if (const auto line = Pane->number_line_at(point); line.has_value() && Pane->press_number(*line, shift)) {
 						aEvent->accept();
 						return;
 					}
@@ -1377,9 +1463,28 @@ namespace bpr::qt {
 			void mouseMoveEvent(QMouseEvent* const aEvent) override
 			{
 				const auto point = aEvent->position().toPoint();
+				if (aEvent->buttons().testFlag(Qt::LeftButton)) {
+					if (Pane->add_dragging()) {
+						Pane->extend_add_drag(aEvent->globalPosition().toPoint());
+					} else {
+						Pane->extend_number_drag(point.y());
+					}
+				}
 				Pane->set_add_hover(aEvent->buttons() == Qt::NoButton ? Pane->add_line_under(mapToParent(point)) : std::nullopt);
 				setCursor(Pane->mark_at(point) != nullptr ? Qt::PointingHandCursor : Qt::ArrowCursor);
 				QWidget::mouseMoveEvent(aEvent);
+			}
+			void mouseReleaseEvent(QMouseEvent* const aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton) {
+					Pane->finish_number_drag();
+					if (Pane->add_dragging()) {
+						Pane->finish_add_drag();
+						aEvent->accept();
+						return;
+					}
+				}
+				QWidget::mouseReleaseEvent(aEvent);
 			}
 			void leaveEvent(QEvent* const aEvent) override
 			{
@@ -2384,6 +2489,24 @@ namespace bpr::qt {
 		{
 			return (aEvent.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
 		}
+
+		/// \brief [[BPR-PENDING-AE]]. The row a selection ending at `aEnd`
+		/// covers last, for a selection that starts at `aStart`.
+		/// \details A selection that reaches the start of a line with text has
+		/// not entered it, so it ends on the line above. An empty line's start
+		/// is the whole of it, so a drag whose pointer ends on an empty line
+		/// covers that line; it stopped at the line above. `aCount` is the
+		/// pane's rows: a file's final newline leaves an empty block after its
+		/// last line, which is no line.
+		[[nodiscard]] auto covered_row(const QTextDocument& aDocument, const int aStart, const int aEnd, const std::uint32_t aCount) -> std::uint32_t
+		{
+			const auto block = aDocument.findBlock(aEnd);
+			auto       row   = std::max(0, block.blockNumber());
+			if (aEnd > aStart && block.isValid() && aEnd == block.position() && block.length() > 1 && row > 0) {
+				--row;
+			}
+			return std::min(static_cast<std::uint32_t>(row), aCount > 0U ? aCount - 1U : 0U);
+		}
 	} // namespace
 
 	struct diff_workbench::unified_presentation
@@ -3290,6 +3413,8 @@ namespace bpr::qt {
 		LinkMap->installEventFilter(this);
 		for (auto* const source : { Left, Right, Unified }) {
 			pane(source)->set_font_observer([this, source] { hold_reading_position(*source); });
+			// [[BPR-PENDING-AE]]. A click, Shift-click or drag on the numbers.
+			pane(source)->set_number_dispatch([this, source](const std::uint32_t aRow, const bool aExtend) { select_numbered_line(source, aRow, aExtend); });
 		}
 		pane(Unified)->set_scroll_observer([this] {
 			update_unified_paint();
@@ -3802,6 +3927,11 @@ namespace bpr::qt {
 		return Right;
 	}
 
+	auto diff_workbench::unified_pane() const noexcept -> QPlainTextEdit*
+	{
+		return Unified;
+	}
+
 	void diff_workbench::focus_source()
 	{
 		(OnePaneEnabled ? Unified : Right)->setFocus(Qt::ShortcutFocusReason);
@@ -3924,7 +4054,7 @@ namespace bpr::qt {
 			const auto cursor = Unified->textCursor();
 			if (cursor.hasSelection()) {
 				const auto begin = Unified->document()->findBlock(cursor.selectionStart()).blockNumber();
-				const auto end   = Unified->document()->findBlock(cursor.selectionEnd() - 1).blockNumber();
+				const auto end   = static_cast<int>(covered_row(*Unified->document(), cursor.selectionStart(), cursor.selectionEnd(), static_cast<std::uint32_t>(UnifiedPresentation->Rows.size())));
 				if (begin < 0 || end < begin || static_cast<std::size_t>(end) >= UnifiedPresentation->Rows.size()) {
 					return std::nullopt;
 				}
@@ -3948,7 +4078,7 @@ namespace bpr::qt {
 		const auto  cursor = editor->textCursor();
 		if (cursor.hasSelection()) {
 			first.Line = static_cast<std::uint32_t>(editor->document()->findBlock(cursor.selectionStart()).blockNumber());
-			last.Line  = static_cast<std::uint32_t>(editor->document()->findBlock(cursor.selectionEnd() - 1).blockNumber());
+			last.Line  = covered_row(*editor->document(), cursor.selectionStart(), cursor.selectionEnd(), pane_row_count(editor));
 		}
 		if (!core::select_line(*SemanticIndex, first) || !core::select_line(*SemanticIndex, last)) {
 			return std::nullopt;
@@ -4001,7 +4131,7 @@ namespace bpr::qt {
 			const auto row    = unified_row_for(preferred.Side, preferred.Line);
 			if (cursor.hasSelection() && row) {
 				const auto  begin = Unified->document()->findBlock(cursor.selectionStart()).blockNumber();
-				const auto  end   = Unified->document()->findBlock(cursor.selectionEnd() - 1).blockNumber();
+				const auto  end   = static_cast<int>(covered_row(*Unified->document(), cursor.selectionStart(), cursor.selectionEnd(), static_cast<std::uint32_t>(UnifiedPresentation->Rows.size())));
 				const auto& rows  = UnifiedPresentation->Rows;
 				if (begin >= 0 && end >= begin && static_cast<std::size_t>(end) < rows.size() && *row >= static_cast<std::uint32_t>(begin) && *row <= static_cast<std::uint32_t>(end)) {
 					const auto at = [&rows, &preferred](const int aRow) {
@@ -4021,7 +4151,7 @@ namespace bpr::qt {
 				return static_cast<std::uint32_t>(std::max(0, editor->document()->findBlock(aPosition).blockNumber()));
 			};
 			const auto begin = block(cursor.selectionStart());
-			const auto end   = block(cursor.selectionEnd() - 1);
+			const auto end   = covered_row(*editor->document(), cursor.selectionStart(), cursor.selectionEnd(), pane_row_count(editor));
 			// A selection ending at the start of a line covers that line only
 			// when it is the selected one, as a Shift-click on it makes it. A
 			// selection left elsewhere on the pane is not this line's.
@@ -4068,164 +4198,198 @@ namespace bpr::qt {
 		return move_pane_line_cursor(pane, aStep, aExtend);
 	}
 
+	auto diff_workbench::pane_row_count(const QPlainTextEdit* const aPane) const -> std::uint32_t
+	{
+		if (!CurrentResult) {
+			return 0U;
+		}
+		if (aPane == Unified) {
+			return static_cast<std::uint32_t>(UnifiedPresentation->Rows.size());
+		}
+		return aPane == Left ? CurrentResult->Alignment.LeftLineCount : CurrentResult->Alignment.RightLineCount;
+	}
+
+	auto diff_workbench::line_cursor_ends(QPlainTextEdit* const aPane) const -> std::optional<std::pair<std::uint32_t, std::uint32_t>>
+	{
+		// Where the cursor is: the selected line's row, or the two ends of the
+		// pane's selection when that holds it.
+		if (!CurrentResult || !Interaction.Selection) {
+			return std::nullopt;
+		}
+		const auto& preferred = Interaction.Selection->PreferredLine;
+		const auto  count     = pane_row_count(aPane);
+		auto        row       = std::optional<std::uint32_t>{ };
+		if (aPane == Unified) {
+			row = unified_row_for(preferred.Side, preferred.Line);
+		} else if (preferred.Side == (aPane == Left ? core::diff_side::left : core::diff_side::right) && preferred.Line < count) {
+			row = preferred.Line;
+		}
+		if (!row) {
+			return std::nullopt;
+		}
+		auto       ends   = std::pair{ *row, *row };
+		const auto cursor = aPane->textCursor();
+		if (cursor.hasSelection()) {
+			auto* const document = aPane->document();
+			const auto  from     = static_cast<std::uint32_t>(std::max(0, document->findBlock(cursor.anchor()).blockNumber()));
+			const auto  ended    = static_cast<std::uint32_t>(std::max(0, document->findBlock(cursor.position()).blockNumber()));
+			// A selection dragged to the start of the next line ends above it,
+			// unless that line is the selected one (a Shift-click) or is empty
+			// ([[BPR-PENDING-AE]]).
+			const auto to = ended == *row ? ended : covered_row(*document, cursor.anchor(), cursor.position(), count);
+			if (*row >= std::min(from, ended) && *row <= std::max(from, ended)) {
+				ends = std::pair{ from, to };
+			}
+		}
+		return ends;
+	}
+
+	auto diff_workbench::select_pane_row(QPlainTextEdit* const aPane, const std::uint32_t aRow) -> bool
+	{
+		if (aPane != Unified) {
+			return select_line(aPane == Left ? core::diff_side::left : core::diff_side::right, aRow, true);
+		}
+		if (aRow >= UnifiedPresentation->Rows.size()) {
+			return false;
+		}
+		// A row shows its head line when it has one, as a click on it selects.
+		const auto& identity = UnifiedPresentation->Rows[aRow];
+		return select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true);
+	}
+
+	void diff_workbench::place_line_cursor(QPlainTextEdit* const aPane, const std::uint32_t aAnchor, const std::uint32_t aNext)
+	{
+		// Whole lines from the anchor to the moving end, which the caret is
+		// on; the pane keeps its scroll, which the caller reveals.
+		auto* const document = aPane->document();
+		const auto  first    = document->findBlockByNumber(static_cast<int>(aAnchor));
+		const auto  last     = document->findBlockByNumber(static_cast<int>(aNext));
+		if (!first.isValid() || !last.isValid()) {
+			return;
+		}
+		auto cursor = QTextCursor{ document };
+		if (aAnchor == aNext) {
+			cursor.setPosition(last.position());
+		} else if (aAnchor < aNext) {
+			cursor.setPosition(first.position());
+			cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
+		} else {
+			cursor.setPosition(first.position() + first.length() - 1);
+			cursor.setPosition(last.position(), QTextCursor::KeepAnchor);
+		}
+		auto* const vertical   = aPane->verticalScrollBar();
+		auto* const horizontal = aPane->horizontalScrollBar();
+		const auto  top        = vertical->value();
+		const auto  left       = horizontal->value();
+		const auto  offset     = pane(aPane)->within_line_position();
+		aPane->setTextCursor(cursor);
+		vertical->setValue(top);
+		horizontal->setValue(left);
+		pane(aPane)->set_within_line_offset(offset);
+	}
+
 	auto diff_workbench::move_pane_line_cursor(QPlainTextEdit* const aPane, const int aStep, const bool aExtend) -> bool
 	{
 		if (!CurrentResult || !SemanticIndex) {
 			return false;
 		}
-		if (aPane == Unified) {
-			return move_unified_line_cursor(aStep, aExtend);
-		}
-		const auto side  = aPane == Left ? core::diff_side::left : core::diff_side::right;
-		const auto count = side == core::diff_side::left ? CurrentResult->Alignment.LeftLineCount : CurrentResult->Alignment.RightLineCount;
+		const auto count = pane_row_count(aPane);
 		if (count == 0U) {
 			return false;
 		}
-		auto* const document = aPane->document();
-		const auto  block    = [document](const int aPosition) {
-			return static_cast<std::uint32_t>(std::max(0, document->findBlock(aPosition).blockNumber()));
-		};
-		// Where the cursor is: the selected line, or the moving end of the
-		// pane's selection when that holds it. With no line on this pane, the
-		// first line in view is selected and nothing moves yet.
-		auto moving = std::optional<std::uint32_t>{ };
-		auto anchor = std::optional<std::uint32_t>{ };
-		if (Interaction.Selection && Interaction.Selection->PreferredLine.Side == side && Interaction.Selection->PreferredLine.Line < count) {
-			const auto preferred = Interaction.Selection->PreferredLine.Line;
-			moving               = preferred;
-			anchor               = preferred;
-			const auto cursor    = aPane->textCursor();
-			if (cursor.hasSelection()) {
-				const auto from  = block(cursor.anchor());
-				const auto ended = block(cursor.position());
-				auto       to    = ended;
-				// A selection dragged to the start of the next line ends above
-				// it, unless that line is the selected one (a Shift-click).
-				if (to > from && to != preferred && cursor.position() == document->findBlock(cursor.position()).position()) {
-					--to;
-				}
-				if (preferred >= std::min(from, ended) && preferred <= std::max(from, ended)) {
-					anchor = from;
-					moving = to;
-				}
-			}
-		}
-		auto next = std::uint32_t{ 0U };
-		if (!moving) {
-			next   = std::min(block(aPane->cursorForPosition(QPoint{ 0, 0 }).position()), count - 1U);
+		// With no line on this pane, the first line in view is selected and
+		// nothing moves yet.
+		const auto ends   = line_cursor_ends(aPane);
+		auto       next   = std::uint32_t{ 0U };
+		auto       anchor = std::uint32_t{ 0U };
+		if (!ends) {
+			next   = std::min(static_cast<std::uint32_t>(std::max(0, aPane->cursorForPosition(QPoint{ 0, 0 }).blockNumber())), count - 1U);
 			anchor = next;
 		} else {
-			const auto target = static_cast<std::int64_t>(*moving) + aStep;
-			next              = static_cast<std::uint32_t>(std::clamp<std::int64_t>(target, 0, static_cast<std::int64_t>(count) - 1));
+			next   = static_cast<std::uint32_t>(std::clamp<std::int64_t>(static_cast<std::int64_t>(ends->second) + aStep, 0, static_cast<std::int64_t>(count) - 1));
+			anchor = ends->first;
 		}
 		if (!aExtend) {
 			anchor = next;
 		}
 		const auto row     = exact_row_rect(aPane, next);
 		const auto visible = aPane->viewport()->visibleRegion().intersected(aPane->viewport()->mask()).boundingRect();
-		if (!select_line(side, next, true)) {
+		if (!select_pane_row(aPane, next)) {
 			return false;
 		}
-		// The cursor keeps itself in view through the linked scroll, never by
-		// scrolling one pane on its own.
-		reveal_keyboard_row(aPane, row, visible);
-		const auto first = document->findBlockByNumber(static_cast<int>(*anchor));
-		const auto last  = document->findBlockByNumber(static_cast<int>(next));
-		if (first.isValid() && last.isValid()) {
-			auto cursor = QTextCursor{ document };
-			if (*anchor == next) {
-				cursor.setPosition(last.position());
-			} else if (*anchor < next) {
-				cursor.setPosition(first.position());
-				cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
-			} else {
-				cursor.setPosition(first.position() + first.length() - 1);
-				cursor.setPosition(last.position(), QTextCursor::KeepAnchor);
-			}
-			auto* const vertical   = aPane->verticalScrollBar();
-			auto* const horizontal = aPane->horizontalScrollBar();
-			const auto  top        = vertical->value();
-			const auto  left       = horizontal->value();
-			const auto  offset     = pane(aPane)->within_line_position();
-			aPane->setTextCursor(cursor);
-			vertical->setValue(top);
-			horizontal->setValue(left);
-			pane(aPane)->set_within_line_offset(offset);
+		if (aPane == Unified) {
+			place_line_cursor(aPane, anchor, next);
+			reveal_keyboard_row(aPane, row, visible);
+		} else {
+			// The cursor keeps itself in view through the linked scroll, never
+			// by scrolling one pane on its own.
+			reveal_keyboard_row(aPane, row, visible);
+			place_line_cursor(aPane, anchor, next);
 		}
 		announce_line_selection();
 		return true;
 	}
 
-	auto diff_workbench::move_unified_line_cursor(const int aStep, const bool aExtend) -> bool
+	void diff_workbench::select_numbered_line(QPlainTextEdit* const aPane, const std::uint32_t aRow, const bool aExtend)
 	{
-		const auto& rows = UnifiedPresentation->Rows;
-		if (rows.empty()) {
-			return false;
+		// [[BPR-PENDING-AE]]. As on GitHub: a click on a number selects its
+		// line, and a Shift-click or a drag over the numbers selects from the
+		// selection's anchor to it. The pane holds the lines whole, as Shift
+		// and the arrows leave them, so Return, the menu and Comment take them.
+		if (!CurrentResult || !SemanticIndex || (aPane == Unified) != OnePaneEnabled || aRow >= pane_row_count(aPane)) {
+			return;
 		}
-		auto* const document = Unified->document();
-		const auto  rowOf    = [document](const int aPosition) {
-			return static_cast<std::uint32_t>(std::max(0, document->findBlock(aPosition).blockNumber()));
-		};
-		const auto count  = static_cast<std::uint32_t>(rows.size());
-		auto       moving = std::optional<std::uint32_t>{ };
-		auto       anchor = std::optional<std::uint32_t>{ };
-		if (Interaction.Selection) {
-			if (const auto row = unified_row_for(Interaction.Selection->PreferredLine.Side, Interaction.Selection->PreferredLine.Line)) {
-				moving            = row;
-				anchor            = row;
-				const auto cursor = Unified->textCursor();
-				if (cursor.hasSelection()) {
-					const auto from = rowOf(cursor.anchor());
-					auto       to   = rowOf(cursor.position());
-					if (to > from && cursor.position() == document->findBlock(cursor.position()).position()) {
-						--to;
-					}
-					if (*row >= std::min(from, to) && *row <= std::max(from, to)) {
-						anchor = from;
-						moving = to;
-					}
-				}
-			}
+		const auto ends   = aExtend ? line_cursor_ends(aPane) : std::nullopt;
+		const auto anchor = ends ? ends->first : aRow;
+		if (!select_pane_row(aPane, aRow)) {
+			return;
 		}
-		auto next = std::uint32_t{ 0U };
-		if (!moving) {
-			next   = std::min(rowOf(Unified->cursorForPosition(QPoint{ 0, 0 }).position()), count - 1U);
-			anchor = next;
-		} else {
-			next = static_cast<std::uint32_t>(std::clamp<std::int64_t>(static_cast<std::int64_t>(*moving) + aStep, 0, static_cast<std::int64_t>(count) - 1));
-		}
-		if (!aExtend) {
-			anchor = next;
-		}
-		const auto  row      = exact_row_rect(Unified, next);
-		const auto  visible  = Unified->viewport()->visibleRegion().intersected(Unified->viewport()->mask()).boundingRect();
-		const auto& identity = rows[next];
-		if (!select_line(identity.Head ? core::diff_side::right : core::diff_side::left, identity.Head.value_or(identity.Base.value_or(0U)), true)) {
-			return false;
-		}
-		const auto first = document->findBlockByNumber(static_cast<int>(*anchor));
-		const auto last  = document->findBlockByNumber(static_cast<int>(next));
-		if (first.isValid() && last.isValid()) {
-			auto cursor = QTextCursor{ document };
-			if (*anchor == next) {
-				cursor.setPosition(last.position());
-			} else if (*anchor < next) {
-				cursor.setPosition(first.position());
-				cursor.setPosition(last.position() + last.length() - 1, QTextCursor::KeepAnchor);
-			} else {
-				cursor.setPosition(first.position() + first.length() - 1);
-				cursor.setPosition(last.position(), QTextCursor::KeepAnchor);
-			}
-			const auto left   = Unified->horizontalScrollBar()->value();
-			const auto top    = Unified->verticalScrollBar()->value();
-			const auto offset = pane(Unified)->within_line_position();
-			Unified->setTextCursor(cursor);
-			Unified->horizontalScrollBar()->setValue(left);
-			Unified->verticalScrollBar()->setValue(top);
-			pane(Unified)->set_within_line_offset(offset);
-		}
-		reveal_keyboard_row(Unified, row, visible);
+		place_line_cursor(aPane, anchor, aRow);
 		announce_line_selection();
+	}
+
+	auto diff_workbench::select_line_for_menu(QPlainTextEdit* const aPane, const QPoint aPosition) -> bool
+	{
+		// [[BPR-1212]]. A right-click outside the selection selects its line
+		// first, as a click would; inside the selected lines it keeps them all.
+		// [[BPR-PENDING-AE]]. In one pane a row is the line it shows: its head
+		// line, or the base line a removed row shows.
+		if (!CurrentResult || !SemanticIndex || aPane == nullptr || (aPane == Unified) != OnePaneEnabled) {
+			return false;
+		}
+		const auto block = aPane->cursorForPosition(aPosition).blockNumber();
+		if (block < 0 || static_cast<std::uint32_t>(block) >= pane_row_count(aPane)) {
+			return false;
+		}
+		const auto row     = static_cast<std::uint32_t>(block);
+		auto       clicked = core::source_line_ref{ .Comparison = CurrentResult->Alignment.Digest, .Side = aPane == Left ? core::diff_side::left : core::diff_side::right, .Line = row };
+		if (aPane == Unified) {
+			const auto& identity = UnifiedPresentation->Rows[row];
+			clicked.Side         = identity.Head ? core::diff_side::right : core::diff_side::left;
+			clicked.Line         = identity.Head.value_or(identity.Base.value_or(0U));
+		}
+		const auto inside = [&] {
+			if (!Interaction.Selection) {
+				return false;
+			}
+			if (Interaction.Selection->PreferredLine == clicked) {
+				return true;
+			}
+			const auto range = line_draft_range();
+			if (!range) {
+				return false;
+			}
+			if (aPane == Unified) {
+				const auto first = unified_row_for(range->first.Side, range->first.Line);
+				const auto last  = unified_row_for(range->second.Side, range->second.Line);
+				return first && last && row >= std::min(*first, *last) && row <= std::max(*first, *last);
+			}
+			return range->first.Side == clicked.Side && range->second.Side == clicked.Side
+				&& row >= std::min(range->first.Line, range->second.Line) && row <= std::max(range->first.Line, range->second.Line);
+		}();
+		if (!inside) {
+			static_cast<void>(select_line(clicked.Side, clicked.Line, true));
+		}
 		return true;
 	}
 

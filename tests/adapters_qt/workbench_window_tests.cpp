@@ -11800,6 +11800,434 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-PENDING-AE]]. The four line gestures BPR-1721 left as
+	/// follow-ups, each driven through the window as the platform hands it
+	/// over, with the event loop turning between events.
+	/// \details A 30-line file whose line 6 changed (GitHub's hunk on the
+	/// right is lines 3 to 9) and whose line 8 is empty. The host answers a
+	/// selected line with its draft a turn later, as the composition's store
+	/// does, and applies every edit the window sends through the real core.
+	class line_gesture_course
+	{
+	public:
+		enum class at : std::uint8_t { code,
+									   number };
+
+		explicit line_gesture_course(const bool aOnePane)
+		{
+			Window.resize(1'400, 900);
+			Window.show();
+			Window.activateWindow();
+			process_events();
+			auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+			opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+			Window.publish(opened);
+			Window.choose_modality(qt::review_modality::review);
+			process_events();
+			auto text = std::string{ };
+			for (auto line = 0U; line < 30U; ++line) {
+				text += (line == 7U ? std::string{ } : "line " + std::to_string(line)) + '\n';
+			}
+			auto laterText = text;
+			laterText.replace(laterText.find("line 5\n"), std::string{ "line 5" }.size(), "changed `line` 5");
+			Diff   = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+			Editor = Window.review_editor();
+			Editor->set_revisioned_dispatch([this](core::revisioned_review_draft_command aCommand) { Commands.push_back(std::move(aCommand)); });
+			Window.conversation_panel()->adopt({ }, QStringLiteral("No threads on this pull request yet."));
+			Surface = publish_fixture(Window, Diff);
+			Window.set_conversation_endpoint_placement(false, true);
+			if (aOnePane) {
+				opened.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::enabled };
+				Window.publish(opened);
+			}
+			process_events();
+			Surface->set_selection_sink([this](const std::optional<core::semantic_selection>& aSelection) {
+				if (!aSelection) {
+					return;
+				}
+				QTimer::singleShot(0, &Window, [this, selection = *aSelection] {
+					if (Surface->selection() == selection) {
+						present(selection);
+					}
+				});
+			});
+		}
+		line_gesture_course(const line_gesture_course&)                    = delete;
+		auto operator=(const line_gesture_course&) -> line_gesture_course& = delete;
+		~line_gesture_course()
+		{
+			Window.hide();
+		}
+
+		[[nodiscard]] auto pane() const -> QPlainTextEdit&
+		{
+			return *(Surface->one_pane_enabled() ? Surface->findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource")) : Surface->right_pane());
+		}
+		[[nodiscard]] auto left() const -> QPlainTextEdit&
+		{
+			return *Surface->left_pane();
+		}
+
+		/// A point in the window on a line's code, or on its number.
+		[[nodiscard]] auto point(const QPlainTextEdit& aPane, const core::diff_side aSide, const std::uint32_t aLine, const at aWhere = at::code) const -> QPoint
+		{
+			const auto row    = Surface->line_rect(aSide, aLine);
+			const auto inPane = aPane.viewport()->mapFrom(Surface, row.center());
+			return aPane.viewport()->mapTo(&Window, QPoint{ aWhere == at::code ? 40 : -aPane.viewport()->x() / 2, inPane.y() });
+		}
+		[[nodiscard]] auto right(const std::uint32_t aLine, const at aWhere = at::code) const -> QPoint
+		{
+			return point(pane(), core::diff_side::right, aLine, aWhere);
+		}
+
+		/// One pointer event as the platform hands it to the window, then a turn.
+		void mouse(const QPoint aAt, const QEvent::Type aType, const Qt::MouseButton aButton, const Qt::MouseButtons aHeld, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+		{
+			QCursor::setPos(Window.mapToGlobal(aAt));
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				Window.windowHandle(), QPointF{ aAt }, QPointF{ Window.mapToGlobal(aAt) }, aHeld, aButton, aType, aModifiers);
+			process_events();
+		}
+		void click(const QPoint aAt, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+		{
+			mouse(aAt, QEvent::MouseMove, Qt::NoButton, Qt::NoButton, aModifiers);
+			mouse(aAt, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton, aModifiers);
+			mouse(aAt, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton, aModifiers);
+		}
+		void drag(const QPoint aFrom, const QPoint aTo)
+		{
+			mouse(aFrom, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+			mouse(aFrom, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
+			mouse((aFrom + aTo) / 2, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+			mouse(aTo, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+			mouse(aTo, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+		}
+		/// A right-click: the code's menu the window pops up, or none. A
+		/// popup that is not the code's is closed, so it holds no later event.
+		auto right_click(const QPoint aAt) -> QMenu*
+		{
+			mouse(aAt, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+			mouse(aAt, QEvent::MouseButtonPress, Qt::RightButton, Qt::RightButton);
+			auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+			if (menu == nullptr || menu->windowHandle() == nullptr) {
+				return nullptr;
+			}
+			const auto corner = QPointF{ 1.0, 1.0 };
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				menu->windowHandle(), corner, QPointF{ menu->mapToGlobal(corner) }, Qt::NoButton, Qt::RightButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+			process_events();
+			if (menu->objectName() != QStringLiteral("codeContextMenu")) {
+				menu->close();
+				process_events();
+				return nullptr;
+			}
+			return menu;
+		}
+		[[nodiscard]] static auto item(QMenu* const aMenu, const char* const aName) -> QAction*
+		{
+			if (aMenu == nullptr) {
+				return nullptr;
+			}
+			const auto actions = aMenu->actions();
+			const auto found   = std::ranges::find_if(actions, [aName](const QAction* aAction) { return aAction->objectName() == QString::fromLatin1(aName); });
+			return found == actions.end() ? nullptr : *found;
+		}
+		[[nodiscard]] static auto words(QMenu* const aMenu, const char* const aName) -> QString
+		{
+			const auto* const action = item(aMenu, aName);
+			return action != nullptr ? action->text() : QString{ };
+		}
+		[[nodiscard]] static auto enabled(QMenu* const aMenu, const char* const aName) -> bool
+		{
+			const auto* const action = item(aMenu, aName);
+			return action != nullptr && action->isEnabled();
+		}
+		/// Clicks an item on the popup, as a hand does.
+		static auto choose(QMenu* const aMenu, const char* const aName) -> bool
+		{
+			auto* const action = item(aMenu, aName);
+			if (aMenu == nullptr || action == nullptr || aMenu->windowHandle() == nullptr) {
+				return false;
+			}
+			const auto centre = QPointF{ aMenu->actionGeometry(action).center() };
+			const auto global = QPointF{ aMenu->mapToGlobal(centre) };
+			QCursor::setPos(global.toPoint());
+			for (const auto& [type, button, held] : { std::tuple{ QEvent::MouseMove, Qt::NoButton, Qt::MouseButtons{ } },
+													  std::tuple{ QEvent::MouseButtonPress, Qt::LeftButton, Qt::MouseButtons{ Qt::LeftButton } },
+													  std::tuple{ QEvent::MouseButtonRelease, Qt::LeftButton, Qt::MouseButtons{ } } }) {
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(aMenu->windowHandle(), centre, global, held, button, type, Qt::NoModifier);
+				process_events();
+			}
+			return true;
+		}
+		static void close(QMenu* const aMenu)
+		{
+			if (aMenu != nullptr) {
+				aMenu->close();
+			}
+			process_events();
+		}
+		void key(const int aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier)
+		{
+			const auto typed = aKey == Qt::Key_Return ? QStringLiteral("\r") : QString{ };
+			if (!QWindowSystemInterface::handleShortcutEvent(Window.windowHandle(), 0UL, aKey, aModifiers, 0U, 0U, 0U, typed)) {
+				QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(Window.windowHandle(), QEvent::KeyPress, aKey, aModifiers, typed);
+			}
+			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(Window.windowHandle(), QEvent::KeyRelease, aKey, aModifiers, typed);
+			process_events();
+		}
+
+		/// The host's edits, through the real core, as the store applies them.
+		void settle()
+		{
+			process_events();
+			while (Applied < Commands.size()) {
+				// Acknowledgement may append and reallocate commands reentrantly.
+				const auto command = core::revisioned_review_draft_command{ Commands[Applied++] };
+				if (!Accepted || command.Command.Id != Accepted->Draft.Id) {
+					continue;
+				}
+				const auto outcome = core::apply(*Accepted, command);
+				expect(outcome.Refusal == core::revisioned_draft_refusal::none, "the core accepts every edit the window sends");
+				Accepted                                                                         = outcome.Accepted;
+				Kept[{ outcome.Accepted.Draft.Anchor.Side, outcome.Accepted.Draft.Anchor.Line }] = outcome.Accepted;
+				Editor->acknowledge(command, outcome.Accepted);
+				process_events();
+			}
+		}
+		/// The drawer draft is open on right lines aFirst to aLast, GitHub's
+		/// `start_line` and `line`, and named for them; one line has no start.
+		[[nodiscard]] auto ranged(const std::uint32_t aFirst, const std::uint32_t aLast) -> bool
+		{
+			wait_for([this] { return drawer_writing(Window); }, 2000);
+			settle();
+			auto* const cards = Window.conversation_panel()->cards();
+			const auto  name  = aFirst == aLast ? QStringLiteral("Your draft on line %1").arg(aLast + 1U)
+												: QStringLiteral("Your draft on lines %1–%2").arg(aFirst + 1U).arg(aLast + 1U);
+			return drawer_writing(Window) && Accepted && Accepted->Draft.Anchor.Side == core::diff_side::right && Accepted->Draft.Anchor.Line == aLast
+				&& Accepted->Draft.StartLine == (aFirst == aLast ? std::nullopt : std::optional<std::uint32_t>{ aFirst })
+				&& cards->open_card() != nullptr && cards->open_card()->accessibleName() == name;
+		}
+		/// Esc in the drawer draft, then a click away from the hunk on line
+		/// 21, whose draft the host has answered, so each course starts clean.
+		void reset()
+		{
+			if (drawer_writing(Window)) {
+				auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+				QCoreApplication::sendEvent(Window.conversation_panel()->cards()->draft_editor(), &press);
+				process_events();
+			}
+			click(right(20U));
+			wait_for([this] { return Accepted && Accepted->Draft.Anchor.Line == 20U; }, 2000);
+			settle();
+		}
+		/// The selected lines as the workbench gives them to Add comment.
+		[[nodiscard]] auto selected() const -> std::optional<std::pair<std::uint32_t, std::uint32_t>>
+		{
+			const auto range = Surface->line_draft_range();
+			if (!range || range->first.Side != range->second.Side) {
+				return std::nullopt;
+			}
+			return std::pair{ range->first.Line, range->second.Line };
+		}
+
+		qt::workbench_window                                                               Window;
+		core::computed_file_diff                                                           Diff;
+		qt::diff_workbench*                                                                Surface = nullptr;
+		qt::review_draft_editor*                                                           Editor  = nullptr;
+		std::vector<core::revisioned_review_draft_command>                                 Commands;
+		std::size_t                                                                        Applied = 0U;
+		std::map<std::pair<core::diff_side, std::uint32_t>, core::revisioned_review_draft> Kept;
+		std::optional<core::revisioned_review_draft>                                       Accepted;
+		std::uint64_t                                                                      NextId = 1U;
+
+	private:
+		void present(const core::semantic_selection& aSelection)
+		{
+			auto [found, fresh] = Kept.try_emplace(std::pair{ aSelection.PreferredLine.Side, aSelection.PreferredLine.Line });
+			if (fresh) {
+				found->second.Draft.Id     = core::review_draft_id{ NextId++ };
+				found->second.Draft.Anchor = aSelection.PreferredLine;
+				found->second.Revision     = 1U;
+				found->second.Scope        = core::review_draft_scope_id{ 1U };
+			}
+			Accepted = found->second;
+			Editor->present(found->second);
+		}
+	};
+
+	/// \brief [[BPR-PENDING-AE]] gap 1. The one-pane comparison has the code's
+	/// menu, as split view does, for the line each row shows: a head line, or
+	/// the base line a removed row shows. It had no menu at all.
+	void test_one_pane_has_the_code_menu()
+	{
+		auto  course  = line_gesture_course{ true };
+		auto& unified = course.pane();
+		expect(course.Surface->one_pane_enabled() && unified.isVisible(), "the one-pane comparison is shown");
+		course.reset();
+
+		// A right-click on an unchanged row is on its head line.
+		auto* menu = course.right_click(course.right(12U));
+		expect(menu != nullptr && line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Line 13")
+				   && line_gesture_course::words(menu, "addCommentAction") == QStringLiteral("Add comment") && line_gesture_course::enabled(menu, "addCommentAction")
+				   && line_gesture_course::enabled(menu, "suggestChangeAction") && line_gesture_course::item(menu, "addTourStopAction") != nullptr,
+			   "a right-click in one pane opens the code's menu on the clicked head line, with Add comment, Suggest change and the rest");
+		expect(line_gesture_course::choose(menu, "addCommentAction") && course.ranged(12U, 12U), "Add comment there opens the draft on line 13");
+
+		// Rows 4 to 6 dragged, right-clicked inside: the items name the range.
+		course.reset();
+		course.drag(course.right(2U), course.right(4U));
+		menu = course.right_click(course.right(3U));
+		expect(line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Lines 3–5")
+				   && line_gesture_course::words(menu, "addCommentAction") == QStringLiteral("Add comment on lines 3–5")
+				   && line_gesture_course::words(menu, "suggestChangeAction") == QStringLiteral("Suggest change on lines 3–5"),
+			   "a right-click inside lines dragged in one pane keeps them, and its items name them: "
+				   + line_gesture_course::words(menu, "codeContextMenuCaption").toStdString());
+		save_menu_render(*menu, QStringLiteral("one-pane-range-menu"));
+		expect(line_gesture_course::choose(menu, "addCommentAction") && course.ranged(2U, 4U), "Add comment on lines 3–5 opens one draft on all three");
+
+		// A right-click on a line number in one pane opens the same menu.
+		course.reset();
+		menu = course.right_click(course.right(9U, line_gesture_course::at::number));
+		expect(line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Line 10"), "a right-click on a one-pane number opens the code's menu on its line");
+		line_gesture_course::close(menu);
+
+		// A removed row is its base line: a comment only, and only once the
+		// base is numbered as GitHub's.
+		course.reset();
+		menu = course.right_click(course.point(unified, core::diff_side::left, 5U));
+		expect(line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Base line 6") && !line_gesture_course::enabled(menu, "addCommentAction")
+				   && line_gesture_course::words(menu, "codeContextMenuReason") == QStringLiteral("This file's base is not GitHub's"),
+			   "a right-click on a removed row is on its base line, and says why it takes no comment");
+		line_gesture_course::close(menu);
+		course.Window.set_conversation_endpoint_placement(true, true);
+		menu = course.right_click(course.point(unified, core::diff_side::left, 5U));
+		expect(line_gesture_course::enabled(menu, "addCommentAction") && !line_gesture_course::enabled(menu, "suggestChangeAction")
+				   && line_gesture_course::words(menu, "codeContextMenuReason") == QStringLiteral("Suggest change: head side only"),
+			   "with the evidence a removed row takes Add comment, never Suggest change");
+		line_gesture_course::close(menu);
+
+		// Rows dragged from the removed line to the added one are on two
+		// sides: the caption names each end, and the core's refusal says why.
+		course.reset();
+		course.drag(course.point(unified, core::diff_side::left, 5U), course.right(5U));
+		menu = course.right_click(course.right(5U));
+		expect(line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Base line 6 to line 6") && !line_gesture_course::enabled(menu, "addCommentAction")
+				   && line_gesture_course::words(menu, "codeContextMenuReason") == QStringLiteral("Select lines on one side"),
+			   "rows on two sides name both ends and take no comment together: " + line_gesture_course::words(menu, "codeContextMenuCaption").toStdString());
+		line_gesture_course::close(menu);
+	}
+
+	/// \brief [[BPR-PENDING-AE]] gap 2. Line numbers select lines as GitHub's
+	/// do: a click selects its line, a Shift-click extends the selection to
+	/// it and a drag over them selects the lines it crosses. The "+" in its
+	/// column at the number and code boundary still adds a comment, and a
+	/// right-click on a number still opens the code's menu.
+	void test_line_numbers_select_lines()
+	{
+		for (const auto onePane : { false, true }) {
+			auto       course = line_gesture_course{ onePane };
+			const auto here   = std::string{ onePane ? "one pane: " : "split: " };
+			course.reset();
+
+			// A click on line 3's number selects line 3, with the keyboard.
+			course.click(course.right(2U, line_gesture_course::at::number));
+			expect(course.Surface->selection() && course.Surface->selection()->PreferredLine.Line == 2U && course.selected() == std::pair{ 2U, 2U }
+					   && course.pane().hasFocus(),
+				   here + "a click on a line's number selects that line and gives the code the keyboard");
+			// A Shift-click on line 6's number extends it to lines 3 to 6.
+			course.click(course.right(5U, line_gesture_course::at::number), Qt::ShiftModifier);
+			expect(course.selected() == std::pair{ 2U, 5U }, here + "a Shift-click on a number extends the selection to its line");
+			course.key(Qt::Key_Return);
+			expect(course.ranged(2U, 5U), here + "Return then opens one draft on lines 3 to 6");
+
+			// A drag over the numbers from line 4 to line 7.
+			course.reset();
+			course.drag(course.right(3U, line_gesture_course::at::number), course.right(6U, line_gesture_course::at::number));
+			expect(course.selected() == std::pair{ 3U, 6U }, here + "a drag over the numbers selects lines 4 to 7");
+			auto* menu = course.right_click(course.right(4U, line_gesture_course::at::number));
+			expect(line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Lines 4–7")
+					   && line_gesture_course::words(menu, "addCommentAction") == QStringLiteral("Add comment on lines 4–7"),
+				   here + "a right-click on a number inside them keeps them in the code's menu");
+			expect(line_gesture_course::choose(menu, "addCommentAction") && course.ranged(3U, 6U), here + "Add comment opens the draft on lines 4 to 7");
+
+			// Dragged upwards, from line 9 to line 5.
+			course.reset();
+			course.drag(course.right(8U, line_gesture_course::at::number), course.right(4U, line_gesture_course::at::number));
+			expect(course.selected() == std::pair{ 4U, 8U }, here + "a drag up the numbers selects lines 5 to 9");
+			// A plain click on a number then selects that line alone.
+			course.click(course.right(12U, line_gesture_course::at::number));
+			expect(course.selected() == std::pair{ 12U, 12U } && !course.pane().textCursor().hasSelection(), here + "a click on another number selects its line alone");
+		}
+
+		// Split view: the "+" keeps its column at the boundary. Its part in
+		// the number's padding adds a comment on its line, never selecting
+		// lines; the digits beside it select.
+		auto        course = line_gesture_course{ false };
+		auto* const code   = course.Surface->right_pane();
+		auto* const button = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+		course.Window.set_conversation_endpoint_placement(true, true);
+		course.reset();
+		course.click(course.right(2U, line_gesture_course::at::number));
+		course.click(course.right(4U, line_gesture_course::at::number), Qt::ShiftModifier);
+		const auto row    = course.Surface->line_rect(core::diff_side::right, 10U);
+		const auto column = QPoint{ code->viewport()->mapTo(&course.Window, QPoint{ 0, 0 }).x() - 1, course.Surface->mapTo(&course.Window, row.center()).y() };
+		course.mouse(column, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+		expect(button != nullptr && !button->isHidden() && button->geometry().contains(code->mapFrom(&course.Window, column)),
+			   "the pointer in the number's padding, in the \"+\" column, shows line 11's \"+\"");
+		course.click(column);
+		expect(course.ranged(10U, 10U), "a click there is the \"+\": a draft on line 11 alone, not a selection by number");
+	}
+
+	/// \brief [[BPR-PENDING-AE]] gap 3. A drag whose pointer ends on an empty
+	/// line takes that line. The selection then ends at its start, and the
+	/// range stopped at the line above.
+	void test_a_drag_onto_an_empty_line_takes_it()
+	{
+		for (const auto onePane : { false, true }) {
+			auto       course = line_gesture_course{ onePane };
+			const auto here   = std::string{ onePane ? "one pane: " : "split: " };
+			course.reset();
+			course.drag(course.right(4U), course.right(7U));
+			expect(course.selected() == std::pair{ 4U, 7U }, here + "a drag from line 5 that ends on the empty line 8 selects lines 5 to 8");
+			auto* menu = course.right_click(course.right(7U));
+			expect(line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Lines 5–8")
+					   && line_gesture_course::words(menu, "addCommentAction") == QStringLiteral("Add comment on lines 5–8"),
+				   here + "a right-click on the empty line is inside the selection: "
+					   + line_gesture_course::words(menu, "codeContextMenuCaption").toStdString());
+			expect(line_gesture_course::choose(menu, "addCommentAction") && course.ranged(4U, 7U), here + "Add comment opens one draft on lines 5 to 8");
+
+			// Shift+Down goes on from the empty line.
+			course.reset();
+			course.drag(course.right(4U), course.right(7U));
+			course.pane().setFocus(Qt::OtherFocusReason);
+			course.key(Qt::Key_Down, Qt::ShiftModifier);
+			expect(course.selected() == std::pair{ 4U, 8U }, here + "Shift+Down extends the dragged lines from the empty line to line 9");
+		}
+	}
+
+	/// \brief [[BPR-PENDING-AE]] gap 4. Comment (Option-C) on several
+	/// selected lines starts one draft on all of them, as Return and Add
+	/// comment do; it opened the selected line's own draft.
+	void test_comment_takes_the_selected_lines()
+	{
+		auto course = line_gesture_course{ false };
+		course.reset();
+		course.drag(course.right(2U), course.right(4U));
+		process_events();
+		expect(course.Window.comment_action()->text() == QStringLiteral("Co&mment on lines 3–5…"),
+			   "Comment names the selected lines: " + course.Window.comment_action()->text().toStdString());
+		window_key(course.Window, Qt::Key_C, Qt::AltModifier);
+		expect(course.ranged(2U, 4U), "Option-C on lines 3 to 5 opens one draft on all three");
+
+		// One line keeps its own draft.
+		course.reset();
+		course.click(course.right(12U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 12U; }, 2000);
+		window_key(course.Window, Qt::Key_C, Qt::AltModifier);
+		expect(course.ranged(12U, 12U), "Option-C on one line opens that line's draft");
+	}
+
 	// [[BPR-1212]] v002. Two owner notes on accepted candidates:
 	// maximize-to-discuss-v001, "the restore (back to code) should still be in
 	// the top right": in Discuss the restore sits at the top right, where the
@@ -20906,6 +21334,10 @@ auto main(int argc, char** argv) -> int
 		runCase("test_discuss_restore_top_right_and_whole_privacy_note", &test_discuss_restore_top_right_and_whole_privacy_note);
 		runCase("test_the_review_chip_counts_the_review_and_opens_finish", &test_the_review_chip_counts_the_review_and_opens_finish);
 		runCase("test_the_plus_on_a_pull_request_without_threads_opens_its_draft", &test_the_plus_on_a_pull_request_without_threads_opens_its_draft);
+		runCase("test_one_pane_has_the_code_menu", &test_one_pane_has_the_code_menu);
+		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
+		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
+		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);
 		if (!listCases) {
 			std::cout << "workbench-line-draft:pass\n";
 		}

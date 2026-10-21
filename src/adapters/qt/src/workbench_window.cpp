@@ -2134,7 +2134,15 @@ namespace bpr::qt {
 		// follower-scroll coupling, and no synthetic alignment rows.
 		ComparisonSurface = new diff_workbench{ CentreSurface };
 		ComparisonSurface->set_source_find_changed([this] { update_source_find_actions(); });
-		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
+		// [[BPR-PENDING-AE]]. Comment names the lines a drag or a Shift-click
+		// selects, which change no selected line; once a turn, not per move.
+		auto* const commentTarget = new QTimer{ this };
+		commentTarget->setSingleShot(true);
+		commentTarget->setInterval(0);
+		connect(commentTarget, &QTimer::timeout, this, [this] { update_comment_target(); });
+		// [[BPR-PENDING-AE]]. The one-pane comparison has the same menu.
+		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane(), ComparisonSurface->unified_pane() }) {
+			connect(pane, &QPlainTextEdit::selectionChanged, commentTarget, qOverload<>(&QTimer::start));
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
 			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
 				auto* const menu = code_context_menu(pane, aPosition);
@@ -9369,6 +9377,13 @@ namespace bpr::qt {
 		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
 		if (!discuss && ComparisonSurface != nullptr) {
 			if (const auto selection = ComparisonSurface->selection(); selection.has_value()) {
+				// [[BPR-PENDING-AE]]. Comment takes several selected lines on
+				// one side together, and says so.
+				if (const auto range = ComparisonSurface->line_draft_range(); range.has_value() && range->first.Side == range->second.Side && range->first.Line != range->second.Line) {
+					return tr("Co&mment on lines %1–%2…")
+						.arg(static_cast<qulonglong>(std::min(range->first.Line, range->second.Line)) + 1U)
+						.arg(static_cast<qulonglong>(std::max(range->first.Line, range->second.Line)) + 1U);
+				}
 				return tr("Co&mment on line %1…").arg(static_cast<qulonglong>(selection->PreferredLine.Line) + 1U);
 			}
 		}
@@ -9459,6 +9474,13 @@ namespace bpr::qt {
 		}
 		if (const auto thread = comment_reply_thread(); thread.has_value()) {
 			reply_to_thread(*thread, true);
+			return;
+		}
+		// [[BPR-PENDING-AE]]. Several selected lines take one comment on all
+		// of them, through the path Return and Add comment take; it opened the
+		// selected line's own draft.
+		if (const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt; range.has_value() && range->first != range->second) {
+			static_cast<void>(comment_on_selected_lines(false));
 			return;
 		}
 		static_cast<void>(begin_new_comment(false));
@@ -10134,21 +10156,11 @@ namespace bpr::qt {
 	auto workbench_window::code_context_menu(QPlainTextEdit* const aPane, const QPoint aPosition) -> QMenu*
 	{
 		// [[BPR-1212]]. A right-click outside the selection selects its line
-		// first, as a click would; the menu then names it.
+		// first, as a click would; the menu then names it. Inside the selected
+		// lines it keeps them all. [[BPR-PENDING-AE]]. The workbench reads the
+		// line from the pane, so one pane's rows give the line they show.
 		if (ComparisonSurface != nullptr && aPane != nullptr) {
-			const auto  side      = aPane == ComparisonSurface->left_pane() ? core::diff_side::left : core::diff_side::right;
-			const auto  block     = aPane->cursorForPosition(aPosition).blockNumber();
-			const auto& selection = ComparisonSurface->selection();
-			// [[BPR-1212]] slice 1. Inside the selected lines keeps them all.
-			const auto range  = ComparisonSurface->line_draft_range();
-			const auto line   = static_cast<std::uint32_t>(std::max(block, 0));
-			const auto inside = selection.has_value() && selection->PreferredLine.Side == side
-				&& (selection->PreferredLine.Line == line
-					|| (range.has_value() && range->first.Side == side && range->second.Side == side
-						&& line >= std::min(range->first.Line, range->second.Line) && line <= std::max(range->first.Line, range->second.Line)));
-			if (block >= 0 && !inside) {
-				static_cast<void>(ComparisonSurface->select_conversation_line(side, static_cast<std::uint32_t>(block)));
-			}
+			static_cast<void>(ComparisonSurface->select_line_for_menu(aPane, aPosition));
 		}
 		update_comment_target();
 		auto* const menu = new QMenu{ aPane != nullptr ? static_cast<QWidget*>(aPane) : this };
@@ -10157,12 +10169,19 @@ namespace bpr::qt {
 		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
 		if (selection.has_value()) {
 			// [[BPR-1212]] slice 1. "Lines a–b" when the selection covers several.
-			const auto  range   = ComparisonSurface->line_draft_range();
-			const auto  first   = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
-			const auto  last    = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
-			const auto  base    = selection->PreferredLine.Side == core::diff_side::left;
-			auto* const caption = menu->addAction(first == last ? (base ? tr("Base line %1") : tr("Line %1")).arg(first + 1U)
-																: (base ? tr("Base lines %1–%2") : tr("Lines %1–%2")).arg(first + 1U).arg(last + 1U));
+			const auto range = ComparisonSurface->line_draft_range();
+			const auto first = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
+			const auto last  = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
+			const auto base  = selection->PreferredLine.Side == core::diff_side::left;
+			// [[BPR-PENDING-AE]]. One pane's rows can start on one side and end
+			// on the other; the caption names each end's own side.
+			const auto  mixed   = range.has_value() && range->first.Side != range->second.Side;
+			const auto  heading = mixed ? (range->first.Side == core::diff_side::left ? tr("Base line %1 to line %2") : tr("Line %1 to base line %2"))
+											  .arg(range->first.Line + 1U)
+											  .arg(range->second.Line + 1U)
+				: first == last         ? (base ? tr("Base line %1") : tr("Line %1")).arg(first + 1U)
+										: (base ? tr("Base lines %1–%2") : tr("Lines %1–%2")).arg(first + 1U).arg(last + 1U);
+			auto* const caption = menu->addAction(heading);
 			caption->setObjectName(QStringLiteral("codeContextMenuCaption"));
 			caption->setEnabled(false);
 			// [[BPR-1335]]. The line's thread, reachable without its marker.
