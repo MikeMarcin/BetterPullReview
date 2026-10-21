@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1677"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Overview files: Cmd+Up and Cmd+Down go to the top and bottom",
+  "created": "2026-10-21T05:51:50.014233+00:00",
+  "base": "b30672b4095bf5ee11ca2ec25876ca0cd7098217"
+}
