@@ -204,6 +204,12 @@ namespace bpr::qt {
 		QLabel*         TargetLabel    = nullptr;
 		QLabel*         ReplyTarget    = nullptr;
 		QLabel*         MutationStatus = nullptr;
+		/// RFC-BPR-0089 M4. Above Publish: where a comment on a commit-filtered
+		/// diff's line goes when it is not the line itself at the head, or why
+		/// it cannot be published. Hidden otherwise.
+		QLabel* TargetNotice = nullptr;
+		/// The notice says why Publish is unavailable.
+		bool PublishBlocked = false;
 		/// [[BPR-1329]]. What the last Publish of the shown draft came to, in
 		/// words: publishing, published, or why not. Kept apart from the
 		/// status line's other messages so a surface that shows only the
@@ -348,6 +354,16 @@ namespace bpr::qt {
 		/// revision under a specific account, and cannot agree to something
 		/// they were not shown.
 		void describe_target(const QString& aDescription);
+		/// \brief RFC-BPR-0089 M4. Says above Publish where the shown draft's
+		/// comment goes, as the host decided it, or, with `aBlocksPublication`,
+		/// why it cannot be published, which also disables Publish. An empty
+		/// text clears it.
+		void               present_target_notice(const QString& aText, bool aBlocksPublication);
+		[[nodiscard]] auto target_notice() const noexcept -> QLabel*;
+		/// \brief The notice's text, or empty.
+		[[nodiscard]] auto target_notice_text() const -> QString;
+		/// \brief Whether the notice is why Publish is unavailable.
+		[[nodiscard]] auto target_notice_blocks() const noexcept -> bool;
 
 		[[nodiscard]] auto body_editor() const noexcept -> QPlainTextEdit*;
 		/// \brief [[BPR-1298]]. The editor's text with the loaded body's own

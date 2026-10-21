@@ -501,6 +501,8 @@ namespace bpr::adapters::sqlite {
 				// the right, so a base-side anchor is refused rather than
 				// recovered onto the other side.
 				if (!application::valid(aRecord) || aRecord.Anchor.Semantic.Side != core::diff_side::right
+					// RFC-BPR-0089 M4. Nor a remote line, which it has no column for.
+					|| aRecord.Anchor.RemoteLine.has_value()
 					|| !aRecord.BaselineExactCommentIds.has_value()
 					|| aRecord.Transmission
 						!= application::review_mutation_recovery_transmission::prepared
@@ -979,13 +981,21 @@ namespace bpr::adapters::sqlite {
 		// [[BPR-1212]]. A publication record is version 1 while every child is
 		// on the right, byte for byte as before, and version 2 once a child is
 		// on the base side, which then writes each child's side after its line.
+		// RFC-BPR-0089 M4. Version 3 once a child carries a remote line (a
+		// commit-filtered diff's line the host placed), which then writes each
+		// child's side and its remote line after its line.
 		constexpr auto     publication_record_version   = std::uint64_t{ 1U };
 		constexpr auto     publication_record_version_2 = std::uint64_t{ 2U };
+		constexpr auto     publication_record_version_3 = std::uint64_t{ 3U };
 		[[nodiscard]] auto base_side_child(const std::optional<application::review_mutation_recovery_record>& aChild) noexcept -> bool
 		{
 			return aChild.has_value() && aChild->Anchor.Semantic.Side != core::diff_side::right;
 		}
-		void encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild, const bool aSided)
+		[[nodiscard]] auto remote_line_child(const std::optional<application::review_mutation_recovery_record>& aChild) noexcept -> bool
+		{
+			return aChild.has_value() && aChild->Anchor.RemoteLine.has_value();
+		}
+		void encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild, const bool aSided, const bool aRemote)
 		{
 			aOut.integer(aChild.has_value() ? 1U : 0U);
 			if (!aChild) {
@@ -1002,6 +1012,10 @@ namespace bpr::adapters::sqlite {
 			if (aSided) {
 				aOut.integer(static_cast<std::uint64_t>(c.Anchor.Semantic.Side));
 			}
+			if (aRemote) {
+				aOut.integer(c.Anchor.RemoteLine.has_value() ? 1U : 0U);
+				aOut.integer(c.Anchor.RemoteLine.value_or(0U));
+			}
 			aOut.oid(c.Anchor.Commit);
 			aOut.integer(static_cast<std::uint64_t>(c.Transmission));
 			aOut.integer(static_cast<std::uint64_t>(c.State));
@@ -1016,7 +1030,7 @@ namespace bpr::adapters::sqlite {
 				aOut.integer(static_cast<std::uint64_t>(c.Receipt->Representation));
 			}
 		}
-		auto decode_child(submission_reader& aIn, const bool aSided) -> std::optional<application::review_mutation_recovery_record>
+		auto decode_child(submission_reader& aIn, const bool aSided, const bool aRemote) -> std::optional<application::review_mutation_recovery_record>
 		{
 			if (aIn.bounded(1U) == 0U) {
 				return std::nullopt;
@@ -1032,6 +1046,13 @@ namespace bpr::adapters::sqlite {
 			c.Anchor.Semantic.Line       = static_cast<std::uint32_t>(aIn.bounded(4294967295U));
 			if (aSided) {
 				c.Anchor.Semantic.Side = static_cast<core::diff_side>(aIn.bounded(static_cast<std::uint64_t>(core::diff_side::right)));
+			}
+			if (aRemote) {
+				const auto present = aIn.bounded(1U) != 0U;
+				const auto line    = static_cast<std::uint32_t>(aIn.bounded(4294967295U));
+				if (present) {
+					c.Anchor.RemoteLine = line;
+				}
 			}
 			c.Anchor.Commit  = aIn.oid();
 			c.Transmission   = static_cast<application::review_mutation_recovery_transmission>(aIn.bounded(2U));
@@ -1052,8 +1073,10 @@ namespace bpr::adapters::sqlite {
 		auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>
 		{
 			submission_writer out;
-			const auto        sided = base_side_child(aRecord.Native) || base_side_child(aRecord.Fallback);
-			out.integer(sided ? publication_record_version_2 : publication_record_version);
+			const auto        remote = remote_line_child(aRecord.Native) || remote_line_child(aRecord.Fallback);
+			const auto        sided  = remote || base_side_child(aRecord.Native) || base_side_child(aRecord.Fallback);
+			out.integer(remote ? publication_record_version_3 : sided ? publication_record_version_2
+																	  : publication_record_version);
 			out.text(aRecord.Key);
 			out.text(aRecord.LegacyKey);
 			out.digest(aRecord.Fingerprint);
@@ -1065,18 +1088,19 @@ namespace bpr::adapters::sqlite {
 			out.integer(auth.Generation);
 			out.integer(auth.ObservedAt);
 			out.integer(auth.ExpiresAt);
-			encode_child(out, aRecord.Native, sided);
-			encode_child(out, aRecord.Fallback, sided);
+			encode_child(out, aRecord.Native, sided, remote);
+			encode_child(out, aRecord.Fallback, sided, remote);
 			return out.Bytes;
 		}
 		auto decode_publication(const std::span<const std::uint8_t> aBytes) -> std::optional<application::review_publication_recovery_record>
 		{
 			submission_reader in{ aBytes };
 			const auto        version = in.integer();
-			if (version != publication_record_version && version != publication_record_version_2) {
+			if (version != publication_record_version && version != publication_record_version_2 && version != publication_record_version_3) {
 				return std::nullopt;
 			}
-			const auto                                      sided = version == publication_record_version_2;
+			const auto                                      remote = version == publication_record_version_3;
+			const auto                                      sided  = remote || version == publication_record_version_2;
 			application::review_publication_recovery_record result;
 			result.Key          = in.text(64U);
 			result.LegacyKey    = in.text(64U);
@@ -1089,10 +1113,12 @@ namespace bpr::adapters::sqlite {
 			auth.Generation     = in.integer();
 			auth.ObservedAt     = in.integer();
 			auth.ExpiresAt      = in.integer();
-			result.Native       = decode_child(in, sided);
-			result.Fallback     = decode_child(in, sided);
-			// Version 2 is written only for a base-side child.
-			if (sided && !base_side_child(result.Native) && !base_side_child(result.Fallback)) {
+			result.Native       = decode_child(in, sided, remote);
+			result.Fallback     = decode_child(in, sided, remote);
+			// Version 2 is written only for a base-side child, version 3 only
+			// for a child with a remote line.
+			if (remote ? !remote_line_child(result.Native) && !remote_line_child(result.Fallback)
+					   : sided && !base_side_child(result.Native) && !base_side_child(result.Fallback)) {
 				return std::nullopt;
 			}
 			return in.done() && application::valid(result) ? std::optional{ std::move(result) } : std::nullopt;

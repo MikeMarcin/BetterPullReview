@@ -96,6 +96,10 @@ namespace bpr::core {
 			|| (aScope.Tab && aScope.Tab->value() == 0U)) {
 			return false;
 		}
+		// RFC-BPR-0089 ([[BPR-1688]]). Only Find in files is filtered, over a bounded set.
+		if (aScope.FilteredFiles && (aScope.Target != source_search_target::files || *aScope.FilteredFiles > maximum_source_search_filtered_files)) {
+			return false;
+		}
 		if (aScope.Target == source_search_target::files) {
 			return !aScope.Document && !aScope.Selection;
 		}
@@ -115,6 +119,20 @@ namespace bpr::core {
 		case source_search_target::unified: return aScope.Document->LeftBlob || aScope.Document->RightBlob;
 		default:                            return false;
 		}
+	}
+	auto valid(const source_search_scope& aScope, const std::vector<source_search_filtered_file>& aFiles) noexcept -> bool
+	{
+		if (!valid(aScope) || !aScope.FilteredFiles || *aScope.FilteredFiles != aFiles.size()) {
+			return false;
+		}
+		for (std::size_t index = 0U; index < aFiles.size(); ++index) {
+			const auto& file = aFiles[index];
+			if (file.Path.empty() || file.Path.size() > maximum_identified_path_bytes || (index > 0U && !(aFiles[index - 1U].Path < file.Path))
+				|| (file.Endpoints && (!valid(*file.Endpoints) || file.Endpoints->Left.algorithm() != aScope.Comparison.Left.Commit.algorithm()))) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	auto set_source_search_scope(source_search_state& aState, const std::optional<source_search_scope>& aScope) -> source_search_output

@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_WINDOW_REVIEW_RESTORATION_HPP
 
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/commit_filter.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/profile_window.hpp"
@@ -61,13 +62,33 @@ namespace bpr::core {
 		std::optional<std::uint32_t>        Active;
 		auto                                operator==(const window_review_tabs&) const -> bool = default;
 	};
+	/// \brief RFC-BPR-0089 ([[BPR-1688]]). A window's commit and file filters
+	/// for one pull request, as the restoration store keeps them.
+	///
+	/// \details The commits the reviewer hid, each with its headline and
+	/// author so it can still be named after a force push removes it, and the
+	/// paths file filters hide. What a hidden commit changes is not kept: it is
+	/// recorded again when the chain's trees are read while it is listed.
+	struct window_review_filters
+	{
+		commit_filter_state Commits;
+		file_filter_state   Files;
+		auto                operator==(const window_review_filters&) const -> bool = default;
+	};
+	/// Paths of file filters one window keeps; a larger filter is not kept.
+	inline constexpr std::size_t maximum_window_review_filter_paths = 10'000U;
+	/// \brief Valid shapes, with no recorded changes on a hidden commit and at
+	/// most `maximum_window_review_filter_paths` filtered paths.
+	[[nodiscard]] auto valid(const window_review_filters& aFilters) noexcept -> bool;
 	struct window_review_record
 	{
 		bpr_window_id                         Window;
 		window_review_destination             Destination;
-		std::optional<window_review_position> Position                                              = std::nullopt;
-		std::optional<window_review_tabs>     Tabs                                                  = std::nullopt;
-		auto                                  operator==(const window_review_record&) const -> bool = default;
+		std::optional<window_review_position> Position = std::nullopt;
+		std::optional<window_review_tabs>     Tabs     = std::nullopt;
+		/// RFC-BPR-0089 ([[BPR-1688]]). The filters the window restores.
+		std::optional<window_review_filters> Filters                                               = std::nullopt;
+		auto                                 operator==(const window_review_record&) const -> bool = default;
 	};
 	/// [[BPR-0733]]. Bounds of the per-profile recently viewed list.
 	inline constexpr std::size_t maximum_recent_reviews      = 10U;
@@ -83,9 +104,11 @@ namespace bpr::core {
 		std::optional<window_review_position> Position = std::nullopt;
 		/// [[BPR-1131]]. The tabs Resume brings back, with the reading above as
 		/// the active tab's.
-		std::optional<window_review_tabs> Tabs                                                  = std::nullopt;
-		std::optional<bool>               Draft                                                 = std::nullopt;
-		auto                              operator==(const window_recent_review&) const -> bool = default;
+		std::optional<window_review_tabs> Tabs  = std::nullopt;
+		std::optional<bool>               Draft = std::nullopt;
+		/// RFC-BPR-0089 ([[BPR-1688]]). The filters Resume brings back.
+		std::optional<window_review_filters> Filters                                               = std::nullopt;
+		auto                                 operator==(const window_recent_review&) const -> bool = default;
 	};
 	[[nodiscard]] auto valid(const window_recent_review& aEntry) noexcept -> bool;
 	[[nodiscard]] auto valid_recent_reviews(const std::vector<window_recent_review>& aEntries) noexcept -> bool;
@@ -111,6 +134,7 @@ namespace bpr::core {
 		window_review_destination             Destination;
 		std::optional<window_review_position> Position = std::nullopt;
 		std::optional<window_review_tabs>     Tabs     = std::nullopt;
+		std::optional<window_review_filters>  Filters  = std::nullopt;
 	};
 	struct window_review_error
 	{
@@ -199,6 +223,10 @@ namespace bpr::core {
 		/// \brief [[BPR-1131]]. Retains the window's accepted document tabs for its
 		/// accepted destination, and for that destination's recently viewed entry.
 		[[nodiscard]] auto accepted_tabs(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_tabs& aTabs) -> bool;
+		/// \brief RFC-BPR-0089 ([[BPR-1688]]). Retains the window's filters for
+		/// its accepted destination, and for that destination's recently viewed
+		/// entry.
+		[[nodiscard]] auto accepted_filters(bpr_window_context aContext, const window_review_destination& aDestination, const window_review_filters& aFilters) -> bool;
 		[[nodiscard]] auto close(bpr_window_context aContext) -> bool;
 		[[nodiscard]] auto records() const noexcept -> const std::vector<window_review_record>&;
 
@@ -212,6 +240,7 @@ namespace bpr::core {
 			std::optional<window_review_destination> Pending;
 			std::optional<window_review_position>    Position = std::nullopt;
 			std::optional<window_review_tabs>        Tabs     = std::nullopt;
+			std::optional<window_review_filters>     Filters  = std::nullopt;
 		};
 		bpr_profile_id                         Profile;
 		std::vector<slot>                      Slots;

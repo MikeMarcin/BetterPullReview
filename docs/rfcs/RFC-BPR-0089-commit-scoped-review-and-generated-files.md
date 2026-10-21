@@ -328,6 +328,37 @@ listed commits, and filtering by the base branch's commits.
 
 - How GitHub presents a review comment whose `commit_id` is an earlier commit
   and whose line later changed. Measure this on BPR-Test before M4 is claimed.
+  **Measured 2026-10-21 (M4): outdated at once, shown only in the
+  conversation; a line that did not change is moved to head by GitHub
+  itself.** BPR-Test pull request #116 (closed, its threads resolved, both
+  branches deleted) had a base file of 30 lines. C1 edited lines 5, 15 and
+  25; C2, the head, inserted two lines at the top and edited C1's line 5
+  again. Six comments were posted, each with its own
+  `POST /pulls/{n}/comments`:
+  - `commit_id` C1, `RIGHT` 5 (the line C2 changed): accepted. GitHub kept
+    `commit_id` and `original_commit_id` at C1 and returned `line: null`,
+    `original_line: 5`; the GraphQL thread was `isOutdated: true`. The
+    anonymous Files changed page did not show it. The Conversation page
+    showed it, marked Outdated.
+  - `commit_id` C1, `RIGHT` 15 (unchanged at head, now line 17), and a
+    context line of C1's hunk (`RIGHT` 8, now 10): accepted and moved to head
+    at once (`commit_id` C2, `line` 17 and 10, `original_commit_id` C1), not
+    outdated, shown on Files changed. A control at head `RIGHT` 17 read the
+    same.
+  - `commit_id` C1, `LEFT` 5: accepted and moved to head at `LEFT` 5, not
+    outdated. A `LEFT` line is counted in the merge base's file whatever the
+    `commit_id`.
+  - `commit_id` C1, `RIGHT` 10, outside every hunk of the merge base to C1:
+    refused with 422, `pull_request_review_thread.line` "could not be
+    resolved", and nothing was written.
+
+  So a comment the core places on head (Q1's first branch) reads exactly as
+  GitHub's own forward mapping would; a comment it places on an earlier
+  commit is outdated on GitHub from the moment it is written, which the
+  warning before Publish says; and such a comment is admitted only on a line
+  inside a hunk of the merge base to that commit, because GitHub resolves its
+  line there. The measurement spent eleven REST and GraphQL calls;
+  `X-RateLimit-Remaining` stayed above 4,980.
 - Which revision's `.gitattributes` GitHub's Files changed uses. Measure on
   BPR-Test before M2 claims parity. GitHub may also collapse files by
   Linguist's built-in rules, which this application does not apply (Q4), so

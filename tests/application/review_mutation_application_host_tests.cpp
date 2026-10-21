@@ -632,6 +632,107 @@ namespace {
 		host.shutdown();
 	}
 
+	// RFC-BPR-0089 M4 (owner decision Q1). A root comment on a commit-filtered
+	// diff whose right side is C1, an earlier commit than the head, is placed
+	// by the core from the source's facts: at the head's line when the line is
+	// unchanged there, otherwise on C1 at its own line, natively and with no
+	// file-comment fallback. A line GitHub resolves nowhere, a chain without
+	// C1, missing facts and a reply off the head are refused before any effect.
+	void test_filtered_diff_comments_are_placed_by_the_core()
+	{
+		const auto head                 = oid<core::git_commit_oid>(30U);
+		const auto base                 = oid<core::git_commit_oid>(20U);
+		const auto c1                   = oid<core::git_commit_oid>(25U);
+		auto       request              = publication_request();
+		request.SelectedDiff.Key.Filter = core::filtered_diff_endpoints{ .Left = base, .Right = c1 };
+		bind_resolved_endpoints(request);
+		const auto digest                          = core::comparison_digest(request.SelectedDiff.Key);
+		request.Selection.Comparison               = digest;
+		request.Selection.PreferredLine.Comparison = digest;
+		request.Proposal.Anchor                    = request.Selection.PreferredLine;
+		const auto at                              = [&request](const std::uint32_t aLine, const std::uint64_t aDraft) {
+			auto line                         = request;
+			line.Proposal.Draft               = core::review_draft_id{ aDraft };
+			line.Selection.PreferredLine.Line = aLine;
+			line.Proposal.Anchor              = line.Selection.PreferredLine;
+			return line;
+		};
+
+		auto  provider                  = std::make_unique<fake_provider>();
+		auto* observed                  = provider.get();
+		auto  effects                   = application::manual_executor{ };
+		auto  decisions                 = application::manual_executor{ };
+		auto  projection                = recording_projection{ };
+		projection.Source->Material.Key = request.SelectedDiff.Key;
+		// C1 against the head: two lines inserted above line 10 (zero-based),
+		// C1's line 10 replaced. The merge base against C1: line 10 replaced.
+		const auto lines = core::filtered_comment_lines{
+			.RightToHead = core::line_correspondence{ .LeftLines = 100U, .RightLines = 102U, .Unchanged = { { 0U, 0U, 10U }, { 11U, 13U, 89U } } },
+			.BaseToRight = core::line_correspondence{ .LeftLines = 100U, .RightLines = 100U, .Unchanged = { { 0U, 0U, 10U }, { 11U, 11U, 89U } } },
+			.LeftToBase  = std::nullopt,
+			// The merge base against the head: its line 10 became three lines.
+			.BaseToHead = core::line_correspondence{ .LeftLines = 100U, .RightLines = 102U, .Unchanged = { { 0U, 0U, 10U }, { 11U, 13U, 89U } } },
+		};
+		projection.Source->Filtered = core::filtered_comment_source{ .Head = head, .MergeBase = base, .Diff = *request.SelectedDiff.Key.Filter, .Chain = { c1, head }, .Fork = base, .Lines = lines };
+		auto host                   = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+
+		static_cast<void>(host.publish(at(12U, 81U)));
+		expect(effects.pending() == 1U, "a line unchanged at the head is admitted");
+		effects.run_next();
+		decisions.drain();
+		const auto& moved = observed->Submitted.back();
+		expect(moved.LiveBinding && moved.LiveBinding->Anchor.Commit == head && moved.LiveBinding->Anchor.RemoteLine == std::optional<std::uint32_t>{ 14U }
+				   && moved.LiveBinding->Anchor.Semantic.Line == 12U && moved.Source && moved.Source->Placement == core::review_placement::legacy_line,
+			   "it goes to the head at the head's line, natively only");
+
+		static_cast<void>(host.publish(at(10U, 82U)));
+		expect(effects.pending() == 1U, "a line the head changed is admitted");
+		effects.run_next();
+		decisions.drain();
+		const auto& earlier = observed->Submitted.back();
+		expect(earlier.LiveBinding && earlier.LiveBinding->Anchor.Commit == c1 && earlier.LiveBinding->Anchor.RemoteLine == std::optional<std::uint32_t>{ 10U }
+				   && application::valid(*earlier.LiveBinding) && earlier.Source && earlier.Source->Placement == core::review_placement::legacy_line,
+			   "it goes to C1 at C1's line, a valid live binding off the head");
+		expect(projection.Published.back().Result.has_value(), "both are published");
+
+		const auto refused = [&](application::review_mutation_publication_request aRequest, const std::string_view aWhat) {
+			const auto before = observed->Submitted.size();
+			static_cast<void>(host.publish(std::move(aRequest)));
+			expect(effects.pending() == 0U, aWhat);
+			decisions.drain();
+			expect(observed->Submitted.size() == before && !projection.Published.back().Result.has_value()
+					   && projection.Published.back().Result.error() == application::review_mutation_failure::unsupported,
+				   aWhat);
+		};
+		// Changed at the head and outside every hunk of the merge base to C1.
+		projection.Source->Filtered->Lines->RightToHead = core::line_correspondence{ .LeftLines = 100U, .RightLines = 100U, .Unchanged = { { 0U, 0U, 50U }, { 51U, 51U, 49U } } };
+		refused(at(50U, 83U), "a line GitHub resolves on no commit is refused before any effect");
+		projection.Source->Filtered->Lines = lines;
+		projection.Source->Filtered->Chain = { head };
+		refused(at(10U, 84U), "a commit outside the pull request's chain is refused before any write");
+		projection.Source->Filtered->Chain = { c1, head };
+		projection.Source->Filtered->Lines.reset();
+		refused(at(10U, 85U), "a line placed before its lines are read is refused");
+		projection.Source->Filtered.reset();
+		refused(at(12U, 86U), "a filtered diff without the facts is refused");
+		projection.Source->Filtered  = core::filtered_comment_source{ .Head = head, .MergeBase = base, .Diff = *request.SelectedDiff.Key.Filter, .Chain = { c1, head }, .Fork = base, .Lines = lines };
+		auto reply                   = at(12U, 87U);
+		reply.Proposal.ReplyToThread = "PRRT_fixture_2";
+		refused(reply, "a reply from a diff whose right side is not the head is refused");
+		host.shutdown();
+	}
+
 	void test_thread_resolution_needs_the_capability_and_a_permitting_grant()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -1458,6 +1559,7 @@ auto main() -> int
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
 	test_a_base_line_root_needs_githubs_base_numbering();
+	test_filtered_diff_comments_are_placed_by_the_core();
 	test_a_label_changed_after_preparation_needs_a_new_gesture();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;

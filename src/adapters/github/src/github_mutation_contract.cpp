@@ -955,9 +955,10 @@ namespace bpr::adapters::github::detail {
 			auto       object = comment_submission_json{
 				.Body     = aRequest.Proposal.Body,
 				.CommitId = commit.view(),
-				.Line     = static_cast<std::uint64_t>(binding.Anchor.Semantic.Line) + 1U,
-				.Path     = binding.Anchor.Path,
-				.Side     = side,
+				// RFC-BPR-0089 M4. A filtered diff's line the host placed.
+				.Line = static_cast<std::uint64_t>(application::remote_line(binding.Anchor)) + 1U,
+				.Path = binding.Anchor.Path,
+				.Side = side,
 			};
 			if (aRequest.Proposal.StartLine) {
 				object.StartLine = static_cast<std::uint64_t>(*aRequest.Proposal.StartLine) + 1U;
@@ -1301,16 +1302,27 @@ namespace bpr::adapters::github::detail {
 			const auto  expectedBody = publication_body(aExpected);
 			if ((aResponse.SubjectType && *aResponse.SubjectType != "line" && !fileSubject)
 				|| (fileSubject && !valid_file_subject_metadata(aResponse))
-				|| (!fileSubject && !aResponse.Line)) {
+				|| (aResponse.OriginalLine && (*aResponse.OriginalLine == 0U || *aResponse.OriginalLine > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
+			// RFC-BPR-0089 M4. A comment written on an earlier commit at a line
+			// a later one changed is outdated from the start (measured on
+			// BPR-Test #116): GitHub keeps `commit_id` there and reports no
+			// `line`. It is ours by the commit and line it was written at. Any
+			// other outdated comment, anyone's, is well formed and not ours.
+			const auto earlier = binding.Anchor.Commit != binding.Target.Semantic.ExpectedHead;
+			if (!fileSubject && !aResponse.Line && !earlier) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			const auto writtenCommit = earlier ? core::parse_git_commit_oid(aResponse.OriginalCommitId.value_or(std::string{ })) : commit;
+			const auto writtenLine   = earlier ? aResponse.OriginalLine : aResponse.Line;
 			// [[BPR-1212]]. A range is ours only with its exact first line on
 			// the same side; a single line only without one, so a range ending
 			// at the same line with the same text is never taken for it.
 			const auto expectedStart = aExpected.Proposal.StartLine ? std::optional<std::uint64_t>{ static_cast<std::uint64_t>(*aExpected.Proposal.StartLine) + 1U } : std::nullopt;
-			if (aResponse.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
+			if (aResponse.Path != binding.Anchor.Path || writtenCommit != std::optional{ binding.Anchor.Commit }
 				|| fileSubject != wantsFile || !expectedBody || aResponse.Body != *expectedBody
-				|| (!fileSubject && (aResponse.Side != expectedSide || *aResponse.Line - 1U != binding.Anchor.Semantic.Line))
+				|| (!fileSubject && (aResponse.Side != expectedSide || !writtenLine || *writtenLine - 1U != application::remote_line(binding.Anchor)))
 				|| (!fileSubject && (aResponse.StartLine != expectedStart || (expectedStart ? aResponse.StartSide != expectedSide : aResponse.StartSide.has_value())))
 				|| aResponse.User.Id != binding.ActingIdentity.DatabaseId
 				|| aResponse.User.NodeId != binding.ActingIdentity.NodeId
@@ -3638,7 +3650,7 @@ namespace bpr::adapters::github::detail {
 			auto        anchor    = std::string{ "bpr-capability-anchor-v1" };
 			append_fingerprint_text(anchor, digest_hex(canonical_authority_fingerprint(*aRequest.LiveBinding)));
 			append_fingerprint_text(anchor, aRequest.LiveBinding->Anchor.Path);
-			append_fingerprint_integer(anchor, aRequest.LiveBinding->Anchor.Semantic.Line);
+			append_fingerprint_integer(anchor, application::remote_line(aRequest.LiveBinding->Anchor));
 			append_fingerprint_oid(anchor, aRequest.LiveBinding->Anchor.Commit);
 			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .ClassifierRevision = off_hunk_classifier_revision, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
 		}
@@ -3847,7 +3859,18 @@ namespace bpr::adapters::github::detail {
 				&& aRequest.Proposal.Anchor.Comparison == core::comparison_digest(source.Comparison) && aRequest.Proposal.Anchor.Line < source.LineCount
 				&& source.Endpoint->request().Diff.Comparison.Right.Commit == Configuration.Target.Semantic.ExpectedHead
 			: compile_review_permalink_body({ .Target = Configuration.Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, aRequest.Proposal.Anchor, "Source validation").has_value();
-		if (!source.Endpoint || source.Placement > core::review_placement::off_hunk
+		// RFC-BPR-0089 M4. A line the host placed is a commit-filtered diff's,
+		// published natively as one line: on the head, or on that diff's own
+		// right commit, which the epoch host authorized as a commit of the
+		// pull request's first-parent chain.
+		const auto& anchor   = aRequest.LiveBinding->Anchor;
+		const auto  placedOk = !anchor.RemoteLine
+			|| (source.Comparison.Filter && source.Placement == core::review_placement::legacy_line
+				&& aRequest.Representation == core::review_publication_representation::native_line && !aRequest.Proposal.StartLine
+				&& !aRequest.Proposal.ReplyToThread
+				&& (anchor.Commit == Configuration.Target.Semantic.ExpectedHead
+					|| (anchor.Semantic.Side == core::diff_side::right && source.Comparison.Filter->Right == anchor.Commit)));
+		if (!source.Endpoint || source.Placement > core::review_placement::off_hunk || !placedOk
 			|| source.Comparison.Authority.Profile != authority.Profile || source.Comparison.Authority.ProfileRevision.value() != authority.ProfileRevision.value()
 			|| source.Comparison.Authority.Account != authority.Account || source.Endpoint->path().generic_string() != aRequest.LiveBinding->Anchor.Path
 			|| !sourceFound) {
@@ -4130,7 +4153,10 @@ namespace bpr::adapters::github::detail {
 				|| !application::valid(*aRequest.LiveBinding)
 				|| aRequest.Representation != core::review_publication_representation::native_line
 				|| aRequest.LiveBinding->Target != Configuration.Target
-				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity
+				// RFC-BPR-0089 M4. A placed line is published only from its
+				// filtered diff's source, through the logical journal.
+				|| (aRequest.LiveBinding->Anchor.RemoteLine && (!aRequest.Source || aRequest.Proposal.ReplyToThread))) {
 				return failure(application::review_mutation_failure::undesignated_target);
 			}
 			const auto wire = compile_review_comment_request(

@@ -4,6 +4,7 @@
 #include "bpr/application/home_view_state.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/feedback_label_columns.hpp"
+#include "bpr/core/filtered_comment.hpp"
 #include "bpr/core/generated_files.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
@@ -541,6 +542,65 @@ namespace bpr::application {
 	};
 
 	using generated_attributes_completion = std::function<void(const generated_attributes_observation&)>;
+
+	/// \brief RFC-BPR-0089 M4. Asks how a commit-filtered diff's lines
+	/// correspond to the head's and the merge base's, for the comments written
+	/// on it (owner decision Q1).
+	///
+	/// \details `Key` is the filtered diff's own key; its `Filter` names the
+	/// two commits, which must be commits the review's touches job diffed. The
+	/// host reads the file at the diff's right commit, the head and the merge
+	/// base (and at the left commit when it is not the merge base), each by
+	/// literal path, and compares them with the review's own diff engine and
+	/// exact whitespace. A path absent at a commit compares as an empty file.
+	struct filtered_comment_lines_request
+	{
+		workbench_pull_request_authority WorkbenchAuthority;
+		core::git_commit_oid             Head;
+		core::git_commit_oid             MergeBase;
+		core::file_comparison_key        Key;
+		/// The file's path at the diff's left commit, its right commit, the
+		/// head and the merge base.
+		std::string LeftPath;
+		std::string RightPath;
+		std::string HeadPath;
+		std::string BasePath;
+
+		auto operator<=>(const filtered_comment_lines_request&) const = default;
+	};
+
+	/// Bytes of one side the comparison reads; a larger file places no comment
+	/// off GitHub's own diff.
+	inline constexpr std::uint64_t maximum_filtered_comment_side_bytes = 8U * 1024U * 1024U;
+
+	enum class filtered_comment_lines_status : std::uint8_t {
+		/// `Lines` holds every correspondence a placement may need.
+		resolved,
+		/// A commit is not one the review's touches job diffed, or the merge
+		/// base is none the review may read.
+		unauthorized,
+		/// A side is larger than `maximum_filtered_comment_side_bytes`.
+		too_large,
+		/// A tree or blob is not in this review's local objects and cannot be
+		/// read exactly.
+		objects_unavailable,
+		/// The retained cache no longer serves the accepted review.
+		stale,
+		cancelled,
+		failure,
+	};
+
+	/// \brief One exact answer to a `filtered_comment_lines_request`.
+	struct filtered_comment_lines_observation
+	{
+		filtered_comment_lines_request Request;
+		filtered_comment_lines_status  Status = filtered_comment_lines_status::failure;
+		core::filtered_comment_lines   Lines;
+
+		auto operator<=>(const filtered_comment_lines_observation&) const = default;
+	};
+
+	using filtered_comment_lines_completion = std::function<void(const filtered_comment_lines_observation&)>;
 
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///

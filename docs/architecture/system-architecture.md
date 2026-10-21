@@ -228,6 +228,16 @@ store but are hidden until a newly accepted read creates an account-bound entry;
 the current login never claims the old rows. Anonymous rows keep their anonymous
 identity. Comparison anchors, source/cache scopes, positions and document-tab
 payloads are unchanged. The ten-entry bound remains shared by the profile.
+RFC-BPR-0089's version-seven store ([[BPR-1688]]) adds one `review_filters`
+row per record or Recent entry that has filters: the hidden commits, each with
+its headline and author so a commit a force push removed can still be named,
+and the paths file filters hide, in a versioned binary payload. What a hidden
+commit changes is never stored; the chain's trees record it again. The
+composition retains the window's filters with its accepted destination
+whenever they change, and a Resume or startup restoration hands them to the
+commit filter when the review is adopted. A restored hidden commit the pull
+request no longer has is shown as after a force push. Versions one to six
+migrate transactionally with no filters.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 

@@ -189,9 +189,33 @@ namespace bpr::application {
 		core::source_line_ref Semantic;
 		std::string           Path;
 		core::git_commit_oid  Commit;
+		/// RFC-BPR-0089 M4. The zero-based line GitHub is told, on
+		/// `Semantic.Side`, for a line of a commit-filtered diff the host placed
+		/// (`core::place_filtered_comment`): the head's line, or, on the right,
+		/// the line of `Commit`, an earlier commit of the accepted first-parent
+		/// chain. Absent for every other comment, whose GitHub line is
+		/// `Semantic.Line` at the head.
+		std::optional<std::uint32_t> RemoteLine;
 
 		auto operator<=>(const review_mutation_anchor_binding&) const = default;
 	};
+
+	/// \brief RFC-BPR-0089 M4. The zero-based line GitHub is told.
+	[[nodiscard]] constexpr auto remote_line(const review_mutation_anchor_binding& aAnchor) noexcept -> std::uint32_t
+	{
+		return aAnchor.RemoteLine.value_or(aAnchor.Semantic.Line);
+	}
+
+	/// \brief RFC-BPR-0089 M4. Whether a comment may be written on the
+	/// anchor's commit: the head, or an earlier commit only for a right-side
+	/// line the host placed from a commit-filtered diff. The host admits that
+	/// placement only for a commit of the accepted pull request's first-parent
+	/// chain, before anything is written.
+	[[nodiscard]] inline auto admitted_anchor_commit(const review_mutation_anchor_binding& aAnchor, const core::git_commit_oid& aHead) noexcept
+		-> bool
+	{
+		return aAnchor.Commit == aHead || (aAnchor.RemoteLine.has_value() && aAnchor.Semantic.Side == core::diff_side::right);
+	}
 
 	/// \brief Carries the provider-free authority required by a live request.
 	struct review_mutation_live_binding

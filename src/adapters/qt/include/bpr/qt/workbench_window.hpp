@@ -374,6 +374,20 @@ namespace bpr::qt {
 	/// status line. Review-history loading, failure, cancellation, and empty
 	/// wording is the composed control's decision; the window quotes it rather
 	/// than restating it, so no state gains a second vocabulary.
+	/// \brief RFC-BPR-0089 M4. Where a comment on the selected line of a
+	/// commit-filtered diff goes, as the host's core decided it (owner
+	/// decision Q1). Qt words it; it decides nothing.
+	struct filtered_comment_presentation
+	{
+		/// The selected line the decision is for.
+		core::source_line_ref         Selection;
+		core::filtered_comment_target Target;
+		/// The diff's right commit, abbreviated, to name an earlier commit.
+		QString Commit;
+
+		auto operator==(const filtered_comment_presentation&) const -> bool = default;
+	};
+
 	class workbench_window final
 		: public QMainWindow,
 		  public application::workbench_projection_port,
@@ -472,6 +486,15 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0089 M3 (owner, Q2). The strip over a split file's
 		/// diff, or none to hide it.
 		void present_split_diff(std::optional<application::split_diff_projection> aProjection);
+		/// \brief RFC-BPR-0089 M4. Whether the diff on screen is commit
+		/// filtered, and where a comment on its selected line goes. With a
+		/// filter and no decision for the selected line, Publish waits for one.
+		void present_filtered_comment(bool aFiltered, std::optional<filtered_comment_presentation> aPlacement);
+		/// \brief The words above Publish for the selected line, and whether
+		/// they are why Publish is unavailable; empty off a filtered diff.
+		[[nodiscard]] auto filtered_comment_notice() const -> std::pair<QString, bool>;
+		/// \brief The placement the host last gave, for whichever line.
+		[[nodiscard]] auto filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&;
 		/// \brief One of the split file's diffs chosen, by its position.
 		void               set_split_segment_dispatch(std::function<void(std::size_t)> aDispatch);
 		[[nodiscard]] auto split_strip() const noexcept -> split_diff_strip*;
@@ -1835,6 +1858,10 @@ namespace bpr::qt {
 
 	private:
 		bool ThreadMarksSuspended = false;
+		/// RFC-BPR-0089 M4. See `present_filtered_comment`.
+		bool                                         FilteredComments = false;
+		std::optional<filtered_comment_presentation> FilteredPlacement;
+		void                                         present_filtered_notice();
 		/// RFC-BPR-0089. The Files drawer's commit filter chip, and the
 		/// gestures it shares with the Commits tab.
 		commit_filter_chip*                                            FilesCommitChip = nullptr;

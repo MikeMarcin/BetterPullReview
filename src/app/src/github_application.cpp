@@ -1101,6 +1101,7 @@ namespace bpr::app {
 			case detail::github_public_path_fixture::commit_filter_v1:
 			case detail::github_public_path_fixture::commit_filter_attributes_v1:
 			case detail::github_public_path_fixture::commit_filter_split_v1:
+			case detail::github_public_path_fixture::commit_filter_comment_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },
@@ -7115,6 +7116,7 @@ namespace bpr::app {
 			}
 			Profile->ReviewRestoration->complete_restore(DraftWindow, pending.Request,
 														 aSuccess ? std::expected<void, core::window_review_failure>{ } : std::unexpected(core::window_review_failure::unavailable));
+			retain_filters();
 		}
 		void advance_reading_restoration()
 		{
@@ -7246,7 +7248,31 @@ namespace bpr::app {
 				SearchCreatedTab.reset();
 				SearchCreatedComparison.reset();
 			}
-			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, (SearchOpeningNoTab || SearchCreatedTab) ? std::nullopt : tabs.Active);
+			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, (SearchOpeningNoTab || SearchCreatedTab) ? std::nullopt : tabs.Active,
+												 pair == *EpochHost->state().AcceptedComparison ? filtered_search_files() : std::nullopt);
+		}
+		/// \brief RFC-BPR-0089 ([[BPR-1688]]). While a filter leaves files out of
+		/// the review, Find in files searches the files it lists, each at its
+		/// filtered diff's commits (a split file from its first diff's left to
+		/// its last diff's right); files set aside as generated are not searched.
+		[[nodiscard]] auto filtered_search_files() const -> std::optional<std::vector<core::source_search_filtered_file>>
+		{
+			const auto files = CommitFilter.files();
+			if (!files) {
+				return std::nullopt;
+			}
+			auto result = std::vector<core::source_search_filtered_file>{ };
+			result.reserve(files->Files.size());
+			for (const auto& file : files->Files) {
+				auto entry = core::source_search_filtered_file{ .Path = file.Record.Path, .Endpoints = file.Filter };
+				if (file.Split && !file.Segments.empty()) {
+					entry.Endpoints = core::filtered_diff_endpoints{ .Left = file.Segments.front().Endpoints.Left, .Right = file.Segments.back().Endpoints.Right };
+				}
+				result.push_back(std::move(entry));
+			}
+			std::ranges::sort(result, { }, &core::source_search_filtered_file::Path);
+			result.erase(std::ranges::unique(result, { }, &core::source_search_filtered_file::Path).begin(), result.end());
+			return result;
 		}
 		auto register_search_open() -> bool
 		{
@@ -7859,6 +7885,7 @@ namespace bpr::app {
 				return;
 			}
 			PendingRestoration        = aRequest;
+			RestoringFilters          = aRequest.Filters ? std::optional{ std::pair{ aRequest.Destination, *aRequest.Filters } } : std::nullopt;
 			ReadingRestoration        = aRequest.Position ? std::optional{ core::window_reading_restoration{ *aRequest.Position } } : std::nullopt;
 			ReadingFailed             = false;
 			ReadingRestoreUnavailable = false;
@@ -7895,6 +7922,8 @@ namespace bpr::app {
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
 					Profile->ReviewRestoration->accepted_title(destination, std::string_view{ snapshot->PullRequest.Title }.substr(0, core::maximum_recent_review_title));
 					Profile->ReviewRestoration->accepted_draft(destination, snapshot->PullRequest.Draft);
+					// [[BPR-1688]]. The destination may be known after its review.
+					retain_filters();
 					// [[BPR-1365]]. Which recent entry is open moved with it.
 					if (opened) {
 						publish_recent();
@@ -10426,6 +10455,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const core::comparison_pair& aComparison,
 			const core::diff_side        aSide) const -> bool
 		{
+			// RFC-BPR-0089 M4. A commit-filtered diff's threads and comments are
+			// placed on it by the core, on either side.
+			if (selected_diff_filtered() && aComparison == SelectedDiffPublication->Request.Diff.Comparison) {
+				return true;
+			}
 			// [[BPR-1212]]. GitHub's `LEFT` lines count the merge base's
 			// version of the file; the left side is current only for the
 			// selected comparison whose left document is known to be that.
@@ -10453,7 +10487,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// asked about; the recorded base only when it named none.
 		[[nodiscard]] auto base_numbering_request() const -> std::optional<application::github_base_numbering_request>
 		{
-			if (!SelectedDiffPublication || !WindowRead || !WindowRead->accepted_snapshot()) {
+			// RFC-BPR-0089 M4. A commit-filtered diff's base lines are placed in
+			// the merge base by the core, not asked about here.
+			if (!SelectedDiffPublication || !WindowRead || !WindowRead->accepted_snapshot() || selected_diff_filtered()) {
 				return std::nullopt;
 			}
 			const auto& selected   = *SelectedDiffPublication;
@@ -10497,6 +10533,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		[[nodiscard]] auto base_numbered_as_github() const -> bool
 		{
+			if (selected_diff_filtered()) {
+				return true;
+			}
 			if (!BaseNumbering || BaseNumbering->Status != application::github_base_numbering_status::same) {
 				return false;
 			}
@@ -10607,7 +10646,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const application::github_review_thread_record& aThread) const
 			-> std::optional<core::source_line_ref>
 		{
-			if (aThread.Subject != application::github_review_thread_subject::line
+			if (aThread.Subject != application::github_review_thread_subject::line || selected_diff_filtered()
 				|| aThread.Outdated || !aThread.Line.has_value()
 				|| *aThread.Line == 0U || aThread.Path.empty()
 				|| !SelectedDiffPublication.has_value() || Window == nullptr
@@ -12166,6 +12205,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				editor->present(destination.error());
 				return false;
 			}
+			// RFC-BPR-0089 M4. A review's comments go at the head at their own
+			// lines; a filtered diff's line placed elsewhere is published alone.
+			if (destination->RemoteLine) {
+				editor->present_publication_refusal(QStringLiteral("A comment placed off this filtered diff's own line or commit is published on its own, not in a review. Use Publish."));
+				return false;
+			}
 			auto mark = core::review_pending_mark{ };
 			mark.Path = destination->Path;
 			mark.Head = destination->Commit;
@@ -12465,7 +12510,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		[[nodiscard]] auto conversation_source() const -> std::optional<application::review_permalink_source>
 		{
 			if (!WindowRead || !WindowRead->accepted_snapshot() || !LastAcceptedHandoff
-				|| !SelectedDiffPublication || !ReviewSourceMaterial || !ReviewSourceMaterial->RightLines
+				|| !SelectedDiffPublication || selected_diff_filtered() || !ReviewSourceMaterial || !ReviewSourceMaterial->RightLines
 				|| ReviewSourceMaterial->Key != SelectedDiffPublication->Key || !EpochHost
 				|| EpochHost->context(SelectedDiffPublication->Request.WorkbenchAuthority)
 					!= std::optional{ SelectedDiffPublication->Request.Diff }) {
@@ -12521,6 +12566,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					placed                               = aUpdate;
 					placed->PullRequest                  = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), std::move(source));
 					placed->PullRequest->MarkdownContext = PublishedMarkdownContext;
+					place_filtered_threads(*placed->PullRequest);
+				} else if (selected_diff_filtered()) {
+					ReviewCommentPlacement.clear();
+					placed = aUpdate;
+					place_filtered_threads(*placed->PullRequest);
 				} else {
 					// [[BPR-1387]]. With no selected source, placement returns the
 					// host's original projection. Reuse it without copying and
@@ -12543,6 +12593,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Closing && Window && WindowRead && WindowRead->accepted_snapshot()) {
 				auto projection            = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
 				projection.MarkdownContext = PublishedMarkdownContext;
+				place_filtered_threads(projection);
 				Window->publish(application::github_presentation_update{
 					.PullRequest              = std::move(projection),
 					.PreserveWindowNavigation = true });
@@ -12575,6 +12626,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Material       = *ReviewSourceMaterial,
 				// Full-file alignment is not a provider patch-domain observation.
 				.Placement = core::review_placement::unknown,
+				.Filtered  = SelectedDiffPublication->Key.Filter ? filtered_comment_source() : std::nullopt,
 			};
 		}
 
@@ -13393,6 +13445,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else {
 				refresh_agent_private_context_choices();
 			}
+			present_filtered_comment();
 		}
 
 		void observe_review_selection(
@@ -14190,7 +14243,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		application::commit_filter_model                                                                                  CommitFilter;
 		bool                                                                                                              CommitFilterWanted = false;
 		std::optional<std::tuple<core::git_host_id, core::github_account_id, core::repository_id, core::pull_request_id>> CommitFilterReview;
-		std::uint64_t                                                                                                     CommitFilterPublications = 0U;
+		/// [[BPR-1688]]. The filtered review as a window's destination names it,
+		/// and the filters a restoration brings back for its destination until
+		/// that review is adopted.
+		std::optional<std::tuple<core::repository_locator, core::pull_request_number, core::github_account_id>> CommitFilterDestination;
+		std::optional<std::pair<core::window_review_destination, core::window_review_filters>>                  RestoringFilters;
+		std::uint64_t                                                                                           CommitFilterPublications = 0U;
+		/// RFC-BPR-0089 M4. The lines last asked for a filtered diff's comments,
+		/// and the answer.
+		std::optional<application::filtered_comment_lines_request>     FilteredCommentLinesAsked;
+		std::optional<application::filtered_comment_lines_observation> FilteredCommentLines;
 
 		/// \brief The comparison the filter applies to, by its two commits.
 		[[nodiscard]] auto commit_filter_comparison() const -> std::optional<core::filter_comparison>
@@ -14226,10 +14288,49 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aSnapshot.has_value()) {
 				CommitFilter.adopt(*aSnapshot);
 			}
+			CommitFilterDestination = std::tuple{ aHandoff.Locator, aHandoff.Number, aHandoff.Account };
+			// [[BPR-1688]]. A restored window brings back its filters with the
+			// review: a hidden commit the pull request no longer has is named
+			// as after a force push.
+			if (RestoringFilters && filter_destination(RestoringFilters->first)) {
+				static_cast<void>(CommitFilter.restore(RestoringFilters->second.Commits));
+				static_cast<void>(CommitFilter.restore_files(RestoringFilters->second.Files));
+				RestoringFilters.reset();
+			}
 			CommitFilter.adopt_comparison(commit_filter_comparison());
 			const auto files = CommitFilter.files();
 			static_cast<void>(WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt));
 			publish_commit_filter();
+			retain_filters();
+		}
+
+		[[nodiscard]] auto filter_destination(const core::window_review_destination& aDestination) const -> bool
+		{
+			return CommitFilterDestination == std::optional{ std::tuple{ aDestination.Repository, aDestination.Number, aDestination.Account } };
+		}
+
+		/// \brief [[BPR-1688]]. Keeps the window's commit and file filters with
+		/// its accepted destination, as its tabs are kept. What a hidden commit
+		/// changes is not kept: the chain's trees record it again.
+		void retain_filters()
+		{
+			if (Closing || ReadingRestoreUnavailable || !ReadingDestination || !Profile->ReviewRestoration || !filter_destination(*ReadingDestination)) {
+				return;
+			}
+			if (RestoringFilters) {
+				if (PendingRestoration || filter_destination(RestoringFilters->first)) {
+					return;
+				}
+				RestoringFilters.reset();
+			}
+			if (PendingRestoration) {
+				return;
+			}
+			auto filters = core::window_review_filters{ .Commits = CommitFilter.state(), .Files = CommitFilter.file_filter() };
+			for (auto& hidden : filters.Commits.Hidden) {
+				hidden.Changes.reset();
+			}
+			static_cast<void>(Profile->ReviewRestoration->accepted_filters(DraftWindow, *ReadingDestination, filters));
 		}
 
 		void publish_commit_filter()
@@ -14316,12 +14417,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto files   = CommitFilter.files();
 			const auto changed = WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt);
 			publish_commit_filter();
+			retain_filters();
+			// [[BPR-1688]]. Find in files searches the filtered set: a new set
+			// is a new scope.
+			if (PrFind) {
+				PrFind->observe_scope();
+			}
 			if (!changed) {
 				return;
 			}
 			cancel_preparation();
 			if (WorkbenchHost != nullptr && LastAcceptedHandoff) {
 				WorkbenchHost->observe(workbench_authority(*LastAcceptedHandoff));
+				// RFC-BPR-0089 M4. Observing the new file set starts a new
+				// workbench generation; the publication host is bound to one, as
+				// after a refresh, or every comment under a filter is refused.
+				compose_review_mutation(*LastAcceptedHandoff);
 			}
 			publish_overview();
 		}
@@ -14392,6 +14503,195 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			Window->present_split_diff(std::move(parts));
+		}
+
+		/// \brief RFC-BPR-0089 M4. The merge base GitHub counts `LEFT` lines in:
+		/// the one it named for the snapshot, or the recorded base when it named
+		/// none ([[BPR-1560]]).
+		[[nodiscard]] auto filtered_merge_base() const -> std::optional<core::git_commit_oid>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			return core::parse_git_commit_oid(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+												  ? snapshot.MergeBaseOid->value()
+												  : snapshot.PullRequest.BaseOid.value());
+		}
+
+		/// \brief RFC-BPR-0089 M4. Whether the diff on screen is commit filtered.
+		[[nodiscard]] auto selected_diff_filtered() const noexcept -> bool
+		{
+			return SelectedDiffPublication.has_value() && SelectedDiffPublication->Key.Filter.has_value();
+		}
+
+		/// \brief RFC-BPR-0089 M4. What the epoch host reads for comments on the
+		/// filtered diff on screen: the file at its commits, the head and the
+		/// merge base, by the paths the review names there.
+		[[nodiscard]] auto filtered_comment_lines_request() const -> std::optional<application::filtered_comment_lines_request>
+		{
+			if (!selected_diff_filtered() || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot    = *WindowRead->accepted_snapshot();
+			const auto& publication = *SelectedDiffPublication;
+			const auto  head        = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			const auto  mergeBase   = filtered_merge_base();
+			if (!head || !mergeBase) {
+				return std::nullopt;
+			}
+			const auto text = [](const std::filesystem::path& aPath) {
+				const auto bytes = aPath.generic_u8string();
+				return std::string{ bytes.begin(), bytes.end() };
+			};
+			const auto right    = text(publication.RightPath.value_or(publication.LeftPath.value_or(publication.Request.File.CurrentPath)));
+			const auto left     = publication.LeftPath ? text(*publication.LeftPath) : right;
+			const auto headPath = text(publication.Request.File.CurrentPath);
+			// The merge base names the file as GitHub's whole diff does.
+			const auto whole    = std::ranges::find(snapshot.Files, headPath, &application::github_file_record::Path);
+			const auto basePath = whole != snapshot.Files.end() && whole->PreviousPath ? *whole->PreviousPath : headPath;
+			return application::filtered_comment_lines_request{
+				.WorkbenchAuthority = publication.Request.WorkbenchAuthority,
+				.Head               = *head,
+				.MergeBase          = *mergeBase,
+				.Key                = publication.Key,
+				.LeftPath           = left,
+				.RightPath          = right,
+				.HeadPath           = headPath,
+				.BasePath           = basePath,
+			};
+		}
+
+		/// \brief RFC-BPR-0089 M4. The facts the core places a comment on the
+		/// filtered diff on screen from: the accepted chain and, once read, the
+		/// lines. A read that failed leaves every correspondence absent.
+		[[nodiscard]] auto filtered_comment_source() const -> std::optional<core::filtered_comment_source>
+		{
+			const auto  request = filtered_comment_lines_request();
+			const auto* graph   = CommitFilter.graph();
+			if (!request || graph == nullptr) {
+				return std::nullopt;
+			}
+			auto source = core::filtered_comment_source{
+				.Head      = request->Head,
+				.MergeBase = request->MergeBase,
+				.Diff      = *request->Key.Filter,
+				.Chain     = graph->Chain,
+				.Fork      = graph->Fork,
+				.Lines     = std::nullopt,
+			};
+			if (FilteredCommentLines && FilteredCommentLines->Request == *request) {
+				source.Lines = FilteredCommentLines->Status == application::filtered_comment_lines_status::resolved ? FilteredCommentLines->Lines
+																													: core::filtered_comment_lines{ };
+			}
+			return source;
+		}
+
+		/// \brief RFC-BPR-0089 M4. Asks once per filtered diff for the lines a
+		/// placement needs; a diff whose sides are GitHub's own needs none. A
+		/// refusal is an answer: nothing can be placed off GitHub's diff.
+		void request_filtered_comment_lines()
+		{
+			if (Closing || EpochHost == nullptr) {
+				return;
+			}
+			const auto source  = filtered_comment_source();
+			auto       request = filtered_comment_lines_request();
+			if (!source || !request || !core::filtered_comment_needs_lines(*source) || FilteredCommentLinesAsked == request) {
+				return;
+			}
+			FilteredCommentLinesAsked = request;
+			FilteredCommentLines.reset();
+			if (!EpochHost->resolve_filtered_comment_lines(*request, [this](const application::filtered_comment_lines_observation& aObservation) {
+					if (Closing || FilteredCommentLinesAsked != std::optional{ aObservation.Request }) {
+						return;
+					}
+					FilteredCommentLines = aObservation;
+					present_filtered_comment();
+				})) {
+				FilteredCommentLines = application::filtered_comment_lines_observation{ .Request = *request, .Status = application::filtered_comment_lines_status::unauthorized, .Lines = { } };
+			}
+		}
+
+		/// \brief RFC-BPR-0089 M4 (owner decision Q1). Tells the window where a
+		/// comment on the selected line of the filtered diff on screen goes, so
+		/// the editor says so before Publish.
+		void present_filtered_comment()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!selected_diff_filtered()) {
+				Window->present_filtered_comment(false, std::nullopt);
+				return;
+			}
+			auto placement = std::optional<qt::filtered_comment_presentation>{ };
+			if (SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine.Comparison == core::comparison_digest(SelectedDiffPublication->Key)) {
+				if (const auto source = filtered_comment_source()) {
+					const auto& line = SelectedSemanticSelection->PreferredLine;
+					const auto  hex  = core::canonical_hex(source->Diff.Right);
+					placement        = qt::filtered_comment_presentation{
+						.Selection = line,
+						.Target    = core::place_filtered_comment(*source, line.Side, line.Line, std::nullopt),
+						.Commit    = QString::fromUtf8(hex.view().substr(0U, 7U)),
+					};
+				}
+			}
+			Window->present_filtered_comment(true, std::move(placement));
+		}
+
+		/// \brief RFC-BPR-0089 M4. On a commit-filtered diff, each of its
+		/// file's line threads is marked where the core places it on that diff,
+		/// and drawn current there; every other line thread of the file stays in
+		/// the conversation drawer, its anchor on no side of this diff.
+		void place_filtered_threads(application::github_pull_request_projection& aProjection) const
+		{
+			if (!selected_diff_filtered() || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto mergeBase = filtered_merge_base();
+			if (!mergeBase) {
+				return;
+			}
+			const auto& endpoints = *SelectedDiffPublication->Key.Filter;
+			const auto& file      = SelectedDiffPublication->Request.File.File;
+			auto        placed    = std::map<std::string, std::optional<std::uint32_t>>{ };
+			for (const auto& thread : WindowRead->accepted_snapshot()->ReviewThreads) {
+				if (thread.Subject != application::github_review_thread_subject::line || core::file_identity_of(thread.Path) != file
+					|| thread.DiffSide == application::github_diff_side::uninitialized) {
+					continue;
+				}
+				const auto root   = std::ranges::find_if(thread.Comments, [](const application::github_review_comment_record& aComment) { return !aComment.ReplyTo.has_value(); });
+				const auto anchor = core::filtered_thread_anchor{
+					.Side           = thread.DiffSide == application::github_diff_side::left ? core::diff_side::left : core::diff_side::right,
+					.Line           = thread.Line,
+					.OriginalLine   = thread.OriginalLine,
+					.Commit         = root != thread.Comments.end() ? core::parse_git_commit_oid(root->Observation.Commit) : std::nullopt,
+					.OriginalCommit = root != thread.Comments.end() ? core::parse_git_commit_oid(root->Observation.OriginalCommit) : std::nullopt,
+				};
+				const auto line = core::filtered_thread_line(anchor, endpoints, *mergeBase);
+				placed.emplace("review-thread:" + std::string{ thread.Thread.value() }, line);
+				for (const auto& comment : thread.Comments) {
+					placed.emplace("review-comment:" + std::string{ comment.Comment.value() }, line);
+				}
+			}
+			for (auto& node : aProjection.Conversations) {
+				const auto found = placed.find(node.Id);
+				if (found == placed.end()) {
+					continue;
+				}
+				if (!found->second) {
+					node.AnchorAvailability = application::github_conversation_anchor_availability::selected_comparison_mismatch;
+					continue;
+				}
+				const auto line = *found->second + 1U;
+				if (node.Line != std::optional{ line }) {
+					node.StartLine.reset();
+				}
+				node.Line               = line;
+				node.AnchorAvailability = application::github_conversation_anchor_availability::current;
+				node.Outdated           = false;
+			}
 		}
 
 		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed".
@@ -15498,6 +15798,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				CommitFilter.clear();
 				CommitFilterWanted = false;
 				CommitFilterReview.reset();
+				CommitFilterDestination.reset();
 				publish_commit_filter();
 			}
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
@@ -18351,6 +18652,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AutoSeenPresentedRequest.reset();
 			ReviewSourceMaterial.reset();
 			present_split_strip();
+			present_filtered_comment();
 			// [[BPR-1387]]. Clearing a displayed source removes its permalink
 			// placement. Initial PR setup has no source and already published
 			// the host's conversations, so it owes no second full publication.
@@ -18521,11 +18823,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SelectedDiffRequest = request;
 			}
 			SelectedDiffPublication = aPublication;
-			// RFC-BPR-0089 M1. A thread's line is GitHub's, on the head and the
-			// base; a commit-filtered diff's sides are other commits, so its
-			// threads stay in the conversation drawer, unmarked (M4 marks them).
-			Window->set_thread_marks_suspended(aPublication.Key.Filter.has_value());
+			// RFC-BPR-0089 M4. A commit-filtered diff's threads are marked where
+			// the core places them on it (`place_filtered_threads`).
+			Window->set_thread_marks_suspended(false);
 			present_split_strip();
+			request_filtered_comment_lines();
+			present_filtered_comment();
 			request_diff(
 				aPublication.Key,
 				aPublication.Request.Diff.Comparison,

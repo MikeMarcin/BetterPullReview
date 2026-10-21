@@ -363,6 +363,42 @@ namespace {
 		expect(!(*store)->admit(legacy), "the side-less legacy table refuses a base-side anchor");
 	}
 
+	// RFC-BPR-0089 M4. A commit-filtered diff's comment placed off its own
+	// line keeps its remote line and commit across a restart: its record is
+	// written as version 3, while every other record keeps its bytes. The
+	// legacy table, which has no column for it, refuses it.
+	void test_a_placed_publication_keeps_its_remote_line()
+	{
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "logical journal opens");
+		const auto version = [&directory](const std::string& aKey) {
+			return query_text(database_path(directory), "SELECT hex(substr(record,1,8)) FROM logical_publication WHERE publication_key='" + aKey + "'");
+		};
+		auto placed                       = publication();
+		placed.Key                        = std::string(64U, '7');
+		placed.LegacyKey                  = std::string(64U, '8');
+		placed.Native->IdempotencyKey     = application::review_publication_child_key(placed.Key, core::review_publication_representation::native_line);
+		placed.Native->Anchor.RemoteLine  = 41U;
+		auto earlier                      = placed;
+		earlier.Key                       = std::string(64U, '9');
+		earlier.LegacyKey                 = std::string(64U, 'a');
+		earlier.Native->IdempotencyKey    = application::review_publication_child_key(earlier.Key, core::review_publication_representation::native_line);
+		earlier.Native->Anchor.Commit     = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 0x25U } };
+		earlier.Native->Anchor.RemoteLine = earlier.Native->Anchor.Semantic.Line;
+		expect((*store)->advance_publication(std::nullopt, placed).has_value() && (*store)->advance_publication(std::nullopt, earlier).has_value(),
+			   "placed parents are admitted");
+		expect(version(placed.Key) == "0300000000000000" && version(earlier.Key) == "0300000000000000", "a placed record is written as version 3");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(placed.Key).value() == placed && (*store)->load_publication(earlier.Key).value() == earlier,
+			   "after a restart each child keeps its remote line and commit");
+		auto legacy              = record();
+		legacy.IdempotencyKey    = std::string(64U, 'b');
+		legacy.Anchor.RemoteLine = 3U;
+		expect(!(*store)->admit(legacy), "the legacy table refuses a remote line");
+	}
+
 	void test_evidence_admission_and_legacy_conflicts()
 	{
 		using state = core::review_publication_state;
@@ -720,6 +756,7 @@ auto main() -> int
 try {
 	test_logical_publication_transitions_and_restart();
 	test_a_base_side_publication_keeps_its_side();
+	test_a_placed_publication_keeps_its_remote_line();
 	test_evidence_admission_and_legacy_conflicts();
 	test_version_three_keeps_both_journals();
 	test_logical_capacity_and_stale_compare_exchange();

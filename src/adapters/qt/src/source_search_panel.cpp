@@ -273,7 +273,7 @@ namespace bpr::qt {
 			case source_search_name_role:   return name(oldPath) == name(newPath) ? name(newPath) : name(oldPath) + QStringLiteral(" → ") + name(newPath);
 			case source_search_folder_role: return folder(oldPath) == folder(newPath) ? folder(newPath) : folder(oldPath) + QStringLiteral(" → ") + folder(newPath);
 			case source_search_count_role:  return static_cast<qulonglong>(aGroup.Rows.size());
-			case source_search_change_role: return change;
+			case source_search_change_role: return QVariant{ change };
 			case Qt::ToolTipRole:
 			case Qt::DisplayRole:
 			case Qt::AccessibleTextRole:    {
@@ -791,8 +791,14 @@ namespace bpr::qt {
 		const auto  filter  = side_filter();
 		const auto  all     = filter == core::source_side_filter{ };
 		const auto  side    = filter.Left ? tr("left") : tr("right");
+		// [[BPR-1688]]. A commit or file filter narrows what is searched.
+		const auto filtered = p.Scope ? p.Scope->FilteredFiles : std::nullopt;
 		switch (p.Status) {
-		case core::source_search_status::idle:                words = tr("Type to search every changed file on both sides."); break;
+		case core::source_search_status::idle:
+			words = !filtered     ? tr("Type to search every changed file on both sides.")
+				: *filtered == 0U ? tr("The filters leave no file to search. Clear a filter to search more.")
+								  : plural(*filtered, tr("Type to search the filtered set's %1 file on both sides."), tr("Type to search the filtered set's %1 files on both sides."));
+			break;
 		case core::source_search_status::searching:           words = matches ? tr("Searching… %1 so far").arg(counted) : tr("Searching…"); break;
 		case core::source_search_status::invalid_pattern:     words = tr("Invalid regular expression"); break;
 		case core::source_search_status::unsupported_pattern: words = tr("Unsupported regular expression"); break;
@@ -814,6 +820,9 @@ namespace bpr::qt {
 		}
 		if (p.Wrapped) {
 			words += tr("; wrapped");
+		}
+		if (p.Scope && p.Scope->FilteredFiles && p.Status != core::source_search_status::idle) {
+			words += tr("; searched the filtered set");
 		}
 		Coverage->setText(words);
 		Hint->setText(hint);

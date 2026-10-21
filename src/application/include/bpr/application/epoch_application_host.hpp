@@ -201,6 +201,18 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_generated_attributes(
 			generated_attributes_request    aRequest,
 			generated_attributes_completion aCompletion) -> bool;
+		/// \brief RFC-BPR-0089 M4. Reads a commit-filtered diff's file at its
+		/// commits, the head and the merge base, and answers which lines each
+		/// pair leaves unchanged, for comments written on that diff.
+		/// \details Never fetches trees: the diff's commits must be ones this
+		/// review's touches job authorized, and the merge base one of them or
+		/// the accepted comparison's left commit. A sparse review's missing blob
+		/// is read exactly through its own lease and checked against its OID.
+		/// Runs on the review's cache actor like `resolve_changed_paths`, with
+		/// the same admission and completion.
+		[[nodiscard]] auto resolve_filtered_comment_lines(
+			filtered_comment_lines_request    aRequest,
+			filtered_comment_lines_completion aCompletion) -> bool;
 		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
 		/// the merge base's version of its file, which GitHub numbers `LEFT`
 		/// lines in.
@@ -212,7 +224,11 @@ namespace bpr::application {
 			github_base_numbering_request    aRequest,
 			github_base_numbering_completion aCompletion) -> bool;
 		/// \brief Mints one exact search scope beside the selected-file grant, including older pairs.
-		[[nodiscard]] auto bind_source_search(const workbench_pull_request_authority& aAuthority, const core::comparison_pair& aComparison, std::optional<core::document_tab_id> aTab = { }) -> std::optional<core::source_search_scope>;
+		/// \details RFC-BPR-0089 ([[BPR-1688]]). With `aFiltered`, Find in files
+		/// searches exactly those files, each at its filtered diff's commits,
+		/// which must be commits this review's touches job authorized.
+		[[nodiscard]] auto bind_source_search(const workbench_pull_request_authority& aAuthority, const core::comparison_pair& aComparison, std::optional<core::document_tab_id> aTab = { },
+											  std::optional<std::vector<core::source_search_filtered_file>> aFiltered = std::nullopt) -> std::optional<core::source_search_scope>;
 		[[nodiscard]] auto catalogue(const core::source_search_scope& aScope, std::stop_token aStop) -> source_corpus_observation override;
 		[[nodiscard]] auto read(const std::shared_ptr<const source_corpus>& aCorpus, std::size_t aEntry, core::diff_side aSide, std::stop_token aStop, source_corpus_read_needed aStillNeeded) -> source_corpus_material override;
 		void               demand_changed() override;

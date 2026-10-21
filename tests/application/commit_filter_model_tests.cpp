@@ -465,6 +465,26 @@ namespace {
 		expect(unread.hide_files_changed_by({ hex('2') }) == core::commit_filter_refusal::suspended, "the trees must be read first");
 	}
 
+	/// [[BPR-1688]]. A window restores its filters: a file filter as it was,
+	/// and a hidden commit the chain no longer has named as after a force push
+	/// while the rest of the commit filter applies.
+	void test_restored_filters()
+	{
+		auto model = ready();
+		expect(model.restore(core::commit_filter_state{ .Hidden = { { .Oid = oid('3'), .Headline = "Follow-ups" }, { .Oid = oid('9'), .Headline = "Rewritten away" } } }),
+			   "a kept commit filter is restored");
+		expect(!model.restore_files(core::file_filter_state{ .Hidden = { "src/new.cpp", "src/a.cpp" } }), "an unsorted kept file filter is refused");
+		expect(model.restore_files(core::file_filter_state{ .Hidden = { "src/a.cpp" } }) && model.file_filter().Hidden == std::vector<std::string>{ "src/a.cpp" },
+			   "a kept file filter is restored");
+		const auto projection = model.projection();
+		expect(projection.Gone.size() == 1U && projection.Gone[0].ShortCommit == "9999999" && projection.Gone[0].Headline == "Rewritten away",
+			   "a kept hidden commit the chain no longer has is named as after a force push");
+		expect(projection.Status == core::commit_filter_status::active && projection.FileFilterPaths == 1U, "the rest of the commit filter and the file filter apply");
+		const auto set = model.files();
+		expect(set && set->CommitFiltered && std::ranges::none_of(paths(*set), [](const std::string& aPath) { return aPath == "src/a.cpp"; }),
+			   "the restored filters decide the files together");
+	}
+
 	void test_bulk_label()
 	{
 		auto model = application::commit_filter_model{ };
@@ -585,6 +605,7 @@ auto main() -> int
 	test_head_attributes_are_read();
 	test_hide_files_these_commits_changed();
 	test_bulk_label();
+	test_restored_filters();
 	test_split_segments();
 	test_rematch_after_force_push();
 	std::cout << "commit-filter-model-tests:pass\n";

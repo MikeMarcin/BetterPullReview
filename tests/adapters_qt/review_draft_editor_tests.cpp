@@ -1269,6 +1269,8 @@ namespace {
 					 targetLabel,
 					 replyTarget,
 					 mutationStatus,
+					 targetNotice,
+					 publishBlocked,
 					 publicationStatus,
 					 workshopOriginal,
 					 workshopProposal,
@@ -1296,6 +1298,10 @@ namespace {
 		static_assert(std::is_same_v<decltype(revisioned), const qt::revisioned_draft_editor_state>);
 		static_assert(std::is_same_v<decltype(retryPublication), const bool>);
 		static_assert(std::is_same_v<decltype(presentationObserver), const std::function<void()>>);
+		// RFC-BPR-0089 M4. Where a filtered diff's comment goes, in words, and
+		// whether that is why Publish is unavailable: presentation.
+		static_assert(std::is_same_v<decltype(targetNotice), QLabel* const>);
+		static_assert(std::is_same_v<decltype(publishBlocked), const bool>);
 		// [[BPR-1329]]. What the last Publish came to, in words: presentation.
 		static_assert(std::is_same_v<decltype(publicationStatus), const QString>);
 

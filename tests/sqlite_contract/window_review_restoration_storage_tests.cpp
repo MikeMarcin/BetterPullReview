@@ -201,7 +201,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "legacy fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			auto stop            = std::stop_source{ };
@@ -230,7 +230,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(filled(2, 2), 1, { }).has_value(), "refused migration fixture starts");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
+			execute(raw, "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1");
 			execute(raw, corruption);
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
@@ -270,7 +270,7 @@ namespace {
 		auto       store     = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		auto       stop      = std::stop_source{ };
 		interruption::Stop   = &stop;
-		interruption::Prefix = "PRAGMA user_version=6";
+		interruption::Prefix = "PRAGMA user_version=7";
 		const auto first     = store->load(stop.get_token());
 		expect(stop.stop_requested() && !first && first.error().Failure == window_review_store_failure::cancelled, "initialization cancels after schema stamp");
 		interruption::Stop = nullptr;
@@ -320,7 +320,7 @@ namespace {
 			expect(store->save(saved, 1, { }) == saved, "one retained row persists");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, legacy ? "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=2");
+			execute(raw, legacy ? "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE restoration_records DROP COLUMN position; PRAGMA user_version=1" : "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=2");
 			sqlite3_close(raw);
 			auto expected = saved;
 			if (legacy) {
@@ -349,7 +349,7 @@ namespace {
 		expect(store->save(saved, 1, { }) == saved, "three windows over two destinations persist");
 		store.reset();
 		auto* raw = raw_open(scratch.database());
-		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=2");
+		execute(raw, "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=2");
 		sqlite3_close(raw);
 		store               = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		const auto migrated = store->load({ });
@@ -379,9 +379,9 @@ namespace {
 									 refusal{ "PRAGMA ignore_check_constraints=ON; WITH RECURSIVE ids(n) AS (VALUES(2) UNION ALL SELECT n+1 FROM ids WHERE n<10) INSERT INTO recent_reviews SELECT n,0,'github.com','octo','repo'||n,'17','',0,NULL,'0',NULL FROM ids", window_review_store_failure::corrupt },
 									 refusal{ "PRAGMA ignore_check_constraints=ON; UPDATE recent_reviews SET draft=3 WHERE ordinal=0", window_review_store_failure::corrupt },
 									 refusal{ "DROP TABLE recent_reviews", window_review_store_failure::schema_mismatch },
-									 refusal{ "PRAGMA user_version=7", window_review_store_failure::schema_mismatch },
+									 refusal{ "PRAGMA user_version=8", window_review_store_failure::schema_mismatch },
 									 // A future stamp over a shape this build could otherwise migrate.
-									 refusal{ "DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
+									 refusal{ "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; DROP TABLE recent_reviews; ALTER TABLE restoration_records DROP COLUMN account; PRAGMA user_version=5", window_review_store_failure::schema_mismatch },
 									 // [[BPR-1131]]. A version 3 stamp over the version 4 shape.
 									 refusal{ "PRAGMA user_version=3", window_review_store_failure::schema_mismatch } }) {
 			const auto scratch = scratch_directory{ };
@@ -533,7 +533,7 @@ namespace {
 			expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "legacy account fixture saved");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN draft; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=4");
+			execute(raw, "DROP TABLE review_filters; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN draft; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=4");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			std::stop_source stop;
@@ -548,7 +548,7 @@ namespace {
 			interruption::Stop = nullptr;
 			raw                = raw_open(scratch.database());
 			if (std::string_view{ prefix } == "COMMIT") {
-				expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 6, "commit may finish before cancellation is observed");
+				expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 7, "commit may finish before cancellation is observed");
 			} else {
 				expect(snapshot(raw) == before, "pre-commit cancellation preserves schema and records");
 			}
@@ -574,20 +574,21 @@ namespace {
 		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "version 3 fixture persists");
 		store.reset();
 		auto* raw = raw_open(scratch.database());
-		execute(raw, "DROP TABLE review_tabs; DROP TABLE review_tab_sets; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN draft; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=3");
+		execute(raw, "DROP TABLE review_filters; DROP TABLE review_tabs; DROP TABLE review_tab_sets; ALTER TABLE restoration_records DROP COLUMN account; ALTER TABLE recent_reviews DROP COLUMN draft; ALTER TABLE recent_reviews DROP COLUMN account; PRAGMA user_version=3");
 		sqlite3_close(raw);
 		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 		expect(store->load({ }) == saved, "a version 3 file migrates with its records and list intact");
 		store.reset();
 		raw = raw_open(scratch.database());
-		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 6
-				   && adapters::sqlite::detail::scalar_integer(raw, "SELECT count(*) FROM review_tabs") == 0,
-			   "the migrated file is version 6 with no tabs");
+		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 7
+				   && adapters::sqlite::detail::scalar_integer(raw, "SELECT count(*) FROM review_tabs") == 0
+				   && adapters::sqlite::detail::scalar_integer(raw, "SELECT count(*) FROM review_filters") == 0,
+			   "the migrated file is version 7 with no tabs and no filters");
 		sqlite3_close(raw);
 	}
 	void test_recent_draft_migration_and_rollback()
 	{
-		for (const auto prefix : { "CREATE TEMP TABLE draft_recent_migration", "DROP TABLE recent_reviews", "INSERT INTO recent_reviews", "PRAGMA user_version=6", "COMMIT" }) {
+		for (const auto prefix : { "CREATE TEMP TABLE draft_recent_migration", "DROP TABLE recent_reviews", "INSERT INTO recent_reviews", "PRAGMA user_version=6", "CREATE TABLE review_filters", "PRAGMA user_version=7", "COMMIT" }) {
 			const auto scratch    = scratch_directory{ };
 			auto       store      = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
 			auto       saved      = listed();
@@ -599,7 +600,7 @@ namespace {
 			expect(store->load({ }) == saved, "recent draft metadata survives reopening");
 			store.reset();
 			auto* raw = raw_open(scratch.database());
-			execute(raw, "ALTER TABLE recent_reviews DROP COLUMN draft; PRAGMA user_version=5");
+			execute(raw, "DROP TABLE review_filters; ALTER TABLE recent_reviews DROP COLUMN draft; PRAGMA user_version=5");
 			const auto before = snapshot(raw);
 			sqlite3_close(raw);
 			saved.Recent[0].Draft.reset();
@@ -624,6 +625,70 @@ namespace {
 		}
 	}
 
+	/// RFC-BPR-0089 ([[BPR-1688]]). Filters of a record and of listed entries.
+	[[nodiscard]] auto filtered() -> window_review_snapshot
+	{
+		auto result  = listed();
+		auto filters = core::window_review_filters{ };
+		filters.Commits.Hidden.push_back({ .Oid = *core::parse_git_commit_oid(std::string(40U, '3')), .Headline = "Follow-ups", .Author = "octo", .Changes = std::nullopt });
+		filters.Commits.Hidden.push_back({ .Oid = *core::parse_git_commit_oid(std::string(64U, '4')), .Headline = { }, .Author = { }, .Changes = std::nullopt });
+		filters.Files.Hidden      = { "gen/a.txt", "src/\xc3\xa9.cpp" };
+		result.Records[0].Filters = filters;
+		result.Recent[0].Filters  = filters;
+		result.Recent[1].Filters  = core::window_review_filters{ };
+		expect(core::valid(filters), "filters fixture valid");
+		return result;
+	}
+	// [[BPR-1688]]. Hidden commits with their headline and author and the
+	// filtered paths survive a restart, on a record and on the list; a save
+	// rewrites them and invalid filters refuse without loss.
+	void test_filters_round_trip()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		const auto saved   = filtered();
+		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "filters save");
+		store.reset();
+		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }) == saved, "commit and file filters round trip on a record and on listed entries");
+		auto trimmed = saved;
+		++trimmed.Revision;
+		trimmed.Records[0].Filters.reset();
+		trimmed.Recent[0].Filters->Files.Hidden.pop_back();
+		expect(store->save(trimmed, 2, { }) == trimmed && store->load({ }) == trimmed, "a save rewrites every window's filters");
+		auto invalid = trimmed;
+		++invalid.Revision;
+		invalid.Recent[0].Filters->Commits.Hidden[0].Changes = std::vector<core::filter_path_change>{ };
+		expect(!store->save(invalid, 3, { }) && store->load({ }) == trimmed, "filters that keep what a commit changes refuse without loss");
+		store.reset();
+		auto* raw = raw_open(scratch.database());
+		execute(raw, "UPDATE review_filters SET filters=x'02'");
+		sqlite3_close(raw);
+		store          = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		const auto bad = store->load({ });
+		expect(!bad && bad.error().Failure == window_review_store_failure::corrupt, "a filters payload of another version is corrupt");
+	}
+	// [[BPR-1688]]. A version 6 file gains the filters table, keeping the rest.
+	void test_filters_migration()
+	{
+		const auto scratch = scratch_directory{ };
+		auto       store   = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		const auto saved   = tabbed();
+		expect(store->load({ }).has_value() && store->save(saved, 1, { }) == saved, "version 6 fixture persists");
+		store.reset();
+		auto* raw = raw_open(scratch.database());
+		execute(raw, "DROP TABLE review_filters; PRAGMA user_version=6");
+		sqlite3_close(raw);
+		store = adapters::sqlite::make_window_review_restoration_store(scratch.Root);
+		expect(store->load({ }) == saved, "a version 6 file migrates with its records, list and tabs intact");
+		auto next     = filtered();
+		next.Revision = 3;
+		expect(store->save(next, 2, { }) == next && store->load({ }) == next, "the migrated file keeps filters");
+		store.reset();
+		raw = raw_open(scratch.database());
+		expect(adapters::sqlite::detail::scalar_integer(raw, "PRAGMA user_version") == 7, "the migrated file is version 7");
+		sqlite3_close(raw);
+	}
 }
 int main()
 try {
@@ -643,6 +708,8 @@ try {
 	test_tabs_migration();
 	test_account_migration();
 	test_recent_draft_migration_and_rollback();
+	test_filters_round_trip();
+	test_filters_migration();
 	std::cout << "window-review-restoration-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

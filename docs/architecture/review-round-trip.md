@@ -1131,3 +1131,64 @@ height without rebuilding the card or model, moving focus, or changing the locke
 publication state.
 
 Whole-review reconciliation settles retained comments from the complete durable account/PR scope, including earlier heads absent from the editable projection. Core requires the original held key, draft identity and revision, head, path, side, range and exact body; the host also checks the proposal actor and target against the store scope. Restore discovers held review keys before filtering the current head, so a restart can retry a failed local settlement through the existing read-only publication lookup. No new publication grant is created.
+
+## Comments from a commit-filtered diff (RFC-BPR-0089 M4)
+
+A commit-filtered diff's sides are two commits of the pull request's
+first-parent chain, not the merge base and the head GitHub's own diff has.
+`core::place_filtered_comment` decides where GitHub is told to put a new
+comment on such a diff (owner decision Q1), from host-supplied facts: the
+accepted head, the merge base GitHub names, the accepted first-parent chain
+and four line correspondences the epoch host computes
+(`resolve_filtered_comment_lines`): the diff's right document against the
+head's, the merge base's against the right document, the merge base's against the
+head's, and the diff's left document against the merge base's. Each is the review's own diff engine with
+exact whitespace, reduced to the runs of lines it leaves unchanged.
+
+- A right-side line unchanged at the head is published at the head, at the
+  head's line, as any other comment is, when that line lies within three
+  lines of a change of the merge base to the head: GitHub resolves a line at
+  the head only there (BPR-Test #117 refused head line 12 of a moved line with
+  422). Otherwise it is refused before Publish.
+- Otherwise it is published on the diff's right commit at its own line, when
+  that line lies within three lines of a change of the merge base to that
+  commit: GitHub resolves a commit's line only there and refuses others with
+  422 (measured on BPR-Test #116). GitHub keeps such a comment on that commit,
+  outdated, from the moment it is written, which the editor says before
+  Publish.
+- A left-side line is GitHub's `LEFT` line at the head when the merge base
+  has it unchanged and it lies inside a hunk of the merge base to the head on
+  that side; otherwise it is refused. RFC-BPR-0022's file comment with
+  a permalink is not offered for it: its codec names the head, and its
+  fallback is admitted only under the recorded off-hunk contract.
+- A range is published only where no line moves (a right side that is the
+  head, or a left side that is the merge base). A reply keeps RFC-BPR-0089
+  M1's rule: the diff's right side must be the head.
+
+The mutation host repeats the decision from the source observation's facts,
+never from Qt, before any effect. A side that is not a commit of the accepted
+chain, lines not yet read, and every refusal are `unsupported` before a write.
+A placement that moves the line binds `review_mutation_anchor_binding`'s
+`RemoteLine` (and, for an earlier commit, its `Commit`); `valid` and the
+coordinator admit a commit other than the head only for such a right-side
+placement, and the provider only from a filtered source whose right commit is
+that commit, natively, with no range, no reply and no file-comment fallback
+(`legacy_line` placement). The recovery journal writes record version 3 for a
+child with a remote line; every other record keeps its bytes, and the
+side-less legacy table refuses one.
+
+GitHub's answer for an earlier commit reports no `line`. Such a comment is
+ours by `original_commit_id` and `original_line`; anyone's outdated comment in
+a reconciliation list is a well-formed comment that is not ours, as
+`parse_review_comment_collection` already read it (before, one outdated
+comment refused the whole list). A recorded GraphQL comment may name `commit`
+and `originalCommit` (`{oid}`), as the live query asks.
+
+Threads on a filtered diff are marked by `core::filtered_thread_line`: a
+right-side thread whose `commit_id` or `original_commit_id` is the diff's
+right commit, at its current or original line; a `LEFT` thread only when the
+diff's left commit is the merge base. Every other line thread of the file
+stays in the conversation drawer (`selected_comparison_mismatch`). A refresh
+that keeps the review and its head keeps the chain's filtered-read
+authorization under the new snapshot, so the reread after each publication
+reads the same filtered diffs.

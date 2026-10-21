@@ -100,6 +100,10 @@ namespace bpr::application {
 		/// \brief Restores a persisted filter. Refused when malformed.
 		[[nodiscard]] auto restore(core::commit_filter_state aState) -> bool;
 
+		/// \brief RFC-BPR-0089 ([[BPR-1688]]). Restores a persisted file
+		/// filter. Refused when malformed.
+		[[nodiscard]] auto restore_files(core::file_filter_state aState) -> bool;
+
 		/// \brief The chain's tree diffs to ask for, oldest first, when the
 		/// graph is known and they have not been asked for under this head.
 		[[nodiscard]] auto touches_steps() const -> std::optional<std::vector<commit_filter_touch_step>>;
@@ -175,6 +179,10 @@ namespace bpr::application {
 			-> std::optional<core::generated_file_mark>;
 
 		[[nodiscard]] auto state() const noexcept -> const core::commit_filter_state&;
+
+		/// \brief RFC-BPR-0089 M4. The accepted commit list's first-parent
+		/// chain and roles, or none while the pull request offers no filter.
+		[[nodiscard]] auto graph() const noexcept -> const core::filter_commit_graph*;
 
 		/// \brief Whether the commit filter changes the file set now: it
 		/// applies to the comparison and the trees are read.

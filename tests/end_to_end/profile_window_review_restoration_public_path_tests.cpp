@@ -623,8 +623,10 @@ auto main(int aArgc, char** aArgv) -> int
 			auto*      files    = first->files_tree();
 			const auto index    = files->tree_model()->index_for_file(*original.File);
 			auto       menu     = std::unique_ptr<QMenu>{ files->make_file_menu(index, first) };
-			expect(menu && menu->actions().size() == 1, "file menu offers Open in New Tab");
-			menu->actions().front()->trigger();
+			// RFC-BPR-0089 M2 adds the generated-file actions after it.
+			auto* const openInNewTab = menu ? menu->findChild<QAction*>(QStringLiteral("filesTreeOpenInNewTab")) : nullptr;
+			expect(openInNewTab != nullptr && menu->actions().front() == openInNewTab && openInNewTab->isEnabled(), "file menu offers Open in New Tab first");
+			openInNewTab->trigger();
 			wait_for([&] { return strip->tabs().size() == 2U; }, "Open in New Tab adds one background view");
 			expect(strip->tabs()[0].Active && reading(*first) == original, "background open preserves active reading");
 			first->next_tab_action()->trigger();

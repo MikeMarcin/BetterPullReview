@@ -454,10 +454,11 @@ namespace bpr::application {
 			if (comparison.Right.Commit != Coordinator.designated().ExpectedHead) {
 				return std::unexpected(review_mutation_failure::stale_head);
 			}
-			// RFC-BPR-0089 M1: comments stay head-only. A commit-filtered diff
-			// is commented on only when its right side is the head itself, and
-			// never as a new comment on its left, which is not GitHub's base.
-			if (key.Filter.has_value() && (key.Filter->Right != Coordinator.designated().ExpectedHead || newOnBase)) {
+			// RFC-BPR-0089 M4. A reply to a thread on a commit-filtered diff
+			// is held to M1's rule: the diff's right side is the head itself. A
+			// new comment is placed by the core below.
+			const auto filteredRoot = key.Filter.has_value() && !aRequest.Proposal.ReplyToThread.has_value();
+			if (key.Filter.has_value() && !filteredRoot && key.Filter->Right != Coordinator.designated().ExpectedHead) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			if (!core::valid(key)
@@ -514,10 +515,28 @@ namespace bpr::application {
 			if (!source->Material.RightLines || !lines || selected.PreferredLine.Line >= *lines) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
+			// RFC-BPR-0089 M4 (owner decision Q1). The core places a new
+			// comment on a commit-filtered diff: at the head where its line is
+			// unchanged there, otherwise on the diff's own commit, which must be
+			// a commit of the accepted pull request's first-parent chain. A
+			// refusal is decided here, before anything is written.
+			auto placement = std::optional<core::filtered_comment_target>{ };
+			if (filteredRoot) {
+				const auto& filtered = source->Filtered;
+				if (!filtered || filtered->Diff != *key.Filter || filtered->Head != Coordinator.designated().ExpectedHead
+					|| (newOnBase && (!publication.LeftPath.has_value() || !key.LeftBlob.has_value()))) {
+					return std::unexpected(review_mutation_failure::unsupported);
+				}
+				placement = core::place_filtered_comment(*filtered, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine);
+				if (placement->Placement == core::filtered_comment_placement::refused) {
+					return std::unexpected(review_mutation_failure::unsupported);
+				}
+			}
 			// [[BPR-1212]]. GitHub counts a `LEFT` line in the merge base's
 			// version of the file. Without the evidence that the left document
-			// is that version, a base line could land on another line.
-			if (newOnBase && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
+			// is that version, a base line could land on another line. A
+			// filtered diff's base line was placed in the merge base above.
+			if (newOnBase && !placement && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			auto path = portable_path_text(*publication.RightPath);
@@ -529,6 +548,12 @@ namespace bpr::application {
 				.Path     = std::move(*path),
 				.Commit   = comparison.Right.Commit,
 			};
+			// A placement that moves nothing is published exactly as today.
+			const auto remapped = placement && (placement->Commit != comparison.Right.Commit || placement->Line != selected.PreferredLine.Line);
+			if (remapped) {
+				anchor.Commit     = placement->Commit;
+				anchor.RemoteLine = placement->Line;
+			}
 			if (!valid(anchor)) {
 				return std::unexpected(review_mutation_failure::undesignated_target);
 			}
@@ -548,7 +573,9 @@ namespace bpr::application {
 				.Scope  = scope,
 				// The line count is the anchor's side's: a base line is counted
 				// in the base document.
-				.Source = review_mutation_source_binding{ .Endpoint = publication.RightEndpoint, .Comparison = key, .LineCount = newOnBase ? *lines : *source->Material.RightLines, .Placement = source->Placement },
+				// A moved line has no file-comment fallback: its permalink would
+				// name the head with the filtered diff's line.
+				.Source = review_mutation_source_binding{ .Endpoint = publication.RightEndpoint, .Comparison = key, .LineCount = newOnBase ? *lines : *source->Material.RightLines, .Placement = remapped ? core::review_placement::legacy_line : source->Placement },
 			};
 		}
 

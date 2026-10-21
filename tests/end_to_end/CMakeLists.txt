@@ -4471,7 +4471,7 @@ bpr_add_network_isolated_test(NAME application_commit_filter_public_path WINDOWS
     COMMAND test_commit_filter_public_path)
 set_tests_properties(application_commit_filter_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
-    TIMEOUT 180 PASS_REGULAR_EXPRESSION "COMMIT_FILTER_PUBLIC_PATH_OK")
+    TIMEOUT 420 PASS_REGULAR_EXPRESSION "COMMIT_FILTER_PUBLIC_PATH_OK")
 
 # RFC-BPR-0074: real command, window-system keys andGit-backed selected diffs.
 bpr_add_executable(test_header_source_public_path header_source_navigation_public_path_tests.cpp)

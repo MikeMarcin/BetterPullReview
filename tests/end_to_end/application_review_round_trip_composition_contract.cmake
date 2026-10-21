@@ -1,3 +1,23 @@
+# RFC-BPR-0089 M4 and [[BPR-1688]] reseal (2026-10-21) over last matching main
+# ab1698599, linear. Pinned-scope change: comments from commit-filtered diffs,
+# filtered Find in files and the window's kept filters, on this milestone's
+# own commit. Inside the manifest only github_application.cpp changed: the
+# window asks the epoch host for a filtered diff's line facts, hands the
+# core's placement (head line, or the diff's earlier commit after the
+# editor's warning, or a refusal before Publish) to the editor and to the
+# mutation host's source observation, places review threads on a filtered
+# diff with core::filtered_thread_line, refuses a placed line in a pending
+# review, composes the mutation host for the new workbench generation after a
+# filter gesture, binds Find in files to the filtered set, and keeps and
+# restores the window's commit and file filters through the restoration host.
+# The publication path is the existing one: the mutation host re-decides the
+# placement from host facts before any effect, and a commit outside the
+# accepted chain is refused before any write. No credential, grant or
+# provider selection change. The BUILD_TESTING commit-filter-comment-v1
+# fixture adds one host-label case, its enum and evidence fields
+# (github_application_fixture_access.hpp) and its descriptor and wire
+# (github_public_path_fixture.cpp), outside the manifest. Full and manifest
+# pins bind these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1702 note below
 # is renaming its [[BPR-PENDING-Q]] comment tag to [[BPR-1702]]; no code change.
 # [[BPR-1702]] reseal (2026-10-21) over last matching main 1694a7f37,
@@ -1847,7 +1867,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"4663c3d7b36a1c68b543c80759fc7a47a7fb18d13ff97d309217ddea26965ca2"
+		"711801d15243340c694aaccb3729a40db0facb4d4a6050d11e254d72ee32642e"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2067,7 +2087,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2d5b55cc914aa67898a07ef5bbfcead57e2c3b18a6b571e4a50fbbaed70095a0"
+        "5297f2c3deb1d6cc4aac946671a4e9394b49190a42aae21c17dee07529fd5e93"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

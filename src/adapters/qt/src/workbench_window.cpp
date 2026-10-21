@@ -8210,6 +8210,82 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::present_filtered_comment(const bool aFiltered, std::optional<filtered_comment_presentation> aPlacement)
+	{
+		FilteredComments  = aFiltered;
+		FilteredPlacement = aFiltered ? std::move(aPlacement) : std::nullopt;
+		present_filtered_notice();
+		update_comment_target();
+		present_inline_draft();
+	}
+
+	auto workbench_window::filtered_comment_notice() const -> std::pair<QString, bool>
+	{
+		using placement = core::filtered_comment_placement;
+		using refusal   = core::filtered_comment_refusal;
+		if (!FilteredComments || ComparisonSurface == nullptr) {
+			return { };
+		}
+		const auto selection = ComparisonSurface->selection();
+		if (!selection.has_value() || comment_reply_thread().has_value()) {
+			return { };
+		}
+		if (!FilteredPlacement || FilteredPlacement->Selection != selection->PreferredLine) {
+			return { tr("Working out where GitHub puts a comment on this line…"), true };
+		}
+		const auto& target = FilteredPlacement->Target;
+		const auto  line   = static_cast<qulonglong>(target.Line) + 1U;
+		switch (target.Placement) {
+		case placement::head:
+			if (target.Line == selection->PreferredLine.Line) {
+				return { };
+			}
+			return { target.Side == core::diff_side::left ? tr("Goes on base line %1, where GitHub counts this line in the merge base.").arg(line)
+														  : tr("Goes on the head at line %1, where this line is now.").arg(line),
+					 false };
+		case placement::earlier_commit:
+			return { tr("Goes on commit %1, where this line was written. A later commit changed it, so GitHub shows this comment as outdated: in the conversation, not in Files changed.")
+						 .arg(FilteredPlacement->Commit),
+					 false };
+		case placement::refused:
+			break;
+		}
+		switch (target.Refusal) {
+		case refusal::lines_pending:
+			return { tr("Working out where GitHub puts a comment on this line…"), true };
+		case refusal::range:
+			return { tr("A range can be commented on only where this diff's side is the pull request's own. Comment on one line."), true };
+		case refusal::not_on_commit:
+			return { tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so no comment can go there. Comment on it in the whole pull request instead.")
+						 .arg(FilteredPlacement->Commit),
+					 true };
+		case refusal::base_line_changed:
+			return { tr("This line changed after the merge base, where GitHub counts base lines. Comment on a right-side line instead."), true };
+		case refusal::outside_github_diff:
+			return { tr("This line is unchanged at the head, where GitHub shows no change near it, so no line comment can go there. Comment on a changed line instead."), true };
+		case refusal::outside_pull_request:
+			return { tr("This diff's commits are not the pull request's own, so nothing can be published on it."), true };
+		case refusal::lines_unavailable:
+		case refusal::none:
+			break;
+		}
+		return { tr("Where this line is at the head could not be read. Comment on it in the whole pull request instead."), true };
+	}
+
+	auto workbench_window::filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&
+	{
+		return FilteredPlacement;
+	}
+
+	void workbench_window::present_filtered_notice()
+	{
+		if (ReviewEditor == nullptr) {
+			return;
+		}
+		const auto [text, blocks] = filtered_comment_notice();
+		ReviewEditor->present_target_notice(text, blocks);
+	}
+
 	void workbench_window::set_thread_marks_suspended(const bool aSuspended)
 	{
 		if (ThreadMarksSuspended == aSuspended) {
@@ -9308,7 +9384,13 @@ namespace bpr::qt {
 		// [[BPR-1212]]. A new comment on a base line is GitHub's `side: LEFT`,
 		// counted in the merge base's version of the file. A reply goes to
 		// its thread, wherever it was drafted from.
-		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value()) {
+		// RFC-BPR-0089 M4. On a commit-filtered diff the host's core places
+		// the line; its refusal is the reason, its pending answer is not one.
+		if (const auto [notice, blocks] = filtered_comment_notice(); blocks && FilteredPlacement && FilteredPlacement->Target.Refusal != core::filtered_comment_refusal::lines_pending
+			&& selection && FilteredPlacement->Selection == selection->PreferredLine) {
+			return say(notice, tr("Cannot comment on this line here"));
+		}
+		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value() && !FilteredComments) {
 			return say(tr("GitHub counts base lines in the merge base's version of this file, and this comparison's base is not known to match it. Comment on a right-side line, or reply to an existing thread."),
 					   tr("This file's base is not GitHub's"));
 		}
@@ -10361,6 +10443,10 @@ namespace bpr::qt {
 		// [[BPR-1329]]. What the last Publish came to comes first: publishing,
 		// or why it did not happen. Otherwise, why Publish is unavailable.
 		auto notice = ReviewEditor->publication_status();
+		// RFC-BPR-0089 M4. Then where the comment goes, read before Publish.
+		if (notice.isEmpty()) {
+			notice = ReviewEditor->target_notice_text();
+		}
 		if (notice.isEmpty() && !ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
 			notice = ReviewEditor->publish_action()->toolTip();
 		}

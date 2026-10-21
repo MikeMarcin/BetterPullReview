@@ -33,15 +33,44 @@
 // tree: after hiding C3 and refreshing, the chip names the gone commit,
 // offers the reworded one and changes nothing until the reviewer chooses it;
 // identical-material receipts persist (AC06, AC05).
+//
+// RFC-BPR-0089 M4 (owner decision Q1). A sixth course opens
+// commit-filter-comment-v1, whose src/notes.txt is shaped as BPR-Test #116:
+// C1 changes its lines 5, 15 and 25, C3 inserts two lines at its top and
+// changes C1's lines 5 and 25 again. With C3 hidden the file's diff is M to
+// C1. Its recorded thread written on C1 at line 25, which GitHub keeps there
+// outdated, is marked on C1's diff and the head's thread is not; Whole PR marks
+// the head's and not C1's. A comment on line 15 is published at the head's
+// line 17, saying so before Publish; one on line 5 is published on C1 after the
+// warning, and GitHub (the fixture, as measured) keeps it there, outdated.
+// Both reconcile through the real provider session. With only C3 shown the
+// left side is C2: a base line the merge base has unchanged is published as
+// GitHub's LEFT line, and one C1 changed is refused before Publish (AC07). A
+// line moved to the head outside every hunk of GitHub's diff there is refused
+// before Publish on either side, as GitHub refused it on BPR-Test #117.
+//
+// [[BPR-1688]]. A seventh course, on the same fixture: with C3 hidden Find in
+// files searches only the filtered files, each at its filtered diff's commits
+// (src/notes.txt at C1, so C3's inserted line is not found and C1's line 5
+// is), and says it searches the filtered set. An eighth runs the desktop,
+// the composition that keeps each window's review with the profile: the
+// window keeps its commit and file filters with its review, quitting and
+// resuming it from Home brings both back, and a kept hidden commit the pull
+// request no longer has is named by the chip as after a force push.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
+#include "bpr/app/profile_desktop.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/generated_files_view.hpp"
+#include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/source_find_bar.hpp"
+#include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -52,10 +81,13 @@
 #include <QElapsedTimer>
 #include <QItemSelection>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QMenu>
+#include <QPlainTextEdit>
 #include <QTabBar>
 #include <QTemporaryDir>
 #include <QThread>
@@ -63,6 +95,7 @@
 #include <QTreeWidget>
 
 #include <algorithm>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -156,6 +189,9 @@ namespace {
 		std::size_t                             Files   = whole;
 		/// M3. The seed phase serves the fixture's second head after a refresh.
 		app::detail::github_epoch_fixture_phase Phase = app::detail::github_epoch_fixture_phase::single;
+		/// M4. The pull request is read again after a publication, as a
+		/// refresh reads it.
+		bool Rereads = false;
 	};
 
 	auto start(course& aCourse, const opening& aOpening = { }) -> qt::workbench_window&
@@ -165,6 +201,7 @@ namespace {
 		auto options                = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = dataRoot;
 		options.EpochPhase          = aOpening.Phase;
+		options.RepeatReadSessions  = aOpening.Rereads;
 		auto terminal               = false;
 		auto startup                = access::start(aOpening.Fixture, options, [&](auto aResult) {
 			terminal = true;
@@ -241,7 +278,20 @@ namespace {
 		const auto index = aWindow.files_drawer()->contents()->index_for_file(core::file_identity_of(aPath));
 		expect(index.isValid(), "the file is in the filtered file list");
 		aWindow.files_drawer()->contents_view()->setCurrentIndex(index);
-		wait_for([&] { return shown(aWindow, aPath); }, "the file's diff is shown");
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (!shown(aWindow, aPath) && elapsed.elapsed() < 30000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		if (!shown(aWindow, aPath)) {
+			const auto* surface = aWindow.comparison_surface();
+			std::cout << "select:" << aPath << " context=" << (surface->current_context() ? 1 : 0) << " result=" << (surface->current_result() ? 1 : 0)
+					  << " same-file=" << (surface->current_context() && surface->current_context()->Key.File == core::file_identity_of(aPath) ? 1 : 0)
+					  << " aligned=" << (surface->current_result() && surface->current_context() && surface->current_result()->Alignment.Key == surface->current_context()->Key ? 1 : 0)
+					  << " geometry-pending=" << (surface->geometry_pending() ? 1 : 0) << " current-row=" << aWindow.files_drawer()->contents_view()->currentIndex().row() << " row=" << index.row() << '\n';
+		}
+		expect(shown(aWindow, aPath), "the file's diff is shown");
 	}
 
 	/// The paths Next file walks from the first, in order.
@@ -748,6 +798,422 @@ namespace {
 	/// \brief RFC-BPR-0089 M3, AC06: a force push rewrites hidden C3; the chip
 	/// names it, offers the commit carrying the same change and applies it
 	/// only when the reviewer chooses it.
+	constexpr auto comment_merge_base = std::string_view{ "1d90b2de2c5fd1c5346d91ced16753907c817a17" };
+	constexpr auto comment_c1         = std::string_view{ "4613350da8a593d86394181b968e936261d0741b" };
+	constexpr auto comment_c2         = std::string_view{ "3a82b6dc4e11b73326016b009f4558a9b83089a1" };
+	constexpr auto comment_c3         = std::string_view{ "83be2c73bff7a90d91e2b094ef092594e51a1cbe" };
+
+	[[nodiscard]] auto marked(const qt::workbench_window& aWindow, const core::diff_side aSide, const std::uint32_t aLine) -> bool
+	{
+		const auto& marks = aWindow.comparison_surface()->line_marks(aSide);
+		return std::ranges::any_of(marks, [aLine](const qt::diff_line_mark& aMark) { return aMark.Line == aLine && !aMark.Draft; });
+	}
+
+	/// The reviewer selects a line, writes a comment on it and reads the
+	/// words above Publish; the editor's own Publish then sends it.
+	[[nodiscard]] auto write_on(qt::workbench_window& aWindow, const core::diff_side aSide, const std::uint32_t aLine, const std::string& aBody) -> qt::review_draft_editor&
+	{
+		auto* const editor = aWindow.review_editor();
+		expect(aWindow.comparison_surface()->select_conversation_line(aSide, aLine), "the line can be selected");
+		wait_for([&] {
+			const auto& draft = editor->shown_draft();
+			return draft && draft->Anchor.Line == aLine && draft->Anchor.Side == aSide && draft->State == core::review_draft_state::drafting;
+		},
+				 "a draft is offered on the selected line");
+		wait_for([&] { return !editor->target_notice_text().startsWith(QStringLiteral("Working out")); }, "the host says where a comment on the line goes");
+		if (aWindow.comment_action()->isEnabled()) {
+			aWindow.comment_action()->trigger();
+			editor->body_editor()->setPlainText(QString::fromStdString(aBody));
+			wait_for([&] { return editor->shown_draft() && editor->shown_draft()->Body == aBody && !editor->rejected_candidate(); }, "the comment's text is accepted");
+		}
+		return *editor;
+	}
+
+	void publish_and_wait(course& aRun, qt::review_draft_editor& aEditor, const std::size_t aPosts)
+	{
+		const auto before = access::window_read_progress(*aRun.Application).Snapshot;
+		expect(aEditor.publish_action()->isEnabled(), "Publish is offered");
+		aEditor.publish_action()->trigger();
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		while (access::review_mutation_evidence(*aRun.Application).NativePosts != aPosts && elapsed.elapsed() < 20000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		if (access::review_mutation_evidence(*aRun.Application).NativePosts != aPosts) {
+			const auto evidence = access::review_mutation_evidence(*aRun.Application);
+			std::cout << "commit-filter-comment:unsent status=\"" << aEditor.publication_status().toStdString() << "\" mutation=\"" << aEditor.mutation_status_text().toStdString()
+					  << "\" submissions=" << evidence.Submissions << " observations=" << evidence.TargetObservations << " posts=" << evidence.NativePosts
+					  << " state=" << (aEditor.shown_draft() ? static_cast<int>(aEditor.shown_draft()->State) : -1) << '\n';
+		}
+		wait_for([&] { return access::review_mutation_evidence(*aRun.Application).NativePosts == aPosts; }, "the comment is written once");
+		wait_for([&] { return aEditor.publication_status().startsWith(QStringLiteral("Published")) || !aEditor.shown_draft() || aEditor.shown_draft()->shared(); },
+				 "the publication reconciles as published");
+		// The window then reads the pull request again, as GitHub has it now.
+		wait_for([&] {
+			const auto progress = access::window_read_progress(*aRun.Application);
+			return progress.Snapshot != before && !progress.Reading;
+		},
+				 "the pull request is read again after the publication");
+		auto& window = aRun.Application->window();
+		wait_for([&] { return window.files_drawer()->contents()->index_for_file(core::file_identity_of("src/notes.txt")).isValid(); },
+				 "the reread review lists src/notes.txt again");
+		enter_review(aRun);
+		// The reread leaves the workbench with no selected file while the diff
+		// stays on screen (as on Whole PR), and the filtered list can be
+		// published once more after it; the reviewer chooses the file afresh
+		// until it stays chosen.
+		const auto settled = [&](const std::string_view aPath) {
+			const auto index = window.files_drawer()->contents()->index_for_file(core::file_identity_of(aPath));
+			if (!index.isValid()) {
+				return false;
+			}
+			window.files_drawer()->contents_view()->setCurrentIndex(index);
+			auto waited = QElapsedTimer{ };
+			waited.start();
+			while (waited.elapsed() < 10000 && !shown(window, aPath)) {
+				QApplication::processEvents();
+				QThread::msleep(1);
+			}
+			waited.restart();
+			while (waited.elapsed() < 500) {
+				QApplication::processEvents();
+				QThread::msleep(1);
+			}
+			return shown(window, aPath);
+		};
+		for (auto attempt = 0; attempt < 5; ++attempt) {
+			if (settled("src/app.cpp") && settled("src/notes.txt")) {
+				return;
+			}
+		}
+		select(window, "src/notes.txt");
+	}
+
+	void comments_from_a_filtered_diff()
+	{
+		auto  run    = course{ };
+		auto& window = start(run, { .Fixture = app::detail::github_public_path_fixture::commit_filter_comment_v1, .Address = QStringLiteral("bpr-fixtures/commit-filter-comment#894"), .Files = 99U, .Rereads = true });
+		read_commit_trees(window);
+		gesture(window, { comment_c3 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return window.overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); }, "Hide C3");
+		enter_review(run);
+		select(window, "src/notes.txt");
+		expect(window.comparison_surface()->current_context()->Key.Filter == std::optional{ core::filtered_diff_endpoints{ .Left = commit(comment_merge_base), .Right = commit(comment_c1) } },
+			   "with C3 hidden src/notes.txt's diff is the merge base to C1");
+
+		// Thread markers under the filter: the thread written on C1 at line 25
+		// (outdated on GitHub) is marked on C1's diff; the head's is not.
+		wait_for([&] { return marked(window, core::diff_side::right, 24U); }, "the thread written on C1 is marked on C1's diff at its line 25");
+		expect(!marked(window, core::diff_side::right, 16U), "the head's thread at line 17 stays in the drawer on C1's diff");
+		{
+			const auto& cards = window.conversation_panel()->cards()->cards();
+			const auto  onC1  = std::ranges::find(cards, std::string{ "review-thread:PRRT_m4_on_c1" }, &qt::thread_card::Id);
+			const auto  head  = std::ranges::find(cards, std::string{ "review-thread:PRRT_m4_at_head" }, &qt::thread_card::Id);
+			expect(onC1 != cards.end() && onC1->Line == std::optional<std::uint32_t>{ 25U } && !onC1->Outdated && head != cards.end() && head->AnchorUnavailable,
+				   "on C1's diff the C1 thread is current at line 25 and the head's is not placed");
+		}
+
+		// C1's line 15 is unchanged at the head, where it is line 17.
+		auto& editor = write_on(window, core::diff_side::right, 14U, "M4 course: unchanged at the head.");
+		expect(editor.target_notice_text() == QStringLiteral("Goes on the head at line 17, where this line is now.") && !editor.target_notice_blocks(),
+			   "before Publish the editor says the comment goes on the head's line 17");
+		publish_and_wait(run, editor, 1U);
+		const auto atHead = access::review_mutation_evidence(*run.Application);
+		std::cout << "commit-filter-comment:head commit=" << atHead.LastCommit << " line=" << (atHead.LastLine ? *atHead.LastLine : 0U) << " side=" << atHead.LastSide << '\n';
+		expect(atHead.LastCommit == comment_c3 && atHead.LastLine == std::optional<std::uint32_t>{ 17U } && atHead.LastSide == "RIGHT" && atHead.EarlierCommitPosts == 0U,
+			   "it is published with commit_id = head at line 17");
+
+		// C1's line 10 is unchanged at the head (line 12), but no hunk of
+		// GitHub's diff shows it there: refused, as GitHub refused it live.
+		auto& outside = write_on(window, core::diff_side::right, 9U, "M4 course: unchanged and outside GitHub's diff.");
+		expect(outside.target_notice_blocks() && outside.target_notice_text().contains(QStringLiteral("GitHub shows no change near it")) && !outside.publish_action()->isEnabled(),
+			   "a line outside every hunk of GitHub's diff at the head is refused before Publish");
+
+		// C1's line 5 is changed by C3: it goes on C1, after the warning.
+		auto& changed = write_on(window, core::diff_side::right, 4U, "M4 course: changed at the head.");
+		expect(changed.target_notice_text().startsWith(QStringLiteral("Goes on commit 4613350, where this line was written."))
+				   && changed.target_notice_text().contains(QStringLiteral("outdated")) && !changed.target_notice_blocks(),
+			   "before Publish the editor warns that the comment goes on C1 and GitHub shows it outdated");
+		publish_and_wait(run, changed, 2U);
+		const auto onC1 = access::review_mutation_evidence(*run.Application);
+		std::cout << "commit-filter-comment:earlier commit=" << onC1.LastCommit << " line=" << (onC1.LastLine ? *onC1.LastLine : 0U) << " earlier=" << onC1.EarlierCommitPosts << '\n';
+		expect(onC1.LastCommit == comment_c1 && onC1.LastLine == std::optional<std::uint32_t>{ 5U } && onC1.EarlierCommitPosts == 1U && onC1.StoredComments == 2U,
+			   "it is published with commit_id = C1 at line 5, and each comment was written once");
+		// The window reads the pull request again: the comment GitHub keeps on
+		// C1, outdated, is marked on C1's diff where it was written.
+		wait_for([&] { return marked(window, core::diff_side::right, 4U); }, "the comment published on C1 is marked on C1's diff at line 5 after the reread");
+		expect(window.github_status_text() != "Refresh failed. Showing the last accepted pull request.", "the reread after publishing succeeds");
+
+		// Only C3 shown: the left side is C2, not the merge base.
+		gesture(window, { comment_c3 }, QStringLiteral("commitFilterShowOnly"));
+		wait_for([&] { return window.overview_page()->commit_chip()->summary()->text() == QStringLiteral("1 of 3 commits shown"); }, "Show only C3");
+		enter_review(run);
+		select(window, "src/notes.txt");
+		expect(window.comparison_surface()->current_context()->Key.Filter == std::optional{ core::filtered_diff_endpoints{ .Left = commit(comment_c2), .Right = commit(comment_c3) } },
+			   "with only C3 shown src/notes.txt's diff is C2 to C3");
+		auto& based = write_on(window, core::diff_side::left, 14U, "M4 course: a base line C1 changed.");
+		expect(based.target_notice_blocks() && based.target_notice_text().contains(QStringLiteral("changed after the merge base")) && !based.publish_action()->isEnabled()
+				   && !window.comment_action()->isEnabled(),
+			   "a base line C1 changed is refused before Publish, and says why");
+		auto& far = write_on(window, core::diff_side::left, 9U, "M4 course: a base line no change shows.");
+		expect(far.target_notice_blocks() && far.target_notice_text().contains(QStringLiteral("GitHub shows no change near it")),
+			   "a base line outside every hunk of GitHub's diff is refused before Publish");
+		auto& kept = write_on(window, core::diff_side::left, 12U, "M4 course: a base line the merge base has.");
+		expect(kept.target_notice_text().isEmpty(), "a base line the merge base has unchanged, near a change, needs no notice");
+		publish_and_wait(run, kept, 3U);
+		const auto onBase = access::review_mutation_evidence(*run.Application);
+		expect(onBase.LastCommit == comment_c3 && onBase.LastLine == std::optional<std::uint32_t>{ 13U } && onBase.LastSide == "LEFT",
+			   "it is published as GitHub's LEFT line 13 at the head");
+
+		// Whole PR: the head's thread at line 17, C1's outdated thread unmarked.
+		window.overview_page()->commit_chip()->clear_button()->click();
+		wait_for([&] { return !window.overview_page()->commit_chip()->isVisible(); }, "Clear all filters");
+		enter_review(run);
+		select(window, "src/notes.txt");
+		wait_for([&] { return marked(window, core::diff_side::right, 16U); }, "Whole PR marks the head's thread at line 17");
+		expect(!marked(window, core::diff_side::right, 24U) && !marked(window, core::diff_side::right, 26U), "and not the thread GitHub shows outdated on C1");
+		const auto final = access::review_mutation_evidence(*run.Application);
+		expect(final.NativePosts == 3U && final.FilePosts == 0U, "three native comments, no file comment, and nothing written twice");
+		finish(run);
+		std::cout << "commit-filter-comment:pass\n";
+	}
+
+	/// \brief Runs one Find in files query to its end.
+	void find(qt::source_search_panel& aPanel, const QString& aQuery)
+	{
+		aPanel.bar()->query_editor()->setPlainText(aQuery);
+		aPanel.bar()->flush();
+		wait_for([&] { return aPanel.projection().Query == aQuery.toStdString() && aPanel.projection().Status != core::source_search_status::searching; },
+				 "the query runs to its end");
+	}
+
+	/// \brief The files the last query matched, by path, of those named.
+	[[nodiscard]] auto found(const qt::source_search_panel& aPanel, const std::vector<std::string_view>& aPaths) -> std::set<std::string>
+	{
+		auto result = std::set<std::string>{ };
+		if (!aPanel.projection().Matches) {
+			return result;
+		}
+		for (const auto& match : *aPanel.projection().Matches) {
+			for (const auto path : aPaths) {
+				if (match.File == core::file_identity_of(path)) {
+					result.emplace(path);
+				}
+			}
+		}
+		return result;
+	}
+
+	/// \brief [[BPR-1688]]. The desktop composition: the one that keeps each
+	/// window's review with the profile, as quitting and launching again do.
+	struct desktop_course
+	{
+		QTemporaryDir                         Temporary{ QDir::tempPath() + QStringLiteral("/bpr-commit-filter-desktop-XXXXXX") };
+		std::unique_ptr<app::profile_desktop> Desktop;
+		app::github_application*              Owner = nullptr;
+	};
+
+	auto launch(desktop_course& aCourse) -> qt::workbench_window&
+	{
+		const auto dataRoot = e2e::private_data_root(aCourse.Temporary);
+		expect(dataRoot.has_value(), "private desktop root");
+		auto options                = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot = dataRoot;
+		options.RepeatReadSessions  = true;
+		auto terminal               = false;
+		aCourse.Owner               = nullptr;
+		aCourse.Desktop             = access::start_desktop(app::detail::github_public_path_fixture::commit_filter_comment_v1, options, [&](auto aResult) {
+			terminal = true;
+			if (aResult) {
+				aCourse.Owner = *aResult;
+			} else {
+				std::cout << "desktop-startup:failure=" << static_cast<int>(aResult.error()) << " source=" << app::startup_failure_source() << '\n';
+			}
+		});
+		wait_for([&] { return terminal; }, "desktop startup finishes");
+		expect(aCourse.Owner != nullptr, "desktop admitted");
+		wait_for([&] { return aCourse.Owner->windows().size() == 1U; }, "the desktop has its one window");
+		auto& window = *aCourse.Owner->window(aCourse.Owner->windows().front());
+		window.resize(1280, 860);
+		window.github_connect_action()->trigger();
+		wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
+		return window;
+	}
+
+	void quit(desktop_course& aCourse, qt::workbench_window& aWindow)
+	{
+		auto* const action = aWindow.findChild<QAction*>(QStringLiteral("quitProfilesAction"));
+		expect(action != nullptr, "Quit is composed");
+		action->trigger();
+		wait_for([&] { return aCourse.Desktop->is_quiescent(); }, "Quit flushes the window's review and drains");
+		aCourse.Desktop.reset();
+		aCourse.Owner = nullptr;
+	}
+
+	/// \brief Resumes the review from Home's recently viewed list, as a
+	/// reviewer returning to it does.
+	void resume_recent(qt::workbench_window& aWindow, const QString& aAddress)
+	{
+		auto* const list = aWindow.home_recent_list();
+		const auto  row  = [&] {
+			for (auto index = 0; index < list->count(); ++index) {
+				if (list->item(index)->text().startsWith(aAddress)) {
+					return index;
+				}
+			}
+			return -1;
+		};
+		auto listed = QElapsedTimer{ };
+		listed.start();
+		while (!(list->isVisible() && row() >= 0) && listed.elapsed() < 30000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		if (!(list->isVisible() && row() >= 0)) {
+			std::cout << "open-recent: home=" << aWindow.showing_home() << " visible=" << list->isVisible() << " rows=" << list->count() << " status=" << aWindow.github_status_text() << '\n';
+		}
+		expect(list->isVisible() && row() >= 0, "Home lists the review as recently viewed");
+		list->setCurrentRow(row());
+		wait_for([&] { return aWindow.home_recent_resume_action()->isEnabled(); }, "the recently viewed review offers its saved reading");
+		aWindow.home_recent_resume_action()->trigger();
+		wait_for([&] { return !aWindow.showing_home() && aWindow.overview_page()->projection().has_value() && overview_files(aWindow) > 0U; }, "the recently viewed review resumes");
+	}
+
+	/// \brief The restoration store of a quit desktop, as the profile has it.
+	[[nodiscard]] auto restoration_store(desktop_course& aCourse) -> std::unique_ptr<application::window_review_restoration_port>
+	{
+		for (const auto& entry : std::filesystem::recursive_directory_iterator(aCourse.Temporary.path().toStdString())) {
+			if (entry.path().filename() == "window-restoration.sqlite3") {
+				return adapters::sqlite::make_window_review_restoration_store(entry.path().parent_path().parent_path().parent_path());
+			}
+		}
+		return { };
+	}
+
+	void filtered_find_and_restore()
+	{
+		auto       run     = course{ };
+		const auto comment = opening{ .Fixture = app::detail::github_public_path_fixture::commit_filter_comment_v1, .Address = QStringLiteral("bpr-fixtures/commit-filter-comment#894"), .Files = 99U };
+		auto*      window  = &start(run, comment);
+		read_commit_trees(*window);
+		enter_review(run);
+		auto* const search = window->findChild<QAction*>(QStringLiteral("sourceFilesAction"));
+		expect(search != nullptr, "Find in files is composed");
+		wait_for([&] { return search->isEnabled(); }, "Find in files is offered");
+		search->trigger();
+		auto* const panel = window->pr_search();
+		wait_for([&] { return panel->isVisible() && panel->projection().Scope.has_value(); }, "Find in files opens on the review");
+		const auto paths = std::vector<std::string_view>{ "src/notes.txt", "src/app.cpp" };
+
+		// Whole PR: the head's src/notes.txt has C3's inserted line, and only
+		// src/app.cpp still has C1's line 5.
+		expect(!panel->projection().Scope->FilteredFiles, "Whole PR searches every changed file");
+		find(*panel, QStringLiteral("inserted 1 C3"));
+		expect(found(*panel, paths) == std::set<std::string>{ "src/notes.txt" }, "Whole PR finds C3's line in src/notes.txt");
+		find(*panel, QStringLiteral("line 5 C1"));
+		expect(found(*panel, paths) == std::set<std::string>{ "src/app.cpp" }, "Whole PR finds C1's line 5 only in src/app.cpp");
+		expect(!panel->summary_text().contains(QStringLiteral("filtered set")), "and does not say it searches a filtered set");
+
+		// C3 hidden: every file at its filtered diff's commits, here C1.
+		window->show_commits();
+		gesture(*window, { comment_c3 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return window->overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); }, "Hide C3");
+		const auto filtered = overview_files(*window);
+		enter_review(run);
+		wait_for([&] { return panel->projection().Scope && panel->projection().Scope->FilteredFiles == std::optional{ static_cast<std::uint32_t>(filtered) }; },
+				 "Find in files is bound to the filtered set's files");
+		find(*panel, QStringLiteral("inserted 1 C3"));
+		expect(found(*panel, paths).empty() && panel->projection().Summary.Matches == 0U, "with C3 hidden C3's line is not found");
+		find(*panel, QStringLiteral("line 5 C1"));
+		expect(found(*panel, paths) == std::set<std::string>{ "src/app.cpp", "src/notes.txt" }, "src/notes.txt is searched at C1, where line 5 is C1's");
+		expect(panel->summary_text().contains(QStringLiteral("searched the filtered set")), "and Find in files says it searched the filtered set");
+		std::cout << "filtered-find files=" << filtered << " summary=\"" << panel->summary_text().toStdString() << "\"\n";
+
+		expect(access::held_review_mutation_terminals(*run.Application) == 0U, "no filtered search asks GitHub for anything (AC05)");
+		finish(run);
+		std::cout << "filtered-find:pass\n";
+	}
+
+	/// \brief [[BPR-1688]], AC2. The desktop keeps the window's commit and file
+	/// filters with its review and brings them back when it is opened again.
+	void filters_restore_with_the_window()
+	{
+		const auto address = QStringLiteral("bpr-fixtures/commit-filter-comment#894");
+		auto       run     = desktop_course{ };
+		auto*      window  = &launch(run);
+		window->home_open_bar()->setText(address);
+		window->home_open_action()->trigger();
+		wait_for([&] { return window->showing_overview() && overview_files(*window) == 99U; }, "the pull request opens on Overview");
+		read_commit_trees(*window);
+		gesture(*window, { comment_c3 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return window->overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); }, "Hide C3");
+		gesture(*window, { comment_c1 }, QStringLiteral("commitFilterHideFiles"));
+		wait_for([&] { return window->overview_page()->commit_chip()->detail()->text().contains(QStringLiteral("hidden by file filters")); }, "a file filter on C1's files");
+		const auto both = overview_files(*window);
+		expect(both < 99U, "the file filter hides files");
+		// A reading to resume: a file the filters leave, in Review.
+		auto step  = app::detail::course_modality_step{ };
+		step.Needs = app::detail::course_surfaces{ .Comparison = true, .FilesDrawer = true };
+		wait_for([&] { return access::enter_course_modality(*run.Owner, step) != app::detail::course_modality_result::pending; }, "enters Review");
+		select(*window, "gen/item_000.txt");
+		quit(run, *window);
+		// Launched again, the review resumed from Home has both filters.
+		window = &launch(run);
+		resume_recent(*window, address);
+		read_commit_trees(*window);
+		wait_for([&] { return window->overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); }, "the window restores the commit filter");
+		wait_for([&] { return window->overview_page()->commit_chip()->detail()->text().contains(QStringLiteral("hidden by file filters")) && overview_files(*window) == both; },
+				 "and the file filter, with the same files");
+		quit(run, *window);
+
+		// A kept filter that names a commit the pull request no longer has.
+		{
+			auto store = restoration_store(run);
+			expect(store != nullptr, "the profile keeps a restoration store");
+			auto snapshot = store->load({ });
+			expect(snapshot.has_value(), "the restoration store reads");
+			auto gone       = core::filter_hidden_commit{ };
+			gone.Oid        = commit("0000000000000000000000000000000000000001");
+			gone.Headline   = "Rewritten away";
+			gone.Author     = "fixture-author";
+			auto       next = *snapshot;
+			auto       kept = false;
+			const auto name = [&](std::optional<core::window_review_filters>& aFilters) {
+				if (aFilters && !aFilters->Commits.Hidden.empty()) {
+					aFilters->Commits.Hidden.insert(aFilters->Commits.Hidden.begin(), gone);
+					kept = true;
+				}
+			};
+			for (auto& record : next.Records) {
+				name(record.Filters);
+			}
+			for (auto& recent : next.Recent) {
+				name(recent.Filters);
+			}
+			expect(kept, "the window kept its filters with the profile");
+			++next.Revision;
+			expect(store->save(next, snapshot->Revision, { }).has_value(), "the restoration store writes");
+		}
+		window = &launch(run);
+		resume_recent(*window, address);
+		read_commit_trees(*window);
+		wait_for([&] { return window->overview_page()->commit_chip()->detail()->text().contains(QStringLiteral("Hidden commit 0000000 (Rewritten away) is no longer in the pull request")); },
+				 "a restored filter's gone commit is named as after a force push");
+		auto applies = QElapsedTimer{ };
+		applies.start();
+		while (window->overview_page()->commit_chip()->summary()->text() != QStringLiteral("2 of 3 commits shown") && applies.elapsed() < 30000) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+		std::cout << "filters-restore: gone chip=\"" << window->overview_page()->commit_chip()->summary()->text().toStdString() << " / "
+				  << window->overview_page()->commit_chip()->detail()->text().toStdString() << "\" files=" << overview_files(*window) << " trees=" << static_cast<int>(tab(*window)->projection()->Trees) << "\n";
+		expect(window->overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"), "and the rest of the filter applies");
+		quit(run, *window);
+		expect(e2e::remove_course_root(run.Temporary), "private desktop root removed");
+		std::cout << "filters-restore:pass\n";
+	}
+
 	void force_push_rematch()
 	{
 		auto  run    = course{ };
@@ -816,6 +1282,9 @@ auto main(int aArgc, char** aArgv) -> int
 	linguist_generated_at_head();
 	split_files_read_per_commit();
 	force_push_rematch();
+	comments_from_a_filtered_diff();
+	filtered_find_and_restore();
+	filters_restore_with_the_window();
 	std::cout << "COMMIT_FILTER_PUBLIC_PATH_OK qt=" << qVersion() << '\n';
 	return 0;
 }

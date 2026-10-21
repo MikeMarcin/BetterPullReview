@@ -351,6 +351,28 @@ int main(int aArgc, char** aArgv)
 	panel.present(invalid);
 	expect(panel.summary_text() == QStringLiteral("Invalid regular expression"), "invalid regex named in the summary");
 
+	// [[BPR-1688]]. Under a commit or file filter Find in files says what it searches.
+	auto filteredIdle                 = application::source_search_projection{ };
+	filteredIdle.Scope                = core::source_search_scope{ };
+	filteredIdle.Scope->Target        = core::source_search_target::files;
+	filteredIdle.Scope->FilteredFiles = 12U;
+	panel.present(filteredIdle);
+	expect(panel.summary_text() == QStringLiteral("Type to search the filtered set's 12 files on both sides."), "idle under a filter names the filtered set");
+	filteredIdle.Scope->FilteredFiles = 1U;
+	panel.present(filteredIdle);
+	expect(panel.summary_text() == QStringLiteral("Type to search the filtered set's 1 file on both sides."), "one filtered file reads in the singular");
+	filteredIdle.Scope->FilteredFiles = 0U;
+	panel.present(filteredIdle);
+	expect(panel.summary_text() == QStringLiteral("The filters leave no file to search. Clear a filter to search more."), "a filter that leaves nothing says how to search more");
+	auto filteredDone                 = fixture();
+	filteredDone.Scope                = filteredIdle.Scope;
+	filteredDone.Scope->FilteredFiles = 3U;
+	panel.present(filteredDone);
+	expect(panel.summary_text() == QStringLiteral("5 matches in 3 files; searched the filtered set"), "a finished search says it searched the filtered set");
+	filteredDone.Scope->FilteredFiles.reset();
+	panel.present(filteredDone);
+	expect(panel.summary_text() == QStringLiteral("5 matches in 3 files"), "an unfiltered search says nothing more");
+
 	// Dark theme renders.
 	auto dark = qt::appearance_profile{ application::appearance_settings{ .Mode = core::appearance_mode::dark } };
 	dark.apply_to(panel);

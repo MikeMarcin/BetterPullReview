@@ -130,7 +130,7 @@ namespace bpr::application {
 	{
 		return valid(aBinding.Target) && valid(aBinding.ActingIdentity)
 			&& valid(aBinding.Anchor)
-			&& aBinding.Anchor.Commit == aBinding.Target.Semantic.ExpectedHead;
+			&& admitted_anchor_commit(aBinding.Anchor, aBinding.Target.Semantic.ExpectedHead);
 	}
 
 	auto name(const review_mutation_failure aFailure) noexcept -> std::string_view

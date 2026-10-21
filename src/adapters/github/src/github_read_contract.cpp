@@ -1380,6 +1380,18 @@ namespace bpr::adapters::github::detail {
 					keys.erase(found);
 				}
 			}
+			// RFC-BPR-0089 M4. The commit a comment is on and the one it was
+			// written at, each GitHub's `{oid}`, as the live query asks.
+			for (const auto optional : { std::string_view{ "commit" }, std::string_view{ "originalCommit" } }) {
+				if (const auto found = std::ranges::find(keys, optional); found != keys.end()) {
+					const auto value = json_member(json_object(aValue), optional);
+					if (!json_is_null(value)
+						&& (!json_is_object(value) || !has_exact_keys(json_object(value), { "oid" }) || !nonempty_string(json_member(json_object(value), "oid")))) {
+						return false;
+					}
+					keys.erase(found);
+				}
+			}
 			if (keys != std::vector<std::string>{ "author", "bodyText", "id", "line", "originalLine", "outdated", "path", "replyTo" }) {
 				return false;
 			}

@@ -414,7 +414,7 @@ namespace {
 		comparison.fill(0x33U);
 		std::array<std::uint8_t, 32> commit{ };
 		std::fill_n(commit.begin(), 20U, 0x44U);
-		record.Anchor                  = { { core::file_comparison_digest{ comparison }, core::diff_side::right, 12U }, "fixture/review.txt", core::git_commit_oid{ core::git_hash_algorithm::sha1, commit } };
+		record.Anchor                  = { { core::file_comparison_digest{ comparison }, core::diff_side::right, 12U }, "fixture/review.txt", core::git_commit_oid{ core::git_hash_algorithm::sha1, commit }, std::nullopt };
 		record.BaselineExactCommentIds = std::vector<std::string>{ "PRRC_fixture_40" };
 		record.Transmission            = application::review_mutation_recovery_transmission::prepared;
 		if (seed) {

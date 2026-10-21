@@ -13,10 +13,12 @@ namespace bpr::application {
 		void validate(const review_mutation_request& aRequest, const private_draft_record& aDraft)
 		{
 			const auto& scope = aDraft.Binding.Scope;
+			// RFC-BPR-0089 M4. A filtered diff's line the host placed on an
+			// earlier commit of the chain is that commit's, not the head's.
 			require(aRequest.Proposal.Durable && aRequest.LiveBinding && valid(*aRequest.LiveBinding));
 			require(aRequest.Proposal.Durable->Incarnation == scope.Incarnation.bytes() && aRequest.Proposal.Durable->DraftRevision == aDraft.Draft.Revision);
 			require(aRequest.Proposal.Draft == aDraft.Draft.Draft.Id && aRequest.Proposal.Body == aDraft.Draft.Draft.Body && aRequest.Proposal.Anchor == aDraft.Draft.Draft.Anchor && !aRequest.Proposal.ReplyToThread && !aDraft.Draft.Draft.ReplyToThread && aRequest.Proposal.Disposition == core::review_disposition::comment);
-			require(aRequest.Target == aRequest.LiveBinding->Target.Semantic && aRequest.ActingIdentity == scope.Account && aRequest.LiveBinding->ActingIdentity.Account == scope.Account && aRequest.Target.Host == scope.Host && aRequest.Target.Repository == scope.Repository && aRequest.Target.PullRequest == scope.PullRequest && aRequest.Target.ExpectedHead == aDraft.Binding.Revision.HeadOid && aRequest.LiveBinding->Anchor.Commit == aDraft.Binding.Revision.HeadOid && aRequest.LiveBinding->Anchor.Semantic == aDraft.Draft.Draft.Anchor);
+			require(aRequest.Target == aRequest.LiveBinding->Target.Semantic && aRequest.ActingIdentity == scope.Account && aRequest.LiveBinding->ActingIdentity.Account == scope.Account && aRequest.Target.Host == scope.Host && aRequest.Target.Repository == scope.Repository && aRequest.Target.PullRequest == scope.PullRequest && aRequest.Target.ExpectedHead == aDraft.Binding.Revision.HeadOid && admitted_anchor_commit(aRequest.LiveBinding->Anchor, aDraft.Binding.Revision.HeadOid) && aRequest.LiveBinding->Anchor.Semantic == aDraft.Draft.Draft.Anchor);
 			require(aRequest.Source && aRequest.Source->Comparison.Authority.HostAuthority == aDraft.Binding.HostAuthority && aRequest.Source->Comparison.LeftAnchor == aDraft.Binding.LeftAnchor && aRequest.Source->Comparison.RightAnchor == aDraft.Binding.RightAnchor && core::comparison_digest(aRequest.Source->Comparison) == aDraft.Draft.Draft.Anchor.Comparison);
 			require(aRequest.IdempotencyKey == idempotency_key_for(aRequest.Proposal, aRequest.Target));
 		}

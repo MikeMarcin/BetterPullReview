@@ -1377,11 +1377,19 @@ namespace {
 	{
 		for (const auto& body : { comment_body() + " {}", "{\"id\":44," + comment_body().substr(1U),
 								  "{\"extra\":\"\\ud800\"," + comment_body().substr(1U), "{\"extra\":\"\\udc00\"," + comment_body().substr(1U),
-								  "{\"extra\":\"\xC3\x28\"," + comment_body().substr(1U), replace_wire_field(comment_body(), "\"line\":13", "\"line\":null"),
+								  "{\"extra\":\"\xC3\x28\"," + comment_body().substr(1U),
 								  replace_wire_field(comment_body(), "\"user\":{", "\"unknown_user\":{") }) {
 			expect(!parse_review_comment_response({ .Status = 201, .Body = body }, request()), "legacy comment rejects missing, null, duplicate, trailing and malformed Unicode fields");
 			expect(!parse_review_comment_observations({ .Status = 200, .Body = "[" + body + "]" }, request()), "comment lists retain the same full-input validation");
 		}
+		// RFC-BPR-0089 M4. An outdated comment (`line` null) is never a head
+		// comment's receipt, but it is anyone's well-formed comment: a list that
+		// holds one still reconciles, as `parse_review_comment_collection` reads
+		// it. A comment written on an earlier commit is outdated from the start.
+		const auto outdated = replace_wire_field(comment_body(), "\"line\":13", "\"line\":null");
+		expect(!parse_review_comment_response({ .Status = 201, .Body = outdated }, request()), "an outdated answer is not a head comment's receipt");
+		const auto listed = parse_review_comment_observations({ .Status = 200, .Body = "[" + outdated + "]" }, request());
+		expect(listed && listed->ExactReceipts.empty() && listed->Projection.size() == 1U, "a list holding an outdated comment reconciles without it as a receipt");
 		const auto extended = "{\"extension\":{\"ratio\":22.0000000000000001,\"values\":[true,null,\"\\ud83d\\ude00\"]}," + comment_body().substr(1U);
 		expect(parse_review_comment_response({ .Status = 201, .Body = extended }, request()).has_value(), "valid unknown extension values remain accepted");
 		auto input          = request();
@@ -1941,6 +1949,71 @@ namespace {
 		const auto right = parse_review_comment_response({ .Status = 201, .Body = answer }, range_request(8U));
 		expect(!right.has_value(), "the same answer is not a head-side range's receipt");
 	}
+
+	/// RFC-BPR-0089 M4. A line the host placed from a commit-filtered diff:
+	/// at the head, GitHub is told the head's line; on an earlier commit,
+	/// that commit and its line. GitHub answers the earlier commit's comment
+	/// outdated at once (BPR-Test #116: `line` null, `commit_id` kept), and it
+	/// is ours by the commit and line it was written at. Anyone's outdated
+	/// comment in the list is well formed and not ours.
+	void test_a_placed_line_sends_its_commit_and_line()
+	{
+		auto moved                           = request();
+		moved.LiveBinding->Anchor.RemoteLine = 14U;
+		const auto head                      = compile_review_comment_request(moved);
+		expect(head.has_value()
+				   && head->Body
+					   == "{\"body\":\"Please rename this.\","
+						  "\"commit_id\":\"1111111111111111111111111111111111111111\","
+						  "\"line\":15,\"path\":\"fixture/review.txt\",\"side\":\"RIGHT\"}",
+			   "a line moved to the head sends the head's line, not the diff's");
+		expect(parse_review_comment_response({ .Status = 201, .Body = comment_body(15U) }, moved).has_value(),
+			   "GitHub's answer at the head's line is the moved comment's receipt");
+		expect(!parse_review_comment_response({ .Status = 201, .Body = comment_body(13U) }, moved).has_value(),
+			   "an answer at the diff's own line is not");
+
+		const auto c1                          = commit(0x25U);
+		auto       earlier                     = request();
+		earlier.LiveBinding->Anchor.Commit     = c1;
+		earlier.LiveBinding->Anchor.RemoteLine = 12U;
+		expect(application::valid(*earlier.LiveBinding), "an earlier commit is a valid binding only as a placed line");
+		auto unplaced                       = request();
+		unplaced.LiveBinding->Anchor.Commit = c1;
+		expect(!application::valid(*unplaced.LiveBinding) && !compile_review_comment_request(unplaced).has_value(),
+			   "an earlier commit without a placement is refused before any write");
+		auto onBase                              = earlier;
+		onBase.Proposal.Anchor.Side              = core::diff_side::left;
+		onBase.LiveBinding->Anchor.Semantic.Side = core::diff_side::left;
+		onBase.IdempotencyKey                    = application::idempotency_key_for(onBase.Proposal, onBase.Target);
+		expect(!application::valid(*onBase.LiveBinding), "a base line never goes on an earlier commit");
+		const auto compiled = compile_review_comment_request(earlier);
+		expect(compiled.has_value()
+				   && compiled->Body
+					   == "{\"body\":\"Please rename this.\","
+						  "\"commit_id\":\"2525252525252525252525252525252525252525\","
+						  "\"line\":13,\"path\":\"fixture/review.txt\",\"side\":\"RIGHT\"}",
+			   "a line placed on C1 sends C1 and its line");
+		const auto outdated = std::string{ "{\"id\":44,\"node_id\":\"PRRC_fixture_44\",\"path\":\"fixture/review.txt\","
+										   "\"commit_id\":\"2525252525252525252525252525252525252525\","
+										   "\"original_commit_id\":\"2525252525252525252525252525252525252525\","
+										   "\"side\":\"RIGHT\",\"line\":null,\"original_line\":13,"
+										   "\"body\":\"Please rename this.\",\"user\":{\"login\":\"fixture-reviewer\",\"id\":22,\"node_id\":\"MDQ6VXNlcjIy\"}}" };
+		const auto exact    = parse_review_comment_response({ .Status = 201, .Body = outdated }, earlier);
+		expect(exact.has_value() && exact->NodeId == "PRRC_fixture_44", "GitHub's outdated answer is the earlier commit's comment");
+		const auto swapped = [](std::string aText, const std::string_view aFrom, const std::string_view aTo) {
+			aText.replace(aText.find(aFrom), aFrom.size(), aTo);
+			return aText;
+		};
+		const auto moving = swapped(swapped(outdated, "\"commit_id\":\"2525252525252525252525252525252525252525\"", "\"commit_id\":\"1111111111111111111111111111111111111111\""),
+									"\"line\":null", "\"line\":20");
+		expect(parse_review_comment_response({ .Status = 201, .Body = moving }, earlier).has_value(),
+			   "and so is the same comment GitHub moved on to the head");
+		const auto elsewhere = swapped(outdated, "\"original_line\":13", "\"original_line\":14");
+		expect(!parse_review_comment_response({ .Status = 201, .Body = elsewhere }, earlier).has_value(), "one written at another line is not");
+		const auto other = parse_review_comment_response({ .Status = 201, .Body = outdated }, request());
+		expect(!other.has_value() && other.error() == review_mutation_contract_failure::identity_mismatch,
+			   "an outdated comment is a well-formed comment that is not a head comment's receipt");
+	}
 } // namespace
 
 namespace {
@@ -2039,6 +2112,7 @@ auto main() -> int
 	test_exact_wire_compilation_and_tamper_rejection();
 	test_a_range_sends_githubs_multi_line_fields();
 	test_a_base_line_sends_side_left();
+	test_a_placed_line_sends_its_commit_and_line();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();
 	test_a_reply_is_reconciled_through_its_thread();
