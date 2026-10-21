@@ -490,7 +490,7 @@ auto main(int argc, char** argv) -> int
 		   "Shift+double click opens in Discuss; Return in Review; Shift+Return in Discuss");
 	{
 		// The row menu: Open in Review, Open in Discuss, Show in Threads; then,
-		// apart, Copy ([[BPR-PENDING-AC]]).
+		// apart, Copy ([[BPR-1719]]).
 		auto menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, rowsShown.at(0)->rect().center(), rowsShown.at(0)->mapToGlobal(rowsShown.at(0)->rect().center()) };
 		QApplication::sendEvent(rowsShown.at(0), &menuEvent);
 		auto* const menu    = rowsShown.at(0)->findChild<QMenu*>(QStringLiteral("wholeReviewPendingMenu"));
@@ -534,7 +534,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(deleted.size() == 1U && deleted.front() == first && intents.size() == beforeRows, "Delete comment deletes exactly that comment, through the window");
 
-	// [[BPR-PENDING-AC]]. Several pending comments are selected with Shift,
+	// [[BPR-1719]]. Several pending comments are selected with Shift,
 	// Command (Ctrl) and Select All, and copied in the page's order: each its
 	// file and lines, then the whole comment. Selecting and copying change
 	// nothing, and a review awaiting GitHub's answer copies the same way.

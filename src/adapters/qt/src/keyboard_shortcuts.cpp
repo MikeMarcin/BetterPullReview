@@ -94,7 +94,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::label_key, .Group = comments, .Binding = bound, .Title = "Show the label key", .Place = "On Overview", .Keys = "Alt+K", .Objects = "overviewLabelKeyShortcut" },
 			shortcut_entry{ .Command = command::thread_open_review, .Group = comments, .Binding = read, .Title = "Open the thread in Review", .Place = "In Threads", .Keys = "Return", .Objects = "threadFinderOpenInReviewAction" },
 			shortcut_entry{ .Command = command::thread_open_discuss, .Group = comments, .Binding = read, .Title = "Open the thread in Discuss", .Place = "In Threads", .Keys = "Shift+Return", .Objects = "threadFinderOpenInDiscussAction" },
-			// [[BPR-PENDING-AC]]. The pending rows read these ahead of any window shortcut.
+			// [[BPR-1719]]. The pending rows read these ahead of any window shortcut.
 			shortcut_entry{ .Command = command::extend_pending_comments, .Group = comments, .Binding = read, .Title = "Select more comments", .Place = in_pending, .Keys = "Shift+Up;Shift+Down" },
 			shortcut_entry{ .Command = command::select_pending_comments, .Group = comments, .Binding = read, .Title = "Select every comment", .Place = in_pending, .Standard = QKeySequence::SelectAll },
 			shortcut_entry{ .Command = command::copy_pending_comments, .Group = comments, .Binding = read, .Title = "Copy the selected comments with their lines", .Place = in_pending, .Standard = QKeySequence::Copy, .Objects = "wholeReviewPendingCopy" },

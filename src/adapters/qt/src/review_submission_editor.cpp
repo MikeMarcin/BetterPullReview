@@ -615,7 +615,7 @@ namespace bpr::qt {
 
 			/// Where an opening goes.
 			std::function<void(core::workbench_thread_destination)> Open;
-			/// [[BPR-PENDING-AC]]. The selection's gestures; the page decides
+			/// [[BPR-1719]]. The selection's gestures; the page decides
 			/// what each selects. A click with its modifiers, Up or Down with or
 			/// without Shift, Select All, Copy, the row taking focus, a menu
 			/// about to open on it, and the menu's own items.
@@ -642,7 +642,7 @@ namespace bpr::qt {
 
 		protected:
 			// A click selects the row and opens nothing; with Shift or Command
-			// (Ctrl) it selects more ([[BPR-PENDING-AC]]).
+			// (Ctrl) it selects more ([[BPR-1719]]).
 			void mousePressEvent(QMouseEvent* aEvent) override
 			{
 				if (aEvent->button() == Qt::LeftButton) {
@@ -698,7 +698,7 @@ namespace bpr::qt {
 					}
 					return;
 				}
-				// [[BPR-PENDING-AC]]. Copy, Select All, Up and Down (with Shift,
+				// [[BPR-1719]]. Copy, Select All, Up and Down (with Shift,
 				// selecting more), and the menu key or Shift+F10 for the menu.
 				if (aEvent->matches(QKeySequence::Copy)) {
 					if (Copy) {
@@ -769,7 +769,7 @@ namespace bpr::qt {
 				const auto box       = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
 				const auto hovered   = underMouse() || isDown() || hasFocus();
 				if (Selected) {
-					// [[BPR-PENDING-AC]]. Selected: a firmer wash than the
+					// [[BPR-1719]]. Selected: a firmer wash than the
 					// pointer's and a bar at the leading edge, so a selection
 					// reads apart from the focus ring and in either theme.
 					painter.setPen(Qt::NoPen);
@@ -888,7 +888,7 @@ namespace bpr::qt {
 
 	auto review_comments_copy_text(const std::span<const core::review_submission_comment> aComments) -> QString
 	{
-		// [[BPR-PENDING-AC]]. Plain text to keep or paste: where, then the
+		// [[BPR-1719]]. Plain text to keep or paste: where, then the
 		// comment as written, whole.
 		auto blocks = QStringList{ };
 		for (const auto& comment : aComments) {
@@ -1475,7 +1475,7 @@ namespace bpr::qt {
 		Title->setText(comments.empty() ? tr("Compose review") : tr("Finish your review"));
 		const auto previous = std::exchange(Listed, comments);
 		const auto relist   = previous != comments || ListedRows.size() != static_cast<qsizetype>(comments.size());
-		// [[BPR-PENDING-AC]]. A relisted page keeps each comment's selection by
+		// [[BPR-1719]]. A relisted page keeps each comment's selection by
 		// its draft, and where a Shift gesture extends from.
 		auto keptSelected = std::vector<core::review_draft_id>{ };
 		auto keptAnchor   = std::optional<core::review_draft_id>{ };
@@ -1551,7 +1551,7 @@ namespace bpr::qt {
 						PendingReveal(comment);
 					}
 				};
-				// [[BPR-PENDING-AC]]. The selection is the page's; a row only
+				// [[BPR-1719]]. The selection is the page's; a row only
 				// reports its gestures.
 				open->Pick        = [this, index](const Qt::KeyboardModifiers aModifiers) { pick_pending(index, aModifiers); };
 				open->Step        = [this, index](const bool aDown, const bool aExtend) { step_pending(index, aDown, aExtend); };
@@ -1720,7 +1720,7 @@ namespace bpr::qt {
 		if (aIndex >= PendingSelected.size()) {
 			return;
 		}
-		// [[BPR-PENDING-AC]]. Shift selects from the anchor to the row
+		// [[BPR-1719]]. Shift selects from the anchor to the row
 		// (keeping the rest with Command too); Command (Ctrl) adds or takes
 		// out one row; a plain click selects that row alone.
 		const auto extend = aModifiers.testFlag(Qt::ShiftModifier);

@@ -1609,7 +1609,7 @@ never invents enabled state.
 | Show the selected thread in Review, from Discuss ([[BPR-1581]]) | `Ctrl+Alt+2` (⌥⌘2) |
 | Show the selected thread's row in Threads, from Review ([[BPR-1586]]) | `Ctrl+Alt+4` (⌥⌘4) |
 | In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
-| In Finish your review's pending comments: select more; select every comment; copy the selected with their files and lines; the row menu ([[BPR-PENDING-AC]]) | Shift-click, Cmd-click (Ctrl-click), `Shift+Up` / `Shift+Down`; `Ctrl+A` (⌘A); `Ctrl+C` (⌘C); `Menu`, `Shift+F10` |
+| In Finish your review's pending comments: select more; select every comment; copy the selected with their files and lines; the row menu ([[BPR-1719]]) | Shift-click, Cmd-click (Ctrl-click), `Shift+Up` / `Shift+Down`; `Ctrl+A` (⌘A); `Ctrl+C` (⌘C); `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
 | Actual Size: the comparison's code at Code size ([[BPR-1336]], [[BPR-1535]]) | `Ctrl+0` (⌘0) |
@@ -2470,7 +2470,7 @@ many pending comments it deletes ("Discard your review and its N pending
 comments?"); confirmed, it deletes every pending comment of the review and its
 summary, and the page closes.
 
-The pending comments take an extended selection ([[BPR-PENDING-AC]], the
+The pending comments take an extended selection ([[BPR-1719]], the
 owner: "multi select comments and copy to clipboard to get the file line and
 full comment for all selected"). A plain click selects one row and opens
 nothing, as before; Shift with a click selects from the last row picked to

@@ -75,7 +75,7 @@ namespace bpr::qt {
 	[[nodiscard]] auto review_submission_unknown_text(const core::review_submission_unknown_notice& aNotice) -> QString;
 	/// \brief [[BPR-1085]]. The words the preflight chip says, one item a line.
 	[[nodiscard]] auto review_preflight_summary(const std::optional<core::review_preflight>& aPreflight) -> QString;
-	/// \brief [[BPR-PENDING-AC]]. Pending comments as the clipboard takes them,
+	/// \brief [[BPR-1719]]. Pending comments as the clipboard takes them,
 	/// in the order given: per comment a header line, `path:line` or
 	/// `path:start-end` with one-based lines and " (LEFT)" on the base side,
 	/// then the whole comment as written, without its trailing line breaks;
@@ -150,15 +150,15 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]]. The rows' words, in order: "renderer.cpp,
 		/// line 431: question: Where does 0.01 come from?".
 		[[nodiscard]] auto pending_rows() const -> QStringList;
-		/// \brief [[BPR-PENDING-AC]]. The selected pending comments, in the
+		/// \brief [[BPR-1719]]. The selected pending comments, in the
 		/// page's order. Shift or Command (Ctrl elsewhere) with a click, Shift
 		/// with Up or Down, and Command-A (Ctrl+A) select several; a plain
 		/// click or arrow selects one row. Selecting changes no draft.
 		[[nodiscard]] auto selected_pending() const -> std::vector<core::review_submission_comment>;
-		/// \brief [[BPR-PENDING-AC]]. What Copy writes: the selected comments,
+		/// \brief [[BPR-1719]]. What Copy writes: the selected comments,
 		/// or the focused row's when none is selected; empty with neither.
 		[[nodiscard]] auto pending_copy_text() const -> QString;
-		/// \brief [[BPR-PENDING-AC]]. Copy: writes `pending_copy_text()` to
+		/// \brief [[BPR-1719]]. Copy: writes `pending_copy_text()` to
 		/// the clipboard, the page's one effect of it. It works whatever the
 		/// review's state, so a review awaiting GitHub's answer can be kept.
 		void copy_pending() const;
@@ -291,7 +291,7 @@ namespace bpr::qt {
 		QAction*                                     Submit    = nullptr;
 		QAction*                                     Discard   = nullptr;
 		QAction*                                     Reconcile = nullptr;
-		/// [[BPR-PENDING-AC]]. The rows, one a listed comment; which are
+		/// [[BPR-1719]]. The rows, one a listed comment; which are
 		/// selected; the row a Shift gesture extends from; the focused row.
 		/// `pick_pending` (a click), `step_pending` (Up or Down, with Shift
 		/// extending), `select_all_pending` and `prepare_pending_menu` (a menu

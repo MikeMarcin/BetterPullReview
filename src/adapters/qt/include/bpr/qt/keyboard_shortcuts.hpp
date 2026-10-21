@@ -78,7 +78,7 @@ namespace bpr::qt {
 		label_key,
 		thread_open_review,
 		thread_open_discuss,
-		/// [[BPR-PENDING-AC]]. Finish your review's pending comments: select
+		/// [[BPR-1719]]. Finish your review's pending comments: select
 		/// more with Shift and an arrow, select them all, copy the selected.
 		extend_pending_comments,
 		select_pending_comments,
