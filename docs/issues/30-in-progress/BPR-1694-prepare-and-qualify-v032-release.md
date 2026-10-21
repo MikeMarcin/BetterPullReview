@@ -283,3 +283,34 @@ the exact callback sequence from the earlier composed failure was not captured.
 Those failures remain retained. This composed pass supplies integration evidence;
 full native Release and Debug qualification, artifact audits, signing and
 publication remain pending.
+
+## Rejected common candidate and combined-release hold
+
+The full Windows Release gate rejects common candidate
+`4f8f12f4f72316e9b15fc0ccfaba1fe05f633549`: the original restoration course
+fails after 285.85 seconds, during a later authenticated seed. Window 2 keeps
+the exact comparison and file but stores line 0 instead of the selected line 1;
+its active tab has no saved selection. The earlier focused normal pass and
+the proven host fence do not close this composed failure.
+
+The owned Windows suite was stopped and its downstream stages blocked. The
+owned macOS producer was stopped with exit -15 before Debug or packaging.
+Partial functional results, the original failure and observed foreign-work
+overlap remain retained; no complete native qualification is claimed. No
+signing, notarization submission, tag or publication occurred.
+
+One already-started diagnostic covered both authenticated seed and advance
+lifetimes, sampling application/recent-reading admission only on an interactive
+line choice and constructing the full snapshot only for a mismatch. It passes
+in 294.487 seconds without reproducing the mismatch. All nine temporary native
+source substitutions are restored. This is diagnostic evidence, not acceptance
+or permission to rerun unchanged courses.
+
+The owner then directed publication to wait for the in-flight changes and a
+combined release. Shared main contains additional completed owner work; an
+About-page follow-up remains uncommitted at the recorded observation. That
+work has not been merged into this rejected candidate. Identify the intended
+batch and its landing gates, reconcile the retained reading blocker with the
+landed source, then freeze one clean combined revision before fresh native
+Release/Debug qualification and the remaining artifact, source, security,
+legal and native-trust obligations.
