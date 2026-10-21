@@ -83,6 +83,8 @@ namespace bpr::adapters::github::detail {
 		case read_operation::get_branch_protection:
 		// [[BPR-1589]]. Membership is the viewer's own question.
 		case read_operation::get_team_membership:
+		// [[BPR-1680]]. Home's batched read is the viewer's discovery.
+		case read_operation::list_home_pull_requests:
 			return false;
 		}
 		return false;

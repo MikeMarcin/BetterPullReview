@@ -69,6 +69,11 @@ namespace bpr::application {
 		/// names, in order, starting with the context's; empty means the
 		/// context's repository alone. Each row says which it belongs to.
 		std::vector<core::repository_locator> Repositories;
+		/// [[BPR-1680]]. A retained read of several pull requests of the
+		/// context's repository: all of them, ascending, `Number` the first;
+		/// empty for `Number` alone. The answer has one row for each pull
+		/// request it could read; one it could not is left out.
+		std::vector<core::pull_request_number> Numbers;
 
 		auto operator<=>(const personal_discovery_request&) const = default;
 	};

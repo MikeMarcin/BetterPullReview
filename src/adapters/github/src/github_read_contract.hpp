@@ -52,6 +52,10 @@ namespace bpr::adapters::github::detail {
 		/// from (GraphQL `organization.team.members(query:)`): the role says
 		/// "your team" only when GitHub says so.
 		get_team_membership,
+		/// [[BPR-1680]]. Home's metadata, submitted reviews and waiting summary
+		/// of several pull requests of one repository in one GraphQL query,
+		/// each pull request an alias.
+		list_home_pull_requests,
 	};
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
@@ -87,7 +91,7 @@ namespace bpr::adapters::github::detail {
 	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
 	/// like the timeline: it is an independent read after the snapshot, bound
 	/// to the snapshot's own head.
-	inline constexpr std::array<read_operation, 22> all_read_operations{
+	inline constexpr std::array<read_operation, 23> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -110,6 +114,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::resolve_body_images,
 		read_operation::get_merge_base,
 		read_operation::get_team_membership,
+		read_operation::list_home_pull_requests,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -135,7 +140,8 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] constexpr auto graphql_read(const read_operation aOperation) noexcept -> bool
 	{
 		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment
-			|| aOperation == read_operation::resolve_body_images || aOperation == read_operation::get_team_membership;
+			|| aOperation == read_operation::resolve_body_images || aOperation == read_operation::get_team_membership
+			|| aOperation == read_operation::list_home_pull_requests;
 	}
 
 	enum class http_method : std::uint8_t {
@@ -209,6 +215,10 @@ namespace bpr::adapters::github::detail {
 		/// `Repository`, in order; empty for one repository and every other
 		/// operation.
 		std::vector<std::string> SearchRepositories;
+		/// [[BPR-1680]]. `list_home_pull_requests` only: the pull requests of
+		/// `Owner`/`Repository` one query reads, ascending, at most the core's
+		/// batch bound; empty for every other operation.
+		std::vector<std::uint32_t> PullRequestNumbers;
 
 		auto operator==(const semantic_read_request&) const -> bool = default;
 	};

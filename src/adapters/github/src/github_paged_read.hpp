@@ -222,6 +222,9 @@ namespace bpr::adapters::github::detail {
 		std::vector<application::personal_discovery_row> Rows;
 		application::personal_discovery_completeness     Completeness = application::personal_discovery_completeness::complete;
 		application::github_rate_limit_state             RateLimits;
+		/// [[BPR-1680]]. A batched retained read found the server without a
+		/// field Home's GraphQL query asks for, and read the REST way instead.
+		bool BatchUnsupported = false;
 	};
 
 	using github_personal_discovery_read_result = std::expected<github_personal_discovery_read, github_paged_read_failure>;
@@ -238,12 +241,18 @@ namespace bpr::adapters::github::detail {
 	/// requested rows than the detail reads could confirm make the answer
 	/// partial. Any failed request fails the whole read, which then says
 	/// nothing about what is absent.
+	///
+	/// [[BPR-1680]]. A retained read of several pull requests asks one GraphQL
+	/// query for all of them when \p aBatched, and reads the REST way, one
+	/// pull request at a time, any one the query cannot answer in full and all
+	/// of them when it fails other than for the whole session.
 	[[nodiscard]] auto perform_personal_discovery_read(
 		github_wire_transport_port&                    aTransport,
 		const validated_github_host_profile&           aProfile,
 		const application::personal_discovery_request& aRequest,
 		std::stop_token                                aStop,
-		const github_paged_read_limits&                aLimits = { }) noexcept
+		const github_paged_read_limits&                aLimits  = { },
+		bool                                           aBatched = true) noexcept
 		-> github_personal_discovery_read_result;
 
 	struct github_markdown_image_resolution

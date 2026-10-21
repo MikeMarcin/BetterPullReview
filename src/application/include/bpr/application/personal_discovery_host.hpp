@@ -69,6 +69,9 @@ namespace bpr::application {
 		/// The most saved repositories one personal search names. One searches
 		/// each repository on its own, as discovery did before.
 		std::size_t SearchRepositories = core::maximum_discovery_search_repositories;
+		/// The most retained pull requests of one repository one read asks
+		/// for. One reads each on its own, as discovery did before.
+		std::size_t RetainedBatch = core::maximum_discovery_batch_pull_requests;
 
 		auto operator<=>(const personal_discovery_options&) const = default;
 	};

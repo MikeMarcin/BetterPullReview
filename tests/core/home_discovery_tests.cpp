@@ -4,6 +4,8 @@
 #include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/home_discovery_plan.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -188,10 +190,43 @@ namespace {
 			expect(!splits_discovery_search(5U, outcome), "a complete answer, GitHub's incomplete search and other failures stand for every repository");
 		}
 	}
+	/// Option 4: retained pull requests read several to a query, within
+	/// GitHub's node and cost bounds.
+	void test_retained_batches()
+	{
+		const auto app    = repository_locator{ .Owner = "octo", .Name = "app" };
+		const auto tools  = repository_locator{ .Owner = "octo", .Name = "tools" };
+		const auto target = [](const repository_locator& aRepository, const std::uint32_t aNumber) {
+			return discovery_retained_target{ .Repository = aRepository, .Number = pull_request_number{ aNumber } };
+		};
+		auto targets = std::vector{ target(tools, 9U), target(app, 17U), target(app, 4U), target(tools, 2U), target(app, 17U) };
+		for (std::uint32_t number = 100U; number < 112U; ++number) {
+			targets.push_back(target(app, number));
+		}
+		const auto batches = plan_retained_batches(targets);
+		expect(batches.size() == 3U && batches[0].Repository == tools && batches[0].Numbers == std::vector{ pull_request_number{ 2U }, pull_request_number{ 9U } },
+			   "a repository's pull requests are one read, ascending, in the order the repository first appears");
+		expect(batches[1].Repository == app && batches[1].Numbers.size() == maximum_discovery_batch_pull_requests && batches[1].Numbers.front().value() == 4U
+				   && batches[2].Repository == app && batches[2].Numbers.size() == 4U,
+			   "a repository with more than one query's worth is cut, the first-asked first, and a repeat counts once");
+		auto counted = std::size_t{ 0U };
+		for (const auto& batch : batches) {
+			counted += batch.Numbers.size();
+		}
+		expect(counted == 16U, "every pull request is read exactly once");
+		const auto single = plan_retained_batches(targets, 1U);
+		expect(single.size() == 16U && std::ranges::all_of(single, [](const discovery_retained_batch& aBatch) { return aBatch.Numbers.size() == 1U; }),
+			   "a bound of one reads each on its own, as discovery did before");
+		expect(plan_retained_batches({ }).empty(), "nothing retained, nothing read");
+		expect(discovery_batch_nodes(maximum_discovery_batch_pull_requests) <= maximum_github_graphql_nodes && discovery_batch_cost(1U) == 1U
+				   && discovery_batch_cost(maximum_discovery_batch_pull_requests) <= 10U,
+			   "a full query stays far inside GitHub's node limit and costs a few points");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_retained_batches();
 	test_diagnosis_line();
 	test_known_pull_requests();
 	test_search_plan();

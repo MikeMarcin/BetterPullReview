@@ -1120,6 +1120,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::search_personal_pull_requests:
 			case read_operation::get_merge_base:
 			case read_operation::get_team_membership:
+			case read_operation::list_home_pull_requests:
 				break;
 			}
 			return result;
@@ -1241,6 +1242,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_requested_reviewers:
 			case read_operation::get_merge_base:
 			case read_operation::get_team_membership:
+			case read_operation::list_home_pull_requests:
 				return std::nullopt;
 			}
 			const auto namedRepository = std::string{ "/repos/" }
@@ -3257,18 +3259,13 @@ namespace bpr::adapters::github::detail {
 			return pull;
 		}
 
-		[[nodiscard]] auto read_merge_assessment(production_read_execution& aExecution, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot)
+		/// The merge state, review decision and auto-merge of a pull request
+		/// object that asked for them; [[BPR-1680]] reads them from Home's
+		/// batched query as well as from their own.
+		[[nodiscard]] auto apply_merge_fields(const page_json_object& aPull, application::github_pull_request_snapshot& aSnapshot)
 			-> std::expected<void, github_paged_read_failure>
 		{
-			const auto page = aExecution.fetch(semantic_request_for(aServer, aContext, read_operation::get_merge_assessment));
-			if (!page) {
-				return std::unexpected{ page.error() };
-			}
-			const auto pull = merge_pull_object(*page, aSnapshot);
-			if (!pull) {
-				return std::unexpected{ pull.error() };
-			}
-			const auto state = json_member(*pull, "mergeStateStatus"), review = json_member(*pull, "reviewDecision"), automatic = json_member(*pull, "autoMergeRequest");
+			const auto state = json_member(aPull, "mergeStateStatus"), review = json_member(aPull, "reviewDecision"), automatic = json_member(aPull, "autoMergeRequest");
 			if (!one_of(state, { "UNKNOWN", "BEHIND", "BLOCKED", "CLEAN", "DIRTY", "DRAFT", "HAS_HOOKS", "UNSTABLE" }) || (!json_is_null(review) && !one_of(review, { "APPROVED", "CHANGES_REQUESTED", "REVIEW_REQUIRED" })) || (!json_is_null(automatic) && (!json_is_object(automatic) || !has_exact_keys(json_object(automatic), { "enabledAt" })))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
@@ -3288,6 +3285,20 @@ namespace bpr::adapters::github::detail {
 			aSnapshot.Merge.AutoMerge    = !json_is_null(automatic);
 			aSnapshot.Merge.Availability = observation::available;
 			return { };
+		}
+
+		[[nodiscard]] auto read_merge_assessment(production_read_execution& aExecution, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot)
+			-> std::expected<void, github_paged_read_failure>
+		{
+			const auto page = aExecution.fetch(semantic_request_for(aServer, aContext, read_operation::get_merge_assessment));
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			const auto pull = merge_pull_object(*page, aSnapshot);
+			if (!pull) {
+				return std::unexpected{ pull.error() };
+			}
+			return apply_merge_fields(*pull, aSnapshot);
 		}
 
 		[[nodiscard]] auto parse_pending_request(const page_json_value& aValue) -> std::expected<application::github_review_request_record, github_paged_read_failure>
@@ -4345,7 +4356,15 @@ namespace bpr::adapters::github::detail {
 						   return named && aKnown.Number.value() != 0U && aKnown.Number.value() <= core::maximum_pull_request_number;
 					   })
 					&& std::ranges::adjacent_find(known, std::greater_equal<>{ }) == known.end());
-			return reason && repositoriesValid && knownValid && limits_valid(aLimits) && application::detail::valid_context(context)
+			// [[BPR-1680]]. A batched retained read names two or more pull
+			// requests, ascending, the first its `Number`, inside the core's bound.
+			const auto& numbers      = aRequest.Numbers;
+			const auto  numbersValid = numbers.empty()
+				|| (aRequest.Reason == application::personal_discovery_reason::retained && numbers.size() >= 2U
+					&& numbers.size() <= core::maximum_discovery_batch_pull_requests && aRequest.Number == numbers.front()
+					&& std::ranges::all_of(numbers, [](const core::pull_request_number aNumber) { return aNumber.value() != 0U && aNumber.value() <= core::maximum_pull_request_number; })
+					&& std::ranges::adjacent_find(numbers, std::greater_equal<>{ }) == numbers.end());
+			return reason && repositoriesValid && knownValid && numbersValid && limits_valid(aLimits) && application::detail::valid_context(context)
 				&& (!aRequest.AuthenticationSession || aRequest.AuthenticationSession->value() != 0U)
 				&& application::valid(authority) && aRequest.AccountTransport != nullptr
 				&& aRequest.Viewer.Account.value() != 0U && aRequest.Viewer.Account == context.Account
@@ -4737,6 +4756,397 @@ namespace bpr::adapters::github::detail {
 			row.Waiting.Head = row.HeadOid->value();
 			return github_personal_discovery_read{ .Rows = { std::move(row) }, .RateLimits = aRates };
 		}
+
+		/// [[BPR-1680]]. One connection of Home's batched query: its first page,
+		/// its total, and whether more follow than the page holds.
+		struct home_connection
+		{
+			std::uint64_t   Total = 0U;
+			page_json_array Nodes;
+			bool            More = false;
+		};
+
+		[[nodiscard]] auto parse_home_connection(const page_json_value& aValue) -> std::optional<home_connection>
+		{
+			if (!json_is_object(aValue) || !has_exact_keys(json_object(aValue), { "nodes", "pageInfo", "totalCount" })) {
+				return std::nullopt;
+			}
+			const auto connection = json_object(aValue);
+			const auto pageInfo   = json_member(connection, "pageInfo");
+			if (!exact_integer(json_member(connection, "totalCount")) || !json_is_array(json_member(connection, "nodes")) || !json_is_object(pageInfo)
+				|| !has_exact_keys(json_object(pageInfo), { "hasNextPage" }) || !json_is_bool(json_member(json_object(pageInfo), "hasNextPage"))) {
+				return std::nullopt;
+			}
+			auto result = home_connection{
+				.Total = integer(json_member(connection, "totalCount")),
+				.Nodes = json_array(json_member(connection, "nodes")),
+				.More  = json_bool(json_member(json_object(pageInfo), "hasNextPage")),
+			};
+			if (result.Nodes.size() > core::discovery_batch_page || result.Total < result.Nodes.size()
+				|| (result.More && result.Nodes.size() != core::discovery_batch_page)) {
+				return std::nullopt;
+			}
+			result.More = result.More || result.Total > result.Nodes.size();
+			return result;
+		}
+
+		/// [[BPR-1680]]. One check context of a commit's status rollup, as the
+		/// REST check runs and commit statuses would have named it.
+		[[nodiscard]] auto parse_home_check(const page_json_value& aValue, const std::string_view aHead, const std::size_t aIndex)
+			-> std::optional<application::github_check_record>
+		{
+			if (!json_is_object(aValue)) {
+				return std::nullopt;
+			}
+			const auto object   = json_object(aValue);
+			auto       result   = application::github_check_record{ };
+			result.Check        = application::github_check_id{ "home:" + std::to_string(aIndex) };
+			result.EvaluatedOid = application::commit_oid{ std::string{ aHead } };
+			using status        = application::github_check_status;
+			using conclusion    = application::github_check_conclusion;
+			if (text(json_member(object, "__typename")) == "CheckRun") {
+				const auto state = text(json_member(object, "status"));
+				const auto ended = json_member(object, "conclusion");
+				if (!has_exact_keys(object, { "__typename", "conclusion", "name", "status" }) || !nonempty_string(json_member(object, "name"))
+					|| !one_of(json_member(object, "status"), { "QUEUED", "IN_PROGRESS", "COMPLETED", "WAITING", "PENDING", "REQUESTED" })
+					|| (!json_is_null(ended)
+						&& !one_of(ended, { "SUCCESS", "FAILURE", "NEUTRAL", "CANCELLED", "SKIPPED", "TIMED_OUT", "ACTION_REQUIRED", "STALE", "STARTUP_FAILURE" }))
+					|| ((state == "COMPLETED") == json_is_null(ended))) {
+					return std::nullopt;
+				}
+				result.Name       = text(json_member(object, "name"));
+				result.Status     = state == "QUEUED" ? status::queued : state == "IN_PROGRESS" ? status::in_progress
+					: state == "COMPLETED"                                                      ? status::completed
+					: state == "WAITING"                                                        ? status::waiting
+					: state == "REQUESTED"                                                      ? status::requested
+																								: status::pending;
+				const auto value  = json_is_null(ended) ? std::string{ } : text(ended);
+				result.Conclusion = value.empty() ? conclusion::none : value == "SUCCESS" ? conclusion::success
+					: value == "NEUTRAL"                                                  ? conclusion::neutral
+					: value == "CANCELLED"                                                ? conclusion::cancelled
+					: value == "SKIPPED"                                                  ? conclusion::skipped
+					: value == "TIMED_OUT"                                                ? conclusion::timed_out
+					: value == "ACTION_REQUIRED"                                          ? conclusion::action_required
+					: value == "STALE"                                                    ? conclusion::stale
+																						  : conclusion::failure;
+				return result;
+			}
+			if (text(json_member(object, "__typename")) == "StatusContext") {
+				if (!has_exact_keys(object, { "__typename", "context", "state" }) || !nonempty_string(json_member(object, "context"))
+					|| !one_of(json_member(object, "state"), { "ERROR", "EXPECTED", "FAILURE", "PENDING", "SUCCESS" })) {
+					return std::nullopt;
+				}
+				const auto state   = text(json_member(object, "state"));
+				result.Name        = text(json_member(object, "context"));
+				result.Source      = application::github_check_source::commit_status;
+				result.Status      = state == "PENDING" || state == "EXPECTED" ? status::pending : status::completed;
+				result.Conclusion  = result.Status == status::pending ? conclusion::none : state == "SUCCESS" ? conclusion::success
+																											  : conclusion::failure;
+				result.StatusError = state == "ERROR";
+				return result;
+			}
+			return std::nullopt;
+		}
+
+		/// [[BPR-1680]]. What one alias of Home's batched query establishes, or
+		/// none when it is not exactly the pull request asked for. A pull
+		/// request with more reviews, review requests or check contexts than
+		/// one page is `Paged`: it is read the REST way, which pages.
+		struct home_batch_row
+		{
+			application::personal_discovery_row Row;
+			bool                                Paged = false;
+		};
+
+		[[nodiscard]] auto parse_home_pull_request(const page_json_object& aPull, const application::personal_discovery_request& aRequest,
+												   const core::pull_request_number aNumber, const github_paged_read_limits& aLimits)
+			-> std::optional<home_batch_row>
+		{
+			if (!has_exact_keys(aPull, { "additions", "author", "autoMergeRequest", "baseRefName", "baseRefOid", "comments", "commits", "createdAt", "deletions", "headRefOid", "id", "isDraft", "mergeStateStatus", "number", "reviewDecision", "reviewRequests", "reviews", "state", "title" })
+				|| uint32(json_member(aPull, "number")) != aNumber.value() || !json_is_string(json_member(aPull, "title"))
+				|| !bounded_text(text(json_member(aPull, "title")), aLimits.Records.MaximumTitleBytes, true) || !json_is_bool(json_member(aPull, "isDraft"))
+				|| !one_of(json_member(aPull, "state"), { "OPEN", "CLOSED", "MERGED" }) || !hexadecimal_oid(json_member(aPull, "headRefOid"))
+				|| !hexadecimal_oid(json_member(aPull, "baseRefOid")) || !nonempty_string(json_member(aPull, "baseRefName"))
+				|| !nonempty_string(json_member(aPull, "id")) || !json_is_object(json_member(aPull, "comments"))
+				|| !exact_integer(json_member(json_object(json_member(aPull, "comments")), "totalCount"))) {
+				return std::nullopt;
+			}
+			const auto author = optional_graphql_actor(json_member(aPull, "author"));
+			if (!author.Valid) {
+				return std::nullopt;
+			}
+			auto row = application::personal_discovery_row{
+				.Number   = aNumber,
+				.Title    = text(json_member(aPull, "title")),
+				.Author   = author.Actor ? author.Actor->Login : std::string{ },
+				.Detailed = true,
+				.HeadOid  = application::commit_oid{ text(json_member(aPull, "headRefOid")) },
+				.Closed   = text(json_member(aPull, "state")) != "OPEN",
+				.Draft    = json_bool(json_member(aPull, "isDraft")),
+			};
+			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
+			row.Repository     = aRequest.Context.Repository;
+			auto result        = home_batch_row{ };
+
+			const auto reviews  = parse_home_connection(json_member(aPull, "reviews"));
+			const auto requests = parse_home_connection(json_member(aPull, "reviewRequests"));
+			const auto commits  = json_member(aPull, "commits");
+			if (!reviews || !requests || !json_is_object(commits) || !has_exact_keys(json_object(commits), { "nodes" })
+				|| !json_is_array(json_member(json_object(commits), "nodes")) || json_array(json_member(json_object(commits), "nodes")).size() > 1U) {
+				return std::nullopt;
+			}
+			// The last commit's status rollup: none at all is no checks.
+			auto contexts = std::optional<home_connection>{ home_connection{ } };
+			for (const auto& node : json_array(json_member(json_object(commits), "nodes"))) {
+				const auto commit = json_is_object(node) ? json_member(json_object(node), "commit") : page_json_value{ };
+				if (!json_is_object(commit) || !has_exact_keys(json_object(commit), { "oid", "statusCheckRollup" })
+					|| text(json_member(json_object(commit), "oid")) != row.HeadOid->value()) {
+					return std::nullopt;
+				}
+				const auto rollup = json_member(json_object(commit), "statusCheckRollup");
+				if (!json_is_null(rollup)) {
+					if (!json_is_object(rollup) || !has_exact_keys(json_object(rollup), { "contexts" })) {
+						return std::nullopt;
+					}
+					contexts = parse_home_connection(json_member(json_object(rollup), "contexts"));
+				}
+			}
+			if (!contexts) {
+				return std::nullopt;
+			}
+			if (reviews->More || requests->More || contexts->More) {
+				result.Row   = std::move(row);
+				result.Paged = true;
+				return result;
+			}
+
+			// Submitted-review evidence, and the review comments it holds.
+			auto seen           = std::unordered_set<std::uint64_t>{ };
+			auto reviewComments = std::uint64_t{ 0U };
+			for (const auto& node : reviews->Nodes) {
+				const auto object = json_is_object(node) ? json_object(node) : page_json_object{ };
+				const auto commit = json_member(object, "commit");
+				const auto actor  = optional_graphql_actor(json_member(object, "author"));
+				if (!has_exact_keys(object, { "author", "comments", "commit", "databaseId", "state" }) || !exact_integer(json_member(object, "databaseId"), true)
+					|| !one_of(json_member(object, "state"), { "PENDING", "COMMENTED", "APPROVED", "CHANGES_REQUESTED", "DISMISSED" }) || !actor.Valid
+					|| (!json_is_null(commit) && (!json_is_object(commit) || !hexadecimal_oid(json_member(json_object(commit), "oid"))))
+					|| !json_is_object(json_member(object, "comments")) || !exact_integer(json_member(json_object(json_member(object, "comments")), "totalCount"))
+					|| !seen.insert(integer(json_member(object, "databaseId"))).second) {
+					return std::nullopt;
+				}
+				const auto state = review_state(json_text(json_member(object, "state")));
+				row.Reviews.push_back({
+					.DatabaseId = integer(json_member(object, "databaseId")),
+					.Author     = actor.Actor ? std::optional{ actor.Actor->Actor } : std::nullopt,
+					.State      = state,
+					.Commit     = json_is_null(commit) ? std::nullopt : std::optional{ application::commit_oid{ text(json_member(json_object(commit), "oid")) } },
+				});
+				// A pending review's comments are not yet the pull request's.
+				if (state != application::github_review_state::pending) {
+					reviewComments += integer(json_member(json_object(json_member(object, "comments")), "totalCount"));
+				}
+			}
+
+			// The waiting summary, from the same snapshot fields the REST
+			// summary reads fill.
+			auto snapshot                = application::github_pull_request_snapshot{ };
+			snapshot.Viewer.Actor        = aRequest.Viewer.Node;
+			snapshot.Viewer.Login        = aRequest.Viewer.Login;
+			snapshot.Repository.Owner    = aRequest.Context.Repository.Owner;
+			snapshot.Repository.Name     = aRequest.Context.Repository.Name;
+			snapshot.PullRequest.Node    = application::github_node_id{ text(json_member(aPull, "id")) };
+			snapshot.PullRequest.Number  = aNumber;
+			snapshot.PullRequest.HeadOid = *row.HeadOid;
+			snapshot.PullRequest.BaseOid = application::commit_oid{ text(json_member(aPull, "baseRefOid")) };
+			snapshot.PullRequest.BaseRef = text(json_member(aPull, "baseRefName"));
+			auto actors                  = std::unordered_set<std::string>{ };
+			auto identities              = std::unordered_set<std::string>{ };
+			for (const auto& node : requests->Nodes) {
+				auto record = parse_pending_request(node);
+				if (!record || !identities.insert(record->Request).second || (!record->Actor.empty() && !actors.insert(record->Actor).second)) {
+					return std::nullopt;
+				}
+				row.RequestsViewer = row.RequestsViewer
+					|| (record->Kind == application::github_requested_actor_kind::user && application::detail::ascii_equal_fold(record->Login, aRequest.Viewer.Login));
+				snapshot.ReviewRequests.push_back(std::move(*record));
+			}
+			snapshot.ReviewRequestsAvailability = observation::available;
+			row.ReviewersAwaited                = static_cast<std::uint32_t>(requests->Total);
+			if (!apply_merge_fields(aPull, snapshot)) {
+				return std::nullopt;
+			}
+			auto names = std::unordered_set<std::string>{ };
+			for (std::size_t index = 0U; index < contexts->Nodes.size(); ++index) {
+				auto check = parse_home_check(contexts->Nodes[index], row.HeadOid->value(), index);
+				if (!check) {
+					return std::nullopt;
+				}
+				// One result per context name, as the REST statuses keep the latest.
+				if (names.insert(check->Name).second) {
+					snapshot.Checks.push_back(std::move(*check));
+				}
+			}
+			snapshot.ChecksAvailability   = application::github_collection_availability::available;
+			snapshot.StatusesAvailability = application::github_collection_availability::available;
+			auto budget                   = application::detail::github_text_budget{ aLimits.Records };
+			if (application::detail::validate_merge_observations(snapshot, budget, aLimits.Records) != application::github_read_validation_error::none) {
+				return std::nullopt;
+			}
+			row.Waiting      = application::queue_waiting_for(snapshot);
+			row.Waiting.Head = row.HeadOid->value();
+
+			// Age, size and conversation.
+			const auto opened = json_is_string(json_member(aPull, "createdAt")) ? parse_timeline_timestamp(text(json_member(aPull, "createdAt"))) : std::nullopt;
+			const auto added  = uint32(json_member(aPull, "additions"));
+			const auto taken  = uint32(json_member(aPull, "deletions"));
+			if (!opened || !added || !taken) {
+				return std::nullopt;
+			}
+			row.Change.OpenedAt  = *opened / 1000;
+			row.Change.Additions = *added;
+			row.Change.Deletions = *taken;
+			row.Change.Comments  = integer(json_member(json_object(json_member(aPull, "comments")), "totalCount")) + reviewComments;
+			result.Row           = std::move(row);
+			return result;
+		}
+
+		/// [[BPR-1680]]. Whether a failure is about the whole session (or the
+		/// read was cancelled) rather than one pull request or the batched
+		/// query itself, so falling back to the REST reads would fail the same.
+		[[nodiscard]] auto session_failure(const github_paged_read_failure& aFailure) noexcept -> bool
+		{
+			const auto* error = std::get_if<application::github_provider_error>(&aFailure);
+			if (error == nullptr) {
+				return true;
+			}
+			switch (error->Failure) {
+			case application::github_provider_failure::authentication:
+			case application::github_provider_failure::rate_limit:
+			case application::github_provider_failure::network:
+			case application::github_provider_failure::timeout:
+			case application::github_provider_failure::certificate:
+			case application::github_provider_failure::redirect:
+			case application::github_provider_failure::process_startup:
+			case application::github_provider_failure::cli_unavailable:
+			case application::github_provider_failure::vault:                  return true;
+			case application::github_provider_failure::permission:
+			case application::github_provider_failure::api_version:
+			case application::github_provider_failure::unsupported_capability:
+			case application::github_provider_failure::malformed_response:
+			case application::github_provider_failure::response_limit:
+			case application::github_provider_failure::unavailable:            return false;
+			}
+			return true;
+		}
+
+		/// [[BPR-1680]]. Several retained pull requests of one repository in one
+		/// GraphQL query. One with more than a page of anything, and every one
+		/// when the query fails other than for the whole session (an older
+		/// server without one of its fields, a pull request GitHub no longer
+		/// has, a malformed answer), is read the REST way, one at a time, as
+		/// before. `Unsupported` says the server lacked a field.
+		struct home_batch_result
+		{
+			github_personal_discovery_read_result Read;
+			bool                                  Unsupported = false;
+		};
+
+		[[nodiscard]] auto read_retained_batch(github_wire_transport_port& aTransport, const validated_github_host_profile& aProfile,
+											   const application::personal_discovery_request& aRequest, const server_contract aServer, const std::stop_token aStop,
+											   const github_paged_read_limits& aLimits, application::github_rate_limit_state& aRates, const bool aBatched)
+			-> home_batch_result
+		{
+			auto rows        = std::vector<application::personal_discovery_row>{ };
+			auto restNumbers = std::vector<core::pull_request_number>{ };
+			auto unsupported = false;
+			if (aBatched) {
+				production_read_execution batch{ aTransport, aProfile, aRequest.Context, aLimits, aStop, aRates, aRequest.AuthenticationSession, nullptr };
+				auto                      semantic = semantic_read_request{
+					.Server     = aServer,
+					.Operation  = read_operation::list_home_pull_requests,
+					.Owner      = aRequest.Context.Repository.Owner,
+					.Repository = aRequest.Context.Repository.Name,
+					.Page       = 1U,
+				};
+				for (const auto number : aRequest.Numbers) {
+					semantic.PullRequestNumbers.push_back(number.value());
+				}
+				const auto page   = batch.fetch(semantic);
+				const auto answer = [&]() -> std::optional<std::vector<home_batch_row>> {
+					if (!page || !json_is_object(page->Document) || !has_exact_keys(json_object(page->Document), { "data" })) {
+						return std::nullopt;
+					}
+					const auto data = json_member(json_object(page->Document), "data");
+					if (!json_is_object(data) || !has_exact_keys(json_object(data), { "repository" })) {
+						return std::nullopt;
+					}
+					const auto repository = json_member(json_object(data), "repository");
+					if (!json_is_object(repository) || json_object(repository).size() != aRequest.Numbers.size() + 2U
+						|| !nonempty_string(json_member(json_object(repository), "id"))
+						|| !application::detail::ascii_equal_fold(text(json_member(json_object(repository), "nameWithOwner")),
+																  aRequest.Context.Repository.Owner + "/" + aRequest.Context.Repository.Name)) {
+						return std::nullopt;
+					}
+					auto parsed = std::vector<home_batch_row>{ };
+					for (std::size_t index = 0U; index < aRequest.Numbers.size(); ++index) {
+						const auto pull = json_member(json_object(repository), "p" + std::to_string(index));
+						auto       row  = json_is_object(pull) ? parse_home_pull_request(json_object(pull), aRequest, aRequest.Numbers[index], aLimits) : std::nullopt;
+						if (!row) {
+							return std::nullopt;
+						}
+						parsed.push_back(std::move(*row));
+					}
+					return parsed;
+				}();
+				// A failure of the whole session fails the read as it would
+				// have failed its first REST request.
+				if (!page && session_failure(page.error())) {
+					return { .Read = std::unexpected{ page.error() } };
+				}
+				if (!page) {
+					const auto* error = std::get_if<application::github_provider_error>(&page.error());
+					unsupported       = error != nullptr && error->Failure == application::github_provider_failure::unsupported_capability;
+				}
+				if (answer) {
+					for (auto& row : *answer) {
+						if (row.Paged) {
+							restNumbers.push_back(row.Row.Number);
+						} else {
+							rows.push_back(std::move(row.Row));
+						}
+					}
+				} else {
+					restNumbers = aRequest.Numbers;
+				}
+			} else {
+				restNumbers = aRequest.Numbers;
+			}
+			auto firstFailure = std::optional<github_paged_read_failure>{ };
+			for (const auto number : restNumbers) {
+				auto single    = aRequest;
+				single.Number  = number;
+				single.Numbers = { };
+				auto read      = read_retained_metadata(aTransport, aProfile, single, aServer, aStop, aLimits, aRates);
+				if (!read) {
+					if (session_failure(read.error())) {
+						return { .Read = std::unexpected{ read.error() }, .Unsupported = unsupported };
+					}
+					// This pull request alone could not be read: the host
+					// fails it and applies the rest.
+					firstFailure = firstFailure.value_or(read.error());
+					continue;
+				}
+				for (auto& row : read->Rows) {
+					rows.push_back(std::move(row));
+				}
+			}
+			// Nothing read at all fails as the one read would have.
+			if (rows.empty() && firstFailure) {
+				return { .Read = std::unexpected{ *firstFailure }, .Unsupported = unsupported };
+			}
+			std::ranges::sort(rows, { }, &application::personal_discovery_row::Number);
+			return { .Read = github_personal_discovery_read{ .Rows = std::move(rows), .RateLimits = aRates }, .Unsupported = unsupported };
+		}
 	} // namespace
 
 	auto perform_markdown_image_resolution(github_wire_transport_port& aTransport, const validated_github_host_profile& aProfile,
@@ -4808,7 +5218,8 @@ namespace bpr::adapters::github::detail {
 		const validated_github_host_profile&           aProfile,
 		const application::personal_discovery_request& aRequest,
 		const std::stop_token                          aStop,
-		const github_paged_read_limits&                aLimits) noexcept -> github_personal_discovery_read_result
+		const github_paged_read_limits&                aLimits,
+		const bool                                     aBatched) noexcept -> github_personal_discovery_read_result
 	{
 		auto rates = application::github_rate_limit_state{ };
 		try {
@@ -4818,6 +5229,13 @@ namespace bpr::adapters::github::detail {
 			}
 			if (aStop.stop_requested()) {
 				return cancelled();
+			}
+			if (aRequest.Reason == application::personal_discovery_reason::retained && !aRequest.Numbers.empty()) {
+				auto batch = read_retained_batch(aTransport, aProfile, aRequest, *server, aStop, aLimits, rates, aBatched);
+				if (batch.Read) {
+					batch.Read->BatchUnsupported = batch.Unsupported;
+				}
+				return std::move(batch.Read);
 			}
 			if (aRequest.Reason == application::personal_discovery_reason::retained) {
 				return read_retained_metadata(aTransport, aProfile, aRequest, *server, aStop, aLimits, rates);

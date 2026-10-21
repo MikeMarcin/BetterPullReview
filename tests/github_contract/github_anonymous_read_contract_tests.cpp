@@ -371,7 +371,8 @@ namespace {
 				|| operation == read_operation::list_branch_rules
 				|| operation == read_operation::get_branch_protection
 				|| operation == read_operation::resolve_body_images
-				|| operation == read_operation::get_team_membership) {
+				|| operation == read_operation::get_team_membership
+				|| operation == read_operation::list_home_pull_requests) {
 				expect(!onGithub.has_value()
 						   && onGithub.error()
 							   == anonymous_read_refusal::graphql_surface_unavailable,
@@ -381,8 +382,8 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 12U && all_read_operations.size() == 22U,
-			   "twelve of twenty-two operations admit anonymous REST reads");
+		expect(eligible == 12U && all_read_operations.size() == 23U,
+			   "twelve of twenty-three operations admit anonymous REST reads");
 		expect(anonymous_read_operations.size() + 3U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
@@ -453,6 +454,10 @@ namespace {
 				semantic.Organization = "octo-org";
 				semantic.Team         = "reviewers";
 				semantic.Login        = "octo-reviewer";
+				break;
+			// [[BPR-1680]].
+			case read_operation::list_home_pull_requests:
+				semantic.PullRequestNumbers = { 17U };
 				break;
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:

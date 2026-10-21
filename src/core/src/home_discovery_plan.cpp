@@ -104,6 +104,31 @@ namespace bpr::core {
 		return false;
 	}
 
+	auto plan_retained_batches(const std::span<const discovery_retained_target> aTargets, const std::size_t aMaximum) -> std::vector<discovery_retained_batch>
+	{
+		const auto bound   = std::clamp<std::size_t>(aMaximum, 1U, maximum_discovery_batch_pull_requests);
+		auto       grouped = std::vector<discovery_retained_batch>{ };
+		for (const auto& target : aTargets) {
+			auto group = std::ranges::find(grouped, target.Repository, &discovery_retained_batch::Repository);
+			if (group == grouped.end()) {
+				group = grouped.insert(grouped.end(), discovery_retained_batch{ .Repository = target.Repository, .Numbers = { } });
+			}
+			if (std::ranges::find(group->Numbers, target.Number) == group->Numbers.end()) {
+				group->Numbers.push_back(target.Number);
+			}
+		}
+		auto batches = std::vector<discovery_retained_batch>{ };
+		for (auto& group : grouped) {
+			for (std::size_t first = 0U; first < group.Numbers.size(); first += bound) {
+				auto numbers = std::vector<pull_request_number>{ group.Numbers.begin() + static_cast<std::ptrdiff_t>(first),
+																 group.Numbers.begin() + static_cast<std::ptrdiff_t>(std::min(first + bound, group.Numbers.size())) };
+				std::ranges::sort(numbers);
+				batches.push_back({ .Repository = group.Repository, .Numbers = std::move(numbers) });
+			}
+		}
+		return batches;
+	}
+
 	auto keeps_reused_row(const discovery_search_reason aReason, const discovery_retained_read& aRead) noexcept -> bool
 	{
 		return aReason == discovery_search_reason::authored || aRead.RequestsViewer;

@@ -102,6 +102,63 @@ namespace bpr::core {
 	/// what they were, for each repository the search names.
 	[[nodiscard]] auto splits_discovery_search(std::size_t aRepositories, discovery_search_outcome aOutcome) noexcept -> bool;
 
+	/// \brief [[BPR-1680]]. The most pull requests one GraphQL query reads for
+	/// Home, and the first page of each one's reviews, review requests and
+	/// check contexts it asks for. A pull request with more than a page of any
+	/// of them is read the REST way, which pages.
+	inline constexpr std::size_t maximum_discovery_batch_pull_requests = 10U;
+	inline constexpr std::size_t discovery_batch_page                  = 50U;
+	/// \brief GitHub's bound on the nodes one GraphQL query may ask for.
+	inline constexpr std::size_t maximum_github_graphql_nodes = 500'000U;
+
+	/// \brief [[BPR-1680]]. The connection nodes a query of \p aPullRequests
+	/// asks for, as GitHub counts them against its node limit: each pull
+	/// request's reviews, review requests, last commit and that commit's
+	/// check contexts, and the repository.
+	[[nodiscard]] constexpr auto discovery_batch_nodes(const std::size_t aPullRequests) noexcept -> std::size_t
+	{
+		return 1U + aPullRequests * (3U * discovery_batch_page + 1U);
+	}
+
+	/// \brief [[BPR-1680]]. The rate-limit points such a query costs, as GitHub
+	/// computes them: one per hundred connection requests (one per parent of
+	/// each connection, including each review's comment total), at least one.
+	[[nodiscard]] constexpr auto discovery_batch_cost(const std::size_t aPullRequests) noexcept -> std::size_t
+	{
+		const auto requests = 1U + aPullRequests * 4U + aPullRequests * discovery_batch_page;
+		return requests <= 100U ? 1U : (requests + 99U) / 100U;
+	}
+
+	static_assert(discovery_batch_nodes(maximum_discovery_batch_pull_requests) <= maximum_github_graphql_nodes);
+	static_assert(discovery_batch_cost(maximum_discovery_batch_pull_requests) <= 10U);
+
+	/// \brief [[BPR-1680]]. One retained pull request a refresh reads.
+	struct discovery_retained_target
+	{
+		repository_locator  Repository;
+		pull_request_number Number;
+
+		auto operator<=>(const discovery_retained_target&) const = default;
+	};
+
+	/// \brief [[BPR-1680]]. The retained pull requests of one repository one
+	/// read asks for, ascending.
+	struct discovery_retained_batch
+	{
+		repository_locator               Repository;
+		std::vector<pull_request_number> Numbers;
+
+		auto operator<=>(const discovery_retained_batch&) const = default;
+	};
+
+	/// \brief [[BPR-1680]]. The retained reads of a refresh: its pull requests
+	/// grouped by repository, in the order each repository first appears, and
+	/// cut into reads of at most \p aMaximum (at least one, at most
+	/// `maximum_discovery_batch_pull_requests`), each ascending, every pull
+	/// request once.
+	[[nodiscard]] auto plan_retained_batches(std::span<const discovery_retained_target> aTargets, std::size_t aMaximum = maximum_discovery_batch_pull_requests)
+		-> std::vector<discovery_retained_batch>;
+
 	/// \brief [[BPR-1680]]. Whether a search row that reuses a retained read
 	/// stays in the search's answer.
 	///

@@ -421,6 +421,70 @@ namespace bpr::adapters::github::detail {
 			return std::move(*bytes);
 		}
 
+		/// [[BPR-1680]]. Home's metadata, submitted reviews and waiting summary
+		/// of one pull request, as one alias of `ListHomePullRequests` asks for
+		/// them: the first page (`core::discovery_batch_page`) of its reviews,
+		/// review requests and last commit's check contexts, each with its total
+		/// and whether more follow, so a longer one is read the REST way.
+		constexpr std::string_view home_pull_request_fragment = "fragment HomePullRequest on PullRequest{id number title isDraft state createdAt additions deletions headRefOid baseRefOid baseRefName"
+																" author{__typename login ... on Node{id}} comments{totalCount}"
+																" reviews(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId state author{__typename login ... on Node{id}} commit{oid} comments{totalCount}}}"
+																" reviewRequests(first:50){totalCount pageInfo{hasNextPage} nodes{id asCodeOwner requestedReviewer{__typename ... on User{id login} ... on Team{id name slug organization{login}}}}}"
+																" mergeStateStatus reviewDecision autoMergeRequest{enabledAt}"
+																" commits(last:1){nodes{commit{oid statusCheckRollup{contexts(first:50){totalCount pageInfo{hasNextPage}"
+																" nodes{__typename ... on CheckRun{name status conclusion} ... on StatusContext{context state}}}}}}}}";
+		static_assert(core::discovery_batch_page == 50U, "the fragment's first pages are the core's batch page");
+
+		struct home_variables_json
+		{
+			std::string_view Name;
+			std::string_view Owner;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("name", &home_variables_json::Name, "owner", &home_variables_json::Owner);
+			};
+		};
+
+		struct home_query_json
+		{
+			std::string_view    Query;
+			home_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &home_query_json::Query, "variables", &home_query_json::Variables);
+			};
+		};
+
+		/// [[BPR-1680]]. One alias per pull request, `p0` upward in ascending
+		/// number order; the numbers are literals, the repository variables.
+		[[nodiscard]] auto home_pull_requests_body(const semantic_read_request& aRequest) -> std::expected<std::string, contract_failure>
+		{
+			auto query = std::string{ "query ListHomePullRequests($owner:String!,$name:String!){repository(owner:$owner,name:$name){id nameWithOwner" };
+			for (std::size_t index = 0U; index < aRequest.PullRequestNumbers.size(); ++index) {
+				query += " p" + std::to_string(index) + ":pullRequest(number:" + std::to_string(aRequest.PullRequestNumbers[index]) + "){...HomePullRequest}";
+			}
+			query += "}} ";
+			query += home_pull_request_fragment;
+			auto document            = home_query_json{ };
+			document.Query           = query;
+			document.Variables.Name  = aRequest.Repository;
+			document.Variables.Owner = aRequest.Owner;
+			auto bytes               = glz::write<read_request_json_options{ }>(document);
+			if (!bytes) {
+				return failure(contract_failure_code::unexpected_body);
+			}
+			return std::move(*bytes);
+		}
+
+		/// [[BPR-1680]]. The pull requests one Home query reads: 1 to the core's
+		/// batch bound, ascending, each a valid number.
+		[[nodiscard]] auto valid_home_numbers(const std::vector<std::uint32_t>& aNumbers) noexcept -> bool
+		{
+			return !aNumbers.empty() && aNumbers.size() <= core::maximum_discovery_batch_pull_requests
+				&& std::ranges::all_of(aNumbers, [](const std::uint32_t aNumber) { return aNumber != 0U && aNumber <= core::maximum_pull_request_number; })
+				&& std::ranges::adjacent_find(aNumbers, std::greater_equal<>{ }) == aNumbers.end();
+		}
+
 		/// [[BPR-1589]]. A GitHub login or organization: 1 to 39 letters,
 		/// digits and hyphens; a team slug: 1 to 100 letters, digits, `-`,
 		/// `_` and `.`.
@@ -625,6 +689,8 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1589]]. Bound to the pull request's repository for its
 			// correlation; the query names only the team and the login.
 			case read_operation::get_team_membership:
+			// [[BPR-1680]]. Its pull requests are `PullRequestNumbers`.
+			case read_operation::list_home_pull_requests:
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::list_commit_statuses:
@@ -665,6 +731,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_branch_protection:
 			case read_operation::get_merge_base:
 			case read_operation::get_team_membership:
+			case read_operation::list_home_pull_requests:
 				return 1U;
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
@@ -707,7 +774,8 @@ namespace bpr::adapters::github::detail {
 			const std::string_view aBody,
 			const bool             aPaged,
 			const bool             aNodes = false,
-			const bool             aTeam  = false) -> std::expected<void, contract_failure>
+			const bool             aTeam  = false,
+			const bool             aHome  = false) -> std::expected<void, contract_failure>
 		{
 			if (aBody.size() > maximum_fixture_body_bytes) {
 				return failure(contract_failure_code::response_limit);
@@ -737,6 +805,18 @@ namespace bpr::adapters::github::detail {
 			}
 
 			const auto& variables = document.Variables;
+			// [[BPR-1680]]. Home's batched read names its repository and
+			// nothing else; its pull requests are literals of the document.
+			if (aHome) {
+				std::string owner;
+				std::string name;
+				if (aPaged || variables.size() != 2U || !variables.contains("owner") || !variables.contains("name")
+					|| glz::read<read_request_json_options{ }>(owner, variables.at("owner").str)
+					|| glz::read<read_request_json_options{ }>(name, variables.at("name").str)) {
+					return failure(contract_failure_code::unexpected_body);
+				}
+				return { };
+			}
 			// [[BPR-1589]]. The team-membership read names a team and a login,
 			// and nothing else.
 			if (aTeam) {
@@ -1738,6 +1818,8 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_merge_base:
 			// [[BPR-1589]]. Read and bound by its own production reader.
 			case read_operation::get_team_membership:
+			// [[BPR-1680]]. Read and bound by its own production reader.
+			case read_operation::list_home_pull_requests:
 				return false;
 			case read_operation::get_viewer_identity:
 				return validate_viewer_fixture(aDocument);
@@ -1810,13 +1892,14 @@ namespace bpr::adapters::github::detail {
 			return "SearchPersonalPullRequests";
 		case read_operation::list_requested_reviewers:
 			return "ListRequestedReviewers";
-		case read_operation::list_review_requests:  return "ListReviewRequests";
-		case read_operation::get_merge_assessment:  return "GetMergeAssessment";
-		case read_operation::list_branch_rules:     return "ListBranchRules";
-		case read_operation::get_branch_protection: return "GetBranchProtection";
-		case read_operation::get_merge_base:        return "GetMergeBase";
-		case read_operation::get_team_membership:   return "GetTeamMembership";
-		case read_operation::resolve_body_images:   return "ResolveBodyImages";
+		case read_operation::list_review_requests:    return "ListReviewRequests";
+		case read_operation::get_merge_assessment:    return "GetMergeAssessment";
+		case read_operation::list_branch_rules:       return "ListBranchRules";
+		case read_operation::get_branch_protection:   return "GetBranchProtection";
+		case read_operation::get_merge_base:          return "GetMergeBase";
+		case read_operation::get_team_membership:     return "GetTeamMembership";
+		case read_operation::list_home_pull_requests: return "ListHomePullRequests";
+		case read_operation::resolve_body_images:     return "ResolveBodyImages";
 		}
 		return { };
 	}
@@ -1926,6 +2009,10 @@ namespace bpr::adapters::github::detail {
 		if ((aRequest.Operation != read_operation::list_review_requests && !aRequest.ReviewCursor.empty()) || (aRequest.Operation == read_operation::list_review_requests && ((aRequest.Page == 1U) != aRequest.ReviewCursor.empty() || (!aRequest.ReviewCursor.empty() && !bounded_graphql_token(aRequest.ReviewCursor, 1024U)))) || (aRequest.Operation != read_operation::list_review_threads && aRequest.GraphqlPage)) {
 			return failure(contract_failure_code::unexpected_body);
 		}
+		const auto home = aRequest.Operation == read_operation::list_home_pull_requests;
+		if ((home && !valid_home_numbers(aRequest.PullRequestNumbers)) || (!home && !aRequest.PullRequestNumbers.empty())) {
+			return failure(contract_failure_code::invalid_pull_request_number);
+		}
 		const auto images = aRequest.Operation == read_operation::resolve_body_images;
 		if ((images && !valid_body_nodes(aRequest.Nodes)) || (!images && !aRequest.Nodes.empty())) {
 			return failure(contract_failure_code::unexpected_body);
@@ -2011,6 +2098,15 @@ namespace bpr::adapters::github::detail {
 			page.Kind        = github_graphql_page_kind::threads;
 			page.AfterCursor = aRequest.ReviewCursor;
 			auto body        = read_query_body(aRequest, query, aRequest.ReviewCursor.empty() ? nullptr : &page);
+			if (!body) {
+				return std::unexpected{ body.error() };
+			}
+			result.Path = std::string{ *prefix } + "/graphql";
+			result.Body = std::move(*body);
+			break;
+		}
+		case read_operation::list_home_pull_requests: {
+			auto body = home_pull_requests_body(aRequest);
 			if (!body) {
 				return std::unexpected{ body.error() };
 			}
@@ -2136,7 +2232,8 @@ namespace bpr::adapters::github::detail {
 					aRequest.Body,
 					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty(),
 					aRequest.Operation == read_operation::resolve_body_images,
-					aRequest.Operation == read_operation::get_team_membership);
+					aRequest.Operation == read_operation::get_team_membership,
+					aRequest.Operation == read_operation::list_home_pull_requests);
 				!validation.has_value()) {
 				return validation;
 			}

@@ -316,6 +316,20 @@ own is searched on its own for the rest of the session. GitHub's own
 incomplete search and every other failure stand for each repository the
 search named, as they would have for each of them alone.
 
+**Retained pull requests in batches** ([[BPR-1680]]). A refresh's retained
+pull requests are grouped by repository and cut into reads of at most ten
+(`core::plan_retained_batches`, bounded by `personal_discovery_options`);
+such a read carries `personal_discovery_request::Numbers` and the adapter asks
+one GraphQL query, `ListHomePullRequests`, for all of them, an alias each. Its
+answer has one row per pull request it could read; the host applies each as a
+single read's, fails one left out alone, and fails the answer for a row it did
+not ask for. The adapter reads the REST way, one pull request at a time as
+before, any pull request with more reviews, review requests or check contexts
+than the query's first page of 50 (REST pages), and every one of them when
+the query fails other than for the whole session; when the server lacks one
+of the query's fields, the provider remembers that for the profile and goes
+straight to REST for the rest of the run.
+
 **One read per pull request per refresh** ([[BPR-1680]]). A refresh reads its
 retained pull requests before it searches, so a pull request both retained and
 found was read twice. A search now carries the pull requests of its repository

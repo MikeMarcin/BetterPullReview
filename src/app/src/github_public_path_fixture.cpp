@@ -2212,6 +2212,104 @@ namespace bpr::app::detail {
 			return response;
 		}
 
+		/// [[BPR-1680]]. The fixture server's answer to Home's batched GraphQL
+		/// read: each discovery pull request as its REST answers and Home
+		/// summary describe it. A pull request outside the discovery fixture
+		/// (the recorded review's) is answered as having more reviews than one
+		/// page, so the provider reads it the REST way, which replays the
+		/// recording, exactly as before.
+		[[nodiscard]] auto home_batch_response(const fixture_recording_state& aState, const adapters::github::detail::wire_request& aRequest)
+			-> adapters::github::detail::wire_response
+		{
+			const auto& fixture  = *aState.PersonalDiscovery;
+			const auto& semantic = aRequest.Semantic;
+			const auto  ours     = semantic.Owner == aState.Descriptor.Owner && semantic.Repository == aState.Descriptor.Name;
+			const auto  head     = [&aState](const bool aWaiting) { return aWaiting ? QString::fromUtf8(aState.Descriptor.HeadOneOid) : QString{ 40, QLatin1Char('a') }; };
+			const auto  base     = QString::fromUtf8(aState.Descriptor.BaseOid);
+			const auto  page     = [](const QJsonArray& aNodes, const qsizetype aTotal) {
+				return QJsonObject{ { "totalCount", aTotal }, { "pageInfo", QJsonObject{ { "hasNextPage", false } } }, { "nodes", aNodes } };
+			};
+			auto repository = QJsonObject{ { "id", "R_fixture_repository" }, { "nameWithOwner", QString::fromStdString(semantic.Owner + "/" + semantic.Repository) } };
+			for (std::size_t index = 0U; index < semantic.PullRequestNumbers.size(); ++index) {
+				const auto number  = semantic.PullRequestNumbers[index];
+				const auto found   = std::ranges::find(fixture.OpenPullRequests, number, &github_personal_discovery_fixture::pull_request::Number);
+				const auto known   = ours && found != fixture.OpenPullRequests.end();
+				const auto waiting = known && found->WaitingDetails;
+				const auto login   = known ? QString::fromStdString(found->Author) : QStringLiteral("octo-author");
+				const auto actorId = !known            ? QStringLiteral("U_fixture_author")
+					: found->Author == "octo-reviewer" ? QStringLiteral("U_fixture_viewer")
+					: waiting                          ? QStringLiteral("U_fixture_author")
+													   : QStringLiteral("U_") + login;
+				const auto large = number == 4001U, small = number == 4002U;
+				auto       reviews = QJsonArray{ };
+				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
+					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+				}
+				// The inline comments the REST pull request counts, on a review of their own.
+				const auto inlineComments = large ? 5 : small ? 0
+															  : 2;
+				if (known && inlineComments != 0) {
+					reviews.append(QJsonObject{ { "databaseId", 72000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "contributor-reviewer" }, { "id", "U_contributor_reviewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", inlineComments } } } });
+				}
+				auto       requests        = QJsonArray{ };
+				const auto requestsPresent = !known || !found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load();
+				if (known && requestsPresent && waiting) {
+					// The code-owner teams Home's review-request read names.
+					for (int team = 0; team < 3; ++team) {
+						requests.append(QJsonObject{ { "id", QStringLiteral("home-request-%1").arg(team) }, { "asCodeOwner", true }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("home-team-%1").arg(team) }, { "slug", team == 1 ? QStringLiteral("renderer-and-cross-platform-maintainers") : QStringLiteral("team-%1").arg(team) }, { "name", "Platform owners" }, { "organization", QJsonObject{ { "login", "octo-org" } } } } } });
+					}
+				} else if (known && requestsPresent) {
+					for (const auto& user : found->RequestedUsers) {
+						requests.append(QJsonObject{ { "id", QStringLiteral("RR_") + QString::fromStdString(user) }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", QStringLiteral("U_") + QString::fromStdString(user) }, { "login", QString::fromStdString(user) } } } });
+					}
+					for (std::size_t team = 0U; team < found->RequestedTeams; ++team) {
+						requests.append(QJsonObject{ { "id", QStringLiteral("RR_team_%1").arg(team) }, { "asCodeOwner", false }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("T_%1").arg(team) }, { "slug", QStringLiteral("team-%1").arg(team) }, { "name", QStringLiteral("team-%1").arg(team) }, { "organization", QJsonObject{ { "login", QString::fromUtf8(aState.Descriptor.Owner.data(), static_cast<qsizetype>(aState.Descriptor.Owner.size())) } } } } } });
+					}
+				}
+				auto rollup = QJsonValue{ QJsonValue::Null };
+				if (waiting) {
+					auto contexts = QJsonArray{ };
+					for (int check = 0; check < 24; ++check) {
+						const auto failed = check == 0 && (!found->CheckFailed || found->CheckFailed->load());
+						contexts.append(QJsonObject{ { "__typename", "CheckRun" }, { "name", check == 0 ? "Branch Freshness" : "CI" }, { "status", "COMPLETED" }, { "conclusion", failed ? "FAILURE" : check <= 16 ? "SUCCESS"
+																																																				   : "SKIPPED" } });
+					}
+					rollup = QJsonObject{ { "contexts", page(contexts, contexts.size()) } };
+				}
+				const auto pull = QJsonObject{
+					{ "id", QStringLiteral("PR_fixture_%1").arg(number) },
+					{ "number", static_cast<qint64>(number) },
+					{ "title", known ? discovered_title(QString::number(number)) : QStringLiteral("Served the REST way") },
+					{ "isDraft", known && found->Draft && found->Draft->load() },
+					{ "state", "OPEN" },
+					{ "createdAt", large ? QStringLiteral("2026-09-21T16:04:00Z") : small ? QStringLiteral("2026-10-12T08:30:00Z")
+																						  : QStringLiteral("2026-10-06T11:15:00Z") },
+					{ "additions", large ? 1204 : small ? 18
+														: 236 },
+					{ "deletions", large ? 318 : small ? 3
+													   : 41 },
+					{ "headRefOid", head(waiting) },
+					{ "baseRefOid", base },
+					{ "baseRefName", "main" },
+					{ "author", QJsonObject{ { "__typename", "User" }, { "login", login }, { "id", actorId } } },
+					{ "comments", QJsonObject{ { "totalCount", large ? 9 : small ? 0
+																				 : 1 } } },
+					// The recorded review's pull request: more reviews than a page.
+					{ "reviews", page(reviews, known ? reviews.size() : 51) },
+					{ "reviewRequests", page(requests, requests.size()) },
+					{ "mergeStateStatus", waiting ? "BLOCKED" : "UNKNOWN" },
+					{ "reviewDecision", waiting ? QJsonValue{ !found->RequiredReviewPresent || found->RequiredReviewPresent->load() ? "REVIEW_REQUIRED" : "APPROVED" } : QJsonValue{ QJsonValue::Null } },
+					{ "autoMergeRequest", QJsonValue::Null },
+					{ "commits", QJsonObject{ { "nodes", QJsonArray{ QJsonObject{ { "commit", QJsonObject{ { "oid", head(waiting) }, { "statusCheckRollup", rollup } } } } } } } },
+				};
+				repository.insert(QStringLiteral("p%1").arg(index), pull);
+			}
+			auto response = adapters::github::detail::wire_response{ .Status = 200, .Completeness = page_completeness::complete };
+			response.Headers.push_back({ .Name = "Content-Type", .Value = "application/json; charset=utf-8" });
+			response.Body = QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository } } } } }.toJson(QJsonDocument::Compact).toStdString();
+			return response;
+		}
+
 		enum class fixture_transport_role {
 			bootstrap,
 			account,
@@ -3004,6 +3102,21 @@ namespace bpr::app::detail {
 				// account's transport.
 				if (Role == fixture_transport_role::account) {
 					State->AccountReadOperations.emplace_back(adapters::github::detail::operation_name(aRequest.Wire.Operation));
+				}
+				// [[BPR-1680]]. Home's batched read of retained pull requests: the
+				// discovery fixture's server has it; one without discovery data
+				// answers as a server without the query's fields, so the provider
+				// reads the REST way.
+				if (aRequest.Wire.Operation == read_operation::list_home_pull_requests) {
+					if (Role != fixture_transport_role::account || !adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
+						State->RecordingFailure = -5;
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					auto batched = State->PersonalDiscovery
+						? home_batch_response(*State, aRequest.Wire)
+						: wire_response{ .Status = 200, .Headers = response_headers(), .Body = R"({"errors":[{"type":"undefinedField","message":"Field 'statusCheckRollup' doesn't exist on type 'Commit'"}]})", .Completeness = page_completeness::complete };
+					append_rate_limit_headers(batched, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(batched) };
 				}
 				// [[BPR-1387]]. Snapshot reads start with get_repository; Home's
 				// bounded metadata reads start at get_pull_request. Both carry

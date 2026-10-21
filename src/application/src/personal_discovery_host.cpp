@@ -256,7 +256,7 @@ namespace bpr::application {
 				.Read         = aJob.Read,
 				.Reason       = diagnosis_reason(aJob.Request.Reason),
 				.Repositories = saturated(std::max<std::size_t>(aJob.Repositories.size(), 1U)),
-				.PullRequests = aJob.Request.Number ? 1U : 0U,
+				.PullRequests = saturated(aJob.Request.Numbers.empty() ? (aJob.Request.Number ? 1U : 0U) : aJob.Request.Numbers.size()),
 			};
 		}
 
@@ -423,12 +423,25 @@ namespace bpr::application {
 			return { .Host = Session->Queue.Host, .Account = Session->Queue.Account, .Repository = aRepository, .Number = static_cast<std::int64_t>(aNumber.value()) };
 		}
 
-		[[nodiscard]] auto still_enrolled(const job& aJob) const -> bool
+		[[nodiscard]] auto still_enrolled(const std::string& aRepository, const core::pull_request_number aNumber) const -> bool
 		{
-			const auto ref = queue_ref(aJob.Repository, *aJob.Request.Number);
+			const auto ref = queue_ref(aRepository, aNumber);
 			return std::ranges::any_of(Queue.enrollments(), [&ref](const enrollment_record& aRecord) {
 				return aRecord.Ref == ref && aRecord.present();
 			});
+		}
+
+		/// [[BPR-1680]]. The pull requests one retained read asks for.
+		[[nodiscard]] static auto numbers_of(const job& aJob) -> std::vector<core::pull_request_number>
+		{
+			return aJob.Request.Numbers.empty() ? std::vector<core::pull_request_number>{ *aJob.Request.Number } : aJob.Request.Numbers;
+		}
+
+		/// A retained read is still wanted while any pull request it asks for
+		/// is still enrolled.
+		[[nodiscard]] auto still_enrolled(const job& aJob) const -> bool
+		{
+			return std::ranges::any_of(numbers_of(aJob), [&](const core::pull_request_number aNumber) { return still_enrolled(aJob.Repository, aNumber); });
 		}
 
 		[[nodiscard]] auto unread_retained() const -> bool
@@ -659,13 +672,27 @@ namespace bpr::application {
 			CycleRetainedRows.clear();
 			CycleRetainedReads.clear();
 			CycleProblem = queue_discovery_problem::none;
+			// [[BPR-1680]]. Several retained pull requests of one repository go
+			// in one read, as the core batches them.
+			auto targets = std::vector<core::discovery_retained_target>{ };
+			auto names   = std::vector<std::pair<core::repository_locator, std::string>>{ };
 			for (std::size_t index = 0U; index < items.size(); ++index) {
 				MetadataConsidered.insert(items[index].Ref);
 				if (index < maximum_personal_discovery_retained) {
-					enqueue(items[index].Ref.Repository, personal_discovery_reason::retained,
-							core::pull_request_number{ static_cast<std::uint32_t>(items[index].Ref.Number) });
+					const auto locator = *locator_of(items[index].Ref.Repository);
+					targets.push_back({ .Repository = locator, .Number = core::pull_request_number{ static_cast<std::uint32_t>(items[index].Ref.Number) } });
+					if (std::ranges::find(names, locator, &std::pair<core::repository_locator, std::string>::first) == names.end()) {
+						names.emplace_back(locator, items[index].Ref.Repository);
+					}
 				} else {
 					CycleProblem = queue_discovery_problem::detail_limit;
+				}
+			}
+			for (auto& batch : core::plan_retained_batches(targets, Options.RetainedBatch)) {
+				const auto& repository = std::ranges::find(names, batch.Repository, &std::pair<core::repository_locator, std::string>::first)->second;
+				enqueue(repository, personal_discovery_reason::retained, batch.Numbers.front());
+				if (batch.Numbers.size() > 1U) {
+					Queued.back().Request.Numbers = std::move(batch.Numbers);
 				}
 			}
 			Status.State        = queue_discovery_state::refreshing;
@@ -919,15 +946,36 @@ namespace bpr::application {
 			}
 		}
 
+		/// One row for each pull request the retained read asked for; a pull
+		/// request it could not read fails, a row for one it did not ask for
+		/// fails the read's answer, and one no longer enrolled is not applied.
 		void apply_metadata(const job& aJob, const personal_discovery_success& aResult)
 		{
-			if (aResult.Completeness != personal_discovery_completeness::complete || aResult.Rows.size() != 1U
-				|| aResult.Rows.front().Number != aJob.Request.Number || !aResult.Rows.front().Detailed
-				|| !aResult.Rows.front().HeadOid || aResult.Rows.front().Reviews.size() > maximum_personal_discovery_reviews) {
+			const auto numbers = numbers_of(aJob);
+			if (aResult.Completeness != personal_discovery_completeness::complete || aResult.Rows.size() > numbers.size()
+				|| std::ranges::any_of(aResult.Rows, [&numbers](const personal_discovery_row& aRow) { return std::ranges::find(numbers, aRow.Number) == numbers.end(); })) {
 				fail(queue_discovery_problem::failed, false);
 				return;
 			}
-			const auto& row = aResult.Rows.front();
+			for (const auto number : numbers) {
+				const auto row = std::ranges::find(aResult.Rows, number, &personal_discovery_row::Number);
+				if (row == aResult.Rows.end() || std::ranges::count(aResult.Rows, number, &personal_discovery_row::Number) != 1) {
+					fail(queue_discovery_problem::failed, false);
+					continue;
+				}
+				if (numbers.size() == 1U || still_enrolled(aJob.Repository, number)) {
+					apply_metadata_row(aJob, *row);
+				}
+			}
+		}
+
+		void apply_metadata_row(const job& aJob, const personal_discovery_row& aRow)
+		{
+			const auto& row = aRow;
+			if (!row.Detailed || !row.HeadOid || row.Reviews.size() > maximum_personal_discovery_reviews) {
+				fail(queue_discovery_problem::failed, false);
+				return;
+			}
 			if (row.WaitingLimited && CycleProblem == queue_discovery_problem::none) {
 				CycleProblem = queue_discovery_problem::detail_limit;
 			}

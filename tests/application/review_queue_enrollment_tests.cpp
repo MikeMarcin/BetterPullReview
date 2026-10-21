@@ -1649,7 +1649,7 @@ namespace {
 								   // [[BPR-1680]]. The scheduler's own tests search each repository
 								   // on its own, the shape they were written for; the batching
 								   // tests pass the production options.
-								   const application::personal_discovery_options aOptions = { .SearchRepositories = 1U })
+								   const application::personal_discovery_options aOptions = { .SearchRepositories = 1U, .RetainedBatch = 1U })
 			: Options{ aOptions }
 		{
 			Windows.Live                  = { queue_window(1U), queue_window(2U) };
@@ -2310,6 +2310,53 @@ namespace {
 		expect(provider.next().Repositories.empty() && provider.next().Context.Repository == tools
 				   && provider.Requests[provider.Answered + 1U].Repositories.empty() && provider.Requests[provider.Answered + 1U].Context.Repository == tools,
 			   "the repository refused alone is searched alone, for both reasons");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-1680]] option 4. With the production options the retained pull
+	/// requests of one repository are one read, as the core batches them;
+	/// each row it answers is applied as its own read's would be, a pull
+	/// request it leaves out fails alone, and a row for one it did not ask
+	/// for fails the read's answer.
+	void test_discovery_batches_retained_reads()
+	{
+		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } },
+										  {
+											  { .Ref = ref(9), .Membership = { .Followed = true } },
+											  { .Ref = ref(5), .Membership = { .Followed = true } },
+											  { .Ref = ref(7), .Membership = { .Followed = true } },
+										  },
+										  true,
+										  { } };
+		fixture.Discovery.adopt(discovery_session());
+		auto& provider = fixture.Provider;
+		expect(provider.Requests.size() == 1U && provider.next().Reason == application::personal_discovery_reason::retained
+				   && provider.next().Numbers == std::vector{ core::pull_request_number{ 5U }, core::pull_request_number{ 7U }, core::pull_request_number{ 9U } }
+				   && provider.next().Number == core::pull_request_number{ 5U },
+			   "the three retained pull requests of one repository are one read, ascending");
+		const auto diagnostics = fixture.Diagnostics.lines();
+		expect(diagnostics.size() == 2U && diagnostics[1].Scope == core::discovery_diagnosis_scope::read && diagnostics[1].PullRequests == 3U,
+			   "the read is logged as one read of three pull requests");
+		provider.answer(provider.rows({ metadata_row(5U), metadata_row(9U) }));
+		fixture.settle();
+		expect(fixture.item(5) && fixture.item(5)->Facts.Title == "Pull request 5" && fixture.item(9) && fixture.item(9)->Facts.Title == "Pull request 9" && fixture.item(7) && fixture.item(7)->Facts.Title.empty(),
+			   "each answered row is applied; the one left out keeps what it had");
+		while (provider.Answered < provider.Requests.size()) {
+			provider.answer(provider.rows({ }));
+			fixture.settle();
+		}
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale, "the pull request left out fails the refresh alone");
+
+		fixture.Discovery.refresh();
+		provider.answer(provider.rows({ metadata_row(5U), metadata_row(6U) }));
+		fixture.settle();
+		while (provider.Answered < provider.Requests.size()) {
+			provider.answer(provider.rows({ }));
+			fixture.settle();
+		}
+		expect(!fixture.item(6) && fixture.Discovery.status().State == application::queue_discovery_state::stale,
+			   "a row the read did not ask for fails its answer and enrolls nothing");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -3077,6 +3124,7 @@ auto main() -> int
 	test_discovery_records_each_refresh_and_read();
 	test_discovery_searches_reuse_the_refresh_retained_reads();
 	test_discovery_searches_several_repositories_at_once();
+	test_discovery_batches_retained_reads();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();
 	test_discovery_refuses_stale_and_foreign_answers();

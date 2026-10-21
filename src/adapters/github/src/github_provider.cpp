@@ -20,6 +20,7 @@
 #include <new>
 #include <optional>
 #include <ranges>
+#include <set>
 #include <stop_token>
 #include <string>
 #include <tuple>
@@ -69,6 +70,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::search_personal_pull_requests:
 			case read_operation::list_requested_reviewers:
 			case read_operation::get_team_membership:
+			case read_operation::list_home_pull_requests:
 				// [[BPR-0988]]. Discovery is not part of a pull request read.
 				return application::diagnostic_paged_operation::none;
 			}
@@ -254,6 +256,10 @@ namespace bpr::adapters::github::detail {
 			/// [[BPR-1373]]. The account each pinned CLI profile first signed in
 			/// as in this run, by profile and login, under `Mutex`.
 			std::map<std::pair<std::uint64_t, std::string>, core::github_account_id> CliPinnedAccounts;
+			/// [[BPR-1680]]. Profiles whose server answered Home's batched
+			/// GraphQL read without a field it asks for, under `Mutex`: their
+			/// retained reads go the REST way for the rest of the run.
+			std::set<std::uint64_t> HomeBatchUnsupported;
 			/// [[BPR-1560]]. Merge bases GitHub named for an exact recorded base
 			/// and head, by host, profile and repository, under `Mutex`. An exact
 			/// pair's merge base never changes, so a poll that finds the same pair
@@ -2881,10 +2887,19 @@ namespace bpr::adapters::github::detail {
 					}
 					const auto transport = *operation ? *operation : accountTransport->Transport;
 					counted.emplace(*transport);
-					auto       result = job->Stop.stop_requested()
+					const auto profileId = aRequest.ProfileAuthority.Profile.value();
+					const auto batched   = [&state, profileId] {
+						std::scoped_lock lock{ state->Mutex };
+						return !state->HomeBatchUnsupported.contains(profileId);
+					}();
+					auto result = job->Stop.stop_requested()
 						? github_personal_discovery_read_result{ std::unexpected{ github_paged_read_failure{ github_paged_read_cancelled{ } } } }
-						: perform_personal_discovery_read(*counted, *profile, aRequest, job->Stop.get_token());
-					const auto was    = finish_job(state, job);
+						: perform_personal_discovery_read(*counted, *profile, aRequest, job->Stop.get_token(), { }, batched);
+					if (result && result->BatchUnsupported) {
+						std::scoped_lock lock{ state->Mutex };
+						state->HomeBatchUnsupported.insert(profileId);
+					}
+					const auto was = finish_job(state, job);
 					if (was || (!result.has_value() && std::holds_alternative<github_paged_read_cancelled>(result.error()))) {
 						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;

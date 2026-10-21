@@ -517,7 +517,7 @@ enforced delay or automatic retry.
 
 [[BPR-0988]] (RFC-BPR-0026) adds a second, independent read to the same
 provider: `personal_discovery_port::discover` lists the viewer's open pull
-requests of one saved repository without reading any of them. It is two
+requests of one saved repository without reading any of them. Its reads are
 operations outside the recorded snapshot manifest:
 
 - `SearchPersonalPullRequests`: `GET {rest}/search/issues` with
@@ -540,12 +540,29 @@ operations outside the recorded snapshot manifest:
   is not discovered. A row the refresh's retained read already read in full
   ([[BPR-1680]]) is returned `Reused` with no detail read.
 
+- `ListHomePullRequests` ([[BPR-1680]]): `POST {graphql}` with
+  `query ListHomePullRequests($owner,$name){repository{id nameWithOwner p0:pullRequest(number:N){...HomePullRequest} ...}}`
+  for two to ten retained pull requests of one repository, the numbers
+  literals of the document (`semantic_read_request::PullRequestNumbers`,
+  ascending) and the variables exactly `owner` and `name`. The
+  `HomePullRequest` fragment asks for the title, draft and state, head and
+  base, author, comment total, the first 50 reviews (with each one's comment
+  total), review requests and last-commit check contexts, each with its total
+  and `hasNextPage`, and the merge state, review decision and auto-merge. It
+  costs about six points for ten pull requests and asks for about 1,500 nodes
+  (`core::discovery_batch_cost`, `core::discovery_batch_nodes`). A pull request
+  with more than one page of any connection is read by the REST reads above,
+  which page; a failure of the query other than for the whole session sends
+  the batch the REST way, and an `undefinedField` answer (an older server)
+  marks the profile so later reads skip the query. An anonymous authority
+  refuses it as a GraphQL surface.
+
 The search's wire parent is a `core::repository_request_context`: the same
 application session, profile, host, account and identity generation a pull
 request context carries, scoped to one repository and naming no pull request.
 Wire validation admits that parent for the personal search of exactly its
-repository and for nothing else, and refuses the personal search under any
-other parent; the requested-reviewers read runs under its pull request's
+repository and for Home's batched read of its pull requests, and for nothing
+else, and refuses both under any other parent; the requested-reviewers read runs under its pull request's
 context. Native HTTPS correlates both against the exact account credential as
 it does a pull request read, and an anonymous authority refuses both as
 identity operations. The search bills the `search` rate resource and the

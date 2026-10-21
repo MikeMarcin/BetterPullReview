@@ -43,10 +43,11 @@ namespace bpr::adapters::github::detail {
 							parent_type,
 							core::repository_request_context>) {
 						// [[BPR-0988]]. A repository context admits the personal
-						// search of exactly its repository, and nothing else.
+						// search of exactly its repository, and, [[BPR-1680]],
+						// Home's batched read of its pull requests; nothing else.
 						const auto& semantic = aRequest.Wire.Semantic;
-						return aRequest.Correlation.Operation
-							== read_operation::search_personal_pull_requests
+						return (aRequest.Correlation.Operation == read_operation::search_personal_pull_requests
+								|| aRequest.Correlation.Operation == read_operation::list_home_pull_requests)
 							&& application::detail::valid_context(aParent)
 							&& aParent.Profile == aProfile.profile()
 							&& aParent.Host == aProfile.host()
@@ -59,6 +60,8 @@ namespace bpr::adapters::github::detail {
 								== read_operation::get_viewer_identity
 							|| aRequest.Correlation.Operation
 								== read_operation::search_personal_pull_requests
+							|| aRequest.Correlation.Operation
+								== read_operation::list_home_pull_requests
 							|| !application::detail::valid_context(aParent)
 							|| aParent.Profile != aProfile.profile()
 							|| aParent.Host != aProfile.host()) {

@@ -523,11 +523,12 @@ try {
 		const auto before            = discovery().Statistics;
 		delay->DiscoveryMilliseconds = discovery_hold_ms;
 		window->queue_refresh_action()->trigger();
-		// Two retained pull requests are read first, then the repository's two
-		// searches, which the slow network holds.
-		wait_for([&] { return discovery().Statistics.Submitted >= before.Submitted + 4U; }, "Home's refresh reaches its searches");
+		// Two retained pull requests are read first, in one batched read
+		// ([[BPR-1680]]), then the repository's two searches, which the slow
+		// network holds.
+		wait_for([&] { return discovery().Statistics.Submitted >= before.Submitted + 3U; }, "Home's refresh reaches its searches");
 		pause(300);
-		expect(discovery().Status.State == application::queue_discovery_state::refreshing && discovery().Statistics.Answered == before.Answered + 2U,
+		expect(discovery().Status.State == application::queue_discovery_state::refreshing && discovery().Statistics.Answered == before.Answered + 1U,
 			   "Home is still loading, its searches held on the wire");
 		wait_for([&] { return window->pending_veils().HomeList->look() == core::pending_look::refreshing; }, "and its list is greyed while it loads", { }, 3000);
 		QElapsedTimer opening;

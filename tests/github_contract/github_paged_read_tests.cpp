@@ -1525,6 +1525,7 @@ namespace {
 				case read_operation::get_merge_base:
 				case read_operation::resolve_body_images:
 				case read_operation::get_team_membership:
+				case read_operation::list_home_pull_requests:
 					break;
 				}
 				return success_response(fixture_json(fixture_object{ }));
@@ -3795,6 +3796,8 @@ namespace {
 		std::function<wire_response(std::uint32_t)>              Reviewers;
 		std::function<wire_response(const github_wire_request&)> Metadata;
 		std::function<wire_response(const github_wire_request&)> Reviews;
+		/// [[BPR-1680]]. Home's batched GraphQL read.
+		std::function<wire_response(const github_wire_request&)> Home;
 
 		auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
 		{
@@ -3806,6 +3809,11 @@ namespace {
 			if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
 				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent), "the search is scoped to the repository");
 				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Search(aRequest) };
+			}
+			if (aRequest.Wire.Operation == read_operation::list_home_pull_requests) {
+				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent) && aRequest.Wire.Path == "/graphql",
+					   "the batched read is scoped to the repository and goes to GraphQL");
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Home(aRequest) };
 			}
 			if (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews) {
 				expect(std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
@@ -4166,6 +4174,210 @@ namespace {
 			{ "commit_id", std::string{ head_oid } },
 			{ "body", "Review prose does not enter Home." },
 		};
+	}
+
+	/// [[BPR-1680]]. One alias of Home's batched query, as GitHub answers it:
+	/// two reviews (one pending), a code-owner team and the viewer asked, a
+	/// failed and a running check run and an erroring commit status.
+	[[nodiscard]] auto home_pull(const std::uint32_t aNumber, const std::uint64_t aReviewTotal = 2U) -> fixture_object
+	{
+		const auto number     = std::to_string(aNumber);
+		const auto connection = [](const fixture_array& aNodes, const std::uint64_t aTotal) {
+			return fixture_object{ { "totalCount", aTotal }, { "pageInfo", fixture_object{ { "hasNextPage", false } } }, { "nodes", aNodes } };
+		};
+		const auto actor = [](const std::string_view aType, const std::string_view aLogin, const std::string_view aId) {
+			return fixture_object{ { "__typename", std::string{ aType } }, { "login", std::string{ aLogin } }, { "id", std::string{ aId } } };
+		};
+		auto       reviews  = fixture_array{ };
+		const auto approved = fixture_object{ { "databaseId", 900U + aNumber }, { "state", "APPROVED" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", fixture_object{ { "oid", std::string{ head_oid } } } }, { "comments", fixture_object{ { "totalCount", 2U } } } };
+		const auto pending  = fixture_object{ { "databaseId", 950U + aNumber }, { "state", "PENDING" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", nullptr }, { "comments", fixture_object{ { "totalCount", 3U } } } };
+		reviews.emplace_back(approved);
+		reviews.emplace_back(pending);
+		auto       requests = fixture_array{ };
+		const auto team     = fixture_object{ { "id", "RR_team_" + number },
+											  { "asCodeOwner", true },
+											  { "requestedReviewer", fixture_object{ { "__typename", "Team" }, { "id", "T_owners" }, { "name", "Owners" }, { "slug", "owners" }, { "organization", fixture_object{ { "login", "octo-org" } } } } } };
+		const auto user     = fixture_object{ { "id", "RR_user_" + number }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_viewer" }, { "login", "octo-reviewer" } } } };
+		requests.emplace_back(team);
+		requests.emplace_back(user);
+		auto       contexts = fixture_array{ };
+		const auto failed   = fixture_object{ { "__typename", "CheckRun" }, { "name", "Build" }, { "status", "COMPLETED" }, { "conclusion", "FAILURE" } };
+		const auto running  = fixture_object{ { "__typename", "CheckRun" }, { "name", "Lint" }, { "status", "IN_PROGRESS" }, { "conclusion", nullptr } };
+		const auto legacy   = fixture_object{ { "__typename", "StatusContext" }, { "context", "ci/legacy" }, { "state", "ERROR" } };
+		contexts.emplace_back(failed);
+		contexts.emplace_back(running);
+		contexts.emplace_back(legacy);
+		auto       commits = fixture_array{ };
+		const auto commit  = fixture_object{ { "commit", fixture_object{ { "oid", std::string{ head_oid } }, { "statusCheckRollup", fixture_object{ { "contexts", connection(contexts, 3U) } } } } } };
+		commits.emplace_back(commit);
+		return {
+			{ "id", "PR_" + number },
+			{ "number", aNumber },
+			{ "title", "Batched " + number },
+			{ "isDraft", aNumber == 18U },
+			{ "state", "OPEN" },
+			{ "createdAt", "2026-10-06T11:15:00Z" },
+			{ "additions", 236U },
+			{ "deletions", 41U },
+			{ "headRefOid", std::string{ head_oid } },
+			{ "baseRefOid", std::string{ base_oid } },
+			{ "baseRefName", "main" },
+			{ "author", actor("User", "author", "U_author") },
+			{ "comments", fixture_object{ { "totalCount", 1U } } },
+			{ "reviews", connection(reviews, aReviewTotal) },
+			{ "reviewRequests", connection(requests, 2U) },
+			{ "mergeStateStatus", "BLOCKED" },
+			{ "reviewDecision", "REVIEW_REQUIRED" },
+			{ "autoMergeRequest", nullptr },
+			{ "commits", fixture_object{ { "nodes", commits } } },
+		};
+	}
+
+	[[nodiscard]] auto home_response(const std::vector<fixture_object>& aPulls) -> wire_response
+	{
+		auto repository = fixture_object{ { "id", "R_repository" }, { "nameWithOwner", "Octo-Org/Review-Repository" } };
+		for (std::size_t index = 0U; index < aPulls.size(); ++index) {
+			repository.insert_or_assign("p" + std::to_string(index), aPulls[index]);
+		}
+		auto response = success_response(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", repository } } } }));
+		for (auto& header : response.Headers) {
+			if (header.Name == "X-RateLimit-Resource") {
+				header.Value = "graphql";
+			}
+		}
+		return response;
+	}
+
+	/// [[BPR-1680]]. Several retained pull requests in one GraphQL query; the
+	/// REST way for a pull request with more than a page of anything, for all
+	/// of them when the query fails other than for the whole session, and
+	/// when the server is known to lack a field.
+	void test_retained_home_batch_read()
+	{
+		using reason    = application::personal_discovery_reason;
+		const auto rest = [](discovery_fixture_transport& aTransport) {
+			aTransport.Metadata = [](const github_wire_request& aRequest) {
+				auto       metadata = retained_metadata();
+				const auto number   = aRequest.Wire.Semantic.PullRequestNumber;
+				metadata.insert_or_assign("number", number);
+				metadata.insert_or_assign("url", "https://api.github.com/repos/octo-org/review-repository/pulls/" + std::to_string(number));
+				return success_response(fixture_json(metadata));
+			};
+			aTransport.Reviews = [](const auto&) { return success_response("[]"); };
+		};
+		const auto request = [] {
+			auto result    = discovery_request(reason::retained);
+			result.Numbers = { core::pull_request_number{ 17U }, core::pull_request_number{ 18U } };
+			return result;
+		};
+		{
+			auto transport = discovery_fixture_transport{ };
+			transport.Home = [](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Body.contains("p0:pullRequest(number:17){...HomePullRequest} p1:pullRequest(number:18){...HomePullRequest}")
+						   && aRequest.Wire.Body.contains("fragment HomePullRequest on PullRequest")
+						   && aRequest.Wire.Semantic.PullRequestNumbers == std::vector<std::uint32_t>{ 17U, 18U },
+					   "one query, one alias per pull request in ascending order");
+				return home_response({ home_pull(17U), home_pull(18U) });
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(result && result->Rows.size() == 2U && transport.Requests.size() == 1U && !result->BatchUnsupported,
+				   "two retained pull requests cost one request");
+			const auto& row = result->Rows.front();
+			expect(row.Number.value() == 17U && row.Title == "Batched 17" && row.Detailed && row.Draft == false && result->Rows.back().Draft == true
+					   && row.HeadOid == application::commit_oid{ std::string{ head_oid } } && !row.Closed && row.Author == "author"
+					   && row.AuthorIdentity == application::github_actor_id{ "U_author" },
+				   "title, draft, head and author come from the alias");
+			expect(row.Reviews.size() == 2U && row.Reviews[0].DatabaseId == 917U && row.Reviews[0].Author == application::github_actor_id{ "U_viewer" }
+					   && row.Reviews[0].State == application::github_review_state::approved && row.Reviews[0].Commit == application::commit_oid{ std::string{ head_oid } }
+					   && row.Reviews[1].State == application::github_review_state::pending && !row.Reviews[1].Commit,
+				   "submitted-review evidence is the reviews' own");
+			expect(row.ReviewersAwaited == 2U && row.RequestsViewer && row.Waiting.Requests == std::optional<std::uint32_t>{ 2U }
+					   && row.Waiting.CodeOwners == std::vector<std::string>{ "@octo-org/owners" } && row.Waiting.RequiredReview == true
+					   && row.Waiting.MergeBlocked == true && row.Waiting.ChecksKnown
+					   && row.Waiting.FailedChecks == std::vector<std::string>{ "Build", "ci/legacy" } && row.Waiting.Head == head_oid,
+				   "the waiting summary is the one the REST reads build: requests, code owners, merge state and failed checks");
+			expect(row.Change.Additions == std::optional<std::uint64_t>{ 236U } && row.Change.Deletions == std::optional<std::uint64_t>{ 41U }
+					   && row.Change.Comments == std::optional<std::uint64_t>{ 3U } && row.Change.OpenedAt.has_value(),
+				   "a pending review's comments are not counted");
+		}
+		{
+			auto transport = discovery_fixture_transport{ };
+			rest(transport);
+			transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(17U), home_pull(18U, 51U) }); };
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(result && result->Rows.size() == 2U && result->Rows[0].Title == "Batched 17" && result->Rows[1].Title == "Fix the queue before opening"
+					   && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::get_pull_request) == 1U,
+				   "a pull request with more reviews than a page is read the REST way, which pages; the other is not read again");
+		}
+		{
+			auto transport = discovery_fixture_transport{ };
+			rest(transport);
+			transport.Home = [](const github_wire_request&) {
+				auto response = home_response({ });
+				response.Body = R"({"errors":[{"type":"undefinedField","message":"Field 'statusCheckRollup' doesn't exist on type 'Commit'"}]})";
+				return response;
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(result && result->Rows.size() == 2U && result->BatchUnsupported && transport.count(read_operation::get_pull_request) == 2U,
+				   "a server without one of the query's fields is read the REST way and says so");
+			transport.Requests.clear();
+			const auto again = perform_personal_discovery_read(transport, profile(), request(), { }, { }, false);
+			expect(again && again->Rows.size() == 2U && transport.count(read_operation::list_home_pull_requests) == 0U, "one known to lack it is not asked again");
+		}
+		{
+			auto transport = discovery_fixture_transport{ };
+			rest(transport);
+			transport.Home = [](const github_wire_request&) {
+				auto response   = home_response({ });
+				response.Status = 401;
+				response.Body   = R"({"message":"Bad credentials"})";
+				return response;
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(!result && discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::authentication
+					   && transport.count(read_operation::get_pull_request) == 0U,
+				   "a failure of the whole session fails the read without the REST reads");
+		}
+		{
+			auto transport = discovery_fixture_transport{ };
+			rest(transport);
+			transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(18U), home_pull(17U) }); };
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
+				   "an alias that is not the pull request asked for sends every pull request the REST way");
+		}
+		for (const auto& numbers : { std::vector<std::uint32_t>{ 18U, 17U }, std::vector<std::uint32_t>{ 17U }, std::vector<std::uint32_t>{ 17U, 17U },
+									 std::vector<std::uint32_t>{ 17U, 18U, 19U, 20U, 21U, 22U, 23U, 24U, 25U, 26U, 27U } }) {
+			auto transport = discovery_fixture_transport{ };
+			auto hostile   = request();
+			hostile.Numbers.clear();
+			for (const auto number : numbers) {
+				hostile.Numbers.emplace_back(number);
+			}
+			hostile.Number = hostile.Numbers.front();
+			expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
+				   "a batch names two to ten pull requests, ascending, once each");
+		}
+		{
+			auto transport    = discovery_fixture_transport{ };
+			auto mismatched   = request();
+			mismatched.Number = core::pull_request_number{ 18U };
+			auto searched     = discovery_request(reason::authored);
+			searched.Numbers  = request().Numbers;
+			expect(!perform_personal_discovery_read(transport, profile(), mismatched, { }) && !perform_personal_discovery_read(transport, profile(), searched, { })
+					   && transport.Requests.empty(),
+				   "the batch's first is its Number, and only a retained read batches");
+			auto semantic               = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::list_home_pull_requests, .Owner = "octo-org", .Repository = "review-repository" };
+			semantic.PullRequestNumbers = { 17U, 18U };
+			const auto compiled         = compile_read_request(semantic);
+			expect(compiled.has_value() && compiled->Method == http_method::post && !compiled->Body.contains("\"number\""), "the wire names the numbers in the document, not as variables");
+			semantic.PullRequestNumbers = { };
+			expect(!compile_read_request(semantic), "a batched read names its pull requests");
+			semantic.Operation          = read_operation::get_pull_request;
+			semantic.PullRequestNumber  = 17U;
+			semantic.PullRequestNumbers = { 17U, 18U };
+			expect(!compile_read_request(semantic), "only the batched read names several pull requests");
+		}
 	}
 
 	void test_home_draft_metadata_is_an_optional_wire_fact()
@@ -4718,5 +4930,6 @@ auto main() -> int
 	test_home_draft_metadata_is_an_optional_wire_fact();
 	test_home_change_facts_are_read_with_the_pull_request();
 	test_retained_home_metadata_read();
+	test_retained_home_batch_read();
 	return EXIT_SUCCESS;
 }

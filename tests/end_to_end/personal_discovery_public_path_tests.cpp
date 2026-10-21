@@ -158,7 +158,9 @@ namespace {
 	[[nodiscard]] auto only_discovery(const std::vector<std::string>& aOperations) -> bool
 	{
 		return std::ranges::all_of(aOperations, [](const std::string& aOperation) {
-			return aOperation == "SearchPersonalPullRequests" || aOperation == "ListRequestedReviewers" || aOperation == "GetPullRequest" || aOperation == "ListReviews";
+			return aOperation == "SearchPersonalPullRequests" || aOperation == "ListRequestedReviewers" || aOperation == "GetPullRequest" || aOperation == "ListReviews"
+				// [[BPR-1680]]. Home's batched read of retained pull requests.
+				|| aOperation == "ListHomePullRequests";
 		});
 	}
 
@@ -910,6 +912,14 @@ try {
 	// [[BPR-1680]]. #4001, #4002 and #4003 were read as retained pull
 	// requests, so the searches that find them read none of them again.
 	expect(discovery().Statistics.Reused == 3U && evidence().DiscoveryDetailReads == 8U, "the searches reuse the refresh's three retained reads");
+	// [[BPR-1680]]. The four retained pull requests of the one repository
+	// are one GraphQL read; #17, the recorded review, has more reviews than a
+	// page there, so it alone is read the REST way.
+	{
+		const auto refreshReads = reads_since(evidence(), beforeRefresh, cliCourse);
+		expect(std::ranges::count(refreshReads, "ListHomePullRequests") == 1 && std::ranges::count(refreshReads, "ListReviews") == 1,
+			   "the retained pull requests are one batched read, with one paged out to REST");
+	}
 	wait_for([&] { const auto item = queue_item(*windowA, 4001); return item && item->Bucket == core::attention_bucket::quiet
 		&& contains(state_rows(*windowA, qt::home_group::my_pull_requests), "octo-org/review-repository#4001"); }, "accepted authored refresh moves waiting-only into My pull requests", diagnose);
 	expect(windowA->selected_queue_item() && windowA->selected_queue_item()->Ref == authoredRef
