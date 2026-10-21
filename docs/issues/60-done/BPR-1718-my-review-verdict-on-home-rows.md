@@ -119,3 +119,7 @@ light and dark, wide and narrow, are in the coordinator's scratchpad
 probe of BPR-Test confirmed the `submittedAt` shape. At landing, allocate the
 ID on main and rename this file and every `BPR-1718` reference, including
 the round-trip contract's note.
+
+## Owner look
+
+Verdict, 2026-10-21: the owner answered **Accept** in chat after viewing the 2x renders, including the green and red marks and the decisions listed under "Decisions to revisit".
