@@ -113,7 +113,7 @@ namespace bpr::qt {
 		Toggle->setArrowType(Qt::RightArrow);
 		Toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
 		Toggle->setFocusPolicy(Qt::StrongFocus);
-		Toggle->setToolTip(QStringLiteral("Generated files are left out of the walk, the counts and preparation. Open the list to review one anyway."));
+		Toggle->setToolTip(QStringLiteral("Generated files are left out of the walk, the counts and preparation. Open the list to read one's diff or review it anyway."));
 		// The ink and weight of a folder row (BPR-1529): a group, not a file.
 		auto strong = Toggle->font();
 		strong.setWeight(QFont::DemiBold);
@@ -135,7 +135,7 @@ namespace bpr::qt {
 		List = new QTreeWidget{ this };
 		List->setObjectName(QStringLiteral("generatedFilesList"));
 		List->setAccessibleName(QStringLiteral("Generated files"));
-		List->setAccessibleDescription(QStringLiteral("Files set aside as generated. Open the context menu to review one anyway or show it as normal."));
+		List->setAccessibleDescription(QStringLiteral("Files set aside as generated. Activate one to read its diff; it stays set aside. Open the context menu to review one anyway or show it as normal."));
 		List->setColumnCount(2);
 		List->setHeaderHidden(true);
 		List->setRootIsDecorated(false);
@@ -147,6 +147,13 @@ namespace bpr::qt {
 		List->header()->setStretchLastSection(false);
 		List->header()->setSectionResizeMode(0, QHeaderView::Stretch);
 		List->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+		// [[BPR-1693]]. A listed file's diff is read on request; it stays set aside.
+		connect(List, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem* aItem) { open_row(List->indexOfTopLevelItem(aItem)); });
+		connect(List, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* aItem) {
+			if (OpenOnClick) {
+				open_row(List->indexOfTopLevelItem(aItem));
+			}
+		});
 		List->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(List, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPosition) {
 			const auto at  = List->indexAt(aPosition);
@@ -197,6 +204,26 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 	}
 
+	void generated_files_row::set_open_dispatch(generated_open_dispatch aDispatch)
+	{
+		OpenDispatch = std::move(aDispatch);
+	}
+
+	void generated_files_row::set_open_on_click(const bool aOpenOnClick)
+	{
+		OpenOnClick = aOpenOnClick;
+	}
+
+	void generated_files_row::open_row(const int aRow)
+	{
+		if (aRow < 0 || static_cast<std::size_t>(aRow) >= Rows.size() || !OpenDispatch) {
+			return;
+		}
+		// Copied: the dispatch may present a new projection, which replaces the rows.
+		const auto path = Rows[static_cast<std::size_t>(aRow)].Path;
+		OpenDispatch(path);
+	}
+
 	auto generated_files_row::make_menu(const int aRow, QWidget* const aParent) -> QMenu*
 	{
 		if (aRow < 0 || static_cast<std::size_t>(aRow) >= Rows.size()) {
@@ -206,6 +233,13 @@ namespace bpr::qt {
 		menu->setAttribute(Qt::WA_WindowPropagation);
 		menu->setObjectName(QStringLiteral("generatedFilesMenu"));
 		const auto& row = Rows[static_cast<std::size_t>(aRow)];
+		// [[BPR-1693]]. First, what activating the file does: read its diff.
+		if (OpenDispatch) {
+			auto* const open = menu->addAction(QStringLiteral("Open diff"));
+			open->setObjectName(QStringLiteral("generatedFilesOpen"));
+			open->setToolTip(QStringLiteral("Read this file's diff. It stays set aside: Next file and the counts still leave it out."));
+			connect(open, &QAction::triggered, menu, [dispatch = OpenDispatch, path = row.Path] { dispatch(path); });
+		}
 		add_generated_actions(*menu, row.Path, row.Gestures, Dispatch);
 		return menu;
 	}

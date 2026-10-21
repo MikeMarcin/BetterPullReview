@@ -352,6 +352,23 @@ namespace {
 			   "Review anyway dispatches the file's path");
 		expect(row.make_menu(7, nullptr) == nullptr, "no menu past the list");
 
+		// [[BPR-1693]]. A listed file's diff opens on request, by path.
+		auto opened = std::vector<std::string>{ };
+		row.set_open_dispatch([&opened](const std::string& aPath) { opened.push_back(aPath); });
+		menu.reset(row.make_menu(1, nullptr));
+		expect(menu->actions().front()->text() == QStringLiteral("Open diff") && menu->actions()[1]->isSeparator()
+				   && titles() == QStringList{ QStringLiteral("Open diff"), QStringLiteral("Review anyway"), QStringLiteral("Show as normal"), QStringLiteral("Follow .gitattributes") },
+			   "with an open dispatch the menu offers Open diff first, then the gestures");
+		menu->actions().front()->trigger();
+		expect(opened == std::vector<std::string>{ "package-lock.json" } && gestures.size() == 1U, "Open diff dispatches the path and no gesture");
+		emit row.list()->itemClicked(row.list()->topLevelItem(0), 0);
+		expect(opened.size() == 1U, "a single click selects without opening, as in the Overview's tree");
+		emit row.list()->itemActivated(row.list()->topLevelItem(0), 0);
+		expect(opened.size() == 2U && opened.back() == "gen/a.c", "activating a file opens its diff");
+		row.set_open_on_click(true);
+		emit row.list()->itemClicked(row.list()->topLevelItem(1), 0);
+		expect(opened.size() == 3U && opened.back() == "package-lock.json", "in the Files drawer a click opens it, as a click in its tree does");
+
 		if (qEnvironmentVariableIsSet("BPR_RFC0089_RENDER_DIR")) {
 			const auto directory = qEnvironmentVariable("BPR_RFC0089_RENDER_DIR");
 			const auto path      = QDir{ directory }.filePath(QStringLiteral("generated-row-%1.png").arg(static_cast<int>(row.devicePixelRatioF() * 100.0)));

@@ -3988,6 +3988,8 @@ namespace bpr::qt {
 					GeneratedDispatch(aGesture);
 				}
 			});
+			// [[BPR-1693]]. A click opens a listed file, as one in the tree does.
+			FilesGeneratedRow->set_open_on_click(true);
 			surfaceColumn->addWidget(FilesGeneratedRow, 0);
 			FilesTree->set_menu_extension([this](QMenu& aMenu, const QString& aPath) {
 				if (!FilterProjection) {
@@ -7565,6 +7567,24 @@ namespace bpr::qt {
 		GeneratedDispatch = aDispatch;
 		if (OverviewPage != nullptr) {
 			OverviewPage->set_generated_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::set_generated_open_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		if (FilesGeneratedRow != nullptr) {
+			FilesGeneratedRow->set_open_dispatch(aDispatch);
+		}
+		if (OverviewPage != nullptr && OverviewPage->generated_row() != nullptr) {
+			// Review first, then the file, as a pick in the Overview's tree does.
+			OverviewPage->generated_row()->set_open_dispatch([this, dispatch = std::move(aDispatch)](const std::string& aPath) {
+				if (!dispatch) {
+					return;
+				}
+				ReviewEnteredFor = overview_review_key();
+				choose_modality(review_modality::review);
+				dispatch(aPath);
+			});
 		}
 	}
 

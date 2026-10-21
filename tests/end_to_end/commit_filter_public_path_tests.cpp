@@ -21,7 +21,9 @@
 // gen/item_007.txt with a nested -linguist-generated: Whole PR and every
 // filter leave the 95 marked paths behind the generated row, out of the walk
 // and the counts and unprepared, Clear all filters leaves them there, and a
-// reviewer's mark still outranks the attributes (AC04, AC05).
+// reviewer's mark still outranks the attributes (AC04, AC05). [[BPR-1693]]:
+// a set-aside file's diff opens on request from either generated row and
+// leaves the walk, the counts and the marks as they were.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -527,6 +529,56 @@ namespace {
 		expect(access::diff_blob_reads(*run.Application, blob("cbaab37374a1a5502c81ac45aaad3cc68f4a75ec")) == 0U
 				   && access::diff_blob_reads(*run.Application, blob("4764315f2893b5a3440fca43b5f7603f16197202")) == 0U,
 			   "set-aside files are not prepared: their head blobs are never read");
+
+		// [[BPR-1693]] AC1: Open diff on a file in the Files drawer's generated row
+		// shows its diff, read on request, and leaves it set aside.
+		const auto walkedBefore = walk(*window);
+		const auto openDiff     = [](qt::generated_files_row& aRow, const std::string_view aPath) {
+			auto row = -1;
+			for (auto index = 0; index < static_cast<int>(aRow.rows().size()); ++index) {
+				row = aRow.rows()[static_cast<std::size_t>(index)].Path == aPath ? index : row;
+			}
+			expect(row >= 0, "the generated row lists the file");
+			auto  menu   = std::unique_ptr<QMenu>{ aRow.make_menu(row, nullptr) };
+			auto* chosen = menu ? menu->findChild<QAction*>(QStringLiteral("generatedFilesOpen")) : nullptr;
+			expect(chosen != nullptr && chosen->isEnabled() && menu->actions().front() == chosen, "the generated row's menu offers Open diff first");
+			chosen->trigger();
+		};
+		openDiff(*drawerRow, "gen/item_000.txt");
+		wait_for([&] { return shown(*window, "gen/item_000.txt"); }, "Open diff shows the set-aside file's diff");
+		{
+			const auto& result  = *window->comparison_surface()->current_result();
+			const auto& context = *window->comparison_surface()->current_context();
+			expect(!context.Key.Filter && changed(result, core::diff_side::left) == lines{ { 1U, "generated from value 1" }, { 3U, "checksum 1000" } }
+					   && changed(result, core::diff_side::right) == lines{ { 1U, "generated from value 2" }, { 3U, "checksum 2000" } },
+				   "it is the file's own Whole PR diff, read on request");
+		}
+		const auto stillAside = [&](const std::string_view aPath) {
+			const auto& rows = window->files_generated_row()->rows();
+			const auto  row  = std::ranges::find(rows, aPath, &application::generated_file_row::Path);
+			return rows.size() == marked && row != rows.end() && row->Reason == core::generated_reason::attribute_set && !row->ReviewAnyway;
+		};
+		expect(walk(*window) == walkedBefore && drawer_files(*window) == 3 && overview_files(*window) == ordinary,
+			   "it is not added to Next file or the counts");
+		expect(stillAside("gen/item_000.txt") && window->overview_page()->generated_row()->rows().size() == marked,
+			   "no mark is written: it is still set aside because .gitattributes marks it");
+		// AC2: leaving it returns the review to its set.
+		window->next_file_action()->trigger();
+		wait_for([&] { return std::ranges::any_of(walkedBefore, [&](const std::string& aPath) { return shown(*window, aPath); }); },
+				 "Next file from it walks the review's own files");
+		expect(stillAside("gen/item_000.txt") && walk(*window) == walkedBefore, "and the file is still set aside");
+		// AC1 from the Overview: activating a listed file enters Review on its diff.
+		window->show_commits();
+		wait_for([&] { return window->showing_overview(); }, "back on the Overview");
+		auto* const overviewList = window->overview_page()->generated_row()->list();
+		auto*       item         = static_cast<QTreeWidgetItem*>(nullptr);
+		for (auto index = 0; index < overviewList->topLevelItemCount(); ++index) {
+			item = overviewList->topLevelItem(index)->data(0, Qt::UserRole).toString() == QStringLiteral("gen/item_001.txt") ? overviewList->topLevelItem(index) : item;
+		}
+		expect(item != nullptr, "the Overview's generated row lists gen/item_001.txt");
+		emit overviewList->itemActivated(item, 0);
+		wait_for([&] { return !window->showing_overview() && shown(*window, "gen/item_001.txt"); }, "activating it in the Overview enters Review on its diff");
+		expect(stillAside("gen/item_001.txt") && walk(*window) == walkedBefore && overview_files(*window) == ordinary, "and it stays set aside");
 
 		// Every filter: Hide C1 leaves C2 and C3, and still sets the 95 aside.
 		window->show_commits();

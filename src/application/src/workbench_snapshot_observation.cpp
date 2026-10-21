@@ -111,6 +111,13 @@ namespace bpr::application {
 		}
 	} // namespace
 
+	auto workbench_file_entry(const github_file_record& aRecord)
+		-> std::optional<workbench_file_observation_entry>
+	{
+		const auto identity = core::file_identity_of(aRecord.Path);
+		return identity.valid() ? observed_file(aRecord, identity) : std::nullopt;
+	}
+
 	snapshot_workbench_observation::snapshot_workbench_observation(
 		file_supplier          aFiles,
 		actionability_supplier aActionability,

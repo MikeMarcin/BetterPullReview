@@ -11,6 +11,15 @@
 #include <vector>
 
 namespace bpr::application {
+	/// \brief [[BPR-1693]]. The workbench entry for one read-model file, named
+	/// by `core::file_identity_of` exactly as an observation names it, or none
+	/// when the record cannot be one.
+	///
+	/// \details For a file the review lists but does not walk, such as a
+	/// generated file set aside, opened on request.
+	[[nodiscard]] auto workbench_file_entry(const github_file_record& aRecord)
+		-> std::optional<workbench_file_observation_entry>;
+
 	/// \brief Answers workbench observations from the read model's file list.
 	///
 	/// \details The only source of a review's files is

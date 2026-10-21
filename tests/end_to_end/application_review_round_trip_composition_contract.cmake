@@ -1,3 +1,14 @@
+# [[BPR-1693]] reseal (2026-10-21) over last matching main 111235987, linear.
+# Pinned-scope change: RFC-BPR-0089's open-on-request for a generated file set
+# aside, on this card's own commit. Inside the manifest only
+# github_application.cpp changed: the window's generated rows ask for one
+# set-aside file by path; the composition builds its workbench entry from the
+# commit filter's own record, retains it outside the walk through the
+# workbench host's existing source-file path (as a Find in files result is)
+# and opens it in the active tab. No credential, grant, provider selection,
+# publication, mutation, ledger write or source-inventory change; the diff is
+# read through the epoch host's existing selected-diff path. Full and manifest
+# pins bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-1692]] reseal (2026-10-21) over last matching main 5e4c77757, linear.
 # Pinned-scope change: RFC-BPR-0089 M2's linguist-generated read, on this
 # card's own commit. Inside the manifest only github_application.cpp changed:
@@ -1785,7 +1796,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"b7411081f7c9d3eac1e7d53455452e5be78d449f4c202ff7d76a063346dcdedf"
+		"61b85579de835b2bd8534b7ef38ef8c19177d1a61d986079fa79c690ee8cdf4c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2005,7 +2016,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "51bf3561ef0fa9927a96bc2658f7685a9e2705bbff8eb0f7c23a3412a4904c9e"
+        "34c2ff5bf2bcfef82edd59d3bbf0a24598ee1757ecfb7314b7d96f0931314f96"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

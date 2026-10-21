@@ -7270,6 +7270,63 @@ namespace bpr::app {
 			}
 			return retained;
 		}
+		/// \brief [[BPR-1693]]. A set-aside file's entry, retained for its
+		/// diff outside the walk as a search result is; none while no exact
+		/// comparison context holds it.
+		auto register_set_aside_open() -> bool
+		{
+			if (!SetAsideOpenFile || !LastAcceptedHandoff || !WorkbenchHost || !EpochHost || !TabHost) {
+				return false;
+			}
+			const auto context = EpochHost->context(workbench_authority(*LastAcceptedHandoff));
+			if (!context) {
+				return false;
+			}
+			auto tabs = std::vector<core::window_review_position>{ };
+			for (const auto& tab : TabHost->state().Tabs) {
+				tabs.push_back(tab.View);
+			}
+			const auto retained = WorkbenchHost->retain_source_file(*context, *SetAsideOpenFile, tabs);
+			if (retained) {
+				SetAsideOpenFile.reset();
+			}
+			return retained;
+		}
+		/// \brief [[BPR-1693]]. Shows a generated file's diff on request from
+		/// the generated row. The file stays set aside: it is not added to the
+		/// walk, the counts or preparation, and no mark is written.
+		void open_set_aside_file(const std::string& aPath)
+		{
+			if (Closing || WorkbenchHost == nullptr || TabHost == nullptr || EpochHost == nullptr || !LastAcceptedHandoff) {
+				return;
+			}
+			const auto files = CommitFilter.files();
+			if (!files) {
+				return;
+			}
+			const auto found = std::ranges::find(files->SetAside, aPath, [](const application::commit_filter_file& aFile) -> const std::string& { return aFile.Record.Path; });
+			if (found == files->SetAside.end()) {
+				return;
+			}
+			auto entry = application::workbench_file_entry(found->Record);
+			if (!entry) {
+				return;
+			}
+			entry->Filter        = found->Filter;
+			entry->SplitByFilter = found->Split;
+			if (!application::valid(*entry)) {
+				return;
+			}
+			cancel_review_navigation();
+			cancel_restoration(false);
+			abandon_tab_load();
+			AutoSeenPresentedRequest.reset();
+			const auto file  = entry->File;
+			SetAsideOpenFile = std::move(*entry);
+			static_cast<void>(register_set_aside_open());
+			observe_tab_reading();
+			TabHost->apply(core::open_in_active_tab_intent{ .File = file });
+		}
 		void present_tab(const core::document_tab_view_request& aRequest)
 		{
 			if (Closing || TabHost == nullptr || EpochHost == nullptr || WorkbenchHost == nullptr) {
@@ -7523,6 +7580,7 @@ namespace bpr::app {
 		void drive_tab()
 		{
 			static_cast<void>(register_search_open());
+			static_cast<void>(register_set_aside_open());
 			const auto& position    = TabDriver->position();
 			const auto* surface     = Window->comparison_surface();
 			const auto& publication = SelectedDiffPublication;
@@ -8311,6 +8369,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// RFC-BPR-0089 M2. File filters and generated-file gestures.
 			Window->set_file_filter_dispatch([this](const std::vector<std::string>& aCommits) { apply_file_filter_gesture(aCommits); });
 			Window->set_generated_dispatch([this](const application::generated_file_gesture& aGesture) { apply_generated_gesture(aGesture); });
+			// [[BPR-1693]]. A set-aside file's diff, read on request.
+			Window->set_generated_open_dispatch([this](const std::string& aPath) { open_set_aside_file(aPath); });
 			Window->set_commit_open_dispatch([this](const std::string& aCommit) {
 				if (!Closing && WindowRead) {
 					static_cast<void>(WindowRead->open_pull_request_commit_page(aCommit, Profile->WindowBrowser));
@@ -15212,6 +15272,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SearchComparisonGesture = false;
 				SearchOpenFile.reset();
 				SearchCreatedTab.reset();
+				SetAsideOpenFile.reset();
 				SearchCreatedComparison.reset();
 			}
 			if (PaneFind) {
@@ -20331,10 +20392,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<pane_find_controller>                                                 PaneFind;
 		std::unique_ptr<pr_search_controller>                                                 PrFind;
 		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;
-		bool                                                                                  SearchOpeningNoTab      = false;
-		bool                                                                                  SearchComparisonGesture = false;
-		std::optional<core::document_tab_id>                                                  SearchCreatedTab;
-		std::optional<core::comparison_pair>                                                  SearchCreatedComparison;
+		/// [[BPR-1693]]. A set-aside file asked for, until a comparison context retains it.
+		std::optional<application::workbench_file_observation_entry> SetAsideOpenFile;
+		bool                                                         SearchOpeningNoTab      = false;
+		bool                                                         SearchComparisonGesture = false;
+		std::optional<core::document_tab_id>                         SearchCreatedTab;
+		std::optional<core::comparison_pair>                         SearchCreatedComparison;
 		/// [[BPR-1327]]. The window being prepared, its cancellation and the
 		/// preparations whose completion has not yet returned to the lane.
 		std::vector<application::workbench_selected_diff_request> PreparedWindow;

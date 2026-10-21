@@ -26,6 +26,9 @@ class QToolButton;
 /// is dispatched by path; nothing here matches a pattern or writes a mark.
 namespace bpr::qt {
 	using generated_gesture_dispatch = std::function<void(const application::generated_file_gesture&)>;
+	/// \brief [[BPR-1693]]. Asks for one set-aside file's diff, by path. It
+	/// stays set aside: nothing is marked and the walk is unchanged.
+	using generated_open_dispatch = std::function<void(const std::string&)>;
 
 	/// \brief The gesture's menu text.
 	[[nodiscard]] auto generated_gesture_text(core::generated_gesture aGesture) -> QString;
@@ -51,6 +54,8 @@ namespace bpr::qt {
 	/// \details Hidden while nothing is set aside. Each listed file shows its
 	/// path and why it is generated; its context menu offers Review anyway,
 	/// Show as normal and, for a file marked generated, Follow .gitattributes.
+	/// [[BPR-1693]]. Activating a listed file, or Open diff in its menu, asks
+	/// for its diff on request; with `set_open_on_click` a single click does.
 	class generated_files_row final : public QWidget
 	{
 	public:
@@ -58,6 +63,10 @@ namespace bpr::qt {
 
 		void present(const application::commit_filter_projection& aProjection);
 		void set_gesture_dispatch(generated_gesture_dispatch aDispatch);
+		void set_open_dispatch(generated_open_dispatch aDispatch);
+		/// \brief Whether a single click opens a listed file, as a click in
+		/// the Files drawer's tree does; otherwise activation does.
+		void set_open_on_click(bool aOpenOnClick);
 
 		/// \brief The menu for one listed file; the caller owns it.
 		[[nodiscard]] auto make_menu(int aRow, QWidget* aParent) -> QMenu*;
@@ -70,6 +79,7 @@ namespace bpr::qt {
 
 	private:
 		void set_open(bool aOpen);
+		void open_row(int aRow);
 
 		QToolButton*                                 Toggle = nullptr;
 		QLabel*                                      Totals = nullptr;
@@ -77,6 +87,8 @@ namespace bpr::qt {
 		bool                                         Open   = false;
 		std::vector<application::generated_file_row> Rows;
 		generated_gesture_dispatch                   Dispatch;
+		generated_open_dispatch                      OpenDispatch;
+		bool                                         OpenOnClick = false;
 	};
 } // namespace bpr::qt
 

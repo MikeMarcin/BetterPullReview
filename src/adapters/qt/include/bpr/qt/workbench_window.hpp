@@ -461,6 +461,9 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0089 M2. A generated-file gesture from a file's
 		/// context menu, in the Overview, the Files drawer or a generated row.
 		void set_generated_dispatch(std::function<void(const application::generated_file_gesture&)> aDispatch);
+		/// \brief [[BPR-1693]]. A set-aside file's diff asked for from a
+		/// generated row, by path. From the Overview, Review is entered first.
+		void set_generated_open_dispatch(std::function<void(const std::string&)> aDispatch);
 		/// \brief The generated row that ends the Files drawer's tree.
 		[[nodiscard]] auto files_generated_row() const noexcept -> generated_files_row*;
 		/// \brief [[BPR-1089]]. Where the Overview's request goes: whenever its
