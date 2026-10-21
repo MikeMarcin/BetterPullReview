@@ -127,7 +127,7 @@ namespace bpr::application {
 			std::string                Repository;
 			std::uint64_t              Generation = 0U;
 			std::uint64_t              Cycle      = 0U;
-			/// [[BPR-PENDING-A]]. Cancelled to give way; asked again if that is
+			/// [[BPR-1679]]. Cancelled to give way; asked again if that is
 			/// what answers it.
 			bool Preempted = false;
 		};
@@ -385,7 +385,7 @@ namespace bpr::application {
 			}
 		}
 
-		/// [[BPR-PENDING-A]]. Puts a read cancelled to give way back at the front,
+		/// [[BPR-1679]]. Puts a read cancelled to give way back at the front,
 		/// under a new identity, so its late terminal can never be taken for
 		/// the read asked again.
 		void resubmit(job aJob)
@@ -482,7 +482,7 @@ namespace bpr::application {
 				pump();
 				return;
 			}
-			// [[BPR-PENDING-A]]. Stopped to give way: not a failure of the refresh.
+			// [[BPR-1679]]. Stopped to give way: not a failure of the refresh.
 			if (const auto* const cancelled = std::get_if<personal_discovery_cancelled>(&aCompletion);
 				finished.Preempted && !CycleStopped && cancelled != nullptr && cancelled->Request == finished.Request) {
 				resubmit(finished);

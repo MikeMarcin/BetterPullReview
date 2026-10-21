@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1679"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Home: an open asked for while Home loads goes first",
+  "created": "2026-10-21T06:38:48.305472+00:00",
+  "base": "4709fa86eaabf45cae3ea5df1afb8efdaef1a824"
+}

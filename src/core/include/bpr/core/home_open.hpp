@@ -105,7 +105,7 @@ namespace bpr::core {
 		const repository_locator&             aRepository,
 		pull_request_number                   aNumber) noexcept -> bool;
 
-	/// \brief [[BPR-PENDING-A]]. Whether Home's own loading gives way to the reads
+	/// \brief [[BPR-1679]]. Whether Home's own loading gives way to the reads
 	/// the profile's windows are waiting for.
 	///
 	/// \details The owner, 2026-10-20: "When I'm on the home and it's still

@@ -1708,7 +1708,7 @@ function(bpr_verify_full_application_digest source_variable)
         ${source_variable}
         bpr_full_application_digest
     )
-	# BPR-PENDING-A reseal (2026-10-20), over 7a96faade: Home's discovery
+	# BPR-1679 reseal (2026-10-20), over 7a96faade: Home's discovery
 	# gives way to a window's pending pull request read. Each window observer
 	# exposes its read lane's core state; the profile asks
 	# core::home_loading_yields after each window read update, profile

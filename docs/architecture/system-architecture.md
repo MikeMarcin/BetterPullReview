@@ -708,7 +708,7 @@ unseen-comment and defect observations remain intact. Exact accepted account,
 session, request and enrollment checks reject late or foreign metadata; failed
 or limited reads preserve prior facts and do not trigger a projection retry loop.
 Discovery shares the profile's one GitHub provider lane with every pull request
-read, so it gives way to the reads a window waits on ([[BPR-PENDING-A]]). While
+read, so it gives way to the reads a window waits on ([[BPR-1679]]). While
 `core::home_loading_yields` says any window of the profile has a pull request
 read pending, the composition holds the scheduler: it submits nothing new and
 cancels the reads of the current refresh in flight, and the provider launches

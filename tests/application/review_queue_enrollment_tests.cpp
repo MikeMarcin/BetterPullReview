@@ -2115,7 +2115,7 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
-	// [[BPR-PENDING-A]]. A pull request asked for while Home is still loading goes
+	// [[BPR-1679]]. A pull request asked for while Home is still loading goes
 	// first. The owner: "Right now it seems like it queues behind the home load
 	// before it goes to open the PR". Discovery gives way at once: what it has
 	// in flight is cancelled and nothing new is asked. A read its cancellation

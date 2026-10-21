@@ -82,7 +82,7 @@ namespace {
 	constexpr auto served   = 17U;
 	constexpr auto failing  = 4001U;
 	constexpr auto delay_ms = 3000U;
-	/// [[BPR-PENDING-A]]. How long the slow network holds each of Home's searches.
+	/// [[BPR-1679]]. How long the slow network holds each of Home's searches.
 	constexpr auto discovery_hold_ms = 10'000U;
 	constexpr auto served_name       = "octo-org/review-repository#17";
 	constexpr auto failing_name      = "octo-org/review-repository#4001";
@@ -506,7 +506,7 @@ try {
 		reviewingCourse(QStringLiteral("reviewing"));
 	}
 
-	// ---- [[BPR-PENDING-A]] an open asked for while Home is still loading goes first
+	// ---- [[BPR-1679]] an open asked for while Home is still loading goes first
 	// The owner, 2026-10-20: "When I'm on the home and it's still loading prs,
 	// if i double click to open a PR, even though its greyed out, it should
 	// give that action priority. Right now it seems like it queues behind the

@@ -68,7 +68,7 @@ namespace bpr::application {
 		std::uint64_t RefusedRefreshes  = 0U;
 		std::uint64_t CancelledRequests = 0U;
 		std::uint64_t MaximumInFlight   = 0U;
-		/// [[BPR-PENDING-A]]. Reads stopped to give way, and reads asked again after.
+		/// [[BPR-1679]]. Reads stopped to give way, and reads asked again after.
 		std::uint64_t Preempted   = 0U;
 		std::uint64_t Resubmitted = 0U;
 
@@ -128,7 +128,7 @@ namespace bpr::application {
 		/// bounded read; rows already considered, including failures and overflow,
 		/// do not restart the cycle until activation or explicit Refresh.
 		void reconcile();
-		/// \brief [[BPR-PENDING-A]]. Gives way to the reads a window is waiting for,
+		/// \brief [[BPR-1679]]. Gives way to the reads a window is waiting for,
 		/// or resumes.
 		///
 		/// \details Discovery shares the profile's one GitHub lane with every

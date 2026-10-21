@@ -187,7 +187,7 @@ namespace {
 			   "a cancel for a read the lane no longer holds is refused");
 	}
 
-	// [[BPR-PENDING-A]]. Home's loading gives way while any window waits on a read,
+	// [[BPR-1679]]. Home's loading gives way while any window waits on a read,
 	// an open or a reread, and resumes once every read has ended.
 	void test_home_loading_yields_to_a_window_read()
 	{

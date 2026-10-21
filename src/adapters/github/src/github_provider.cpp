@@ -2812,7 +2812,7 @@ namespace bpr::adapters::github::detail {
 		try {
 			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery]() mutable {
 				try {
-					// [[BPR-PENDING-A]]. A read cancelled while it waited for its
+					// [[BPR-1679]]. A read cancelled while it waited for its
 					// turn, as discovery's are when a window's read takes
 					// priority, launches nothing: the lane goes straight on to
 					// the read it gave way to. One cancelled while its
