@@ -404,6 +404,20 @@ canvas. At the required luminance a saturated red is very nearly the removed
 row's own colour, so this is enforced by a test — a collapsed emphasis fill
 passes every contrast check while making intraline marking invisible.
 
+Changed characters keep their syntax colours on the emphasis fill
+([[BPR-PENDING-R]]). A colour that reads at the emphasis floor is drawn
+exactly. One that does not moves only until it reads at the text floor, and
+keeps its hue while it moves. On a fill that wants dark ink it shades toward
+black. On one that wants light ink it first brightens, every channel scaled by
+one factor until the largest is full, and only then tints toward white. So in
+dark, where a selected row's lighter mark pushes the comment green under the
+floor, a changed comment reads as a brighter green (`#66B559` becomes
+`#8FFE7D` on the selected added mark `#117277`, 4.50:1), not white. The
+comparison panes and Line details paint each token's colour as a layer over
+the mark that repeats the mark's fill. Qt does not paint a foreground-only
+selection over text an earlier selection drew, so without the fill every
+changed glyph showed in the normal ink.
+
 Red against green is the one distinction the palette cannot carry by colour
 alone. Both modelled dichromacies lose that axis, and added-against-removed is
 measured as indistinguishable in every variant. The pairs in that position are

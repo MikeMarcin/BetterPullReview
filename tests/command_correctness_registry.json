@@ -979,7 +979,7 @@
     },
     {
       "source": "tests/adapters_qt/diff_workbench_tests.cpp",
-      "sha256": "b2e16ad40957f696c6dd3b7f4ba05d8f361f7a62daf2732e2372e8574153f3cb",
+      "sha256": "f6e1be6897c104780163eb10c9e2707f2a3645fa326877ba636e2f145ba9842f",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",

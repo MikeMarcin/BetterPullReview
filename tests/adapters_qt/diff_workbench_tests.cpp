@@ -63,6 +63,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -4617,6 +4618,127 @@ namespace {
 		}
 	}
 
+	/// \brief The colour most of a mark's glyph pixels are painted in.
+	///
+	/// \details Read from the pane's own rendering, because what a selection
+	/// list says and what Qt paints can differ: a foreground-only layer over
+	/// text an earlier selection drew is skipped. The fill is left out; at 2x
+	/// a glyph's solid core outnumbers its antialiased edge.
+	[[nodiscard]] auto painted_ink(const QPlainTextEdit& aPane, const QImage& aImage, const QTextEdit::ExtraSelection& aMark) -> QColor
+	{
+		auto from = aMark.cursor;
+		from.setPosition(aMark.cursor.selectionStart());
+		auto to = aMark.cursor;
+		to.setPosition(aMark.cursor.selectionEnd());
+		const auto begin  = aPane.cursorRect(from);
+		const auto end    = aPane.cursorRect(to);
+		const auto scale  = aImage.devicePixelRatio();
+		const auto fill   = aMark.format.background().color().rgb();
+		auto       counts = std::map<QRgb, int>{ };
+		for (auto y = static_cast<int>(std::ceil(begin.top() * scale)); y < static_cast<int>(std::floor((begin.bottom() + 1) * scale)); ++y) {
+			for (auto x = static_cast<int>(std::ceil((begin.left() + 1) * scale)); x < static_cast<int>(std::floor(end.left() * scale)); ++x) {
+				if (x >= 0 && y >= 0 && x < aImage.width() && y < aImage.height() && aImage.pixel(x, y) != fill) {
+					++counts[aImage.pixel(x, y)];
+				}
+			}
+		}
+		const auto most = std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; });
+		return most == counts.end() ? QColor{ } : QColor{ most->first };
+	}
+
+	/// [[BPR-PENDING-R]]. The owner: "On dark theme intra-line highlights on
+	/// comments change the text from green to white. I'd prefer if it was just
+	/// brighter green." Two causes. Every changed glyph was painted in the
+	/// normal ink, because Qt skipped the token's foreground-only layer over
+	/// the mark. And on a selected row the mark is lighter than the accepted
+	/// fill, so the comment green has to move to read, and it moved toward
+	/// white. A changed comment now paints in its own green where that reads,
+	/// and in a brighter green of the same hue and saturation at 4.5:1 where it
+	/// must move, in the panes and in Line details.
+	auto test_dark_intraline_keeps_a_comment_green() -> void
+	{
+		const auto left  = std::string{ "\t// Read the old snapshot first.\n" };
+		const auto right = std::string{ "\t// Read the new snapshot first.\n" };
+		const auto diff  = computed(left, right, { }, 152U);
+		expect(!diff.Intraline.empty(), "the changed comment produces an intraline edit");
+		const auto spans = std::make_shared<const application::token_span_list>(application::token_span_list{
+			{ .Line = 0U, .Column = 1U, .Length = static_cast<std::uint32_t>(left.size() - 2U), .Role = core::appearance_role::syntax_comment },
+		});
+		const auto run   = [&](const core::appearance_mode aMode, const QString& aName) {
+			auto workbench = qt::diff_workbench{ };
+			workbench.resize(900, 220);
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(aMode));
+			profile.apply_to(workbench);
+			profile.apply_code_font_to(workbench);
+			workbench.adopt_appearance(profile);
+			workbench.show();
+			const auto selected = context(diff, 196U, 196U);
+			workbench.set_loading(selected);
+			workbench.publish(qt::test::prepare_publication({ .Context = selected, .Result = std::make_shared<const core::computed_file_diff>(diff) }));
+			expect(workbench.adopt_token_spans(core::diff_side::left, spans) && workbench.adopt_token_spans(core::diff_side::right, spans), "the comment's classification reaches both panes");
+			settle_geometry(workbench);
+			const auto links = workbench.link_map()->visible_links();
+			expect(!links.empty(), "the changed comment is selectable");
+			send_click(*workbench.link_map(), links.front().Path.boundingRect().center());
+			settle_geometry(workbench);
+			const auto render = qEnvironmentVariable("BPR_QT_DIFF_WORKBENCH_RENDER_PATH");
+			if (!render.isEmpty()) {
+				expect(workbench.grab().save(render + QStringLiteral("-comment-intraline-") + aName + QStringLiteral(".png")), "capture the selected comment's marks");
+			}
+
+			const auto role      = profile.color(core::appearance_role::syntax_comment);
+			auto       adjusted  = 0U;
+			auto       inspected = 0U;
+			const auto panes     = std::array<std::pair<QPlainTextEdit*, const char*>, 3U>{ {
+				{ workbench.left_pane(), "base pane" },
+				{ workbench.right_pane(), "head pane" },
+				{ workbench.line_details(), "line details" },
+			} };
+			for (const auto& [pane, name] : panes) {
+				const auto image      = pane->viewport()->grab().toImage();
+				const auto selections = pane->extraSelections();
+				for (const auto& mark : selections) {
+					if (mark.format.boolProperty(QTextFormat::FullWidthSelection) || mark.format.background().style() == Qt::NoBrush) {
+						continue;
+					}
+					// The layer that should paint the mark's first character: the last over it that sets a foreground.
+					auto ink = QColor{ };
+					for (const auto& layer : selections) {
+						if (layer.cursor.selectionStart() <= mark.cursor.selectionStart() && layer.cursor.selectionEnd() > mark.cursor.selectionStart()
+							&& layer.format.foreground().style() != Qt::NoBrush) {
+							ink = layer.format.foreground().color();
+						}
+					}
+					// Below 2x no glyph pixel is solid ink, so the painting is
+					// read at the 200% run and the layer below it.
+					const auto fill    = mark.format.background().color();
+					const auto solid   = image.devicePixelRatio() >= 2.0;
+					const auto painted = solid ? painted_ink(*pane, image, mark) : ink;
+					const auto ratio   = core::contrast_ratio_hundredths(qt::to_appearance_color(painted), qt::to_appearance_color(fill));
+					std::cout << "bpr-pending-r " << aName.toStdString() << ' ' << name << " fill=" << fill.name().toStdString() << " layer=" << ink.name().toStdString()
+							  << " painted=" << (solid ? painted.name().toStdString() : std::string{ "unread" }) << " ratio=" << ratio << '\n';
+					expect(painted == ink, std::string{ name } + ": the changed comment is painted in its layer's ink, not the normal ink");
+					expect(ratio >= core::minimum_contrast_hundredths(core::contrast_kind::emphasis_text, profile.variant()), "the changed comment reads on its mark");
+					if (painted != role) {
+						++adjusted;
+						const auto hue = std::abs(painted.hsvHueF() - role.hsvHueF());
+						expect(std::min(hue, 1.0F - hue) * 360.0F <= 6.0F, "a moved comment keeps the comment's hue");
+						expect(painted.hsvSaturationF() >= 0.9F * role.hsvSaturationF(), "and its saturation: a brighter green, not white");
+						expect(ratio >= core::text_contrast_minimum_hundredths, "and reads at the text floor, 4.5:1");
+					}
+					++inspected;
+				}
+			}
+			expect(inspected >= 4U, "both sides of the selected comment carry a mark, in the panes and in Line details");
+			if (aMode == core::appearance_mode::dark) {
+				expect(adjusted > 0U, "the selected added row's mark moves the comment green, so the move is what is checked");
+			}
+		};
+		run(core::appearance_mode::light, QStringLiteral("light"));
+		run(core::appearance_mode::dark, QStringLiteral("dark"));
+	}
+
 	auto test_group_selection_washes_every_line() -> void
 	{
 		const auto [left, right] = representative_text();
@@ -6213,6 +6335,7 @@ auto main(int argc, char** argv) -> int
 	test_the_panes_scroll_past_their_end_and_the_bar_agrees();
 	test_selected_rows_derive_their_intraline_fill();
 	test_dark_intraline_preserves_readable_syntax_hues();
+	test_dark_intraline_keeps_a_comment_green();
 	test_line_details_keeps_the_syntax_colours_under_a_selection();
 	test_group_selection_washes_every_line();
 	test_the_reading_line_wears_the_current_line_band();
