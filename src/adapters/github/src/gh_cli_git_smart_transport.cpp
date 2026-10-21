@@ -388,7 +388,7 @@ namespace bpr::adapters::github::detail {
 				if (!oid || !oid->valid() || record[6] != ' ' || record[record.size() - 41U] != ' ') {
 					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
 				}
-				return std::optional{ *oid };
+				return oid;
 			}
 
 		private:
@@ -931,7 +931,7 @@ namespace bpr::adapters::github::detail {
 				auto names = std::string{ };
 				for (const auto& commit : aRequest.Commits) {
 					const auto hex = std::string{ core::canonical_hex(commit).view() };
-					names += hex + "\n" + hex + "^{tree}\n";
+					names.append(hex).append("\n").append(hex).append("^{tree}\n");
 				}
 				auto       check   = compile_gh_cli_local_git_request(Git, root, { "--git-dir=" + gh_cli_git_clone_store(root, 0U).string(), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
 																	  names, chain_output_limit);
@@ -965,8 +965,8 @@ namespace bpr::adapters::github::detail {
 			auto qualify(github_cli_process_port& aProcess, const std::filesystem::path& aRoot, std::stop_token aStop,
 						 git_smart_transport_step& aStep, const bool aDeepen = false) -> git_smart_transport_result<void>
 			{
-				auto*      process   = &aProcess;
-				const auto root      = aRoot;
+				auto*       process  = &aProcess;
+				const auto& root     = aRoot;
 				aStep                = git_smart_transport_step::cli_version;
 				const auto ghVersion = run_gh_cli(*process, Configuration, compile_gh_cli_version_request(Configuration), aStop);
 				if (!ghVersion) {

@@ -628,8 +628,8 @@ namespace {
 					return context && result && result->Alignment.Key == context->Key && context->Key.File == core::file_identity_of(path);
 				};
 				const auto split = [&] { return surface->status_text().contains(QStringLiteral("hidden commit changed this file")); };
-				if (!wait_for([&] { return settled() || split(); }, aName + " " + path, std::chrono::seconds{ 120 })) {
-					fail(aName + ": " + path + " never showed");
+				if (!wait_for([&] { return settled() || split(); }, std::string{ aName }.append(" ").append(path), std::chrono::seconds{ 120 })) {
+					fail(std::string{ aName }.append(": ").append(path).append(" never showed"));
 				}
 				if (!settled()) {
 					diffs += (diffs.empty() ? "" : ",") + std::string{ "{\"path\":" } + json_text(path) + ",\"split\":true}";
