@@ -7,8 +7,10 @@ qualification. The existing runner performs selection; there is no new workflow
 engine and no cross-request verdict reuse.
 
 A normal PASS means **only the selected checks passed**. It does not qualify an
-omitted heavy claim. In particular, BPR-1653's strict Ubuntu RSS failure remains a
-release blocker; the exception for published v0.3.1 is not extended. Signing,
+omitted heavy claim. BPR-1653 preserves the original strict Ubuntu RSS failure
+and a separately owner-authorized 240 MiB RSS criterion, with independent liveheap
+216 MiB and complete current-source course acceptance. Normal alone supplies no
+resource evidence; the exception for published v0.3.1 is not extended. Signing,
 notarization, native trust/installation, legal/source approval, M8/M9, vault,
 crash/privacy and vulnerability obligations retain their separate boundaries.
 
@@ -71,7 +73,7 @@ A later heavy request executes fresh; a normal PASS supplies no heavy receipt.
 |---|---|---|
 | `device-lifecycle` | Real polling/backoff, grant/vault, restart and account-mismatch lifetimes | Core device policy, controlled-clock refresh host, transport contracts and public smoke |
 | `diagnostic-age` | Original real 180.1-second expiry and backend maintenance | Diagnostic controls, generation/privacy barriers, ordinary logger and content policy |
-| `resource-budget` | Strict RSS/cache, 32 epochs, large payload, scale and performance workloads | Core/diff/GitHub hosts and ordinary storage behavior; no resource PASS implied |
+| `resource-budget` | Strict RSS/cache, 32 epochs, large payload, scale and performance workloads; separately amended Ubuntu/WSL RSS 240 MiB and heap 216 MiB | Core/diff/GitHub hosts and ordinary storage behavior; no resource PASS implied |
 | `gui-matrix` | Additional scale/theme/render/focus/geometry/shortcut occurrences | Full 115-case workbench default at one scale plus representative surfaces |
 | `composed-lifecycle` | Long public paths, repeated restarts, restoration and lifecycle matrices | Public/composed smoke and application-host cases |
 | `tool-adversarial` | Hostile checker/asset/dependency corpora and generic tests-off image | Current-source/dependency/security checks and seven source/compiler composition methods |

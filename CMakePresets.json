@@ -54,7 +54,7 @@
     {
       "name": "qualification-release",
       "displayName": "Optimized tests-enabled qualification",
-      "description": "Release expectations and optimized workload/budget branches. Additional qualification until the Debug residual and native full result are accepted; distinct from distribution.",
+      "description": "Tests-enabled Release expectations and optimized workload/budget branches. Select an explicit normal, heavy or comprehensive profile and its native Debug policy; distinct from distribution.",
       "inherits": "dev",
       "binaryDir": "${sourceDir}/build/qualification-release",
       "cacheVariables": {

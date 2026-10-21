@@ -41,7 +41,7 @@
     },
     {
       "id": "resource-budget",
-      "claim": "Strict RSS/cache, full32epoch history, seeded scales and resource/performance workloads; no thresholds or counts changed.",
+      "claim": "Strict RSS/cache, 32 epochs, seeded scales and resource/performance workloads. Workloads/counts preserved; BPR-1653 owner amendment calibrates the Linux scalar on Ubuntu/WSL to 240 MiB RSS with independent 216 MiB live heap. Normal supplies no resource PASS.",
       "normal_counterparts": [
         "core_diff_compute",
         "application_diff_host",
@@ -488,10 +488,14 @@
     "application_diff_host",
     "application_github_host"
   ],
-  "known_release_blockers": [
-    {
-      "id": "BPR-1653",
-      "claim": "Strict Ubuntu large-review RSS remains failed. Normal PASS does not qualify resources or extend the published v0.3.1-only exception."
-    }
-  ]
+  "known_release_blockers": [],
+  "resource_criterion_amendment": {
+    "issue": "BPR-1653",
+    "basis": "Owner-authorized close-current-peak adjustment, not RSS reduction or extension of published v0.3.1 exception",
+    "native_configuration": "Ubuntu26.04 WSL2 x64, Qt6.12 Release, exactd6ac721037e242ef7ef4b934a003a26b9c60534a",
+    "rss_limit_bytes": 251658240,
+    "independent_live_heap_limit_bytes": 226492416,
+    "complete_course": "20 selections,32 retained epochs and all later predicates passed; raw original and adjusted results retained on card",
+    "other_native_platform_acceptance": "Unchanged; no RHEL native acceptance supplied"
+  }
 }

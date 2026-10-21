@@ -8,13 +8,18 @@ releases. Major, Qt/toolchain/platform, broad or unknown changes require
 comprehensive native Release and Debug. Use the
 [operational profile contract](../../../../docs/development/release-test-profiles.md)
 for exact named heavy owners, scope declarations and commands. Normal PASS never
-qualifies omitted heavy claims; BPR-1653 strict Ubuntu RSS remains a release
-blocker, without extending the published v0.3.1 exception. No profile supplies
+qualifies omitted heavy claims. BPR-1653 records a separate owner-authorized
+Ubuntu/WSL RSS 240 MiB criterion with independent live heap 216 MiB and its complete
+current-source course; a normal result alone cannot satisfy that resource claim.
+The published v0.3.1 exception is not extended. No profile supplies
 signing, native trust, legal or publication approval.
 
-## Prepare one bounded Windows discriminator
+## Optional bounded configuration discriminator
 
-Reuse the owned tests-enabled Visual Studio tree. Configure with
+This section retains M2’s diagnostic course for a new configuration or assertion
+question. Normal and Debug-residual profiles already include these five commands;
+do not run a duplicate discriminator before every release. Reuse the owned
+tests-enabled Visual Studio tree. Configure with
 `cmake --preset windows-qualification-release`. Build only these targets first,
 with bounded parallelism (normally four on a shared host, never more than eight):
 
@@ -63,8 +68,8 @@ named limit to zero; ordinary runs retain all four 100 ms limits. Keep negative
 control output apart from behavioral pass evidence.
 
 The portable `qualification-release` configure/build/test presets select the same
-standard features with Release in a separate Ninja tree. Their full macOS/Linux
-activation, actual Qt/runtime identity and native results remain M3 work. Never
+standard features with Release in a separate Ninja tree. Their native activation and actual Qt/runtime identities are recorded in
+[BPR-1675](../../../../docs/verification/BPR-1675-measured-release-rehearsal.md). Never
 project the Windows diagnostic cost onto another platform or hybrid-link Debug Qt.
 
 ## Current qualification selection
@@ -88,8 +93,8 @@ are not interchangeable. No composition build was removed by this pilot.
 
 ## Debug residual and promotion boundary
 
-The explicit incremental profile uses the five-command Debug residual. Comprehensive releases and the following owning changes require broader native Debug:
-The following triggers must also invalidate any future narrower Debug proof:
+The explicit incremental profile uses the five-command Debug residual plus
+named patch rows. The following owning changes request broader native Debug:
 
 | Trigger | Required evidence |
 |---|---|
@@ -99,15 +104,18 @@ The following triggers must also invalidate any future narrower Debug proof:
 | Broad integration, missing native input, unclassified change or failed/stale/interrupted proof | Complete native Debug; no inherited exemption. |
 
 The owned `Q_ASSERT` in steady columns and Debug Qt DLL/CRT/STL diagnostics remain
-covered by the full Debug requirement. Release cannot restore compiled-out Qt DLL
+covered by the affected/comprehensive Debug requirement; the five-command lane
+does not exercise every such path. Release cannot restore compiled-out Qt DLL
 assertions. Both the 6,000-line Debug inputs and 40,000/30,000-line Release inputs
 remain required; neither substitutes for the other. Windows Release additionally
 runs two allocation sweeps that checked STL skips. Strict optimized memory/cache
-budgets remain active, including the unresolved Ubuntu RSS failure. Do not waive
-that failure or infer a new exception from the published v0.3.1 exception.
+budgets remain active when their heavy owner is requested. BPR-1653’s separate
+criterion amendment preserves the old failure and independent heap limit; no
+normal profile supplies resource qualification or an inherited v0.3.1 exception.
 
-Promotion requires one complete stabilized native Release result per platform,
-all optimized budgets and occurrence/configuration inventories, and an explicit
-sound residual Debug closure. The M3 rehearsal measures the complete authorized
-request-to-artifact route after that decision. Signing, publication and unresolved
+A bounded patch requires a complete selected normal result per affected native
+platform, the declared patch regressions, occurrence/configuration inventories
+and its explicit Debug residual. Named owner changes request their heavy groups;
+major or broad/unclassified changes require comprehensive qualification. M3
+records the actual authorized native/producer route and all omitted claims. Signing, publication and unresolved
 M8/M9/security/legal acceptance retain their separate authority.

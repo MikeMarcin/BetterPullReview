@@ -17,8 +17,11 @@ tools; GitHub Actions stays disabled and has no role in the release workflow.
 For a coordinated release or a resumed run, read
 [execution and recovery](references/execution.md) before dispatching native work.
 Use one durable phase record to reconcile existing jobs and schedule the shared
-Windows/WSL host. The [optimized qualification pilot](references/optimized-qualification.md)
-is an additional, bounded option; it has not replaced the normal Debug gate.
+Windows/WSL host. The [qualification procedure](references/optimized-qualification.md)
+uses the owner-authorized normal Release baseline, named patch regressions and
+native Debug residual for bounded incremental releases. Major, broad, unknown,
+Qt/toolchain/platform or ownership changes require comprehensive native Release
+and Debug. Read the exact profile scope and omitted-heavy inventory before work.
 Cross-request hostile-tool or native verdict reuse is unready. Only the existing
 suite runner's exact same-invocation bootstrap receipts may avoid duplicate rows.
 

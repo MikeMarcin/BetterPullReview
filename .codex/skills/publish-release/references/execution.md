@@ -181,5 +181,7 @@ SPDX/corresponding-source/notices and security checks remain fresh.
 
 Inspect `selection.json` before calling a normal result complete: it names every
 selected and omitted obligation. Normal PASS is not heavy/resource qualification
-and cannot clear BPR-1653 or extend v0.3.1's one-release RSS exception. No profile
+and cannot supply BPR-1653 resource evidence or extend v0.3.1's one-release RSS
+exception. The separate owner-authorized RSS criterion and complete course are
+recorded on that card. No profile
 change grants a version bump, signing, publication, installation or trust approval.
