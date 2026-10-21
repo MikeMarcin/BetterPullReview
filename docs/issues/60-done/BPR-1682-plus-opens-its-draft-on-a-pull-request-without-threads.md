@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-E"
+id: "BPR-1682"
 title: "The \"+\" and Return open their draft on a pull request without threads"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"owner bug report 2026-10-20","owner_note":"i'm no longer able to get the add comment mouse over column next to line number control to come up or click on a line I have selected.","owner_followup":"there is no thread on that line","regressing_commit":"a90419791","provisional_id":"allocated at landing","related_cards":["BPR-1212","BPR-1214","BPR-1335"]}
+metadata: {"origin":"owner bug report 2026-10-20","owner_note":"i'm no longer able to get the add comment mouse over column next to line number control to come up or click on a line I have selected.","owner_followup":"there is no thread on that line","regressing_commit":"a90419791","reservation":"docs/issues/_reservations/BPR-1682--BPR-1682--5e96c8488820.json","related_cards":["BPR-1212","BPR-1214","BPR-1335"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c0e06d464","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_the_plus_on_a_pull_request_without_threads_opens_its_draft: a pull request adopted with no conversation, a 41-line head with an added line 14; every pointer and key event goes to the window through QWindowSystemInterface, so Qt's own hit-testing picks the code, the gutter or the button. A click on line 15's code selects it; the pointer in its \"+\" column shows the \"+\"; a click on the \"+\" opens 'Your draft on line 15' in the drawer with its editor focused and the line's writing mark; Esc drops the empty draft and its mark, the drawer goes back to its empty page, and line 15 shows its \"+\" again. Failing-before control: with github_conversation_panel.{hpp,cpp} at 2085a4d6e (unchanged since 3fdbc3949, where it was run) the case fails at 'on a pull request without threads, clicking the \"+\" opens a draft on line 15 in the drawer, with focus' (writing=1, composer=0, notes hidden). macOS offscreen at 1x."}},{"criterion":"AC2","outcome":"pass","revision":"c0e06d464","evidence":{"kind":"command","command":"ctest --preset dev -R '^(command_correctness_registry_contract|qt_workbench_line_draft|qt_workbench_conversation_reveal|qt_workbench_window_scale_100|qt_github_conversation_panel|qt_conversation_cards_view|qt_diff_workbench_scale_(100|125|200)|qt_composed_(github|loading|inline_drawer|long_thread)_scale_100|qt_composed_resident_drawer_filters)$'","detail":"A snapshot with no conversation and no draft still shows the empty page (test_discard_and_back_keep_the_comments_drawer's negative control, the composed available-empty, unknown and unsupported thread states); a snapshot with threads composes in the drawer as before (test_compose_in_the_drawer); the \"+\" hover, column, tooltip and drag checks in the diff workbench pass at 1x, 1.25x and 2x; the registry's workbench source pin and the case inventory are resealed with the new --line-draft case. coding-format-check (clang-format 22.1.8) passes; clang-tidy --warnings-as-errors on github_conversation_panel.cpp and workbench_window_tests.cpp reports only the two existing performance-avoid-endl findings in the test runner's case trace (b059676cc), none in this change. macOS, a Debug configuration of the dev preset built without debug information (-g0) to fit the disk."}}]
 ---
 
-# BPR-PENDING-E: The "+" and Return open their draft on a pull request without threads
+# BPR-1682: The "+" and Return open their draft on a pull request without threads
 
 ## Owner note
 

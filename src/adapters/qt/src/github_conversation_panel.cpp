@@ -866,7 +866,7 @@ namespace bpr::qt {
 	{
 		// [[BPR-1214]]. The page follows the snapshot, not the selected line:
 		// a line no thread is on still shows the notes and their filters.
-		// [[BPR-PENDING-E]]. My draft is a note too. On a pull request with
+		// [[BPR-1682]]. My draft is a note too. On a pull request with
 		// no conversation the "+" and Return began a draft on this hidden
 		// page: no composer opened, and the line offered no "+" while the
 		// draft's mark stayed on it.

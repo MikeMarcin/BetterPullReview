@@ -6585,7 +6585,7 @@ namespace {
 	/// keeps a written draft and drops an empty one. Nothing publishes but
 	/// Publish. Failing before: Return did nothing and Comment opened the
 	/// full-page composer in place of the code (owner, 2026-10-08).
-	/// \brief [[BPR-PENDING-E]]. The "+" on a pull request no one has
+	/// \brief [[BPR-1682]]. The "+" on a pull request no one has
 	/// commented on opens its draft in the drawer, and the line offers its
 	/// "+" again once the empty draft goes.
 	///

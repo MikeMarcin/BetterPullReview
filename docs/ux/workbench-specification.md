@@ -2278,7 +2278,7 @@ right-click menu, Comment (Option-C) on a line no thread is on, and the "+"
 button each open the line's draft as a draft thread in the drawer, pinned at
 its line, writing. That holds on a pull request no one has commented on yet:
 the drawer leaves its empty page for the draft and goes back to it when an
-empty draft is dropped ([[BPR-PENDING-E]]). The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
+empty draft is dropped ([[BPR-1682]]). The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
 don't like the + replacing the line number, i think github actual does it
 better"): a small blue button with a white cross on a head line no thread is
 on, at the start of the line's code, across the boundary with the number and
