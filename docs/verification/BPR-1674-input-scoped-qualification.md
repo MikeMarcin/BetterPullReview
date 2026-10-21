@@ -226,3 +226,25 @@ own input/trigger reconciliation. macOS/Linux activation, full Release target
 builds, strict RSS repair and final release/native/security/legal claims are still
 unready; the thirty-minute release target is unproved. No human M2 criterion,
 attended candidate or review server is pending.
+
+## Current durable checkpoint
+
+Engineering/native source is `f230a8e5f`; later M2 commits only finish evidence and
+board state. Owned source paths are `CMakePresets.json`, `scripts/run_test_suite.py`,
+`scripts/workbench_case_inventory.py`, the two `scripts/qualification_*` controls,
+the three `tests/support/qualification_*`/inventory-support additions, the four
+instrumented core/host/composed test mains, `tests/core/CMakeLists.txt`,
+`tests/qualification_case_inventory.json` and the two Python control suites.
+The existing publish-release skill and development/verification docs own the
+operator policy. BPR-1674 is Done and BPR-1675 is Ready. The borrowed allocation
+counter/receipt are identical to their committed canonical-main bytes.
+
+Commands complete: selected seven-target Release and Debug builds; five-command
+serial runner in each configuration; ordered occurrence/list validation; expectation,
+backstop and four latency controls; real native CTest/runner negative fixture;
+fresh three-row bootstrap with same-invocation proof; source/format/docs checks.
+No native or local task-owned command, protected attended candidate or review
+server remains. Main/primary integration preserves unrelated MASK files and
+separate promo work. The exact final commits/integration observations and input
+receipts live in the private durable handoff. Next action is a fresh M3 owner,
+not continued M2 implementation or a new release publication.
