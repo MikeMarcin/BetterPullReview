@@ -1468,10 +1468,19 @@ bpr_add_network_isolated_test(NAME command_correctness_registry_contract
 include("${PROJECT_SOURCE_DIR}/cmake/BprTestScheduling.cmake")
 bpr_schedule_test_directory("${CMAKE_CURRENT_SOURCE_DIR}")
 
+# Bind the audited feature and diagnostic mode. A custom macro override is an
+# unknown configuration even when its preset happens to be named Debug.
+set(bpr_standard_correctness_inputs TRUE)
+if(NOT BPR_BUILD_QT OR NOT BUILD_TESTING OR NOT BPR_BUILD_AGENT_INTEGRATIONS
+   OR BPR_BUILD_TOUR_CLI OR BPR_DISTRIBUTION_BUILD
+   OR "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "NDEBUG|QT_NO_DEBUG|_ITERATOR_DEBUG_LEVEL")
+    set(bpr_standard_correctness_inputs FALSE)
+endif()
+
 # [[BPR-1670]]. Native Windows source/ownership audit and same-binary causal
 # control are recorded in docs/verification/BPR-1670-windows-suite-runtime.md.
 # Unknown, timing, native desktop and shared-global-state courses stay exclusive.
-if(WIN32)
+if(WIN32 AND bpr_standard_correctness_inputs)
     # Model properties need QCoreApplication only. The remaining Qt correctness
     # families share a conservative lock for their build/render directory;
     # offscreen clipboard, focus and application state are process-private.
@@ -1540,6 +1549,6 @@ endif()
 
 # Source and exact argv are checked before widening the default serial policy.
 # Optimized and unknown configurations retain whole-host exclusivity.
-if(BPR_BUILD_QT)
+if(WIN32 AND bpr_standard_correctness_inputs)
     bpr_apply_command_correctness_registry("${CMAKE_CURRENT_SOURCE_DIR}/command_correctness_registry.json")
 endif()

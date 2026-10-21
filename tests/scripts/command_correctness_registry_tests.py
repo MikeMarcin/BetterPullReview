@@ -88,7 +88,7 @@ class RegistryTests(unittest.TestCase):
             if mutation:
                 mutation(family, source)
             registry = root / "registry.json"
-            registry.write_text(json.dumps({"schema": "bpr.command-correctness.v1", "families": [family]}))
+            registry.write_text(json.dumps({"schema": "bpr.command-correctness.v1", "features": {}, "families": [family]}))
             module = (ROOT / "cmake/BprTestScheduling.cmake").as_posix()
             (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.24)
 project(CommandRegistry NONE)
@@ -117,7 +117,8 @@ set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
         self.assertIn("BPR_OPTIONAL_RENDER_ROOT=unset:", props["ENVIRONMENT_MODIFICATION"])
         for mutation in (lambda family, source: source.write_text("new timing assertion\n"),
                          lambda family, source: family["rows"][0].update(command="worker;--timed"),
-                         lambda family, source: family["rows"][0].update(environment=["QT_SCALE_FACTOR=2.0"])):
+                         lambda family, source: family["rows"][0].update(environment=["QT_SCALE_FACTOR=2.0"]),
+                         lambda family, source: family.update(inputs=[{"path": "tests/adapters_qt/case.cpp", "sha256": "0" * 64}])):
             result, row = self.configure_registry(mutation)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             props = {prop["name"]: prop["value"] for prop in row["properties"]}

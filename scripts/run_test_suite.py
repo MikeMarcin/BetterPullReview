@@ -69,14 +69,17 @@ def print_report(report: dict) -> None:
             print(f"{status.capitalize()}: " + ", ".join(names))
 
 
-
 def validate_command_owned_row(row: dict, props: dict, root: Path = ROOT) -> None:
     registry = json.loads((root / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
+    if registry["schema"] != "bpr.command-correctness.v1":
+        raise ValueError("Unknown command correctness registry schema")
     matches = [(family, candidate) for family in registry["families"] for candidate in family["rows"]
                if candidate["name"] == row["name"]]
     if len(matches) != 1:
         raise ValueError(f"Unknown or duplicate command ownership: {row['name']}")
     family, candidate = matches[0]
+    if family["configurations"] != ["Debug"]:
+        raise ValueError("Unaudited command correctness configuration")
     source = root / family["source"]
     directory = Path(props["WORKING_DIRECTORY"])
     expected_arguments = [arg.replace("{binary_dir}", directory.as_posix()) for arg in candidate["arguments"]]

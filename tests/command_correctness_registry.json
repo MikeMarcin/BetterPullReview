@@ -1275,5 +1275,12 @@
         }
       ]
     }
-  ]
+  ],
+  "features": {
+    "BPR_BUILD_QT": "ON",
+    "BUILD_TESTING": "ON",
+    "BPR_BUILD_AGENT_INTEGRATIONS": "ON",
+    "BPR_BUILD_TOUR_CLI": "OFF",
+    "BPR_DISTRIBUTION_BUILD": "OFF"
+  }
 }
