@@ -331,6 +331,25 @@ listed commits, and filtering by the base branch's commits.
   BPR-Test before M2 claims parity. GitHub may also collapse files by
   Linguist's built-in rules, which this application does not apply (Q4), so
   parity is claimed only for files the attribute marks.
+  **Measured 2026-10-21 (M2): the head commit's, everywhere.** BPR-Test pull
+  request #112 (closed, both branches deleted) had a base branch whose root
+  `.gitattributes` marked `base_only/**` and `both/**`, and whose tip, pushed
+  after the head branched, added `merge_probe/.gitattributes` marking `g.txt`.
+  C1 edited every probe file under the base's rules, C2 added
+  `commit_only/** linguist-generated`, and C3 replaced the root rules with
+  `head_only/**`, `both/**`, `*.gen` and `neg/keep.gen -linguist-generated`
+  and added `nested/.gitattributes` marking `f.txt`. The anonymous Files
+  changed page collapsed exactly `head_only/b.txt`, `both/c.txt`,
+  `neg/other.gen` and `nested/f.txt` ("Some generated files are not rendered
+  by default"): head's rules, with `-linguist-generated` returning a path to
+  normal and a nested directory's file applied. `base_only/a.txt` (base and
+  C1's rules) and `merge_probe/g.txt` (base tip and merge commit) stayed
+  normal, so neither the base, the merge base nor the merge commit is read.
+  The per-commit views `/pull/112/commits/C1`, `C2` and `C3` collapsed the
+  same four paths: `commit_only/d.txt`, which only C2's own rules mark, stayed
+  normal in C2's view. This matches "Generated status belongs to the path" and
+  the head rule under Generated files are set aside. The measurement spent
+  six REST calls; `X-RateLimit-Remaining` stayed above 4,990.
 - The cost of acquiring trees for long chains in large repositories, within the
   existing quarantine and 96 MiB/128-entry thresholds.
 
