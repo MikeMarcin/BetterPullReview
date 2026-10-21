@@ -1609,6 +1609,7 @@ never invents enabled state.
 | Show the selected thread in Review, from Discuss ([[BPR-1581]]) | `Ctrl+Alt+2` (⌥⌘2) |
 | Show the selected thread's row in Threads, from Review ([[BPR-1586]]) | `Ctrl+Alt+4` (⌥⌘4) |
 | In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
+| In Finish your review's pending comments: select more; select every comment; copy the selected with their files and lines; the row menu ([[BPR-PENDING-AC]]) | Shift-click, Cmd-click (Ctrl-click), `Shift+Up` / `Shift+Down`; `Ctrl+A` (⌘A); `Ctrl+C` (⌘C); `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
 | Actual Size: the comparison's code at Code size ([[BPR-1336]], [[BPR-1535]]) | `Ctrl+0` (⌘0) |
@@ -2467,7 +2468,43 @@ close and return to the PR"); a refusal or an unknown answer keeps the page
 with its words. Discard review asks first in the shared question, naming how
 many pending comments it deletes ("Discard your review and its N pending
 comments?"); confirmed, it deletes every pending comment of the review and its
-summary, and the page closes. A finished review, submitted or discarded, is
+summary, and the page closes.
+
+The pending comments take an extended selection ([[BPR-PENDING-AC]], the
+owner: "multi select comments and copy to clipboard to get the file line and
+full comment for all selected"). A plain click selects one row and opens
+nothing, as before; Shift with a click selects from the last row picked to
+that one; Cmd-click (Ctrl-click elsewhere) adds a row or takes it out; Up and
+Down go row to row and select the row they reach, and with Shift they select
+more; Cmd+A (Ctrl+A) selects every row. A selected row has a firmer wash than
+the pointer's and a bar in the highlight colour at its leading edge, apart from
+the focus ring. Cmd+C (Ctrl+C), and **Copy** after a separator in the row menu
+(right-click, the menu key or Shift+F10), copy the selected comments as plain
+text in the page's order, or the focused row's comment when none is selected.
+Each comment is a header line, then the whole comment as written, with its
+trailing line breaks dropped, and a blank line between comments:
+
+```text
+src/engine/renderer.cpp:431
+question: Where does 0.01 come from?
+It looks arbitrary.
+
+src/engine/renderer.cpp:434-435 (LEFT)
+nit: scale could be constexpr.
+```
+
+The header is the full path and the one-based line, or `start-end` for a
+range, with " (LEFT)" for a comment on the base side. A review carries only
+line comments, so no row is a file comment or a reply. The summary is not part
+of the list and is copied from its own field. A right-click inside the
+selection keeps it; outside, it selects that row alone. Return, a double click
+and the menu's openings still act on the one row they are on, and Tab, the
+rows' names and Delete are unchanged. The rows read Cmd+C and Cmd+A ahead of
+any window shortcut, and a row's accessible description says whether it is
+selected and names the keys. Selecting and copying send no command and change
+no draft. They work while GitHub's answer is unknown and the rows offer no
+Delete, so the held comments of a review that cannot be confirmed can be kept
+elsewhere. A refreshed list keeps each comment's selection. A finished review, submitted or discarded, is
 never the next one: the next review starts at once with its own comments.
 Return in the field is a new line. Esc keeps a
 written draft as its dashed note and drops an empty one, and focus returns to

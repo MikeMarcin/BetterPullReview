@@ -17,8 +17,11 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
+#include <vector>
 
+class QAbstractButton;
 class QAction;
 class QLabel;
 class QMenu;
@@ -72,6 +75,14 @@ namespace bpr::qt {
 	[[nodiscard]] auto review_submission_unknown_text(const core::review_submission_unknown_notice& aNotice) -> QString;
 	/// \brief [[BPR-1085]]. The words the preflight chip says, one item a line.
 	[[nodiscard]] auto review_preflight_summary(const std::optional<core::review_preflight>& aPreflight) -> QString;
+	/// \brief [[BPR-PENDING-AC]]. Pending comments as the clipboard takes them,
+	/// in the order given: per comment a header line, `path:line` or
+	/// `path:start-end` with one-based lines and " (LEFT)" on the base side,
+	/// then the whole comment as written, without its trailing line breaks;
+	/// a blank line between comments and none after the last.
+	/// \details A review carries only line comments, so neither a file
+	/// comment nor a reply ever appears here.
+	[[nodiscard]] auto review_comments_copy_text(std::span<const core::review_submission_comment> aComments) -> QString;
 	/// \brief Presents a PR-level review independently of selected source lines.
 	class review_submission_editor final : public QWidget
 	{
@@ -139,6 +150,18 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]]. The rows' words, in order: "renderer.cpp,
 		/// line 431: question: Where does 0.01 come from?".
 		[[nodiscard]] auto pending_rows() const -> QStringList;
+		/// \brief [[BPR-PENDING-AC]]. The selected pending comments, in the
+		/// page's order. Shift or Command (Ctrl elsewhere) with a click, Shift
+		/// with Up or Down, and Command-A (Ctrl+A) select several; a plain
+		/// click or arrow selects one row. Selecting changes no draft.
+		[[nodiscard]] auto selected_pending() const -> std::vector<core::review_submission_comment>;
+		/// \brief [[BPR-PENDING-AC]]. What Copy writes: the selected comments,
+		/// or the focused row's when none is selected; empty with neither.
+		[[nodiscard]] auto pending_copy_text() const -> QString;
+		/// \brief [[BPR-PENDING-AC]]. Copy: writes `pending_copy_text()` to
+		/// the clipboard, the page's one effect of it. It works whatever the
+		/// review's state, so a review awaiting GitHub's answer can be kept.
+		void copy_pending() const;
 		/// \brief [[BPR-1345]]. The list's heading: "2 pending comments".
 		[[nodiscard]] auto carries_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-1345]] v002. "Nothing is published until you
@@ -210,6 +233,11 @@ namespace bpr::qt {
 		void                                                                                            confirm_delete(const core::review_submission_comment& aComment);
 		void                                                                                            emit_command(core::review_submission_command_kind aKind, std::optional<core::review_disposition> aDisposition = std::nullopt);
 		void                                                                                            emit_operation(review_submission_editor_operation aOperation);
+		void                                                                                            pick_pending(std::size_t aIndex, Qt::KeyboardModifiers aModifiers);
+		void                                                                                            step_pending(std::size_t aIndex, bool aDown, bool aExtend);
+		void                                                                                            select_all_pending();
+		void                                                                                            restyle_pending_selection();
+		void                                                                                            prepare_pending_menu(std::size_t aIndex);
 		std::function<void()>                                                                           SavedCommentsReveal;
 		QString                                                                                         LastAnnouncement;
 		review_submission_editor_dispatch                                                               Dispatch;
@@ -263,6 +291,16 @@ namespace bpr::qt {
 		QAction*                                     Submit    = nullptr;
 		QAction*                                     Discard   = nullptr;
 		QAction*                                     Reconcile = nullptr;
+		/// [[BPR-PENDING-AC]]. The rows, one a listed comment; which are
+		/// selected; the row a Shift gesture extends from; the focused row.
+		/// `pick_pending` (a click), `step_pending` (Up or Down, with Shift
+		/// extending), `select_all_pending` and `prepare_pending_menu` (a menu
+		/// opening keeps a selection it is in, else selects its row alone)
+		/// change only these.
+		std::vector<QPointer<QAbstractButton>> PendingButtons;
+		std::vector<bool>                      PendingSelected;
+		std::optional<std::size_t>             PendingAnchor;
+		std::optional<std::size_t>             PendingCurrent;
 	};
 }
 #endif
