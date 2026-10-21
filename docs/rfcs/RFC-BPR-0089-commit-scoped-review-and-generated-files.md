@@ -217,7 +217,8 @@ that says yes or no decides it:
    (`-linguist-generated` or `=false`, which overrides everything below it) or
    unspecified. The rules are read from the head's root `.gitattributes` and
    from those in each changed path's ancestor directories, at most 64 files of
-   at most 512 KiB each, with the existing reader extended by one attribute.
+   at most 512 KiB each, with the existing reader extended by one attribute
+   (owner, 2026-10-21: no library; see Owner questions).
    [RFC-BPR-0083](RFC-BPR-0083-git-metadata-readers.md) may replace that reader;
    the meaning of the attribute is unchanged either way.
 
@@ -435,6 +436,23 @@ kept only in that external state.
 The rejected alternatives were: for Q1, always the commit the diff ends at, or
 head only with a file comment; for Q2, one diff with the hidden commit's lines
 marked, or leaving the file out; for Q3, Clear all filters showing generated
-files. No owner question remains open. The rules described as proposals under
+files.
+
+M2's implementation raised one library question, which AGENTS.md asks before
+a general-purpose matcher is written in core. Session
+`e081a94ec80b52c1ecb067710c8983cc` (external state
+`/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0089-m2-matcher-v001`)
+asked one Accept/Reject question at candidate revision
+`rfc-bpr-0089-m2-matcher-q1`. The owner answered on 2026-10-21 and the session
+is closed, its host stopped; the authenticated URL was kept only in that
+external state.
+
+| Question | Owner answer (2026-10-21) | Decision | Where applied |
+|---|---|---|---|
+| Match `.gitattributes` for `linguist-generated` with the core's existing first-party wildmatch and attribute reader (`bpr::core::wildcard_match`, `workspace_attribute_rules` in `review_cycle_ignore.cpp`, kept by the [RFC-BPR-0083 decision record](../verification/RFC-BPR-0083-decision.md)), extended by that one attribute, adopting no library | Accept, no note | `62bc634e` | Generated files are set aside, rule 2; [[BPR-1692]] |
+
+The alternatives it named were Git's GPL-2.0-only `wildmatch.c`, libgit2's
+`wildmatch.c` or libgit2 behind an adapter, RE2 by translation, and
+fnmatch(3), Qt wildcards or gix-glob. None was adopted. No owner question remains open. The rules described as proposals under
 Owner direction (receipts, force push, the generated row and the bulk label)
 stand unless the owner changes them.

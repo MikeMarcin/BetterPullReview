@@ -19,7 +19,45 @@ commit and each commit's own rules are not read. BPR-Test #112 (closed, both
 branches deleted), six REST calls, `X-RateLimit-Remaining` above 4,990. The
 RFC's engineering questions record the probe in full.
 
-## Owner question (open)
+## BPR-1692 round (2026-10-21)
+
+The owner answered **Accept**, no note (decision
+`62bc634e-549e-4956-9f52-2ebbc6a0d99f`): `linguist-generated` is read with the
+core's existing first-party wildmatch and attribute reader, and no library is
+adopted. The session is closed (event cursor 8: an observation recording the
+decision's use, protection released) and its host is stopped through the
+script's own `stop`. [[BPR-1692]] is done on branch
+`worktree-agent-a5993382e3cca9089`, code candidate
+`879fda2fbbb0281459db0093fa15386278ac126f` over main `21fae3b25`, docs on the
+commit after it; not landed on main. It was tested as `f3cabb334` over
+`5e4c77757`; the rebase onto `21fae3b25` brought in only two card files, so the
+code tree is byte-identical.
+
+- Verification on that code tree (lean `-g0` dev build, removed afterwards):
+  `core_generated_files`, `core_commit_filter`, `core_review_cycle_manifest`,
+  `application_commit_filter_model`, `application_pull_request_overview`,
+  `application_epoch_host`, `application_epoch_contract`,
+  `application_commit_filter_public_path` (three courses; negative control:
+  without the composition's attribute read it fails at opening),
+  `git_metadata_harness` (C6-generated agrees with `git check-attr` on 193
+  questions), `commit_filter_fixture_contract`,
+  `github_contract_fixture_security`, `github_recorded_fixture_contract`,
+  `qt_pull_request_overview_page` and its four scale rows, `qt_files_tree`
+  (three rows), `qt_commit_filter_view` at 100 and 200,
+  `qt_workbench_window_scale_100`, `architecture_boundaries`,
+  `command_correctness_registry_contract`, `test_network_isolation_manifest`
+  and `application_review_round_trip_composition_contract`. `core-only`:
+  `core_generated_files`, `core_commit_filter`, `core_review_cycle_manifest`.
+  `coding-format-check` (clang-format 22.1.8) and clang-tidy with warnings as
+  errors on all 13 changed translation units pass. The command-correctness and
+  round-trip composition pins are resealed, with a note at the top of the
+  contract.
+- Live: BPR-Test #113 (closed, both branches deleted), the owner's shape with
+  C2 regenerating 320 files and the head marking 319; every view matches
+  `git check-attr --source C3`; Viewed unchanged; `X-RateLimit-Remaining`
+  stayed above 4,870.
+
+## Owner question (answered 2026-10-21, Accept)
 
 AGENTS.md asks before a general-purpose matcher is written in core. The core
 already holds one: `bpr::core::wildcard_match` and `workspace_attribute_rules`
@@ -41,7 +79,8 @@ fnmatch(3), Qt wildcards or gix-glob.
   `/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0089-m2-matcher-v001`
   (checkout root: the main checkout, no paths protected). The authenticated
   URL is kept only there.
-- Event cursor 3: prepared, no decision, not handed back.
+- Event cursor 3 at the first handoff; answered and handed back by event 6,
+  closed at event 8.
 
 ## Result
 
@@ -49,8 +88,8 @@ fnmatch(3), Qt wildcards or gix-glob.
 |---|---|---|
 | AC04, marks and gestures | pass, fixture through the shipped composition: Review anyway, Show as normal and Treat as generated work and persist across restart; Clear all filters leaves generated files behind their row; nothing is hidden before a rule or gesture | [[BPR-1691]] AC1 |
 | AC04, Hide files these commits changed | pass, fixture: C2's 96 paths hidden in C3 as well | [[BPR-1691]] AC2 |
-| AC04, `linguist-generated` and `-linguist-generated` | not delivered; parked on the owner's matcher answer; decision and boundary ready | [[BPR-1692]] |
-| AC04, live on BPR-Test | not run: the attribute half needs J4; the no-attribute gestures are covered by the fixture course | [[BPR-1692]] |
+| AC04, `linguist-generated` and `-linguist-generated` | pass, fixture through the shipped composition: 95 of 98 set aside, unprepared, under every filter and after Clear all filters; the nested `-linguist-generated` returns one; the reader agrees with `git check-attr` | [[BPR-1692]] |
+| AC04, live on BPR-Test | pass for the attribute half: #113, 319 of 325 set aside, every view matches `git check-attr --source C3`, Viewed unchanged; the no-attribute gestures are covered by the fixture course | [[BPR-1692]] |
 | AC05 (M2 gestures) | pass: no review mutation terminal after file-filter and generated gestures | [[BPR-1691]] AC4 |
 | AC08 (M2 decisions) | pass under `core-only` | [[BPR-1689]] |
 | Bulk label (RFC Commits tab) | pass, model and Qt; the fixture's 96-file C2 is correctly unlabelled | [[BPR-1691]] AC3 |
@@ -99,16 +138,14 @@ process_support lane) is edited.
 
 ## Open obligations and next action
 
-- On the owner's answer: carry [[BPR-1692]] with the chosen matcher, then
-  the fixture with attributes and the live BPR-Test course of the owner's
-  shape.
-- [[BPR-1693]]: open a set-aside file's diff on request.
+- [[BPR-1692]] is done; land its branch on main.
+- [[BPR-1693]]: open a set-aside file's diff on request (the last M2 gap).
 - [[BPR-1688]] also covers restoring file filters with the window.
 - Windows and Linux are unmeasured.
 
 ## Command state
 
 No task-owned build or test process is running. The attended-review host for
-session `e081a94e…` was started by this task and is handed off to the
-coordinator; `serve` with the same `--repo-root` and `--state` restarts or
-attaches to it. Build directories are removed at the end of the task.
+session `e081a94e…` (pid 60888) was stopped by the BPR-1692 round through the
+script's `stop`, at the coordinator's request; the session is closed. Build
+directories are removed at the end of each task.
