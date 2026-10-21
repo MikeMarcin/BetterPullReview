@@ -69,6 +69,48 @@ def print_report(report: dict) -> None:
             print(f"{status.capitalize()}: " + ", ".join(names))
 
 
+def validate_command_owned_row(row: dict, props: dict, root: Path = ROOT) -> None:
+    registry = json.loads((root / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
+    if registry["schema"] != "bpr.command-correctness.v1":
+        raise ValueError("Unknown command correctness registry schema")
+    matches = [(family, candidate) for family in registry["families"] for candidate in family["rows"]
+               if candidate["name"] == row["name"]]
+    if len(matches) != 1:
+        raise ValueError(f"Unknown or duplicate command ownership: {row['name']}")
+    family, candidate = matches[0]
+    if family["configurations"] != ["Debug"]:
+        raise ValueError("Unaudited command correctness configuration")
+    source = root / family["source"]
+    directory = Path(props["WORKING_DIRECTORY"])
+    expected_arguments = [arg.replace("{binary_dir}", directory.as_posix()) for arg in candidate["arguments"]]
+    command = row.get("command", [])
+    tail = len(expected_arguments) + 1
+    actual = command[-tail:]
+    valid_command = (len(actual) == tail
+                     and Path(actual[0]).name.removesuffix(".exe") == candidate["executable"]
+                     and actual[1:] == expected_arguments)
+    expected_environment = [item.replace("{binary_dir}", directory.as_posix()).replace("{build_dir}", directory.parents[1].as_posix())
+                            for item in candidate["environment"]]
+    environment = props.get("ENVIRONMENT", [])
+    valid_environment = all(item in environment for item in expected_environment)
+    modifications = props.get("ENVIRONMENT_MODIFICATION", [])
+    if family["source"].endswith("/workbench_window_tests.cpp") and not any(item.startswith("BPR_QT_RENDER_PATH=") for item in expected_environment):
+        valid_environment = valid_environment and modifications.count("BPR_QT_RENDER_PATH=unset:") == 1
+    for item in expected_environment:
+        variable = item.split("=", 1)[0].upper()
+        valid_environment = (valid_environment
+                             and sum(entry.split("=", 1)[0].upper() == variable for entry in environment) == 1
+                             and not any(entry.split("=", 1)[0].upper() == variable for entry in modifications))
+    valid_unsets = all(modifications.count(f"{variable}=unset:") == 1
+                       and sum(item.split("=", 1)[0].upper() == variable.upper() for item in modifications) == 1
+                       for variable in family["unset_environment"])
+    valid_inputs = all(hashlib.sha256((root / item["path"]).read_bytes()).hexdigest() == item["sha256"]
+                       for item in family["inputs"])
+    if (candidate["scheduling"] != "correctness" or not valid_command or not valid_unsets or not valid_environment or not valid_inputs
+            or hashlib.sha256(source.read_bytes()).hexdigest() != family["sha256"]):
+        raise ValueError(f"Invalid command ownership declaration: {row['name']}")
+
+
 def validate_schedule(manifest: dict) -> None:
     """Keep exclusive courses alone; admit only declared isolated correctness."""
     for row in manifest["tests"]:
@@ -78,8 +120,9 @@ def validate_schedule(manifest: dict) -> None:
         labels = props.get("LABELS", [])
         course = "/tests/end_to_end" in directory or "/tests/adapters_qt" in directory
         declared = "bpr_isolated_correctness" in labels
-        mode_labels = [label for label in labels if label.startswith("bpr_correctness_")]
-        if mode_labels and not declared:
+        config_labels = [label for label in labels if label.startswith("bpr_correctness_config_")]
+        mode_labels = [label for label in labels if label.startswith("bpr_correctness_") and label not in config_labels]
+        if (mode_labels or config_labels) and not declared:
             raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
         if declared:
             locks = props.get("RESOURCE_LOCK", [])
@@ -87,6 +130,8 @@ def validate_schedule(manifest: dict) -> None:
                 mode_labels == ["bpr_correctness_headless"] and not platforms
                 or mode_labels == ["bpr_correctness_offscreen"] and platforms == ["QT_QPA_PLATFORM=offscreen"]
             )
+            valid_configuration = (config_labels == ["bpr_correctness_config_Debug"]
+                                   and row.get("config", "Debug") == "Debug")
             valid_lock = any(re.fullmatch(r"bpr_isolated_correctness_[a-z0-9_]+", lock) for lock in locks)
             platform_override = any(item.upper().startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))
             platform_argument = any(
@@ -94,8 +139,12 @@ def validate_schedule(manifest: dict) -> None:
                 for item in row.get("command", [])
             )
             exclusive = props.get("RUN_SERIAL") or "bpr_explicit_serial" in labels or "bpr_serial_gui" in labels
-            if not valid_platform or not valid_lock or platform_override or platform_argument or exclusive:
+            if not valid_platform or not valid_lock or not valid_configuration or platform_override or platform_argument or exclusive:
                 raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
+        if "bpr_command_owned" in labels:
+            if not declared:
+                raise ValueError(f"Invalid command ownership declaration: {row['name']}")
+            validate_command_owned_row(row, props)
         if (platforms or course or "bpr_serial_gui" in labels) and not props.get("RUN_SERIAL") and not declared:
             raise ValueError(f"Interactive/performance test is not serial: {row['name']}")
 

@@ -54,7 +54,10 @@ Tests are direct evidence, not naming evidence.
   machine's timing into a universal frame-rate guarantee. Run interactive Qt
   fixtures headlessly. Keep timing, native desktop, global-resource and
   unclassified courses serial; only the explicit Windows correctness allowlist
-  may overlap under its audited resource locks (BPR-1670).
+  may overlap under its audited resource locks (BPR-1670/BPR-1673). The
+  command-owned registry binds Debug, standard feature/diagnostic options,
+  source/helper identities, exact argv/scale and reachable output ownership;
+  optimized, unknown and unqualified native configurations stay exclusive.
 - Runtime-surface tests inspect the launched process on macOS, Linux, and
   Windows; keep platform queries process-scoped and directly unit-tested.
 - Do not name a test identifier `near`, `far`, `small`, `min` or `max`: the

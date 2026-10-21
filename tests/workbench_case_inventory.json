@@ -1,0 +1,253 @@
+{
+  "schema": "bpr.workbench-cases.v1",
+  "source_sha256": "847568e14fa32317a44db497c101aca75b3db6cdaff5f1023f8e571ba53ecb53",
+  "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
+  "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
+  "selector_cases": {
+    "--thread-scroll-stability": [
+      "test_thread_scroll_settles_after_opening_from_new_threads"
+    ],
+    "--current-file-unread-badge": [
+      "test_unread_badge_follows_only_the_current_file",
+      "test_read_state_reaches_the_gutter_and_the_strip",
+      "test_the_right_tray_holds_comments_and_notes_tabs"
+    ],
+    "--center-ribbon-width": [
+      "test_center_ribbon_width_settings_and_rendering",
+      "test_line_details_view_menu_and_settings_follow_the_projection",
+      "test_markdown_images_preference_follows_the_projection"
+    ],
+    "--native-window-geometry": [
+      "test_building_the_window_shows_no_window_of_its_own",
+      "test_native_geometry_fits_current_displays_and_observes_only_after_restore"
+    ],
+    "--shared-snapshot-navigation": [
+      "test_comments_filter_and_return_comparison_preferences_apply_on_open"
+    ],
+    "--dif-workshop-placement": [
+      "test_composition_pages_retain_editors_and_never_submit_on_navigation",
+      "test_composition_keys_open_the_pages_and_esc_returns",
+      "test_tour_retarget_key_reaches_only_the_outline",
+      "test_dif_uses_the_corner_except_for_prime_spots"
+    ],
+    "--thread-moves": [
+      "test_thread_moves_between_review_and_discuss",
+      "test_thread_move_frames",
+      "test_reading_width_is_never_the_code"
+    ],
+    "--keyboard-shortcuts": [
+      "test_shortcut_catalogue_is_what_the_window_binds",
+      "test_keyboard_shortcuts_page",
+      "test_refresh_key_does_the_refresh_showing"
+    ],
+    "--change-end-keys": [
+      "test_change_end_keys_yield"
+    ],
+    "--option-keys": [
+      "test_option_keys_step_aside_in_text_input"
+    ],
+    "--review-state-icon": [
+      "test_file_accept_is_one_click_and_keeps_projected_eligibility",
+      "test_file_accept_shortcut_is_accept_only_and_yields_to_editors",
+      "test_review_state_icon_shows_the_decided_mark",
+      "test_progress_track_shows_and_takes_each_step",
+      "render_review_state_sheet"
+    ],
+    "--review-bar-directions": [
+      "render_review_bar_direction_sheets"
+    ],
+    "--review-bar-directions-round-2": [
+      "render_review_bar_direction_sheets"
+    ],
+    "--review-bar-accept-sheet": [
+      "render_review_bar_accept_sheet"
+    ],
+    "--document-tabs": [
+      "test_document_tabs_present_exact_views_and_translate_gestures"
+    ],
+    "--focus-order": [
+      "test_focus_order_is_declared_named_and_walkable"
+    ],
+    "--open-on-github": [
+      "test_title_row_settles_on_content_publication",
+      "test_open_on_github_beside_the_title",
+      "test_open_on_github_from_home_rows"
+    ],
+    "--open-review-from-home": [
+      "test_open_review_from_home_rows"
+    ],
+    "--title-row": [
+      "test_navigation_label_spacing",
+      "test_compact_icon_row_preserves_exact_order_and_edges",
+      "test_title_row_settles_on_content_publication",
+      "test_open_on_github_beside_the_title",
+      "test_strip_identity_stays_at_every_width",
+      "test_review_bar_geometry_is_stable_while_working",
+      "test_the_review_bar_yields_dates_then_words",
+      "test_the_floor_follows_the_review_bar",
+      "test_restored_geometry_accepts_the_raised_floor",
+      "test_strip_is_the_title_row",
+      "test_title_row_leading_inset_per_platform"
+    ],
+    "--strip-menu": [
+      "test_strip_menu_goes_with_its_window",
+      "test_strip_menu_opens_from_alt_and_f10"
+    ],
+    "--gh-discovery": [
+      "test_github_cli_discovery_is_a_separate_accounts_path"
+    ],
+    "--home-discovery": [
+      "test_saved_repository_gestures_round_trip_through_the_dispatch",
+      "test_home_strip_holds_view_and_refresh",
+      "test_home_discovery_glyph_status_and_pull_request_menu",
+      "test_home_view_menu_and_its_gestures"
+    ],
+    "--line-draft": [
+      "test_return_in_the_code_starts_a_draft_on_the_selection",
+      "test_right_click_on_any_line_and_on_base_lines",
+      "test_discuss_restore_top_right_and_whole_privacy_note",
+      "test_the_review_chip_counts_the_review_and_opens_finish"
+    ],
+    "--conversation-reveal": [
+      "test_discard_and_back_keep_the_comments_drawer",
+      "test_compose_in_the_drawer",
+      "test_the_conversations_drawer_hosts_the_threaded_conversation",
+      "test_same_automatically_selected_line_click_filters_conversations",
+      "test_selected_file_filter_survives_diff_loading",
+      "test_conversation_selection_reveals_exact_diff_anchor",
+      "test_a_default_conversation_row_never_moves_code",
+      "test_conversation_line_outside_selected_comparison_is_explicit",
+      "test_failed_replacement_keeps_conversations_on_the_requested_file",
+      "test_refresh_gap_retains_only_visual_conversation_scope",
+      "test_refresh_without_a_selection_shows_review_wide_roots",
+      "test_discuss_uses_main_content_and_open_in_code_returns_to_read",
+      "test_a_reply_waits_for_its_threads_own_comparison",
+      "test_defect_queue_navigation_and_semantic_dispatch",
+      "test_thread_defect_menus_badges_and_navigation",
+      "test_threads_finds_and_picks_into_review"
+    ],
+    "--overview": [
+      "test_overview_refuses_a_hand_opened_drawer_and_says_so",
+      "test_overview_entry_preserves_start_and_continue_semantics",
+      "test_identical_overview_skips_rebuild_but_restores_cleared_files",
+      "test_receipt_update_moves_only_its_rows"
+    ],
+    "<default>": [
+      "test_composition_pages_retain_editors_and_never_submit_on_navigation",
+      "test_composition_keys_open_the_pages_and_esc_returns",
+      "test_finish_review_is_a_sheet_beside_the_code",
+      "test_the_tour_is_a_route_expanding_to_its_page",
+      "test_the_agent_is_a_drawer_tab",
+      "test_pending_rows_open_their_comments_like_threads",
+      "test_tour_retarget_key_reaches_only_the_outline",
+      "test_compose_review_marks_a_kept_draft",
+      "test_settings_collection_limit_keeps_accepted_models_and_recovery_actions",
+      "test_settings_share_only_offered_agent_context_and_maintenance_actions",
+      "test_all_four_primary_actions_follow_one_core_projection",
+      "test_every_primary_action_translates_to_a_semantic_intent",
+      "test_read_without_a_file_gives_direction_not_a_blank_diff",
+      "test_action_state_follows_core_command_projections",
+      "test_compact_icon_row_preserves_exact_order_and_edges",
+      "test_shell_accessibility_status_and_scale",
+      "test_toolbar_status_tips_do_not_resize_the_workbench",
+      "test_drawer_toggles_follow_core_command_projections",
+      "test_the_view_menu_offers_a_core_decided_line_number_toggle",
+      "test_the_view_menu_projects_one_pane_without_changing_modality",
+      "test_the_view_menu_reaches_the_composed_source_panes",
+      "test_one_pane_places_threads_on_their_own_changed_rows",
+      "test_collapsing_a_drawer_returns_space_to_the_centre",
+      "test_strip_modalities_positions_and_account",
+      "test_title_row_settles_on_content_publication",
+      "test_strip_identity_stays_at_every_width",
+      "test_navigation_label_spacing",
+      "test_review_bar_geometry_is_stable_while_working",
+      "test_the_review_bar_yields_dates_then_words",
+      "test_the_floor_follows_the_review_bar",
+      "test_restored_geometry_accepts_the_raised_floor",
+      "test_the_title_row_and_review_bar_render",
+      "test_the_updates_line_folds_from_the_review_bar",
+      "test_comment_names_its_target_and_every_card_replies",
+      "test_strip_is_the_title_row",
+      "test_the_epoch_row_spans_the_window_in_every_modality",
+      "test_rails_reopen_their_drawers",
+      "test_review_details_return_height_to_the_comparison",
+      "test_drawer_resize_emits_the_host_layout_path",
+      "test_a_squeezed_splitter_never_reports_a_width",
+      "test_a_clobbered_persisted_width_opens_at_the_design_width",
+      "test_the_conversations_drawer_narrows_below_its_default_in_read",
+      "test_the_seam_is_centred_for_native_and_even_handle_widths",
+      "test_the_split_cursor_stays_over_a_resting_handle",
+      "test_the_drawer_seams_hold_their_cursor",
+      "test_drawer_contents_use_incremental_model_signals",
+      "test_file_rows_emit_only_semantic_user_selection",
+      "test_the_files_drawer_shows_the_tree_over_its_list",
+      "test_the_conversations_drawer_hosts_the_threaded_conversation",
+      "test_the_centre_is_the_composed_rfc_0004_comparison_surface",
+      "test_same_automatically_selected_line_click_filters_conversations",
+      "test_selected_file_filter_survives_diff_loading",
+      "test_conversation_selection_reveals_exact_diff_anchor",
+      "test_a_default_conversation_row_never_moves_code",
+      "test_conversation_line_outside_selected_comparison_is_explicit",
+      "test_failed_replacement_keeps_conversations_on_the_requested_file",
+      "test_refresh_gap_retains_only_visual_conversation_scope",
+      "test_refresh_without_a_selection_shows_review_wide_roots",
+      "test_composed_ribbons_follow_the_group_model_through_scroll_and_resize",
+      "test_the_lower_detail_pane_is_full_width_line_over_line",
+      "test_composed_epoch_selectors_show_exact_retained_epochs",
+      "test_review_history_state_is_explicit_in_workbench_text",
+      "test_unavailable_saved_layout_survives_workbench_projections",
+      "test_focus_order_is_declared_named_and_walkable",
+      "test_receipt_actions_follow_decided_projection_and_clear_while_loading",
+      "test_review_state_icon_shows_the_decided_mark",
+      "test_progress_track_shows_and_takes_each_step",
+      "test_selection_synchronisation_and_restart_persistence",
+      "test_read_state_reaches_the_gutter_and_the_strip",
+      "test_unread_badge_follows_only_the_current_file",
+      "test_the_right_tray_holds_comments_and_notes_tabs",
+      "test_discuss_uses_main_content_and_open_in_code_returns_to_read",
+      "test_a_reply_waits_for_its_threads_own_comparison",
+      "test_change_arrows_are_bounded_and_always_enabled",
+      "test_strip_tooltips_sit_directly_below_their_controls",
+      "test_change_keys_are_named_and_yield_in_editors",
+      "test_change_end_keys_yield",
+      "test_code_zoom_commands_keys_and_collisions",
+      "test_home_key_shows_home_from_every_surface",
+      "test_defect_queue_navigation_and_semantic_dispatch",
+      "test_thread_defect_menus_badges_and_navigation",
+      "test_queue_rule_gestures_wait_for_the_accepted_projection",
+      "test_queue_rule_selection_survives_unrelated_projection",
+      "test_saved_repository_gestures_round_trip_through_the_dispatch",
+      "test_add_enterprise_server_opens_a_card_in_its_edit_state",
+      "test_github_cli_discovery_is_a_separate_accounts_path",
+      "test_a_kept_enterprise_server_remembers_and_forgets_on_its_card",
+      "test_the_servers_combo_editor_is_gone",
+      "test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group",
+      "test_hidden_drawer_controls_leave_no_column_and_no_hide_button",
+      "test_line_details_view_menu_and_settings_follow_the_projection",
+      "test_markdown_images_preference_follows_the_projection",
+      "test_continue_review_and_opening_honour_the_modality_preferences",
+      "test_comments_filter_and_return_comparison_preferences_apply_on_open",
+      "test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison",
+      "test_queue_filter_controls_are_accessible_incremental_and_focus_stable",
+      "test_notification_activation_selects_only_an_exact_visible_queue_row",
+      "test_notification_settings_wait_for_acceptance_and_reset_only_their_domain",
+      "test_large_queue_filters_through_the_composed_window",
+      "test_home_strip_holds_view_and_refresh",
+      "test_home_view_menu_and_its_gestures",
+      "test_a_published_home_view_is_restored_without_a_second_dispatch",
+      "test_the_six_queue_controls_live_on_settings_queue_defaults",
+      "test_home_captures_every_accepted_view",
+      "test_home_composes_the_production_catalog_and_respects_motion_and_width",
+      "test_dif_uses_the_corner_except_for_prime_spots",
+      "test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail",
+      "test_overview_entry_preserves_start_and_continue_semantics",
+      "test_identical_overview_skips_rebuild_but_restores_cleared_files",
+      "test_receipt_update_moves_only_its_rows",
+      "test_overview_refuses_a_hand_opened_drawer_and_says_so",
+      "test_hide_drawers_command_key_icon_and_editor_yield",
+      "test_threads_finds_and_picks_into_review",
+      "test_threads_opens_a_thread_in_discuss",
+      "test_a_large_file_leaves_the_widget_count_bounded"
+    ]
+  }
+}

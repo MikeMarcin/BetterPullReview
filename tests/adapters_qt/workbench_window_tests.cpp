@@ -19056,121 +19056,229 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
+	const auto   arguments  = QCoreApplication::arguments().mid(1);
+	const auto   listCases  = arguments.contains(QStringLiteral("--list-cases"));
+	const auto   traceCases = qEnvironmentVariableIsSet("BPR_TEST_CASE_TRACE");
+	const auto   selectors  = QStringList{
+		QStringLiteral("--thread-scroll-stability"),
+		QStringLiteral("--current-file-unread-badge"),
+		QStringLiteral("--center-ribbon-width"),
+		QStringLiteral("--native-window-geometry"),
+		QStringLiteral("--shared-snapshot-navigation"),
+		QStringLiteral("--dif-workshop-placement"),
+		QStringLiteral("--thread-moves"),
+		QStringLiteral("--keyboard-shortcuts"),
+		QStringLiteral("--change-end-keys"),
+		QStringLiteral("--option-keys"),
+		QStringLiteral("--review-state-icon"),
+		QStringLiteral("--review-bar-directions"),
+		QStringLiteral("--review-bar-directions-round-2"),
+		QStringLiteral("--review-bar-accept-sheet"),
+		QStringLiteral("--document-tabs"),
+		QStringLiteral("--focus-order"),
+		QStringLiteral("--open-on-github"),
+		QStringLiteral("--open-review-from-home"),
+		QStringLiteral("--title-row"),
+#if defined(_WIN32)
+		QStringLiteral("--strip-menu"),
+#endif
+		QStringLiteral("--gh-discovery"),
+		QStringLiteral("--home-discovery"),
+		QStringLiteral("--line-draft"),
+		QStringLiteral("--conversation-reveal"),
+		QStringLiteral("--overview"),
+	};
+	if (arguments.count(QStringLiteral("--list-cases")) > 1) {
+		std::cerr << "WORKBENCH_SELECTION_FAILED\n";
+		return EXIT_FAILURE;
+	}
+	if (listCases || traceCases) {
+#if defined(NDEBUG)
+		std::cout << "WORKBENCH_BUILD:NDEBUG=1";
+#else
+		std::cout << "WORKBENCH_BUILD:NDEBUG=0";
+#endif
+#if defined(_ITERATOR_DEBUG_LEVEL)
+		std::cout << ";ITERATOR_DEBUG_LEVEL=" << _ITERATOR_DEBUG_LEVEL;
+#endif
+		std::cout << '\n';
+	}
+	auto selected = 0;
+	for (const auto& argument : arguments) {
+		if (argument == QStringLiteral("--list-cases")) {
+			continue;
+		}
+		if (!selectors.contains(argument) || ++selected > 1) {
+			std::cerr << "WORKBENCH_SELECTION_FAILED\n";
+			return EXIT_FAILURE;
+		}
+	}
+	const auto runCase = [&](const char* aName, auto aRun) {
+		if (listCases) {
+			std::cout << "WORKBENCH_CASE:" << aName << '\n';
+			return;
+		}
+		auto timer = QElapsedTimer{ };
+		if (traceCases) {
+			std::cout << "WORKBENCH_CASE_BEGIN:" << aName << std::endl;
+			timer.start();
+		}
+		aRun();
+		if (traceCases) {
+			std::cout << "WORKBENCH_CASE_END:" << aName << ':' << timer.elapsed() << std::endl;
+		}
+	};
 	if (QCoreApplication::arguments().contains(QStringLiteral("--thread-scroll-stability"))) {
-		test_thread_scroll_settles_after_opening_from_new_threads();
-		std::cout << "thread-scroll-stability:pass\n";
+		runCase("test_thread_scroll_settles_after_opening_from_new_threads", &test_thread_scroll_settles_after_opening_from_new_threads);
+		if (!listCases) {
+			std::cout << "thread-scroll-stability:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 
 	if (QCoreApplication::arguments().contains(QStringLiteral("--current-file-unread-badge"))) {
-		test_unread_badge_follows_only_the_current_file();
-		test_read_state_reaches_the_gutter_and_the_strip();
-		test_the_right_tray_holds_comments_and_notes_tabs();
-		std::cout << "current-file-unread-badge:pass\n";
+		runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
+		runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
+		runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
+		if (!listCases) {
+			std::cout << "current-file-unread-badge:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--center-ribbon-width"))) {
-		test_center_ribbon_width_settings_and_rendering();
-		test_line_details_view_menu_and_settings_follow_the_projection();
-		test_markdown_images_preference_follows_the_projection();
-		std::cout << "center-ribbon-width:pass\n";
+		runCase("test_center_ribbon_width_settings_and_rendering", &test_center_ribbon_width_settings_and_rendering);
+		runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
+		runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+		if (!listCases) {
+			std::cout << "center-ribbon-width:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--native-window-geometry"))) {
 		// [[BPR-1074]]. The one window a launch puts on the desktop.
-		test_building_the_window_shows_no_window_of_its_own();
-		test_native_geometry_fits_current_displays_and_observes_only_after_restore();
-		std::cout << "native-window-geometry:pass\n";
+		runCase("test_building_the_window_shows_no_window_of_its_own", &test_building_the_window_shows_no_window_of_its_own);
+		runCase("test_native_geometry_fits_current_displays_and_observes_only_after_restore", &test_native_geometry_fits_current_displays_and_observes_only_after_restore);
+		if (!listCases) {
+			std::cout << "native-window-geometry:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--shared-snapshot-navigation"))) {
-		test_comments_filter_and_return_comparison_preferences_apply_on_open();
-		std::cout << "shared-snapshot-navigation:pass\n";
+		runCase("test_comments_filter_and_return_comparison_preferences_apply_on_open", &test_comments_filter_and_return_comparison_preferences_apply_on_open);
+		if (!listCases) {
+			std::cout << "shared-snapshot-navigation:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--dif-workshop-placement"))) {
-		test_composition_pages_retain_editors_and_never_submit_on_navigation();
-		test_composition_keys_open_the_pages_and_esc_returns();
-		test_tour_retarget_key_reaches_only_the_outline();
-		test_dif_uses_the_corner_except_for_prime_spots();
-		std::cout << "dif-workshop-placement:pass\n";
+		runCase("test_composition_pages_retain_editors_and_never_submit_on_navigation", &test_composition_pages_retain_editors_and_never_submit_on_navigation);
+		runCase("test_composition_keys_open_the_pages_and_esc_returns", &test_composition_keys_open_the_pages_and_esc_returns);
+		runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
+		runCase("test_dif_uses_the_corner_except_for_prime_spots", &test_dif_uses_the_corner_except_for_prime_spots);
+		if (!listCases) {
+			std::cout << "dif-workshop-placement:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-1581]] [[BPR-1582]] [[BPR-1584]]. Moving a thread between Review
 	// and Discuss, the frames of the jump, and the reading width.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--thread-moves"))) {
-		test_thread_moves_between_review_and_discuss();
-		test_thread_move_frames();
-		test_reading_width_is_never_the_code();
-		std::cout << "thread-moves:pass\n";
+		runCase("test_thread_moves_between_review_and_discuss", &test_thread_moves_between_review_and_discuss);
+		runCase("test_thread_move_frames", &test_thread_move_frames);
+		runCase("test_reading_width_is_never_the_code", &test_reading_width_is_never_the_code);
+		if (!listCases) {
+			std::cout << "thread-moves:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-1567]]. Help → Keyboard Shortcuts and its catalogue.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--keyboard-shortcuts"))) {
-		test_shortcut_catalogue_is_what_the_window_binds();
-		test_keyboard_shortcuts_page();
+		runCase("test_shortcut_catalogue_is_what_the_window_binds", &test_shortcut_catalogue_is_what_the_window_binds);
+		runCase("test_keyboard_shortcuts_page", &test_keyboard_shortcuts_page);
 		// [[BPR-1600]]. ⌘R does whichever refresh the window shows.
-		test_refresh_key_does_the_refresh_showing();
-		std::cout << "keyboard-shortcuts:pass\n";
+		runCase("test_refresh_key_does_the_refresh_showing", &test_refresh_key_does_the_refresh_showing);
+		if (!listCases) {
+			std::cout << "keyboard-shortcuts:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--change-end-keys"))) {
 		// [[BPR-1532]]. First and Last change: menus, keys and their yields.
-		test_change_end_keys_yield();
-		std::cout << "change-end-keys:pass\n";
+		runCase("test_change_end_keys_yield", &test_change_end_keys_yield);
+		if (!listCases) {
+			std::cout << "change-end-keys:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--option-keys"))) {
-		test_option_keys_step_aside_in_text_input();
-		std::cout << "option-keys:pass\n";
+		runCase("test_option_keys_step_aside_in_text_input", &test_option_keys_step_aside_in_text_input);
+		if (!listCases) {
+			std::cout << "option-keys:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-state-icon"))) {
-		test_file_accept_is_one_click_and_keeps_projected_eligibility();
-		test_file_accept_shortcut_is_accept_only_and_yields_to_editors();
-		test_review_state_icon_shows_the_decided_mark();
-		test_progress_track_shows_and_takes_each_step();
-		render_review_state_sheet();
-		std::cout << "review-state-icon:pass\n";
+		runCase("test_file_accept_is_one_click_and_keeps_projected_eligibility", &test_file_accept_is_one_click_and_keeps_projected_eligibility);
+		runCase("test_file_accept_shortcut_is_accept_only_and_yields_to_editors", &test_file_accept_shortcut_is_accept_only_and_yields_to_editors);
+		runCase("test_review_state_icon_shows_the_decided_mark", &test_review_state_icon_shows_the_decided_mark);
+		runCase("test_progress_track_shows_and_takes_each_step", &test_progress_track_shows_and_takes_each_step);
+		runCase("render_review_state_sheet", &render_review_state_sheet);
+		if (!listCases) {
+			std::cout << "review-state-icon:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-directions"))) {
 		// [[BPR-1578]] v002. Three directions for the progress group, for a person.
-		render_review_bar_direction_sheets({
-			{ progress_direction::caption_and_action, QStringLiteral("a-caption-and-action") },
-			{ progress_direction::split_button, QStringLiteral("b-split-button") },
-			{ progress_direction::progress_track, QStringLiteral("c-progress-track") },
+		runCase("render_review_bar_direction_sheets", [&] {
+			render_review_bar_direction_sheets({
+				{ progress_direction::caption_and_action, QStringLiteral("a-caption-and-action") },
+				{ progress_direction::split_button, QStringLiteral("b-split-button") },
+				{ progress_direction::progress_track, QStringLiteral("c-progress-track") },
+			});
 		});
-		std::cout << "review-bar-directions:pass\n";
+		if (!listCases) {
+			std::cout << "review-bar-directions:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-directions-round-2"))) {
 		// [[BPR-1578]] v002 round 2: the progress track refined, and three new directions.
-		render_review_bar_direction_sheets({
-			{ progress_direction::progress_track_refined, QStringLiteral("c2-progress-track") },
-			{ progress_direction::stepper, QStringLiteral("d-stepper") },
-			{ progress_direction::meter_chip, QStringLiteral("e-meter-chip") },
-			{ progress_direction::accept_only, QStringLiteral("f-accept-only") },
+		runCase("render_review_bar_direction_sheets", [&] {
+			render_review_bar_direction_sheets({
+				{ progress_direction::progress_track_refined, QStringLiteral("c2-progress-track") },
+				{ progress_direction::stepper, QStringLiteral("d-stepper") },
+				{ progress_direction::meter_chip, QStringLiteral("e-meter-chip") },
+				{ progress_direction::accept_only, QStringLiteral("f-accept-only") },
+			});
 		});
-		std::cout << "review-bar-directions-round-2:pass\n";
+		if (!listCases) {
+			std::cout << "review-bar-directions-round-2:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--review-bar-accept-sheet"))) {
 		// [[BPR-1578]]. The review bar's Accept group, before and after, for a person.
-		render_review_bar_accept_sheet();
-		std::cout << "review-bar-accept-sheet:pass\n";
+		runCase("render_review_bar_accept_sheet", &render_review_bar_accept_sheet);
+		if (!listCases) {
+			std::cout << "review-bar-accept-sheet:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--document-tabs"))) {
-		test_document_tabs_present_exact_views_and_translate_gestures();
-		std::cout << "document-tabs:pass\n";
+		runCase("test_document_tabs_present_exact_views_and_translate_gestures", &test_document_tabs_present_exact_views_and_translate_gestures);
+		if (!listCases) {
+			std::cout << "document-tabs:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-0981]]. The declared focus order alone, at each registered scale:
 	// the full run stops earlier at the epoch-row assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--focus-order"))) {
-		test_focus_order_is_declared_named_and_walkable();
-		std::cout << "workbench-focus-order:pass\n";
+		runCase("test_focus_order_is_declared_named_and_walkable", &test_focus_order_is_declared_named_and_walkable);
+		if (!listCases) {
+			std::cout << "workbench-focus-order:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-0653]]. The strip as the title row -- its order, its width sweep
@@ -19178,218 +19286,238 @@ auto main(int argc, char** argv) -> int
 	// directly past the epoch-row assertion [[BPR-0940]] owns.
 	// [[BPR-1338]]. Open on GitHub beside the title and from Home's rows.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--open-on-github"))) {
-		test_title_row_settles_on_content_publication();
-		test_open_on_github_beside_the_title();
-		test_open_on_github_from_home_rows();
-		std::cout << "workbench-open-on-github:pass\n";
+		runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
+		runCase("test_open_on_github_beside_the_title", &test_open_on_github_beside_the_title);
+		runCase("test_open_on_github_from_home_rows", &test_open_on_github_from_home_rows);
+		if (!listCases) {
+			std::cout << "workbench-open-on-github:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-1342]]. Open Review and Open Review in New Window from Home's rows.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--open-review-from-home"))) {
-		test_open_review_from_home_rows();
-		std::cout << "workbench-open-review-from-home:pass\n";
+		runCase("test_open_review_from_home_rows", &test_open_review_from_home_rows);
+		if (!listCases) {
+			std::cout << "workbench-open-review-from-home:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
-		test_navigation_label_spacing();
-		test_compact_icon_row_preserves_exact_order_and_edges();
-		test_title_row_settles_on_content_publication();
-		test_open_on_github_beside_the_title();
-		test_strip_identity_stays_at_every_width();
-		test_review_bar_geometry_is_stable_while_working();
-		test_the_review_bar_yields_dates_then_words();
-		test_the_floor_follows_the_review_bar();
-		test_restored_geometry_accepts_the_raised_floor();
-		test_strip_is_the_title_row();
-		test_title_row_leading_inset_per_platform();
-		std::cout << "workbench-title-row:pass\n";
+		runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
+		runCase("test_compact_icon_row_preserves_exact_order_and_edges", &test_compact_icon_row_preserves_exact_order_and_edges);
+		runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
+		runCase("test_open_on_github_beside_the_title", &test_open_on_github_beside_the_title);
+		runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
+		runCase("test_review_bar_geometry_is_stable_while_working", &test_review_bar_geometry_is_stable_while_working);
+		runCase("test_the_review_bar_yields_dates_then_words", &test_the_review_bar_yields_dates_then_words);
+		runCase("test_the_floor_follows_the_review_bar", &test_the_floor_follows_the_review_bar);
+		runCase("test_restored_geometry_accepts_the_raised_floor", &test_restored_geometry_accepts_the_raised_floor);
+		runCase("test_strip_is_the_title_row", &test_strip_is_the_title_row);
+		runCase("test_title_row_leading_inset_per_platform", &test_title_row_leading_inset_per_platform);
+		if (!listCases) {
+			std::cout << "workbench-title-row:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 #if defined(_WIN32)
 	// [[BPR-1028]]. The Windows strip's application menu against its window's
 	// lifetime: closed, it deletes itself; open, it goes with the window.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--strip-menu"))) {
-		test_strip_menu_goes_with_its_window();
-		test_strip_menu_opens_from_alt_and_f10();
-		std::cout << "workbench-strip-menu:pass\n";
+		runCase("test_strip_menu_goes_with_its_window", &test_strip_menu_goes_with_its_window);
+		runCase("test_strip_menu_opens_from_alt_and_f10", &test_strip_menu_opens_from_alt_and_f10);
+		if (!listCases) {
+			std::cout << "workbench-strip-menu:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 #endif
 	// [[BPR-0990]]. Home's discovery glyph, sentence and the Pull Request menu,
 	// reached directly past the epoch-row assertion [[BPR-0940]] owns.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--gh-discovery"))) {
-		test_github_cli_discovery_is_a_separate_accounts_path();
-		std::cout << "github-cli-discovery:pass\n";
+		runCase("test_github_cli_discovery_is_a_separate_accounts_path", &test_github_cli_discovery_is_a_separate_accounts_path);
+		if (!listCases) {
+			std::cout << "github-cli-discovery:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
-		test_saved_repository_gestures_round_trip_through_the_dispatch();
-		test_home_strip_holds_view_and_refresh();
-		test_home_discovery_glyph_status_and_pull_request_menu();
+		runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+		runCase("test_home_strip_holds_view_and_refresh", &test_home_strip_holds_view_and_refresh);
+		runCase("test_home_discovery_glyph_status_and_pull_request_menu", &test_home_discovery_glyph_status_and_pull_request_menu);
 		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.
-		test_home_view_menu_and_its_gestures();
-		std::cout << "workbench-home-discovery:pass\n";
+		runCase("test_home_view_menu_and_its_gestures", &test_home_view_menu_and_its_gestures);
+		if (!listCases) {
+			std::cout << "workbench-home-discovery:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-0985]]. The conversation courses, which the full run does not reach
 	// past that same assertion: which thread moves code, and when.
 	// [[BPR-1212]]. Return and Shift+Return in the code, reached directly.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--line-draft"))) {
-		test_return_in_the_code_starts_a_draft_on_the_selection();
-		test_right_click_on_any_line_and_on_base_lines();
-		test_discuss_restore_top_right_and_whole_privacy_note();
-		test_the_review_chip_counts_the_review_and_opens_finish();
-		std::cout << "workbench-line-draft:pass\n";
+		runCase("test_return_in_the_code_starts_a_draft_on_the_selection", &test_return_in_the_code_starts_a_draft_on_the_selection);
+		runCase("test_right_click_on_any_line_and_on_base_lines", &test_right_click_on_any_line_and_on_base_lines);
+		runCase("test_discuss_restore_top_right_and_whole_privacy_note", &test_discuss_restore_top_right_and_whole_privacy_note);
+		runCase("test_the_review_chip_counts_the_review_and_opens_finish", &test_the_review_chip_counts_the_review_and_opens_finish);
+		if (!listCases) {
+			std::cout << "workbench-line-draft:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--conversation-reveal"))) {
-		test_discard_and_back_keep_the_comments_drawer();
-		test_compose_in_the_drawer();
-		test_the_conversations_drawer_hosts_the_threaded_conversation();
-		test_same_automatically_selected_line_click_filters_conversations();
-		test_selected_file_filter_survives_diff_loading();
-		test_conversation_selection_reveals_exact_diff_anchor();
-		test_a_default_conversation_row_never_moves_code();
-		test_conversation_line_outside_selected_comparison_is_explicit();
-		test_failed_replacement_keeps_conversations_on_the_requested_file();
-		test_refresh_gap_retains_only_visual_conversation_scope();
-		test_refresh_without_a_selection_shows_review_wide_roots();
-		test_discuss_uses_main_content_and_open_in_code_returns_to_read();
-		test_a_reply_waits_for_its_threads_own_comparison();
-		test_defect_queue_navigation_and_semantic_dispatch();
-		test_thread_defect_menus_badges_and_navigation();
-		test_threads_finds_and_picks_into_review();
-		std::cout << "workbench-conversation-reveal:pass\n";
+		runCase("test_discard_and_back_keep_the_comments_drawer", &test_discard_and_back_keep_the_comments_drawer);
+		runCase("test_compose_in_the_drawer", &test_compose_in_the_drawer);
+		runCase("test_the_conversations_drawer_hosts_the_threaded_conversation", &test_the_conversations_drawer_hosts_the_threaded_conversation);
+		runCase("test_same_automatically_selected_line_click_filters_conversations", &test_same_automatically_selected_line_click_filters_conversations);
+		runCase("test_selected_file_filter_survives_diff_loading", &test_selected_file_filter_survives_diff_loading);
+		runCase("test_conversation_selection_reveals_exact_diff_anchor", &test_conversation_selection_reveals_exact_diff_anchor);
+		runCase("test_a_default_conversation_row_never_moves_code", &test_a_default_conversation_row_never_moves_code);
+		runCase("test_conversation_line_outside_selected_comparison_is_explicit", &test_conversation_line_outside_selected_comparison_is_explicit);
+		runCase("test_failed_replacement_keeps_conversations_on_the_requested_file", &test_failed_replacement_keeps_conversations_on_the_requested_file);
+		runCase("test_refresh_gap_retains_only_visual_conversation_scope", &test_refresh_gap_retains_only_visual_conversation_scope);
+		runCase("test_refresh_without_a_selection_shows_review_wide_roots", &test_refresh_without_a_selection_shows_review_wide_roots);
+		runCase("test_discuss_uses_main_content_and_open_in_code_returns_to_read", &test_discuss_uses_main_content_and_open_in_code_returns_to_read);
+		runCase("test_a_reply_waits_for_its_threads_own_comparison", &test_a_reply_waits_for_its_threads_own_comparison);
+		runCase("test_defect_queue_navigation_and_semantic_dispatch", &test_defect_queue_navigation_and_semantic_dispatch);
+		runCase("test_thread_defect_menus_badges_and_navigation", &test_thread_defect_menus_badges_and_navigation);
+		runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
+		if (!listCases) {
+			std::cout << "workbench-conversation-reveal:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
 	// [[BPR-0934]]. The window's Overview courses, which the full run does not
 	// reach past the epoch-row assertion [[BPR-0940]] owns: the retained
 	// folder tree must still skip equal overviews and re-project after a clear.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--overview"))) {
-		test_overview_refuses_a_hand_opened_drawer_and_says_so();
-		test_overview_entry_preserves_start_and_continue_semantics();
-		test_identical_overview_skips_rebuild_but_restores_cleared_files();
-		test_receipt_update_moves_only_its_rows();
-		std::cout << "workbench-overview:pass\n";
+		runCase("test_overview_refuses_a_hand_opened_drawer_and_says_so", &test_overview_refuses_a_hand_opened_drawer_and_says_so);
+		runCase("test_overview_entry_preserves_start_and_continue_semantics", &test_overview_entry_preserves_start_and_continue_semantics);
+		runCase("test_identical_overview_skips_rebuild_but_restores_cleared_files", &test_identical_overview_skips_rebuild_but_restores_cleared_files);
+		runCase("test_receipt_update_moves_only_its_rows", &test_receipt_update_moves_only_its_rows);
+		if (!listCases) {
+			std::cout << "workbench-overview:pass\n";
+		}
 		return EXIT_SUCCESS;
 	}
-	test_composition_pages_retain_editors_and_never_submit_on_navigation();
-	test_composition_keys_open_the_pages_and_esc_returns();
-	test_finish_review_is_a_sheet_beside_the_code();
-	test_the_tour_is_a_route_expanding_to_its_page();
-	test_the_agent_is_a_drawer_tab();
-	test_pending_rows_open_their_comments_like_threads();
-	test_tour_retarget_key_reaches_only_the_outline();
-	test_compose_review_marks_a_kept_draft();
-	test_settings_collection_limit_keeps_accepted_models_and_recovery_actions();
-	test_settings_share_only_offered_agent_context_and_maintenance_actions();
-	test_all_four_primary_actions_follow_one_core_projection();
-	test_every_primary_action_translates_to_a_semantic_intent();
-	test_read_without_a_file_gives_direction_not_a_blank_diff();
-	test_action_state_follows_core_command_projections();
-	test_compact_icon_row_preserves_exact_order_and_edges();
-	test_shell_accessibility_status_and_scale();
-	test_toolbar_status_tips_do_not_resize_the_workbench();
-	test_drawer_toggles_follow_core_command_projections();
-	test_the_view_menu_offers_a_core_decided_line_number_toggle();
-	test_the_view_menu_projects_one_pane_without_changing_modality();
-	test_the_view_menu_reaches_the_composed_source_panes();
-	test_one_pane_places_threads_on_their_own_changed_rows();
-	test_collapsing_a_drawer_returns_space_to_the_centre();
-	test_strip_modalities_positions_and_account();
-	test_title_row_settles_on_content_publication();
-	test_strip_identity_stays_at_every_width();
-	test_navigation_label_spacing();
-	test_review_bar_geometry_is_stable_while_working();
-	test_the_review_bar_yields_dates_then_words();
-	test_the_floor_follows_the_review_bar();
-	test_restored_geometry_accepts_the_raised_floor();
-	test_the_title_row_and_review_bar_render();
-	test_the_updates_line_folds_from_the_review_bar();
-	test_comment_names_its_target_and_every_card_replies();
-	test_strip_is_the_title_row();
-	test_the_epoch_row_spans_the_window_in_every_modality();
-	test_rails_reopen_their_drawers();
-	test_review_details_return_height_to_the_comparison();
-	test_drawer_resize_emits_the_host_layout_path();
-	test_a_squeezed_splitter_never_reports_a_width();
-	test_a_clobbered_persisted_width_opens_at_the_design_width();
-	test_the_conversations_drawer_narrows_below_its_default_in_read();
-	test_the_seam_is_centred_for_native_and_even_handle_widths();
-	test_the_split_cursor_stays_over_a_resting_handle();
-	test_the_drawer_seams_hold_their_cursor();
-	test_drawer_contents_use_incremental_model_signals();
-	test_file_rows_emit_only_semantic_user_selection();
-	test_the_files_drawer_shows_the_tree_over_its_list();
-	test_the_conversations_drawer_hosts_the_threaded_conversation();
-	test_the_centre_is_the_composed_rfc_0004_comparison_surface();
-	test_same_automatically_selected_line_click_filters_conversations();
-	test_selected_file_filter_survives_diff_loading();
-	test_conversation_selection_reveals_exact_diff_anchor();
-	test_a_default_conversation_row_never_moves_code();
-	test_conversation_line_outside_selected_comparison_is_explicit();
-	test_failed_replacement_keeps_conversations_on_the_requested_file();
-	test_refresh_gap_retains_only_visual_conversation_scope();
-	test_refresh_without_a_selection_shows_review_wide_roots();
-	test_composed_ribbons_follow_the_group_model_through_scroll_and_resize();
-	test_the_lower_detail_pane_is_full_width_line_over_line();
-	test_composed_epoch_selectors_show_exact_retained_epochs();
-	test_review_history_state_is_explicit_in_workbench_text();
-	test_unavailable_saved_layout_survives_workbench_projections();
-	test_focus_order_is_declared_named_and_walkable();
-	test_receipt_actions_follow_decided_projection_and_clear_while_loading();
-	test_review_state_icon_shows_the_decided_mark();
-	test_progress_track_shows_and_takes_each_step();
-	test_selection_synchronisation_and_restart_persistence();
-	test_read_state_reaches_the_gutter_and_the_strip();
-	test_unread_badge_follows_only_the_current_file();
-	test_the_right_tray_holds_comments_and_notes_tabs();
-	test_discuss_uses_main_content_and_open_in_code_returns_to_read();
-	test_a_reply_waits_for_its_threads_own_comparison();
-	test_change_arrows_are_bounded_and_always_enabled();
-	test_strip_tooltips_sit_directly_below_their_controls();
-	test_change_keys_are_named_and_yield_in_editors();
-	test_change_end_keys_yield();
-	test_code_zoom_commands_keys_and_collisions();
-	test_home_key_shows_home_from_every_surface();
-	test_defect_queue_navigation_and_semantic_dispatch();
-	test_thread_defect_menus_badges_and_navigation();
-	test_queue_rule_gestures_wait_for_the_accepted_projection();
-	test_queue_rule_selection_survives_unrelated_projection();
-	test_saved_repository_gestures_round_trip_through_the_dispatch();
-	test_add_enterprise_server_opens_a_card_in_its_edit_state();
-	test_github_cli_discovery_is_a_separate_accounts_path();
-	test_a_kept_enterprise_server_remembers_and_forgets_on_its_card();
-	test_the_servers_combo_editor_is_gone();
-	test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group();
-	test_hidden_drawer_controls_leave_no_column_and_no_hide_button();
-	test_line_details_view_menu_and_settings_follow_the_projection();
-	test_markdown_images_preference_follows_the_projection();
-	test_continue_review_and_opening_honour_the_modality_preferences();
-	test_comments_filter_and_return_comparison_preferences_apply_on_open();
-	test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison();
-	test_queue_filter_controls_are_accessible_incremental_and_focus_stable();
-	test_notification_activation_selects_only_an_exact_visible_queue_row();
-	test_notification_settings_wait_for_acceptance_and_reset_only_their_domain();
-	test_large_queue_filters_through_the_composed_window();
+	runCase("test_composition_pages_retain_editors_and_never_submit_on_navigation", &test_composition_pages_retain_editors_and_never_submit_on_navigation);
+	runCase("test_composition_keys_open_the_pages_and_esc_returns", &test_composition_keys_open_the_pages_and_esc_returns);
+	runCase("test_finish_review_is_a_sheet_beside_the_code", &test_finish_review_is_a_sheet_beside_the_code);
+	runCase("test_the_tour_is_a_route_expanding_to_its_page", &test_the_tour_is_a_route_expanding_to_its_page);
+	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
+	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
+	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
+	runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);
+	runCase("test_settings_collection_limit_keeps_accepted_models_and_recovery_actions", &test_settings_collection_limit_keeps_accepted_models_and_recovery_actions);
+	runCase("test_settings_share_only_offered_agent_context_and_maintenance_actions", &test_settings_share_only_offered_agent_context_and_maintenance_actions);
+	runCase("test_all_four_primary_actions_follow_one_core_projection", &test_all_four_primary_actions_follow_one_core_projection);
+	runCase("test_every_primary_action_translates_to_a_semantic_intent", &test_every_primary_action_translates_to_a_semantic_intent);
+	runCase("test_read_without_a_file_gives_direction_not_a_blank_diff", &test_read_without_a_file_gives_direction_not_a_blank_diff);
+	runCase("test_action_state_follows_core_command_projections", &test_action_state_follows_core_command_projections);
+	runCase("test_compact_icon_row_preserves_exact_order_and_edges", &test_compact_icon_row_preserves_exact_order_and_edges);
+	runCase("test_shell_accessibility_status_and_scale", &test_shell_accessibility_status_and_scale);
+	runCase("test_toolbar_status_tips_do_not_resize_the_workbench", &test_toolbar_status_tips_do_not_resize_the_workbench);
+	runCase("test_drawer_toggles_follow_core_command_projections", &test_drawer_toggles_follow_core_command_projections);
+	runCase("test_the_view_menu_offers_a_core_decided_line_number_toggle", &test_the_view_menu_offers_a_core_decided_line_number_toggle);
+	runCase("test_the_view_menu_projects_one_pane_without_changing_modality", &test_the_view_menu_projects_one_pane_without_changing_modality);
+	runCase("test_the_view_menu_reaches_the_composed_source_panes", &test_the_view_menu_reaches_the_composed_source_panes);
+	runCase("test_one_pane_places_threads_on_their_own_changed_rows", &test_one_pane_places_threads_on_their_own_changed_rows);
+	runCase("test_collapsing_a_drawer_returns_space_to_the_centre", &test_collapsing_a_drawer_returns_space_to_the_centre);
+	runCase("test_strip_modalities_positions_and_account", &test_strip_modalities_positions_and_account);
+	runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
+	runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
+	runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
+	runCase("test_review_bar_geometry_is_stable_while_working", &test_review_bar_geometry_is_stable_while_working);
+	runCase("test_the_review_bar_yields_dates_then_words", &test_the_review_bar_yields_dates_then_words);
+	runCase("test_the_floor_follows_the_review_bar", &test_the_floor_follows_the_review_bar);
+	runCase("test_restored_geometry_accepts_the_raised_floor", &test_restored_geometry_accepts_the_raised_floor);
+	runCase("test_the_title_row_and_review_bar_render", &test_the_title_row_and_review_bar_render);
+	runCase("test_the_updates_line_folds_from_the_review_bar", &test_the_updates_line_folds_from_the_review_bar);
+	runCase("test_comment_names_its_target_and_every_card_replies", &test_comment_names_its_target_and_every_card_replies);
+	runCase("test_strip_is_the_title_row", &test_strip_is_the_title_row);
+	runCase("test_the_epoch_row_spans_the_window_in_every_modality", &test_the_epoch_row_spans_the_window_in_every_modality);
+	runCase("test_rails_reopen_their_drawers", &test_rails_reopen_their_drawers);
+	runCase("test_review_details_return_height_to_the_comparison", &test_review_details_return_height_to_the_comparison);
+	runCase("test_drawer_resize_emits_the_host_layout_path", &test_drawer_resize_emits_the_host_layout_path);
+	runCase("test_a_squeezed_splitter_never_reports_a_width", &test_a_squeezed_splitter_never_reports_a_width);
+	runCase("test_a_clobbered_persisted_width_opens_at_the_design_width", &test_a_clobbered_persisted_width_opens_at_the_design_width);
+	runCase("test_the_conversations_drawer_narrows_below_its_default_in_read", &test_the_conversations_drawer_narrows_below_its_default_in_read);
+	runCase("test_the_seam_is_centred_for_native_and_even_handle_widths", &test_the_seam_is_centred_for_native_and_even_handle_widths);
+	runCase("test_the_split_cursor_stays_over_a_resting_handle", &test_the_split_cursor_stays_over_a_resting_handle);
+	runCase("test_the_drawer_seams_hold_their_cursor", &test_the_drawer_seams_hold_their_cursor);
+	runCase("test_drawer_contents_use_incremental_model_signals", &test_drawer_contents_use_incremental_model_signals);
+	runCase("test_file_rows_emit_only_semantic_user_selection", &test_file_rows_emit_only_semantic_user_selection);
+	runCase("test_the_files_drawer_shows_the_tree_over_its_list", &test_the_files_drawer_shows_the_tree_over_its_list);
+	runCase("test_the_conversations_drawer_hosts_the_threaded_conversation", &test_the_conversations_drawer_hosts_the_threaded_conversation);
+	runCase("test_the_centre_is_the_composed_rfc_0004_comparison_surface", &test_the_centre_is_the_composed_rfc_0004_comparison_surface);
+	runCase("test_same_automatically_selected_line_click_filters_conversations", &test_same_automatically_selected_line_click_filters_conversations);
+	runCase("test_selected_file_filter_survives_diff_loading", &test_selected_file_filter_survives_diff_loading);
+	runCase("test_conversation_selection_reveals_exact_diff_anchor", &test_conversation_selection_reveals_exact_diff_anchor);
+	runCase("test_a_default_conversation_row_never_moves_code", &test_a_default_conversation_row_never_moves_code);
+	runCase("test_conversation_line_outside_selected_comparison_is_explicit", &test_conversation_line_outside_selected_comparison_is_explicit);
+	runCase("test_failed_replacement_keeps_conversations_on_the_requested_file", &test_failed_replacement_keeps_conversations_on_the_requested_file);
+	runCase("test_refresh_gap_retains_only_visual_conversation_scope", &test_refresh_gap_retains_only_visual_conversation_scope);
+	runCase("test_refresh_without_a_selection_shows_review_wide_roots", &test_refresh_without_a_selection_shows_review_wide_roots);
+	runCase("test_composed_ribbons_follow_the_group_model_through_scroll_and_resize", &test_composed_ribbons_follow_the_group_model_through_scroll_and_resize);
+	runCase("test_the_lower_detail_pane_is_full_width_line_over_line", &test_the_lower_detail_pane_is_full_width_line_over_line);
+	runCase("test_composed_epoch_selectors_show_exact_retained_epochs", &test_composed_epoch_selectors_show_exact_retained_epochs);
+	runCase("test_review_history_state_is_explicit_in_workbench_text", &test_review_history_state_is_explicit_in_workbench_text);
+	runCase("test_unavailable_saved_layout_survives_workbench_projections", &test_unavailable_saved_layout_survives_workbench_projections);
+	runCase("test_focus_order_is_declared_named_and_walkable", &test_focus_order_is_declared_named_and_walkable);
+	runCase("test_receipt_actions_follow_decided_projection_and_clear_while_loading", &test_receipt_actions_follow_decided_projection_and_clear_while_loading);
+	runCase("test_review_state_icon_shows_the_decided_mark", &test_review_state_icon_shows_the_decided_mark);
+	runCase("test_progress_track_shows_and_takes_each_step", &test_progress_track_shows_and_takes_each_step);
+	runCase("test_selection_synchronisation_and_restart_persistence", &test_selection_synchronisation_and_restart_persistence);
+	runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
+	runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
+	runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
+	runCase("test_discuss_uses_main_content_and_open_in_code_returns_to_read", &test_discuss_uses_main_content_and_open_in_code_returns_to_read);
+	runCase("test_a_reply_waits_for_its_threads_own_comparison", &test_a_reply_waits_for_its_threads_own_comparison);
+	runCase("test_change_arrows_are_bounded_and_always_enabled", &test_change_arrows_are_bounded_and_always_enabled);
+	runCase("test_strip_tooltips_sit_directly_below_their_controls", &test_strip_tooltips_sit_directly_below_their_controls);
+	runCase("test_change_keys_are_named_and_yield_in_editors", &test_change_keys_are_named_and_yield_in_editors);
+	runCase("test_change_end_keys_yield", &test_change_end_keys_yield);
+	runCase("test_code_zoom_commands_keys_and_collisions", &test_code_zoom_commands_keys_and_collisions);
+	runCase("test_home_key_shows_home_from_every_surface", &test_home_key_shows_home_from_every_surface);
+	runCase("test_defect_queue_navigation_and_semantic_dispatch", &test_defect_queue_navigation_and_semantic_dispatch);
+	runCase("test_thread_defect_menus_badges_and_navigation", &test_thread_defect_menus_badges_and_navigation);
+	runCase("test_queue_rule_gestures_wait_for_the_accepted_projection", &test_queue_rule_gestures_wait_for_the_accepted_projection);
+	runCase("test_queue_rule_selection_survives_unrelated_projection", &test_queue_rule_selection_survives_unrelated_projection);
+	runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+	runCase("test_add_enterprise_server_opens_a_card_in_its_edit_state", &test_add_enterprise_server_opens_a_card_in_its_edit_state);
+	runCase("test_github_cli_discovery_is_a_separate_accounts_path", &test_github_cli_discovery_is_a_separate_accounts_path);
+	runCase("test_a_kept_enterprise_server_remembers_and_forgets_on_its_card", &test_a_kept_enterprise_server_remembers_and_forgets_on_its_card);
+	runCase("test_the_servers_combo_editor_is_gone", &test_the_servers_combo_editor_is_gone);
+	runCase("test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group", &test_review_behaviour_rows_dispatch_follow_the_projection_and_reset_by_group);
+	runCase("test_hidden_drawer_controls_leave_no_column_and_no_hide_button", &test_hidden_drawer_controls_leave_no_column_and_no_hide_button);
+	runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
+	runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+	runCase("test_continue_review_and_opening_honour_the_modality_preferences", &test_continue_review_and_opening_honour_the_modality_preferences);
+	runCase("test_comments_filter_and_return_comparison_preferences_apply_on_open", &test_comments_filter_and_return_comparison_preferences_apply_on_open);
+	runCase("test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison", &test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison);
+	runCase("test_queue_filter_controls_are_accessible_incremental_and_focus_stable", &test_queue_filter_controls_are_accessible_incremental_and_focus_stable);
+	runCase("test_notification_activation_selects_only_an_exact_visible_queue_row", &test_notification_activation_selects_only_an_exact_visible_queue_row);
+	runCase("test_notification_settings_wait_for_acceptance_and_reset_only_their_domain", &test_notification_settings_wait_for_acceptance_and_reset_only_their_domain);
+	runCase("test_large_queue_filters_through_the_composed_window", &test_large_queue_filters_through_the_composed_window);
 	// [[BPR-0783]]. Home's strip controls, its Filter menu, the window's own view
 	// state, and the six typed controls on Settings' Queue defaults.
-	test_home_strip_holds_view_and_refresh();
-	test_home_view_menu_and_its_gestures();
-	test_a_published_home_view_is_restored_without_a_second_dispatch();
-	test_the_six_queue_controls_live_on_settings_queue_defaults();
-	test_home_captures_every_accepted_view();
-	test_home_composes_the_production_catalog_and_respects_motion_and_width();
-	test_dif_uses_the_corner_except_for_prime_spots();
-	test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail();
-	test_overview_entry_preserves_start_and_continue_semantics();
-	test_identical_overview_skips_rebuild_but_restores_cleared_files();
-	test_receipt_update_moves_only_its_rows();
-	test_overview_refuses_a_hand_opened_drawer_and_says_so();
-	test_hide_drawers_command_key_icon_and_editor_yield();
-	test_threads_finds_and_picks_into_review();
-	test_threads_opens_a_thread_in_discuss();
-	test_a_large_file_leaves_the_widget_count_bounded();
-	std::cout << "workbench-window-tests:pass\n";
+	runCase("test_home_strip_holds_view_and_refresh", &test_home_strip_holds_view_and_refresh);
+	runCase("test_home_view_menu_and_its_gestures", &test_home_view_menu_and_its_gestures);
+	runCase("test_a_published_home_view_is_restored_without_a_second_dispatch", &test_a_published_home_view_is_restored_without_a_second_dispatch);
+	runCase("test_the_six_queue_controls_live_on_settings_queue_defaults", &test_the_six_queue_controls_live_on_settings_queue_defaults);
+	runCase("test_home_captures_every_accepted_view", &test_home_captures_every_accepted_view);
+	runCase("test_home_composes_the_production_catalog_and_respects_motion_and_width", &test_home_composes_the_production_catalog_and_respects_motion_and_width);
+	runCase("test_dif_uses_the_corner_except_for_prime_spots", &test_dif_uses_the_corner_except_for_prime_spots);
+	runCase("test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail", &test_repositories_drawer_toggles_through_the_core_and_collapses_to_a_rail);
+	runCase("test_overview_entry_preserves_start_and_continue_semantics", &test_overview_entry_preserves_start_and_continue_semantics);
+	runCase("test_identical_overview_skips_rebuild_but_restores_cleared_files", &test_identical_overview_skips_rebuild_but_restores_cleared_files);
+	runCase("test_receipt_update_moves_only_its_rows", &test_receipt_update_moves_only_its_rows);
+	runCase("test_overview_refuses_a_hand_opened_drawer_and_says_so", &test_overview_refuses_a_hand_opened_drawer_and_says_so);
+	runCase("test_hide_drawers_command_key_icon_and_editor_yield", &test_hide_drawers_command_key_icon_and_editor_yield);
+	runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
+	runCase("test_threads_opens_a_thread_in_discuss", &test_threads_opens_a_thread_in_discuss);
+	runCase("test_a_large_file_leaves_the_widget_count_bounded", &test_a_large_file_leaves_the_widget_count_bounded);
+	if (!listCases) {
+		std::cout << "workbench-window-tests:pass\n";
+	}
 	return EXIT_SUCCESS;
 }

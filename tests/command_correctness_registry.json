@@ -1,0 +1,1286 @@
+{
+  "schema": "bpr.command-correctness.v1",
+  "mandate": "release-30min-portfolio-r1",
+  "families": [
+    {
+      "source": "tests/adapters_qt/workbench_window_tests.cpp",
+      "sha256": "847568e14fa32317a44db497c101aca75b3db6cdaff5f1023f8e571ba53ecb53",
+      "directory": "tests/adapters_qt",
+      "configurations": [
+        "Debug"
+      ],
+      "unset_environment": [
+        "BPR_SHEET_RENDER_ROOT",
+        "BPR_TOUR_RENDER_ROOT",
+        "BPR_AGENT_RENDER_ROOT",
+        "BPR_OPEN_ON_GITHUB_RENDER_DIR",
+        "BPR_OPEN_REVIEW_RENDER_DIR",
+        "BPR_HOME_CAPTURE_DIR"
+      ],
+      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
+      "rows": [
+        {
+          "name": "qt_dif_workshop_placement",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--dif-workshop-placement",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--dif-workshop-placement"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_dif_workshop_placement",
+          "selector": "--dif-workshop-placement",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_center_ribbon_width_scale_1.0",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--center-ribbon-width",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--center-ribbon-width"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_center_ribbon_width_scale_1_0",
+          "selector": "--center-ribbon-width",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0"
+          ]
+        },
+        {
+          "name": "qt_center_ribbon_width_scale_1.25",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--center-ribbon-width",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--center-ribbon-width"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_center_ribbon_width_scale_1_25",
+          "selector": "--center-ribbon-width",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25"
+          ]
+        },
+        {
+          "name": "qt_center_ribbon_width_scale_2.0",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--center-ribbon-width",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--center-ribbon-width"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_center_ribbon_width_scale_2_0",
+          "selector": "--center-ribbon-width",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0"
+          ]
+        },
+        {
+          "name": "qt_shared_snapshot_navigation",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--shared-snapshot-navigation",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--shared-snapshot-navigation"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_shared_snapshot_navigation",
+          "selector": "--shared-snapshot-navigation",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_change_end_keys",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--change-end-keys",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--change-end-keys"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_change_end_keys",
+          "selector": "--change-end-keys",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_keyboard_shortcuts_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--keyboard-shortcuts",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--keyboard-shortcuts"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_keyboard_shortcuts_scale_100",
+          "selector": "--keyboard-shortcuts",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/keyboard-shortcuts-100.png"
+          ]
+        },
+        {
+          "name": "qt_keyboard_shortcuts_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--keyboard-shortcuts",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--keyboard-shortcuts"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_keyboard_shortcuts_scale_125",
+          "selector": "--keyboard-shortcuts",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25",
+            "BPR_QT_RENDER_PATH={binary_dir}/keyboard-shortcuts-125.png"
+          ]
+        },
+        {
+          "name": "qt_keyboard_shortcuts_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--keyboard-shortcuts",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--keyboard-shortcuts"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_keyboard_shortcuts_scale_200",
+          "selector": "--keyboard-shortcuts",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/keyboard-shortcuts-200.png"
+          ]
+        },
+        {
+          "name": "qt_thread_moves_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--thread-moves",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--thread-moves"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_thread_moves_scale_100",
+          "selector": "--thread-moves",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/thread-moves-100.png"
+          ]
+        },
+        {
+          "name": "qt_thread_moves_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--thread-moves",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--thread-moves"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_thread_moves_scale_125",
+          "selector": "--thread-moves",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25",
+            "BPR_QT_RENDER_PATH={binary_dir}/thread-moves-125.png"
+          ]
+        },
+        {
+          "name": "qt_thread_moves_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--thread-moves",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--thread-moves"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_thread_moves_scale_200",
+          "selector": "--thread-moves",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/thread-moves-200.png"
+          ]
+        },
+        {
+          "name": "qt_thread_scroll_stability_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--thread-scroll-stability",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--thread-scroll-stability"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_thread_scroll_stability_scale_100",
+          "selector": "--thread-scroll-stability",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/thread-scroll-100.png"
+          ]
+        },
+        {
+          "name": "qt_thread_scroll_stability_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--thread-scroll-stability",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--thread-scroll-stability"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_thread_scroll_stability_scale_125",
+          "selector": "--thread-scroll-stability",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25",
+            "BPR_QT_RENDER_PATH={binary_dir}/thread-scroll-125.png"
+          ]
+        },
+        {
+          "name": "qt_thread_scroll_stability_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--thread-scroll-stability",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--thread-scroll-stability"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_thread_scroll_stability_scale_200",
+          "selector": "--thread-scroll-stability",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/thread-scroll-200.png"
+          ]
+        },
+        {
+          "name": "qt_review_state_icon",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--review-state-icon",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--review-state-icon"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_review_state_icon",
+          "selector": "--review-state-icon",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_option_keys_typing",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--option-keys",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--option-keys"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_option_keys_typing",
+          "selector": "--option-keys",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_document_tabs_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--document-tabs",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--document-tabs"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_document_tabs_scale_100",
+          "selector": "--document-tabs",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/document-tabs-100.png"
+          ]
+        },
+        {
+          "name": "qt_document_tabs_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--document-tabs",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--document-tabs"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_document_tabs_scale_125",
+          "selector": "--document-tabs",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25",
+            "BPR_QT_RENDER_PATH={binary_dir}/document-tabs-125.png"
+          ]
+        },
+        {
+          "name": "qt_document_tabs_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--document-tabs",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--document-tabs"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_document_tabs_scale_200",
+          "selector": "--document-tabs",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/document-tabs-200.png"
+          ]
+        },
+        {
+          "name": "qt_workbench_focus_order_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--focus-order",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--focus-order"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_focus_order_scale_100",
+          "selector": "--focus-order",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_focus_order_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--focus-order",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--focus-order"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_focus_order_scale_125",
+          "selector": "--focus-order",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25"
+          ]
+        },
+        {
+          "name": "qt_workbench_focus_order_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--focus-order",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--focus-order"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_focus_order_scale_200",
+          "selector": "--focus-order",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_title_row_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--title-row",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--title-row"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_title_row_scale_100",
+          "selector": "--title-row",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_title_row_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--title-row",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--title-row"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_title_row_scale_125",
+          "selector": "--title-row",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25"
+          ]
+        },
+        {
+          "name": "qt_workbench_title_row_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--title-row",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--title-row"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_title_row_scale_200",
+          "selector": "--title-row",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_strip_menu",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--strip-menu",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--strip-menu"
+          ],
+          "platforms": [
+            "Windows"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_workbench_strip_menu",
+          "selector": "--strip-menu",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_home_discovery_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--home-discovery",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--home-discovery"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_home_discovery_scale_100",
+          "selector": "--home-discovery",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_home_discovery_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--home-discovery",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--home-discovery"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_home_discovery_scale_125",
+          "selector": "--home-discovery",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25"
+          ]
+        },
+        {
+          "name": "qt_workbench_home_discovery_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--home-discovery",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--home-discovery"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_home_discovery_scale_200",
+          "selector": "--home-discovery",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_open_on_github_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--open-on-github",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--open-on-github"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_open_on_github_scale_100",
+          "selector": "--open-on-github",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_open_on_github_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--open-on-github",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--open-on-github"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_open_on_github_scale_125",
+          "selector": "--open-on-github",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25"
+          ]
+        },
+        {
+          "name": "qt_workbench_open_on_github_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--open-on-github",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--open-on-github"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_open_on_github_scale_200",
+          "selector": "--open-on-github",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_open_review_from_home_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--open-review-from-home",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--open-review-from-home"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_open_review_from_home_scale_100",
+          "selector": "--open-review-from-home",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_open_review_from_home_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--open-review-from-home",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--open-review-from-home"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_open_review_from_home_scale_125",
+          "selector": "--open-review-from-home",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25"
+          ]
+        },
+        {
+          "name": "qt_workbench_open_review_from_home_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--open-review-from-home",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--open-review-from-home"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_open_review_from_home_scale_200",
+          "selector": "--open-review-from-home",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_conversation_reveal",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--conversation-reveal",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--conversation-reveal"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_workbench_conversation_reveal",
+          "selector": "--conversation-reveal",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_line_draft",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--line-draft",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--line-draft"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_line_draft",
+          "selector": "--line-draft",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_overview",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--overview",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--overview"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_overview",
+          "selector": "--overview",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_native_window_geometry",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--native-window-geometry",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--native-window-geometry"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_native_window_geometry",
+          "selector": "--native-window-geometry",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_workbench_window_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_window_scale_100",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/workbench-window-100.png"
+          ]
+        },
+        {
+          "name": "qt_workbench_window_scale_125",
+          "command": "test_better_pull_review_qt_workbench_window_tests",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_window_scale_125",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25",
+            "BPR_QT_RENDER_PATH={binary_dir}/workbench-window-125.png"
+          ]
+        },
+        {
+          "name": "qt_workbench_window_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_workbench_window_scale_200",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/workbench-window-200.png"
+          ]
+        },
+        {
+          "name": "qt_current_file_unread_badge",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--current-file-unread-badge",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--current-file-unread-badge"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_current_file_unread_badge",
+          "selector": "--current-file-unread-badge",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_RENDER_PATH={binary_dir}/current-file-unread-badge.png"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "tests/support/resize_cursor_hold_check.hpp",
+          "sha256": "ff697e52c14f482c630b1a0c03d660e8b93006c1f082e13e5fb42731576891d9"
+        },
+        {
+          "path": "tests/support/review_tour_fixture.hpp",
+          "sha256": "68242c62fe745b28ddd041de56d336d9ba5d82b3314eba38c3ddc564a40e24c1"
+        },
+        {
+          "path": "tests/adapters_qt/diff_publication_fixture.hpp",
+          "sha256": "a673c9bd1dd2c80075222f3352b6d7f5e310fc75bb10230220f467a76820e80e"
+        }
+      ]
+    },
+    {
+      "source": "tests/adapters_qt/diff_workbench_tests.cpp",
+      "sha256": "b2e16ad40957f696c6dd3b7f4ba05d8f361f7a62daf2732e2372e8574153f3cb",
+      "directory": "tests/adapters_qt",
+      "configurations": [
+        "Debug"
+      ],
+      "unset_environment": [
+        "BPR_1335_RENDER_DIR",
+        "BPR_CODE_ZOOM_CAPTURE_DIR",
+        "BPR_WHITE_SPACE_CAPTURE_DIR",
+        "BPR_LINE_DETAILS_CAPTURE_DIR"
+      ],
+      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
+      "rows": [
+        {
+          "name": "qt_diff_workbench_scale_100",
+          "command": "test_better_pull_review_qt_diff_workbench_tests",
+          "executable": "better_pull_review_qt_diff_workbench_tests",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_diff_workbench_scale_100",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0",
+            "BPR_QT_DIFF_WORKBENCH_RENDER_PATH={binary_dir}/diff-workbench-100.png"
+          ]
+        },
+        {
+          "name": "qt_diff_workbench_scale_125",
+          "command": "test_better_pull_review_qt_diff_workbench_tests",
+          "executable": "better_pull_review_qt_diff_workbench_tests",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_diff_workbench_scale_125",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_EXPECTED_QT_SCALE=1.25",
+            "BPR_QT_DIFF_WORKBENCH_RENDER_PATH={binary_dir}/diff-workbench-125.png"
+          ]
+        },
+        {
+          "name": "qt_diff_workbench_scale_200",
+          "command": "test_better_pull_review_qt_diff_workbench_tests",
+          "executable": "better_pull_review_qt_diff_workbench_tests",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_diff_workbench_scale_200",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0",
+            "BPR_QT_DIFF_WORKBENCH_RENDER_PATH={binary_dir}/diff-workbench-200.png"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "tests/support/resize_cursor_hold_check.hpp",
+          "sha256": "ff697e52c14f482c630b1a0c03d660e8b93006c1f082e13e5fb42731576891d9"
+        },
+        {
+          "path": "tests/adapters_qt/diff_publication_fixture.hpp",
+          "sha256": "a673c9bd1dd2c80075222f3352b6d7f5e310fc75bb10230220f467a76820e80e"
+        }
+      ]
+    },
+    {
+      "source": "tests/end_to_end/overview_summary_public_path_tests.cpp",
+      "sha256": "579efb98a1f19155a17c4b5594db467fb31710771c6633db48680dcbfddb596c",
+      "directory": "tests/end_to_end",
+      "configurations": [
+        "Debug"
+      ],
+      "unset_environment": [],
+      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
+      "rows": [
+        {
+          "name": "application_overview_summary_1",
+          "command": "test_overview_summary_public_path",
+          "executable": "overview_summary_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_overview_summary_1",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1",
+            "BPR_OVERVIEW_RENDER_ROOT={build_dir}/overview-renders/1"
+          ]
+        },
+        {
+          "name": "application_overview_summary_1_25",
+          "command": "test_overview_summary_public_path",
+          "executable": "overview_summary_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_overview_summary_1_25",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_OVERVIEW_RENDER_ROOT={build_dir}/overview-renders/1_25"
+          ]
+        },
+        {
+          "name": "application_overview_summary_2",
+          "command": "test_overview_summary_public_path",
+          "executable": "overview_summary_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_overview_summary_2",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=2",
+            "BPR_OVERVIEW_RENDER_ROOT={build_dir}/overview-renders/2"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+        },
+        {
+          "path": "src/app/src/review_submission_fixture.hpp",
+          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+        }
+      ]
+    },
+    {
+      "source": "tests/end_to_end/source_find_public_path_tests.cpp",
+      "sha256": "ae5b31393c5a9f05b3abd7244a31c1b8ee6d31f98a7065f899ae4ad42ecb6856",
+      "directory": "tests/end_to_end",
+      "configurations": [
+        "Debug"
+      ],
+      "unset_environment": [],
+      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
+      "rows": [
+        {
+          "name": "application_source_find",
+          "command": "test_source_find_public_path",
+          "executable": "source_find_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_source_find",
+          "selector": "<default>",
+          "environment": [
+            "BPR_FIND_RENDER_ROOT={build_dir}/source-find-renders",
+            "QT_SCALE_FACTOR=1.0"
+          ]
+        },
+        {
+          "name": "application_source_find_scale_1_25",
+          "command": "test_source_find_public_path",
+          "executable": "source_find_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_source_find_scale_1_25",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25",
+            "BPR_FIND_RENDER_ROOT={build_dir}/source-find-renders-1_25"
+          ]
+        },
+        {
+          "name": "application_source_find_scale_2_0",
+          "command": "test_source_find_public_path",
+          "executable": "source_find_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_source_find_scale_2_0",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_FIND_RENDER_ROOT={build_dir}/source-find-renders-2_0"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/support/window_system_keys.hpp",
+          "sha256": "a7254ed6c4fa2ec61ce170af0f1c07d9d56ff272951cbd48381e7e55da32c1ac"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+        }
+      ]
+    },
+    {
+      "source": "tests/end_to_end/review_submission_composition_public_path.cpp",
+      "sha256": "bea8b8bff9d099300d29873cbfc36195aeae64cc5f1719bc839726fa4402f042",
+      "directory": "tests/end_to_end",
+      "configurations": [
+        "Debug"
+      ],
+      "unset_environment": [],
+      "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
+      "rows": [
+        {
+          "name": "application_review_submission_composition_public_path",
+          "command": "test_better_pull_review_review_submission_composition_public_path;{binary_dir}/review-submission-composition.png",
+          "executable": "better_pull_review_review_submission_composition_public_path",
+          "arguments": [
+            "{binary_dir}/review-submission-composition.png"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_review_submission_composition_public_path",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0"
+          ]
+        },
+        {
+          "name": "application_review_submission_composition_scale_125",
+          "command": "test_better_pull_review_review_submission_composition_public_path;{binary_dir}/review-submission-composition-125.png",
+          "executable": "better_pull_review_review_submission_composition_public_path",
+          "arguments": [
+            "{binary_dir}/review-submission-composition-125.png"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_review_submission_composition_scale_125",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.25"
+          ]
+        },
+        {
+          "name": "application_review_submission_composition_scale_200",
+          "command": "test_better_pull_review_review_submission_composition_public_path;{binary_dir}/review-submission-composition-200.png",
+          "executable": "better_pull_review_review_submission_composition_public_path",
+          "arguments": [
+            "{binary_dir}/review-submission-composition-200.png"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "application_review_submission_composition_scale_200",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=2"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+        },
+        {
+          "path": "src/app/src/review_submission_fixture.hpp",
+          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+        },
+        {
+          "path": "tests/end_to_end/cli_publication_course.hpp",
+          "sha256": "f19cacec878d3b88eea7a6b58038c16a8523d526cb88c9d5707f62067d59cb18"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "tests/end_to_end/public_path_poll.hpp",
+          "sha256": "a7edccb5310d3b844ff33549113e0244c7ee9c67121ae5243dc60f1746c11509"
+        },
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+        }
+      ]
+    }
+  ],
+  "features": {
+    "BPR_BUILD_QT": "ON",
+    "BUILD_TESTING": "ON",
+    "BPR_BUILD_AGENT_INTEGRATIONS": "ON",
+    "BPR_BUILD_TOUR_CLI": "OFF",
+    "BPR_DISTRIBUTION_BUILD": "OFF"
+  }
+}

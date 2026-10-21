@@ -143,3 +143,13 @@ broad suites, even where narrower regressions pass. Applicability proposals,
 mechanical package audits, documentation and RFC-0014 closure cannot authorize
 distribution. RFC-BPR-0035 updater live-private-release and Intel follow-ups
 remain separately owned and unmodified.
+
+## Owner amendment 2026-10-20 — release qualification runtime
+
+The owner requested systemic implementation toward thirty minutes, including
+grounded test overlap/consolidation and conditional qualification design, based
+on the retained Astra Max report. The bounded [portfolio design](../development/release-qualification-portfolio.md)
+and [three-milestone plan](plans/release-qualification-portfolio/milestone-plan.json)
+own BPR-1673–1675. They preserve this RFC’s existing criteria and open native,
+security, material and release authorization limits; their completion does not
+close this RFC. The historical release-readiness plan and M8/M9 remain unchanged.

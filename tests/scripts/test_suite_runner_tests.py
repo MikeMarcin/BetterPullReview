@@ -200,7 +200,7 @@ if name == "documentation_structure" and (root / "fail").exists():
     def isolated_row(self, mode="offscreen"):
         properties = {
             "WORKING_DIRECTORY": "/build/tests/end_to_end",
-            "LABELS": ["bpr_isolated_correctness", f"bpr_correctness_{mode}"],
+            "LABELS": ["bpr_isolated_correctness", f"bpr_correctness_{mode}", "bpr_correctness_config_Debug"],
             "RESOURCE_LOCK": ["bpr_isolated_correctness_fixture"],
         }
         if mode == "offscreen":
@@ -221,6 +221,7 @@ if name == "documentation_structure" and (root / "fail").exists():
             ("ENVIRONMENT_MODIFICATION", ["QT_QPA_PLATFORM=set:windows"]),
             ("ENVIRONMENT_MODIFICATION", ["qt_qpa_platform=set:windows"]),
             ("RUN_SERIAL", True),
+            ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_offscreen", "bpr_correctness_config_Release"]),
             ("LABELS", ["bpr_correctness_offscreen"]),
             ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_native"]),
             ("LABELS", ["bpr_isolated_correctness", "bpr_correctness_offscreen", "bpr_correctness_headless"]),
@@ -244,7 +245,7 @@ if name == "documentation_structure" and (root / "fail").exists():
         with self.assertRaisesRegex(ValueError, "Invalid isolated correctness"):
             suite.validate_schedule({"tests": [row]})
 
-    def configure_schedule(self, declaration, *, environment="QT_QPA_PLATFORM=offscreen", before_default=""):
+    def configure_schedule(self, declaration, *, environment="QT_QPA_PLATFORM=offscreen", before_default="", configuration="Debug", generator="Ninja"):
         with ContainedTemporaryDirectory() as temporary:
             source = Path(temporary) / "tests/end_to_end"
             source.mkdir(parents=True)
@@ -266,18 +267,18 @@ set_tests_properties(explicit PROPERTIES RUN_SERIAL TRUE)
 bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
 {declaration}
 ''')
-            result = subprocess.run(["cmake", "-G", "Ninja", "-S", str(source), "-B", str(build)],
+            result = subprocess.run(["cmake", "-G", generator, f"-DCMAKE_BUILD_TYPE={configuration}", "-S", str(source), "-B", str(build)],
                                     capture_output=True, text=True, check=False)
             if result.returncode:
                 return result, None
-            manifest = subprocess.run(["ctest", "--test-dir", str(build), "--show-only=json-v1"],
+            manifest = subprocess.run(["ctest", "--test-dir", str(build), "-C", configuration, "--show-only=json-v1"],
                                       capture_output=True, text=True, check=True)
             return result, json.loads(manifest.stdout)
 
     def test_cmake_opt_in_preserves_locks_fixtures_timeout_and_unclassified_exclusivity(self):
         for mode, environment in (("offscreen", "QT_QPA_PLATFORM=offscreen"), ("headless", "")):
             result, manifest = self.configure_schedule(
-                f'bpr_allow_isolated_correctness(DIRECTORY "${{CMAKE_CURRENT_SOURCE_DIR}}" MODE {mode} RESOURCE fixture TESTS one)',
+                f'bpr_allow_isolated_correctness(DIRECTORY "${{CMAKE_CURRENT_SOURCE_DIR}}" MODE {mode} RESOURCE fixture CONFIGURATIONS Debug TESTS one)',
                 environment=environment)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             rows = {row["name"]: {prop["name"]: prop["value"] for prop in row["properties"]}
@@ -292,9 +293,30 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
             self.assertIn("bpr_explicit_serial", rows["explicit"]["LABELS"])
             suite.validate_schedule(manifest)
 
+    def test_configuration_specific_timing_claims_cannot_inherit_debug_concurrency(self):
+        declaration = 'bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" MODE offscreen RESOURCE fixture CONFIGURATIONS Debug TESTS one)'
+        for generator in ("Ninja", "Ninja Multi-Config"):
+            for configuration in ("Debug", "Release", "RelWithDebInfo", "Unknown"):
+                with self.subTest(generator=generator, configuration=configuration):
+                    result, manifest = self.configure_schedule(declaration, configuration=configuration, generator=generator)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    if not manifest["tests"]:  # Multi-config generators reject undeclared configurations.
+                        self.assertNotEqual(configuration, "Debug")
+                        continue
+                    row = next(row for row in manifest["tests"] if row["name"] == "one")
+                    properties = {prop["name"]: prop["value"] for prop in row["properties"]}
+                    self.assertEqual(bool(properties.get("RUN_SERIAL")), configuration != "Debug")
+                    self.assertEqual("bpr_isolated_correctness" in properties["LABELS"], configuration == "Debug")
+                    suite.validate_schedule(manifest)
+        row = self.isolated_row()
+        row["config"] = "Release"
+        with self.assertRaisesRegex(ValueError, "Invalid isolated correctness"):
+            suite.validate_schedule({"tests": [row]})
+
     def test_cmake_refuses_unsafe_or_incomplete_opt_ins(self):
-        declaration = 'bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" MODE offscreen RESOURCE fixture TESTS one)'
+        declaration = 'bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" MODE offscreen RESOURCE fixture CONFIGURATIONS Debug TESTS one)'
         cases = [
+            (declaration.replace("CONFIGURATIONS Debug", ""), "QT_QPA_PLATFORM=offscreen", ""),
             (declaration.replace("RESOURCE fixture", ""), "QT_QPA_PLATFORM=offscreen", ""),
             (declaration.replace("MODE offscreen", "MODE native"), "QT_QPA_PLATFORM=offscreen", ""),
             (declaration.replace("TESTS one", "TESTS missing"), "QT_QPA_PLATFORM=offscreen", ""),
