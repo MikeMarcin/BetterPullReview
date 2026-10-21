@@ -1331,7 +1331,7 @@ namespace bpr::qt {
 			auto* const action = new QAction{ aText, this };
 			action->setObjectName(aObjectName);
 			action->setCheckable(true);
-			// [[BPR-PENDING-D]]. Every catalogue key: Files and Repositories
+			// [[BPR-1678]]. Every catalogue key: Files and Repositories
 			// have a second, command-modifier key that acts while typing.
 			action->setShortcuts(aShortcuts);
 			action->setShortcutContext(Qt::WindowShortcut);

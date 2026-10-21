@@ -19052,7 +19052,7 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-PENDING-D]]. The owner, 2026-10-20: "I would like a hotkey
+	/// \brief [[BPR-1678]]. The owner, 2026-10-20: "I would like a hotkey
 	/// for the file drawer toggle. And maybe one for the repository drawer
 	/// toggle." Files and Repositories keep Option-Shift-1 and Option-Shift-R,
 	/// which a text field takes on macOS, and gain Control-Command-1 and
@@ -19409,7 +19409,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_keyboard_shortcuts_page", &test_keyboard_shortcuts_page);
 		// [[BPR-1600]]. ⌘R does whichever refresh the window shows.
 		runCase("test_refresh_key_does_the_refresh_showing", &test_refresh_key_does_the_refresh_showing);
-		// [[BPR-PENDING-D]]. The Files and Repositories drawers' command keys.
+		// [[BPR-1678]]. The Files and Repositories drawers' command keys.
 		runCase("test_drawer_keys_toggle_their_drawers", &test_drawer_keys_toggle_their_drawers);
 		if (!listCases) {
 			std::cout << "keyboard-shortcuts:pass\n";

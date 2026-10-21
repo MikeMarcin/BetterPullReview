@@ -27,7 +27,7 @@ namespace bpr::qt {
 		constexpr auto in_cycle     = std::string_view{ "In a Review Cycle's code" };
 		constexpr auto in_cycle_box = std::string_view{ "In a Review Cycle note or suggestion" };
 
-		// [[BPR-PENDING-D]]. The Files and Repositories drawers' second keys,
+		// [[BPR-1678]]. The Files and Repositories drawers' second keys,
 		// for automation: their first keys' 1 and R with the platform's command
 		// modifier rather than Option, so no text field takes them while you
 		// type. Control-Command on macOS, where Command-Shift-3 to 6 are the
@@ -342,7 +342,7 @@ namespace bpr::qt {
 #if defined(Q_OS_MACOS)
 		// A window-wide Option+character key; a key acting in one place is
 		// that place's own, and the Find query's toggles are the query's.
-		// [[BPR-PENDING-D]]. Only when every key is one: a text field claims
+		// [[BPR-1678]]. Only when every key is one: a text field claims
 		// each Option key alone, so a command key beside it still acts there.
 		const auto keys = shortcut_keys(aEntry);
 		return aEntry.Place.empty() && !keys.isEmpty() && std::ranges::all_of(keys, option_character);

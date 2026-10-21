@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-D"
+id: "BPR-1678"
 title: "Files and Repositories drawers: a command key each, for automation"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"owner request 2026-10-20","owner_note":"I would like a hotkey for the file drawer toggle. And maybe one for the repository drawer toggle. They dont need to be great hotkeys just something to help with automations.","provisional_id":"allocated at landing","related_cards":["BPR-0651","BPR-1536","BPR-1567","BPR-1676","BPR-1677"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1678--BPR-1678--87d64f571d8d.json","origin":"owner request 2026-10-20","owner_note":"I would like a hotkey for the file drawer toggle. And maybe one for the repository drawer toggle. They dont need to be great hotkeys just something to help with automations.","provisional_id":"allocated at landing","related_cards":["BPR-0651","BPR-1536","BPR-1567","BPR-1676","BPR-1677"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"1058b8908","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_keyboard_shortcuts_scale_(100|125|200)$'","detail":"test_drawer_keys_toggle_their_drawers through core::transition: Control-Command-1 and Control-Command-R each send one toggle_workbench_drawer_intent of their drawer from the code pane and from the files filter (its text unchanged); the drawer, the toggle's isChecked and the title-row button's accessible checked state change and the key again restores them; in Overview each key is the toggle's gesture and the toggle stays unchecked as the core keeps it; Option-Shift-1 and Option-Shift-R in the filter send nothing (negative control). Failing-before control: with keyboard_shortcuts.cpp and workbench_window.cpp at the previous revision the case fails at 'the catalogue keeps each drawer's Option-Shift key first and adds a command key'; with the catalogue change but the window still binding only the first key, test_shortcut_catalogue_is_what_the_window_binds fails with 'keys differ: toggleWorkbenchFilesDrawerAction'. macOS offscreen; the Ctrl+Shift branch for Windows and Linux is owed a station run, not gating."}},{"criterion":"AC2","outcome":"pass","revision":"1058b8908","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_keyboard_shortcuts_scale_(100|125|200)|qt_option_keys_typing|qt_change_end_keys|qt_workbench_window_scale_100)$'","detail":"No two window-wide catalogue entries share a key; the new keys are no other entry's in any place, no Qt standard key, not claimed by QLineEdit or QPlainTextEdit in ShortcutOverride, and in the assembled window only the two toggles bind them; the catalogue-against-window check, Option keys while typing, the change-end keys and the window suite (its no-shared-key check and the BPR-1022 Alt chords) pass. coding-format-check (clang-format 22.1.8, 1695 files) passes; clang-tidy --warnings-as-errors on keyboard_shortcuts.cpp, workbench_window.cpp and workbench_window_tests.cpp reports only two existing performance-avoid-endl findings in the test runner's case trace (b059676cc), none in this change. macOS."}},{"criterion":"AC3","outcome":"pass","revision":"1058b8908","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_keyboard_shortcuts_scale_(100|125|200)$'","detail":"Help > Keyboard Shortcuts' Files drawer and Repositories drawer rows show both keys joined by 'or', the accessible text names the spoken key ('Control-Command-1'), and the row has no typing note; docs/ux/workbench-specification.md's shortcut table lists both drawers with both keys per platform. macOS."}}]
 ---
 
-# BPR-PENDING-D: Files and Repositories drawers: a command key each, for automation
+# BPR-1678: Files and Repositories drawers: a command key each, for automation
 
 ## Owner note
 

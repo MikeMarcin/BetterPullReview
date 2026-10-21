@@ -1509,8 +1509,8 @@ never invents enabled state.
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Top or bottom row of the files, in Overview's files ([[BPR-1677]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
-| Toggle files drawer; the second key acts while typing, for automation ([[BPR-PENDING-D]]) | `Alt+Shift+1` (⌥⇧1), or `Ctrl+Shift+1`; macOS ⌃⌘1 (`Ctrl+Meta+1`) |
-| Toggle repositories drawer; the second key acts while typing, for automation ([[BPR-PENDING-D]]) | `Alt+Shift+R` (⌥⇧R), or `Ctrl+Shift+R`; macOS ⌃⌘R (`Ctrl+Meta+R`) |
+| Toggle files drawer; the second key acts while typing, for automation ([[BPR-1678]]) | `Alt+Shift+1` (⌥⇧1), or `Ctrl+Shift+1`; macOS ⌃⌘1 (`Ctrl+Meta+1`) |
+| Toggle repositories drawer; the second key acts while typing, for automation ([[BPR-1678]]) | `Alt+Shift+R` (⌥⇧R), or `Ctrl+Shift+R`; macOS ⌃⌘R (`Ctrl+Meta+R`) |
 | Toggle comments drawer | `Alt+Shift+2` |
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
@@ -2035,7 +2035,7 @@ note or composer editor, an editable list, the Review Cycle suggestion editor,
 the find query), every Option+character window, button and menu key is that
 widget's: ⌥R types `®` instead of composing, ⌥⇧1 types `⁄` instead of hiding
 Files. Files and Repositories also have ⌃⌘1 and ⌃⌘R, which no text field
-takes, so a script can toggle them wherever the keyboard is ([[BPR-PENDING-D]]).
+takes, so a script can toggle them wherever the keyboard is ([[BPR-1678]]).
 The widget claims the key when it arrives, and the menu bar lifts its
 Option+character keys until the keyboard leaves, because AppKit fires a
 native menu item's key before Qt sees it ([[BPR-1295]]); tooltips keep naming
@@ -2067,7 +2067,7 @@ key that a text field takes while you type says "Not while typing": on every
 platform Accept file, the change arrows, First and Last change and Hide
 Drawers, and on macOS each window-wide command whose every key is
 Option+character ([Option keys and typing](#menu-bar)); Files and
-Repositories, whose second key is not, say nothing ([[BPR-PENDING-D]]). A footer states that rule. A key with
+Repositories, whose second key is not, say nothing ([[BPR-1678]]). A footer states that rule. A key with
 no binding on the platform (Quit on Windows, the Review Cycle sheets'
 Control-C off macOS) is not listed.
 
