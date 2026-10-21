@@ -89,6 +89,7 @@ add_library(
         src/notification_delivery.cpp
         src/review_queue_notification.cpp
         src/workbench_snapshot_observation.cpp
+        src/commit_filter_model.cpp
         src/diff_application_host.cpp
         src/diff_line_matcher.cpp
         src/device_authorization_application_host.cpp

@@ -215,6 +215,8 @@ namespace bpr::application {
 				|| aRequest.WorkbenchAuthority.Number
 					!= aRequest.Diff.Authority.Number
 				|| aRequest.Diff.Comparison.Right.Commit.algorithm() != algorithm
+				|| (aRequest.Filter.has_value()
+					&& (!core::valid(*aRequest.Filter) || aRequest.Filter->Left.algorithm() != algorithm))
 				|| core::normalize_diff_options(aRequest.Diff.Options)
 					!= std::optional{ aRequest.Diff.Options }
 				|| core::options_digest(aRequest.Diff.Options)
@@ -1189,6 +1191,13 @@ namespace bpr::application {
 			/// whose batch fails reads nothing ahead. A batch that succeeds,
 			/// or a new authority, lifts it.
 			bool PreparedReadsSuspended = false;
+			/// RFC-BPR-0089. The commits a commit-filtered diff may be read at:
+			/// every chain commit, and the parent it was diffed against, whose
+			/// tree diff a touches job answered for this exact workbench
+			/// authority. Sorted. Dropped with the blob authority, so a filtered
+			/// request can never name a commit this review did not diff.
+			std::optional<workbench_pull_request_authority> FilterAuthority;
+			std::vector<core::git_commit_oid>               FilterCommits;
 		};
 
 		/// Drops every prepared grant. Called under BlobAuthorityMutex.
@@ -1671,6 +1680,7 @@ namespace bpr::application {
 				&& key.File == selected.File.File
 				&& key.Options == selected.Diff.OptionsDigest
 				&& key.Algorithm == selected.Diff.Algorithm
+				&& key.Filter == selected.Filter
 				&& (aRequest.Side == core::diff_side::left
 						? aGrant.LeftBlob == std::optional{ aRequest.Blob }
 						: aGrant.RightBlob == std::optional{ aRequest.Blob });
@@ -1692,6 +1702,8 @@ namespace bpr::application {
 			aActor->BlobContext   = aContext;
 			aActor->SelectedDiffAuthority.reset();
 			aActor->RealignmentAuthority.reset();
+			aActor->FilterAuthority.reset();
+			aActor->FilterCommits.clear();
 			aActor->SelectedBlobGrant.reset();
 			++aActor->SelectedBlobGrantSequence;
 			forget_prepared_grants(*aActor);
@@ -1748,6 +1760,8 @@ namespace bpr::application {
 				forget_retained_blobs(*aActor);
 				aActor->SelectedDiffAuthority.reset();
 				aActor->RealignmentAuthority.reset();
+				aActor->FilterAuthority.reset();
+				aActor->FilterCommits.clear();
 				++aActor->BlobAuthorityGeneration;
 			}
 		}
@@ -1768,6 +1782,14 @@ namespace bpr::application {
 			// as it refuses the workbench's.
 			if (aActor->SelectedDiffAuthority != std::optional{ expected }
 				&& aActor->RealignmentAuthority != std::optional{ expected }) {
+				return std::nullopt;
+			}
+			// RFC-BPR-0089. A filtered request reads at two commits this
+			// review's touches job diffed, under the same workbench authority.
+			if (aRequest.Filter.has_value()
+				&& (aActor->FilterAuthority != std::optional{ aRequest.WorkbenchAuthority } || !core::valid(*aRequest.Filter)
+					|| !std::ranges::binary_search(aActor->FilterCommits, aRequest.Filter->Left)
+					|| !std::ranges::binary_search(aActor->FilterCommits, aRequest.Filter->Right))) {
 				return std::nullopt;
 			}
 			return aActor->BlobAuthorityGeneration;
@@ -4060,6 +4082,166 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief RFC-BPR-0089. See `epoch_application_host::resolve_commit_filter_touches`.
+		[[nodiscard]] auto resolve_commit_filter_touches(
+			commit_filter_touches_request    aRequest,
+			commit_filter_touches_completion aCompletion) -> bool
+		{
+			if (!aCompletion || aRequest.Steps.empty() || aRequest.Steps.size() > maximum_commit_filter_touch_steps
+				|| !std::ranges::all_of(aRequest.Steps, [&aRequest](const commit_filter_touch_step& aStep) {
+					   return aStep.Parent.valid() && aStep.Commit.valid() && aStep.Parent != aStep.Commit
+						   && aStep.Parent.algorithm() == aRequest.Head.algorithm() && aStep.Commit.algorithm() == aRequest.Head.algorithm();
+				   })) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto       actor    = std::move(reviewActor->first);
+			const auto expected = std::move(reviewActor->second);
+			auto       admitted = admit_job(
+				std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation = commit_filter_touches_observation{
+							.Request = request,
+							.Status  = commit_filter_touches_status::failure,
+						};
+						observation.Status = commit_filter_touches(*actor, expected, request, control->Stop.get_token(), observation.Touches);
+						if (observation.Status != commit_filter_touches_status::resolved) {
+							observation.Touches.clear();
+						} else {
+							// The commits a filtered diff of this review may now be
+							// read at: each diffed commit and its parent.
+							auto commits = std::vector<core::git_commit_oid>{ };
+							commits.reserve(2U * request.Steps.size());
+							for (const auto& step : request.Steps) {
+								commits.push_back(step.Parent);
+								commits.push_back(step.Commit);
+							}
+							std::ranges::sort(commits);
+							commits.erase(std::unique(commits.begin(), commits.end()), commits.end());
+							std::scoped_lock lock{ actor->BlobAuthorityMutex };
+							actor->FilterAuthority = request.WorkbenchAuthority;
+							actor->FilterCommits   = std::move(commits);
+						}
+						enqueue_completion(
+							gate,
+							decisionLane,
+							std::move(control),
+							[answer  = std::move(observation),
+							 deliver = std::move(completion)](implementation&) {
+								deliver(answer);
+							});
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
+		/// \brief RFC-BPR-0089. Each step's first-parent tree diff, on the actor.
+		///
+		/// \details Every commit and parent must be resident with its root tree
+		/// (a sparse review holds only its epochs' commits until the chain is
+		/// acquired); otherwise the answer is `objects_unavailable` and nothing
+		/// is diffed. The tree diff is the cache's own bounded one, with exact
+		/// rename and copy detection, so it needs no blob.
+		[[nodiscard]] auto commit_filter_touches(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+												 const commit_filter_touches_request& aRequest, const std::stop_token aStop,
+												 std::vector<commit_filter_commit_touch>& aTouches) -> commit_filter_touches_status
+		{
+			const auto statusOf = [](const git_cache_error& aError) {
+				return aError.Code == git_cache_failure::cancelled     ? commit_filter_touches_status::cancelled
+					: aError.Code == git_cache_failure::quota_exceeded ? commit_filter_touches_status::limit_exceeded
+																	   : commit_filter_touches_status::failure;
+			};
+			if (aStop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+				return commit_filter_touches_status::cancelled;
+			}
+			if (!open_actor_cache(aActor, Caches, aExpected, aStop)) {
+				return commit_filter_touches_status::stale;
+			}
+			const auto resident = [&](const core::git_commit_oid& aCommit) -> std::optional<commit_filter_touches_status> {
+				if (aStop.stop_requested()) {
+					return commit_filter_touches_status::cancelled;
+				}
+				// The commit and its root tree are what a tree diff reads; a
+				// SHA-1 cache answers that without walking the closure, which
+				// across a long chain would repeat the whole history per commit.
+				// Only a refusal there pays for the closure check.
+				auto inspected = aExpected.ObjectFormat == core::git_hash_algorithm::sha1
+					? aActor.Cache->inspect_sparse_commit_object(aCommit, aStop)
+					: git_cache_result<git_cache_commit_inspection>{ std::unexpected{ git_cache_failure::invalid_request } };
+				if (!inspected.has_value() && inspected.error() != git_cache_failure::cancelled) {
+					inspected = aActor.Cache->inspect_commit_object(aCommit, aStop);
+				}
+				if (inspected.has_value()) {
+					return application::valid(*inspected) && inspected->Commit == aCommit ? std::nullopt
+																						  : std::optional{ commit_filter_touches_status::failure };
+				}
+				return inspected.error() == git_cache_failure::cancelled || aStop.stop_requested() ? commit_filter_touches_status::cancelled
+					: inspected.error() == git_cache_failure::object_mismatch                      ? commit_filter_touches_status::objects_unavailable
+																								   : commit_filter_touches_status::failure;
+			};
+			for (const auto& step : aRequest.Steps) {
+				for (const auto& commit : { step.Parent, step.Commit }) {
+					if (const auto refused = resident(commit)) {
+						return *refused;
+					}
+				}
+			}
+			aTouches.reserve(aRequest.Steps.size());
+			for (const auto& step : aRequest.Steps) {
+				const auto changes = aActor.Cache->changed_entries({ .Left = step.Parent, .Right = step.Commit }, aStop);
+				if (!changes.has_value()) {
+					return statusOf(changes.error());
+				}
+				if (changes->size() >= maximum_git_changed_entries) {
+					return commit_filter_touches_status::limit_exceeded;
+				}
+				auto touch   = commit_filter_commit_touch{ };
+				touch.Commit = step.Commit;
+				touch.Paths.reserve(changes->size());
+				for (const auto& change : *changes) {
+					const auto& side = change.Right ? change.Right : change.Left;
+					if (!side || side->Path.empty() || side->Path.size() > maximum_git_tree_entry_path_bytes) {
+						return commit_filter_touches_status::failure;
+					}
+					auto path   = commit_filter_touched_path{ };
+					path.Path   = side->Path;
+					path.Change = change.Change;
+					if ((change.Change == 'R' || change.Change == 'C') && change.Left && change.Right) {
+						path.PreviousPath = change.Left->Path;
+					}
+					touch.Paths.push_back(std::move(path));
+				}
+				std::ranges::sort(touch.Paths, { }, &commit_filter_touched_path::Path);
+				if (std::ranges::adjacent_find(touch.Paths, { }, &commit_filter_touched_path::Path) != touch.Paths.end()) {
+					return commit_filter_touches_status::failure;
+				}
+				aTouches.push_back(std::move(touch));
+			}
+			return aStop.stop_requested() ? commit_filter_touches_status::cancelled : commit_filter_touches_status::resolved;
+		}
+
 		/// \brief [[BPR-1212]]. The review's cache actor and the session it
 		/// expects, for a job asked about the accepted head; none when the
 		/// request would be refused before admission.
@@ -4273,6 +4455,11 @@ namespace bpr::application {
 				result.Status = workbench_selected_diff_status::binary;
 				return result;
 			}
+			// RFC-BPR-0089. A split file has no one exact diff; nothing is read.
+			if (aRequest.File.SplitByFilter) {
+				result.Status = workbench_selected_diff_status::split_by_commit_filter;
+				return result;
+			}
 			if (!begin_blob_call()) {
 				return result;
 			}
@@ -4326,7 +4513,8 @@ namespace bpr::application {
 					const auto sameSelection = actor->SelectedBlobGrant
 						&& actor->SelectedBlobGrant->Request.WorkbenchAuthority == aRequest.WorkbenchAuthority
 						&& actor->SelectedBlobGrant->Request.Diff == aRequest.Diff
-						&& actor->SelectedBlobGrant->Request.File == aRequest.File;
+						&& actor->SelectedBlobGrant->Request.File == aRequest.File
+						&& actor->SelectedBlobGrant->Request.Filter == aRequest.Filter;
 					if (!sameSelection) {
 						actor->SelectedBlobGrant.reset();
 						++actor->SelectedBlobGrantSequence;
@@ -4336,7 +4524,8 @@ namespace bpr::application {
 						const auto prepared = std::ranges::find_if(
 							actor->PreparedGrants, [&aRequest](const workbench_selected_diff_observation& aGrant) {
 								return aGrant.Request.WorkbenchAuthority == aRequest.WorkbenchAuthority
-									&& aGrant.Request.Diff == aRequest.Diff && aGrant.Request.File == aRequest.File;
+									&& aGrant.Request.Diff == aRequest.Diff && aGrant.Request.File == aRequest.File
+									&& aGrant.Request.Filter == aRequest.Filter;
 							});
 						if (prepared != actor->PreparedGrants.end()) {
 							// [[BPR-1327]]. Prepared under this exact authority: the
@@ -4472,15 +4661,17 @@ namespace bpr::application {
 											: std::nullopt,
 									};
 								};
-								auto left = resolveEndpoint(
-									aRequest.Diff.Comparison.Left.Commit);
-								auto right          = left.has_value()
-									? resolveEndpoint(
-										  aRequest.Diff.Comparison.Right.Commit)
+								// RFC-BPR-0089. A filtered request reads its file at the two
+								// chain commits it names, authorized above.
+								const auto leftCommit     = aRequest.Filter ? aRequest.Filter->Left : aRequest.Diff.Comparison.Left.Commit;
+								const auto rightCommit    = aRequest.Filter ? aRequest.Filter->Right : aRequest.Diff.Comparison.Right.Commit;
+								auto       left           = resolveEndpoint(leftCommit);
+								auto       right          = left.has_value()
+									? resolveEndpoint(rightCommit)
 									: git_cache_result<endpoint_resolution>{
 										  std::unexpected{ left.error() }
 									  };
-								auto endpointsReady = left.has_value() && right.has_value();
+								auto       endpointsReady = left.has_value() && right.has_value();
 								if (!endpointsReady) {
 									const auto failure = !left.has_value()
 										? left.error()
@@ -4499,8 +4690,8 @@ namespace bpr::application {
 									if (leftNeedsPair || rightNeedsPair) {
 										const auto pairs = actor->Cache->find_rename_pairs(
 											git_cache_rename_pair_request{
-												.Left         = aRequest.Diff.Comparison.Left.Commit,
-												.Right        = aRequest.Diff.Comparison.Right.Commit,
+												.Left         = leftCommit,
+												.Right        = rightCommit,
 												.CurrentPath  = aRequest.File.CurrentPath,
 												.PreviousPath = aRequest.File.PreviousPath,
 											},
@@ -4545,11 +4736,11 @@ namespace bpr::application {
 											} else {
 												const auto exactLeft = lookup(
 													boundPair->LeftPath,
-													aRequest.Diff.Comparison.Left.Commit);
+													leftCommit);
 												const auto exactRight = exactLeft.has_value()
 													? lookup(
 														  boundPair->RightPath,
-														  aRequest.Diff.Comparison.Right.Commit)
+														  rightCommit)
 													: git_cache_result<std::optional<core::git_blob_oid>>{
 														  std::unexpected{ exactLeft.error() }
 													  };
@@ -4646,7 +4837,7 @@ namespace bpr::application {
 										observation.RightPath = std::move(right->Path);
 										if (aPrepared) {
 											std::erase_if(actor->PreparedGrants, [&aRequest](const workbench_selected_diff_observation& aGrant) {
-												return aGrant.Request.File == aRequest.File;
+												return aGrant.Request.File == aRequest.File && aGrant.Request.Filter == aRequest.Filter;
 											});
 											if (actor->PreparedGrants.size() >= core::maximum_prepared_comparison_window) {
 												actor->PreparedGrants.erase(actor->PreparedGrants.begin());
@@ -9718,6 +9909,13 @@ namespace bpr::application {
 		changed_paths_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_changed_paths(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_commit_filter_touches(
+		commit_filter_touches_request    aRequest,
+		commit_filter_touches_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_commit_filter_touches(std::move(aRequest), std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_github_base_numbering(

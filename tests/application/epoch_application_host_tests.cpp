@@ -336,13 +336,15 @@ namespace {
 		std::vector<application::git_cache_changed_entry>           CatalogueEntries;
 		std::optional<application::git_cache_failure>               CatalogueFailure;
 		std::optional<std::vector<std::uint8_t>>                    CachedBlobOverride;
-		bool                                                        CachedBlobMissing          = false;
-		bool                                                        SparseObjects              = false;
-		bool                                                        SparseTreeMismatch         = false;
-		bool                                                        SparseCatalogMarkerMissing = false;
-		bool                                                        SupportsSparse             = false;
-		std::vector<application::git_smart_exact_blob_request>      ExactBlobRequests;
-		std::optional<application::git_smart_transport_failure>     ExactBlobFailure;
+		bool                                                        CachedBlobMissing = false;
+		bool                                                        SparseObjects     = false;
+		/// RFC-BPR-0089. Commits neither inspection finds.
+		std::vector<core::git_commit_oid>                       MissingCommits;
+		bool                                                    SparseTreeMismatch         = false;
+		bool                                                    SparseCatalogMarkerMissing = false;
+		bool                                                    SupportsSparse             = false;
+		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
+		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
 		/// [[BPR-1327]]. Batched reads, what a batch answers, and the
 		/// simulated round trips of the single and batched reads.
 		std::vector<application::git_smart_exact_blobs_request> ExactBlobBatches;
@@ -1740,7 +1742,7 @@ namespace {
 			const std::stop_token) -> application::git_cache_result<application::git_cache_commit_inspection> override
 		{
 			State.Calls.emplace_back("cache.inspect-commit");
-			if (State.SparseObjects) {
+			if (State.SparseObjects || std::ranges::find(State.MissingCommits, aCommit) != State.MissingCommits.end()) {
 				return std::unexpected{ application::git_cache_failure::object_mismatch };
 			}
 			return application::git_cache_commit_inspection{
@@ -1755,7 +1757,8 @@ namespace {
 			-> application::git_cache_result<application::git_cache_commit_inspection> override
 		{
 			State.Calls.emplace_back("cache.inspect-sparse-commit");
-			if (aStop.stop_requested() || !State.SparseObjects) {
+			if (aStop.stop_requested() || !State.SparseObjects
+				|| std::ranges::find(State.MissingCommits, aCommit) != State.MissingCommits.end()) {
 				return std::unexpected{ application::git_cache_failure::object_mismatch };
 			}
 			return application::git_cache_commit_inspection{
@@ -6996,6 +6999,104 @@ namespace {
 			   "a closing host admits nothing and answers nothing more");
 	}
 
+	// RFC-BPR-0089. The chain's tree diffs: one diff per step from its parent
+	// through the retained session, paths sorted with exact renames naming
+	// their old path, delivered on the decision lane. A resolved answer
+	// authorizes filtered diffs of this review at exactly those commits; a
+	// filtered request before it, or naming any other commit, is stale.
+	void commit_filter_touches_authorize_filtered_diffs()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto authority = workbench_authority_for(value.Host->state());
+		const auto head      = value.Host->state().AcceptedRevision->Head;
+		const auto fork      = oid<core::git_commit_oid>(0x51U);
+		const auto middle    = oid<core::git_commit_oid>(0x52U);
+		auto       filtered  = selected_diff_request_for(value);
+		filtered.Filter      = core::filtered_diff_endpoints{ .Left = middle, .Right = head };
+		expect(value.Host->resolve(filtered, { }).Status == application::workbench_selected_diff_status::stale,
+			   "a filtered diff is refused before any touches answered for its commits");
+
+		const auto side              = [](std::string aPath) { return application::git_cache_changed_side{ .Path = std::move(aPath), .Object = oid<core::git_blob_oid>(0x70U), .Mode = 0100644U }; };
+		value.State.CatalogueEntries = {
+			{ .Left = std::nullopt, .Right = side("z/added.cpp"), .Change = 'A' },
+			{ .Left = side("old.cpp"), .Right = side("new.cpp"), .Change = 'R' },
+			{ .Left = side("gone.cpp"), .Right = std::nullopt, .Change = 'D' },
+		};
+		auto       observations = std::vector<application::commit_filter_touches_observation>{ };
+		const auto record       = [&observations](const application::commit_filter_touches_observation& aObservation) {
+			observations.push_back(aObservation);
+		};
+		const auto request = application::commit_filter_touches_request{
+			.WorkbenchAuthority = authority,
+			.Head               = head,
+			.Steps              = { { .Parent = fork, .Commit = middle }, { .Parent = middle, .Commit = head } },
+		};
+		const auto diffsBefore = value.State.CatalogueRequests.size();
+		expect(value.Host->resolve_commit_filter_touches(request, record) && observations.empty(), "the touches job is admitted and answers later");
+		drain(value);
+		expect(observations.size() == 1U && observations.front().Status == application::commit_filter_touches_status::resolved
+				   && observations.front().Touches.size() == 2U && observations.front().Touches[1].Commit == head,
+			   "each step's commit is answered in chain order");
+		const auto& paths = observations.front().Touches.front().Paths;
+		expect(paths.size() == 3U && paths[0].Path == "gone.cpp" && paths[0].Change == 'D' && paths[1].Path == "new.cpp"
+				   && paths[1].PreviousPath == std::optional<std::string>{ "old.cpp" } && paths[2].Path == "z/added.cpp",
+			   "paths are sorted, a deletion keeps its old path and a rename names its source");
+		expect(value.State.CatalogueRequests.size() == diffsBefore + 2U
+				   && value.State.CatalogueRequests[diffsBefore].Left == fork && value.State.CatalogueRequests[diffsBefore].Right == middle
+				   && value.State.CatalogueRequests[diffsBefore + 1U].Left == middle && value.Host->outstanding_jobs() == 0U,
+			   "one tree diff per step, from its parent, and the job retired");
+
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x81U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x82U));
+		const auto lookupsBefore = value.State.TreeEntryRequests.size();
+		const auto read          = resolve_selected_diff(value, filtered);
+		expect(read.Status == application::workbench_selected_diff_status::available && read.Request.Filter == filtered.Filter
+				   && value.State.TreeEntryRequests.size() == lookupsBefore + 2U && value.State.TreeEntryRequests[lookupsBefore].Commit == middle
+				   && value.State.TreeEntryRequests[lookupsBefore + 1U].Commit == head,
+			   "a filtered diff reads its file at the two chain commits, not the comparison's");
+		const auto key = application::selected_diff_key(read);
+		expect(key && key->Filter == filtered.Filter && core::comparison_digest(*key) != core::comparison_digest([&] {
+															auto plain   = *key;
+															plain.Filter = std::nullopt;
+															return plain;
+														}()),
+			   "its key names the two commits, so no reader takes it for the comparison's own diff");
+		auto foreign   = filtered;
+		foreign.Filter = core::filtered_diff_endpoints{ .Left = oid<core::git_commit_oid>(0x99U), .Right = head };
+		expect(value.Host->resolve(foreign, { }).Status == application::workbench_selected_diff_status::stale,
+			   "a commit no touches job diffed is never read");
+
+		auto split               = selected_diff_request_for(value);
+		split.File.SplitByFilter = true;
+		expect(value.Host->resolve(split, { }).Status == application::workbench_selected_diff_status::split_by_commit_filter,
+			   "a split file reads nothing");
+
+		value.State.MissingCommits = { middle };
+		expect(value.Host->resolve_commit_filter_touches(request, record), "a second request is admitted");
+		drain(value);
+		expect(observations.size() == 2U && observations.back().Status == application::commit_filter_touches_status::objects_unavailable
+				   && observations.back().Touches.empty(),
+			   "a chain commit the cache does not hold is said, and nothing is diffed");
+		value.State.MissingCommits.clear();
+		value.State.CatalogueFailure = application::git_cache_failure::quota_exceeded;
+		expect(value.Host->resolve_commit_filter_touches(request, record), "a third request is admitted");
+		drain(value);
+		expect(observations.size() == 3U && observations.back().Status == application::commit_filter_touches_status::limit_exceeded,
+			   "a commit beyond the tree diff's bound is said");
+		value.State.CatalogueFailure.reset();
+
+		auto moved = request;
+		moved.Head = middle;
+		expect(!value.Host->resolve_commit_filter_touches(moved, record), "another head is refused before admission");
+		auto empty  = request;
+		empty.Steps = { };
+		expect(!value.Host->resolve_commit_filter_touches(empty, record), "no steps is refused before admission");
+		auto self  = request;
+		self.Steps = { { .Parent = head, .Commit = head } };
+		expect(!value.Host->resolve_commit_filter_touches(self, record), "a commit diffed against itself is refused");
+	}
+
 	// [[BPR-1212]] v002. Whether a comparison's left document is numbered as
 	// GitHub numbers `LEFT` lines: the unique merge base of GitHub's base and
 	// the accepted head, from the retained objects, holds the same blob at the
@@ -9504,6 +9605,7 @@ int main(int argc, char** argv)
 	a_cancelled_commit_cache_open_is_reported_as_cancelled();
 	shutdown_waits_for_worker_and_decision_quiescence();
 	changed_paths_resolve_beside_the_selected_comparison();
+	commit_filter_touches_authorize_filtered_diffs();
 	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;
 }

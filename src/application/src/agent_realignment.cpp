@@ -58,6 +58,7 @@ namespace bpr::application {
 			case workbench_selected_diff_status::ambiguous_right:
 			case workbench_selected_diff_status::ambiguous_both:
 			case workbench_selected_diff_status::failure:
+			case workbench_selected_diff_status::split_by_commit_filter:
 				break;
 			}
 			return agent_realignment_refusal::host_failure;

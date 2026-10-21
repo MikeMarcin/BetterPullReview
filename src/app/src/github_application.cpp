@@ -17916,6 +17916,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return application::workbench_host_failure::selected_file_cancelled;
 				case application::workbench_selected_diff_status::stale:
 					return application::workbench_host_failure::selected_file_stale;
+				case application::workbench_selected_diff_status::split_by_commit_filter:
+					return application::workbench_host_failure::selected_file_split_by_commit_filter;
 				case application::workbench_selected_diff_status::available:
 				case application::workbench_selected_diff_status::failure:
 					return application::workbench_host_failure::host_failure;

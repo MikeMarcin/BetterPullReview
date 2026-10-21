@@ -717,6 +717,29 @@ set_tests_properties(
 )
 
 bpr_add_executable(
+    test_better_pull_review_commit_filter_model_tests
+    commit_filter_model_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_commit_filter_model_tests
+    PRIVATE
+        BetterPullReview::Application
+)
+bpr_enable_hardening(test_better_pull_review_commit_filter_model_tests)
+bpr_enable_warnings(test_better_pull_review_commit_filter_model_tests)
+
+bpr_add_network_isolated_test(
+    NAME application_commit_filter_model
+    COMMAND test_better_pull_review_commit_filter_model_tests
+)
+set_tests_properties(
+    application_commit_filter_model
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "commit-filter-model-tests:pass"
+        TIMEOUT 60
+)
+
+bpr_add_executable(
     test_better_pull_review_workbench_snapshot_observation_tests
     workbench_snapshot_observation_tests.cpp
 )

@@ -387,6 +387,20 @@ namespace bpr::core {
 		return identity_from<file_identity>(encoder);
 	}
 
+	auto filtered_receipt_file(const file_identity& aFile, const filtered_diff_endpoints& aEndpoints) noexcept -> file_identity
+	{
+		if (!aFile.valid() || !valid(aEndpoints)) {
+			return { };
+		}
+		auto encoder = canonical_encoder<160U>{ };
+		encoder.append_domain("BPR-filtered-receipt-file-v1");
+		encoder.append(aFile.bytes());
+		encoder.append_u8(static_cast<std::uint8_t>(aEndpoints.Left.algorithm()));
+		encoder.append(aEndpoints.Left.bytes());
+		encoder.append(aEndpoints.Right.bytes());
+		return identity_from<file_identity>(encoder);
+	}
+
 	auto options_digest(const diff_options& aOptions) noexcept
 		-> std::optional<diff_options_digest>
 	{

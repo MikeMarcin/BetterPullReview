@@ -280,7 +280,9 @@ namespace bpr::application {
 				&& aEntry.Change != workbench_file_change_kind::uninitialized
 				&& (aEntry.ContentKind == workbench_file_content_kind::unknown
 					|| aEntry.ContentKind == workbench_file_content_kind::text
-					|| aEntry.ContentKind == workbench_file_content_kind::binary);
+					|| aEntry.ContentKind == workbench_file_content_kind::binary)
+				// RFC-BPR-0089. Valid endpoints, or a split file, never both.
+				&& (!aEntry.Filter || (core::valid(*aEntry.Filter) && !aEntry.SplitByFilter));
 		} catch (...) {
 			return false;
 		}
@@ -793,6 +795,7 @@ namespace bpr::application {
 					.WorkbenchAuthority = *Authority,
 					.Diff               = *context,
 					.File               = file,
+					.Filter             = file.Filter,
 				});
 			}
 			return result;
@@ -830,6 +833,7 @@ namespace bpr::application {
 				.WorkbenchAuthority = *Authority,
 				.Diff               = *context,
 				.File               = *selected_file(),
+				.Filter             = selected_file()->Filter,
 			};
 			deliver_projection(
 				[this, &request] { SelectedDiffProjections->begin(request); });
@@ -2447,6 +2451,7 @@ namespace bpr::application {
 			.File        = aObservation.Request.File.File,
 			.Options     = diff.OptionsDigest,
 			.Algorithm   = diff.Algorithm,
+			.Filter      = aObservation.Request.Filter,
 		};
 		return core::valid(key) ? std::optional{ std::move(key) } : std::nullopt;
 	}

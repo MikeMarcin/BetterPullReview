@@ -825,6 +825,11 @@ namespace bpr::qt {
 				return QStringLiteral("The selected file changed before it could be loaded.");
 			case application::workbench_host_failure::host_failure:
 				return QStringLiteral("The workbench could not be updated.");
+			case application::workbench_host_failure::selected_file_split_by_commit_filter:
+				// RFC-BPR-0089: one exact diff cannot show it, and none is invented.
+				return QStringLiteral(
+					"A hidden commit changed this file between two shown commits, so no single diff shows only the shown changes. "
+					"Show the hidden commit, or hide one of the others, to read it.");
 			}
 			return QStringLiteral("The workbench could not be updated.");
 		}

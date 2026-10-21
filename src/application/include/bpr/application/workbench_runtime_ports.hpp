@@ -87,6 +87,14 @@ namespace bpr::application {
 		/// so a withheld file restored later returns to its place without a
 		/// new observation. Absent from a port that does not number it.
 		std::optional<std::size_t> Ordinal;
+		/// RFC-BPR-0089. Under a commit filter, the two chain commits this
+		/// file's one exact diff is between; absent when the file keeps the
+		/// comparison's own diff.
+		std::optional<core::filtered_diff_endpoints> Filter;
+		/// RFC-BPR-0089. A hidden commit changes this file between two shown
+		/// ones, so no one exact diff covers what is shown. It is listed and
+		/// walked; opening it says so and reads nothing.
+		bool SplitByFilter = false;
 
 		auto operator<=>(const workbench_file_observation_entry&) const = default;
 	};
@@ -233,20 +241,26 @@ namespace bpr::application {
 		workbench_pull_request_authority WorkbenchAuthority;
 		workbench_selected_diff_context  Diff;
 		workbench_file_observation_entry File;
+		/// RFC-BPR-0089. Present when a commit filter gives this file one exact
+		/// diff between two chain commits: its sides are read at these commits,
+		/// not at the comparison's. `Diff` stays the window's comparison.
+		std::optional<core::filtered_diff_endpoints> Filter;
 
 		auto operator<=>(const workbench_selected_diff_request&) const = default;
 	};
 
 	/// \brief [[BPR-1277]]. Whether `aAsked` asks for the same diff as `aShown`:
-	/// the same authority, comparison context and file entry. Only the request
-	/// context (its generation) may differ, as when a refresh asks again.
+	/// the same authority, comparison context, file entry and filtered
+	/// endpoints. Only the request context (its generation) may differ, as when
+	/// a refresh asks again.
 	[[nodiscard]] inline auto same_selected_diff(
 		const workbench_selected_diff_request& aShown,
 		const workbench_selected_diff_request& aAsked) noexcept -> bool
 	{
 		return aShown.WorkbenchAuthority == aAsked.WorkbenchAuthority
 			&& aShown.Diff == aAsked.Diff
-			&& aShown.File == aAsked.File;
+			&& aShown.File == aAsked.File
+			&& aShown.Filter == aAsked.Filter;
 	}
 
 	/// \brief Opaque provenance for one endpoint resolved by the epoch host.
@@ -353,6 +367,8 @@ namespace bpr::application {
 		cancelled,
 		stale,
 		failure,
+		/// RFC-BPR-0089. The file is split by the commit filter; nothing read.
+		split_by_commit_filter,
 	};
 
 	/// \brief Describes one exact selected-file tree lookup terminal.
@@ -378,6 +394,81 @@ namespace bpr::application {
 	/// resolution is not available or the key would be invalid.
 	[[nodiscard]] auto selected_diff_key(const workbench_selected_diff_observation& aObservation)
 		-> std::optional<core::file_comparison_key>;
+
+	/// \brief RFC-BPR-0089. One first-parent commit whose own change is asked
+	/// for: the tree diff from `Parent` to `Commit`.
+	struct commit_filter_touch_step
+	{
+		core::git_commit_oid Parent;
+		core::git_commit_oid Commit;
+
+		auto operator<=>(const commit_filter_touch_step&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089. Asks for the paths each chain commit changes.
+	///
+	/// \details `Steps` run oldest first. `Head` is the accepted head; the host
+	/// refuses a request for any other revision. Answered beside the reviewer's
+	/// comparison, never through it.
+	struct commit_filter_touches_request
+	{
+		workbench_pull_request_authority      WorkbenchAuthority;
+		core::git_commit_oid                  Head;
+		std::vector<commit_filter_touch_step> Steps;
+
+		auto operator<=>(const commit_filter_touches_request&) const = default;
+	};
+
+	inline constexpr std::size_t maximum_commit_filter_touch_steps = 250U;
+
+	/// \brief One path a commit's first-parent diff changes.
+	///
+	/// \details `Path` is the path after the change, or before it for a
+	/// deletion; an exact rename names its old path in `PreviousPath`.
+	/// `Change` is Git's raw letter (`A`, `C`, `D`, `M`, `R`, `T`).
+	struct commit_filter_touched_path
+	{
+		std::string                Path;
+		std::optional<std::string> PreviousPath;
+		char                       Change = 'M';
+
+		auto operator<=>(const commit_filter_touched_path&) const = default;
+	};
+
+	/// \brief The paths one step's commit changes, sorted by path.
+	struct commit_filter_commit_touch
+	{
+		core::git_commit_oid                    Commit;
+		std::vector<commit_filter_touched_path> Paths;
+
+		auto operator<=>(const commit_filter_commit_touch&) const = default;
+	};
+
+	enum class commit_filter_touches_status : std::uint8_t {
+		/// `Touches` covers every step, in order.
+		resolved,
+		/// A step's commit or parent tree is not in the retained cache. The
+		/// filter stays unavailable until they are acquired.
+		objects_unavailable,
+		/// A commit changes more paths than one tree diff reports.
+		limit_exceeded,
+		/// The retained cache no longer serves the accepted review.
+		stale,
+		cancelled,
+		failure,
+	};
+
+	/// \brief One exact answer to a `commit_filter_touches_request`.
+	struct commit_filter_touches_observation
+	{
+		commit_filter_touches_request           Request;
+		commit_filter_touches_status            Status = commit_filter_touches_status::failure;
+		std::vector<commit_filter_commit_touch> Touches;
+
+		auto operator<=>(const commit_filter_touches_observation&) const = default;
+	};
+
+	using commit_filter_touches_completion = std::function<void(const commit_filter_touches_observation&)>;
 
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///
@@ -1098,6 +1189,8 @@ namespace bpr::application {
 		selected_file_comparison_unavailable,
 		selected_file_stale,
 		host_failure,
+		/// RFC-BPR-0089. A hidden commit changed the file between shown ones.
+		selected_file_split_by_commit_filter,
 	};
 
 	/// \brief Describes the workbench failure publication record.

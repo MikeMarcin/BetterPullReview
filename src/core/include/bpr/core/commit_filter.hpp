@@ -82,6 +82,9 @@ namespace bpr::core {
 		/// The chain reaches a root commit: the pull request shares no
 		/// history with its base, so no first-parent diff has a left side.
 		unrelated_history,
+		/// The commit list named no parents (a recorded response may omit
+		/// them), so the chain cannot be known.
+		parents_unknown,
 	};
 
 	/// \brief A listed commit's place relative to the first-parent chain.

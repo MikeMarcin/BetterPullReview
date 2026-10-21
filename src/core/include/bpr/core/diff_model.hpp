@@ -134,6 +134,20 @@ namespace bpr::core {
 			&& aEndpoints.Left.algorithm() == aEndpoints.Right.algorithm();
 	}
 
+	/// \brief RFC-BPR-0089. The ledger file a commit-filtered diff's own
+	/// receipt is kept under.
+	///
+	/// \details A file whose filtered diff differs from the comparison's has
+	/// its own receipt for that diff; the file's receipt for the comparison is
+	/// never carried to it. The key is the file and the two commits, which name
+	/// the diff's blobs exactly, so it is known before either blob is read and
+	/// every filter giving the same two commits shares it. It is a receipt key,
+	/// not a second identity for the file: the workbench, tabs and threads keep
+	/// naming the file by `file_identity_of`. Invalid for an invalid file or
+	/// endpoints.
+	[[nodiscard]] auto filtered_receipt_file(const file_identity& aFile, const filtered_diff_endpoints& aEndpoints) noexcept
+		-> file_identity;
+
 	/// \brief Describes the file comparison key record.
 	struct file_comparison_key
 	{

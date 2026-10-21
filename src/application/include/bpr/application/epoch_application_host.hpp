@@ -177,6 +177,17 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_changed_paths(
 			changed_paths_request    aRequest,
 			changed_paths_completion aCompletion) -> bool;
+		/// \brief RFC-BPR-0089. Answers which paths each first-parent commit
+		/// changes, from local tree diffs of the retained objects.
+		/// \details Never fetches. A step whose commit or parent tree is not
+		/// retained answers `objects_unavailable` for the whole request. A
+		/// resolved answer also authorizes filtered diffs of this exact review
+		/// to be read at those commits, and only those. Runs on the review's
+		/// cache actor like `resolve_changed_paths`, with the same admission and
+		/// completion.
+		[[nodiscard]] auto resolve_commit_filter_touches(
+			commit_filter_touches_request    aRequest,
+			commit_filter_touches_completion aCompletion) -> bool;
 		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
 		/// the merge base's version of its file, which GitHub numbers `LEFT`
 		/// lines in.

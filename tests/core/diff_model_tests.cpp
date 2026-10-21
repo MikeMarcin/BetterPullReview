@@ -489,6 +489,12 @@ namespace {
 		auto missingEnd   = filtered;
 		missingEnd.Filter = filtered_diff_endpoints{ .Left = commit(1U), .Right = git_commit_oid{ } };
 		expect(!valid(missingEnd), "both filtered endpoints must be commits");
+		const auto receipt = filtered_receipt_file(key.File, *filtered.Filter);
+		expect(receipt.valid() && receipt != key.File && receipt == filtered_receipt_file(key.File, *filtered.Filter)
+				   && receipt != filtered_receipt_file(key.File, *otherEnds.Filter)
+				   && receipt != filtered_receipt_file(opaque<file_identity>(32U), *filtered.Filter),
+			   "a filtered diff keeps its own receipt, keyed by the file and its two commits");
+		expect(!filtered_receipt_file(key.File, *sameEnds.Filter).valid(), "no receipt key for invalid endpoints");
 
 		auto contradictory       = key;
 		contradictory.Repository = repository_id{ 102U };
