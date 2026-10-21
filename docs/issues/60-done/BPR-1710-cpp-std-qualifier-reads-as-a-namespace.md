@@ -158,3 +158,7 @@ composed public path and the renders were rerun after the rebase.
   re-run. Its contract twins compile this contract against the tree-sitter
   candidate, and the new and amended `std` expectations were not checked
   against that candidate. The evaluation is closed and nothing ships from it.
+
+## Owner decision
+
+2026-10-21, in chat after viewing the 2x before and after renders: **Accept** the namespace highlighting, and **Accept** the amended BPR-1559 T21 expectations (`std` a namespace in `std::wstring` and `std::make_unique`, the following name still built-in), per RFC-BPR-0081's contract-change rule. Other libraries go through a user setting (BPR-PENDING-W) rather than a fixed list.
