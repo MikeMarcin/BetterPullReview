@@ -686,7 +686,7 @@ namespace bpr::qt {
 				set_add_hover(std::nullopt);
 			}
 
-			/// \brief [[BPR-PENDING-AE]]. Told when a line's number is clicked
+			/// \brief [[BPR-1724]]. Told when a line's number is clicked
 			/// (`false`), or Shift-clicked or dragged onto (`true`), with its
 			/// zero-based row: GitHub's way of selecting lines by their numbers.
 			void set_number_dispatch(std::function<void(std::uint32_t, bool)> aDispatch)
@@ -695,7 +695,7 @@ namespace bpr::qt {
 				NumberDrag.reset();
 			}
 
-			/// \brief [[BPR-PENDING-AE]]. The row whose number a point of the
+			/// \brief [[BPR-1724]]. The row whose number a point of the
 			/// gutter is on, or none: the heading row and below the last line
 			/// are no row's.
 			[[nodiscard]] auto number_line_at(const QPoint aGutterPoint) const -> std::optional<std::uint32_t>
@@ -712,7 +712,7 @@ namespace bpr::qt {
 				return line;
 			}
 
-			/// \brief [[BPR-PENDING-AE]]. A press on a line's number selects it,
+			/// \brief [[BPR-1724]]. A press on a line's number selects it,
 			/// or with Shift extends the selection to it, and starts a drag
 			/// over the numbers. The code takes the keyboard, so Return and
 			/// Shift+arrows go on from there. Returns whether it was taken.
@@ -727,7 +727,7 @@ namespace bpr::qt {
 				dispatch(aLine, aExtend);
 				return true;
 			}
-			/// \brief [[BPR-PENDING-AE]]. A drag over the numbers extends the
+			/// \brief [[BPR-1724]]. A drag over the numbers extends the
 			/// selection to the line under the pointer.
 			void extend_number_drag(const int aGutterY)
 			{
@@ -1373,7 +1373,7 @@ namespace bpr::qt {
 			/// [[BPR-1335]]. A drag on the "+": the line it started on and the
 			/// line under the pointer.
 			std::optional<std::pair<std::uint32_t, std::uint32_t>> AddDrag;
-			/// [[BPR-PENDING-AE]]. A drag over the numbers: the line under the
+			/// [[BPR-1724]]. A drag over the numbers: the line under the
 			/// pointer.
 			std::function<void(std::uint32_t, bool)>   NumberDispatch;
 			std::optional<std::uint32_t>               NumberDrag;
@@ -1428,7 +1428,7 @@ namespace bpr::qt {
 			}
 			/// [[BPR-1290]], [[BPR-1335]]. A thread's tinted number opens or
 			/// closes it.
-			/// [[BPR-PENDING-AE]]. Anywhere else on a number, a click selects its
+			/// [[BPR-1724]]. Anywhere else on a number, a click selects its
 			/// line, a Shift-click extends the selection to it, and a drag
 			/// selects the lines it crosses, as on GitHub. Shift on a tinted
 			/// number extends too. The "+" column's part in the number's
@@ -2490,7 +2490,7 @@ namespace bpr::qt {
 			return (aEvent.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier;
 		}
 
-		/// \brief [[BPR-PENDING-AE]]. The row a selection ending at `aEnd`
+		/// \brief [[BPR-1724]]. The row a selection ending at `aEnd`
 		/// covers last, for a selection that starts at `aStart`.
 		/// \details A selection that reaches the start of a line with text has
 		/// not entered it, so it ends on the line above. An empty line's start
@@ -3413,7 +3413,7 @@ namespace bpr::qt {
 		LinkMap->installEventFilter(this);
 		for (auto* const source : { Left, Right, Unified }) {
 			pane(source)->set_font_observer([this, source] { hold_reading_position(*source); });
-			// [[BPR-PENDING-AE]]. A click, Shift-click or drag on the numbers.
+			// [[BPR-1724]]. A click, Shift-click or drag on the numbers.
 			pane(source)->set_number_dispatch([this, source](const std::uint32_t aRow, const bool aExtend) { select_numbered_line(source, aRow, aExtend); });
 		}
 		pane(Unified)->set_scroll_observer([this] {
@@ -4235,7 +4235,7 @@ namespace bpr::qt {
 			const auto  ended    = static_cast<std::uint32_t>(std::max(0, document->findBlock(cursor.position()).blockNumber()));
 			// A selection dragged to the start of the next line ends above it,
 			// unless that line is the selected one (a Shift-click) or is empty
-			// ([[BPR-PENDING-AE]]).
+			// ([[BPR-1724]]).
 			const auto to = ended == *row ? ended : covered_row(*document, cursor.anchor(), cursor.position(), count);
 			if (*row >= std::min(from, ended) && *row <= std::max(from, ended)) {
 				ends = std::pair{ from, to };
@@ -4332,7 +4332,7 @@ namespace bpr::qt {
 
 	void diff_workbench::select_numbered_line(QPlainTextEdit* const aPane, const std::uint32_t aRow, const bool aExtend)
 	{
-		// [[BPR-PENDING-AE]]. As on GitHub: a click on a number selects its
+		// [[BPR-1724]]. As on GitHub: a click on a number selects its
 		// line, and a Shift-click or a drag over the numbers selects from the
 		// selection's anchor to it. The pane holds the lines whole, as Shift
 		// and the arrows leave them, so Return, the menu and Comment take them.
@@ -4352,7 +4352,7 @@ namespace bpr::qt {
 	{
 		// [[BPR-1212]]. A right-click outside the selection selects its line
 		// first, as a click would; inside the selected lines it keeps them all.
-		// [[BPR-PENDING-AE]]. In one pane a row is the line it shows: its head
+		// [[BPR-1724]]. In one pane a row is the line it shows: its head
 		// line, or the base line a removed row shows.
 		if (!CurrentResult || !SemanticIndex || aPane == nullptr || (aPane == Unified) != OnePaneEnabled) {
 			return false;

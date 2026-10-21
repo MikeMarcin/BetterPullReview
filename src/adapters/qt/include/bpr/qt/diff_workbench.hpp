@@ -375,10 +375,10 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto left_pane() const noexcept -> QPlainTextEdit*;
 		[[nodiscard]] auto right_pane() const noexcept -> QPlainTextEdit*;
-		/// \brief [[BPR-PENDING-AE]]. The one-pane comparison's source, shown
+		/// \brief [[BPR-1724]]. The one-pane comparison's source, shown
 		/// while `one_pane_enabled`.
 		[[nodiscard]] auto unified_pane() const noexcept -> QPlainTextEdit*;
-		/// \brief [[BPR-PENDING-AE]]. Before a pane's code menu opens at a
+		/// \brief [[BPR-1724]]. Before a pane's code menu opens at a
 		/// viewport point: selects the line the point's row shows unless the
 		/// selected lines hold it. In one pane a row is its head line, or the
 		/// base line a removed row shows.
@@ -656,7 +656,7 @@ namespace bpr::qt {
 		/// \brief Holds whole rows from the anchor to the next in the pane's
 		/// text cursor, keeping its scroll.
 		void place_line_cursor(QPlainTextEdit* aPane, std::uint32_t aAnchor, std::uint32_t aNext);
-		/// \brief [[BPR-PENDING-AE]]. A click (`aExtend` false), Shift-click or
+		/// \brief [[BPR-1724]]. A click (`aExtend` false), Shift-click or
 		/// drag on a line number.
 		void select_numbered_line(QPlainTextEdit* aPane, std::uint32_t aRow, bool aExtend);
 		void announce_line_selection();

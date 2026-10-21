@@ -2134,13 +2134,13 @@ namespace bpr::qt {
 		// follower-scroll coupling, and no synthetic alignment rows.
 		ComparisonSurface = new diff_workbench{ CentreSurface };
 		ComparisonSurface->set_source_find_changed([this] { update_source_find_actions(); });
-		// [[BPR-PENDING-AE]]. Comment names the lines a drag or a Shift-click
+		// [[BPR-1724]]. Comment names the lines a drag or a Shift-click
 		// selects, which change no selected line; once a turn, not per move.
 		auto* const commentTarget = new QTimer{ this };
 		commentTarget->setSingleShot(true);
 		commentTarget->setInterval(0);
 		connect(commentTarget, &QTimer::timeout, this, [this] { update_comment_target(); });
-		// [[BPR-PENDING-AE]]. The one-pane comparison has the same menu.
+		// [[BPR-1724]]. The one-pane comparison has the same menu.
 		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane(), ComparisonSurface->unified_pane() }) {
 			connect(pane, &QPlainTextEdit::selectionChanged, commentTarget, qOverload<>(&QTimer::start));
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -9377,7 +9377,7 @@ namespace bpr::qt {
 		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
 		if (!discuss && ComparisonSurface != nullptr) {
 			if (const auto selection = ComparisonSurface->selection(); selection.has_value()) {
-				// [[BPR-PENDING-AE]]. Comment takes several selected lines on
+				// [[BPR-1724]]. Comment takes several selected lines on
 				// one side together, and says so.
 				if (const auto range = ComparisonSurface->line_draft_range(); range.has_value() && range->first.Side == range->second.Side && range->first.Line != range->second.Line) {
 					return tr("Co&mment on lines %1–%2…")
@@ -9476,7 +9476,7 @@ namespace bpr::qt {
 			reply_to_thread(*thread, true);
 			return;
 		}
-		// [[BPR-PENDING-AE]]. Several selected lines take one comment on all
+		// [[BPR-1724]]. Several selected lines take one comment on all
 		// of them, through the path Return and Add comment take; it opened the
 		// selected line's own draft.
 		if (const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt; range.has_value() && range->first != range->second) {
@@ -10157,7 +10157,7 @@ namespace bpr::qt {
 	{
 		// [[BPR-1212]]. A right-click outside the selection selects its line
 		// first, as a click would; the menu then names it. Inside the selected
-		// lines it keeps them all. [[BPR-PENDING-AE]]. The workbench reads the
+		// lines it keeps them all. [[BPR-1724]]. The workbench reads the
 		// line from the pane, so one pane's rows give the line they show.
 		if (ComparisonSurface != nullptr && aPane != nullptr) {
 			static_cast<void>(ComparisonSurface->select_line_for_menu(aPane, aPosition));
@@ -10173,7 +10173,7 @@ namespace bpr::qt {
 			const auto first = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
 			const auto last  = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
 			const auto base  = selection->PreferredLine.Side == core::diff_side::left;
-			// [[BPR-PENDING-AE]]. One pane's rows can start on one side and end
+			// [[BPR-1724]]. One pane's rows can start on one side and end
 			// on the other; the caption names each end's own side.
 			const auto  mixed   = range.has_value() && range->first.Side != range->second.Side;
 			const auto  heading = mixed ? (range->first.Side == core::diff_side::left ? tr("Base line %1 to line %2") : tr("Line %1 to base line %2"))

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1724"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Line gestures select and comment as GitHub",
+  "created": "2026-10-21T23:49:45.567346+00:00",
+  "base": "0ef2e997436c378d54d4da9961632596b3d33c37"
+}

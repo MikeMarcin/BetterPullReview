@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AE"
+id: "BPR-1724"
 title: "Line numbers, one pane, empty lines and Comment take a selection as GitHub does"
 status: "Done"
 rfcs: []
 depends_on: ["BPR-1721"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"ux","origin":"owner approval 2026-10-21 (relayed by the coordinator) of the four follow-ups BPR-1721 recorded","related_cards":["BPR-1212","BPR-1335","BPR-1682","BPR-1698","BPR-1721"],"related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"frontend_design":"frontend-design:frontend-design loaded before the gesture and menu wording; no new visual surface"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1724--BPR-1724--aa93771c1a2a.json","kind":"ux","origin":"owner approval 2026-10-21 (relayed by the coordinator) of the four follow-ups BPR-1721 recorded","related_cards":["BPR-1212","BPR-1335","BPR-1682","BPR-1698","BPR-1721"],"related_rfcs":["RFC-BPR-0037","RFC-BPR-0052"],"frontend_design":"frontend-design:frontend-design loaded before the gesture and menu wording; no new visual surface"}
 acceptance: [{"criterion":"AC1: the one-pane comparison has the code's right-click menu on its code and its numbers, for the line each row shows (an unchanged or added row its head line, a removed row its base line), with Add comment, Suggest change, the range-labelled items and the reason row","outcome":"pass","revision":"6526dda121657353f9024fda39b2b22547cb6644","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_one_pane_has_the_code_menu. Failing before: 'a right-click in one pane opens the code's menu on the clicked head line'."}},{"criterion":"AC2: a click on a line number selects its line, a Shift-click extends the selection to it and a drag over the numbers selects the lines it crosses, in both views; the \"+\" in its column at the number and code boundary still adds a comment, and a right-click on a number still opens the menu","outcome":"pass","revision":"6526dda121657353f9024fda39b2b22547cb6644","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_line_numbers_select_lines, then test_the_plus_on_a_pull_request_without_threads_opens_its_draft and test_a_selection_takes_a_range_comment_from_its_menu unchanged. Failing before: 'split: a click on a line's number selects that line'."}},{"criterion":"AC3: a drag whose pointer ends on an empty line takes that line, in both views, and Shift+Down goes on from it","outcome":"pass","revision":"6526dda121657353f9024fda39b2b22547cb6644","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_a_drag_onto_an_empty_line_takes_it. Failing before: 'split: a drag from line 5 that ends on the empty line 8 selects lines 5 to 8'."}},{"criterion":"AC4: Comment (Option-C) on several selected lines starts one draft on all of them, as Return and Add comment do, and names them; on one line it opens that line's draft","outcome":"pass","revision":"6526dda121657353f9024fda39b2b22547cb6644","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_line_draft$'","detail":"test_comment_takes_the_selected_lines. Failing before: 'Comment names the selected lines: Co&mment on line 3…', and with that check set aside, 'Option-C on lines 3 to 5 opens one draft on all three'."}},{"criterion":"AC5: related suites, gates and docs","outcome":"pass","revision":"6526dda121657353f9024fda39b2b22547cb6644","evidence":{"kind":"command","command":"ctest --preset dev -R '<related suites>'; cmake --build --preset dev --target coding-format-check; python3 _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <changed units>; python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py","detail":"Results in the Verification section."}}]
 ---
 
-# BPR-PENDING-AE: Line numbers, one pane, empty lines and Comment take a selection as GitHub does
+# BPR-1724: Line numbers, one pane, empty lines and Comment take a selection as GitHub does
 
 ## Origin
 

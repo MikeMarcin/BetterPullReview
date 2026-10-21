@@ -1904,14 +1904,14 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   click selects a line, a drag or Shift-click selects lines in the pane's own
   text selection, and Shift+Up and Shift+Down extend either. A drag whose
   pointer ends on an empty line takes that line; a selection that only
-  reaches the start of a line with text stops above it ([[BPR-PENDING-AE]]).
+  reaches the start of a line with text stops above it ([[BPR-1724]]).
   The line numbers select as GitHub's do: a click on a number selects its
   line, a Shift-click extends the selection to it, and a drag over the
   numbers selects the lines it crosses, whole, and gives the code the
   keyboard. A click on a thread's tinted number still opens the thread, and
   Shift on it extends the selection. The "+" keeps its column at the number
   and code boundary: a press there, even in the number's padding before the
-  "+" is drawn, adds a comment and never selects ([[BPR-PENDING-AE]]). The selected
+  "+" is drawn, adds a comment and never selects ([[BPR-1724]]). The selected
   line wears the current-line band and extended lines the pane's text
   selection. A text selection is the top layer: it is filled solid in the
   theme's selection colour over the line's band, the selected line's wash and
@@ -1950,7 +1950,7 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   one line narrows a range draft ending there; Alt+C on one line keeps
   reopening the line's draft as it is. On several selected lines Alt+C takes
   Return's path and starts one draft on all of them, and Comment says "Comment
-  on lines a–b…" ([[BPR-PENDING-AE]]); a thread the reviewer picked is still
+  on lines a–b…" ([[BPR-1724]]); a thread the reviewer picked is still
   answered.
 - The code's right-click ([[BPR-1212]] v002). A right-click on any line
   selects it first, without a left click before it, unless it is inside the
@@ -1964,7 +1964,7 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   base line, which takes Add comment only with GitHub's numbering and never
   Suggest change. Rows dragged across a removed and an added line are on two
   sides, so the menu is headed "Base line a to line b" and says "Select lines
-  on one side" ([[BPR-PENDING-AE]]). A line selected by the
+  on one side" ([[BPR-1724]]). A line selected by the
   right-click is not refused for a draft still on its way. An item that cannot apply is unavailable, and a
   row under the items says why in a few words ("This file's base is not
   GitHub's", "Base lines need a changed region", "Suggest change: head side

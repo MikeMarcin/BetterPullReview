@@ -11800,7 +11800,7 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-PENDING-AE]]. The four line gestures BPR-1721 left as
+	/// \brief [[BPR-1724]]. The four line gestures BPR-1721 left as
 	/// follow-ups, each driven through the window as the platform hands it
 	/// over, with the event loop turning between events.
 	/// \details A 30-line file whose line 6 changed (GitHub's hunk on the
@@ -12056,7 +12056,7 @@ namespace {
 		}
 	};
 
-	/// \brief [[BPR-PENDING-AE]] gap 1. The one-pane comparison has the code's
+	/// \brief [[BPR-1724]] gap 1. The one-pane comparison has the code's
 	/// menu, as split view does, for the line each row shows: a head line, or
 	/// the base line a removed row shows. It had no menu at all.
 	void test_one_pane_has_the_code_menu()
@@ -12118,7 +12118,7 @@ namespace {
 		line_gesture_course::close(menu);
 	}
 
-	/// \brief [[BPR-PENDING-AE]] gap 2. Line numbers select lines as GitHub's
+	/// \brief [[BPR-1724]] gap 2. Line numbers select lines as GitHub's
 	/// do: a click selects its line, a Shift-click extends the selection to
 	/// it and a drag over them selects the lines it crosses. The "+" in its
 	/// column at the number and code boundary still adds a comment, and a
@@ -12179,7 +12179,7 @@ namespace {
 		expect(course.ranged(10U, 10U), "a click there is the \"+\": a draft on line 11 alone, not a selection by number");
 	}
 
-	/// \brief [[BPR-PENDING-AE]] gap 3. A drag whose pointer ends on an empty
+	/// \brief [[BPR-1724]] gap 3. A drag whose pointer ends on an empty
 	/// line takes that line. The selection then ends at its start, and the
 	/// range stopped at the line above.
 	void test_a_drag_onto_an_empty_line_takes_it()
@@ -12206,7 +12206,7 @@ namespace {
 		}
 	}
 
-	/// \brief [[BPR-PENDING-AE]] gap 4. Comment (Option-C) on several
+	/// \brief [[BPR-1724]] gap 4. Comment (Option-C) on several
 	/// selected lines starts one draft on all of them, as Return and Add
 	/// comment do; it opened the selected line's own draft.
 	void test_comment_takes_the_selected_lines()
