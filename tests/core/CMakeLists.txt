@@ -877,6 +877,12 @@ bpr_enable_hardening(test_review_tour_update)
 bpr_enable_warnings(test_review_tour_update)
 bpr_add_network_isolated_test(NAME core_review_tour_update COMMAND test_review_tour_update)
 
+bpr_add_executable(test_commit_filter commit_filter_tests.cpp)
+target_link_libraries(test_commit_filter PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_commit_filter)
+bpr_enable_warnings(test_commit_filter)
+bpr_add_network_isolated_test(NAME core_commit_filter COMMAND test_commit_filter)
+
 bpr_add_executable(test_review_preparation review_preparation_tests.cpp)
 target_link_libraries(test_review_preparation PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_preparation)
