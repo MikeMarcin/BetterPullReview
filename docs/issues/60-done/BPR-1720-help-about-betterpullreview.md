@@ -102,3 +102,50 @@ Qt 6.12.0, offscreen:
 Not verified here: the order of About BetterPullReview and Check for Updates…
 in the native macOS application menu, which needs the cocoa platform on the
 owner's desktop; implementers do not drive it.
+
+## Owner amendment, 2026-10-21
+
+Relayed by the coordinator: the owner confirmed that
+https://betterpullreview.com/ is the product's live website and asked for it
+on the About page, in this order: **betterpullreview.com** first, **Source
+code** next to it, then **Made by Game Core Tech** with gamecoretech.com.
+
+- **Core.** `reference_page` gains `product_site`
+  (`betterpullreview.com`, `/`), admitted only with a browser like the
+  others; `core_markdown_navigation` checks its host, path and the
+  no-browser answer.
+- **Qt.** The page's link row is betterpullreview.com, then Source code;
+  under it "Made by Game Core Tech", with gamecoretech.com centred under the
+  credit. Tab goes betterpullreview.com, Source code, gamecoretech.com, Copy
+  version info, Third-party notices, Corresponding source, Close. The new
+  link is named, has a tooltip, takes the window's focus ring and the
+  lightened link ink. The workbench window's reference-page switch names the
+  site so it stays whole.
+- **Docs.** The workbench specification's About section states the order,
+  the three page names and the Tab order.
+
+Verification, lean dev build (`-O0 -g0`, the main checkout's CPM cache),
+macOS arm64, Qt 6.12.0, offscreen:
+
+- `ctest -R '^(core_markdown_navigation|qt_about_window_scale_(100|200)|application_about_composition|architecture_boundaries|architecture_boundary_contract|command_correctness_registry_contract)$'`
+  passed. `qt_about_window` places betterpullreview.com left of Source code on
+  one line, the credit under them and gamecoretech.com under the credit;
+  checks each link's name, status line and 4.5:1 ink in Light, Dark and both
+  High Contrast themes at 1x and 2x; and checks the Tab order.
+  `application_about_composition` sends the composed page's three links to the
+  tests-only platform launch as exactly `https://betterpullreview.com/`,
+  `https://github.com/MikeMarcin/BetterPullReview` and
+  `https://gamecoretech.com/`, in that order.
+- Failing-before controls: with Source code placed before
+  betterpullreview.com, "betterpullreview.com comes first, with Source code
+  beside it" fails; with gamecoretech.com before Source code in the Tab chain,
+  the Tab case fails.
+- `coding-format-check` (clang-format 22.1.8), clang-tidy with warnings as
+  errors on the changed units, `verify_documentation.py` and
+  `verify_documentation_tests.py` pass. `src/app` is unchanged and the
+  round-trip contract's and command-correctness registry's pins check
+  unchanged, so nothing was resealed. The round-trip course itself needs the
+  application executable, which this lean tree did not build.
+
+Owner look, 2026-10-21: Accept (in chat), including the betterpullreview.com
+link amendment. Relayed by the coordinator; no new renders were requested.

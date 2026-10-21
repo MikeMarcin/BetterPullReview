@@ -14,6 +14,8 @@ namespace bpr::core {
 			return reference_page_destination{ .Hostname = "gamecoretech.com", .Path = "/" };
 		case reference_page::source_repository:
 			return reference_page_destination{ .Hostname = "github.com", .Path = "/MikeMarcin/BetterPullReview" };
+		case reference_page::product_site:
+			return reference_page_destination{ .Hostname = "betterpullreview.com", .Path = "/" };
 		}
 		return std::unexpected(markdown_link_result::refused);
 	}

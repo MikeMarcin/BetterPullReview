@@ -166,12 +166,25 @@ namespace {
 		auto page    = qt::about_window{ released_facts(), backend.actions() };
 		page.show();
 		settle();
+		auto* const product = page.page_button(core::reference_page::product_site);
 		auto* const maker   = page.page_button(core::reference_page::game_core_tech);
 		auto* const source  = page.page_button(core::reference_page::source_repository);
 		auto* const notices = page.document_button(qt::about_document::third_party_notices);
 		auto* const offer   = page.document_button(qt::about_document::source_offer);
+		expect(product != nullptr && product->text() == QStringLiteral("betterpullreview.com") && product->isVisible(), "the product's site is shown");
 		expect(maker != nullptr && maker->text() == QStringLiteral("gamecoretech.com") && maker->isVisible(), "the maker's link is shown");
 		expect(source != nullptr && source->text() == QStringLiteral("Source code") && source->isVisible(), "the source link is shown");
+		{
+			// Owner amendment, 2026-10-21: betterpullreview.com first, Source
+			// code beside it, then "Made by Game Core Tech" with its site.
+			const auto  at       = [&page](const QWidget* const aWidget) { return aWidget->mapTo(&page, QPoint{ 0, 0 }); };
+			auto* const credit   = page.findChild<QLabel*>(QStringLiteral("aboutMaker"));
+			const auto  sameLine = at(product).y() == at(source).y();
+			expect(sameLine && at(product).x() + product->width() <= at(source).x(), "betterpullreview.com comes first, with Source code beside it");
+			expect(credit != nullptr && credit->text() == QStringLiteral("Made by Game Core Tech") && at(credit).y() >= at(source).y() + source->height(),
+				   "Made by Game Core Tech comes under them");
+			expect(credit != nullptr && at(maker).y() >= at(credit).y() + credit->height(), "with gamecoretech.com under the credit");
+		}
 		expect(page.page_button(core::reference_page::conventional_comments) == nullptr, "and no other page has a button");
 		expect(notices != nullptr && notices->text() == QStringLiteral("Third-party notices") && notices->isVisible(), "a release shows its third-party notices");
 		expect(offer != nullptr && offer->text() == QStringLiteral("Corresponding source") && offer->isVisible(), "and its corresponding-source offer");
@@ -181,12 +194,13 @@ namespace {
 		const auto copyright = page.findChild<QLabel*>(QStringLiteral("aboutCopyright"));
 		expect(copyright != nullptr && copyright->text() == QStringLiteral("© 2026 BetterPullReview contributors. Released under the MIT License."), "and the copyright and the project's licence");
 
-		maker->click();
+		product->click();
 		source->click();
+		maker->click();
 		notices->click();
 		offer->click();
 		settle();
-		expect(backend.Pages == std::vector<core::reference_page>{ core::reference_page::game_core_tech, core::reference_page::source_repository },
+		expect(backend.Pages == std::vector<core::reference_page>{ core::reference_page::product_site, core::reference_page::source_repository, core::reference_page::game_core_tech },
 			   "each link names its page to the host, once, in order");
 		expect(backend.Documents == std::vector<qt::about_document>{ qt::about_document::third_party_notices, qt::about_document::source_offer },
 			   "and each document button names its document");
@@ -202,6 +216,9 @@ namespace {
 		maker->click();
 		settle();
 		expect(page.status_label()->text() == QStringLiteral("There is no browser to open gamecoretech.com with."), "no browser is said as such");
+		product->click();
+		settle();
+		expect(page.status_label()->text() == QStringLiteral("There is no browser to open betterpullreview.com with."), "and names the product's site for its link");
 		backend.DocumentResult = false;
 		notices->click();
 		settle();
@@ -245,14 +262,14 @@ namespace {
 		settle(80);
 		expect(QApplication::focusWidget() == page->close_button(), "Close has the keyboard when the page opens");
 		expect(page->close_button()->isDefault(), "and Return closes");
-		const auto order   = std::vector<QWidget*>{ page->page_button(core::reference_page::game_core_tech), page->page_button(core::reference_page::source_repository), page->copy_button(),
+		const auto order   = std::vector<QWidget*>{ page->page_button(core::reference_page::product_site), page->page_button(core::reference_page::source_repository), page->page_button(core::reference_page::game_core_tech), page->copy_button(),
 													page->document_button(qt::about_document::third_party_notices), page->document_button(qt::about_document::source_offer), page->close_button() };
 		auto       reached = std::vector<QWidget*>{ };
 		for (std::size_t step = 0; step < order.size(); ++step) {
 			press(QApplication::focusWidget() != nullptr ? QApplication::focusWidget() : page, Qt::Key_Tab);
 			reached.push_back(QApplication::focusWidget());
 		}
-		expect(reached == order, "Tab goes from Close to the maker's link, the source link, Copy version info, the notices, the corresponding source and back to Close");
+		expect(reached == order, "Tab goes from Close to betterpullreview.com, the source link, the maker's link, Copy version info, the notices, the corresponding source and back to Close");
 		for (auto* const control : order) {
 			expect((control->focusPolicy() & Qt::TabFocus) != 0, "every control takes Tab");
 			expect(!control->accessibleName().isEmpty() || !static_cast<QAbstractButton*>(control)->text().isEmpty(), "and has a name");
@@ -375,7 +392,7 @@ namespace {
 				   subject.Name + ": the page takes its window's theme");
 			expect(ratio(page.version_label()->palette().color(QPalette::Active, page.version_label()->foregroundRole()), ground) >= 4.5, subject.Name + ": the version reads at 4.5:1");
 			expect(ratio(page.build_label()->palette().color(QPalette::Active, page.build_label()->foregroundRole()), ground) >= 3.0, subject.Name + ": the build line reads at 3:1 or more");
-			for (auto* const link : { page.page_button(core::reference_page::game_core_tech), page.page_button(core::reference_page::source_repository),
+			for (auto* const link : { page.page_button(core::reference_page::product_site), page.page_button(core::reference_page::source_repository), page.page_button(core::reference_page::game_core_tech),
 									  page.document_button(qt::about_document::third_party_notices) }) {
 				expect(ratio(link->palette().color(QPalette::Active, QPalette::ButtonText), ground) >= 4.5, subject.Name + ": a link reads at 4.5:1");
 			}

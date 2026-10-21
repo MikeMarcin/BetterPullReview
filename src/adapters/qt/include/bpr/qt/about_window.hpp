@@ -88,7 +88,8 @@ namespace bpr::qt {
 	/// \brief [[BPR-1720]]. Help › About BetterPullReview.
 	///
 	/// \details Game Core Tech's logo, the application's name, version and
-	/// build, the maker and source links, Copy version info, and the
+	/// build, Copy version info, the application's site and source links,
+	/// the maker and its site, and the
 	/// licence: the copyright, Qt's LGPL terms, and the installed third-party
 	/// notices and corresponding-source offer. Presentation only: the links
 	/// and documents go to the host through `about_actions`, and the one thing
@@ -139,6 +140,7 @@ namespace bpr::qt {
 		QLabel*              Version         = nullptr;
 		QLabel*              Build           = nullptr;
 		QPushButton*         Copy            = nullptr;
+		QAbstractButton*     Product         = nullptr;
 		QAbstractButton*     Maker           = nullptr;
 		QAbstractButton*     Source          = nullptr;
 		QAbstractButton*     Notices         = nullptr;

@@ -13390,6 +13390,7 @@ namespace bpr::qt {
 		// the switch stays whole.
 		case core::reference_page::game_core_tech:    page = QStringLiteral("gamecoretech.com"); break;
 		case core::reference_page::source_repository: page = QStringLiteral("github.com/MikeMarcin/BetterPullReview"); break;
+		case core::reference_page::product_site:      page = QStringLiteral("betterpullreview.com"); break;
 		}
 		QString message;
 		switch (result) {

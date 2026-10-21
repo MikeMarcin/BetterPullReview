@@ -2236,11 +2236,14 @@ maker's mark. From the top:
   `Configuration:`, `Qt:` (the runtime's) and `System:` (product and
   architecture). The button reads "Copied" for two seconds without changing
   width, and assistive technology hears "Version info copied".
-- **Made by Game Core Tech**, then two links: **gamecoretech.com** and
-  **Source code** (github.com/MikeMarcin/BetterPullReview). They are the core's
-  named reference pages `game_core_tech` and `source_repository`, opened
-  through the system browser opener as every reference page is; the page holds
-  no address.
+- The application's own two links side by side: **betterpullreview.com**,
+  the product's site, first, then **Source code**
+  (github.com/MikeMarcin/BetterPullReview). Under them **Made by Game Core
+  Tech**, with **gamecoretech.com** under the credit (owner amendment,
+  2026-10-21, once betterpullreview.com was live). The three are the core's
+  named reference pages `product_site`, `source_repository` and
+  `game_core_tech`, opened through the system browser opener as every
+  reference page is; the page holds no address.
 - After a rule, the terms: "© 2026 BetterPullReview contributors. Released
   under the MIT License." and "Qt 6.12.0 is used under the GNU LGPL version 3;
   you may replace it.", with the running Qt's version. Then
@@ -2262,9 +2265,9 @@ address yourself.", "There is no browser to open gamecoretech.com with.", or
 when a link next opens.
 
 Close has the keyboard when the page opens, and Return closes. Tab goes to
-gamecoretech.com, Source code, Copy version info, Third-party notices,
-Corresponding source and back to Close, each with the window's focus ring;
-Space activates the focused one. Every control has an accessible name and the
+betterpullreview.com, Source code, gamecoretech.com, Copy version info,
+Third-party notices, Corresponding source and back to Close, each with the
+window's focus ring; Space activates the focused one. Every control has an accessible name and the
 logo is named "Game Core Tech logo". Secondary lines use the theme's
 placeholder text, and links its link colour, lightened where needed to read at
 4.5:1. The column's width comes from the font, so the page is alike at every

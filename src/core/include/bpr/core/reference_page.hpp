@@ -16,12 +16,14 @@ namespace bpr::core {
 	/// label chip's menu and Settings › Comments › Labels both
 	/// name `conventional_comments`, for reviewers who do not know where the
 	/// twelve labels and their decorations come from (owner, 2026-10-16).
-	/// [[BPR-1720]] adds the two pages Help › About links to: the
-	/// maker's site and the application's own source repository.
+	/// [[BPR-1720]] adds the pages Help › About links to: the
+	/// application's own site, its source repository and the maker's site
+	/// (`product_site` by owner amendment, 2026-10-21).
 	enum class reference_page : std::uint8_t {
 		conventional_comments,
 		game_core_tech,
 		source_repository,
+		product_site,
 	};
 
 	/// \brief [[BPR-1566]]. The admitted parts of one reference page's address.

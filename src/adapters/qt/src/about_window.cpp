@@ -91,6 +91,7 @@ namespace bpr::qt {
 			case core::reference_page::conventional_comments: return QStringLiteral("conventionalcomments.org");
 			case core::reference_page::game_core_tech:        return QStringLiteral("gamecoretech.com");
 			case core::reference_page::source_repository:     return QStringLiteral("github.com/MikeMarcin/BetterPullReview");
+			case core::reference_page::product_site:          return QStringLiteral("betterpullreview.com");
 			}
 			return { };
 		}
@@ -210,19 +211,27 @@ namespace bpr::qt {
 		connect(Copy, &QPushButton::clicked, this, [this] { copy_version_report(); });
 		layout->addSpacing(em + em / 2);
 
-		MakerLine = centred_label(QStringLiteral("Made by Game Core Tech"), this, QStringLiteral("aboutMaker"));
-		layout->addWidget(MakerLine);
+		// The application's own two links side by side, its site first; then
+		// who makes it, with the maker's site under the credit (owner
+		// amendment, 2026-10-21).
 		auto* const links = new QHBoxLayout{ };
 		links->setSpacing(em / 2);
 		links->addStretch(1);
-		Maker  = link_button(QStringLiteral("gamecoretech.com"), QStringLiteral("Opens gamecoretech.com in your browser."), this, QStringLiteral("aboutMakerLink"));
-		Source = link_button(QStringLiteral("Source code"), QStringLiteral("Opens github.com/MikeMarcin/BetterPullReview in your browser."), this, QStringLiteral("aboutSourceLink"));
-		links->addWidget(Maker);
+		Product = link_button(QStringLiteral("betterpullreview.com"), QStringLiteral("Opens betterpullreview.com in your browser."), this, QStringLiteral("aboutProductLink"));
+		Source  = link_button(QStringLiteral("Source code"), QStringLiteral("Opens github.com/MikeMarcin/BetterPullReview in your browser."), this, QStringLiteral("aboutSourceLink"));
+		links->addWidget(Product);
 		links->addWidget(Source);
 		links->addStretch(1);
 		layout->addLayout(links);
-		connect(Maker, &QAbstractButton::clicked, this, [this] { open_page(core::reference_page::game_core_tech); });
+		connect(Product, &QAbstractButton::clicked, this, [this] { open_page(core::reference_page::product_site); });
 		connect(Source, &QAbstractButton::clicked, this, [this] { open_page(core::reference_page::source_repository); });
+		layout->addSpacing(em);
+
+		MakerLine = centred_label(QStringLiteral("Made by Game Core Tech"), this, QStringLiteral("aboutMaker"));
+		layout->addWidget(MakerLine);
+		Maker = link_button(QStringLiteral("gamecoretech.com"), QStringLiteral("Opens gamecoretech.com in your browser."), this, QStringLiteral("aboutMakerLink"));
+		layout->addWidget(Maker, 0, Qt::AlignHCenter);
+		connect(Maker, &QAbstractButton::clicked, this, [this] { open_page(core::reference_page::game_core_tech); });
 		layout->addSpacing(em);
 
 		// The rule divides who made it from the terms it comes under.
@@ -281,8 +290,9 @@ namespace bpr::qt {
 		layout->addSpacing(em / 2);
 		layout->addWidget(buttons);
 
-		setTabOrder(Maker, Source);
-		setTabOrder(Source, Copy);
+		setTabOrder(Product, Source);
+		setTabOrder(Source, Maker);
+		setTabOrder(Maker, Copy);
 		setTabOrder(Copy, Notices);
 		setTabOrder(Notices, Offer);
 		setTabOrder(Offer, Close);
@@ -328,6 +338,7 @@ namespace bpr::qt {
 		switch (aPage) {
 		case core::reference_page::game_core_tech:        return Maker;
 		case core::reference_page::source_repository:     return Source;
+		case core::reference_page::product_site:          return Product;
 		case core::reference_page::conventional_comments: break;
 		}
 		return nullptr;
@@ -425,7 +436,7 @@ namespace bpr::qt {
 
 	void about_window::apply_link_ink()
 	{
-		for (auto* const button : { Maker, Source, Notices, Offer }) {
+		for (auto* const button : { Product, Source, Maker, Notices, Offer }) {
 			auto ink = button->palette();
 			ink.setColor(QPalette::ButtonText, readable_link_colour(palette()));
 			button->setPalette(ink);

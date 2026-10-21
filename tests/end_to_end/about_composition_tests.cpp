@@ -115,12 +115,13 @@ namespace {
 		expect(page->facts().Version == QStringLiteral(BPR_TEST_PROJECT_VERSION), "with this build's facts");
 		// A tests-enabled build tree installs no documents beside its executables.
 		expect(page->documents_absent_label()->isVisible(), "and, built from source, no installed documents");
+		page->page_button(core::reference_page::product_site)->click();
 		page->page_button(core::reference_page::source_repository)->click();
 		page->page_button(core::reference_page::game_core_tech)->click();
 		static_cast<void>(app::detail::substitute_browser_launch(previous));
 		Launched = nullptr;
-		expect(launched == std::vector<QString>{ QStringLiteral("https://github.com/MikeMarcin/BetterPullReview"), QStringLiteral("https://gamecoretech.com/") },
-			   "Source code and gamecoretech.com reach the platform launch with exactly their admitted addresses, once each");
+		expect(launched == std::vector<QString>{ QStringLiteral("https://betterpullreview.com/"), QStringLiteral("https://github.com/MikeMarcin/BetterPullReview"), QStringLiteral("https://gamecoretech.com/") },
+			   "betterpullreview.com, Source code and gamecoretech.com reach the platform launch with exactly their admitted addresses, once each");
 		expect(page->status_label()->isHidden(), "and the page says nothing when each opened");
 		page->hide();
 	}
