@@ -61,7 +61,9 @@ namespace bpr::application {
 					Persist(*persisted);
 				}
 			}
-			if (aOutput.Load) {
+			// Projection or persistence feedback can supersede this decision.
+			// Only the load still pending in the core may reach the view port.
+			if (!Closed && aOutput.Load && State.Pending == aOutput.Load) {
 				++Loads;
 				Views.load(*aOutput.Load);
 			}

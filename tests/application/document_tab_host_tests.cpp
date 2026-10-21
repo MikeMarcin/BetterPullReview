@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -57,14 +58,28 @@ namespace {
 	/// \brief Records every load the host asks for; answers only when told.
 	struct views final : document_tab_view_port
 	{
-		std::vector<core::document_tab_view_request> Loads;
-		void                                         load(const core::document_tab_view_request& aRequest) override { Loads.push_back(aRequest); }
+		std::vector<core::document_tab_view_request>                Loads;
+		std::function<void(const core::document_tab_view_request&)> OnLoad;
+		void                                                        load(const core::document_tab_view_request& aRequest) override
+		{
+			Loads.push_back(aRequest);
+			if (OnLoad) {
+				OnLoad(aRequest);
+			}
+		}
 	};
 
 	struct projections final : document_tabs_projection_port
 	{
 		std::vector<document_tabs_projection> Published;
-		void                                  publish(const document_tabs_projection& aProjection) override { Published.push_back(aProjection); }
+		std::function<void()>                 OnPublish;
+		void                                  publish(const document_tabs_projection& aProjection) override
+		{
+			Published.push_back(aProjection);
+			if (OnPublish) {
+				OnPublish();
+			}
+		}
 	};
 
 	struct fixture
@@ -73,7 +88,13 @@ namespace {
 		views                                 Views;
 		projections                           Output;
 		std::vector<core::window_review_tabs> Persisted;
-		document_tab_host                     Host{ Lane, Views, Output, [this](const core::window_review_tabs& aTabs) { Persisted.push_back(aTabs); } };
+		std::function<void()>                 OnPersist;
+		document_tab_host                     Host{ Lane, Views, Output, [this](const core::window_review_tabs& aTabs) {
+								   Persisted.push_back(aTabs);
+								   if (OnPersist) {
+									   OnPersist();
+								   }
+							   } };
 
 		void open_window(const core::comparison_pair& aPair)
 		{
@@ -230,6 +251,76 @@ namespace {
 		expect(f.Persisted.back().Tabs[0].Selection == line(1, 9), "shutdown refuses later lane readings");
 	}
 
+	void test_reentrant_feedback_never_loads_a_superseded_request()
+	{
+		for (const bool fromProjection : { true, false }) {
+			fixture f;
+			f.open_window(pair(1, 2));
+			bool       superseded = false;
+			const auto refresh    = [&] {
+				if (!superseded && f.Host.state().Pending) {
+					superseded = true;
+					f.Host.refresh();
+				}
+			};
+			if (fromProjection) {
+				f.Output.OnPublish = refresh;
+			} else {
+				f.OnPersist = refresh;
+			}
+			f.Host.apply(core::open_in_active_tab_intent{ file(1) });
+			expect(superseded && f.Host.state().Pending, "feedback accepts a newer load before view dispatch");
+			expect(f.Views.Loads.size() == 1U && f.Views.Loads.back() == *f.Host.state().Pending,
+				   "reentrant feedback dispatches only the current load, never the superseded view");
+		}
+	}
+
+	void test_reentrant_refresh_preserves_a_newer_displayed_reading()
+	{
+		fixture f;
+		f.open_window(pair(1, 2));
+		auto displayed = line(1, 0);
+		f.Views.OnLoad = [&](const core::document_tab_view_request& aRequest) {
+			expect(aRequest.View.Comparison == pair(1, 2) && aRequest.View.File == file(1),
+				   "both loads name the same exact file and comparison");
+			displayed = aRequest.View.Selection.value_or(line(1, 0));
+		};
+		bool refreshed     = false;
+		f.Output.OnPublish = [&] {
+			if (!refreshed && f.Host.state().Pending) {
+				refreshed = true;
+				f.Host.refresh();
+				// The newer load has reached the view and the reviewer chooses
+				// a line there before the outer delivery returns.
+				displayed = line(1, 1);
+			}
+		};
+		f.Host.apply(core::open_in_active_tab_intent{ file(1) });
+		expect(refreshed && displayed == line(1, 1),
+			   "a superseded load cannot reset the newer displayed line in the same file and pair");
+	}
+
+	void test_reentrant_retirement_starts_no_view_load()
+	{
+		for (const bool reset : { true, false }) {
+			fixture f;
+			f.open_window(pair(1, 2));
+			bool retired       = false;
+			f.Output.OnPublish = [&] {
+				if (!retired && f.Host.state().Pending) {
+					retired = true;
+					if (reset) {
+						f.Host.reset();
+					} else {
+						f.Host.shutdown();
+					}
+				}
+			};
+			f.Host.apply(core::open_in_active_tab_intent{ file(1) });
+			expect(retired && f.Views.Loads.empty(), "reentrant reset or shutdown retires the outbound view load");
+		}
+	}
+
 	void test_leaving_the_pull_request_retires_its_work()
 	{
 		fixture f;
@@ -261,6 +352,9 @@ auto main() -> int
 	test_two_views_of_one_file_through_refresh_and_restart();
 	test_refusals_are_published_and_change_nothing();
 	test_lane_reading_is_persisted_before_immediate_shutdown();
+	test_reentrant_refresh_preserves_a_newer_displayed_reading();
+	test_reentrant_feedback_never_loads_a_superseded_request();
+	test_reentrant_retirement_starts_no_view_load();
 	test_leaving_the_pull_request_retires_its_work();
 	std::cout << "All document tab host tests passed\n";
 	return 0;

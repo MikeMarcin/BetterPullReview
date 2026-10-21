@@ -242,3 +242,29 @@ This proves the controlled sharing defect and its repair. The original
 application readiness failure still needs the repaired composed course, and
 the separate Windows durable line-position failure remains open. No final
 qualification, signing or publication is claimed.
+
+## Fence reentrant outbound tab loads
+
+A deterministic host counterexample reproduces a newer displayed line being
+reset in the same file and exact comparison: projection feedback refreshes a
+pending load, the newer load reaches the view and the reviewer chooses line 1,
+then the outer delivery sends the superseded initial-position load afterward.
+Core stale-completion checks cannot undo an obsolete effect already sent to
+the view. Unchanged production host code fails the line-preservation assertion.
+
+The host now dispatches a load only while open and while that exact load is
+still the core's pending request. The core remains the policy authority; no
+command or completion rules change. Reentrant projection and persistence
+feedback, reset and shutdown cases pass. The same line-loss counterfactual
+fails with old host code and passes after the fence. The full host suite passes
+on macOS and Windows, with focused clang-format 22 and clang-tidy 22 checks.
+Fresh bounded ASan/UBSan maintenance and diagnostic fuzz courses each complete
+100,000 runs; they do not fuzz document tabs or qualify the whole application.
+
+The separate controlled desktop-effect barrier reached the public Quit/catalog
+save interval and preserved line 1 through queued tab settling and the original
+durable assertions. That case did not reproduce the Windows failure. Its child
+passed; the outer wrapper's wrong stdout-marker guard is retained separately
+and reconciled read-only against the marker in stderr, without rerunning it.
+The reentrant host defect is proven, but linkage to the original composed
+failure and final native qualification remain to be established.
