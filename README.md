@@ -93,6 +93,8 @@ operation and excludes shared updater and registry state.
 
 ## Development
 
+<img src="docs/images/dif.png" alt="Dif, the BetterPullReview mascot" width="64" align="right">
+
 Read [Contributing](CONTRIBUTING.md) and the
 [build prerequisites](docs/development/build-and-test.md#prerequisites), then run:
 
@@ -105,6 +107,10 @@ focused tests and coding checks. Architecture and implementation evidence live
 in the [documentation index](docs/README.md), [RFCs](docs/rfcs/README.md) and
 [issue board](docs/issues/README.md). Builds, tests and releases run locally or
 on the target platform; GitHub Actions is not used.
+
+Bug reports with reproducible cases, documentation fixes and pull requests are
+welcome. Development is supported through
+[GitHub Sponsors](https://github.com/sponsors/MikeMarcin).
 
 ## License and third-party notices
 
