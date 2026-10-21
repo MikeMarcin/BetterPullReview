@@ -4,15 +4,16 @@ title: "Filter a pull request's review by its commits and set generated files as
 status: "Proposed"
 area: "BPR"
 depends_on: ["RFC-BPR-0003", "RFC-BPR-0004", "RFC-BPR-0007", "RFC-BPR-0022", "RFC-BPR-0029"]
-metadata: {"origin": {"date": "2026-10-20", "channel": "owner chat, relayed by the coordinator"}, "revision": "r2 2026-10-21, owner direction: Commits tab with multi-select filters", "authoring": "author-rfc, design only; no source changed", "owner_questions": "Q1-Q4 open in attended session 63349fbf25e4b1e85a29c8dca65ef80a; r1 session eeb8d789ecf1824d5a6f7ec7779284c7 superseded"}
+metadata: {"origin": {"date": "2026-10-20", "channel": "owner chat, relayed by the coordinator"}, "revision": "r3 2026-10-21, owner answers Q1-Q4 recorded", "authoring": "author-rfc, design only; no source changed", "owner_questions": "Q1-Q4 answered 2026-10-21 in attended session 63349fbf25e4b1e85a29c8dca65ef80a (closed); r1 session eeb8d789ecf1824d5a6f7ec7779284c7 superseded"}
 ---
 
 # Filter a pull request's review by its commits and set generated files aside
 
-Proposed, revision r2. This document changes no code. Revision r1 proposed a
-separate "commit scope" comparison; the owner's direction below replaces it
-with commit filters. The owner answers Q1 to Q4 before implementation of the
-milestones they govern.
+Proposed, revision r3. This document changes no code. Revision r1 proposed a
+separate "commit scope" comparison; the owner's direction below replaced it
+with commit filters (r2). The owner answered r2's four questions on
+2026-10-21 (Owner questions), and r3 records those answers in the design. No
+owner question remains open.
 
 ## Problem and grounded current behavior
 
@@ -101,14 +102,15 @@ Status lives. Home, the personal review page that lists pull requests, has no
 Status pane and no single pull request's commits. "The same pane as status" is
 read as a second tab, `Commits`, in the Status drawer's existing tab row.
 
-The direction settles r1's Q8 (where commits appear and how they are operated).
-It also settles that commit selection is a filter over the review, not a
-separate comparison. The r1 questions on receipts (Q6), force push (Q7), the
-Generated group (Q3) and bulk commits (Q4) follow from the filter model and
-from existing contracts, so they are not asked again. Their rules appear below
-as proposals; the owner may still change any of them. r1's Q1 and Q2 are asked
-again in filter terms, as Q2 and Q1, and r1's Q5 as Q4. Clear all filters raises
-a new question, Q3.
+The direction settles r1's question on where commits appear and how they are
+operated. It also settles that commit selection is a filter over the review,
+not a separate comparison. r1's questions on receipts, force push, the
+Generated group and bulk commits follow from the filter model and from existing
+contracts, so they were not asked again. Their rules appear below as proposals;
+the owner may still change any of them. r1's questions on non-contiguous
+presentation, comment anchoring and Linguist rules were asked again in filter
+terms, and Clear all filters raised a new one. Those four (Q1 to Q4 below) were
+answered on 2026-10-21 (Owner questions).
 
 ## Proposed behavior and boundaries
 
@@ -134,7 +136,8 @@ way to act on a selection:
   and it is how "skip the regeneration" works when C3 also edits generated
   files.
 - **Clear all filters**: every commit is shown again and the file filters are
-  removed. Whether this also brings back generated files is Q3.
+  removed. Generated files stay hidden behind their own row, which is the only
+  way to show them (owner, Q3).
 - **Copy commit ID** and **Open on GitHub**.
 
 Filters combine. The commit filter is one set of shown commits, which every
@@ -190,13 +193,17 @@ latest shown commits in *T(P)*.
 - If no hidden commit in *T(P)* lies between *first* and *last*, P has **one
   exact diff**, from P at `parent(first)` to P at `last`. That diff is exactly
   the shown commits' change to P.
-- Otherwise P needs another presentation, which is **Q2**.
+- Otherwise P is **split** (owner, Q2). P keeps one row in the file tree. Under
+  it, P shows one exact diff per shown commit in *T(P)*, from P at `parent(c)`
+  to P at `c`, in chain order. Each hidden commit in *T(P)* that falls between
+  two of them is named in place ("C2 also changed this file; hidden"). Each
+  per-commit diff is its own material for receipts.
 
 Hide C2 in the owner's example. Every file C2 never touched is unchanged from
 `Whole PR`, with identical material, so its read state carries over. A
 generated file that C3 also edited is normally hidden anyway, as a generated
 file or by "Hide files these commits changed" on C2. A contiguous set of shown
-commits never needs Q2's presentation.
+commits never splits a file.
 
 ### Generated files are set aside
 
@@ -213,8 +220,11 @@ that says yes or no decides it:
    at most 512 KiB each, with the existing reader extended by one attribute.
    [RFC-BPR-0083](RFC-BPR-0083-git-metadata-readers.md) may replace that reader;
    the meaning of the attribute is unchanged either way.
-3. Only if Q4 is accepted: an attributed, pinned subset of GitHub Linguist's
-   built-in generated rules.
+
+Nothing else marks a file generated. The owner rejected porting GitHub
+Linguist's built-in generated rules (Q4), so lockfiles, minified files and
+similar files without the attribute stay normal until the reviewer chooses
+**Treat as generated** or hides them with a file filter.
 
 Generated files leave the filtered file set, as filtered-out files do. The file
 tree ends with one row, "N generated files hidden", showing their line totals.
@@ -243,11 +253,23 @@ there.
 
 A file's filtered diff can end before head (its right side is C1 when C3 is
 hidden), or start after the PR base. Publishing from such a diff amends
-RFC-BPR-0022's eligibility only for filtered diffs; the choice is **Q1**. Every
-existing admission, idempotency and reconciliation check still applies. Only
-the accepted target commit may widen, from "head" to "a commit of the accepted
-pull request on its first-parent chain". A diff whose right side is head is
-commented on exactly as today.
+RFC-BPR-0022's eligibility only for filtered diffs (owner, Q1). The core maps
+the selected right-side line from the diff's right endpoint to head through the
+existing correspondence mapping:
+
+- If the line is unchanged at head, the comment is published at head exactly as
+  today, so it is current on GitHub.
+- If it is not, the editor says so before Publish: the comment will be attached
+  to commit `<short OID>`, which GitHub may show as outdated. It is then
+  published with that `commit_id` and that commit's line.
+
+The left side of a filtered diff is `parent(first)`, not the PR base, so a
+left-side line follows the same rule mapped to the merge base, and otherwise
+takes RFC-BPR-0022's file comment with a permalink. Every existing admission,
+idempotency and reconciliation check still applies. Only the accepted target
+commit widens, from "head" to "a commit of the accepted pull request on its
+first-parent chain". A diff whose right side is head is commented on exactly as
+today.
 
 ### Force push and rebase
 
@@ -305,9 +327,10 @@ listed commits, and filtering by the base branch's commits.
 
 - How GitHub presents a review comment whose `commit_id` is an earlier commit
   and whose line later changed. Measure this on BPR-Test before M4 is claimed.
-- Which revision's `.gitattributes` GitHub's Files changed uses, and whether it
-  also collapses Linguist's built-in generated files. Measure on BPR-Test
-  before M2 claims parity.
+- Which revision's `.gitattributes` GitHub's Files changed uses. Measure on
+  BPR-Test before M2 claims parity. GitHub may also collapse files by
+  Linguist's built-in rules, which this application does not apply (Q4), so
+  parity is claimed only for files the attribute marks.
 - The cost of acquiring trees for long chains in large repositories, within the
   existing quarantine and 96 MiB/128-entry thresholds.
 
@@ -319,12 +342,11 @@ listed commits, and filtering by the base branch's commits.
    the truncated, merge, suspended and force-push states are shown. Comments
    stay head-only.
 2. **M2 Generated files and file filters.** Overrides, `linguist-generated`, the
-   bulk label, "Hide files these commits changed" and the generated row. The
-   Linguist rules are added if Q4 is accepted.
-3. **M3 Non-contiguous filters and rematch.** Q2's presentation and the rematch
+   bulk label, "Hide files these commits changed" and the generated row.
+3. **M3 Non-contiguous filters and rematch.** Split files and the rematch
    offers.
-4. **M4 Comments from filtered diffs.** Q1's rule and thread markers under
-   filters.
+4. **M4 Comments from filtered diffs.** The head-or-commit anchoring rule and
+   thread markers under filters.
 
 ## Acceptance
 
@@ -343,23 +365,27 @@ a fixture course.
   identical to `Whole PR`, including its read state. The filter chip is visible
   in Overview and in Review. Combining operations (Show only {C1, C3}, then
   Hide C3, then Show selected C3) yields the stated shown set at each step.
-- **AC03:** A file that hidden C2 changed between shown C1 and C3 is presented
-  as Q2 decides. No shown blob is absent from every commit of the chain
+- **AC03:** A file that hidden C2 changed between shown C1 and C3 keeps one row
+  and shows `git diff C1^:P C1:P` and `git diff C3^:P C3:P`, with C2 named
+  between them. No shown blob is absent from every commit of the chain
   (negative control: a synthesized tree fails the course).
 - **AC04:** With `linguist-generated` on C2's paths, `Whole PR` and every
   filter leave those paths out of the trees, Next file and remaining counts,
-  behind the generated row, unprepared. `-linguist-generated` returns a path to
-  normal. Review anyway, Show as normal and Treat as generated work and
-  persist. Without attributes, "Hide files these commits changed" on C2 hides
-  those paths in C3 as well. Nothing is hidden before a rule or gesture says
-  so.
+  behind the generated row, unprepared, and Clear all filters leaves them
+  there. `-linguist-generated` returns a path to normal. Review anyway, Show as
+  normal and Treat as generated work and persist. Without attributes, a
+  lockfile or minified file stays normal, and "Hide files these commits
+  changed" on C2 hides those paths in C3 as well. Nothing is hidden before a
+  rule or gesture says so.
 - **AC05:** GitHub's Viewed state is unchanged by any filter action.
 - **AC06:** After a force push that rewrites C3, the chip names the missing
   commit, and the same-change candidate is offered and applied only when the
   reviewer chooses it. File filters and identical-material receipts persist.
-- **AC07:** Comments from a filtered diff whose right side is not head follow
-  Q1, reconcile once and weaken no admission check (negative control: a commit
-  outside the pull request is refused before any write).
+- **AC07:** With C3 hidden, a line of C1's diff that is unchanged at head
+  publishes with `commit_id` = head at the mapped line. A line C3 changed
+  publishes, after the stated warning, with `commit_id` = C1. Both reconcile
+  once and weaken no admission check (negative control: a commit outside the
+  pull request is refused before any write).
 - **AC08:** The core decisions (shown-set operations, filter legality, each
   path's diff, generated precedence, comment target and rematch) run under
   `core-only` without Git or Qt. The architecture boundaries and documentation
@@ -375,23 +401,21 @@ host is stopped.
 
 Session `63349fbf25e4b1e85a29c8dca65ef80a` (external state
 `/Users/jaeger/.mask/attended-review/owner-review-20261021-commit-filters-v001`)
-asks one question per decision and was open when this revision was written. The
-authenticated URL is kept only in that external state.
+asked one question per decision, at candidate revision `rfc-bpr-0089-r2`. The
+owner answered all four and handed back on 2026-10-21 (event 21), with no
+notes. The session is closed and its host is stopped. The authenticated URL was
+kept only in that external state.
 
-- **Q1** Where a comment from a filtered diff whose right side is not head goes.
-  Choose one of three: head when the line is unchanged there, otherwise the
-  commit the diff ends at, after a warning (recommended); always the commit the
-  diff ends at; or head only, with a file comment and permalink when the line
-  is gone.
-- **Q2** How a file appears when a hidden commit changed it between two shown
-  commits. Choose one of three: split under the file into one exact diff per
-  shown commit, naming the hidden one (recommended); one diff from before the
-  first shown commit to the last, with the hidden commit's lines marked; or the
-  file is left out, with a row saying a hidden commit also changed it.
-- **Q3** What Clear all filters does to generated files. Choose one of two:
-  generated files stay hidden, with their own row to show them (recommended);
-  or Clear all filters also shows generated files.
-- **Q4** Accept or Reject: port an attributed subset of GitHub Linguist's
-  built-in generated rules (MIT) into the core as data. They cover lockfiles,
-  minified files, source maps, protoc output and first-line markers such as
-  `Code generated … DO NOT EDIT.`, and apply when no attribute decides.
+| Question | Owner answer (2026-10-21) | Decision | Where applied |
+|---|---|---|---|
+| **Q1** Where a comment goes from a filtered diff whose right side is not head | Selected "Head when the line is unchanged there, otherwise the diff's commit after a warning" | `fc3a97ef` | Comments and line anchoring; AC07 |
+| **Q2** How a file shows when a hidden commit changed it between two shown commits | Selected "Split into one exact diff per shown commit, naming the hidden one" | `504cfd1b` | Each file's diff is exact; AC03 |
+| **Q3** Whether Clear all filters also brings back generated files | Selected "Generated files stay hidden behind their own row" | `5c23bdc0` | The Commits tab; AC04 |
+| **Q4** Port a subset of GitHub Linguist's built-in generated rules into the core | Reject | `5e0cdb41` | Generated files are set aside; AC04 |
+
+The rejected alternatives were: for Q1, always the commit the diff ends at, or
+head only with a file comment; for Q2, one diff with the hidden commit's lines
+marked, or leaving the file out; for Q3, Clear all filters showing generated
+files. No owner question remains open. The rules described as proposals under
+Owner direction (receipts, force push, the generated row and the bulk label)
+stand unless the owner changes them.

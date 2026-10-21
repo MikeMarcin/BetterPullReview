@@ -655,6 +655,6 @@ qualification remains a separate obligation.
 Drafted 2026-10-20 from the owner's report of a change, its regeneration and
 follow-ups in separate commits. Revision r2 (2026-10-21) follows the owner's
 direction: a Commits tab beside Status whose multi-select context-menu filters
-drive the file tree and navigation. Design only; Q1 to Q4 are open owner
-questions in a fresh attended-review session recorded on the RFC, which
-supersedes the r1 session.
+drive the file tree and navigation. Revision r3 records the owner's answers to
+Q1 to Q4 (2026-10-21, session recorded on the RFC); no owner question remains
+open. Design only; nothing is implemented.
