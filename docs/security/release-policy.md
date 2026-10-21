@@ -76,7 +76,8 @@ evidence may be reused only with its original scope and identity.
   ASan and UBSan, no sanitizer recovery and frame pointers. The maintenance
   harness links `src/core/src/release_maintenance.cpp`; the diagnostic harness
   links `src/application/src/release_diagnostic_snapshot.cpp` and
-  `src/core/src/review_submission_unknown.cpp` and
+  `src/core/src/review_submission_unknown.cpp`,
+  `src/core/src/discovery_diagnosis.cpp` and
   `src/core/src/release_maintenance.cpp` (the diagnostic export option validator),
   with core/application include
   roots. Its digest uses the production SHA-256 composition from

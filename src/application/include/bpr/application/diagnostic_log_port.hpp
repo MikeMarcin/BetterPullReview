@@ -44,7 +44,9 @@ namespace bpr::application {
 													 epoch,
 													 review_comment,
 													 /// [[BPR-1540]]. A submitted review left unknown.
-													 review_submission };
+													 review_submission,
+													 /// [[BPR-1680]]. A Home discovery refresh or one of its reads.
+													 discovery };
 	enum class diagnostic_paged_operation : std::uint8_t {
 		none,
 		get_viewer_identity,

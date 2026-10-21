@@ -1,8 +1,10 @@
 #include "bpr/application/personal_discovery_host.hpp"
+#include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/git_objects.hpp"
 
 #include <algorithm>
 #include <deque>
+#include <limits>
 #include <optional>
 #include <set>
 #include <string>
@@ -59,6 +61,49 @@ namespace bpr::application {
 				return false;
 			}
 			return true;
+		}
+
+		/// [[BPR-1680]]. The diagnostics log's name for a read's failure.
+		[[nodiscard]] auto diagnostic_failure(const github_provider_failure aFailure) noexcept -> core::github_failure
+		{
+			switch (aFailure) {
+			case github_provider_failure::authentication:         return core::github_failure::authentication;
+			case github_provider_failure::permission:             return core::github_failure::permission;
+			case github_provider_failure::network:
+			case github_provider_failure::process_startup:
+			case github_provider_failure::unavailable:            return core::github_failure::network;
+			case github_provider_failure::api_version:            return core::github_failure::api_version;
+			case github_provider_failure::unsupported_capability: return core::github_failure::capability;
+			case github_provider_failure::rate_limit:             return core::github_failure::rate_limit;
+			case github_provider_failure::certificate:            return core::github_failure::certificate;
+			case github_provider_failure::redirect:               return core::github_failure::redirect;
+			case github_provider_failure::timeout:                return core::github_failure::timeout;
+			case github_provider_failure::cli_unavailable:        return core::github_failure::cli_unavailable;
+			case github_provider_failure::vault:                  return core::github_failure::vault;
+			case github_provider_failure::malformed_response:     return core::github_failure::malformed_response;
+			case github_provider_failure::response_limit:         return core::github_failure::response_too_large;
+			}
+			return core::github_failure::malformed_response;
+		}
+
+		[[nodiscard]] auto diagnosis_reason(const personal_discovery_reason aReason) noexcept -> core::discovery_diagnosis_reason
+		{
+			switch (aReason) {
+			case personal_discovery_reason::authored:  return core::discovery_diagnosis_reason::authored;
+			case personal_discovery_reason::requested: return core::discovery_diagnosis_reason::requested;
+			case personal_discovery_reason::retained:  return core::discovery_diagnosis_reason::retained;
+			}
+			return core::discovery_diagnosis_reason::none;
+		}
+
+		[[nodiscard]] auto saturated(const std::uint64_t aValue) noexcept -> std::uint32_t
+		{
+			return static_cast<std::uint32_t>(std::min<std::uint64_t>(aValue, std::numeric_limits<std::uint32_t>::max()));
+		}
+
+		[[nodiscard]] auto cost_of(const personal_discovery_completion& aCompletion) noexcept -> personal_discovery_cost
+		{
+			return std::visit([](const auto& aResult) { return aResult.Cost; }, aCompletion);
 		}
 
 		[[nodiscard]] auto problem_of(const github_provider_error& aError) noexcept -> queue_discovery_problem
@@ -130,14 +175,18 @@ namespace bpr::application {
 			/// [[BPR-1679]]. Cancelled to give way; asked again if that is
 			/// what answers it.
 			bool Preempted = false;
+			/// [[BPR-1680]]. The read's number within its refresh, from 1.
+			std::uint32_t Read = 0U;
 		};
 
 		implementation(personal_discovery_port& aProvider, decision_executor& aDecisionLane,
-					   review_queue_application_host& aQueue, const personal_discovery_clock_port& aClock)
+					   review_queue_application_host& aQueue, const personal_discovery_clock_port& aClock,
+					   diagnostic_log_port* aLog)
 			: Provider{ aProvider }
 			, DecisionLane{ aDecisionLane }
 			, Queue{ aQueue }
 			, Clock{ aClock }
+			, Log{ aLog }
 		{
 			Status.State   = queue_discovery_state::unavailable;
 			Status.Problem = queue_discovery_problem::no_account;
@@ -148,8 +197,101 @@ namespace bpr::application {
 			Queue.present_discovery(Status);
 		}
 
+		/// [[BPR-1680]]. One `github.discovery` event. Logging never changes
+		/// what discovery does.
+		void record(const diagnostic_outcome aOutcome, const core::discovery_diagnosis& aDiagnosis,
+					const diagnostic_detail aDetail = diagnostic_detail::standard, const std::optional<github_provider_failure> aFailure = std::nullopt) noexcept
+		{
+			if (Log == nullptr) {
+				return;
+			}
+			try {
+				const auto text  = core::describe(aDiagnosis);
+				auto       event = diagnostic_event{ };
+				if (text.empty() || text.size() > event.Summary.Text.size()) {
+					return;
+				}
+				event.Operation = diagnostic_operation::discovery;
+				event.Outcome   = aOutcome;
+				event.Detail    = aDetail;
+				std::ranges::copy(text, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+				event.Summary.State = diagnostic_summary_state::sanitized;
+				if (aFailure) {
+					event.GithubFailure = diagnostic_failure(*aFailure);
+				}
+				static_cast<void>(Log->record(event));
+			} catch (...) {
+				// A diagnostic that cannot be formed is dropped.
+			}
+		}
+
+		[[nodiscard]] auto refresh_diagnosis(const core::discovery_diagnosis_state aState) const -> core::discovery_diagnosis
+		{
+			return core::discovery_diagnosis{
+				.Scope            = core::discovery_diagnosis_scope::refresh,
+				.Refresh          = saturated(Cycle),
+				.State            = aState,
+				.Repositories     = saturated(Searched.size()),
+				.PullRequests     = CycleRetained,
+				.Reads            = CycleReads,
+				.Failed           = CycleFailedReads,
+				.Requests         = CycleRequests,
+				.WaitMilliseconds = CycleWait,
+				.RunMilliseconds  = saturated(static_cast<std::uint64_t>(std::max<std::int64_t>(Clock.elapsed_milliseconds() - CycleStarted, 0))),
+			};
+		}
+
+		[[nodiscard]] static auto read_diagnosis(const job& aJob) -> core::discovery_diagnosis
+		{
+			return core::discovery_diagnosis{
+				.Scope        = core::discovery_diagnosis_scope::read,
+				.Refresh      = saturated(aJob.Cycle),
+				.Read         = aJob.Read,
+				.Reason       = diagnosis_reason(aJob.Request.Reason),
+				.Repositories = 1U,
+				.PullRequests = aJob.Request.Number ? 1U : 0U,
+			};
+		}
+
+		/// [[BPR-1680]]. A read's end, with what it says it cost.
+		void record_read(const job& aJob, const personal_discovery_completion& aCompletion)
+		{
+			const auto cost            = cost_of(aCompletion);
+			auto       diagnosis       = read_diagnosis(aJob);
+			diagnosis.Requests         = cost.Requests;
+			diagnosis.WaitMilliseconds = cost.WaitMilliseconds;
+			diagnosis.RunMilliseconds  = cost.RunMilliseconds;
+			Statistics.Requests += cost.Requests;
+			const auto* const error = std::get_if<personal_discovery_error>(&aCompletion);
+			if (current(aJob)) {
+				CycleRequests = saturated(std::uint64_t{ CycleRequests } + cost.Requests);
+				CycleWait     = saturated(std::uint64_t{ CycleWait } + cost.WaitMilliseconds);
+				CycleFailedReads += error != nullptr ? 1U : 0U;
+			}
+			const auto outcome = error != nullptr ? diagnostic_outcome::failed
+				: std::holds_alternative<personal_discovery_cancelled>(aCompletion)
+				? diagnostic_outcome::cancelled
+				: diagnostic_outcome::succeeded;
+			record(outcome, diagnosis, diagnostic_detail::standard, error != nullptr ? std::optional{ error->Error.Failure } : std::nullopt);
+		}
+
+		[[nodiscard]] auto ended_state() const noexcept -> core::discovery_diagnosis_state
+		{
+			if (CycleStopped) {
+				return core::discovery_diagnosis_state::stopped;
+			}
+			if (CycleFailed) {
+				return core::discovery_diagnosis_state::stale;
+			}
+			return CycleProblem == queue_discovery_problem::none ? core::discovery_diagnosis_state::current : core::discovery_diagnosis_state::partial;
+		}
+
 		void cancel_all()
 		{
+			if (CycleRunning) {
+				record(diagnostic_outcome::cancelled, refresh_diagnosis(core::discovery_diagnosis_state::cancelled));
+			}
 			Queued.clear();
 			CycleRunning = false;
 			for (const auto& active : Active) {
@@ -350,11 +492,17 @@ namespace bpr::application {
 			}
 			++Cycle;
 			++Statistics.Refreshes;
-			CycleRunning   = true;
-			CycleFailed    = false;
-			CycleStopped   = false;
-			MetadataFailed = false;
-			Searching      = false;
+			CycleRunning     = true;
+			CycleFailed      = false;
+			CycleStopped     = false;
+			MetadataFailed   = false;
+			Searching        = false;
+			CycleStarted     = Clock.elapsed_milliseconds();
+			CycleRetained    = saturated(std::min(items.size(), maximum_personal_discovery_retained));
+			CycleReads       = 0U;
+			CycleFailedReads = 0U;
+			CycleRequests    = 0U;
+			CycleWait        = 0U;
 			ClosedThisCycle.clear();
 			CycleProblem = queue_discovery_problem::none;
 			for (std::size_t index = 0U; index < items.size(); ++index) {
@@ -369,6 +517,7 @@ namespace bpr::application {
 			Status.State        = queue_discovery_state::refreshing;
 			Status.Problem      = queue_discovery_problem::none;
 			Status.Repositories = static_cast<std::uint32_t>(repositories.size());
+			record(diagnostic_outcome::started, refresh_diagnosis(core::discovery_diagnosis_state::none));
 			publish();
 			pump();
 		}
@@ -413,6 +562,8 @@ namespace bpr::application {
 					continue;
 				}
 				next.Request.FactRevision = Queue.begin_observation();
+				next.Read                 = ++CycleReads;
+				record(diagnostic_outcome::started, read_diagnosis(next), diagnostic_detail::verbose);
 				Active.push_back(next);
 				++Statistics.Submitted;
 				Statistics.MaximumInFlight = std::max<std::uint64_t>(Statistics.MaximumInFlight, Active.size());
@@ -481,6 +632,7 @@ namespace bpr::application {
 			if (Closing) {
 				return;
 			}
+			record_read(finished, aCompletion);
 			// A repository forgotten while its read was in flight publishes
 			// nothing: the reviewer has said it is not theirs to watch.
 			const auto saved = Session ? partition() : std::vector<std::string>{ };
@@ -623,6 +775,7 @@ namespace bpr::application {
 				Status.Problem = queue_discovery_problem::no_saved_repository;
 			}
 			publish();
+			record(CycleStopped ? diagnostic_outcome::failed : diagnostic_outcome::succeeded, refresh_diagnosis(ended_state()));
 			// A repository saved while this refresh ran is searched now.
 			if (!backing_off(now) && unsearched(partition())) {
 				start_cycle();
@@ -642,6 +795,7 @@ namespace bpr::application {
 		decision_executor&                        DecisionLane;
 		review_queue_application_host&            Queue;
 		const personal_discovery_clock_port&      Clock;
+		diagnostic_log_port*                      Log = nullptr;
 		std::optional<personal_discovery_session> Session;
 		std::deque<job>                           Queued;
 		std::vector<std::string>                  Searched;
@@ -653,24 +807,32 @@ namespace bpr::application {
 		std::optional<std::int64_t>               BackoffUntil;
 		queue_discovery_status                    Status;
 		personal_discovery_statistics             Statistics;
-		queue_discovery_problem                   CycleProblem   = queue_discovery_problem::none;
-		std::uint64_t                             Generation     = 0U;
-		std::uint64_t                             Cycle          = 0U;
-		std::uint64_t                             NextRequest    = 1U;
-		bool                                      CycleRunning   = false;
-		bool                                      CycleFailed    = false;
-		bool                                      CycleStopped   = false;
-		bool                                      Searching      = false;
-		bool                                      MetadataFailed = false;
-		bool                                      Closing        = false;
-		bool                                      Yielding       = false;
+		queue_discovery_problem                   CycleProblem = queue_discovery_problem::none;
+		std::uint64_t                             Generation   = 0U;
+		std::uint64_t                             Cycle        = 0U;
+		std::uint64_t                             NextRequest  = 1U;
+		/// [[BPR-1680]]. The running refresh's diagnostic counts.
+		std::int64_t  CycleStarted     = 0;
+		std::uint32_t CycleRetained    = 0U;
+		std::uint32_t CycleReads       = 0U;
+		std::uint32_t CycleFailedReads = 0U;
+		std::uint32_t CycleRequests    = 0U;
+		std::uint32_t CycleWait        = 0U;
+		bool          CycleRunning     = false;
+		bool          CycleFailed      = false;
+		bool          CycleStopped     = false;
+		bool          Searching        = false;
+		bool          MetadataFailed   = false;
+		bool          Closing          = false;
+		bool          Yielding         = false;
 	};
 
 	personal_discovery_host::personal_discovery_host(personal_discovery_port&             aProvider,
 													 decision_executor&                   aDecisionLane,
 													 review_queue_application_host&       aQueue,
-													 const personal_discovery_clock_port& aClock)
-		: Implementation{ std::make_shared<implementation>(aProvider, aDecisionLane, aQueue, aClock) }
+													 const personal_discovery_clock_port& aClock,
+													 diagnostic_log_port*                 aLog)
+		: Implementation{ std::make_shared<implementation>(aProvider, aDecisionLane, aQueue, aClock, aLog) }
 	{ }
 
 	personal_discovery_host::~personal_discovery_host()

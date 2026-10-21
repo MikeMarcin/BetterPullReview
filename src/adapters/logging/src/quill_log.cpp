@@ -3,6 +3,7 @@
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
+#include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/github_model.hpp"
 #include "session_files.hpp"
 
@@ -417,7 +418,7 @@ namespace bpr::adapters::logging {
 			return identity;
 		}
 
-		constexpr std::array<std::string_view, 7>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission" };
+		constexpr std::array<std::string_view, 8>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery" };
 		constexpr std::array<std::string_view, 14> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline", "GetMergeBase" };
 		constexpr std::array<std::string_view, 6>  outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 		constexpr std::array<std::string_view, 5>  summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
@@ -525,6 +526,14 @@ namespace bpr::adapters::logging {
 			if (aEvent.ReviewSubmission
 				&& (!core::valid(*aEvent.ReviewSubmission) || aEvent.Operation != application::diagnostic_operation::review_submission || aEvent.GithubFailure.index() != 0U || aEvent.EpochFailure.index() != 0U
 					|| aEvent.Summary.text() != core::describe(*aEvent.ReviewSubmission))) {
+				State->drop();
+				return status_type::dropped;
+			}
+			// [[BPR-1680]]. A discovery line's detail is exactly a discovery
+			// diagnosis, so it can name no host, repository or account.
+			if (aEvent.Operation == application::diagnostic_operation::discovery
+				&& (aEvent.ReviewSubmission || aEvent.EpochFailure.index() != 0U || aEvent.Summary.State != application::diagnostic_summary_state::sanitized
+					|| !core::parse_discovery_diagnosis(aEvent.Summary.text()))) {
 				State->drop();
 				return status_type::dropped;
 			}

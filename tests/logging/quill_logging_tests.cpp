@@ -6,6 +6,7 @@
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
+#include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
@@ -267,6 +268,24 @@ try {
 			misplaced.Operation = application::diagnostic_operation::pull_request;
 			expect(log.record(misplaced) == status::dropped, "a reason rides only its own operation");
 		}
+		{
+			// [[BPR-1680]]. A Home discovery read's end: its counts and
+			// timings, and nothing else, reach the file.
+			const auto diagnosis = core::discovery_diagnosis{ .Scope = core::discovery_diagnosis_scope::read, .Refresh = 2U, .Read = 5U, .Reason = core::discovery_diagnosis_reason::requested, .Repositories = 1U, .Requests = 6U, .WaitMilliseconds = 40U, .RunMilliseconds = 3900U };
+			auto       event     = application::diagnostic_event{ .Operation = application::diagnostic_operation::discovery, .Outcome = application::diagnostic_outcome::failed, .GithubFailure = core::github_failure::permission };
+			const auto text      = core::describe(diagnosis);
+			std::ranges::copy(text, event.Summary.Text.begin());
+			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+			event.Summary.State = application::diagnostic_summary_state::sanitized;
+			expect(log.record(event) == status::available, "a discovery read's end reaches the real log");
+			auto other            = event;
+			other.Summary.Text[0] = 'X';
+			expect(log.record(other) == status::dropped, "a discovery event whose detail is not its own line never enters the log");
+			auto bare          = event;
+			bare.Summary       = { };
+			bare.GithubFailure = { };
+			expect(log.record(bare) == status::dropped, "a discovery event always carries its line");
+		}
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -366,6 +385,10 @@ try {
 			   && first.find("\"detail\":\"review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"review_submission\",\"failure\":\"comment_page_too_large\"") != std::string::npos,
 		   "[[BPR-1540]] the reason is kept locally as its domain, name and counts");
+	expect(first.find("\"event\":\"github.discovery.failed\"") != std::string::npos
+			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900\"") != std::string::npos
+			   && first.find("\"failure_domain\":\"github\",\"failure\":\"permission\"") != std::string::npos,
+		   "[[BPR-1680]] a discovery read's end is kept locally with its counts, timings and failure");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
 		   "[[BPR-1540]] and the metadata-only maintenance preview classifies its operation without its detail");
 	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");

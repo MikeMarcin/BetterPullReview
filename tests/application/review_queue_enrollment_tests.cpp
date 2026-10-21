@@ -2,6 +2,7 @@
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/review_queue_enrollment.hpp"
 #include "bpr/application/review_queue_facts.hpp"
+#include "bpr/core/discovery_diagnosis.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1585,6 +1586,34 @@ namespace {
 		std::int64_t       Now = 1'000;
 	};
 
+	/// [[BPR-1680]]. Keeps every event discovery records, in order.
+	struct recording_diagnostics final : application::diagnostic_log_port
+	{
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			try {
+				Events.push_back(aEvent);
+			} catch (...) {
+				return application::diagnostic_log_status::dropped;
+			}
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		/// The discovery lines recorded, read back.
+		[[nodiscard]] auto lines() const -> std::vector<core::discovery_diagnosis>
+		{
+			auto result = std::vector<core::discovery_diagnosis>{ };
+			for (const auto& event : Events) {
+				const auto parsed = core::parse_discovery_diagnosis(event.Summary.text());
+				expect(event.Operation == application::diagnostic_operation::discovery && parsed.has_value() && event.Request == 0U && event.WindowSession == 0U,
+					   "every discovery event is a discovery line with no request or window identity");
+				result.push_back(*parsed);
+			}
+			return result;
+		}
+		std::vector<application::diagnostic_event> Events;
+	};
+
 	[[nodiscard]] auto discovery_session(const std::string_view aAccount = "reviewer", const std::uint64_t aGeneration = 4U)
 		-> application::personal_discovery_session
 	{
@@ -1658,7 +1687,8 @@ namespace {
 		application::review_queue_application_host Queue{ Store, Refresh, Effects, Decisions, core::bpr_profile_id{ 2U }, Windows, { } };
 		recording_discovery                        Provider;
 		manual_clock                               Clock;
-		application::personal_discovery_host       Discovery{ Provider, Decisions, Queue, Clock };
+		recording_diagnostics                      Diagnostics;
+		application::personal_discovery_host       Discovery{ Provider, Decisions, Queue, Clock, &Diagnostics };
 	};
 
 	[[nodiscard]] auto metadata_row(const std::uint32_t aNumber, const bool aReviewed = false, const bool aMoved = false)
@@ -2042,6 +2072,64 @@ namespace {
 		fixture.Clock.Now += 60;
 		fixture.Discovery.activate();
 		expect(provider.Requests.size() == before, "opening a pull request and a fresh activation start no discovery");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	/// [[BPR-1680]]. Each refresh and each of its reads is in the diagnostics
+	/// log: a refresh's start and end, a read's start (verbose) and its end
+	/// with the requests, lane wait and run time its provider reports, and a
+	/// refresh's totals. A refresh a session change stops says it was cancelled.
+	void test_discovery_records_each_refresh_and_read()
+	{
+		using scope  = core::discovery_diagnosis_scope;
+		using reason = core::discovery_diagnosis_reason;
+		using state  = core::discovery_diagnosis_state;
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		auto&      provider = fixture.Provider;
+		const auto answer   = [&](application::personal_discovery_completion aCompletion, const application::personal_discovery_cost aCost) {
+			std::visit([&aCost](auto& aResult) { aResult.Cost = aCost; }, aCompletion);
+			provider.answer(std::move(aCompletion));
+			fixture.settle();
+		};
+		fixture.Clock.Now += 2;
+		answer(provider.rows({ row(5U) }), { .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U });
+		answer(provider.failure(application::github_provider_failure::permission), { .Requests = 1U, .WaitMilliseconds = 7U, .RunMilliseconds = 400U });
+		answer(provider.rows({ }), { .Requests = 1U, .RunMilliseconds = 300U });
+		answer(provider.rows({ }), { .Requests = 1U, .RunMilliseconds = 200U });
+		const auto& events = fixture.Diagnostics.Events;
+		const auto  lines  = fixture.Diagnostics.lines();
+		expect(lines.size() == 10U, "one refresh of four reads is ten lines");
+		expect(lines[0] == core::discovery_diagnosis{ .Scope = scope::refresh, .Refresh = 1U, .Repositories = 2U } && events[0].Outcome == application::diagnostic_outcome::started
+				   && events[0].Detail == application::diagnostic_detail::standard,
+			   "the refresh's start counts its saved repositories");
+		expect(lines[1] == core::discovery_diagnosis{ .Scope = scope::read, .Refresh = 1U, .Read = 1U, .Reason = reason::requested, .Repositories = 1U }
+				   && lines[2] == core::discovery_diagnosis{ .Scope = scope::read, .Refresh = 1U, .Read = 2U, .Reason = reason::authored, .Repositories = 1U }
+				   && events[1].Outcome == application::diagnostic_outcome::started && events[1].Detail == application::diagnostic_detail::verbose,
+			   "each submitted read starts, numbered within its refresh, at verbose detail");
+		expect(lines[3] == core::discovery_diagnosis{ .Scope = scope::read, .Refresh = 1U, .Read = 1U, .Reason = reason::requested, .Repositories = 1U, .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U }
+				   && events[3].Outcome == application::diagnostic_outcome::succeeded && events[3].Detail == application::diagnostic_detail::standard,
+			   "an answered read ends with its requests, lane wait and run time");
+		expect(lines[4].Read == 3U && lines[5].Read == 2U && events[5].Outcome == application::diagnostic_outcome::failed
+				   && events[5].GithubFailure == application::diagnostic_github_failure{ core::github_failure::permission },
+			   "a failed read ends failed with its failure");
+		expect(lines[6].Read == 4U && lines[7].Read == 3U && lines[8].Read == 4U, "the later reads start as earlier ones end");
+		expect(lines[9] == core::discovery_diagnosis{ .Scope = scope::refresh, .Refresh = 1U, .State = state::stale, .Repositories = 2U, .Reads = 4U, .Failed = 1U, .Requests = 7U, .WaitMilliseconds = 10U, .RunMilliseconds = 2'000U }
+				   && events[9].Outcome == application::diagnostic_outcome::succeeded,
+			   "the refresh's end says how it ended, its reads, failures, requests, lane wait and duration");
+		expect(fixture.Discovery.statistics().Requests == 7U, "the statistics count the requests the reads reported");
+
+		fixture.Discovery.refresh();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::refreshing, "a second refresh runs");
+		const auto second = fixture.Diagnostics.lines()[10];
+		expect(second.Scope == scope::refresh && second.Refresh == 2U && second.PullRequests == 1U && second.State == state::none,
+			   "the next refresh is numbered after it and counts its retained pull request");
+		fixture.Discovery.adopt(discovery_session("someone-else"));
+		expect(std::ranges::any_of(fixture.Diagnostics.lines(), [](const core::discovery_diagnosis& aLine) {
+				   return aLine.Scope == scope::refresh && aLine.Refresh == 2U && aLine.State == state::cancelled;
+			   }),
+			   "a refresh a session change stops ends cancelled");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -2806,6 +2894,7 @@ auto main() -> int
 	test_ignore_is_durable_and_moves_only_the_section();
 	test_ignores_survive_restart_and_closed_ones_are_pruned();
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
+	test_discovery_records_each_refresh_and_read();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();
 	test_discovery_refuses_stale_and_foreign_answers();

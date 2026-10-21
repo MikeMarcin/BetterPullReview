@@ -796,6 +796,11 @@ namespace bpr::app {
 			{
 				return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 			}
+			/// [[BPR-1680]]. Monotonic, for a refresh's logged duration only.
+			[[nodiscard]] auto elapsed_milliseconds() const -> std::int64_t override
+			{
+				return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+			}
 		};
 
 		class composition_queue_refresh final
@@ -5539,7 +5544,7 @@ namespace bpr::app {
 			// provider's personal reads and this profile's queue. It adopts the
 			// accepted account session as each presentation publishes.
 			DiscoveryClock = std::make_unique<system_discovery_clock>();
-			Discovery      = std::make_unique<application::personal_discovery_host>(*Provider, DecisionLane, *QueueHost, *DiscoveryClock);
+			Discovery      = std::make_unique<application::personal_discovery_host>(*Provider, DecisionLane, *QueueHost, *DiscoveryClock, DiagnosticLog.get());
 			// Queue projections arrive at this composition first. It forwards the
 			// accepted value unchanged to the real window, then asks this notifier
 			// only for newly warranting session/ref/bucket transitions.

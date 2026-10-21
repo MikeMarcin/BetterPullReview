@@ -238,6 +238,39 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1680]]. A Home discovery line exports as its enums and counts;
+	/// one with anything else in it, or a word outside its vocabulary, is
+	/// omitted.
+	void test_discovery_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const std::string_view detail : { "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900",
+												   "discovery=refresh refresh=3 read=0 reason=none state=stale repositories=5 pull_requests=20 reads=30 failed=1 requests=220 wait_ms=4100 run_ms=143000",
+												   "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 repository=PRIVATE_REPOSITORY",
+												   "discovery=read refresh=3 read=7 reason=PRIVATE_LOGIN state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900" }) {
+				auto       line    = structured_line(1U, true);
+				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+					const auto at = line.find(aFrom);
+					expect(at != std::string::npos, "discovery fixture field exists");
+					line.replace(at, aFrom.size(), aTo);
+				};
+				replace(R"("event":"github.capability.failed")", R"("event":"github.discovery.failed")");
+				replace(R"("op":"github.capability")", R"("op":"github.discovery")");
+				replace(R"("http_status":403)", R"("http_status":0)");
+				replace(R"("failure_domain":"none","failure":"none")", R"("failure_domain":"github","failure":"permission")");
+				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+				line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   exact    = !detail.contains("PRIVATE");
+				expect(document && document->Descriptor.Records == 1U, "a discovery record exports under either policy");
+				expect((document->Bytes.find(detail) != std::string::npos) == exact && document->Bytes.contains(R"("op":"github.discovery")"),
+					   "and keeps exactly its counts-only line");
+				expect(document->Bytes.find("PRIVATE_") == std::string::npos, "and nothing private");
+			}
+		}
+	}
+
 	void test_git_capability_step_export()
 	{
 		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
@@ -452,6 +485,7 @@ auto main() -> int
 	test_parser();
 	test_actor_conflict_export();
 	test_review_submission_reason_export();
+	test_discovery_export();
 	test_git_capability_step_export();
 	test_git_tool_failure_export();
 	test_rich_export();

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1680"
 title: "Home refresh is slow on GitHub Enterprise"
-status: "Inbox"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner report, 2026-10-20: Home takes a long time to refresh on a GHE environment; anonymized diagnostic export supplied out of band (not committed)","reservation":"docs/issues/_reservations/BPR-1680--BPR-1681--3313b46dcf00.json","related_cards":["BPR-1681","BPR-1679","BPR-0988","BPR-0989","BPR-0990","BPR-1370","BPR-1379","BPR-1436"],"needs":"owner decision on which option to take; each is a design change"}
+metadata: {"origin":"Owner report, 2026-10-20: Home takes a long time to refresh on a GHE environment; anonymized diagnostic export supplied out of band (not committed)","reservation":"docs/issues/_reservations/BPR-1680--BPR-1681--3313b46dcf00.json","related_cards":["BPR-1681","BPR-1679","BPR-0988","BPR-0989","BPR-0990","BPR-1370","BPR-1379","BPR-1436"],"owner_decision":"2026-10-21: options 1 to 5 approved, in order, one commit each; options 6 and 7 not approved"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"option 1 commit on 97c35a45b","evidence":{"kind":"command","detail":"core_home_discovery (line format, read-back, every refusal), application_review_queue_enrollment's new test_discovery_records_each_refresh_and_read (ten lines for one refresh of four reads: starts, verbose read starts, read ends with requests, lane wait and run time, a failed read's failure, the refresh's totals and duration; a session change ends a refresh cancelled), quill_logging (a discovery read's end reaches the real file with its failure; any other detail is dropped), application_release_maintenance's new test_discovery_export (both export policies keep exactly the counts-only line and omit one with a repository or login in it), and application_personal_discovery_public_path and its CLI variant reading the composed profile's own diagnostics file (every refresh with its reads and requests, read ends, no viewer login or repository name) pass. application_home_waiting_public_path and application_home_open_feedback_public_path pass."}}]
 ---
 
 # Home refresh is slow on GitHub Enterprise
@@ -107,9 +108,65 @@ the timings above, not a measurement of the owner's Home.
 7. **Refresh only what changed.** Conditional requests (ETag) where the server
    honours them, or a longer freshness window on slow servers. Smaller wins.
 
+## Owner decision
+
+2026-10-21, through the coordinator: options 1 to 5 are approved and are
+done in that order, one commit each, each verified before the next. Options
+6 (a once-per-operation CLI account check) and 7 (conditional requests or a
+longer freshness window) are not approved.
+
 ## Acceptance
 
-To be written once an option is chosen. At least: a Home refresh's requests
-and duration appear in an anonymized export, and the chosen change reduces
-the request count of a fixture refresh with several repositories and retained
-pull requests by a stated amount without changing what Home lists.
+- AC1 (option 1): each Home refresh and each of its reads is in the
+  diagnostics log with its reason, repository count, requests, lane wait, run
+  time and how the refresh ended, as counts and enums only, and the anonymized
+  export keeps exactly that line.
+- AC2 (option 2): a pull request whose retained read ran in a refresh is not
+  read again by that refresh's searches, and Home lists the same rows.
+- AC3 (option 3): one search per reason covers several saved repositories,
+  split when the query would be too long, with every row attributed to its
+  repository and each repository's completeness kept.
+- AC4 (option 4): retained pull requests are read in GraphQL batches within
+  node and cost bounds, with a fallback where the server lacks a field and
+  correct paging for large pull requests.
+- AC5 (option 5): more than one request runs at a time, bounded, with a
+  window's pull request read still first and cancellation, quarantine,
+  process-group kill, the account-change refusal and the serialized completion
+  lane intact.
+- AC6: before and after request counts and timings from the fixture courses;
+  the focused suites, format, tidy and documentation checks pass.
+
+## Progress
+
+**Option 1, done.** `github.discovery` events ([[BPR-1680]]):
+`core::discovery_diagnosis` is one line of fixed keys, enums and decimal
+counts (`discovery=SCOPE refresh=N read=N reason=REASON state=STATE
+repositories=N pull_requests=N reads=N failed=N requests=N wait_ms=N
+run_ms=N`), with `describe` and an exact `parse_discovery_diagnosis`. The
+provider measures each read's `personal_discovery_cost` (wire requests through
+a counting transport, wait for the provider lane, run time) and returns it
+with the completion; `personal_discovery_host` records a refresh's start and
+end (current, partial, stale, stopped or cancelled, with its reads, failures,
+summed requests and lane waits, and its duration from the clock port's new
+monotonic `elapsed_milliseconds`), each read's start (verbose) and each read's
+end, with a failed read's failure. Refreshes and reads are numbered, not
+identified, so nothing occupies the logger's identity table and nothing names
+a host, repository, account or pull request. The logger drops a discovery
+event with any other detail; the export's detail allow-list admits the line
+only when it parses back; Insights counts a failed discovery read as an inbox
+problem. On a CLI connection the lease's viewer reads around each request are
+not counted in `requests`.
+
+Baseline from the fixture courses, read from the composed profile's own
+diagnostics file (refresh numbers are the course's):
+
+| Course refresh | Saved repositories | Retained | Reads | Requests |
+|---|---|---|---|---|
+| Save Repository (refresh 2) | 2 | 0 | 4 | 11 |
+| explicit Refresh (refresh 3) | 2 | 4 | 8 | 19 |
+| restart, three refused (restart refresh 1) | 4 | 4 | 12 | 23 |
+
+The fixture answers Home's summary reads only for its waiting-detail rows, so
+a fixture retained read costs two requests rather than the six it costs on a
+real server; durations on the fixture network are tens of milliseconds and are
+not a timing measurement.

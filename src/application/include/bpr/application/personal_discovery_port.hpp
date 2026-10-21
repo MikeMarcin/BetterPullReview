@@ -106,12 +106,25 @@ namespace bpr::application {
 		detail_limit,
 	};
 
+	/// \brief [[BPR-1680]]. What one discovery read cost, for the diagnostics
+	/// log: the wire requests it sent, how long it waited for its turn on the
+	/// provider's lane after it was submitted, and how long it then ran.
+	struct personal_discovery_cost
+	{
+		std::uint32_t Requests         = 0U;
+		std::uint32_t WaitMilliseconds = 0U;
+		std::uint32_t RunMilliseconds  = 0U;
+
+		auto operator<=>(const personal_discovery_cost&) const = default;
+	};
+
 	struct personal_discovery_success
 	{
 		personal_discovery_request          Request;
 		std::vector<personal_discovery_row> Rows;
 		personal_discovery_completeness     Completeness = personal_discovery_completeness::complete;
 		github_rate_limit_state             RateLimits;
+		personal_discovery_cost             Cost;
 
 		auto operator<=>(const personal_discovery_success&) const = default;
 	};
@@ -120,6 +133,7 @@ namespace bpr::application {
 	{
 		personal_discovery_request Request;
 		github_provider_error      Error;
+		personal_discovery_cost    Cost;
 
 		auto operator<=>(const personal_discovery_error&) const = default;
 	};
@@ -127,6 +141,7 @@ namespace bpr::application {
 	struct personal_discovery_cancelled
 	{
 		personal_discovery_request Request;
+		personal_discovery_cost    Cost;
 
 		auto operator<=>(const personal_discovery_cancelled&) const = default;
 	};

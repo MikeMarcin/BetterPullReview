@@ -7,8 +7,10 @@
 // reviewer follows it or saves its repository. Nothing mutates GitHub.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -55,11 +57,13 @@
 #include <algorithm>
 #include <array>
 #include <cstdlib>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -156,6 +160,30 @@ namespace {
 		return std::ranges::all_of(aOperations, [](const std::string& aOperation) {
 			return aOperation == "SearchPersonalPullRequests" || aOperation == "ListRequestedReviewers" || aOperation == "GetPullRequest" || aOperation == "ListReviews";
 		});
+	}
+
+	/// [[BPR-1680]]. The refreshes that ended, as the profile's diagnostics
+	/// file records them, each printed with its reads, requests and duration.
+	[[nodiscard]] auto discovery_refreshes(const std::filesystem::path& aRoot, const std::string_view aLabel) -> std::vector<core::discovery_diagnosis>
+	{
+		auto           result = std::vector<core::discovery_diagnosis>{ };
+		const auto     log    = bpr::tests::read_diagnostic_logs(aRoot);
+		constexpr auto key    = std::string_view{ "\"detail\":\"" };
+		for (auto at = log.find("\"op\":\"github.discovery\""); at != std::string::npos; at = log.find("\"op\":\"github.discovery\"", at + 1U)) {
+			const auto start = log.find(key, at);
+			const auto end   = start == std::string::npos ? std::string::npos : log.find('"', start + key.size());
+			if (end == std::string::npos) {
+				break;
+			}
+			const auto line = core::parse_discovery_diagnosis(std::string_view{ log }.substr(start + key.size(), end - start - key.size()));
+			if (line && line->Scope == core::discovery_diagnosis_scope::refresh && line->State != core::discovery_diagnosis_state::none) {
+				std::cerr << aLabel << " refresh=" << line->Refresh << " state=" << core::name(line->State) << " repositories=" << line->Repositories
+						  << " retained=" << line->PullRequests << " reads=" << line->Reads << " failed=" << line->Failed << " requests=" << line->Requests
+						  << " wait_ms=" << line->WaitMilliseconds << " run_ms=" << line->RunMilliseconds << '\n';
+				result.push_back(*line);
+			}
+		}
+		return result;
 	}
 
 	void submit(qt::workbench_window& aWindow, const int aNumber)
@@ -966,6 +994,18 @@ try {
 	expect(retiredDesktop, "desktop retirement has a lifetime witness");
 	desktop.reset();
 	wait_for([&] { return retiredDesktop.isNull(); }, "old desktop releases its runtime and profile lease before restart");
+	// [[BPR-1680]]. The profile's diagnostics file holds each refresh's
+	// start and end and each read's end, with counts and timings only.
+	{
+		const auto refreshes = discovery_refreshes(root, cliCourse ? "first-session-cli" : "first-session");
+		expect(refreshes.size() >= 3U && std::ranges::all_of(refreshes, [](const core::discovery_diagnosis& aLine) { return aLine.Requests != 0U && aLine.Reads != 0U; }),
+			   "each refresh that ran is in the diagnostics file with its reads and requests");
+		const auto log = bpr::tests::read_diagnostic_logs(root);
+		expect(log.find("\"event\":\"github.discovery.succeeded\"") != std::string::npos && log.find("\"detail\":\"discovery=read refresh=") != std::string::npos,
+			   "and each read's end, with its requests and timings");
+		expect(log.find("octo-reviewer") == std::string::npos && log.find("review-repository") == std::string::npos,
+			   "and no discovery line names the viewer or a repository");
+	}
 	owner    = nullptr;
 	terminal = false;
 	desktop  = app::detail::github_application_fixture_access::start_desktop(
@@ -1129,6 +1169,7 @@ try {
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "final removal verification drains");
 	desktop.reset();
+	static_cast<void>(discovery_refreshes(root, cliCourse ? "course-cli" : "course"));
 	expect(e2e::remove_course_root(temporary), "the course's temporary root is removed");
 	std::cout << (cliCourse ? "personal-discovery-cli-public-path:pass\n" : "personal-discovery-public-path:pass\n");
 	return EXIT_SUCCESS;

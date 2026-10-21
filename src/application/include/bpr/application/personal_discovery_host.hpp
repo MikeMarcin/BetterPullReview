@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_window_read_host.hpp"
 #include "bpr/application/personal_discovery_port.hpp"
 #include "bpr/application/port.hpp"
@@ -19,6 +20,9 @@ namespace bpr::application {
 	public:
 		virtual ~personal_discovery_clock_port()                       = default;
 		[[nodiscard]] virtual auto now_seconds() const -> std::int64_t = 0;
+		/// \brief [[BPR-1680]]. A monotonic instant in milliseconds, read only
+		/// to say in the diagnostics log how long a refresh took.
+		[[nodiscard]] virtual auto elapsed_milliseconds() const -> std::int64_t { return now_seconds() * 1000; }
 	};
 
 	/// \brief [[BPR-0989]]. The one accepted account session discovery reads under.
@@ -71,6 +75,9 @@ namespace bpr::application {
 		/// [[BPR-1679]]. Reads stopped to give way, and reads asked again after.
 		std::uint64_t Preempted   = 0U;
 		std::uint64_t Resubmitted = 0U;
+		/// [[BPR-1680]]. The wire requests the answered, failed and cancelled
+		/// reads say they sent.
+		std::uint64_t Requests = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};
@@ -92,15 +99,22 @@ namespace bpr::application {
 	/// on an explicit refresh; a rate limit holds it off until its
 	/// retry-after has passed. Nothing a window opens or selects
 	/// starts it. All calls run on the decision lane; provider completions are
-	/// posted there. The port, lane, queue host and clock outlive the host
-	/// until it is quiescent.
+	/// posted there. The port, lane, queue host, clock and diagnostics log
+	/// outlive the host until it is quiescent.
+	///
+	/// [[BPR-1680]]. With a diagnostics log, each refresh records a start and
+	/// an end, and each read a start (verbose) and an end with its requests,
+	/// lane wait and run time, as `github.discovery` events whose detail is a
+	/// `core::discovery_diagnosis`: counts and enums, no host, repository or
+	/// account.
 	class personal_discovery_host final
 	{
 	public:
 		personal_discovery_host(personal_discovery_port&             aProvider,
 								decision_executor&                   aDecisionLane,
 								review_queue_application_host&       aQueue,
-								const personal_discovery_clock_port& aClock);
+								const personal_discovery_clock_port& aClock,
+								diagnostic_log_port*                 aLog = nullptr);
 		~personal_discovery_host();
 
 		personal_discovery_host(const personal_discovery_host&)                    = delete;

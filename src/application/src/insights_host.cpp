@@ -71,6 +71,7 @@ namespace bpr::application {
 					case diagnostic_operation::pull_request:      event.Category = core::insights_category::opening; break;
 					case diagnostic_operation::review_comment:
 					case diagnostic_operation::review_submission: event.Category = core::insights_category::publishing; break;
+					case diagnostic_operation::discovery:         event.Category = core::insights_category::inbox; break;
 					default:                                      event.Category = core::insights_category::other; break;
 					}
 					switch (aEvent.PagedOperation) {

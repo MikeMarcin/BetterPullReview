@@ -292,6 +292,24 @@ A discovery answer is stored before it is shown. A refused write rolls the
 update back and reports the queue's store unavailable, exactly as any other
 queue write; it is never answered from another profile's store.
 
+**Diagnostics** ([[BPR-1680]]). Each refresh records a `github.discovery`
+start and end in the profile's diagnostics log, and each read a start
+(verbose detail) and an end. The detail is one `core::discovery_diagnosis`
+line of fixed keys, enums and counts:
+`discovery=SCOPE refresh=N read=N reason=REASON state=STATE repositories=N
+pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N`. A read's end
+carries the wire requests it sent, how long it waited for its turn on the
+provider's lane and how long it then ran, as the provider measured them
+(`personal_discovery_cost`); on a GitHub CLI connection each of those requests
+also costs the account lease's viewer reads, which are not counted. A
+refresh's end says how it ended (current, partial, stale, stopped, or
+cancelled by a session change) and sums its reads, failures, requests and lane
+waits, with its whole duration. Refreshes and reads are numbered, not
+identified, so the lines correlate without a request identity, and nothing in
+them names a host, repository, account or pull request. The logger drops a
+discovery event whose detail is anything else, and the anonymized export keeps
+the line only when it parses back exactly.
+
 **Composition** ([[BPR-0990]]). The profile runtime owns the discovery host
 beside its queue host, over the authenticated provider's personal reads. It
 adopts `personal_discovery_session_of(accepted_profile_session())` after each

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -326,6 +327,35 @@ namespace bpr::adapters::github::detail {
 			return std::make_shared<
 				provider_completion_delivery<std::remove_cvref_t<Handler>>>(
 				std::forward<Handler>(aHandler));
+		}
+
+		/// [[BPR-1680]]. Counts the wire requests one discovery read sends
+		/// through its transport, for the read's diagnostic cost. It decides
+		/// nothing: every request goes to the transport it wraps unchanged.
+		class counting_wire_transport final : public github_wire_transport_port
+		{
+		public:
+			explicit counting_wire_transport(github_wire_transport_port& aInner) noexcept
+				: Inner{ aInner }
+			{ }
+			[[nodiscard]] auto strict_cli() const noexcept -> bool override { return Inner.strict_cli(); }
+			[[nodiscard]] auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
+			{
+				Requests.fetch_add(1U, std::memory_order_relaxed);
+				return Inner.perform(aRequest, std::move(aStop));
+			}
+			[[nodiscard]] auto requests() const noexcept -> std::uint32_t { return Requests.load(std::memory_order_relaxed); }
+
+		private:
+			github_wire_transport_port& Inner;
+			std::atomic<std::uint32_t>  Requests{ 0U };
+		};
+
+		/// [[BPR-1680]]. Whole milliseconds between two steady instants, saturated.
+		[[nodiscard]] auto milliseconds_between(const std::chrono::steady_clock::time_point aFrom, const std::chrono::steady_clock::time_point aTo) noexcept -> std::uint32_t
+		{
+			const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(aTo - aFrom).count();
+			return elapsed <= 0 ? 0U : static_cast<std::uint32_t>(std::min<std::int64_t>(elapsed, std::numeric_limits<std::uint32_t>::max()));
 		}
 
 		class github_review_mutation_transport final
@@ -2814,9 +2844,21 @@ namespace bpr::adapters::github::detail {
 			}
 			return;
 		}
-		const auto& job = *jobResult;
+		const auto& job       = *jobResult;
+		const auto  submitted = std::chrono::steady_clock::now();
 		try {
-			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery]() mutable {
+			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery, submitted]() mutable {
+				// [[BPR-1680]]. What the read cost: its wait for this lane, its
+				// run, and the requests it sent.
+				const auto started = std::chrono::steady_clock::now();
+				auto       counted = std::optional<counting_wire_transport>{ };
+				const auto cost    = [&] {
+					return application::personal_discovery_cost{
+						.Requests         = counted ? counted->requests() : 0U,
+						.WaitMilliseconds = milliseconds_between(submitted, started),
+						.RunMilliseconds  = milliseconds_between(started, std::chrono::steady_clock::now()),
+					};
+				};
 				try {
 					// [[BPR-1679]]. A read cancelled while it waited for its
 					// turn, as discovery's are when a window's read takes
@@ -2825,25 +2867,26 @@ namespace bpr::adapters::github::detail {
 					// operation began says it was cancelled, not that it failed.
 					if (job->Stop.stop_requested()) {
 						static_cast<void>(finish_job(state, job));
-						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
+						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;
 					}
 					auto operation = accountTransport->Transport->begin_operation(job->Stop.get_token());
 					if (!operation) {
 						if (finish_job(state, job)) {
-							delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
+							delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 							return;
 						}
-						delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = operation.error() });
+						delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = operation.error(), .Cost = cost() });
 						return;
 					}
 					const auto transport = *operation ? *operation : accountTransport->Transport;
-					auto       result    = job->Stop.stop_requested()
+					counted.emplace(*transport);
+					auto       result = job->Stop.stop_requested()
 						? github_personal_discovery_read_result{ std::unexpected{ github_paged_read_failure{ github_paged_read_cancelled{ } } } }
-						: perform_personal_discovery_read(*transport, *profile, aRequest, job->Stop.get_token());
-					const auto was       = finish_job(state, job);
+						: perform_personal_discovery_read(*counted, *profile, aRequest, job->Stop.get_token());
+					const auto was    = finish_job(state, job);
 					if (was || (!result.has_value() && std::holds_alternative<github_paged_read_cancelled>(result.error()))) {
-						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
+						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;
 					}
 					if (!result.has_value()) {
@@ -2851,6 +2894,7 @@ namespace bpr::adapters::github::detail {
 						delivery->deliver(application::personal_discovery_error{
 							.Request = aRequest,
 							.Error   = error != nullptr && application::valid(*error) ? *error : provider_error(application::github_provider_failure::malformed_response),
+							.Cost    = cost(),
 						});
 						return;
 					}
@@ -2859,10 +2903,11 @@ namespace bpr::adapters::github::detail {
 						.Rows         = std::move(result->Rows),
 						.Completeness = result->Completeness,
 						.RateLimits   = std::move(result->RateLimits),
+						.Cost         = cost(),
 					});
 				} catch (...) {
 					static_cast<void>(finish_job(state, job));
-					delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = provider_error(application::github_provider_failure::response_limit) });
+					delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = provider_error(application::github_provider_failure::response_limit), .Cost = cost() });
 				}
 			});
 		} catch (...) {

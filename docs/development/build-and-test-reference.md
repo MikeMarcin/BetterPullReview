@@ -3437,6 +3437,20 @@ exactly. The same reason is kept with the unresolved attempt in
 `review-mutation-recovery.sqlite3` (`submission_unknown`, schema 6) and is
 cleared when the attempt resolves or is withdrawn.
 
+Home discovery records `github.discovery` events ([[BPR-1680]]): a refresh's
+start and end, each read's end, and each read's start at verbose detail. The
+detail is one line of fixed keys, enums and decimal counts from
+`bpr/core/discovery_diagnosis.hpp`:
+`discovery=SCOPE refresh=N read=N reason=REASON state=STATE repositories=N
+pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N`. A read's end
+counts its wire requests and splits its time into the wait for the provider's
+lane and the run; a refresh's end sums them and gives its duration and how it
+ended. A failed read carries its `failure` in the `github` domain. Refreshes
+and reads are numbered within the session, never identified, and no host,
+repository, account or pull request appears, so the line is safe for a
+protected GitHub Enterprise Server; the logger refuses any other detail on the
+operation and the export keeps the line only when it parses back exactly.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts
