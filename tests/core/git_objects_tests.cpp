@@ -279,7 +279,11 @@ namespace {
 		const auto object = encode_git_commit(content).value();
 		const auto id     = git_commit_identity(content).value();
 		expect(verified_commit_tree(object, id) == tree, "a commit object's own tree");
-		auto changed   = object;
+		auto changed = object;
+		if (changed.empty()) {
+			expect(false, "the encoded fixture commit contains bytes");
+			return;
+		}
 		changed.back() = '!';
 		expect(verified_commit_tree(changed, id).error() == verified_commit_error::identity, "bytes that do not hash to the commit");
 		expect(verified_commit_tree(object, git_commit_oid{ }).error() == verified_commit_error::identity, "no verification against an invalid identity");
