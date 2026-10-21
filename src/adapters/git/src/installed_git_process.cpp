@@ -6415,7 +6415,7 @@ namespace bpr::adapters::git {
 				}
 			}
 			for (const auto& [file, contents] : files) {
-				if (!missing(file) && !read_exact_file(file, contents)) {
+				if (!missing(file) && (!exact_identity(file, exact_artifact_kind::regular_file) || !read_exact_file(file, contents))) {
 					return false;
 				}
 			}
@@ -6431,7 +6431,16 @@ namespace bpr::adapters::git {
 				}
 			}
 			for (const auto& [file, contents] : files) {
-				if (!write_private_file(file, contents)) {
+				// Another Git command can be reading this shared policy. Adopting
+				// its verified bytes must not truncate it or require a write handle.
+				if (missing(file)) {
+					const auto created = write_new_private_file(file, std::as_bytes(std::span{ contents }));
+					if (created.Created && !created.Complete) {
+						return false;
+					}
+				}
+				if (!exact_identity(file, exact_artifact_kind::regular_file)
+					|| !read_exact_file(file, contents)) {
 					return false;
 				}
 			}

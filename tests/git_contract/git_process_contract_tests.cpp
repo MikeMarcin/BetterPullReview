@@ -3522,12 +3522,49 @@ namespace {
 				"the adopted global configuration is this platform's exact expected text");
 		}
 
+#if defined(Q_OS_WIN)
+		{
+			const auto shared = makeIsolation("read-shared-policy");
+			write_text(shared / "config-system", "");
+			write_text(shared / "config-global", expectedGlobalConfig);
+			write_text(shared / "attributes-system", "");
+			const auto reader = ::CreateFileW((shared / "config-global").c_str(), GENERIC_READ,
+											  FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+			require(reader != INVALID_HANDLE_VALUE, "a Git reader holds the valid global policy open");
+			const auto accepted = construct(shared);
+			const auto closed   = ::CloseHandle(reader) != 0;
+			require(closed, "the policy reader closes its own handle");
+			require(accepted.has_value(), "bootstrap adopts valid policy while another Git reader holds it open");
+			require(read_text(shared / "config-global") == expectedGlobalConfig,
+					"adoption preserves the policy bytes held by the reader");
+		}
+#endif
+
+		{
+			const auto readOnly = makeIsolation("read-only-policy");
+			for (const auto& [name, contents] : std::array{
+					 std::pair{ "config-system", std::string_view{ } },
+					 std::pair{ "config-global", expectedGlobalConfig },
+					 std::pair{ "attributes-system", std::string_view{ } } }) {
+				write_text(readOnly / name, contents);
+				std::filesystem::permissions(readOnly / name, std::filesystem::perms::owner_read,
+											 std::filesystem::perm_options::replace);
+			}
+			const auto accepted = construct(readOnly);
+			// Restore write access before the scratch root removes its files.
+			for (const auto* name : { "config-system", "config-global", "attributes-system" }) {
+				std::filesystem::permissions(readOnly / name, std::filesystem::perms::owner_write,
+											 std::filesystem::perm_options::add);
+			}
+			require(accepted.has_value(), "bootstrap adopts valid read-only policy without rewriting it");
+			require(read_text(readOnly / "config-global") == expectedGlobalConfig,
+					"read-only policy adoption preserves its exact bytes");
+		}
+
 		// The link carries the exact bytes the adapter would have written, so
-		// the link count is the only difference left to refuse it by. Where
-		// that refusal lands differs: Windows sees the second link while
-		// reading the file, POSIX only when it opens the file to write, after
-		// the isolation directories exist. What both must preserve is the
-		// planted link and its target.
+		// the link count is the only difference left to refuse it by. Adoption
+		// must check the single-link identity without opening for
+		// writing. The planted link and its target must survive the refusal.
 		const auto outsideEmpty = root.Path / "outside-empty-policy";
 		write_text(outsideEmpty, "");
 		const auto hardlinked = makeIsolation("hardlinked-policy");

@@ -216,3 +216,29 @@ for this engineering proof. Focused clang-format 22, clang-tidy 22 with warnings
 as errors and whitespace checks pass. Final common-source comprehensive gates
 remain pending; the separate Windows durable-reading and epoch-readiness
 failures still require causal diagnosis.
+
+## Adopt shared Git policy without rewriting it
+
+The retained Windows epoch-readiness failure occurs during cache opening,
+where constructing an installed-Git adapter can fail before repository
+initialization. Bootstrap was reopening every existing isolation policy file
+for exclusive writing, even after verifying its exact contents. Another Git
+command's read handle can refuse that write on Windows.
+
+A deterministic native regression holds a read-sharing handle over the exact
+global configuration and constructs a second adapter. Unchanged production
+code fails its adoption assertion. Bootstrap now creates only missing policy
+files, using the existing exclusive-create helper, and reads existing files
+without rewriting them. Exact contents, private-file checks and single-link
+identities remain required; the identity is checked explicitly when adopting
+so POSIX retains the hard-link refusal previously enforced by the write path.
+
+The Git process, cache and sparse-cache contracts pass on macOS and Windows.
+They include the new Windows read-sharing and portable read-only-file cases,
+plus existing foreign-content, hard-link, symlink and hostile-process controls.
+Focused clang-format 22 and clang-tidy 22 with warnings as errors pass, as do
+the documentation gate and its 67 regression tests.
+This proves the controlled sharing defect and its repair. The original
+application readiness failure still needs the repaired composed course, and
+the separate Windows durable line-position failure remains open. No final
+qualification, signing or publication is claimed.
