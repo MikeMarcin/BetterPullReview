@@ -8,6 +8,7 @@
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -2757,7 +2758,10 @@ namespace bpr::qt {
 			if (!index.isValid()) {
 				index = Files->currentIndex();
 			}
-			open_comments_menu(index, Files->viewport()->mapToGlobal(aPosition));
+			if (auto* const menu = make_file_menu(index); menu != nullptr) {
+				menu->setAttribute(Qt::WA_DeleteOnClose);
+				menu->popup(Files->viewport()->mapToGlobal(aPosition));
+			}
 		});
 		Files->header()->setSectionsClickable(true);
 		connect(Files->header(), &QHeaderView::sectionClicked, this, [this](const int aSection) {
@@ -2782,6 +2786,14 @@ namespace bpr::qt {
 			return anchored_tooltip_target{ .Anchor = Files->visualRect(index), .Text = text };
 		});
 		filesColumn->addWidget(Files, 1);
+		// RFC-BPR-0089 M2. The tree ends with the generated files set aside.
+		GeneratedRow = new generated_files_row{ main };
+		GeneratedRow->set_gesture_dispatch([this](const application::generated_file_gesture& aGesture) {
+			if (GeneratedDispatch) {
+				GeneratedDispatch(aGesture);
+			}
+		});
+		filesColumn->addWidget(GeneratedRow, 0);
 		CachedThreadsHeading = make_heading(QString{ }, QStringLiteral("overviewCachedThreadsHeading"), main);
 		mainColumn->addWidget(CachedThreadsHeading);
 		CachedThreads = new QPlainTextEdit{ main };
@@ -3339,11 +3351,22 @@ namespace bpr::qt {
 	{
 		const auto& since   = aProjection.SinceLastReview;
 		const auto  notRead = aProjection.Progress.FilesTotal - std::min(aProjection.Progress.FilesRead, aProjection.Progress.FilesTotal);
-		// RFC-BPR-0089. A filtered count says so.
+		// RFC-BPR-0089. A filtered count says so, and why.
 		auto heading = aProjection.CommitFilterComparisonFiles
-			? QStringLiteral("Files: %1 of %2 in this pull request, filtered by commits")
+			? QStringLiteral("Files: %1 of %2 in this pull request")
 				  .arg(count_text(aProjection.Progress.FilesTotal), count_text(*aProjection.CommitFilterComparisonFiles))
 			: QStringLiteral("Files: %1 in this pull request").arg(count_text(aProjection.Progress.FilesTotal));
+		if (aProjection.CommitFilterComparisonFiles) {
+			if (aProjection.FilteredByCommits) {
+				heading += QStringLiteral(", filtered by commits");
+			}
+			if (aProjection.FileFilteredFiles != 0U) {
+				heading += QStringLiteral(", %1 hidden by file filters").arg(count_text(aProjection.FileFilteredFiles));
+			}
+			if (aProjection.GeneratedFiles != 0U) {
+				heading += QStringLiteral(", %1 generated set aside").arg(count_text(aProjection.GeneratedFiles));
+			}
+		}
 		if (since.Known && since.FilesChanged.has_value()) {
 			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
 		} else if (since.Known) {
@@ -4557,6 +4580,42 @@ namespace bpr::qt {
 	{
 		StatusDrawer->commits()->present(aProjection);
 		CommitChip->present(aProjection);
+		GeneratedRow->present(aProjection);
+		FilterProjection = aProjection;
+	}
+
+	void pull_request_overview_page::set_file_filter_dispatch(std::function<void(const std::vector<std::string>&)> aDispatch)
+	{
+		StatusDrawer->commits()->set_file_filter_dispatch(std::move(aDispatch));
+	}
+
+	void pull_request_overview_page::set_generated_dispatch(std::function<void(const application::generated_file_gesture&)> aDispatch)
+	{
+		GeneratedDispatch = std::move(aDispatch);
+	}
+
+	auto pull_request_overview_page::generated_row() const noexcept -> generated_files_row*
+	{
+		return GeneratedRow;
+	}
+
+	auto pull_request_overview_page::make_file_menu(const QModelIndex& aIndex) -> QMenu*
+	{
+		auto*      menu   = make_comments_menu(aIndex);
+		const auto file   = aIndex.siblingAtColumn(overview_file_model::file_column);
+		const auto path   = file.data(overview_file_model::path_role).toString();
+		const auto folder = file.data(overview_file_model::folder_role).toBool();
+		if (folder || path.isEmpty() || !FilterProjection || !Projection) {
+			return menu;
+		}
+		if (menu == nullptr) {
+			menu = new QMenu{ this };
+			menu->setAttribute(Qt::WA_WindowPropagation);
+			menu->setObjectName(QStringLiteral("overviewFileMenu"));
+		}
+		const auto chosen = path.toStdString();
+		add_generated_actions(*menu, chosen, generated_gestures_for(*FilterProjection, chosen), GeneratedDispatch);
+		return menu;
 	}
 
 	void pull_request_overview_page::set_commit_filter_dispatch(std::function<void(const application::commit_filter_gesture&)> aDispatch)

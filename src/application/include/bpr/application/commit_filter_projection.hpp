@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_COMMIT_FILTER_PROJECTION_HPP
 
 #include "bpr/core/commit_filter.hpp"
+#include "bpr/core/generated_files.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -43,8 +44,26 @@ namespace bpr::application {
 		std::optional<std::size_t> Files;
 		/// For a side commit: the short ID of the merge it sits under.
 		std::string Merge;
+		/// RFC-BPR-0089 M2. The commit changes `core::bulk_commit_files` files
+		/// or more. A hint only; it filters nothing.
+		bool Bulk = false;
 
 		auto operator<=>(const commit_filter_row&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M2. One file's generated state and the gestures
+	/// its context menu offers, every one decided by the core.
+	struct generated_file_row
+	{
+		std::string                          Path;
+		core::generated_reason               Reason       = core::generated_reason::unspecified;
+		bool                                 Generated    = false;
+		bool                                 ReviewAnyway = false;
+		std::uint64_t                        Additions    = 0U;
+		std::uint64_t                        Deletions    = 0U;
+		std::vector<core::generated_gesture> Gestures;
+
+		auto operator<=>(const generated_file_row&) const = default;
 	};
 
 	/// \brief A hidden commit a force push removed, named for the chip.
@@ -76,18 +95,47 @@ namespace bpr::application {
 		std::size_t SplitFiles = 0U;
 		/// Why the last gesture was refused, until the next gesture.
 		std::optional<core::commit_filter_refusal> Refusal;
+		/// RFC-BPR-0089 M2. Whether the commit filter narrows the file set now.
+		bool CommitFiltered = false;
+		/// Paths the reviewer's file filters name ("Hide files these commits
+		/// changed"), and those of them the comparison's files leave out.
+		std::size_t FileFilterPaths   = 0U;
+		std::size_t FileFilteredFiles = 0U;
+		/// Generated files set aside behind their own row, in review order,
+		/// with their line totals.
+		std::vector<generated_file_row> Generated;
+		std::uint64_t                   GeneratedAdditions = 0U;
+		std::uint64_t                   GeneratedDeletions = 0U;
+		/// Whether the head's `.gitattributes` were read. While they are not,
+		/// only the reviewer's marks set files aside.
+		bool AttributesRead = false;
+		/// Files in the review whose menu is not an ordinary file's: marked,
+		/// or generated and reviewed anyway. Sorted by path.
+		std::vector<generated_file_row> Marked;
+		/// The gestures an ordinary file offers (Treat as generated).
+		std::vector<core::generated_gesture> OrdinaryGestures;
 
 		auto operator<=>(const commit_filter_projection&) const = default;
 	};
 
-	/// \brief Whether the chip shows: a filter applies, is suspended, or
-	/// names commits a force push removed.
+	/// \brief Whether the chip shows: a filter applies, is suspended, names
+	/// commits a force push removed, or a file filter names paths.
 	[[nodiscard]] constexpr auto commit_filter_chip_shown(const commit_filter_projection& aProjection) noexcept -> bool
 	{
 		return aProjection.Status == core::commit_filter_status::active
 			|| aProjection.Status == core::commit_filter_status::suspended
-			|| !aProjection.Gone.empty();
+			|| !aProjection.Gone.empty()
+			|| aProjection.FileFilterPaths != 0U;
 	}
+
+	/// \brief RFC-BPR-0089 M2. One generated-file gesture from a context menu.
+	struct generated_file_gesture
+	{
+		std::string             Path;
+		core::generated_gesture Gesture = core::generated_gesture::treat_as_generated;
+
+		auto operator<=>(const generated_file_gesture&) const = default;
+	};
 
 	/// \brief One gesture from the Commits tab or the chip.
 	struct commit_filter_gesture

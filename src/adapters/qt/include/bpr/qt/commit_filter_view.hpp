@@ -19,7 +19,7 @@ class QShowEvent;
 class QToolButton;
 
 /// \file
-/// \brief RFC-BPR-0089 M1. The Status drawer's Commits tab and the filter chip.
+/// \brief RFC-BPR-0089 M1 and M2. The Status drawer's Commits tab and the filter chip.
 ///
 /// Presentation only: rows, states and reasons are the host's projection of
 /// the core's decisions, and every gesture is dispatched as a
@@ -34,10 +34,12 @@ namespace bpr::qt {
 	[[nodiscard]] auto commit_filter_trees_text(application::commit_filter_trees aTrees) -> QString;
 	/// \brief Why a gesture was refused, in a sentence.
 	[[nodiscard]] auto commit_filter_refusal_text(core::commit_filter_refusal aRefusal) -> QString;
-	/// \brief "2 of 3 commits shown", or "3 commits" with no filter.
+	/// \brief "2 of 3 commits shown", "File filter on" with only a file
+	/// filter, or "3 commits" with no filter.
 	[[nodiscard]] auto commit_filter_summary_text(const application::commit_filter_projection& aProjection) -> QString;
-	/// \brief "12 of 340 files, filtered by commits", or empty while the file
-	/// set is not filtered.
+	/// \brief "12 of 340 files, filtered by commits", with how many file
+	/// filters hide and how many generated files are set aside; empty while
+	/// the file set is the comparison's.
 	[[nodiscard]] auto commit_filter_files_text(const application::commit_filter_projection& aProjection) -> QString;
 	/// \brief The hidden commits a force push removed, named.
 	[[nodiscard]] auto commit_filter_gone_text(const application::commit_filter_projection& aProjection) -> QString;
@@ -61,6 +63,8 @@ namespace bpr::qt {
 			/// `core::filter_commit_state`.
 			state_role,
 			merge_role,
+			/// RFC-BPR-0089 M2. True when the commit is labelled bulk.
+			bulk_role,
 		};
 
 		explicit commit_filter_list_model(QObject* aParent = nullptr);
@@ -98,6 +102,7 @@ namespace bpr::qt {
 	public:
 		using gesture_dispatch = std::function<void(const application::commit_filter_gesture&)>;
 		using commit_dispatch  = std::function<void(const std::string&)>;
+		using commits_dispatch = std::function<void(const std::vector<std::string>&)>;
 
 		explicit commit_filter_tab(QWidget* aParent = nullptr);
 
@@ -108,6 +113,9 @@ namespace bpr::qt {
 		void set_shown_dispatch(std::function<void()> aDispatch);
 		/// \brief Open on GitHub for one commit.
 		void set_open_dispatch(commit_dispatch aDispatch);
+		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed" on the
+		/// selected commits' full IDs.
+		void set_file_filter_dispatch(commits_dispatch aDispatch);
 
 		/// \brief The context menu for the current selection; the caller owns it.
 		[[nodiscard]] auto make_menu(QWidget* aParent) -> QMenu*;
@@ -134,6 +142,7 @@ namespace bpr::qt {
 		gesture_dispatch                                     Gestures;
 		std::function<void()>                                Shown;
 		commit_dispatch                                      Open;
+		commits_dispatch                                     FileFilter;
 		std::optional<application::commit_filter_projection> Projection;
 		bool                                                 Announced = false;
 	};

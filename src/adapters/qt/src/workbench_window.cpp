@@ -36,6 +36,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/info_glyph.hpp"
@@ -3979,6 +3980,22 @@ namespace bpr::qt {
 			surfaceColumn->addWidget(FilesFilterNotice);
 			FilesTree = new files_tree_view{ filesSurface };
 			surfaceColumn->addWidget(FilesTree, 1);
+			// RFC-BPR-0089 M2. The tree ends with the generated files set aside,
+			// and every file's menu offers its generated gestures.
+			FilesGeneratedRow = new generated_files_row{ filesSurface };
+			FilesGeneratedRow->set_gesture_dispatch([this](const application::generated_file_gesture& aGesture) {
+				if (GeneratedDispatch) {
+					GeneratedDispatch(aGesture);
+				}
+			});
+			surfaceColumn->addWidget(FilesGeneratedRow, 0);
+			FilesTree->set_menu_extension([this](QMenu& aMenu, const QString& aPath) {
+				if (!FilterProjection) {
+					return;
+				}
+				const auto path = aPath.toStdString();
+				add_generated_actions(aMenu, path, generated_gestures_for(*FilterProjection, path), GeneratedDispatch);
+			});
 			// [[BPR-1132]]. Cmd-click (Ctrl-click) and Open in New Tab.
 			FilesTree->set_new_tab_dispatch([this](const core::workbench_file_id& aFile) {
 				if (DocumentTabDispatch) {
@@ -7530,6 +7547,30 @@ namespace bpr::qt {
 		if (FilesCommitChip != nullptr) {
 			FilesCommitChip->present(aProjection);
 		}
+		if (FilesGeneratedRow != nullptr) {
+			FilesGeneratedRow->present(aProjection);
+		}
+		FilterProjection = aProjection;
+	}
+
+	void workbench_window::set_file_filter_dispatch(std::function<void(const std::vector<std::string>&)> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_file_filter_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::set_generated_dispatch(std::function<void(const application::generated_file_gesture&)> aDispatch)
+	{
+		GeneratedDispatch = aDispatch;
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_generated_dispatch(std::move(aDispatch));
+		}
+	}
+
+	auto workbench_window::files_generated_row() const noexcept -> generated_files_row*
+	{
+		return FilesGeneratedRow;
 	}
 
 	void workbench_window::set_commit_filter_dispatch(std::function<void(const application::commit_filter_gesture&)> aDispatch)

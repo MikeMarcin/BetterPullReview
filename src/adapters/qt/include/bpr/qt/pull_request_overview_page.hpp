@@ -48,6 +48,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class overview_status_drawer;
 	class commit_filter_chip;
+	class generated_files_row;
 	class overview_status_splitter;
 	class drawer_meter;
 	class drawer_section_header;
@@ -535,6 +536,17 @@ namespace bpr::qt {
 		/// \brief Open on GitHub for one commit.
 		void               set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
 		[[nodiscard]] auto commit_chip() const noexcept -> commit_filter_chip*;
+		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed" from the
+		/// Commits tab.
+		void set_file_filter_dispatch(std::function<void(const std::vector<std::string>&)> aDispatch);
+		/// \brief RFC-BPR-0089 M2. Show as normal, Treat as generated, Review
+		/// anyway and their reverses, from a file's context menu.
+		void set_generated_dispatch(std::function<void(const application::generated_file_gesture&)> aDispatch);
+		/// \brief The row that ends the file tree: generated files set aside.
+		[[nodiscard]] auto generated_row() const noexcept -> generated_files_row*;
+		/// \brief The context menu a file row opens: its comments, then its
+		/// generated gestures; the caller owns it, none for a folder.
+		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex) -> QMenu*;
 		/// \brief [[BPR-1588]]. The Overview's right column, a real drawer.
 		[[nodiscard]] auto status_drawer() const noexcept -> overview_status_drawer*;
 		[[nodiscard]] auto status_splitter() const noexcept -> QSplitter*;
@@ -802,6 +814,11 @@ namespace bpr::qt {
 		/// with the Commits tab.
 		commit_filter_chip*                                            CommitChip = nullptr;
 		std::function<void(const application::commit_filter_gesture&)> CommitFilterDispatch;
+		/// RFC-BPR-0089 M2. The generated row, the last filter projection the
+		/// file menus read their gestures from, and where gestures go.
+		generated_files_row*                                            GeneratedRow = nullptr;
+		std::optional<application::commit_filter_projection>            FilterProjection;
+		std::function<void(const application::generated_file_gesture&)> GeneratedDispatch;
 	};
 } // namespace bpr::qt
 

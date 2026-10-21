@@ -8307,6 +8307,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// RFC-BPR-0089. The Commits tab and the filter chips.
 			Window->set_commit_filter_dispatch([this](const application::commit_filter_gesture& aGesture) { apply_commit_filter_gesture(aGesture); });
 			Window->set_commit_filter_shown_dispatch([this] { want_commit_filter_trees(); });
+			// RFC-BPR-0089 M2. File filters and generated-file gestures.
+			Window->set_file_filter_dispatch([this](const std::vector<std::string>& aCommits) { apply_file_filter_gesture(aCommits); });
+			Window->set_generated_dispatch([this](const application::generated_file_gesture& aGesture) { apply_generated_gesture(aGesture); });
 			Window->set_commit_open_dispatch([this](const std::string& aCommit) {
 				if (!Closing && WindowRead) {
 					static_cast<void>(WindowRead->open_pull_request_commit_page(aCommit, Profile->WindowBrowser));
@@ -10319,6 +10322,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					present_defects();
 				}
 				refresh_agent_private_context_choices();
+				// RFC-BPR-0089 M2. Marks written here or in a sibling window.
+				adopt_generated_marks();
+				refresh_commit_filter();
 				publish_overview();
 			}));
 		}
@@ -14119,6 +14125,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				CommitFilter.clear();
 				CommitFilterWanted = false;
 				CommitFilterReview = review;
+				// RFC-BPR-0089 M2. The review's marks, when the ledger has them.
+				adopt_generated_marks();
 			}
 			if (aSnapshot.has_value()) {
 				CommitFilter.adopt(*aSnapshot);
@@ -14196,6 +14204,49 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			static_cast<void>(CommitFilter.apply(aGesture));
 			refresh_commit_filter();
+		}
+
+		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed".
+		void apply_file_filter_gesture(const std::vector<std::string>& aCommits)
+		{
+			if (Closing) {
+				return;
+			}
+			static_cast<void>(CommitFilter.hide_files_changed_by(aCommits));
+			refresh_commit_filter();
+		}
+
+		/// \brief RFC-BPR-0089 M2. A generated-file gesture: the core decides
+		/// the file's next mark, the ledger keeps it, and the review follows
+		/// once it is durable. A refused write changes nothing.
+		void apply_generated_gesture(const application::generated_file_gesture& aGesture)
+		{
+			if (Closing || ReviewLedgerHost == nullptr) {
+				return;
+			}
+			const auto mark = CommitFilter.generated_mark_after(aGesture);
+			if (!mark) {
+				return;
+			}
+			ReviewLedgerHost->persist_generated_mark(*mark, ledger_answer([this](const std::expected<void, application::ledger_store_failure>& aStored) {
+				if (!aStored || Closing) {
+					return;
+				}
+				adopt_generated_marks();
+				refresh_commit_filter();
+			}));
+		}
+
+		/// \brief RFC-BPR-0089 M2. Adopts the generated marks the ledger last
+		/// loaded or committed for this review.
+		void adopt_generated_marks()
+		{
+			if (ReviewLedgerHost == nullptr) {
+				return;
+			}
+			if (auto observed = ReviewLedgerHost->private_observation(); observed.has_value()) {
+				static_cast<void>(CommitFilter.adopt_generated_marks(std::move(observed->GeneratedMarks)));
+			}
 		}
 
 		/// \brief The Commits tab showed: its file counts need the trees.
@@ -14719,6 +14770,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PublishedOverview = application::project_pull_request_overview(*snapshot, context);
 			if (filtered.has_value()) {
 				PublishedOverview->CommitFilterComparisonFiles = accepted->Files.size();
+				PublishedOverview->FilteredByCommits           = filtered->CommitFiltered;
+				PublishedOverview->FileFilteredFiles           = filtered->FileFiltered;
+				PublishedOverview->GeneratedFiles              = filtered->SetAside.size();
 			}
 			if (OverviewReceiptRevision.has_value()) {
 				OverviewReceipts.adopt(*PublishedOverview,

@@ -5,11 +5,14 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/commit_filter.hpp"
+#include "bpr/core/generated_files.hpp"
 
 #include <cstddef>
 #include <expected>
+#include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::application {
@@ -28,6 +31,9 @@ namespace bpr::application {
 		/// For a split file: the hidden commits that change it between shown
 		/// ones, oldest first.
 		std::vector<core::git_commit_oid> SplitHidden;
+		/// RFC-BPR-0089 M2. The file's generated decision. A file in the set is
+		/// generated only when the reviewer chose Review anyway.
+		core::generated_decision Generated;
 
 		auto operator<=>(const commit_filter_file&) const = default;
 	};
@@ -41,6 +47,12 @@ namespace bpr::application {
 	{
 		std::vector<commit_filter_file> Files;
 		std::size_t                     SplitFiles = 0U;
+		/// RFC-BPR-0089 M2. Whether the commit filter narrowed the set.
+		bool CommitFiltered = false;
+		/// Files the reviewer's file filters left out.
+		std::size_t FileFiltered = 0U;
+		/// Generated files set aside behind their own row, in review order.
+		std::vector<commit_filter_file> SetAside;
 
 		auto operator<=>(const commit_filter_files&) const = default;
 	};
@@ -82,16 +94,41 @@ namespace bpr::application {
 		/// steps is ignored.
 		void adopt_touches(const commit_filter_touches_observation& aObservation);
 
-		/// \brief Applies one gesture; `none` when accepted.
+		/// \brief Applies one gesture; `none` when accepted. Clear all filters
+		/// also forgets the file filters.
 		[[nodiscard]] auto apply(const commit_filter_gesture& aGesture) -> core::commit_filter_refusal;
+
+		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed" on the
+		/// selected commits' full IDs; `none` when accepted.
+		[[nodiscard]] auto hide_files_changed_by(const std::vector<std::string>& aCommits) -> core::commit_filter_refusal;
+
+		[[nodiscard]] auto file_filter() const noexcept -> const core::file_filter_state&;
+
+		/// \brief RFC-BPR-0089 M2. Adopts the review's generated marks as the
+		/// ledger holds them. Refused when malformed.
+		[[nodiscard]] auto adopt_generated_marks(core::generated_file_marks aMarks) -> bool;
+
+		[[nodiscard]] auto generated_marks() const noexcept -> const core::generated_file_marks&;
+
+		/// \brief RFC-BPR-0089 M2. Adopts the head's `linguist-generated`
+		/// rules, or none while they are not read.
+		void adopt_generated_attributes(std::shared_ptr<const core::generated_attribute_rules> aRules);
+
+		/// \brief The mark a gesture leaves on one file the review lists, for
+		/// the composition to persist; none when the file is not listed, the
+		/// gesture is not offered for it, or the core refuses it.
+		[[nodiscard]] auto generated_mark_after(const generated_file_gesture& aGesture) const
+			-> std::optional<core::generated_file_mark>;
 
 		[[nodiscard]] auto state() const noexcept -> const core::commit_filter_state&;
 
-		/// \brief Whether the filter changes the file set now: it applies to
-		/// the comparison and the trees are read.
+		/// \brief Whether the commit filter changes the file set now: it
+		/// applies to the comparison and the trees are read.
 		[[nodiscard]] auto filtering() const -> bool;
 
-		/// \brief The filtered file set, while `filtering()`.
+		/// \brief The review's file set while anything leaves files out of it:
+		/// the commit filter, a file filter, or generated files set aside.
+		/// None while the set is exactly the comparison's.
 		[[nodiscard]] auto files() const -> std::optional<commit_filter_files>;
 
 		/// \brief What the Commits tab and the chip show.
@@ -99,6 +136,19 @@ namespace bpr::application {
 
 	private:
 		[[nodiscard]] auto span() const -> std::optional<std::expected<core::filter_commit_span, core::commit_filter_suspension>>;
+		/// \brief The commit filter's own file set, while `filtering()`.
+		[[nodiscard]] auto commit_filtered_files() const -> std::optional<commit_filter_files>;
+		/// \brief The core's touch sets for the span's chain commits.
+		[[nodiscard]] auto span_touches(const core::filter_commit_span& aSpan) const -> std::vector<core::filter_commit_touch>;
+		/// \brief The generated decision of one listed path.
+		[[nodiscard]] auto generated_decision_of(std::string_view aPath) const -> core::generated_decision;
+		/// \brief Whether the review lists the path, as the comparison or a
+		/// filtered diff names it.
+		[[nodiscard]] auto listed_path(std::string_view aPath) const -> bool;
+		/// \brief One file's generated state and the gestures the core offers.
+		[[nodiscard]] auto generated_row(const commit_filter_file& aFile) const -> generated_file_row;
+		/// \brief The set-aside list, the marked files and the menus.
+		void project_generated(commit_filter_projection& aProjection) const;
 
 		std::optional<core::git_commit_oid>                                       Head;
 		std::expected<core::filter_commit_graph, core::commit_filter_unavailable> Graph = std::unexpected{ core::commit_filter_unavailable::invalid_list };
@@ -111,6 +161,10 @@ namespace bpr::application {
 		/// Touches for every chain commit, oldest first, once read.
 		std::vector<commit_filter_commit_touch>    Touches;
 		std::optional<core::commit_filter_refusal> Refusal;
+		core::file_filter_state                    FileFilter;
+		core::generated_file_marks                 GeneratedMarks;
+		/// Shared so the model stays copyable; the rules are immutable.
+		std::shared_ptr<const core::generated_attribute_rules> AttributeRules;
 	};
 } // namespace bpr::application
 

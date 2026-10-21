@@ -242,8 +242,11 @@ namespace bpr::qt {
 		void set_new_tab_dispatch(files_tree_select_dispatch aDispatch);
 		/// \brief The menu a right-click on a file row opens; the caller owns it.
 		[[nodiscard]] auto make_file_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*;
-		void               apply(const std::vector<workbench_drawer_row>& aRows);
-		void               apply_overview(std::span<const application::overview_file_row> aFiles);
+		/// \brief RFC-BPR-0089 M2. Appends the window's own actions for a file,
+		/// by path, to that menu.
+		void set_menu_extension(std::function<void(QMenu&, const QString&)> aExtension);
+		void apply(const std::vector<workbench_drawer_row>& aRows);
+		void apply_overview(std::span<const application::overview_file_row> aFiles);
 		/// \brief [[BPR-0972]]. Takes the overview facts of these files only.
 		void apply_overview_rows(std::span<const application::overview_file_row> aRows);
 		/// \brief [[BPR-0972]]. Removes and inserts single files in place.
@@ -265,12 +268,13 @@ namespace bpr::qt {
 		/// \brief Expands only the folder rows the model just inserted.
 		void expand_inserted();
 
-		files_tree_model*                      Model    = nullptr;
-		files_tree_delegate*                   Delegate = nullptr;
-		files_tree_select_dispatch             Dispatch;
-		files_tree_select_dispatch             NewTabDispatch;
-		std::optional<core::workbench_file_id> SelectedFile;
-		bool                                   Applying = false;
+		files_tree_model*                           Model    = nullptr;
+		files_tree_delegate*                        Delegate = nullptr;
+		files_tree_select_dispatch                  Dispatch;
+		files_tree_select_dispatch                  NewTabDispatch;
+		std::function<void(QMenu&, const QString&)> MenuExtension;
+		std::optional<core::workbench_file_id>      SelectedFile;
+		bool                                        Applying = false;
 	};
 } // namespace bpr::qt
 

@@ -2,8 +2,11 @@
 // the chain's tree diffs and the reviewer's filter.
 #include "bpr/application/commit_filter_model.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -247,6 +250,167 @@ namespace {
 		model.adopt_touches(stale);
 		expect(model.projection().Trees == application::commit_filter_trees::loading, "an answer for the old head is ignored");
 	}
+
+	// RFC-BPR-0089 M2. Attribute answers for exact paths only; the pattern
+	// matcher is not under test here.
+	class exact_path_rules final : public core::generated_attribute_rules
+	{
+	public:
+		explicit exact_path_rules(std::map<std::string, core::git_attribute_state, std::less<>> aStates)
+			: States{ std::move(aStates) }
+		{
+		}
+
+		[[nodiscard]] auto linguist_generated(const std::string_view aPath) const -> core::git_attribute_state override
+		{
+			const auto found = States.find(aPath);
+			return found != States.end() ? found->second : core::git_attribute_state{ };
+		}
+
+	private:
+		std::map<std::string, core::git_attribute_state, std::less<>> States;
+	};
+
+	auto generated_rules() -> std::shared_ptr<const core::generated_attribute_rules>
+	{
+		const auto set = core::git_attribute_state{ .Kind = core::git_attribute_state::kind::set, .Value = { } };
+		return std::make_shared<const exact_path_rules>(std::map<std::string, core::git_attribute_state, std::less<>>{ { "gen/x.cpp", set }, { "gen/y.cpp", set } });
+	}
+
+	auto set_aside(const application::commit_filter_files& aFiles) -> std::vector<std::string>
+	{
+		auto result = std::vector<std::string>{ };
+		for (const auto& entry : aFiles.SetAside) {
+			result.push_back(entry.Record.Path);
+		}
+		return result;
+	}
+
+	auto adopt_after(application::commit_filter_model& aModel, const std::string& aPath, const core::generated_gesture aGesture) -> core::generated_file_mark
+	{
+		const auto mark = aModel.generated_mark_after({ .Path = aPath, .Gesture = aGesture });
+		expect(mark.has_value(), "the gesture is offered for the file");
+		// The composition persists the mark, then adopts what the ledger holds.
+		auto next = core::apply_generated_gesture(aModel.generated_marks(), mark->File, aGesture);
+		expect(next.has_value() && aModel.adopt_generated_marks(*next), "the persisted marks are adopted");
+		return *mark;
+	}
+
+	auto gestures_of(const std::vector<application::generated_file_row>& aRows, const std::string_view aPath) -> std::vector<core::generated_gesture>
+	{
+		const auto found = std::ranges::find(aRows, aPath, &application::generated_file_row::Path);
+		return found != aRows.end() ? found->Gestures : std::vector<core::generated_gesture>{ };
+	}
+
+	void test_generated_files_are_set_aside()
+	{
+		using kind = core::commit_filter_operation_kind;
+		auto model = ready();
+		expect(!model.files(), "without attributes or marks nothing is set aside");
+		expect(model.projection().OrdinaryGestures == std::vector{ core::generated_gesture::treat_as_generated },
+			   "an ordinary file offers Treat as generated");
+
+		model.adopt_generated_attributes(generated_rules());
+		auto set = model.files();
+		expect(set && !set->CommitFiltered && paths(*set) == std::vector<std::string>{ "src/a.cpp", "src/both.cpp", "src/new.cpp" }
+				   && set_aside(*set) == std::vector<std::string>{ "gen/x.cpp", "gen/y.cpp" },
+			   "linguist-generated files leave the set, walk and counts in Whole PR");
+		auto projection = model.projection();
+		expect(projection.Generated.size() == 2U && projection.GeneratedAdditions == 6U && projection.AttributesRead
+				   && projection.FilteredFiles == std::optional<std::size_t>{ 3U } && !projection.CommitFiltered
+				   && !application::commit_filter_chip_shown(projection),
+			   "the generated row counts them and their lines; set-aside files are not a filter");
+		expect(projection.Generated[0].Reason == core::generated_reason::attribute_set
+				   && projection.Generated[0].Gestures == std::vector{ core::generated_gesture::review_anyway, core::generated_gesture::show_as_normal },
+			   "a set-aside file offers Review anyway and Show as normal");
+
+		// Generated status holds under every commit filter, and Clear all filters keeps it (owner, Q3).
+		expect(model.apply(gesture(kind::hide, { '3' })) == core::commit_filter_refusal::none, "Hide C3");
+		set = model.files();
+		expect(set && set->CommitFiltered && set_aside(*set) == std::vector<std::string>{ "gen/x.cpp", "gen/y.cpp" }
+				   && std::ranges::none_of(paths(*set), [](const std::string& aPath) { return aPath == "gen/x.cpp"; }),
+			   "under a commit filter generated files stay behind their row");
+		expect(model.apply(gesture(kind::clear, { })) == core::commit_filter_refusal::none, "Clear all filters");
+		set = model.files();
+		expect(set && set_aside(*set) == std::vector<std::string>{ "gen/x.cpp", "gen/y.cpp" }, "Clear all filters leaves generated files behind their row");
+
+		// Review anyway returns gen/x.cpp, still generated.
+		const auto anyway = adopt_after(model, "gen/x.cpp", core::generated_gesture::review_anyway);
+		expect(anyway.ReviewAnyway && anyway.Mark == core::generated_mark::none, "Review anyway is a mark of its own");
+		set = model.files();
+		expect(set && set_aside(*set) == std::vector<std::string>{ "gen/y.cpp" } && set->Files.front().Record.Path == "gen/x.cpp"
+				   && set->Files.front().Generated.ReviewAnyway,
+			   "a file reviewed anyway returns to the set and stays generated");
+		projection = model.projection();
+		expect(gestures_of(projection.Marked, "gen/x.cpp") == std::vector{ core::generated_gesture::set_aside_again, core::generated_gesture::show_as_normal },
+			   "a file reviewed anyway offers Set aside again and Show as normal");
+
+		// Show as normal on gen/y.cpp; Treat as generated on src/new.cpp.
+		adopt_after(model, "gen/y.cpp", core::generated_gesture::show_as_normal);
+		adopt_after(model, "src/new.cpp", core::generated_gesture::treat_as_generated);
+		set = model.files();
+		expect(set && set_aside(*set) == std::vector<std::string>{ "src/new.cpp" } && set->SetAside.front().Generated.Reason == core::generated_reason::marked_generated,
+			   "Treat as generated sets a file aside and Show as normal returns one");
+		projection = model.projection();
+		expect(gestures_of(projection.Marked, "gen/y.cpp") == std::vector{ core::generated_gesture::treat_as_generated, core::generated_gesture::follow_attributes },
+			   "a file shown as normal offers Treat as generated and Follow .gitattributes");
+
+		expect(!model.generated_mark_after({ .Path = "not/listed.cpp", .Gesture = core::generated_gesture::treat_as_generated }),
+			   "a file the review does not list is refused");
+		expect(!model.generated_mark_after({ .Path = "src/a.cpp", .Gesture = core::generated_gesture::review_anyway }),
+			   "a gesture the file does not offer is refused");
+		expect(!model.adopt_generated_marks({ .Marks = { anyway, anyway } }), "malformed marks are refused");
+
+		// Without the attributes only the marks decide.
+		model.adopt_generated_attributes(nullptr);
+		set = model.files();
+		expect(set && set_aside(*set) == std::vector<std::string>{ "src/new.cpp" }, "without attributes only the reviewer's marks set files aside");
+	}
+
+	void test_hide_files_these_commits_changed()
+	{
+		using kind = core::commit_filter_operation_kind;
+		auto model = ready();
+		expect(model.hide_files_changed_by({ hex('2') }) == core::commit_filter_refusal::none, "Hide files these commits changed on C2");
+		auto set = model.files();
+		expect(set && !set->CommitFiltered && set->FileFiltered == 3U && paths(*set) == std::vector<std::string>{ "src/a.cpp", "src/new.cpp" },
+			   "every path C2 changed is hidden, in C3 as well");
+		auto projection = model.projection();
+		expect(projection.FileFilterPaths == 3U && projection.FileFilteredFiles == 3U && application::commit_filter_chip_shown(projection),
+			   "the chip shows while a file filter names paths");
+
+		expect(model.apply(gesture(kind::show_only, { '3' })) == core::commit_filter_refusal::none, "Show only C3");
+		set = model.files();
+		expect(set && set->CommitFiltered && paths(*set) == std::vector<std::string>{ "src/a.cpp" }, "file filters combine with the commit filter");
+
+		expect(model.apply(gesture(kind::clear, { })) == core::commit_filter_refusal::none && model.file_filter().Hidden.empty() && !model.files(),
+			   "Clear all filters forgets the file filters too");
+		expect(model.hide_files_changed_by({ "nope" }) == core::commit_filter_refusal::unknown_commit && model.projection().Refusal,
+			   "a malformed commit is refused and named");
+
+		auto unread = application::commit_filter_model{ };
+		unread.adopt(snapshot());
+		unread.adopt_comparison(core::filter_comparison{ });
+		expect(unread.hide_files_changed_by({ hex('2') }) == core::commit_filter_refusal::suspended, "the trees must be read first");
+	}
+
+	void test_bulk_label()
+	{
+		auto model = application::commit_filter_model{ };
+		model.adopt(snapshot());
+		model.adopt_comparison(core::filter_comparison{ });
+		auto answer = touches(model, application::commit_filter_touches_status::resolved);
+		answer.Touches[1].Paths.clear();
+		for (int index = 0; index < 100; ++index) {
+			answer.Touches[1].Paths.push_back(touched("gen/f" + std::to_string(1000 + index) + ".cpp", 'A'));
+		}
+		model.begin_touches();
+		model.adopt_touches(answer);
+		const auto projection = model.projection();
+		expect(projection.Rows[1].Files == std::optional<std::size_t>{ 100U } && projection.Rows[1].Bulk, "a commit changing 100 files is labelled bulk");
+		expect(!projection.Rows[0].Bulk && !projection.Rows[2].Bulk, "smaller commits are not");
+		expect(!model.files(), "the label filters nothing");
+	}
 } // namespace
 
 auto main() -> int
@@ -255,6 +419,9 @@ auto main() -> int
 	test_owner_filters();
 	test_unavailable_and_suspended();
 	test_force_push();
+	test_generated_files_are_set_aside();
+	test_hide_files_these_commits_changed();
+	test_bulk_label();
 	std::cout << "commit-filter-model-tests:pass\n";
 	return 0;
 }

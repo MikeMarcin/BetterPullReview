@@ -199,7 +199,8 @@ namespace bpr::application {
 	{
 		Refusal.reset();
 		if (aGesture.Kind == core::commit_filter_operation_kind::clear) {
-			State = core::commit_filter_state{ };
+			State      = core::commit_filter_state{ };
+			FileFilter = core::file_filter_state{ };
 			return core::commit_filter_refusal::none;
 		}
 		const auto refuse = [this](const core::commit_filter_refusal aRefusal) {
@@ -244,25 +245,34 @@ namespace bpr::application {
 		return covered && *covered && core::summarize_commit_filter(State, Graph, covered).Status == core::commit_filter_status::active;
 	}
 
-	auto commit_filter_model::files() const -> std::optional<commit_filter_files>
+	auto commit_filter_model::span_touches(const core::filter_commit_span& aSpan) const -> std::vector<core::filter_commit_touch>
 	{
-		if (!filtering()) {
-			return std::nullopt;
+		auto touches = std::vector<core::filter_commit_touch>{ };
+		if (!Graph || aSpan.End > Touches.size()) {
+			return touches;
 		}
-		const auto& graph   = *Graph;
-		const auto  covered = **span();
-		auto        touches = std::vector<core::filter_commit_touch>{ };
-		touches.reserve(covered.size());
-		for (std::size_t position = covered.Begin; position < covered.End; ++position) {
+		touches.reserve(aSpan.size());
+		for (std::size_t position = aSpan.Begin; position < aSpan.End; ++position) {
 			auto touch   = core::filter_commit_touch{ };
-			touch.Commit = graph.Chain[position];
+			touch.Commit = Graph->Chain[position];
 			touch.Paths.reserve(Touches[position].Paths.size());
 			for (const auto& path : Touches[position].Paths) {
 				touch.Paths.push_back(path.Path);
 			}
 			touches.push_back(std::move(touch));
 		}
-		const auto decided = core::filter_paths(State, graph, covered, touches);
+		return touches;
+	}
+
+	auto commit_filter_model::commit_filtered_files() const -> std::optional<commit_filter_files>
+	{
+		if (!filtering()) {
+			return std::nullopt;
+		}
+		const auto& graph   = *Graph;
+		const auto  covered = **span();
+		const auto  touches = span_touches(covered);
+		const auto  decided = core::filter_paths(State, graph, covered, touches);
 		if (!decided) {
 			return std::nullopt;
 		}
@@ -353,6 +363,204 @@ namespace bpr::application {
 		return result;
 	}
 
+	auto commit_filter_model::generated_row(const commit_filter_file& aFile) const -> generated_file_row
+	{
+		const auto* mark = core::find_generated_mark(GeneratedMarks, core::file_identity_of(aFile.Record.Path));
+		auto        row  = generated_file_row{
+			.Path         = aFile.Record.Path,
+			.Reason       = aFile.Generated.Reason,
+			.Generated    = aFile.Generated.Generated,
+			.ReviewAnyway = aFile.Generated.ReviewAnyway,
+			.Additions    = aFile.Record.Additions,
+			.Deletions    = aFile.Record.Deletions,
+			.Gestures     = { },
+		};
+		for (const auto gesture : { core::generated_gesture::review_anyway, core::generated_gesture::set_aside_again, core::generated_gesture::show_as_normal,
+									core::generated_gesture::treat_as_generated, core::generated_gesture::follow_attributes }) {
+			if (core::generated_gesture_available(aFile.Generated, mark, gesture)) {
+				row.Gestures.push_back(gesture);
+			}
+		}
+		return row;
+	}
+
+	void commit_filter_model::project_generated(commit_filter_projection& aProjection) const
+	{
+		aProjection.OrdinaryGestures = generated_row(commit_filter_file{ }).Gestures;
+		const auto marked            = [this](const commit_filter_file& aFile) {
+			return aFile.Generated.Generated || core::find_generated_mark(GeneratedMarks, core::file_identity_of(aFile.Record.Path)) != nullptr;
+		};
+		const auto filtered = files();
+		if (!filtered) {
+			// Nothing is set aside; files reviewed anyway or marked still say so.
+			for (const auto& record : SnapshotFiles) {
+				auto file      = commit_filter_file{ };
+				file.Record    = record;
+				file.Generated = generated_decision_of(record.Path);
+				if (marked(file)) {
+					aProjection.Marked.push_back(generated_row(file));
+				}
+			}
+			std::ranges::sort(aProjection.Marked, { }, &generated_file_row::Path);
+			return;
+		}
+		aProjection.CommitFiltered    = filtered->CommitFiltered;
+		aProjection.FileFilteredFiles = filtered->FileFiltered;
+		aProjection.FilteredFiles     = filtered->Files.size();
+		aProjection.SplitFiles        = filtered->SplitFiles;
+		aProjection.Generated.reserve(filtered->SetAside.size());
+		for (const auto& file : filtered->SetAside) {
+			aProjection.Generated.push_back(generated_row(file));
+			aProjection.GeneratedAdditions += file.Record.Additions;
+			aProjection.GeneratedDeletions += file.Record.Deletions;
+		}
+		for (const auto& file : filtered->Files) {
+			if (marked(file)) {
+				aProjection.Marked.push_back(generated_row(file));
+			}
+		}
+		std::ranges::sort(aProjection.Marked, { }, &generated_file_row::Path);
+	}
+
+	auto commit_filter_model::files() const -> std::optional<commit_filter_files>
+	{
+		auto       result         = commit_filtered_files();
+		const auto commitFiltered = result.has_value();
+		if (!result) {
+			result = commit_filter_files{ };
+			result->Files.reserve(SnapshotFiles.size());
+			for (const auto& record : SnapshotFiles) {
+				result->Files.push_back({ .Record = record, .Filter = std::nullopt, .Split = false, .SplitHidden = { }, .Generated = { } });
+			}
+		}
+		result->CommitFiltered = commitFiltered;
+
+		// File filters first: a path they name leaves the set however it is formed.
+		auto listed = std::vector<commit_filter_file>{ };
+		listed.reserve(result->Files.size());
+		for (auto& file : result->Files) {
+			if (core::file_filter_hides(FileFilter, file.Record.Path)) {
+				++result->FileFiltered;
+			} else {
+				listed.push_back(std::move(file));
+			}
+		}
+
+		// Generated files are set aside behind their own row, unless reviewed anyway.
+		auto paths = std::vector<std::string>{ };
+		paths.reserve(listed.size());
+		for (const auto& file : listed) {
+			paths.push_back(file.Record.Path);
+		}
+		const auto decisions = core::decide_generated_files(paths, GeneratedMarks, AttributeRules.get());
+		result->Files.clear();
+		result->SplitFiles = 0U;
+		for (std::size_t index = 0U; index < listed.size(); ++index) {
+			auto& file     = listed[index];
+			file.Generated = decisions[index];
+			if (file.Generated.SetAside) {
+				result->SetAside.push_back(std::move(file));
+				continue;
+			}
+			result->SplitFiles += file.Split ? 1U : 0U;
+			result->Files.push_back(std::move(file));
+		}
+		if (!commitFiltered && result->FileFiltered == 0U && result->SetAside.empty()) {
+			return std::nullopt;
+		}
+		return result;
+	}
+
+	auto commit_filter_model::hide_files_changed_by(const std::vector<std::string>& aCommits) -> core::commit_filter_refusal
+	{
+		Refusal.reset();
+		const auto refuse = [this](const core::commit_filter_refusal aRefusal) {
+			Refusal = aRefusal;
+			return aRefusal;
+		};
+		if (!Graph) {
+			return refuse(core::commit_filter_refusal::unavailable);
+		}
+		const auto covered = span();
+		if (!covered || !*covered || Trees != commit_filter_trees::ready) {
+			return refuse(core::commit_filter_refusal::suspended);
+		}
+		auto selection = std::vector<core::git_commit_oid>{ };
+		selection.reserve(aCommits.size());
+		for (const auto& text : aCommits) {
+			const auto oid = parse_commit(text);
+			if (!oid) {
+				return refuse(core::commit_filter_refusal::unknown_commit);
+			}
+			selection.push_back(*oid);
+		}
+		auto next = core::hide_files_changed_by(FileFilter, *Graph, **covered, span_touches(**covered), selection);
+		if (!next) {
+			return refuse(next.error());
+		}
+		FileFilter = std::move(*next);
+		return core::commit_filter_refusal::none;
+	}
+
+	auto commit_filter_model::file_filter() const noexcept -> const core::file_filter_state&
+	{
+		return FileFilter;
+	}
+
+	auto commit_filter_model::adopt_generated_marks(core::generated_file_marks aMarks) -> bool
+	{
+		if (!core::valid(aMarks)) {
+			return false;
+		}
+		GeneratedMarks = std::move(aMarks);
+		return true;
+	}
+
+	auto commit_filter_model::generated_marks() const noexcept -> const core::generated_file_marks&
+	{
+		return GeneratedMarks;
+	}
+
+	void commit_filter_model::adopt_generated_attributes(std::shared_ptr<const core::generated_attribute_rules> aRules)
+	{
+		AttributeRules = std::move(aRules);
+	}
+
+	auto commit_filter_model::generated_decision_of(const std::string_view aPath) const -> core::generated_decision
+	{
+		const auto* mark      = core::find_generated_mark(GeneratedMarks, core::file_identity_of(aPath));
+		const auto  attribute = AttributeRules != nullptr ? AttributeRules->linguist_generated(aPath) : core::git_attribute_state{ };
+		return core::decide_generated(mark, attribute);
+	}
+
+	auto commit_filter_model::listed_path(const std::string_view aPath) const -> bool
+	{
+		if (std::ranges::any_of(SnapshotFiles, [aPath](const github_file_record& aRecord) { return aRecord.Path == aPath; })) {
+			return true;
+		}
+		const auto filtered = commit_filtered_files();
+		return filtered && std::ranges::any_of(filtered->Files, [aPath](const commit_filter_file& aFile) { return aFile.Record.Path == aPath; });
+	}
+
+	auto commit_filter_model::generated_mark_after(const generated_file_gesture& aGesture) const
+		-> std::optional<core::generated_file_mark>
+	{
+		const auto file = core::file_identity_of(aGesture.Path);
+		if (!file.valid() || !listed_path(aGesture.Path)) {
+			return std::nullopt;
+		}
+		const auto* mark = core::find_generated_mark(GeneratedMarks, file);
+		if (!core::generated_gesture_available(generated_decision_of(aGesture.Path), mark, aGesture.Gesture)) {
+			return std::nullopt;
+		}
+		const auto next = core::apply_generated_gesture(GeneratedMarks, file, aGesture.Gesture);
+		if (!next) {
+			return std::nullopt;
+		}
+		const auto* kept = core::find_generated_mark(*next, file);
+		return kept != nullptr ? *kept : core::generated_file_mark{ .File = file, .Mark = core::generated_mark::none, .ReviewAnyway = false };
+	}
+
 	auto commit_filter_model::projection() const -> commit_filter_projection
 	{
 		auto       result  = commit_filter_projection{ };
@@ -369,10 +577,9 @@ namespace bpr::application {
 			result.Gone.push_back({ .ShortCommit = short_hex(gone.Oid), .Headline = gone.Headline });
 		}
 		result.ComparisonFiles = SnapshotFiles.size();
-		if (const auto filtered = files()) {
-			result.FilteredFiles = filtered->Files.size();
-			result.SplitFiles    = filtered->SplitFiles;
-		}
+		result.FileFilterPaths = FileFilter.Hidden.size();
+		result.AttributesRead  = AttributeRules != nullptr;
+		project_generated(result);
 		if (!Graph) {
 			return result;
 		}
@@ -391,6 +598,7 @@ namespace bpr::application {
 			row.State       = core::commit_state(State, graph, rowSpan, entry);
 			if (Trees == commit_filter_trees::ready && entry.Chain && *entry.Chain < Touches.size()) {
 				row.Files = Touches[*entry.Chain].Paths.size();
+				row.Bulk  = core::bulk_commit(*row.Files);
 			}
 			if (entry.Merge) {
 				row.Merge = short_hex(*entry.Merge);

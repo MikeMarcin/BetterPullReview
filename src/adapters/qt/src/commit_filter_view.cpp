@@ -78,6 +78,9 @@ namespace bpr::qt {
 			case core::filter_commit_role::side:        parts << QStringLiteral("in merge %1").arg(text(aRow.Merge)); break;
 			case core::filter_commit_role::chain:       break;
 			}
+			if (aRow.Bulk) {
+				parts << QStringLiteral("bulk");
+			}
 			switch (aRow.State) {
 			case core::filter_commit_state::hidden:             parts << QStringLiteral("hidden"); break;
 			case core::filter_commit_state::outside_comparison: parts << QStringLiteral("not in this comparison"); break;
@@ -169,6 +172,9 @@ namespace bpr::qt {
 		if (aProjection.Status == core::commit_filter_status::suspended) {
 			return QStringLiteral("Commit filter paused");
 		}
+		if (aProjection.FileFilterPaths != 0U) {
+			return QStringLiteral("File filter on");
+		}
 		const auto listed = aProjection.Rows.size();
 		return listed == 1U ? QStringLiteral("1 commit") : QStringLiteral("%1 commits").arg(listed);
 	}
@@ -178,7 +184,18 @@ namespace bpr::qt {
 		if (!aProjection.FilteredFiles) {
 			return { };
 		}
-		return QStringLiteral("%1 of %2 files, filtered by commits").arg(*aProjection.FilteredFiles).arg(aProjection.ComparisonFiles);
+		auto reasons = QStringList{ };
+		if (aProjection.CommitFiltered) {
+			reasons << QStringLiteral("filtered by commits");
+		}
+		if (aProjection.FileFilteredFiles != 0U) {
+			reasons << QStringLiteral("%1 hidden by file filters").arg(aProjection.FileFilteredFiles);
+		}
+		if (!aProjection.Generated.empty()) {
+			reasons << QStringLiteral("%1 generated set aside").arg(aProjection.Generated.size());
+		}
+		auto result = QStringLiteral("%1 of %2 files").arg(*aProjection.FilteredFiles).arg(aProjection.ComparisonFiles);
+		return reasons.isEmpty() ? result : result + QStringLiteral(", ") + reasons.join(QStringLiteral(", "));
 	}
 
 	auto commit_filter_gone_text(const application::commit_filter_projection& aProjection) -> QString
@@ -271,6 +288,7 @@ namespace bpr::qt {
 		case commit_kind_role:       return static_cast<int>(row->Role);
 		case state_role:             return static_cast<int>(row->State);
 		case merge_role:             return text(row->Merge);
+		case bulk_role:              return row->Bulk;
 		default:                     return { };
 		}
 	}
@@ -287,18 +305,25 @@ namespace bpr::qt {
 
 	auto commit_filter_delegate::tag(const QModelIndex& aIndex) -> QString
 	{
+		auto tags = QStringList{ };
 		switch (static_cast<core::filter_commit_state>(aIndex.data(commit_filter_list_model::state_role).toInt())) {
-		case core::filter_commit_state::hidden:             return QStringLiteral("Hidden");
-		case core::filter_commit_state::outside_comparison: return QStringLiteral("Not in this comparison");
+		case core::filter_commit_state::hidden:             tags << QStringLiteral("Hidden"); break;
+		case core::filter_commit_state::outside_comparison: tags << QStringLiteral("Not in this comparison"); break;
 		case core::filter_commit_state::shown:              break;
 		}
-		switch (static_cast<core::filter_commit_role>(aIndex.data(commit_filter_list_model::commit_kind_role).toInt())) {
-		case core::filter_commit_role::chain_merge: return QStringLiteral("Merge");
-		case core::filter_commit_role::base_merge:  return QStringLiteral("Merge from base");
-		case core::filter_commit_role::side:
-		case core::filter_commit_role::chain:       return { };
+		if (tags.isEmpty()) {
+			switch (static_cast<core::filter_commit_role>(aIndex.data(commit_filter_list_model::commit_kind_role).toInt())) {
+			case core::filter_commit_role::chain_merge: tags << QStringLiteral("Merge"); break;
+			case core::filter_commit_role::base_merge:  tags << QStringLiteral("Merge from base"); break;
+			case core::filter_commit_role::side:
+			case core::filter_commit_role::chain:       break;
+			}
 		}
-		return { };
+		// RFC-BPR-0089 M2. A hint beside the state: it filters nothing.
+		if (aIndex.data(commit_filter_list_model::bulk_role).toBool()) {
+			tags << (tags.isEmpty() ? QStringLiteral("Bulk") : QStringLiteral("bulk"));
+		}
+		return tags.join(QStringLiteral(", "));
 	}
 
 	auto commit_filter_delegate::sizeHint(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QSize
@@ -495,6 +520,11 @@ namespace bpr::qt {
 		Open = std::move(aDispatch);
 	}
 
+	void commit_filter_tab::set_file_filter_dispatch(commits_dispatch aDispatch)
+	{
+		FileFilter = std::move(aDispatch);
+	}
+
 	auto commit_filter_tab::selected_commits() const -> std::vector<std::string>
 	{
 		auto rows = List->selectionModel()->selectedRows();
@@ -516,10 +546,12 @@ namespace bpr::qt {
 		const auto operable = Projection.has_value() && !Projection->Unavailable && Projection->Status != core::commit_filter_status::suspended;
 		auto       inSpan   = false;
 		auto       hidden   = false;
+		auto       counted  = false;
 		for (const auto& commit : commits) {
 			if (const auto* row = Model->row_at(Model->row_of(commit))) {
-				inSpan = inSpan || row->State != core::filter_commit_state::outside_comparison;
-				hidden = hidden || row->State == core::filter_commit_state::hidden;
+				inSpan  = inSpan || row->State != core::filter_commit_state::outside_comparison;
+				hidden  = hidden || row->State == core::filter_commit_state::hidden;
+				counted = counted || row->Files.has_value() || row->Role == core::filter_commit_role::side;
 			}
 		}
 		auto* const showOnlyAction = menu->addAction(QStringLiteral("Show only selected"));
@@ -536,6 +568,16 @@ namespace bpr::qt {
 			showAction->setEnabled(operable);
 			connect(showAction, &QAction::triggered, this, [this, commits] { dispatch(core::commit_filter_operation_kind::show, commits); });
 		}
+		// RFC-BPR-0089 M2. A file filter: how "skip the regeneration" works
+		// when a later commit also edits the generated files.
+		auto* const hideFilesAction = menu->addAction(QStringLiteral("Hide files these commits changed"));
+		hideFilesAction->setObjectName(QStringLiteral("commitFilterHideFiles"));
+		hideFilesAction->setEnabled(operable && inSpan && counted && Projection->Trees == application::commit_filter_trees::ready && static_cast<bool>(FileFilter));
+		connect(hideFilesAction, &QAction::triggered, this, [this, commits] {
+			if (FileFilter) {
+				FileFilter(commits);
+			}
+		});
 		menu->addSeparator();
 		auto* const clearAction = menu->addAction(QStringLiteral("Clear all filters"));
 		clearAction->setObjectName(QStringLiteral("commitFilterClearAll"));

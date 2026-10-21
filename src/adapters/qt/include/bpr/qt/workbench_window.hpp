@@ -108,6 +108,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class compose_review_sheet;
 	class commit_filter_chip;
+	class generated_files_row;
 	class destructive_question;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
@@ -454,6 +455,14 @@ namespace bpr::qt {
 		/// \brief Shows the Overview's Commits tab, from wherever the window is.
 		void               show_commits();
 		[[nodiscard]] auto files_commit_chip() const noexcept -> commit_filter_chip*;
+		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed" from the
+		/// Commits tab.
+		void set_file_filter_dispatch(std::function<void(const std::vector<std::string>&)> aDispatch);
+		/// \brief RFC-BPR-0089 M2. A generated-file gesture from a file's
+		/// context menu, in the Overview, the Files drawer or a generated row.
+		void set_generated_dispatch(std::function<void(const application::generated_file_gesture&)> aDispatch);
+		/// \brief The generated row that ends the Files drawer's tree.
+		[[nodiscard]] auto files_generated_row() const noexcept -> generated_files_row*;
 		/// \brief [[BPR-1089]]. Where the Overview's request goes: whenever its
 		/// chips (from Settings), its mode or its sort change.
 		void set_overview_feedback_dispatch(std::function<void(const application::overview_feedback_request&)> aDispatch);
@@ -1787,6 +1796,11 @@ namespace bpr::qt {
 		/// gestures it shares with the Commits tab.
 		commit_filter_chip*                                            FilesCommitChip = nullptr;
 		std::function<void(const application::commit_filter_gesture&)> CommitFilterDispatch;
+		/// RFC-BPR-0089 M2. The Files drawer's generated row, the projection
+		/// the file menus read their gestures from, and where gestures go.
+		generated_files_row*                                            FilesGeneratedRow = nullptr;
+		std::optional<application::commit_filter_projection>            FilterProjection;
+		std::function<void(const application::generated_file_gesture&)> GeneratedDispatch;
 		/// \brief [[BPR-1290]]. The thread a gutter marker or scroll-bar tick
 		/// marks, with the drawer shown on its Comments tab; none when no
 		/// placed thread is on that zero-based line.

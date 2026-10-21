@@ -8,11 +8,19 @@
 // the Files drawer, the Overview and the comparison surface the reviewer
 // sees, and checks each filtered diff line for line against the commits'
 // own changes (AC01, AC02, AC05).
+//
+// RFC-BPR-0089 M2. A second course takes the fixture as it is, with no
+// `.gitattributes`: nothing is set aside until a gesture says so; Hide files
+// these commits changed on C2 hides the paths C3 also edited; Treat as
+// generated, Review anyway and Follow .gitattributes work from the file menus
+// and the generated row, survive a restart through the review ledger, and
+// Clear all filters leaves generated files behind their row (AC04, AC05).
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -33,6 +41,7 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <QToolButton>
+#include <QTreeWidget>
 
 #include <functional>
 #include <iostream>
@@ -152,6 +161,14 @@ namespace {
 		}
 		wait_for([&] { return window.showing_overview() && overview_files(window) == whole; }, "the pull request opens on Overview with GitHub's 98 files");
 		return window;
+	}
+
+	/// \brief Closes the composition and keeps its data root, as quitting does.
+	void restart(course& aCourse)
+	{
+		aCourse.Application->begin_shutdown();
+		wait_for([&] { return aCourse.Application->status().ShutdownComplete; }, "course shutdown drains before the restart");
+		aCourse.Application.reset();
 	}
 
 	void finish(course& aCourse)
@@ -310,12 +327,140 @@ namespace {
 		std::cout << "commit-filter course files=" << overview_files(window) << '\n';
 		finish(run);
 	}
+	/// The reviewer opens a file's context menu in the Overview and chooses the
+	/// generated gesture named by its text.
+	void overview_gesture(qt::workbench_window& aWindow, const std::string_view aPath, const QString& aText)
+	{
+		auto* const page   = aWindow.overview_page();
+		auto        menu   = std::unique_ptr<QMenu>{ };
+		auto*       chosen = static_cast<QAction*>(nullptr);
+		// The file's menu follows the review's marks once the ledger has read them.
+		wait_for([&] {
+			const auto index = page->file_model()->index_for_path(QString::fromUtf8(aPath.data(), static_cast<qsizetype>(aPath.size())));
+			menu.reset(index.isValid() ? page->make_file_menu(index) : nullptr);
+			chosen = nullptr;
+			for (auto* const action : menu ? menu->actions() : QList<QAction*>{ }) {
+				chosen = action->text() == aText && action->isEnabled() ? action : chosen;
+			}
+			return chosen != nullptr;
+		},
+				 "the file's Overview menu offers the gesture");
+		chosen->trigger();
+	}
+
+	/// The reviewer opens the generated row and chooses a gesture on one file.
+	void generated_row_gesture(qt::generated_files_row& aRow, const std::string_view aPath, const QString& aText)
+	{
+		auto row = -1;
+		for (auto index = 0; index < static_cast<int>(aRow.rows().size()); ++index) {
+			row = aRow.rows()[static_cast<std::size_t>(index)].Path == aPath ? index : row;
+		}
+		expect(row >= 0, "the generated row lists the file");
+		auto  menu   = std::unique_ptr<QMenu>{ aRow.make_menu(row, nullptr) };
+		auto* chosen = static_cast<QAction*>(nullptr);
+		for (auto* const action : menu ? menu->actions() : QList<QAction*>{ }) {
+			chosen = action->text() == aText ? action : chosen;
+		}
+		expect(chosen != nullptr && chosen->isEnabled(), "the generated row offers the gesture");
+		chosen->trigger();
+	}
+
+	void read_commit_trees(qt::workbench_window& aWindow)
+	{
+		auto* const drawer = aWindow.overview_page()->status_drawer();
+		drawer->tabs()->setCurrentIndex(1);
+		wait_for([&] {
+			const auto* rows = tab(aWindow)->model();
+			return rows->rowCount() == 3 && rows->row_at(1)->Files == std::optional<std::size_t>{ 96U };
+		},
+				 "the Commits tab reads the chain's trees");
+	}
+
+	void generated_files_and_file_filters()
+	{
+		auto  run    = course{ };
+		auto* window = &start(run);
+		read_commit_trees(*window);
+
+		// AC04: without attributes nothing is set aside; the live course has a bulk C2.
+		auto* overviewRow = window->overview_page()->generated_row();
+		expect(overview_files(*window) == whole && overviewRow->isHidden(), "nothing is hidden before a rule or gesture says so");
+		expect(!tab(*window)->model()->row_at(1)->Bulk && !tab(*window)->model()->row_at(0)->Bulk && !tab(*window)->model()->row_at(2)->Bulk,
+			   "C2 regenerates 96 files, under the 100 the bulk label needs, so no row is labelled");
+
+		// AC04: Hide files these commits changed on C2 hides C2's paths in C3 as well.
+		gesture(*window, { c2 }, QStringLiteral("commitFilterHideFiles"));
+		wait_for([&] { return overview_files(*window) == 2U && drawer_files(*window) == 2; }, "Hide files C2 changed leaves the two source files");
+		expect(window->overview_page()->commit_chip()->isVisible() && window->overview_page()->commit_chip()->summary()->text() == QStringLiteral("File filter on")
+				   && window->overview_page()->commit_chip()->detail()->text() == QStringLiteral("2 of 98 files, 96 hidden by file filters"),
+			   "the chip names the file filter and how many files it hides");
+		expect(window->overview_page()->files_heading()->text().contains(QStringLiteral("96 hidden by file filters")), "the Overview's count says why");
+		enter_review(run);
+		expect(walk(*window) == std::vector<std::string>{ "src/app.cpp", "src/generator.in" },
+			   "Next file walks neither the regenerated files nor the two C3 edited by hand");
+		window->overview_page()->commit_chip()->clear_button()->click();
+		wait_for([&] { return overview_files(*window) == whole && drawer_files(*window) == static_cast<int>(whole); }, "Clear all filters removes the file filter");
+
+		// AC04: Treat as generated sets a file aside behind its row, in the Overview and the Files drawer.
+		window->show_commits();
+		overview_gesture(*window, "src/generator.in", QStringLiteral("Treat as generated"));
+		wait_for([&] { return overview_files(*window) == whole - 1U && drawer_files(*window) == static_cast<int>(whole) - 1; },
+				 "Treat as generated takes the file out of the trees, the walk and the counts");
+		expect(!overviewRow->isHidden() && overviewRow->toggle()->text() == QStringLiteral("1 generated file hidden"), "the Overview's tree ends with the generated row");
+		expect(window->overview_page()->files_heading()->text().contains(QStringLiteral("1 generated set aside")), "the Overview's count says it is set aside");
+		expect(!window->overview_page()->commit_chip()->isVisible(), "a generated file is not a filter: no chip");
+		enter_review(run);
+		auto* drawerRow = window->files_generated_row();
+		expect(drawerRow != nullptr && drawerRow->rows().size() == 1U && drawerRow->rows().front().Path == "src/generator.in",
+			   "the Files drawer's tree ends with the same row");
+		const auto walked = walk(*window);
+		expect(std::ranges::find(walked, std::string{ "src/generator.in" }) == walked.end(), "Next file does not walk it");
+
+		// AC04: Clear all filters leaves generated files behind their row (owner, Q3).
+		gesture(*window, { c3 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return !window->overview_page()->commit_chip()->isHidden(); }, "a commit filter");
+		window->overview_page()->commit_chip()->clear_button()->click();
+		wait_for([&] { return window->overview_page()->commit_chip()->isHidden() && overview_files(*window) == whole - 1U; },
+				 "Clear all filters keeps the generated file aside");
+
+		// AC04: the mark persists through the review ledger.
+		restart(run);
+		window = &start(run);
+		wait_for([&] { return overview_files(*window) == whole - 1U; }, "after a restart the file is still treated as generated");
+		overviewRow = window->overview_page()->generated_row();
+		expect(!overviewRow->isHidden() && overviewRow->rows().size() == 1U && overviewRow->rows().front().Reason == core::generated_reason::marked_generated,
+			   "and the generated row says why");
+
+		// AC04: Review anyway returns it, still generated, and persists too.
+		generated_row_gesture(*overviewRow, "src/generator.in", QStringLiteral("Review anyway"));
+		wait_for([&] { return overview_files(*window) == whole && overviewRow->isHidden(); }, "Review anyway returns the file to the review");
+		restart(run);
+		window = &start(run);
+		wait_for([&] { return overview_files(*window) == whole && window->overview_page()->generated_row()->isHidden(); }, "after a restart it is still reviewed");
+		overview_gesture(*window, "src/generator.in", QStringLiteral("Set aside again"));
+		wait_for([&] { return overview_files(*window) == whole - 1U; }, "Set aside again puts it back behind the row");
+
+		// AC04: Follow .gitattributes forgets the mark: with none here, the file is ordinary.
+		generated_row_gesture(*window->overview_page()->generated_row(), "src/generator.in", QStringLiteral("Follow .gitattributes"));
+		wait_for([&] { return overview_files(*window) == whole && window->overview_page()->generated_row()->isHidden(); }, "Follow .gitattributes returns it");
+
+		// Show as normal is offered for a file that is generated.
+		overview_gesture(*window, "src/app.cpp", QStringLiteral("Treat as generated"));
+		wait_for([&] { return overview_files(*window) == whole - 1U; }, "Treat as generated again");
+		generated_row_gesture(*window->overview_page()->generated_row(), "src/app.cpp", QStringLiteral("Show as normal"));
+		wait_for([&] { return overview_files(*window) == whole; }, "Show as normal returns it");
+
+		expect(access::held_review_mutation_terminals(*run.Application) == 0U, "no generated or file-filter gesture asks GitHub for anything (AC05)");
+		std::cout << "generated-files course files=" << overview_files(*window) << '\n';
+		finish(run);
+	}
 } // namespace
 
 auto main(int aArgc, char** aArgv) -> int
 {
 	auto qtApplication = QApplication{ aArgc, aArgv };
 	filters_follow_the_commits();
+	generated_files_and_file_filters();
 	std::cout << "COMMIT_FILTER_PUBLIC_PATH_OK qt=" << qVersion() << '\n';
 	return 0;
 }

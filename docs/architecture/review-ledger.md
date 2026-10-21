@@ -24,7 +24,7 @@ reviewer's progress would also discard the derived git cache. A test asserts
 the independence directly and fails if the two are ever pointed at one path.
 
 `application_id` is `0x42505244` (`BPRD`) and the current `user_version` is
-**7**.
+**11**.
 
 Review Cycles keep their own file, `state/v1/review-cycles.sqlite3`
 ([RFC-BPR-0053](../rfcs/RFC-BPR-0053-review-cycles-domain-and-local-authority.md)),
@@ -200,7 +200,7 @@ coerced. The two 256-bit digest columns — `file_receipt.file_identity` and
 `file_receipt.material_id` — additionally carry `length(...) = 32` checks, so a
 truncated digest fails at the row that caused it instead of becoming a puzzle
 read back later. Comment and conversation identities are integers and need no
-such check. Opening supported versions 3 through 9 compares every non-internal `sqlite_schema`
+such check. Opening supported versions 3 through 11 compares every non-internal `sqlite_schema`
 object with the canonical table definition. A same-name table with changed
 columns, checks, foreign keys, uniqueness, or without `STRICT` is a schema
 mismatch rather than a partially understood ledger.
@@ -220,6 +220,17 @@ legacy note to its original turn in a canonical thread. Reads project that
 turn's current revision; writes append reviewer revisions. Canonical thread
 updates invalidate the facade's CAS token as well. The mapping holds no text.
 Legacy attachments remain either absent or an exact file/comparison pair.
+
+Version 11 (RFC-BPR-0089 M2) adds `generated_mark`: one row per file the
+reviewer made a generated-file statement about in that review scope, keyed by
+`file_identity`, with `mark` (1 Show as normal, 2 Treat as generated) and
+`review_anyway`. A row that says nothing (`mark = 0` and not reviewed anyway)
+is refused by the table's own check, so a missing row and "no mark" mean the
+same thing and forgetting a mark erases its row. The private observation loads
+the marks in identity order, the order the core keeps them in. A generated
+mark is not the receipt's Excluded and changes no receipt: generated status is
+derived from the mark and the head's `linguist-generated`, and only the
+reviewer's own Excluded is a lasting statement about a file's review.
 
 `last_reviewed_head` holds exactly one algorithm-tagged, padded Git object ID
 per review scope. Replacing it changes no receipt, note, or defect row, so
