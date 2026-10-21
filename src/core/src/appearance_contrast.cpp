@@ -763,7 +763,7 @@ namespace bpr::core {
 		const auto     adjustedMinimum    = std::min(
 			contrast_ratio_hundredths(target, aFill),
 			std::max(text_contrast_minimum_hundredths, minimum + adjustmentHeadroom));
-		// [[BPR-PENDING-R]]. Toward white the ink first brightens along its own
+		// [[BPR-1709]]. Toward white the ink first brightens along its own
 		// hue, as far as its largest channel can go, and only then tints:
 		// blending straight toward white drains the hue, and a green comment
 		// on a selected row's mark read as white. Toward black, compositing

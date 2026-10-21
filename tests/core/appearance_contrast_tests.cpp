@@ -903,7 +903,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-R]]. On a fill that wants light ink, a moved colour first
+	/// [[BPR-1709]]. On a fill that wants light ink, a moved colour first
 	/// brightens along its own hue, and tints toward white only past its full
 	/// value; on one that wants dark ink it shades as before.
 	auto test_emphasis_brightens_along_its_hue_before_tinting() -> void

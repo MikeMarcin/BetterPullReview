@@ -405,7 +405,7 @@ row's own colour, so this is enforced by a test — a collapsed emphasis fill
 passes every contrast check while making intraline marking invisible.
 
 Changed characters keep their syntax colours on the emphasis fill
-([[BPR-PENDING-R]]). A colour that reads at the emphasis floor is drawn
+([[BPR-1709]]). A colour that reads at the emphasis floor is drawn
 exactly. One that does not moves only until it reads at the text floor, and
 keeps its hue while it moves. On a fill that wants dark ink it shades toward
 black. On one that wants light ink it first brightens, every channel scaled by

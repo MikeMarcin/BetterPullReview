@@ -4646,7 +4646,7 @@ namespace {
 		return most == counts.end() ? QColor{ } : QColor{ most->first };
 	}
 
-	/// [[BPR-PENDING-R]]. The owner: "On dark theme intra-line highlights on
+	/// [[BPR-1709]]. The owner: "On dark theme intra-line highlights on
 	/// comments change the text from green to white. I'd prefer if it was just
 	/// brighter green." Two causes. Every changed glyph was painted in the
 	/// normal ink, because Qt skipped the token's foreground-only layer over

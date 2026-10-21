@@ -199,7 +199,7 @@ namespace bpr::qt {
 	/// only as far as `core::readable_emphasis_foreground` needs to stay
 	/// readable on the fill. Each token selection repeats the fill under its
 	/// ink, because Qt does not paint a foreground-only selection over text an
-	/// earlier selection drew ([[BPR-PENDING-R]]); the fill is the one already
+	/// earlier selection drew ([[BPR-1709]]); the fill is the one already
 	/// there, so the source and the unchanged part of a token are untouched. Apply
 	/// a block's syntax formats before calling this. The comparison panes and
 	/// Line details ([[BPR-1334]]) both mark a change through here, so a token

@@ -285,7 +285,7 @@ namespace bpr::qt {
 		// and no background wherever an earlier selection already drew the
 		// text, so a foreground-only layer was never painted and every changed
 		// glyph read in the normal ink, a green comment as white
-		// ([[BPR-PENDING-R]]). The fill is the one already under it, so only
+		// ([[BPR-1709]]). The fill is the one already under it, so only
 		// the ink changes; the source, layout and the unedited part of the
 		// token stay untouched.
 		if (!aInk.has_value() || aBlock.layout() == nullptr) {

@@ -427,7 +427,7 @@ namespace bpr::core {
 	/// text floor. On a fill that wants light ink it first brightens along its
 	/// own hue, every channel scaled by one factor until the largest is full,
 	/// and only then tints toward white, so a green comment stays a brighter
-	/// green rather than turning white ([[BPR-PENDING-R]]). On a fill that
+	/// green rather than turning white ([[BPR-1709]]). On a fill that
 	/// wants dark ink it shades toward black, which keeps hue and saturation.
 	/// High-contrast variants retain their maximum-contrast black/white ink.
 	[[nodiscard]] auto readable_emphasis_foreground(
