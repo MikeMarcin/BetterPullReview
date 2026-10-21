@@ -14,9 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def expected_rows(platform: str, root: Path = ROOT) -> dict:
-    registry = json.loads((root / "tests/command_correctness_registry.json").read_text())
+    registry = json.loads((root / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
     family = next(family for family in registry["families"] if family["source"].endswith("/workbench_window_tests.cpp"))
-    inventory = json.loads((root / "tests/workbench_case_inventory.json").read_text())
+    inventory = json.loads((root / "tests/workbench_case_inventory.json").read_text(encoding="utf-8"))
     if hashlib.sha256((root / family["source"]).read_bytes()).hexdigest() != inventory["source_sha256"]:
         raise ValueError("Workbench case inventory source identity is stale")
     rows = {}
@@ -49,7 +49,7 @@ def validate_manifest(manifest: dict, platform: str, root: Path = ROOT) -> dict:
     names = [row["name"] for row in rows]
     if Counter(names) != Counter(expected):
         raise ValueError("Missing, duplicate or unknown workbench invocation")
-    registry = json.loads((root / "tests/command_correctness_registry.json").read_text())
+    registry = json.loads((root / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
     declarations = {row["name"]: row for family in registry["families"] for row in family["rows"]}
     for row in rows:
         declared = declarations[row["name"]]
@@ -95,7 +95,7 @@ def main() -> int:
     parser.add_argument("--execute-lists", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    manifest = json.loads(args.manifest.read_text())
+    manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     rows = validate_manifest(manifest, args.platform)
     expected = expected_rows(args.platform)
     result = {"schema": "bpr.workbench-occurrences.v1", "platform": args.platform,
@@ -105,8 +105,14 @@ def main() -> int:
         if args.execute_lists:
             properties = {prop["name"]: prop["value"] for prop in row["properties"]}
             completed = subprocess.run([*row["command"], "--list-cases"], cwd=properties["WORKING_DIRECTORY"],
-                                       env=environment_for(row), capture_output=True, text=True, timeout=30, check=True)
+                                       env=environment_for(row), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, check=True)
             validate_cases(record["cases"], completed.stdout)
+            build = [line for line in completed.stdout.splitlines() if line.startswith("WORKBENCH_BUILD:")]
+            if len(build) != 1 or "NDEBUG=0" not in build[0]:
+                raise ValueError("Workbench binary does not have the inventoried Debug preconditions")
+            if args.platform == "Windows" and "ITERATOR_DEBUG_LEVEL=2" not in build[0]:
+                raise ValueError("Workbench binary does not preserve checked MSVC iterator diagnostics")
+            record["build_preconditions"] = build[0]
             record["listed"] = True
         result["rows"].append(record)
     result["invocations"] = len(rows)

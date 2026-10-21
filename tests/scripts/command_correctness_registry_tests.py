@@ -20,8 +20,8 @@ import workbench_case_inventory as inventory
 
 class RegistryTests(unittest.TestCase):
     def test_named_occurrences_retain_original_default_and_selector_order(self):
-        data = json.loads((ROOT / "tests/workbench_case_inventory.json").read_text())
-        text = (ROOT / "tests/adapters_qt/workbench_window_tests.cpp").read_text()
+        data = json.loads((ROOT / "tests/workbench_case_inventory.json").read_text(encoding="utf-8"))
+        text = (ROOT / "tests/adapters_qt/workbench_window_tests.cpp").read_text(encoding="utf-8")
         main = text[text.index("auto main(int argc,"):]
         selected = None
         actual = {}
@@ -51,15 +51,15 @@ class RegistryTests(unittest.TestCase):
             inventory.validate_cases(expected, 'WORKBENCH_CASE:first\nWORKBENCH_CASE:second\nworkbench:pass\n')
 
     def test_registry_command_scale_output_source_and_unset_mutations_fail_closed(self):
-        registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text())
+        registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
         for current in registry["families"]:
             for row in current["rows"]:
                 self.assertRegex(row["resource"], r"^[a-z0-9_]+$")
         family = registry["families"][0]
         candidate = next(row for row in family["rows"] if row["name"] == "qt_workbench_window_scale_100")
         directory = Path("/build/tests/adapters_qt")
-        props = {"WORKING_DIRECTORY": str(directory),
-                 "ENVIRONMENT": [item.replace("{binary_dir}", str(directory)) for item in candidate["environment"]],
+        props = {"WORKING_DIRECTORY": directory.as_posix(),
+                 "ENVIRONMENT": [item.replace("{binary_dir}", directory.as_posix()) for item in candidate["environment"]],
                  "ENVIRONMENT_MODIFICATION": [f'{key}=unset:' for key in family["unset_environment"]]}
         row = {"name": candidate["name"], "command": ["/build/app/" + candidate["executable"]]}
         suite.validate_command_owned_row(row, props)
@@ -74,7 +74,7 @@ class RegistryTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(ValueError):
                 suite.validate_command_owned_row(bad_row, bad_props)
 
-    def configure_registry(self, mutation=None):
+    def configure_registry(self, mutation=None, features=None):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
             directory = root / "tests/adapters_qt"
@@ -88,7 +88,7 @@ class RegistryTests(unittest.TestCase):
             if mutation:
                 mutation(family, source)
             registry = root / "registry.json"
-            registry.write_text(json.dumps({"schema": "bpr.command-correctness.v1", "features": {}, "families": [family]}))
+            registry.write_text(json.dumps({"schema": "bpr.command-correctness.v1", "features": features or {}, "families": [family]}))
             module = (ROOT / "cmake/BprTestScheduling.cmake").as_posix()
             (root / "CMakeLists.txt").write_text(f'''cmake_minimum_required(VERSION 3.24)
 project(CommandRegistry NONE)
@@ -124,6 +124,13 @@ set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
             props = {prop["name"]: prop["value"] for prop in row["properties"]}
             self.assertTrue(props["RUN_SERIAL"])
             self.assertNotIn("bpr_command_owned", props["LABELS"])
+
+    def test_unknown_feature_inputs_keep_the_command_exclusive(self):
+        result, row = self.configure_registry(features={"UNKNOWN_FEATURE": "ON"})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        properties = {prop["name"]: prop["value"] for prop in row["properties"]}
+        self.assertTrue(properties["RUN_SERIAL"])
+        self.assertNotIn("bpr_command_owned", properties["LABELS"])
 
     def test_duplicate_unknown_registry_rows_and_unknown_policy_refuse_configuration(self):
         for mutation in (lambda family, source: family["rows"].append(copy.deepcopy(family["rows"][0])),
