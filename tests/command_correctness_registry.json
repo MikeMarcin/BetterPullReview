@@ -1455,7 +1455,7 @@
     },
     {
       "source": "tests/end_to_end/profile_window_review_restoration_public_path_tests.cpp",
-      "sha256": "bf0c67ed669ceacab6abf319d5ff77790015331afd6ae0e4f31cb1009e059918",
+      "sha256": "da2e83ae0210918de9c84873cba5f2716d12feba93ddb2e87a5ae1f5cb4a525c",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",
@@ -1464,7 +1464,7 @@
       "unset_environment": [
         "BPR_KEPT_GRANT_CAPTURE_DIR"
       ],
-      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch.",
+      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged.",
       "rows": [
         {
           "name": "application_profile_window_review_restoration_public_path",
@@ -1490,7 +1490,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+          "sha256": "94f887d46b9a87a3fcd16e59101713efdc0816e4dd27ec35ef798b510bb24bf3"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
@@ -1506,7 +1506,7 @@
         },
         {
           "path": "tests/end_to_end/profile_window_review_restoration_contract.py",
-          "sha256": "39d4de2bc11c0be26923e38ef5168ab71a8b6a07b1c7a91a36354a994ae2bb7f"
+          "sha256": "97158b3272a69052f77f92fc4e0cd8521044e841b7fbd07b869ef5ac2c5b9dc9"
         },
         {
           "path": "tests/end_to_end/bpr_narrow_owner_private.py",

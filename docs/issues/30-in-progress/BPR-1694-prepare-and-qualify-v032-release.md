@@ -176,3 +176,22 @@ The fixture now requires one enabled, correctly labelled action with the
 existing Open in New Tab identity and triggers that action. It retains all
 background-tab, comparison, modality, reading and restart checks. Final common
 committed-source comprehensive qualification remains pending.
+
+## Command ownership renewal
+
+Candidate `5ea09f27aaf5737ba203f229915399f258619320` is rejected: the
+comprehensive Mac suite's command-correctness registry contract finds the old
+application, restoration fixture and Python driver hashes. Its raw failure and
+interrupted owned producer tree are retained. The Windows rejection sentinel
+blocks unstarted downstream stages while the running early course retains its
+result. No signing or publication occurred.
+
+The early gesture phase uses another child of the existing private temporary
+root and the same sequential, bounded subprocess lifetime. The lane and menu
+repairs add no shared output, external process, timing budget or resource.
+After reviewing those exact changes and the native passing reading/tab courses,
+only this family's source/input hashes and ownership explanation are renewed.
+Its commands, configuration set, environment, private output and resource locks
+remain unchanged. All nine registry tests pass, including the driver, binary,
+configuration, output and capture refusal controls. Other stale families retain
+their conservative serial scheduling. Full native qualification remains due.
