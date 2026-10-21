@@ -431,6 +431,10 @@ the closeout card [[BPR-1708]] holds the per-criterion evidence.
   the diff's own commit on its side, as measured on #119. RFC-BPR-0022's
   policy gains a third first-attempt authorization for it, with no native
   attempt; its fallback child and reconciliation are unchanged.
+- **[[BPR-1707]]**: while a refresh resolves the same comparison again the
+  filter keeps applying to the accepted one, so the reread after a
+  publication keeps the chosen file, and a filter gesture made during a
+  refresh applies.
 
 AC07's live course publishes the composition's decided
 placements through `gh`, because a tests-enabled build holds no publication

@@ -750,18 +750,11 @@ namespace {
 			}
 			action->trigger();
 		};
-		// A refresh that lands after the gesture replaces the window's
-		// filter, so the gesture is repeated, saying what the chip read.
+		// [[BPR-1707]]. Made once: a gesture made while a refresh resolves the
+		// comparison again applies (before, it was lost and M4 repeated it).
 		const auto gesture = [&](const QString& aAction, const std::string& aShown) {
-			const auto shown = [&] { return text(aWindow.overview_page()->commit_chip()->summary()->text()) == aShown; };
-			for (auto attempt = 0; attempt < 3; ++attempt) {
-				gestureOnce(aAction);
-				if (wait_for(shown, "the chip reads " + aShown, std::chrono::seconds{ 60 })) {
-					return;
-				}
-				say("filtered-comment:chip=" + text(aWindow.overview_page()->commit_chip()->summary()->text()) + " visible=" + (aWindow.overview_page()->commit_chip()->isVisible() ? "1" : "0"));
-			}
-			fail("the chip never read " + aShown);
+			gestureOnce(aAction);
+			require([&] { return text(aWindow.overview_page()->commit_chip()->summary()->text()) == aShown; }, "the chip reads " + aShown, std::chrono::seconds{ 60 });
 		};
 		const auto clear = [&] {
 			aWindow.show_commits();

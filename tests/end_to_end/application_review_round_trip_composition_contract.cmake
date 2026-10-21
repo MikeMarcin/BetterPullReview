@@ -1,3 +1,13 @@
+# [[BPR-1707]] reseal (2026-10-21) over the [[BPR-1706]] commit below, linear.
+# Pinned-scope change: a reread after publishing keeps the chosen file and a
+# filter gesture during a refresh applies, on this card's own commit. Inside
+# the manifest only github_application.cpp changed: the commit filter's
+# comparison comes from core::filter_comparison_in_force, which keeps the
+# accepted comparison while a refresh resolves the same request again, and a
+# kept diff's refreshed publication asks again for its filtered line facts
+# under the new request. No credential, grant, provider selection,
+# publication, mutation or source-inventory change. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-1706]] reseal (2026-10-21) over last matching main 7435c6901, linear.
 # Pinned-scope change: a commit-filtered diff's line GitHub resolves nowhere
 # as a line comment is published as RFC-BPR-0022's file comment, on this
@@ -1893,7 +1903,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"5b3411fa16d669f5aecc436c4501b2a950892784cda70c8f355b5e4f204f719b"
+		"340b96ad40d2606fe4d07581fab99a88e156aca54aecd2da74510b00888277ef"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2113,7 +2123,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b8031b08f442922ab2d5d5c67c3764d889fada3362be4b58001f73e7a40c3519"
+        "4b35d7e01dbdf26c6accaf5456c9fa9fffdacd166ccf8b53ac9ee5fce44ff5bd"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

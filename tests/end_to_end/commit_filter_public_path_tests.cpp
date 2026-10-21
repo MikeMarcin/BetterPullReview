@@ -50,7 +50,10 @@
 // GitHub's diff at the head, which GitHub refused on BPR-Test #117) is
 // published, after the editor says so, as a file comment at the head whose
 // permalink names the line at the diff's own commit on its side, with no line
-// comment attempted; each reconciles once.
+// comment attempted; each reconciles once. [[BPR-1707]]. After each
+// publication's reread the chosen file is still chosen, under the filter and
+// on Whole PR, with no second choice; and Hide C3 made while a refresh resolves
+// the comparison again applies, made once.
 //
 // [[BPR-1688]]. A seventh course, on the same fixture: with C3 hidden Find in
 // files searches only the filtered files, each at its filtered diff's commits
@@ -869,35 +872,31 @@ namespace {
 		wait_for([&] { return window.files_drawer()->contents()->index_for_file(core::file_identity_of("src/notes.txt")).isValid(); },
 				 "the reread review lists src/notes.txt again");
 		enter_review(aRun);
-		// The reread leaves the workbench with no selected file while the diff
-		// stays on screen (as on Whole PR), and the filtered list can be
-		// published once more after it; the reviewer chooses the file afresh
-		// until it stays chosen.
-		const auto settled = [&](const std::string_view aPath) {
-			const auto index = window.files_drawer()->contents()->index_for_file(core::file_identity_of(aPath));
-			if (!index.isValid()) {
-				return false;
-			}
-			window.files_drawer()->contents_view()->setCurrentIndex(index);
-			auto waited = QElapsedTimer{ };
-			waited.start();
-			while (waited.elapsed() < 10000 && !shown(window, aPath)) {
-				QApplication::processEvents();
-				QThread::msleep(1);
-			}
-			waited.restart();
-			while (waited.elapsed() < 500) {
-				QApplication::processEvents();
-				QThread::msleep(1);
-			}
-			return shown(window, aPath);
-		};
-		for (auto attempt = 0; attempt < 5; ++attempt) {
-			if (settled("src/app.cpp") && settled("src/notes.txt")) {
-				return;
-			}
-		}
-		select(window, "src/notes.txt");
+		// [[BPR-1707]] AC1. The file the reviewer had chosen is still chosen
+		// after the reread, with no second choice: the workbench has it
+		// selected and its diff published and shown, and the Files drawer has
+		// it current. Before, the reread left no selected file while the diff
+		// stayed on screen, and a filtered diff's placement waited on the
+		// previous request until another file was chosen and this one again.
+		// The window's own revalidation of the kept tab settles first: a line
+		// chosen during it is replaced by the tab's remembered line
+		// ([[BPR-PENDING-U1]]).
+		const auto chosen = core::file_identity_of("src/notes.txt");
+		wait_for([&] {
+			const auto identity = access::epoch_refresh_identity(*aRun.Application);
+			const auto current  = window.files_drawer()->contents()->file_at(window.files_drawer()->contents_view()->currentIndex());
+			return identity.SelectedFile == std::optional{ chosen } && identity.PublishedFile == std::optional{ chosen } && identity.PublicationDisplayed
+				&& current == std::optional{ chosen } && shown(window, "src/notes.txt") && !access::diff_work_evidence(*aRun.Application).TabPresentationPending;
+		},
+				 "after the reread the file the reviewer chose is still chosen");
+	}
+
+	/// [[BPR-1707]] AC1. Choosing another file and then the chosen one again
+	/// shows each at the first gesture.
+	void choose_again(qt::workbench_window& aWindow)
+	{
+		select(aWindow, "src/app.cpp");
+		select(aWindow, "src/notes.txt");
 	}
 
 	void comments_from_a_filtered_diff()
@@ -933,6 +932,7 @@ namespace {
 		std::cout << "commit-filter-comment:head commit=" << atHead.LastCommit << " line=" << (atHead.LastLine ? *atHead.LastLine : 0U) << " side=" << atHead.LastSide << '\n';
 		expect(atHead.LastCommit == comment_c3 && atHead.LastLine == std::optional<std::uint32_t>{ 17U } && atHead.LastSide == "RIGHT" && atHead.EarlierCommitPosts == 0U,
 			   "it is published with commit_id = head at line 17");
+		choose_again(window);
 
 		// C1's line 10 is unchanged at the head (line 12), but no hunk of
 		// GitHub's diff shows it there, and GitHub refused that line live.
@@ -1004,8 +1004,39 @@ namespace {
 		select(window, "src/notes.txt");
 		wait_for([&] { return marked(window, core::diff_side::right, 16U); }, "Whole PR marks the head's thread at line 17");
 		expect(!marked(window, core::diff_side::right, 24U) && !marked(window, core::diff_side::right, 26U), "and not the thread GitHub shows outdated on C1");
+
+		// [[BPR-1707]] AC1 on Whole PR: the reread after a publication keeps
+		// the chosen file there too, and choosing it again shows it.
+		auto& wholeDraft = write_on(window, core::diff_side::right, 14U, "BPR-1707 course: on Whole PR.");
+		expect(wholeDraft.target_notice_text().isEmpty(), "Whole PR's own diff needs no placement notice");
+		publish_and_wait(run, wholeDraft, 6U);
+		choose_again(window);
+
+		// [[BPR-1707]] AC2. A commit-filter gesture made while a refresh of the
+		// same head resolves the comparison again is made once and applies:
+		// before, it was refused as if the comparison were suspended, and the
+		// filtered file set lapsed to the whole pull request and came back.
+		const auto before = access::window_read_progress(*run.Application).Snapshot;
+		expect(window.github_refresh_action()->isEnabled(), "Refresh is available");
+		window.github_refresh_action()->trigger();
+		wait_for([&] { return access::epoch_refresh_identity(*run.Application).ComparisonPending && access::window_read_progress(*run.Application).Snapshot != before; },
+				 "the refresh is accepted and resolves the comparison again");
+		gesture(window, { comment_c3 }, QStringLiteral("commitFilterHide"));
+		expect(window.overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown") && !tab(window)->status()->text().contains(QStringLiteral("paused")),
+			   "Hide C3 made while the comparison is being resolved again applies at once and is not refused as paused");
+		wait_for([&] {
+			const auto progress = access::window_read_progress(*run.Application);
+			return !progress.Reading && !access::epoch_refresh_identity(*run.Application).ComparisonPending;
+		},
+				 "the refresh lands");
+		wait_for([&] { return window.overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); },
+				 "after the refresh lands the gesture made during it still applies");
+		enter_review(run);
+		select(window, "src/notes.txt");
+		expect(window.comparison_surface()->current_context()->Key.Filter == std::optional{ core::filtered_diff_endpoints{ .Left = commit(comment_merge_base), .Right = commit(comment_c1) } },
+			   "and the file's diff is the merge base to C1 again");
 		const auto final = access::review_mutation_evidence(*run.Application);
-		expect(final.NativePosts == 3U && final.FilePosts == 2U && final.StoredComments == 5U, "three line comments, two file comments, and nothing written twice");
+		expect(final.NativePosts == 4U && final.FilePosts == 2U && final.StoredComments == 6U, "four line comments, two file comments, and nothing written twice");
 		finish(run);
 		std::cout << "commit-filter-comment:pass\n";
 	}

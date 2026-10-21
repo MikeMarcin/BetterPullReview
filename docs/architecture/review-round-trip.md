@@ -1230,3 +1230,16 @@ stays in the conversation drawer (`selected_comparison_mismatch`). A refresh
 that keeps the review and its head keeps the chain's filtered-read
 authorization under the new snapshot, so the reread after each publication
 reads the same filtered diffs.
+
+[[BPR-1707]]. A refresh accepts the pull request again and then resolves the
+same comparison. Until it lands, `core::filter_comparison_in_force` keeps the
+accepted comparison in force for the filter, because it is still the one on
+screen; a comparison the reviewer chose since applies once it is resolved.
+Before, the filter had no comparison in that window. The filtered file set
+lapsed to the whole pull request and came back, and each change made the
+workbench observe again and retire the chosen file. A commit-filter gesture
+made then was refused as if the comparison were suspended. When a kept diff's
+refreshed publication is adopted without being presented again, the window
+asks again for its filtered line facts under the new request. Before, the
+placement waited on the previous request's answer until another file was
+chosen and this one again.

@@ -14295,23 +14295,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// and the answer.
 		std::optional<application::filtered_comment_lines_request>     FilteredCommentLinesAsked;
 		std::optional<application::filtered_comment_lines_observation> FilteredCommentLines;
+		/// [[BPR-1707]]. The comparison request the accepted comparison was
+		/// last resolved for: a resolution asking for it again is a refresh.
+		std::optional<core::comparison_selection> SettledFilterRequest;
 
 		/// \brief The comparison the filter applies to, by its two commits.
-		[[nodiscard]] auto commit_filter_comparison() const -> std::optional<core::filter_comparison>
+		/// \details [[BPR-1707]]. While a refresh resolves the same comparison
+		/// again, the core keeps the accepted one in force, so the filtered set
+		/// does not lapse and come back and a gesture made meanwhile applies.
+		[[nodiscard]] auto commit_filter_comparison() -> std::optional<core::filter_comparison>
 		{
 			if (EpochHost == nullptr) {
 				return std::nullopt;
 			}
-			const auto& state = EpochHost->state();
-			if (!state.AcceptedComparison.has_value() || state.PendingComparison.has_value()) {
-				return std::nullopt;
+			const auto& state     = EpochHost->state();
+			const auto  resolving = state.PendingComparison.has_value();
+			if (state.AcceptedComparison.has_value() && !resolving) {
+				SettledFilterRequest = state.RequestedSelection;
 			}
-			const auto* named = std::get_if<core::named_comparison_selection>(&state.RequestedSelection);
-			return core::filter_comparison{
-				.WholePullRequest = named != nullptr && named->Alias == core::named_comparison::whole_pr,
-				.Left             = state.AcceptedComparison->Left.Commit,
-				.Right            = state.AcceptedComparison->Right.Commit,
-			};
+			// The accepted comparison was resolved for the settled request.
+			const auto& request  = resolving && SettledFilterRequest ? *SettledFilterRequest : state.RequestedSelection;
+			const auto* named    = std::get_if<core::named_comparison_selection>(&request);
+			auto        accepted = state.AcceptedComparison.has_value()
+				? std::optional{ core::filter_comparison{
+					  .WholePullRequest = named != nullptr && named->Alias == core::named_comparison::whole_pr,
+					  .Left             = state.AcceptedComparison->Left.Commit,
+					  .Right            = state.AcceptedComparison->Right.Commit,
+				  } }
+				: std::nullopt;
+			return core::filter_comparison_in_force({ .Accepted    = std::move(accepted),
+													  .Resolving   = resolving,
+													  .SameRequest = SettledFilterRequest == std::optional{ state.RequestedSelection } });
 		}
 
 		/// \brief Adopts an accepted review into the filter before the
@@ -14322,8 +14336,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto review = std::tuple{ aHandoff.Host, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
 			if (CommitFilterReview != std::optional{ review }) {
 				CommitFilter.clear();
-				CommitFilterWanted = false;
-				CommitFilterReview = review;
+				CommitFilterWanted   = false;
+				CommitFilterReview   = review;
+				SettledFilterRequest = std::nullopt;
 				// RFC-BPR-0089 M2. The review's marks, when the ledger has them.
 				adopt_generated_marks();
 			}
@@ -18856,6 +18871,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// numbering is checked against the adopted request here,
 					// where its kept answer normally still holds.
 					observe_base_numbering();
+					// [[BPR-1707]]. So are a commit-filtered diff's line facts,
+					// which the epoch host answers only under the current
+					// request: before, the placement waited on the old answer
+					// until another file was chosen and this one again.
+					request_filtered_comment_lines();
+					present_filtered_comment();
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
 					LastSelectedDiff = aPublication;

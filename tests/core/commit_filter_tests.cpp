@@ -162,6 +162,33 @@ namespace {
 		expect(span(c1, oid(0x66)).error() == core::commit_filter_suspension::not_first_parent_range, "a right side off the chain is suspended");
 	}
 
+	/// [[BPR-1707]]. A refresh accepts the pull request again and then
+	/// resolves the same comparison; meanwhile the accepted comparison is the
+	/// one on screen and the filter keeps applying to it. A new choice of
+	/// comparison waits for its own resolution.
+	void test_comparison_in_force()
+	{
+		const auto accepted = core::filter_comparison{ .WholePullRequest = true, .Left = base, .Right = c3 };
+		using reading       = core::filter_comparison_reading;
+		expect(core::filter_comparison_in_force(reading{ .Accepted = accepted }) == std::optional{ accepted }, "a settled comparison is in force");
+		expect(core::filter_comparison_in_force(reading{ .Accepted = accepted, .Resolving = true, .SameRequest = true }) == std::optional{ accepted },
+			   "while a refresh resolves the same comparison again, the accepted one stays in force");
+		expect(!core::filter_comparison_in_force(reading{ .Accepted = accepted, .Resolving = true, .SameRequest = false }),
+			   "a newly chosen comparison is not in force until it is resolved");
+		expect(!core::filter_comparison_in_force(reading{ .Accepted = std::nullopt, .Resolving = true, .SameRequest = true }),
+			   "with no accepted comparison there is nothing to filter");
+		expect(!core::filter_comparison_in_force(reading{ }), "nor when nothing is read");
+
+		// A gesture made during the refresh is decided against the comparison
+		// in force, so it is applied, not refused as suspended.
+		const auto graph   = owner_graph();
+		const auto inForce = core::filter_comparison_in_force(reading{ .Accepted = accepted, .Resolving = true, .SameRequest = true });
+		const auto span    = core::filter_span_for(graph, *inForce);
+		expect(span.has_value(), "the comparison in force has its span during the refresh");
+		const auto hidden = core::apply_commit_filter(core::commit_filter_state{ }, graph, *span, { .Kind = core::commit_filter_operation_kind::hide, .Selection = { c2 } });
+		expect(hidden.has_value() && hidden->Hidden.size() == 1U, "a Hide selected made during the refresh applies");
+	}
+
 	void test_operations()
 	{
 		const auto graph = owner_graph();
@@ -508,6 +535,7 @@ auto main() -> int
 {
 	test_graph_roles();
 	test_spans();
+	test_comparison_in_force();
 	test_operations();
 	test_summary_and_force_push();
 	test_paths();
