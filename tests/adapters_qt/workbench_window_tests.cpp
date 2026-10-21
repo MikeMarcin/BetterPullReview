@@ -6585,6 +6585,109 @@ namespace {
 	/// keeps a written draft and drops an empty one. Nothing publishes but
 	/// Publish. Failing before: Return did nothing and Comment opened the
 	/// full-page composer in place of the code (owner, 2026-10-08).
+	/// \brief [[BPR-PENDING-E]]. The "+" on a pull request no one has
+	/// commented on opens its draft in the drawer, and the line offers its
+	/// "+" again once the empty draft goes.
+	///
+	/// \details The owner: "i'm no longer able to get the add comment mouse
+	/// over column next to line number control to come up or click on a line
+	/// I have selected", on a line no thread was on. With no conversation the
+	/// Comments drawer showed its empty page, so the draft began on the
+	/// hidden notes: no composer opened, the line kept the mark of a draft
+	/// being written, and a line with a mark offers no "+". Every pointer
+	/// event here goes to the window, so Qt's own hit-testing picks the code,
+	/// the gutter or the button.
+	void test_the_plus_on_a_pull_request_without_threads_opens_its_draft()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 852);
+		window.show();
+		process_events();
+		window.activateWindow();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		// An added line 14 above the line commented on, as the owner's file had.
+		auto text = std::string{ };
+		for (auto line = 0U; line < 40U; ++line) {
+			text += "#include \"Net" + std::to_string(line) + ".h\"\n";
+		}
+		auto laterText = text;
+		laterText.insert(laterText.find("#include \"Net13.h\""), "#include \"NetAdded.h\"\n");
+		const auto diff   = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto       drafts = std::vector<core::review_draft_command>{ };
+		window.set_review_draft_dispatch([&drafts](core::review_draft_command aCommand) { drafts.push_back(std::move(aCommand)); });
+		window.conversation_panel()->adopt({ }, QStringLiteral("No threads on this pull request yet."));
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(true, true);
+		process_events();
+		// The host's part: a selected line has its draft, empty.
+		auto nextId = std::uint64_t{ 1U };
+		window.comparison_surface()->set_selection_sink([&window, &nextId](const std::optional<core::semantic_selection>& aSelection) {
+			if (aSelection) {
+				window.review_editor()->present(core::review_comment_draft{
+					.Id = core::review_draft_id{ nextId++ }, .Anchor = aSelection->PreferredLine, .Body = { } });
+			}
+		});
+		auto* const code   = window.comparison_surface()->right_pane();
+		auto* const cards  = window.conversation_panel()->cards();
+		auto* const button = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+		expect(button != nullptr && cards->cards().empty(), "a pull request without threads: the notes are empty and the \"+\" waits");
+		const auto marked = [&window](const std::uint32_t aLine) {
+			const auto& marks = window.comparison_surface()->line_marks(core::diff_side::right);
+			return std::ranges::any_of(marks, [aLine](const qt::diff_line_mark& aMark) { return aMark.Line == aLine; });
+		};
+		// Points in the window: line 15's "+" column, two pixels into its
+		// code, and a little further into the code.
+		const auto column = [&window, code](const std::uint32_t aLine) {
+			const auto row = window.comparison_surface()->line_rect(core::diff_side::right, aLine);
+			return QPoint{ code->viewport()->mapTo(&window, QPoint{ 0, 0 }).x() + 2, window.comparison_surface()->mapTo(&window, row.center()).y() };
+		};
+		const auto inCode = [&column](const std::uint32_t aLine) { return column(aLine) + QPoint{ 40, 0 }; };
+		const auto mouse  = [&window](const QPoint aPoint, const QEvent::Type aType, const Qt::MouseButtons aButtons) {
+			QCursor::setPos(window.mapToGlobal(aPoint));
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				window.windowHandle(), QPointF{ aPoint }, QPointF{ window.mapToGlobal(aPoint) }, aButtons,
+				aType == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton, aType, Qt::NoModifier);
+			process_events();
+		};
+		const auto click = [&mouse](const QPoint aPoint) {
+			mouse(aPoint, QEvent::MouseMove, Qt::NoButton);
+			mouse(aPoint, QEvent::MouseButtonPress, Qt::LeftButton);
+			mouse(aPoint, QEvent::MouseButtonRelease, Qt::NoButton);
+		};
+		constexpr auto line = 14U;
+
+		// The owner's line: selected by a click on its code, then the pointer
+		// in its "+" column.
+		click(inCode(line));
+		expect(window.comparison_surface()->selection().has_value() && window.comparison_surface()->selection()->PreferredLine.Line == line,
+			   "a click on line 15's code selects it");
+		mouse(column(line), QEvent::MouseMove, Qt::NoButton);
+		expect(!button->isHidden() && button->geometry().contains(code->mapFrom(&window, column(line))),
+			   "the pointer in the selected line's \"+\" column shows its \"+\"");
+
+		// A click on the "+" opens the draft in the drawer, with the keyboard.
+		click(column(line));
+		std::cout << "bpr-pending-e plus-click writing=" << cards->writing_draft() << " composer=" << drawer_writing(window)
+				  << " cards-shown=" << cards->isVisible() << '\n';
+		expect(drawer_writing(window) && cards->draft_editor()->hasFocus() && marked(line)
+				   && cards->open_card() != nullptr && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 15"),
+			   "on a pull request without threads, clicking the \"+\" opens a draft on line 15 in the drawer, with focus");
+
+		// Esc drops the empty draft: its mark goes, the drawer shows its
+		// empty state again, and line 15 offers its "+" once more.
+		QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+		QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+		process_events();
+		expect(!cards->writing_draft() && !marked(line) && !cards->isVisible(), "Esc drops the empty draft and its mark, and the empty drawer stays empty");
+		mouse(inCode(line), QEvent::MouseMove, Qt::NoButton);
+		mouse(column(line), QEvent::MouseMove, Qt::NoButton);
+		expect(!button->isHidden() && button->geometry().contains(code->mapFrom(&window, column(line))), "line 15 offers its \"+\" again");
+	}
+
 	void test_compose_in_the_drawer()
 	{
 		qt::workbench_window window;
@@ -19573,6 +19676,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_right_click_on_any_line_and_on_base_lines", &test_right_click_on_any_line_and_on_base_lines);
 		runCase("test_discuss_restore_top_right_and_whole_privacy_note", &test_discuss_restore_top_right_and_whole_privacy_note);
 		runCase("test_the_review_chip_counts_the_review_and_opens_finish", &test_the_review_chip_counts_the_review_and_opens_finish);
+		runCase("test_the_plus_on_a_pull_request_without_threads_opens_its_draft", &test_the_plus_on_a_pull_request_without_threads_opens_its_draft);
 		if (!listCases) {
 			std::cout << "workbench-line-draft:pass\n";
 		}

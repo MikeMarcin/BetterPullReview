@@ -256,6 +256,9 @@ namespace bpr::qt {
 		/// [[BPR-0985]]. The panel made the current row current by itself;
 		/// the reviewer did not choose it.
 		bool DefaultCurrent = false;
+		/// [[BPR-PENDING-E]]. A snapshot is adopted, so the notes' page is
+		/// the one to show whenever it has a note, my draft included.
+		bool Adopted = false;
 		/// The file whose threads are shown, or nothing for all of them.
 		std::optional<core::file_identity>   AnchorFile;
 		std::optional<core::file_identity>   DiscussFile;
