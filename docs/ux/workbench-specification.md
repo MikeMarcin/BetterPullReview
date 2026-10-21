@@ -1706,7 +1706,7 @@ Close cancels pending query/filter work and restores the prior drawer tab and
 collapse state. Counts, scope, invalid input and coverage share accessible
 wording. See the [source search contract](../architecture/source-search.md).
 
-The results take an extended selection ([[BPR-PENDING-T]]). Shift or Cmd (Ctrl
+The results take an extended selection ([[BPR-1712]]). Shift or Cmd (Ctrl
 elsewhere) with a click, and Shift with an arrow, select more results and open
 none; Cmd+A (Ctrl+A) selects every row. Unlike Files, Cmd-click here selects
 rather than opening a tab. A plain click, an arrow, Return and F4 still act on

@@ -1,7 +1,7 @@
 /// \file
 /// \brief [[BPR-1504]]. Find in Files' result view: side filter, file and match
 /// rows, the painted match wash, the details toggle and collapse-all.
-/// [[BPR-PENDING-T]]: multi-select, Copy and the result menu.
+/// [[BPR-1712]]: multi-select, Copy and the result menu.
 
 #include "../support/window_system_keys.hpp"
 #include "../support/window_system_mouse.hpp"
@@ -128,7 +128,7 @@ namespace {
 		QApplication::processEvents();
 	}
 
-	/// [[BPR-PENDING-T]]. A click as the window system reports it, with the
+	/// [[BPR-1712]]. A click as the window system reports it, with the
 	/// button and modifiers a hand holds, so QtGui and the widget window
 	/// decide the selection and the context menu as they do for a hand. Each
 	/// click is two seconds after the last, so none makes a double click.
@@ -378,7 +378,7 @@ int main(int aArgc, char** aArgv)
 	rightChip->click();
 	expect(panel.side_filter() == core::source_side_filter{ } && leaves(*model).size() == 5U && panel.summary_text() == QStringLiteral("5 matches in 3 files"), "both on restores every record");
 
-	// [[BPR-PENDING-T]]. Shift and Command (Ctrl) select more results; Copy
+	// [[BPR-1712]]. Shift and Command (Ctrl) select more results; Copy
 	// writes them one per line in the list's order; the row menu opens one
 	// result in the active tab or a new one and copies. Clicks and keys come
 	// through the window system, as a hand's do.

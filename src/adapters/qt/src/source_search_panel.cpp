@@ -76,7 +76,7 @@ namespace bpr::qt {
 				}
 				return area;
 			}
-			/// [[BPR-PENDING-T]]. The last click held Shift or Command (Ctrl):
+			/// [[BPR-1712]]. The last click held Shift or Command (Ctrl):
 			/// it changed the selection and opens nothing.
 			[[nodiscard]] auto selecting_click() const -> bool { return SelectingClick; }
 
@@ -728,7 +728,7 @@ namespace bpr::qt {
 		Tree->setIndentation(14);
 		Tree->setFrameShape(QFrame::NoFrame);
 		Tree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		// [[BPR-PENDING-T]]. Shift and Command (Ctrl) select more results to copy.
+		// [[BPR-1712]]. Shift and Command (Ctrl) select more results to copy.
 		Tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
 		Tree->setSelectionBehavior(QAbstractItemView::SelectRows);
 		Tree->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -768,7 +768,7 @@ namespace bpr::qt {
 	}
 	auto source_search_panel::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
-		// [[BPR-PENDING-T]]. The results read Copy and Select All themselves,
+		// [[BPR-1712]]. The results read Copy and Select All themselves,
 		// ahead of any window shortcut.
 		if (aWatched == Tree && aEvent->type() == QEvent::ShortcutOverride) {
 			auto* key = static_cast<QKeyEvent*>(aEvent);
@@ -964,7 +964,7 @@ namespace bpr::qt {
 			return;
 		}
 		const auto index = Model->match_index(*Projection.CurrentMatch);
-		// [[BPR-PENDING-T]]. The reviewer's own move already made it current;
+		// [[BPR-1712]]. The reviewer's own move already made it current;
 		// keep the rows they selected with it. A move from elsewhere (F4,
 		// Shift+F4) selects the one result, whatever modifier is held.
 		if (index.isValid() && index != Tree->currentIndex()) {

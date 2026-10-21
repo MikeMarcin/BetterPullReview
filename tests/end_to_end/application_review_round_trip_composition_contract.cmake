@@ -1,4 +1,6 @@
-# [[BPR-PENDING-T]] reseal (2026-10-21) over last matching main 6e8d0834f,
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1712 note below
+# is renaming its [[BPR-PENDING-T]] comment tags to [[BPR-1712]]; no code change.
+# [[BPR-1712]] reseal (2026-10-21) over last matching main 6e8d0834f,
 # linear. Pinned-scope change: Find in files' result menu opens a result in a
 # new tab, on this card's own commit. Inside the manifest github_application.cpp
 # and pr_search_controller.cpp/.hpp changed: the controller's file opener takes
@@ -1879,7 +1881,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"c5667c728ac9f2bdfff3de1ee52ae0a15b3ff2a770f4b0eb3fbbd6505324e353"
+		"b367347a663cffaa786dae084e51673dd47a7045ba39f832e224244d32b367b3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2099,7 +2101,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8e86a920fb5c780a9e3dffdcf4768842035a3aa38aeca2988a1b9f06b0f25d1e"
+        "88fe5cb431799d87b15583d4136b79c114678ef1c325dc061207b0e1467b682a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

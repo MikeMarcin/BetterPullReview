@@ -307,7 +307,7 @@ int main(int aArgc, char** aArgv)
 			  << std::flush;
 	expect(!surface->selection() || surface->selection()->PreferredLine.Line != pendingLocation.Line || surface->selection()->PreferredLine.Side != pendingLocation.Side, "cancelled reveal cannot revive after returning to its old file");
 
-	// [[BPR-PENDING-T]]. A result's menu opens it in a new tab: a tab of its
+	// [[BPR-1712]]. A result's menu opens it in a new tab: a tab of its
 	// own after the active one, made active and shown at the result's line,
 	// with the results kept and nothing searched again.
 	{

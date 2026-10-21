@@ -7248,7 +7248,7 @@ namespace bpr::app {
 				SearchCreatedTab.reset();
 				SearchCreatedComparison.reset();
 			}
-			// [[BPR-PENDING-T]]. While a result opens, and while the tab it
+			// [[BPR-1712]]. While a result opens, and while the tab it
 			// opened is active, the search keeps the tab it was bound to, so
 			// the results and the result's reveal stay.
 			auto bound = tabs.Active;
@@ -7283,7 +7283,7 @@ namespace bpr::app {
 			result.erase(std::ranges::unique(result, { }, &core::source_search_filtered_file::Path).begin(), result.end());
 			return result;
 		}
-		/// \brief [[BPR-PENDING-T]]. Find in files' Open in New Tab: the
+		/// \brief [[BPR-1712]]. Find in files' Open in New Tab: the
 		/// result's file in a tab of its own after the active one, which it
 		/// then makes active so the result's line can be shown. The core's
 		/// Open in New Tab and tab activation decide both; at the tab limit

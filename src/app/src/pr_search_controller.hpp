@@ -9,7 +9,7 @@ namespace bpr::app {
 	class pr_search_controller final : public application::source_search_projection_port
 	{
 	public:
-		/// \brief [[BPR-PENDING-T]]. The tab a result opens in: the active one,
+		/// \brief [[BPR-1712]]. The tab a result opens in: the active one,
 		/// or one of its own (the result menu's Open in New Tab).
 		enum class result_tab : std::uint8_t {
 			active,

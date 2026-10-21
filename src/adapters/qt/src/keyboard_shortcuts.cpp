@@ -110,7 +110,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::query_previous, .Group = find, .Binding = read, .Title = "Previous match", .Place = in_query, .Keys = "Shift+Return" },
 			shortcut_entry{ .Command = command::query_whole_word, .Group = find, .Binding = read, .Title = "Whole word on or off", .Place = in_query, .Keys = "Alt+W" },
 			shortcut_entry{ .Command = command::query_in_selection, .Group = find, .Binding = read, .Title = "Find in selection on or off", .Place = in_query, .Keys = "Alt+L" },
-			// [[BPR-PENDING-T]]. The results list reads both ahead of any window shortcut.
+			// [[BPR-1712]]. The results list reads both ahead of any window shortcut.
 			shortcut_entry{ .Command = command::copy_results, .Group = find, .Binding = read, .Title = "Copy the selected results", .Place = in_results, .Standard = QKeySequence::Copy, .Objects = "sourceSearchCopy" },
 			shortcut_entry{ .Command = command::select_results, .Group = find, .Binding = read, .Title = "Select every result", .Place = in_results, .Standard = QKeySequence::SelectAll },
 

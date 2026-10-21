@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1712"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Find in files results open in a new tab and copy",
+  "created": "2026-10-21T20:34:55.615127+00:00",
+  "base": "99807e796b6474bbb87a4da7095cacaace75fff4"
+}

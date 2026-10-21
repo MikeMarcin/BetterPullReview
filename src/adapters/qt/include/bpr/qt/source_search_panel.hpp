@@ -40,10 +40,10 @@ namespace bpr::qt {
 		source_search_preview_role,
 		source_search_highlight_start_role,
 		source_search_highlight_length_role,
-		/// [[BPR-PENDING-T]]. A match row as Copy writes it: `path:line: text`,
+		/// [[BPR-1712]]. A match row as Copy writes it: `path:line: text`,
 		/// with the path and line of the side the row shows.
 		source_search_copy_role,
-		/// [[BPR-PENDING-T]]. The file's path, on a file row and its match rows.
+		/// [[BPR-1712]]. The file's path, on a file row and its match rows.
 		source_search_path_role,
 	};
 	/// \brief A match row's three fixed columns in viewport coordinates.
@@ -55,7 +55,7 @@ namespace bpr::qt {
 	};
 	/// \brief Native PR search projection, preserving result indexes between ordered batches.
 	///
-	/// \details [[BPR-PENDING-T]]. The results take an extended selection
+	/// \details [[BPR-1712]]. The results take an extended selection
 	/// (Shift and Command or Ctrl); a click without either, Return and the
 	/// menu's Open still act on one result. The row menu (right-click, the
 	/// menu key, Shift+F10) offers Open, Open in New Tab, Copy and Copy Path.
@@ -67,7 +67,7 @@ namespace bpr::qt {
 		explicit source_search_panel(QWidget* aParent);
 		std::function<void(source_find_gesture)> Dispatch;
 		std::function<void(std::uint32_t)>       Activate;
-		/// [[BPR-PENDING-T]]. Open in New Tab: the result in a tab of its own.
+		/// [[BPR-1712]]. Open in New Tab: the result in a tab of its own.
 		std::function<void(std::uint32_t)>            ActivateInNewTab;
 		std::function<void(std::uint32_t)>            Select;
 		std::function<void()>                         Changed;
@@ -89,7 +89,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto tree() const -> QTreeView*;
 		/// \brief The delegate's column geometry for a match row; empty for a file row.
 		[[nodiscard]] auto match_columns(const QModelIndex& aIndex) const -> source_search_match_columns;
-		/// \brief [[BPR-PENDING-T]]. The row menu for `aIndex`, built as a
+		/// \brief [[BPR-1712]]. The row menu for `aIndex`, built as a
 		/// right-click builds it; the caller owns it. None off a row.
 		[[nodiscard]] auto make_result_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*;
 
