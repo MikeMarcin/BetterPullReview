@@ -144,3 +144,7 @@ disk.
 - **Not run.** The RFC-BPR-0081 evaluation harness
   (`BPR_BUILD_SYNTAX_EVALUATION`) was not built, so its signature change is
   unverified.
+
+## Owner look
+
+Verdict, 2026-10-21: the owner answered **Accept** in chat after viewing the 2x dark renders of the Syntax card, its inline refusal, and a pane before and after adding `Qt`.
