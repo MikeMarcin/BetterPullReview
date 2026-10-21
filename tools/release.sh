@@ -20,6 +20,10 @@ SKIP_TESTS=0
 PREPARE_ONLY=0
 OUTPUT_DIR=""
 REQUESTED_VERSION=""
+TEST_PROFILE="normal"
+TEST_SCOPES=()
+TEST_HEAVY_GROUPS=()
+TEST_REGRESSIONS=""
 
 usage() {
     cat <<EOF
@@ -34,6 +38,11 @@ Options:
   --notary-keychain PATH Existing file Keychain for the selected profile.
   --output-dir DIR       Artifact directory (default: build/releases/VERSION).
   --skip-tests           Skip the dev build and test preset.
+  --test-profile NAME    normal (default) or comprehensive qualification.
+  --test-scope NAME      Declared owning change scope; repeat as needed.
+                        Missing/unknown scope requires comprehensive checks.
+  --test-heavy-group ID  Add one named heavy obligation to normal checks.
+  --test-regressions RE  Add focused patch regressions without dropping baseline.
   --skip-notarize        Build signed artifacts without submitting them to Apple.
   --prepare-only        Local deployment, notices/source, audit and ZIP only;
                         ad-hoc seal, no Keychain lookup or Apple submissions.
@@ -474,6 +483,26 @@ while [[ $# -gt 0 ]]; do
             SKIP_TESTS=1
             shift
             ;;
+        --test-profile)
+            [[ $# -ge 2 ]] || fail "--test-profile requires a value"
+            TEST_PROFILE="$2"
+            shift 2
+            ;;
+        --test-scope)
+            [[ $# -ge 2 ]] || fail "--test-scope requires a value"
+            TEST_SCOPES+=("$2")
+            shift 2
+            ;;
+        --test-heavy-group)
+            [[ $# -ge 2 ]] || fail "--test-heavy-group requires a value"
+            TEST_HEAVY_GROUPS+=("$2")
+            shift 2
+            ;;
+        --test-regressions)
+            [[ $# -ge 2 && -n "$2" ]] || fail "--test-regressions requires a nonempty expression"
+            TEST_REGRESSIONS="$2"
+            shift 2
+            ;;
         --skip-notarize)
             SKIP_NOTARIZE=1
             shift
@@ -547,10 +576,24 @@ if [[ "${PREPARE_ONLY}" == "0" && "${SKIP_NOTARIZE}" == "0" ]]; then
 fi
 
 if [[ "${SKIP_TESTS}" == "0" ]]; then
-    log "Building and testing the development graph"
+    [[ "${TEST_PROFILE}" == normal || "${TEST_PROFILE}" == comprehensive ]] || fail "--test-profile must be normal or comprehensive"
+    [[ ${#TEST_SCOPES[@]} -gt 0 ]] || TEST_SCOPES=(unknown)
+    TEST_ARGUMENTS=()
+    for scope in "${TEST_SCOPES[@]}"; do TEST_ARGUMENTS+=(--change-scope "${scope}"); done
+    if [[ ${#TEST_HEAVY_GROUPS[@]} -gt 0 ]]; then
+        for group in "${TEST_HEAVY_GROUPS[@]}"; do TEST_ARGUMENTS+=(--heavy-group "${group}"); done
+    fi
+    if [[ -n "${TEST_REGRESSIONS}" ]]; then TEST_ARGUMENTS+=(--include-tests-regex "${TEST_REGRESSIONS}"); fi
+    log "Building and testing the declared Release profile; omitted heavy claims remain unqualified"
+    cmake --preset qualification-release
+    cmake --build --preset qualification-release
+    python3 scripts/run_test_suite.py --preset qualification-release --profile "${TEST_PROFILE}" "${TEST_ARGUMENTS[@]}"
+    log "Building the native Debug diagnostic lane"
     cmake --preset dev
     cmake --build --preset dev
-    python3 scripts/run_test_suite.py --preset dev
+    DEBUG_PROFILE=debug-residual
+    [[ "${TEST_PROFILE}" == comprehensive ]] && DEBUG_PROFILE=comprehensive
+    python3 scripts/run_test_suite.py --preset dev --profile "${DEBUG_PROFILE}" "${TEST_ARGUMENTS[@]}"
 else
     log "Skipping tests"
 fi

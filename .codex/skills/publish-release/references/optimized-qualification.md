@@ -2,12 +2,15 @@
 
 BPR-1674 / `release-30min-portfolio-r1` adds ordinary Release qualification presets.
 They preserve `NDEBUG`, Release Qt/CRT/STL and the test expectation mechanisms.
-They are additional evidence. The complete affected-native Debug inventory remains
-required at **every release-candidate integration boundary**. A five-command pilot
-is not a complete native qualification, distribution build or permission to publish.
-Use the [portfolio](../../../../docs/development/release-qualification-portfolio.md)
-and [M2 ledger](../../../../docs/verification/BPR-1674-input-scoped-qualification.md)
-for exact accepted inputs and unfinished promotion work.
+The owner subsequently authorized normal Release qualification plus focused patch
+regressions and a five-command native Debug residual for bounded incremental
+releases. Major, Qt/toolchain/platform, broad or unknown changes require
+comprehensive native Release and Debug. Use the
+[operational profile contract](../../../../docs/development/release-test-profiles.md)
+for exact named heavy owners, scope declarations and commands. Normal PASS never
+qualifies omitted heavy claims; BPR-1653 strict Ubuntu RSS remains a release
+blocker, without extending the published v0.3.1 exception. No profile supplies
+signing, native trust, legal or publication approval.
 
 ## Prepare one bounded Windows discriminator
 
@@ -85,7 +88,7 @@ are not interchangeable. No composition build was removed by this pilot.
 
 ## Debug residual and promotion boundary
 
-Until promotion is evidenced, every release request runs complete native Debug.
+The explicit incremental profile uses the five-command Debug residual. Comprehensive releases and the following owning changes require broader native Debug:
 The following triggers must also invalidate any future narrower Debug proof:
 
 | Trigger | Required evidence |

@@ -165,3 +165,21 @@ URLs in contexts. Include explicit not-run reasons for signing, publication,
 trust, human review or a gate blocked by failed prerequisites. Summed overlapping
 phase work is distinct from elapsed request time. One-time workflow engineering
 and a later reproducible release request remain separate reported clocks.
+
+## Incremental normal and heavy qualification
+
+The owner-authorized [profile contract](../../../../docs/development/release-test-profiles.md)
+selects normal tests-on Release plus named patch regressions and native Debug
+residual for bounded patches. Use `--profile normal --change-scope incremental
+--include-tests-regex REGEX` with the existing runner, then `--profile
+debug-residual` on the Debug preset. The baseline is retained; a focused regex
+is an addition. Request relevant `--heavy-group` owners when their inputs change.
+Major/Qt/toolchain/platform/broad/unknown changes request comprehensive Release
+and Debug. Missing scope is refused. Existing generic runner callers remain
+comprehensive. Source, actual distribution configuration, artifact integrity,
+SPDX/corresponding-source/notices and security checks remain fresh.
+
+Inspect `selection.json` before calling a normal result complete: it names every
+selected and omitted obligation. Normal PASS is not heavy/resource qualification
+and cannot clear BPR-1653 or extend v0.3.1's one-release RSS exception. No profile
+change grants a version bump, signing, publication, installation or trust approval.

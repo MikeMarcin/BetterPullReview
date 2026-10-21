@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run every test in a CTest preset and retain an honest timing report."""
+"""Run an explicit normal, heavy or comprehensive CTest profile with honest coverage."""
 from __future__ import annotations
 
 import argparse
@@ -58,6 +58,14 @@ def summarize(rows: list[dict], wall: float | None) -> dict:
 
 
 def print_report(report: dict) -> None:
+    selection = report.get("profile_selection")
+    if selection:
+        print(f"Profile: {selection['requested']} -> {selection['effective']}; selected {len(selection['selected'])}/{selection['configured_count']} configured rows")
+        print("Declared change scopes: " + ", ".join(selection["change_scopes"]))
+        for group in selection.get("omitted_heavy", []):
+            print(f"Heavy obligation NOT RUN: {group['id']} ({len(group['tests'])} rows): {group['claim']}")
+        for blocker in selection.get("known_release_blockers", []):
+            print(f"Known release blocker {blocker['id']}: {blocker['claim']}")
     wall = report["wall_seconds"]
     print(f"\nCTest wall time: {wall / 60:.2f} min" if wall is not None else "\nCTest wall time: incomplete run")
     print(f"Summed test time: {report['summed_test_seconds'] / 60:.2f} min (overlapping tests count separately)")
@@ -182,9 +190,62 @@ def suite_lock(path: Path):
         yield
 
 
-def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: Path = ROOT, tests_regex: str | None = None) -> int:
+def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: Path = ROOT, tests_regex: str | None = None,
+              profile: str = "comprehensive", heavy_groups: list[str] | None = None, change_scopes: list[str] | None = None,
+              include_tests_regex: str | None = None) -> int:
     with suite_lock(root / "build/.test-suite.lock"):
-        return run_locked_suite(preset, jobs, output, ctest, root, tests_regex)
+        return run_locked_suite(preset, jobs, output, ctest, root, tests_regex, profile, heavy_groups, change_scopes, include_tests_regex)
+
+
+def select_profile(names: list[str], profile: str, heavy_groups: list[str] | None, change_scopes: list[str] | None, root: Path = ROOT) -> dict:
+    """Select declared obligations, never infer acceptance or inherit old verdicts."""
+    if len(names) != len(set(names)) or profile not in {"normal", "debug-residual", "heavy", "comprehensive"}:
+        raise ValueError("Duplicate manifest rows or unknown test profile")
+    requested_groups, scopes = set(heavy_groups or []), set(change_scopes or [])
+    result = dict(requested=profile, effective=profile, change_scopes=sorted(scopes), configured_count=len(names),
+                  selected=list(names), omitted_heavy=[], definition_sha256=None,
+                  note="PASS covers selected rows only; omitted heavy obligations receive no pass credit. Known resource failures remain release blockers.")
+    if profile == "comprehensive" and not requested_groups and not scopes:
+        return result
+    path = root / "tests/release_test_profiles.json"
+    definition = json.loads(path.read_text(encoding="utf-8"))
+    if definition.get("schema") != "bpr.release-test-profiles.v1":
+        raise ValueError("Unknown release test profile schema")
+    groups = {group["id"]: group for group in definition["groups"]}
+    declared = [name for group in definition["groups"] for name in group["tests"]]
+    if len(groups) != len(definition["groups"]) or len(declared) != len(set(declared)):
+        raise ValueError("Duplicate heavy group or row")
+    known_scopes = set(definition["scope_groups"]) | set(definition["comprehensive_scopes"])
+    if requested_groups - groups.keys() or scopes - known_scopes:
+        raise ValueError("Unknown heavy group or change scope")
+    if profile in {"normal", "debug-residual"} and not scopes:
+        raise ValueError("Normal qualification requires explicit --change-scope; unknown risk requires comprehensive")
+    if profile == "heavy" and not requested_groups:
+        raise ValueError("Heavy qualification requires explicit --heavy-group")
+    if profile == "debug-residual" and set(definition["debug_baseline"]) - set(names):
+        raise ValueError("The preset is missing required Debug residual commands")
+    if "routine" in scopes and len(scopes) != 1:
+        raise ValueError("Routine cannot hide another declared change scope")
+    effective_groups = set(requested_groups)
+    for scope in scopes:
+        effective_groups.update(definition["scope_groups"].get(scope, []))
+    if profile == "comprehensive" or scopes.intersection(definition["comprehensive_scopes"]):
+        result["effective"] = "comprehensive"
+        effective_groups = set(groups)
+        selected = set(names)
+    else:
+        heavy_names = set(declared)
+        selected = set(names) - heavy_names if profile == "normal" else set(definition["debug_baseline"]).intersection(names) if profile == "debug-residual" else set()
+        selected.update(name for group in effective_groups for name in groups[group]["tests"] if name in names)
+    if not selected:
+        raise ValueError("The selected profile has no rows on this platform")
+    result.update(selected=[name for name in names if name in selected], requested_heavy_groups=sorted(requested_groups),
+                  effective_heavy_groups=sorted(effective_groups), definition_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                  debug_policy=definition["debug_policy"], routine_scope=definition["routine_scope"],
+                  known_release_blockers=definition["known_release_blockers"],
+                  omitted_heavy=[{**group, "tests": [name for name in group["tests"] if name in names and name not in selected]}
+                                 for group in groups.values() if any(name in names and name not in selected for name in group["tests"])])
+    return result
 
 
 def committed_tooling_pin(root: Path) -> dict:
@@ -286,7 +347,9 @@ def reusable_bootstrap(report: dict | None, invocation: str, identity: str | Non
     return names
 
 
-def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path, tests_regex: str | None = None) -> int:
+def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path, tests_regex: str | None = None,
+                     profile: str = "comprehensive", heavy_groups: list[str] | None = None, change_scopes: list[str] | None = None,
+                     include_tests_regex: str | None = None) -> int:
     if sys.flags.optimize or os.environ.get("PYTHONOPTIMIZE"):
         raise ValueError("Qualification requires Python assertions enabled (no -O/PYTHONOPTIMIZE)")
     runner_started = time.monotonic()
@@ -295,11 +358,28 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                               check=True, text=True, capture_output=True)
     selected = json.loads(manifest.stdout)
     validate_schedule(selected)
+    if profile == "debug-residual" and any(row.get("config") != "Debug" for row in selected["tests"]):
+        raise ValueError("Debug residual requires an actual Debug preset")
     all_names = [test["name"] for test in selected["tests"]]
-    expected = [name for name in all_names if tests_regex is None or re.search(tests_regex, name)]
+    selection = select_profile(all_names, profile, heavy_groups, change_scopes, root)
+    included = [name for name in all_names if include_tests_regex is not None and re.search(include_tests_regex, name)]
+    if include_tests_regex is not None and not included:
+        raise ValueError("The requested focused regression inclusion matched no tests")
+    if "incremental" in (change_scopes or []) and not included:
+        raise ValueError("Incremental qualification requires explicit --include-tests-regex patch regressions")
+    included_names = set(selection["selected"]) | set(included)
+    selection["selected"] = [name for name in all_names if name in included_names]
+    for group in selection["omitted_heavy"]:
+        group["tests"] = [name for name in group["tests"] if name not in included]
+    selection["omitted_heavy"] = [group for group in selection["omitted_heavy"] if group["tests"]]
+    expected = [name for name in selection["selected"] if tests_regex is None or re.search(tests_regex, name)]
     if not expected:
         raise ValueError("The selected CTest preset contains no tests")
     (output / "manifest.json").write_text(manifest.stdout, encoding="utf-8")
+    selection.update(selected=expected, selection_regex=tests_regex, focused_regression_regex=include_tests_regex, focused_regressions=included,
+                     omitted=sorted(set(all_names) - set(expected)), manifest_sha256=hashlib.sha256(manifest.stdout.encode()).hexdigest())
+    (output / "selection.json").write_text(json.dumps(selection, indent=2) + "\n", encoding="utf-8")
+    print(f"Admitted profile {selection['requested']} -> {selection['effective']}: {len(expected)}/{len(all_names)} rows; {len(selection['omitted'])} omitted (not qualified)", flush=True)
     invocation = uuid.uuid4().hex
     identity = None
     identity_error = None
@@ -319,7 +399,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                       missing=expected, unexpected=[], not_run=expected,
                       preflight_wall_seconds=preflight["wall_seconds"],
                       total_runner_wall_seconds=time.monotonic() - runner_started,
-                      reason="tooling prerequisite preflight failed")
+                      reason="tooling prerequisite preflight failed", profile_selection=selection)
         (output / "timings.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"Full graph not started: tooling prerequisite preflight failed; {len(expected)} tests not run", file=sys.stderr)
         print(f"Preflight report: {output / 'preflight.json'}", file=sys.stderr)
@@ -335,8 +415,8 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure",
                "--no-tests=error", "--output-log", str(output / "ctest.log"),
                "--output-junit", str(output / "junit.xml")]
-    if tests_regex is not None:
-        command.extend(["--tests-regex", tests_regex])
+    if set(expected) != set(all_names):
+        command.extend(["--tests-regex", "^(" + "|".join(re.escape(name) for name in expected) + ")$"])
     if reused:
         command.extend(["--exclude-regex", "^(" + "|".join(re.escape(name) for name in reused) + ")$"])
     started = time.monotonic()
@@ -363,8 +443,9 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                   qualification_scope={"fresh": fresh, "reused": reused,
                       "reuse_scope": "same-invocation-bootstrap", "cross_request_reuse": "unready", "native_reuse": False,
                       "input_identity": identity, "input_identity_after_preflight": current_identity, "input_identity_after_execution": final_identity,
-                      "release_gate_substitution": False, "required_debug": "complete affected-native Debug at every release candidate"},
-                  complete=complete, full_graph_started=True, full_graph_selected=tests_regex is None, selection_regex=tests_regex,
+                      "release_gate_substitution": False, "required_debug": selection.get("debug_policy", "comprehensive affected-native Debug")},
+                  complete=complete, full_graph_started=True, full_graph_selected=set(expected) == set(all_names), selection_regex=tests_regex,
+                  profile_selection=selection,
                   preflight_wall_seconds=preflight["wall_seconds"] if preflight else 0.0,
                   total_runner_wall_seconds=time.monotonic() - runner_started,
                   missing=sorted(set(expected) - set(actual)),
@@ -385,6 +466,11 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; exclusive courses stay serial; only audited correctness may overlap")
     parser.add_argument("--output-dir", type=Path, help="New directory for this run's log, JUnit and timing report")
     parser.add_argument("--tests-regex", help="Bounded selection from the validated preset; the existing tooling preflight still runs")
+    parser.add_argument("--profile", choices=["normal", "debug-residual", "heavy", "comprehensive"], default="comprehensive",
+                        help="Normal release checks, named heavy obligations, or every configured row (default)")
+    parser.add_argument("--heavy-group", action="append", default=[], help="Explicit heavy obligation group; repeat for several groups")
+    parser.add_argument("--change-scope", action="append", default=[], help="Declared owning change scope; unknown/broad/toolchain/Qt/platform escalates to comprehensive")
+    parser.add_argument("--include-tests-regex", help="Add named patch regressions to a normal profile without dropping its baseline")
     parser.add_argument("--phase-ledger", type=Path, help="Append this attempt to an existing request ledger, including refusal/failure")
     parser.add_argument("--phase-context", type=Path, help="Nonsecret JSON source/config/tools/cache/lease facts for --phase-ledger")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
@@ -401,14 +487,17 @@ def main() -> int:
     if bool(args.phase_ledger) != bool(args.phase_context):
         parser.error("--phase-ledger and --phase-context are required together")
     if not args.phase_ledger:
-        return run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex)
+        return run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex,
+                         profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex)
     import release_phase_ledger as ledger
     context = json.loads(args.phase_context.read_text(encoding="utf-8"))
-    context.update(preset=args.preset, jobs=args.jobs, output=str(output.resolve()), selection_regex=args.tests_regex)
+    context.update(preset=args.preset, jobs=args.jobs, output=str(output.resolve()), selection_regex=args.tests_regex,
+                   profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, focused_regressions=args.include_tests_regex)
     identity = ledger.begin(args.phase_ledger, "qualification", context, sys.argv)
     started = time.monotonic()
     try:
-        code = run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex)
+        code = run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex,
+                         profile=args.profile, heavy_groups=args.heavy_group, change_scopes=args.change_scope, include_tests_regex=args.include_tests_regex)
     except Exception as error:
         ledger.finish(args.phase_ledger, identity, outcome="refused", seconds=time.monotonic() - started, exit_code=None, detail=str(error))
         raise

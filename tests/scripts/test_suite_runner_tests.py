@@ -42,6 +42,61 @@ class SuiteRunnerTests(unittest.TestCase):
         self.assertEqual(suite.reusable_bootstrap(None, "live", "same"), [])
         self.assertEqual(suite.reusable_bootstrap(valid, "live", None), [])
 
+    def test_profiles_preserve_heavy_claims_and_escalate_unclassified_risk(self):
+        definition = json.loads((ROOT / "tests/release_test_profiles.json").read_text())
+        heavy = [name for group in definition["groups"] for name in group["tests"]]
+        names = ["new_unclassified_row", "application_device_authorization_refresh", *heavy]
+        normal = suite.select_profile(names, "normal", [], ["routine"])
+        self.assertEqual(normal["selected"], names[:2])
+        self.assertEqual(set(normal["selected"]) | {name for group in normal["omitted_heavy"] for name in group["tests"]}, set(names))
+        self.assertIn("diagnostic_context_age", next(group for group in normal["omitted_heavy"] if group["id"] == "diagnostic-age")["tests"])
+        device = suite.select_profile(names, "normal", [], ["device"])
+        self.assertIn("application_device_binding_launch_renewal", device["selected"])
+        self.assertNotIn("diagnostic_context_age", device["selected"])
+        for scope in ("qt", "toolchain", "platform", "ownership", "broad", "unknown"):
+            selected = suite.select_profile(names, "normal", [], [scope])
+            self.assertEqual(selected["effective"], "comprehensive")
+            self.assertEqual(selected["selected"], names)
+        for profile, groups, scopes in (("normal", [], []), ("heavy", [], []),
+                                       ("normal", ["typo"], ["routine"]), ("normal", [], ["typo"]),
+                                       ("normal", [], ["routine", "device"])):
+            with self.subTest(profile=profile, groups=groups, scopes=scopes), self.assertRaises(ValueError):
+                suite.select_profile(names, profile, groups, scopes)
+
+    def test_real_normal_profile_omits_waiting_sentinel_and_heavy_executes_it_fresh(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "tests").mkdir()
+            (root / "tests/release_test_profiles.json").write_bytes((ROOT / "tests/release_test_profiles.json").read_bytes())
+            worker = root / "worker.py"
+            worker.write_text('from pathlib import Path\nimport sys\np=Path(__file__).parent/(sys.argv[1]+".runs")\np.write_text(p.read_text()+"run\\n" if p.exists() else "run\\n")\n')
+            (root / "CMakeLists.txt").write_text('cmake_minimum_required(VERSION 3.24)\nproject(Profiles NONE)\nenable_testing()\n' + ''.join(
+                f'add_test(NAME {name} COMMAND "{Path(sys.executable).as_posix()}" "{worker.as_posix()}" {name})\n'
+                for name in ("new_unclassified_row", "diagnostic_context_age")))
+            (root / "CMakePresets.json").write_text(json.dumps({"version": 3,
+                "configurePresets": [{"name": "fixture", "generator": "Ninja", "binaryDir": "${sourceDir}/build"}],
+                "testPresets": [{"name": "fixture", "configurePreset": "fixture"}]}))
+            subprocess.run(["cmake", "--preset", "fixture"], cwd=root, check=True, capture_output=True)
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(suite.run_suite("fixture", 1, root / "normal", root=root, profile="normal", change_scopes=["routine"]), 0)
+            report = json.loads((root / "normal/timings.json").read_text())
+            self.assertTrue(report["complete"])
+            self.assertFalse(report["full_graph_selected"])
+            self.assertEqual(report["profile_selection"]["omitted"], ["diagnostic_context_age"])
+            self.assertFalse((root / "diagnostic_context_age.runs").exists())
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(suite.run_suite("fixture", 1, root / "heavy", root=root, profile="heavy", heavy_groups=["diagnostic-age"]), 0)
+            self.assertEqual((root / "diagnostic_context_age.runs").read_text(), "run\n")
+            self.assertEqual((root / "new_unclassified_row.runs").read_text(), "run\n")
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(suite.run_suite("fixture", 1, root / "incremental", root=root, profile="normal", change_scopes=["incremental"], include_tests_regex="^diagnostic_context_age$"), 0)
+            self.assertEqual((root / "diagnostic_context_age.runs").read_text(), "run\nrun\n")
+            self.assertEqual((root / "new_unclassified_row.runs").read_text(), "run\nrun\n")
+            for inclusion in (None, "^missing$"):
+                with self.subTest(inclusion=inclusion), self.assertRaises(ValueError):
+                    suite.run_suite("fixture", 1, root / ("refused-" + str(inclusion is None)), root=root,
+                                    profile="normal", change_scopes=["incremental"], include_tests_regex=inclusion)
+
     def test_bounded_selection_keeps_preflight_fresh_and_never_credits_other_rows(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)

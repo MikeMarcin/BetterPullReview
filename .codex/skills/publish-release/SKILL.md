@@ -178,3 +178,8 @@ with final producer bytes; verify source binding and native trust again on the
 downloads. The standard macOS route needs all eight assets. Other routes need
 their declared package/archive/source/SPDX/checksum/provenance/signature set,
 not a fixed count borrowed from macOS.
+
+The owner-authorized incremental normal/Debug-residual and explicit heavy profile
+contract is [release-test-profiles](../../../docs/development/release-test-profiles.md).
+Normal PASS covers selected rows only; known resource failures and separate
+artifact/source/legal/native trust obligations remain explicit.

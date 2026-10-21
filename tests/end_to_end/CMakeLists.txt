@@ -1085,7 +1085,24 @@ bpr_add_network_isolated_test(
     NAME application_composition_contract
     WINDOWS_UNCONTAINED
     COMMAND ${bpr_application_composition_contract_command}
+        CompositionContractTests.test_tests_off_release_graph_omits_public_path_fixture
 )
+# The seven source/compiler claims run on the normal route. The independent
+# tests-off image stays in the heavy composition course; together these two
+# rows execute all eight methods once, without substituting a package image.
+bpr_add_network_isolated_test(
+    NAME application_composition_source_contract
+    WINDOWS_UNCONTAINED
+    COMMAND ${bpr_application_composition_contract_command}
+        CompositionContractTests.test_production_mutation_authority_issuers_are_language_sealed
+        CompositionContractTests.test_whole_review_authority_is_distinct_and_test_factory_is_private
+        CompositionContractTests.test_build_edges_keep_compiles_and_drop_only_regeneration
+        CompositionContractTests.test_language_seal_assertion_rejects_what_does_not_prove_a_seal
+        CompositionContractTests.test_concrete_github_selection_is_owned_by_composition
+        CompositionContractTests.test_the_automated_test_boundary_has_one_reader
+        CompositionContractTests.test_async_mutation_host_inventory_rejects_every_direct_bypass
+)
+set_tests_properties(application_composition_source_contract PROPERTIES TIMEOUT 180)
 # No PASS_REGULAR_EXPRESSION. This is a `unittest` suite and its exit code is
 # already the verdict; setting the property makes CTest ignore that exit code
 # and pass on a substring match instead. "OK" is satisfied by any incidental

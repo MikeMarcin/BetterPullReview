@@ -18,7 +18,7 @@ The third milestone records one request phase ledger and measures the stabilized
 
 ## Open choices and preserved obligations
 
-No automatic shortening of the 32-epoch history course, real three-minute logger expiry, full required scale coverage, optimized memory gates, security/tool adversarial corpus, native negative controls or material decisions is adopted. Conditional runs require a complete trigger closure and retained native residual proof; any actual weakening of an explicit accepted claim requires its concrete owner decision. A Release/tests-on normal gate with an explicit Debug residual is under analysis only. `tests::expect` remains unconditional, and `NDEBUG` may activate extra optimized workloads/timing/memory obligations; do not globally undefine it or treat a Debug audit as optimized timing evidence.
+The owner subsequently authorized an incremental normal profile plus focused patch regressions, with major/broad/unknown changes requesting comprehensive qualification. The [operational profile contract](release-test-profiles.md) preserves real three-minute logger expiry, real device retries, 32 epochs, resource budgets, extra scales and hostile corpora unchanged in explicit heavy groups. Normal selection is not pass credit for those omitted claims. Conditional runs require a complete trigger closure and retained native residual proof; any actual weakening of an explicit accepted claim requires its concrete owner decision. The normal route uses tests-on Release and an explicit native Debug residual; the complete diagnostic matrix remains available for named owning changes and comprehensive releases. `tests::expect` remains unconditional, and `NDEBUG` may activate extra optimized workloads/timing/memory obligations; do not globally undefine it or treat a Debug audit as optimized timing evidence.
 
 The thirty-minute goal remains unproved. Keep RFC-0038 and M8/M9 native/vault/crash/vulnerability/legal gaps explicit. Do not trim mandatory coverage when a timer approaches the goal. Scope and timing claims bind to exact source, tools, configurations, input identities and observed native conditions.
 
@@ -36,8 +36,7 @@ The [M1 runtime ledger](../verification/BPR-1673-command-owned-correctness.md) r
 The [M2 result](../verification/BPR-1674-input-scoped-qualification.md) and
 [publish-release pilot procedure](../../.codex/skills/publish-release/references/optimized-qualification.md)
 make a bounded tests-enabled Release discriminator operational. Five passing
-commands do not replace a complete native gate. The release-candidate integration
-boundary still requires complete native Debug; full optimized promotion awaits M3.
+commands do not replace a complete native gate. The later owner amendment selects the explicit normal/Debug-residual route for bounded patches and comprehensive native Release/Debug for major or broad changes; see the operational profile contract.
 Source/manifest/artifact/security/legal/native obligations stay fresh. Only duplicate
 bootstrap rows within one sealed live runner invocation may reuse their new scoped
 proof; cross-request hostile-tool and native reuse remain unready. The eight-method

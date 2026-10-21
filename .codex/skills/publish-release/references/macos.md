@@ -12,14 +12,15 @@ Developer ID and hardened runtime, submits/staples app and DMG, runs Gatekeeper,
 and writes DMG/ZIP/SPDX/checksums and separate source under
 `build/releases/X.Y.Z/`.
 
-The normal test gate runs `scripts/run_test_suite.py --preset dev`: the full
-configured graph, with four jobs for independent tests and serial Qt and
-end-to-end courses. Its new directory under `build/test-results/dev/` retains
-the log, JUnit results, selected manifest and timing report. Failures still
-stop the release. The tests-disabled composition check reuses its build tree
-but reconfigures, rebuilds and checks it each time. See
-`docs/development/build-and-test.md` for focused development checks and timing
-interpretation. Do not run another build or suite alongside performance rows.
+The normal test gate uses tests-on Release plus the native Debug residual. Pass
+`--test-scope incremental --test-regressions REGEX` for a bounded patch; the
+baseline remains selected. Named heavy owners are added with `--test-heavy-group`.
+`--test-profile comprehensive`, major/Qt/toolchain/platform/broad/unknown scope,
+or an omitted scope requests comprehensive qualification. See the
+[profile contract](../../../../docs/development/release-test-profiles.md).
+Every run retains configured/selected/omitted rows and actual child results.
+Normal PASS does not clear an omitted heavy obligation or the known Ubuntu RSS
+release blocker. Do not run another build or suite alongside timed rows.
 
 Expected bundle: `com.gamecoretech.betterpullreview`; team: `YTQKP2V2A8`;
 identity: `Developer ID Application: Michael Marcin (YTQKP2V2A8)`.
