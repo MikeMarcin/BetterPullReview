@@ -679,6 +679,9 @@ namespace bpr::app::detail {
 		std::size_t              DiscoveryDetailReads = 0U;
 		std::vector<std::string> DiscoverySearchTerms;
 		std::vector<std::string> AccountReadOperations;
+		/// [[BPR-1680]]. The most account-transport reads the fixture served
+		/// at once.
+		std::uint32_t MaximumConcurrentAccountReads = 0U;
 	};
 
 	struct github_epoch_maintenance_fixture_evidence

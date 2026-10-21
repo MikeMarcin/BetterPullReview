@@ -4,6 +4,9 @@
 #include "github_cli_process_runner.hpp"
 #include <QFileInfo>
 #include <QStandardPaths>
+
+#include <array>
+#include <mutex>
 namespace bpr::app {
 #if defined(__APPLE__)
 	using adapters::github::validated_github_host_profile;
@@ -88,10 +91,36 @@ namespace bpr::app {
 		{
 			github_wire_transport_port::set_insights_channel(aChannel);
 			Transport.set_insights_channel(aChannel);
-			Process->set_insights_channel(std::move(aChannel));
+			Process->set_insights_channel(aChannel);
+			const std::scoped_lock lock{ BackgroundMutex };
+			for (auto& lane : Background) {
+				if (lane.Process) {
+					lane.Transport->set_insights_channel(aChannel);
+					lane.Process->set_insights_channel(aChannel);
+				}
+			}
 		}
 		[[nodiscard]] auto strict_cli() const noexcept -> bool override { return true; }
 		[[nodiscard]] auto begin_operation(std::stop_token aStop) -> adapters::github::detail::github_wire_operation override { return Transport.begin_operation(aStop); }
+		/// [[BPR-1680]]. Two background lanes: each its own gh runner, with its
+		/// own serialized lane, quarantine and process-group kill, over the
+		/// same pinned configuration. Home's discovery reads go there, so a
+		/// pull request read never waits behind one.
+		[[nodiscard]] auto background_lanes() const noexcept -> std::size_t override { return background_lane_count; }
+		[[nodiscard]] auto begin_background_operation(const std::size_t aLane, std::stop_token aStop) -> adapters::github::detail::github_wire_operation override
+		{
+			auto* const transport = background_transport(aLane);
+			if (transport == nullptr) {
+				return std::unexpected{ application::github_provider_error{ .Failure = application::github_provider_failure::process_startup } };
+			}
+			auto operation = transport->begin_operation(aStop);
+			if (!operation || *operation) {
+				return operation;
+			}
+			// No scoped credential: the lane's own transport serves, kept
+			// alive by this one.
+			return std::shared_ptr<adapters::github::detail::github_wire_transport_port>{ shared_from_this(), transport };
+		}
 		[[nodiscard]] auto begin_mutation_operation(std::stop_token aStop) -> adapters::github::detail::github_mutation_operation override { return Transport.begin_mutation_operation(aStop); }
 
 		auto acquire(const application::git_smart_request_context& aContext)
@@ -131,12 +160,50 @@ namespace bpr::app {
 		}
 
 	private:
+		static constexpr std::size_t background_lane_count = 2U;
+
+		/// The background lane's transport, made on first use.
+		[[nodiscard]] auto background_transport(const std::size_t aLane) -> adapters::github::detail::gh_cli_transport*
+		{
+			if (aLane >= Background.size()) {
+				return nullptr;
+			}
+			const std::scoped_lock lock{ BackgroundMutex };
+			auto&                  lane = Background[aLane];
+			if (!lane.Process) {
+				try {
+					auto process = adapters::github::detail::make_github_cli_process_runner();
+					if (!process) {
+						return nullptr;
+					}
+					lane.Transport = std::make_unique<adapters::github::detail::gh_cli_transport>(Profile, Configuration, *process);
+					lane.Process   = std::move(process);
+					if (insights_channel()) {
+						lane.Transport->set_insights_channel(insights_channel());
+						lane.Process->set_insights_channel(insights_channel());
+					}
+				} catch (...) {
+					return nullptr;
+				}
+			}
+			return lane.Transport.get();
+		}
+
+		struct background_lane
+		{
+			std::unique_ptr<adapters::github::detail::github_cli_process_port> Process;
+			std::unique_ptr<adapters::github::detail::gh_cli_transport>        Transport;
+		};
+
 		std::unique_ptr<adapters::github::detail::github_cli_process_port> Process;
 		adapters::github::detail::gh_cli_transport                         Transport;
 		validated_github_host_profile                                      Profile;
 		adapters::github::detail::validated_gh_cli_configuration           Configuration;
 		core::github_session_request_context                               Session;
 		std::filesystem::path                                              Git;
+		std::mutex                                                         BackgroundMutex;
+		// Destroyed first: no background runner outlives this transport.
+		std::array<background_lane, background_lane_count> Background;
 	};
 
 	class opted_in_cli_transport_factory final

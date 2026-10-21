@@ -720,7 +720,17 @@ milestone-one public executable. This directory validation does not prove
 owner-controlled permissions or bind the directory identity through launch.
 
 The runner owns one serialized worker and creates, uses, and destroys each
-`QProcess` there. An absolute deadline covers queueing and is checked again
+`QProcess` there. [[BPR-1680]]: the macOS CLI read transport of an account
+owns, besides its own runner, two background lanes, each a further runner made
+by the same nullary factory with its own `gh_cli_transport` over the same
+pinned configuration (`background_lanes`, `begin_background_operation`). Home's
+discovery reads run there, so at most three `gh` processes of an account run at
+once, each lane keeping its own one worker, quarantine, process-group kill,
+bounded reap and abandonment; a pull request read never waits behind one. A
+background operation is observed by the account lease exactly as a foreground
+one ([[BPR-1370]]). Native HTTPS has no background lanes: its one dispatcher
+performs one request at a time, so its discovery stays on the provider's lane
+and gives way to window reads ([[BPR-1679]]). An absolute deadline covers queueing and is checked again
 immediately before launch. Allocation-free shape validation and
 pre-cancellation precede work-item allocation and request copying. On Unix the
 runner requests closed inherited descriptors, disabled core dumps, reset

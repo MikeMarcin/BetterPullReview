@@ -316,6 +316,19 @@ own is searched on its own for the rest of the session. GitHub's own
 incomplete search and every other failure stand for each repository the
 search named, as they would have for each of them alone.
 
+**Discovery beside the window's reads** ([[BPR-1680]]). The provider has
+discovery lanes of its own (two executors, one per read in flight). A read
+whose account transport has background lanes (the macOS GitHub CLI read
+transport, which keeps two extra `gh` runners) runs there, round robin, beside
+every pull request read on the provider lane, so a refresh's two reads run at
+once and a window's read never queues behind them; on such an account Home
+does not give way to window reads ([[BPR-1679]]) because nothing waits. A
+native HTTPS account, whose transport performs one request at a time, reads
+on the provider lane and gives way as before. Each `gh` lane keeps its own one
+worker, quarantine, process-group kill and bounded reap, and every request of
+a background operation is bracketed by the account lease's viewer reads
+([[BPR-1370]]), so at most three `gh` processes of an account run at once.
+
 **Retained pull requests in batches** ([[BPR-1680]]). A refresh's retained
 pull requests are grouped by repository and cut into reads of at most ten
 (`core::plan_retained_batches`, bounded by `personal_discovery_options`);

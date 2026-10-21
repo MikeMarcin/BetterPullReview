@@ -290,7 +290,11 @@ namespace bpr::adapters::github::detail {
 				std::atomic<std::size_t>                                  Queued{ 0U };
 			};
 			std::vector<std::unique_ptr<media_lane>> MediaLanes;
-			github_provider::media_transport_factory MediaFactory;
+			/// [[BPR-1680]]. Home's discovery lanes and the reads posted to each
+			/// and not yet ended, under `Mutex`.
+			std::vector<application::effect_executor*> DiscoveryLanes;
+			std::vector<std::size_t>                   DiscoveryLoad;
+			github_provider::media_transport_factory   MediaFactory;
 		};
 
 		enum class make_job_failure : std::uint8_t {
@@ -1049,6 +1053,25 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto begin_operation(std::stop_token aStop) -> github_wire_operation override
 			{
 				auto inner = Transport->begin_operation(aStop);
+				if (!inner || !*inner) {
+					return inner;
+				}
+				auto scope = std::make_shared<cli_observed_account_transport>(*inner, Viewer, Server, Account, Login);
+				if (auto error = scope->check(Viewer, aStop)) {
+					return std::unexpected{ *error };
+				}
+				return std::shared_ptr<github_wire_transport_port>{ std::move(scope) };
+			}
+			[[nodiscard]] auto background_lanes() const noexcept -> std::size_t override { return Mismatch.load() ? 0U : Transport->background_lanes(); }
+			/// [[BPR-1680]]. A background operation is observed exactly as a
+			/// foreground one: its account is read before it begins and around
+			/// each of its requests, on the background lane itself.
+			[[nodiscard]] auto begin_background_operation(const std::size_t aLane, std::stop_token aStop) -> github_wire_operation override
+			{
+				if (Mismatch.load()) {
+					return std::unexpected{ provider_error(application::github_provider_failure::authentication) };
+				}
+				auto inner = Transport->begin_background_operation(aLane, aStop);
 				if (!inner || !*inner) {
 					return inner;
 				}
@@ -2852,8 +2875,38 @@ namespace bpr::adapters::github::detail {
 		}
 		const auto& job       = *jobResult;
 		const auto  submitted = std::chrono::steady_clock::now();
+		// [[BPR-1680]]. A transport with background lanes runs the read on the
+		// least loaded discovery lane and its background lane of the same
+		// index, beside the pull request reads on this provider's lane; any
+		// other runs here.
+		auto       lane     = std::optional<std::size_t>{ };
+		auto*      executor = state->Effects;
+		const auto lanes    = accountTransport->Transport->background_lanes();
+		{
+			const std::scoped_lock lock{ state->Mutex };
+			const auto             count = std::min(lanes, state->DiscoveryLanes.size());
+			if (count != 0U) {
+				const auto least = std::ranges::min_element(state->DiscoveryLoad.begin(), state->DiscoveryLoad.begin() + static_cast<std::ptrdiff_t>(count));
+				lane             = static_cast<std::size_t>(least - state->DiscoveryLoad.begin());
+				executor         = state->DiscoveryLanes[*lane];
+				++*least;
+			}
+		}
+		const auto ended = [state, lane]() noexcept {
+			if (lane) {
+				const std::scoped_lock lock{ state->Mutex };
+				if (*lane < state->DiscoveryLoad.size() && state->DiscoveryLoad[*lane] != 0U) {
+					--state->DiscoveryLoad[*lane];
+				}
+			}
+		};
 		try {
-			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery, submitted]() mutable {
+			executor->post([state, job, profile, accountTransport, aRequest, delivery, submitted, lane, ended]() mutable {
+				struct lane_release
+				{
+					decltype(ended)& Ended;
+					~lane_release() { Ended(); }
+				} release{ ended };
 				// [[BPR-1680]]. What the read cost: its wait for this lane, its
 				// run, and the requests it sent.
 				const auto started = std::chrono::steady_clock::now();
@@ -2876,7 +2929,8 @@ namespace bpr::adapters::github::detail {
 						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;
 					}
-					auto operation = accountTransport->Transport->begin_operation(job->Stop.get_token());
+					auto operation = lane ? accountTransport->Transport->begin_background_operation(*lane, job->Stop.get_token())
+										  : accountTransport->Transport->begin_operation(job->Stop.get_token());
 					if (!operation) {
 						if (finish_job(state, job)) {
 							delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
@@ -2926,6 +2980,7 @@ namespace bpr::adapters::github::detail {
 				}
 			});
 		} catch (...) {
+			ended();
 			if (stop_after_failed_post(state, job)) {
 				delivery->deliver(application::personal_discovery_cancelled{ .Request = std::move(aRequest) });
 			} else {
@@ -3043,6 +3098,35 @@ namespace bpr::adapters::github::detail {
 				return shared->perform_markdown_image(aRequest, std::move(aStop));
 			};
 		};
+	}
+
+	void github_provider::configure_discovery_lanes(std::vector<application::effect_executor*> aLanes)
+	{
+		if (Implementation == nullptr) {
+			return;
+		}
+		const auto             state = Implementation->State;
+		const std::scoped_lock lock{ state->Mutex };
+		state->DiscoveryLanes.clear();
+		for (auto* const lane : aLanes) {
+			if (lane != nullptr) {
+				state->DiscoveryLanes.push_back(lane);
+			}
+		}
+		state->DiscoveryLoad.assign(state->DiscoveryLanes.size(), 0U);
+	}
+
+	auto github_provider::discovery_beside_reads(const application::github_account_transport& aTransport) const noexcept -> bool
+	{
+		if (Implementation == nullptr) {
+			return false;
+		}
+		const auto transport = std::dynamic_pointer_cast<github_wire_account_transport>(aTransport);
+		if (transport == nullptr || transport->Transport == nullptr || transport->Transport->background_lanes() == 0U) {
+			return false;
+		}
+		const std::scoped_lock lock{ Implementation->State->Mutex };
+		return !Implementation->State->DiscoveryLanes.empty();
 	}
 
 	void github_provider::configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory)

@@ -714,7 +714,14 @@ read pending, the composition holds the scheduler: it submits nothing new and
 cancels the reads of the current refresh in flight, and the provider launches
 nothing for a read cancelled before its turn. A read its cancellation answers
 is asked again under a new request identity once no window waits; one that
-answered first is applied as usual.
+answered first is applied as usual. [[BPR-1680]]: on an account whose
+transport has background lanes (the macOS GitHub CLI read transport), the
+profile's two discovery lanes run discovery reads beside the provider's lane
+instead, each on the background lane of its index, so the window's reads keep
+the provider lane and the account's own `gh` runner to themselves;
+`core::home_loading_yields` is told so, and Home keeps loading while a pull
+request opens. Completions still return to the decision lane. Native HTTPS
+discovery stays on the provider lane and gives way as above.
 For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
 a broad changed-domain bit cannot substitute for acceptance.
 

@@ -241,6 +241,19 @@ namespace bpr::adapters::github::detail {
 		/// transport per lane and profile. Call once, before any fetch.
 		void configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory);
 
+		/// \brief [[BPR-1680]]. Gives Home's discovery reads their own lanes.
+		///
+		/// \details A discovery read whose account transport has background
+		/// lanes runs on one of these, round robin, through that transport's
+		/// background lane of the same index, beside every pull request read on
+		/// the provider's own lane; one whose transport has none runs on the
+		/// provider's lane as before. Call once, before any discovery read.
+		void configure_discovery_lanes(std::vector<application::effect_executor*> aLanes);
+		/// \brief [[BPR-1680]]. Whether a discovery read under \p aTransport
+		/// runs beside the window's pull request reads rather than before or
+		/// after them on the one provider lane.
+		[[nodiscard]] auto discovery_beside_reads(const application::github_account_transport& aTransport) const noexcept -> bool;
+
 		void shutdown() noexcept;
 
 	private:

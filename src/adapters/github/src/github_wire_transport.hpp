@@ -150,6 +150,19 @@ namespace bpr::adapters::github::detail {
 	public:
 		/// \brief Fresh operation authority; a null owner means this transport has no scoped credential.
 		[[nodiscard]] virtual auto begin_operation(std::stop_token) -> github_wire_operation { return std::shared_ptr<github_wire_transport_port>{ }; }
+		/// \brief [[BPR-1680]]. How many background lanes this transport has:
+		/// lanes whose requests run beside the ones it performs itself, each
+		/// its own serialized lane. Zero, the default, means every request of
+		/// the transport runs one at a time on the caller's lane.
+		[[nodiscard]] virtual auto background_lanes() const noexcept -> std::size_t { return 0U; }
+		/// \brief [[BPR-1680]]. Fresh operation authority on background lane
+		/// \p aLane, below `background_lanes()`; a null owner means the
+		/// transport itself serves it. Unavailable on a transport without
+		/// background lanes.
+		[[nodiscard]] virtual auto begin_background_operation(std::size_t, std::stop_token) -> github_wire_operation
+		{
+			return std::unexpected{ application::github_provider_error{ .Failure = application::github_provider_failure::unavailable } };
+		}
 		[[nodiscard]] virtual auto strict_cli() const noexcept -> bool { return false; }
 
 		[[nodiscard]] virtual auto perform(const github_wire_request& aRequest,

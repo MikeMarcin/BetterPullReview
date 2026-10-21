@@ -4236,7 +4236,10 @@ namespace bpr::app {
 		std::unique_ptr<application::markdown_image_disk_cache_port>        ImageDisk;
 		worker_executor                                                     ImageDecodeEffects;
 		std::array<worker_executor, core::markdown_image_fetch_concurrency> ImageFetchEffects;
-		std::unique_ptr<application::markdown_image_service>                Images;
+		/// [[BPR-1680]]. Home's discovery lanes, one per discovery read in
+		/// flight, beside the provider's lane.
+		std::array<worker_executor, application::maximum_personal_discovery_in_flight> DiscoveryEffects;
+		std::unique_ptr<application::markdown_image_service>                           Images;
 #if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
@@ -4390,7 +4393,7 @@ namespace bpr::app {
 				.Refresh      = [weak](bool aStorage) {
 					if (auto self = weak.lock(); self && !self->Closing && self->InsightsHost) {
 						self->WorkMetrics->flush();
-                        const auto work = !self->ProviderEffects.idle() ? "GitHub requests" : !self->EpochEffects.idle() ? "Git cache work" : !self->DiffEffects.idle() ? "Computing diffs" : !self->SearchEffects.idle() ? "Searching source" : "Idle";
+                        const auto work = !self->ProviderEffects.idle() || std::ranges::any_of(self->DiscoveryEffects, [](const worker_executor& aLane) { return !aLane.idle(); }) ? "GitHub requests" : !self->EpochEffects.idle() ? "Git cache work" : !self->DiffEffects.idle() ? "Computing diffs" : !self->SearchEffects.idle() ? "Searching source" : "Idle";
 						self->InsightsHost->refresh(aStorage, std::string{ work } + "\nNext inbox refresh: on activation");
 					} },
 				.RevealData   = [weak] { if (auto self = weak.lock(); self && !self->Closing) { QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdU16String(self->ApplicationDataRoot.u16string()))); } },
@@ -4884,7 +4887,8 @@ namespace bpr::app {
 				|| (Images && !Images->quiescent())) {
 				return;
 			}
-			if (!ImageDecodeEffects.idle() || std::ranges::any_of(ImageFetchEffects, [](const worker_executor& aLane) { return !aLane.idle(); })) {
+			if (!ImageDecodeEffects.idle() || std::ranges::any_of(ImageFetchEffects, [](const worker_executor& aLane) { return !aLane.idle(); })
+				|| std::ranges::any_of(DiscoveryEffects, [](const worker_executor& aLane) { return !aLane.idle(); })) {
 				return;
 			}
 			if (!ConnectionEffects.idle() || !ProviderEffects.idle() || !VaultEffects.idle() || !DeviceBindingEffects.idle() || !DeviceTransportEffects.idle()
@@ -4968,6 +4972,9 @@ namespace bpr::app {
 				lane.close_and_drain();
 			}
 			ImageDecodeEffects.close_and_drain();
+			for (auto& lane : DiscoveryEffects) {
+				lane.close_and_drain();
+			}
 			ProviderEffects.close_and_drain();
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
@@ -5364,6 +5371,17 @@ namespace bpr::app {
 					lanes.push_back(&lane);
 				}
 				Provider->configure_markdown_images(std::move(lanes), markdown_image_media_factory(adapters::github::detail::make_native_markdown_image_media_factory()));
+			}
+			// [[BPR-1680]]. Discovery's own lanes: a CLI account's discovery
+			// reads run there, on its background gh lanes, beside every pull
+			// request read on the provider's lane.
+			{
+				std::vector<application::effect_executor*> lanes;
+				lanes.reserve(DiscoveryEffects.size());
+				for (auto& lane : DiscoveryEffects) {
+					lanes.push_back(&lane);
+				}
+				Provider->configure_discovery_lanes(std::move(lanes));
 			}
 			ImageDisk = adapters::sqlite::make_markdown_image_disk_cache(ApplicationDataRoot);
 			Images    = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder,
@@ -6647,7 +6665,10 @@ namespace bpr::app {
 					}
 				}
 			});
-			return core::home_loading_yields(lanes);
+			// [[BPR-1680]]. Discovery on lanes of its own never holds up a read.
+			const auto session = Host != nullptr && Host->access_mode() == core::github_access_mode::authenticated ? Host->accepted_profile_session() : std::nullopt;
+			const auto beside  = Provider != nullptr && session && Provider->discovery_beside_reads(session->AccountTransport);
+			return core::home_loading_yields(lanes, beside);
 		};
 		// Given way at once, in the turn of the gesture that asked for the
 		// read, so the lane reaches that read next.

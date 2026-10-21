@@ -2049,14 +2049,17 @@ namespace bpr::app::detail {
 			std::vector<QJsonObject>              CreatedReviewThreads;
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
-			std::optional<github_personal_discovery_fixture>                  PersonalDiscovery;
-			std::shared_ptr<github_rate_limit_fixture>                        RateLimit;
-			bool                                                              InsightsBudget = false;
-			std::int64_t                                                      InsightsReset  = 0;
-			std::shared_ptr<github_offline_fixture>                           Offline;
-			std::shared_ptr<github_read_delay_fixture>                        ReadDelay;
-			std::size_t                                                       DiscoverySearches    = 0U;
-			std::size_t                                                       DiscoveryDetailReads = 0U;
+			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
+			std::shared_ptr<github_rate_limit_fixture>       RateLimit;
+			bool                                             InsightsBudget = false;
+			std::int64_t                                     InsightsReset  = 0;
+			std::shared_ptr<github_offline_fixture>          Offline;
+			std::shared_ptr<github_read_delay_fixture>       ReadDelay;
+			std::size_t                                      DiscoverySearches    = 0U;
+			std::size_t                                      DiscoveryDetailReads = 0U;
+			/// [[BPR-1680]]. Account reads being served now, and the most at once.
+			std::atomic<std::uint32_t>                                        ActiveAccountReads{ 0U };
+			std::atomic<std::uint32_t>                                        MaximumActiveAccountReads{ 0U };
 			std::vector<std::string>                                          DiscoverySearchTerms;
 			std::vector<std::string>                                          AccountReadOperations;
 			std::vector<adapters::github::detail::github_wire_parent_context> SnapshotReads;
@@ -2838,9 +2841,43 @@ namespace bpr::app::detail {
 				return State->CliEnabled && Role == fixture_transport_role::account
 					&& (!State->CliStrictCapability || State->CliStrictCapability->load());
 			}
+			/// [[BPR-1680]]. A CLI account, like the shipped one, has two
+			/// background lanes; the fixture serves them itself, under its lock.
+			[[nodiscard]] auto background_lanes() const noexcept -> std::size_t override { return strict_cli() ? 2U : 0U; }
+			[[nodiscard]] auto begin_background_operation(std::size_t, std::stop_token) -> adapters::github::detail::github_wire_operation override
+			{
+				if (!strict_cli()) {
+					return std::unexpected{ provider_error(application::github_provider_failure::unavailable) };
+				}
+				return std::shared_ptr<github_wire_transport_port>{ };
+			}
 
 			[[nodiscard]] auto perform(const github_wire_request& aRequest, const std::stop_token aStop) -> github_wire_completion override
 			{
+				// [[BPR-1680]]. How many account reads overlap.
+				struct active_read
+				{
+					fixture_recording_state& State;
+					bool                     Counted;
+					explicit active_read(fixture_recording_state& aState, const bool aCounted)
+						: State{ aState }
+						, Counted{ aCounted }
+					{
+						if (Counted) {
+							const auto now  = State.ActiveAccountReads.fetch_add(1U) + 1U;
+							auto       most = State.MaximumActiveAccountReads.load();
+							while (now > most && !State.MaximumActiveAccountReads.compare_exchange_weak(most, now)) { }
+						}
+					}
+					active_read(const active_read&)                    = delete;
+					auto operator=(const active_read&) -> active_read& = delete;
+					~active_read()
+					{
+						if (Counted) {
+							State.ActiveAccountReads.fetch_sub(1U);
+						}
+					}
+				} active{ *State, Role == fixture_transport_role::account };
 				auto result = perform_impl(aRequest, aStop);
 				if (State->InsightsBudget) {
 					if (auto* success = std::get_if<github_wire_success>(&result)) {
@@ -5442,10 +5479,11 @@ namespace bpr::app::detail {
 				Implementation->Recording->SmartLsRefsCalls);
 			result.SmartFetchCount = static_cast<int>(
 				Implementation->Recording->SmartFetchCalls);
-			result.DiscoverySearches     = Implementation->Recording->DiscoverySearches;
-			result.DiscoveryDetailReads  = Implementation->Recording->DiscoveryDetailReads;
-			result.DiscoverySearchTerms  = Implementation->Recording->DiscoverySearchTerms;
-			result.AccountReadOperations = Implementation->Recording->AccountReadOperations;
+			result.DiscoverySearches             = Implementation->Recording->DiscoverySearches;
+			result.DiscoveryDetailReads          = Implementation->Recording->DiscoveryDetailReads;
+			result.DiscoverySearchTerms          = Implementation->Recording->DiscoverySearchTerms;
+			result.MaximumConcurrentAccountReads = Implementation->Recording->MaximumActiveAccountReads.load();
+			result.AccountReadOperations         = Implementation->Recording->AccountReadOperations;
 			{
 				const std::scoped_lock vaultLock{
 					Implementation->VaultState->Mutex

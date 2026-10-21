@@ -88,6 +88,8 @@ namespace {
 
 	/// The viewer the recorded session signs in as.
 	constexpr auto viewer = "octo-reviewer";
+	/// [[BPR-1680]]. How long the explicit Refresh's searches are held.
+	constexpr std::uint32_t search_hold_ms = 400U;
 
 	/// The saved repository as the fixture server holds it: 2,400 open pull
 	/// requests nobody asked this viewer about, two the viewer authored (one
@@ -247,7 +249,10 @@ try {
 		authoredRow->RequiredReviewPresent = std::make_shared<std::atomic<bool>>(true);
 		authoredRow->CheckFailed           = std::make_shared<std::atomic<bool>>(true);
 	}
-	options.Offline      = std::make_shared<app::detail::github_offline_fixture>();
+	options.Offline = std::make_shared<app::detail::github_offline_fixture>();
+	// [[BPR-1680]]. Holds the explicit Refresh's searches, to show whether
+	// they overlap; nothing is held otherwise.
+	options.ReadDelay    = std::make_shared<app::detail::github_read_delay_fixture>();
 	options.RateLimit    = std::make_shared<app::detail::github_rate_limit_fixture>();
 	const auto unrelated = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
 	expect(unrelated >= 2'000U, "the saved repository holds at least 2,000 unrelated open pull requests");
@@ -902,9 +907,21 @@ try {
 	approved->store(true);
 	draftStatus->store(false);
 	awaiting->store(false);
+	const auto heldBefore                    = evidence().MaximumConcurrentAccountReads;
+	options.ReadDelay->DiscoveryMilliseconds = search_hold_ms;
+	auto refreshTimer                        = QElapsedTimer{ };
+	refreshTimer.start();
 	windowB->queue_refresh_action()->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
+	options.ReadDelay->DiscoveryMilliseconds = 0U;
+	// [[BPR-1680]]. A CLI account's two searches run at once, on its
+	// background lanes; a native account's one after the other.
+	std::cerr << "explicit refresh with searches held " << search_hold_ms << " ms: " << refreshTimer.elapsed() << " ms, at most "
+			  << evidence().MaximumConcurrentAccountReads << " account reads at once (before " << heldBefore << ")\n";
+	if (cliCourse) {
+		expect(evidence().MaximumConcurrentAccountReads >= 2U, "a CLI account's held searches overlap on its background lanes");
+	}
 	std::cerr << "refresh searches=" << evidence().DiscoverySearches << " details=" << evidence().DiscoveryDetailReads << " reads=" << reads_since(evidence(), beforeRefresh, cliCourse).size() << " reused=" << discovery().Statistics.Reused << "\n";
 	expect(evidence().DiscoverySearches == 6U && evidence().DiscoveryDetailReads <= 12U && reads_since(evidence(), beforeRefresh, cliCourse).size() <= 32U
 			   && only_discovery(reads_since(evidence(), beforeRefresh, cliCourse)),

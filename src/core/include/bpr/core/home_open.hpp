@@ -115,7 +115,12 @@ namespace bpr::core {
 	/// reading waited behind it. Discovery gives way while any of \p aLanes has
 	/// a pull request read pending, the first read of an open and a reread
 	/// alike, and resumes once none has.
-	[[nodiscard]] auto home_loading_yields(std::span<const github_state> aLanes) noexcept -> bool;
+	///
+	/// [[BPR-1680]]. When \p aDiscoveryBeside, discovery reads on lanes of its
+	/// own and the window reads keep theirs, so a read asked for never waits
+	/// behind it: Home's loading does not give way, and keeps loading while the
+	/// pull request opens.
+	[[nodiscard]] auto home_loading_yields(std::span<const github_state> aLanes, bool aDiscoveryBeside = false) noexcept -> bool;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_HOME_OPEN_HPP

@@ -103,8 +103,8 @@ namespace bpr::core {
 		return in_flight(aState) && aState->Repository == aRepository && aState->Number == aNumber;
 	}
 
-	auto home_loading_yields(const std::span<const github_state> aLanes) noexcept -> bool
+	auto home_loading_yields(const std::span<const github_state> aLanes, const bool aDiscoveryBeside) noexcept -> bool
 	{
-		return std::ranges::any_of(aLanes, [](const github_state& aLane) { return aLane.PendingPullRequest.has_value(); });
+		return !aDiscoveryBeside && std::ranges::any_of(aLanes, [](const github_state& aLane) { return aLane.PendingPullRequest.has_value(); });
 	}
 } // namespace bpr::core

@@ -185,6 +185,15 @@ namespace {
 			PublicationContexts.push_back(aCall.Context);
 			return github_publication_wire_error{ };
 		}
+		/// [[BPR-1680]]. Background lanes the transport serves itself.
+		[[nodiscard]] auto background_lanes() const noexcept -> std::size_t override { return BackgroundLanes; }
+		[[nodiscard]] auto begin_background_operation(const std::size_t aLane, std::stop_token) -> github_wire_operation override
+		{
+			BackgroundOperations.push_back(aLane);
+			return std::shared_ptr<github_wire_transport_port>{ };
+		}
+		std::size_t                                                   BackgroundLanes = 0U;
+		std::vector<std::size_t>                                      BackgroundOperations;
 		std::vector<application::github_credential_operation_context> PublicationContexts;
 		auto                                                          acquire(const application::git_smart_request_context& aContext) -> application::git_smart_transport_result<application::git_smart_transport> override
 		{
@@ -2933,6 +2942,42 @@ namespace {
 		fixture.Effects.run_next();
 		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front()),
 			   "cancelling a queued discovery read still delivers exactly one terminal");
+
+		// [[BPR-1680]]. Discovery's own lanes: a transport with background
+		// lanes reads there, round robin, each on the background lane of the
+		// same index; one without reads on the provider's lane as before.
+		auto first  = controlled_executor{ };
+		auto second = controlled_executor{ };
+		expect(!fixture.Provider->discovery_beside_reads(lease), "with no discovery lanes nothing reads beside the window");
+		fixture.Provider->configure_discovery_lanes({ &first, &second });
+		expect(!fixture.Provider->discovery_beside_reads(lease), "a transport without background lanes does not either");
+		completions.clear();
+		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		expect(fixture.Effects.pending() == 1U && first.pending() == 0U && second.pending() == 0U, "it reads on the provider's lane");
+		fixture.Effects.run_next();
+		fixture.Transport->BackgroundLanes = 2U;
+		expect(fixture.Provider->discovery_beside_reads(lease), "a transport with background lanes reads beside the window");
+		completions.clear();
+		const auto reads = fixture.Transport->ReadRequests.size();
+		for (auto index = 0; index < 3; ++index) {
+			fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		}
+		expect(fixture.Effects.pending() == 0U && first.pending() == 2U && second.pending() == 1U, "three reads go to the less loaded of the two discovery lanes, none on the provider's");
+		first.run_next();
+		second.run_next();
+		first.run_next();
+		expect(completions.size() == 3U && fixture.Transport->ReadRequests.size() == reads + 3U
+				   && fixture.Transport->BackgroundOperations == std::vector<std::size_t>{ 0U, 1U, 0U },
+			   "each read began its operation on the background lane of its discovery lane and reached the transport");
+		completions.clear();
+		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+		fixture.Provider->cancel_discovery(request);
+		expect(first.pending() == 1U && second.pending() == 0U, "with both lanes idle again the next read goes to the first");
+		first.run_next();
+		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front())
+				   && fixture.Transport->BackgroundOperations.size() == 3U,
+			   "a read cancelled before its turn on a discovery lane begins nothing and ends once");
+		fixture.Provider->configure_discovery_lanes({ });
 	}
 
 }

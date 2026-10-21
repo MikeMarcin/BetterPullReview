@@ -197,6 +197,7 @@ namespace {
 
 		const auto opened = transition(lanes[1], open_pull_request_intent{ .Repository = locator(), .Number = pull_request_number{ 42 } });
 		expect(home_loading_yields(lanes), "an open in the second window makes Home give way at once");
+		expect(!home_loading_yields(lanes, true), "[[BPR-1680]] unless discovery reads on lanes of its own, beside the window's");
 		const auto loaded = transition(lanes[1], pull_request_loaded_event{
 													 .Context     = fetch_of(opened),
 													 .Repository  = repository_id{ 51 },
