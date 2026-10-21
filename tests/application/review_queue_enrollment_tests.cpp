@@ -2115,6 +2115,81 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	// [[BPR-PENDING-A]]. A pull request asked for while Home is still loading goes
+	// first. The owner: "Right now it seems like it queues behind the home load
+	// before it goes to open the PR". Discovery gives way at once: what it has
+	// in flight is cancelled and nothing new is asked. A read its cancellation
+	// answers is asked again, under a new identity, once it resumes; one that
+	// answered first is kept. The refresh ends current, not failed.
+	void test_discovery_gives_way_to_a_window_read_and_resumes()
+	{
+		auto  fixture  = discovery_fixture{ };
+		auto& provider = fixture.Provider;
+		fixture.Discovery.adopt(discovery_session());
+		expect(provider.Requests.size() == 2U && !fixture.Discovery.yielding(), "Home's refresh has two searches in flight");
+		const auto preempted = provider.Requests[0];
+		const auto raced     = provider.Requests[1];
+
+		fixture.Discovery.yield(true);
+		expect(fixture.Discovery.yielding() && provider.Cancelled == std::vector{ preempted.Context.Request, raced.Context.Request },
+			   "giving way cancels both reads in flight, in the same turn");
+		fixture.Discovery.yield(true);
+		expect(provider.Cancelled.size() == 2U && fixture.Discovery.statistics().Preempted == 2U, "giving way again cancels nothing more");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::refreshing, "Home still says it is loading");
+
+		provider.answer(application::personal_discovery_cancelled{ .Request = provider.next() });
+		fixture.settle();
+		expect(provider.Requests.size() == 2U, "a read stopped to give way is not asked again while the window reads");
+		provider.answer(provider.rows({ row(6U, true, 1U) }));
+		fixture.settle();
+		expect(provider.Requests.size() == 2U && fixture.item(6).has_value(), "a read that answered before its cancellation is kept, and nothing new is asked");
+		expect(fixture.Discovery.statistics().Failed == 0U && fixture.Discovery.statistics().CancelledRequests == 0U, "nothing was failed or given up");
+
+		fixture.Discovery.yield(false);
+		expect(!fixture.Discovery.yielding() && provider.Requests.size() == 4U, "once the window's read ends discovery resumes, two at a time");
+		const auto& again = provider.Requests[2];
+		expect(again.Context.Repository == preempted.Context.Repository && again.Reason == preempted.Reason
+				   && again.Context.Request != preempted.Context.Request && again.Context.Request != raced.Context.Request,
+			   "the stopped read goes first, under a new identity");
+		expect(fixture.Discovery.statistics().Resubmitted == 1U, "only the read its cancellation answered is asked again");
+		provider.answer(provider.rows({ row(5U) }));
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(provider.Requests.size() == 5U, "the last search follows");
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(5).has_value() && fixture.item(6).has_value(), "both found pull requests are listed");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::current, "the refresh that gave way ends current");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	// Giving way holds a refresh started meanwhile too, and a session change
+	// while it gives way refuses the stopped read's late answer.
+	void test_discovery_gives_way_across_a_session_change()
+	{
+		auto  fixture  = discovery_fixture{ { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } } };
+		auto& provider = fixture.Provider;
+		fixture.Discovery.yield(true);
+		fixture.Discovery.adopt(discovery_session("reviewer", 6U));
+		expect(provider.Requests.empty() && fixture.Discovery.status().State == application::queue_discovery_state::refreshing,
+			   "a refresh that starts while a window reads waits, and says it is loading");
+		fixture.Discovery.yield(false);
+		expect(provider.Requests.size() == 2U, "it starts once the read ends");
+		fixture.Discovery.yield(true);
+		fixture.Discovery.adopt(discovery_session("reviewer", 7U));
+		provider.answer(application::personal_discovery_cancelled{ .Request = provider.next() });
+		provider.answer(application::personal_discovery_cancelled{ .Request = provider.next() });
+		fixture.settle();
+		expect(fixture.Discovery.statistics().Resubmitted == 0U && fixture.Discovery.statistics().StaleCompletions == 2U,
+			   "a stopped read of an earlier generation is refused, not asked again");
+		fixture.Discovery.yield(false);
+		expect(provider.Requests.size() == 4U && provider.Requests[2].Context.IdentityGeneration == core::github_identity_generation{ 7U },
+			   "the new generation's reads go out once discovery resumes");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	// A discovery answer the profile's store refuses is not shown as if it were
 	// kept: the update is rolled back and the queue reports its store
 	// unavailable, while the rows already stored stay.
@@ -2595,6 +2670,8 @@ auto main() -> int
 	test_discovery_failures_keep_rows_and_back_off();
 	test_discovery_refuses_stale_and_foreign_answers();
 	test_discovery_refuses_an_earlier_generation_of_the_same_account();
+	test_discovery_gives_way_to_a_window_read_and_resumes();
+	test_discovery_gives_way_across_a_session_change();
 	test_a_refused_discovery_write_is_reported_not_kept();
 	test_the_discovery_session_of_an_accepted_session();
 	test_observer_authorship_does_not_change_enrollment();

@@ -68,6 +68,9 @@ namespace bpr::application {
 		std::uint64_t RefusedRefreshes  = 0U;
 		std::uint64_t CancelledRequests = 0U;
 		std::uint64_t MaximumInFlight   = 0U;
+		/// [[BPR-PENDING-A]]. Reads stopped to give way, and reads asked again after.
+		std::uint64_t Preempted   = 0U;
+		std::uint64_t Resubmitted = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};
@@ -125,8 +128,22 @@ namespace bpr::application {
 		/// bounded read; rows already considered, including failures and overflow,
 		/// do not restart the cycle until activation or explicit Refresh.
 		void reconcile();
+		/// \brief [[BPR-PENDING-A]]. Gives way to the reads a window is waiting for,
+		/// or resumes.
+		///
+		/// \details Discovery shares the profile's one GitHub lane with every
+		/// pull request read, so a read a reviewer asked for waited behind it.
+		/// The composition asks `core::home_loading_yields` after each window
+		/// read changes. While yielding, nothing new is submitted, and every
+		/// read of the current refresh still in flight is cancelled. A read
+		/// whose cancellation is what answers it is asked again, under a new
+		/// request identity, ahead of the rest once discovery resumes; one that
+		/// answered before the cancellation reached it is applied as usual. The
+		/// refresh is still running throughout, so Home keeps saying so.
+		void yield(bool aYield);
 		void shutdown();
 
+		[[nodiscard]] auto yielding() const noexcept -> bool;
 		[[nodiscard]] auto status() const noexcept -> const queue_discovery_status&;
 		[[nodiscard]] auto statistics() const noexcept -> personal_discovery_statistics;
 		[[nodiscard]] auto in_flight() const noexcept -> std::size_t;

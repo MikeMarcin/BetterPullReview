@@ -5,6 +5,7 @@
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_open.hpp"
 
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
@@ -185,6 +186,39 @@ namespace {
 		expect(!admit_home_open_cancel(apply_home_open(home, home_open_waited{ .Request = fetch_of(reopened).Request }), reset, fetch_of(reopened).Request),
 			   "a cancel for a read the lane no longer holds is refused");
 	}
+
+	// [[BPR-PENDING-A]]. Home's loading gives way while any window waits on a read,
+	// an open or a reread, and resumes once every read has ended.
+	void test_home_loading_yields_to_a_window_read()
+	{
+		auto lanes = std::array{ ready_state(), ready_state() };
+		expect(!home_loading_yields(lanes), "with no read pending Home keeps loading");
+		expect(!home_loading_yields(std::span<const github_state>{ }), "and with no window at all");
+
+		const auto opened = transition(lanes[1], open_pull_request_intent{ .Repository = locator(), .Number = pull_request_number{ 42 } });
+		expect(home_loading_yields(lanes), "an open in the second window makes Home give way at once");
+		const auto loaded = transition(lanes[1], pull_request_loaded_event{
+													 .Context     = fetch_of(opened),
+													 .Repository  = repository_id{ 51 },
+													 .PullRequest = pull_request_id{ 61 },
+													 .Snapshot    = provider_snapshot_id{ 71 },
+												 });
+		expect(loaded.Read.has_value() && loaded.Read->Stage == pull_request_read_stage::loaded && !home_loading_yields(lanes),
+			   "and resumes once that read has loaded");
+
+		const auto refreshed = transition(lanes[1], refresh_pull_request_intent{ });
+		expect(home_loading_yields(lanes), "a reread is waited for too");
+		static_cast<void>(transition(lanes[1], pull_request_load_failed_event{ .Context = fetch_of(refreshed), .Failure = github_failure::network }));
+		expect(!home_loading_yields(lanes), "a failed read ends the wait");
+
+		const auto first  = transition(lanes[0], open_pull_request_intent{ .Repository = locator(), .Number = pull_request_number{ 43 } });
+		const auto second = transition(lanes[1], open_pull_request_intent{ .Repository = locator(), .Number = pull_request_number{ 44 } });
+		static_cast<void>(transition(lanes[0], pull_request_load_cancelled_event{ .Context = fetch_of(first) }));
+		expect(home_loading_yields(lanes), "one window's cancel leaves Home giving way to the other's read");
+		const auto abandoned = transition(lanes[1], deactivate_github_identity_intent{ });
+		expect(abandoned.Read.has_value() && abandoned.Read->Request == fetch_of(second).Request && !home_loading_yields(lanes),
+			   "signing out abandons the read and Home resumes");
+	}
 } // namespace
 
 auto main() -> int
@@ -193,6 +227,7 @@ auto main() -> int
 	test_an_open_is_shown_from_the_gesture_until_it_loads();
 	test_a_failure_stays_with_its_reason_until_the_next_open();
 	test_cancel_refresh_and_foreign_reads();
+	test_home_loading_yields_to_a_window_read();
 	std::cout << "core home open tests passed\n";
 	return EXIT_SUCCESS;
 }

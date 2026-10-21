@@ -707,6 +707,14 @@ retains discovery membership before the old request is withdrawn. Existing
 unseen-comment and defect observations remain intact. Exact accepted account,
 session, request and enrollment checks reject late or foreign metadata; failed
 or limited reads preserve prior facts and do not trigger a projection retry loop.
+Discovery shares the profile's one GitHub provider lane with every pull request
+read, so it gives way to the reads a window waits on ([[BPR-PENDING-A]]). While
+`core::home_loading_yields` says any window of the profile has a pull request
+read pending, the composition holds the scheduler: it submits nothing new and
+cancels the reads of the current refresh in flight, and the provider launches
+nothing for a read cancelled before its turn. A read its cancellation answers
+is asked again under a new request identity once no window waits; one that
+answered first is applied as usual.
 For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
 a broad changed-domain bit cannot substitute for acceptance.
 

@@ -1708,8 +1708,15 @@ function(bpr_verify_full_application_digest source_variable)
         ${source_variable}
         bpr_full_application_digest
     )
+	# BPR-PENDING-A reseal (2026-10-20), over 7a96faade: Home's discovery
+	# gives way to a window's pending pull request read. Each window observer
+	# exposes its read lane's core state; the profile asks
+	# core::home_loading_yields after each window read update, profile
+	# presentation and window close, holds discovery at once and posts its
+	# resumption. No provider selection, credential, grant, mutation,
+	# publication or source-inventory change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+		"16711734bd8ea0dbcaf40051172cac9f702ab3e6c885e0a80911a145f06f7748"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1929,7 +1936,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6b06b77edfb18a31fd641994e977510b3338d0b7350679ecc578378bdc5766e1"
+        "e773da5b3cd560c470aacebf4490b281cdfb9fc860b711566736f9336f1dfb81"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -127,6 +127,9 @@ namespace bpr::application {
 			std::string                Repository;
 			std::uint64_t              Generation = 0U;
 			std::uint64_t              Cycle      = 0U;
+			/// [[BPR-PENDING-A]]. Cancelled to give way; asked again if that is
+			/// what answers it.
+			bool Preempted = false;
 		};
 
 		implementation(personal_discovery_port& aProvider, decision_executor& aDecisionLane,
@@ -363,9 +366,40 @@ namespace bpr::application {
 			pump();
 		}
 
+		void yield(const bool aYield)
+		{
+			if (Closing || Yielding == aYield) {
+				return;
+			}
+			Yielding = aYield;
+			if (!Yielding) {
+				pump();
+				return;
+			}
+			for (auto& active : Active) {
+				if (current(active) && !active.Preempted) {
+					active.Preempted = true;
+					++Statistics.Preempted;
+					Provider.cancel_discovery(active.Request);
+				}
+			}
+		}
+
+		/// [[BPR-PENDING-A]]. Puts a read cancelled to give way back at the front,
+		/// under a new identity, so its late terminal can never be taken for
+		/// the read asked again.
+		void resubmit(job aJob)
+		{
+			aJob.Preempted               = false;
+			aJob.Request.Context.Request = core::request_id{ NextRequest++ };
+			aJob.Request.FactRevision    = 0U;
+			++Statistics.Resubmitted;
+			Queued.push_front(std::move(aJob));
+		}
+
 		void pump()
 		{
-			while (!Closing && Active.size() < maximum_personal_discovery_in_flight && !Queued.empty()) {
+			while (!Closing && !Yielding && Active.size() < maximum_personal_discovery_in_flight && !Queued.empty()) {
 				auto next = std::move(Queued.front());
 				Queued.pop_front();
 				if (next.Request.Reason == personal_discovery_reason::retained && !still_enrolled(next)) {
@@ -445,6 +479,13 @@ namespace bpr::application {
 			const auto saved = Session ? partition() : std::vector<std::string>{ };
 			if (!current(finished) || !Session || (finished.Request.Reason == personal_discovery_reason::retained ? !still_enrolled(finished) : std::ranges::find(saved, finished.Repository) == saved.end())) {
 				++Statistics.StaleCompletions;
+				pump();
+				return;
+			}
+			// [[BPR-PENDING-A]]. Stopped to give way: not a failure of the refresh.
+			if (const auto* const cancelled = std::get_if<personal_discovery_cancelled>(&aCompletion);
+				finished.Preempted && !CycleStopped && cancelled != nullptr && cancelled->Request == finished.Request) {
+				resubmit(finished);
 				pump();
 				return;
 			}
@@ -609,6 +650,7 @@ namespace bpr::application {
 		bool                                      Searching      = false;
 		bool                                      MetadataFailed = false;
 		bool                                      Closing        = false;
+		bool                                      Yielding       = false;
 	};
 
 	personal_discovery_host::personal_discovery_host(personal_discovery_port&             aProvider,
@@ -643,9 +685,19 @@ namespace bpr::application {
 		Implementation->reconcile();
 	}
 
+	void personal_discovery_host::yield(const bool aYield)
+	{
+		Implementation->yield(aYield);
+	}
+
 	void personal_discovery_host::shutdown()
 	{
 		Implementation->shutdown();
+	}
+
+	auto personal_discovery_host::yielding() const noexcept -> bool
+	{
+		return Implementation->Yielding;
 	}
 
 	auto personal_discovery_host::status() const noexcept -> const queue_discovery_status&

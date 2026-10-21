@@ -16,6 +16,7 @@
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/home_status_line.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -66,12 +67,25 @@ namespace {
 		expect(aCondition(), aMessage);
 	}
 
-	constexpr auto viewer       = "octo-reviewer";
-	constexpr auto served       = 17U;
-	constexpr auto failing      = 4001U;
-	constexpr auto delay_ms     = 3000U;
-	constexpr auto served_name  = "octo-org/review-repository#17";
-	constexpr auto failing_name = "octo-org/review-repository#4001";
+	/// Lets the event loop run for a while, as a person waiting would.
+	void pause(const int aMilliseconds)
+	{
+		QElapsedTimer elapsed;
+		elapsed.start();
+		while (elapsed.elapsed() < aMilliseconds) {
+			QApplication::processEvents();
+			QThread::msleep(1);
+		}
+	}
+
+	constexpr auto viewer   = "octo-reviewer";
+	constexpr auto served   = 17U;
+	constexpr auto failing  = 4001U;
+	constexpr auto delay_ms = 3000U;
+	/// [[BPR-PENDING-A]]. How long the slow network holds each of Home's searches.
+	constexpr auto discovery_hold_ms = 10'000U;
+	constexpr auto served_name       = "octo-org/review-repository#17";
+	constexpr auto failing_name      = "octo-org/review-repository#4001";
 
 	std::vector<QString>* Announcements = nullptr;
 
@@ -490,6 +504,49 @@ try {
 		QApplication::processEvents();
 		expect(window->showing_home(), "each appearance shows Home over the open review");
 		reviewingCourse(QStringLiteral("reviewing"));
+	}
+
+	// ---- [[BPR-PENDING-A]] an open asked for while Home is still loading goes first
+	// The owner, 2026-10-20: "When I'm on the home and it's still loading prs,
+	// if i double click to open a PR, even though its greyed out, it should
+	// give that action priority. Right now it seems like it queues behind the
+	// home load before it goes to open the PR". Home's searches are held far
+	// longer than an open takes; the double-clicked pull request opens while
+	// they would still be held, and Home's refresh resumes and finishes after.
+	{
+		const auto discovery = [&] { return app::detail::github_application_fixture_access::personal_discovery_evidence(*owner); };
+		delay->FailNumber    = 0U;
+		window->choose_home(true);
+		QApplication::processEvents();
+		wait_for([&] { return window->queue_refresh_action()->isEnabled() && discovery().Status.State == application::queue_discovery_state::current; },
+				 "Home's refresh is available and Home is current");
+		const auto before            = discovery().Statistics;
+		delay->DiscoveryMilliseconds = discovery_hold_ms;
+		window->queue_refresh_action()->trigger();
+		// Two retained pull requests are read first, then the repository's two
+		// searches, which the slow network holds.
+		wait_for([&] { return discovery().Statistics.Submitted >= before.Submitted + 4U; }, "Home's refresh reaches its searches");
+		pause(300);
+		expect(discovery().Status.State == application::queue_discovery_state::refreshing && discovery().Statistics.Answered == before.Answered + 2U,
+			   "Home is still loading, its searches held on the wire");
+		wait_for([&] { return window->pending_veils().HomeList->look() == core::pending_look::refreshing; }, "and its list is greyed while it loads", { }, 3000);
+		QElapsedTimer opening;
+		opening.start();
+		double_click(row_of(*window, failing_name));
+		expect(phase(*window) == core::home_open_phase::opening, "the greyed row opens at once");
+		expect(app::detail::github_application_fixture_access::personal_discovery_evidence(*owner).Statistics.Preempted == before.Preempted + 2U,
+			   "in the same turn, Home's two reads in flight give way");
+		wait_for([&] { return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; },
+				 "the pull request opens", { }, static_cast<int>(2U * discovery_hold_ms));
+		std::cerr << "opened while Home loaded in " << opening.elapsed() << " ms\n";
+		expect(opening.elapsed() < static_cast<qint64>(discovery_hold_ms / 2U), "without waiting behind Home's searches");
+		expect(discovery().Status.State == application::queue_discovery_state::refreshing, "Home's refresh is still running");
+		delay->DiscoveryMilliseconds = 0U;
+		wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current; }, "Home's refresh resumes and finishes", { }, 30000);
+		const auto after = discovery().Statistics;
+		expect(after.Resubmitted == before.Resubmitted + 2U && after.Failed == before.Failed && after.CancelledRequests == before.CancelledRequests,
+			   "the searches that gave way were asked again, and nothing failed");
+		expect(discovery().Quiescent, "and discovery is quiet once it has");
 	}
 
 	static_cast<void>(QAccessible::installUpdateHandler(previous));

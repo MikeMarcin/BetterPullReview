@@ -160,6 +160,7 @@
 #include "bpr/application/workbench_application_host.hpp"
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/github_transition.hpp"
+#include "bpr/core/home_open.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
@@ -4200,6 +4201,9 @@ namespace bpr::app {
 			std::function<void(const application::github_profile_option&)>                            SetupProfile;
 			std::function<void(std::string_view)>                                                     RetireServerSetup;
 			std::function<void()>                                                                     AgentWorkspaceRepair;
+			/// The window's read lane, for Home's discovery to give way to
+			/// (`core::home_loading_yields`).
+			std::function<std::optional<core::github_state>()> ReadLane;
 		};
 		// [[BPR-0733]]. The recently viewed list is profile state; every window
 		// projects its own view of it for the session it has.
@@ -4209,6 +4213,9 @@ namespace bpr::app {
 		}
 		void publish(const application::github_presentation_update& aUpdate) override;
 		void adopt_discovery();
+		/// \brief Home's discovery gives way while a window waits on a read, and
+		/// resumes once none does, as `core::home_loading_yields` decides.
+		void yield_discovery();
 		template <class Function>
 		void for_each_window(Function aFunction)
 		{
@@ -6453,6 +6460,7 @@ namespace bpr::app {
 		// Constructed after the queue host and destroyed before it.
 		std::unique_ptr<application::personal_discovery_clock_port> DiscoveryClock;
 		bool                                                        DiscoveryReconcilePosted = false;
+		bool                                                        DiscoveryResumePosted    = false;
 		std::optional<queue_activity_baseline>                      QueueActivityBaseline;
 		std::optional<queue_activity_fact>                          QueueActivity;
 		std::vector<queue_notification_transition>                  ActiveQueueNotifications;
@@ -6533,6 +6541,9 @@ namespace bpr::app {
 		for_each_window([&](const window_observer& aObserver) { if (aObserver.Github){ aObserver.Github(aUpdate);
 } });
 		adopt_discovery();
+		// A session change can end a window's read without a read update of its
+		// own, so Home's discovery asks again whether it gives way.
+		yield_discovery();
 	}
 
 	void github_profile_runtime::adopt_discovery()
@@ -6544,6 +6555,48 @@ namespace bpr::app {
 		}
 		const auto session = Host->access_mode() == core::github_access_mode::authenticated ? Host->accepted_profile_session() : std::nullopt;
 		Discovery->adopt(session ? application::personal_discovery_session_of(*session) : std::nullopt);
+	}
+
+	void github_profile_runtime::yield_discovery()
+	{
+		if (Closing || Discovery == nullptr) {
+			return;
+		}
+		const auto yields = [this] {
+			auto lanes = std::vector<core::github_state>{ };
+			for_each_window([&lanes](const window_observer& aObserver) {
+				if (aObserver.ReadLane) {
+					if (auto lane = aObserver.ReadLane()) {
+						lanes.push_back(std::move(*lane));
+					}
+				}
+			});
+			return core::home_loading_yields(lanes);
+		};
+		// Given way at once, in the turn of the gesture that asked for the
+		// read, so the lane reaches that read next.
+		if (yields()) {
+			Discovery->yield(true);
+			return;
+		}
+		if (!Discovery->yielding() || DiscoveryResumePosted) {
+			return;
+		}
+		// Resumed on its own turn, so discovery never publishes into the window
+		// read update being delivered; asked again then, so a read begun in
+		// between keeps it waiting.
+		DiscoveryResumePosted = true;
+		try {
+			DecisionLane.post([this, yields] {
+				DiscoveryResumePosted = false;
+				if (!Closing && Discovery != nullptr) {
+					Discovery->yield(yields());
+				}
+			});
+		} catch (...) {
+			DiscoveryResumePosted = false;
+			Discovery->yield(false);
+		}
 	}
 
 	void github_profile_runtime::observe_recent_drafts(const application::queue_landing_projection& aProjection)
@@ -7759,6 +7812,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (HomeOpen) {
 						HomeOpen->observe(aUpdate.Transition, WindowRead->state());
 					}
+					// In the same turn too: a read this window now waits on goes
+					// ahead of Home's loading (`core::home_loading_yields`).
+					Profile->yield_discovery();
 					Host->observe_attached_read(WindowRead, aUpdate.Transition.AcceptedSnapshot.has_value());
 					observe_restoration_read(aUpdate);
 					if (aUpdate.Presentation.PullRequest) { publish_overview(); publish_read_state(); }
@@ -7817,6 +7873,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 } }, .SelectQueue = [this, weak](const core::pull_request_ref& aRef) { return !weak.expired() && !Closing && Window->select_queue_item(aRef); }, .Settings = [this, weak](qt::settings_window& aShell, qt::settings_page aPage) {
 					if (!weak.expired() && !Closing) { Window->mount_settings(aShell); aShell.present(aPage); } }, .UnmountSettings = [this, weak] { if (!weak.expired() && Window){ Window->unmount_settings();
 } }, .RestoreReview = [this, weak](const core::window_review_open_request& aRequest) { if (!weak.expired() && !Closing) { restore_review(aRequest); } }, .RestoreNotice = [this, weak](const QString& aText) { if (!weak.expired() && !Closing) { restoration_notice(aText); } }, .RecentChanged = [this, weak] { if (!weak.expired() && !Closing) { publish_recent(); } }, .Ledger = [this, weak](const application::workbench_pull_request_authority& aAuthority, ledger_changes aChanges) { if (!weak.expired() && !Closing) { refresh_shared_ledger(aAuthority, aChanges); } }, .SetupProfile = [this, weak](const application::github_profile_option& aOption) { if (!weak.expired() && !Closing) { Window->add_setup_profile(aOption); } }, .RetireServerSetup = [this, weak](std::string_view aHostname) { if (!weak.expired() && !Closing && SetupDestination && SetupDestination->pending() && SetupDestination->pending()->Destination.Hostname == aHostname) { retire_setup_effects(); SetupOwner = next_setup_owner(); SetupDestination->cancel(); } }, .AgentWorkspaceRepair = [this, weak] { if (!weak.expired()) { present_agent_workspace_repair(); } } });
+			// What this window's read lane waits on, for Home's discovery to give
+			// way to (`core::home_loading_yields`).
+			Profile->Observers.at(DraftWindow).ReadLane = [this, weak]() -> std::optional<core::github_state> {
+				return weak.expired() || Closing || !WindowRead ? std::nullopt : std::optional{ WindowRead->state() };
+			};
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {
@@ -18643,6 +18704,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Profile->InsightsOwner.reset();
 			}
 			Profile->Observers.erase(DraftWindow);
+			// A window closed while it read no longer holds Home's discovery back
+			// (`core::home_loading_yields`).
+			Profile->yield_discovery();
 			Profile->RestorationNotices.erase(DraftWindow);
 			if (QueueConsumer) {
 				QueueHost->detach(*QueueConsumer);
