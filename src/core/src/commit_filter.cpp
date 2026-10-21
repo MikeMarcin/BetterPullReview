@@ -29,13 +29,13 @@ namespace bpr::core {
 			return found != aIndex.end() && found->Oid == aOid ? std::optional{ found->Listed } : std::nullopt;
 		}
 
-		/// \brief The headline cut to the retained bound at a UTF-8 boundary.
-		[[nodiscard]] auto retained_headline(std::string_view aHeadline) -> std::string
+		/// \brief The text cut to a retained bound at a UTF-8 boundary.
+		[[nodiscard]] auto retained_headline(std::string_view aHeadline, const std::size_t aBound = maximum_filter_headline_bytes) -> std::string
 		{
-			if (aHeadline.size() <= maximum_filter_headline_bytes) {
+			if (aHeadline.size() <= aBound) {
 				return std::string{ aHeadline };
 			}
-			auto end = maximum_filter_headline_bytes;
+			auto end = aBound;
 			while (end > 0U && (static_cast<unsigned char>(aHeadline[end]) & 0xC0U) == 0x80U) {
 				--end;
 			}
@@ -78,6 +78,38 @@ namespace bpr::core {
 		[[nodiscard]] auto valid_filter_path(std::string_view aPath) noexcept -> bool
 		{
 			return !aPath.empty() && aPath.size() <= maximum_filter_path_bytes;
+		}
+
+		[[nodiscard]] auto author_of(const filter_commit_graph& aGraph, const git_commit_oid& aOid) -> std::string
+		{
+			const auto* entry = find_filter_commit(aGraph, aOid);
+			return entry != nullptr && entry->Listed < aGraph.Authors.size() ? aGraph.Authors[entry->Listed] : std::string{ };
+		}
+
+		/// \brief A commit's changes: bounded, valid paths, sorted and unique,
+		/// each with a blob on at least one side, of the commit's own format.
+		[[nodiscard]] auto valid_changes(const std::vector<filter_path_change>& aChanges, const git_hash_algorithm aAlgorithm) noexcept -> bool
+		{
+			if (aChanges.size() > maximum_filter_commit_paths) {
+				return false;
+			}
+			const auto blob = [aAlgorithm](const std::optional<git_blob_oid>& aBlob) { return !aBlob || (aBlob->valid() && aBlob->algorithm() == aAlgorithm); };
+			for (std::size_t index = 0U; index < aChanges.size(); ++index) {
+				const auto& change = aChanges[index];
+				if (!valid_filter_path(change.Path) || (change.PreviousPath && !valid_filter_path(*change.PreviousPath)) || (!change.Left && !change.Right)
+					|| !blob(change.Left) || !blob(change.Right) || (index != 0U && !(aChanges[index - 1U].Path < change.Path))) {
+					return false;
+				}
+			}
+			return true;
+		}
+
+		/// \brief The changes `aChanges` names for one commit, when valid.
+		[[nodiscard]] auto changes_of(std::span<const filter_commit_changes> aChanges, const git_commit_oid& aOid) noexcept
+			-> const std::vector<filter_path_change>*
+		{
+			const auto found = std::ranges::find(aChanges, aOid, &filter_commit_changes::Commit);
+			return found != aChanges.end() && valid_changes(found->Changes, aOid.algorithm()) ? &found->Changes : nullptr;
 		}
 
 		/// \brief The touches' total path count when they cover exactly the
@@ -222,6 +254,7 @@ namespace bpr::core {
 			}
 			graph.Entries.push_back(entry);
 			graph.Headlines.push_back(retained_headline(commit.Headline));
+			graph.Authors.push_back(retained_headline(commit.Author, maximum_filter_author_bytes));
 		}
 		return graph;
 	}
@@ -276,7 +309,8 @@ namespace bpr::core {
 		}
 		for (std::size_t index = 0U; index < aState.Hidden.size(); ++index) {
 			const auto& entry = aState.Hidden[index];
-			if (!entry.Oid.valid() || entry.Headline.size() > maximum_filter_headline_bytes
+			if (!entry.Oid.valid() || entry.Headline.size() > maximum_filter_headline_bytes || entry.Author.size() > maximum_filter_author_bytes
+				|| (entry.Changes && !valid_changes(*entry.Changes, entry.Oid.algorithm()))
 				|| (index != 0U && !(aState.Hidden[index - 1U].Oid < entry.Oid))) {
 				return false;
 			}
@@ -377,8 +411,9 @@ namespace bpr::core {
 			}
 			const auto& oid      = aGraph.Chain[position];
 			const auto  existing = std::ranges::find(aState.Hidden, oid, &filter_hidden_commit::Oid);
-			result.Hidden.push_back(existing != aState.Hidden.end() ? *existing
-																	: filter_hidden_commit{ .Oid = oid, .Headline = headline_of(aGraph, oid) });
+			result.Hidden.push_back(existing != aState.Hidden.end()
+										? *existing
+										: filter_hidden_commit{ .Oid = oid, .Headline = headline_of(aGraph, oid), .Author = author_of(aGraph, oid), .Changes = std::nullopt });
 		}
 		std::ranges::sort(result.Hidden, { }, &filter_hidden_commit::Oid);
 		if (!valid(result)) {
@@ -527,6 +562,120 @@ namespace bpr::core {
 				}
 			}
 			result.Paths.push_back(std::move(entry));
+		}
+		return result;
+	}
+
+	auto record_hidden_changes(const commit_filter_state& aState, const filter_commit_graph& aGraph,
+							   std::span<const filter_commit_changes> aChanges) -> commit_filter_state
+	{
+		auto result = aState;
+		for (auto& entry : result.Hidden) {
+			if (find_filter_commit(aGraph, entry.Oid) == nullptr) {
+				continue;
+			}
+			if (entry.Author.empty()) {
+				entry.Author = author_of(aGraph, entry.Oid);
+			}
+			if (!entry.Changes) {
+				if (const auto* changes = changes_of(aChanges, entry.Oid); changes != nullptr) {
+					entry.Changes = *changes;
+				}
+			}
+		}
+		return valid(result) ? result : aState;
+	}
+
+	auto rematch_offers(const commit_filter_state& aState, const filter_commit_graph& aGraph,
+						std::span<const filter_commit_changes> aChanges) -> std::vector<filter_rematch_offer>
+	{
+		auto offers = std::vector<filter_rematch_offer>{ };
+		if (!valid(aState)) {
+			return offers;
+		}
+		for (const auto& gone : aState.Hidden) {
+			if (find_filter_commit(aGraph, gone.Oid) != nullptr) {
+				continue;
+			}
+			auto same    = std::vector<filter_rematch_offer>{ };
+			auto guessed = std::vector<filter_rematch_offer>{ };
+			for (const auto& candidate : aGraph.Chain) {
+				const auto* entry = find_filter_commit(aGraph, candidate);
+				if (entry == nullptr || entry->Role == filter_commit_role::base_merge || hidden_oid(aState, candidate)) {
+					continue;
+				}
+				if (gone.Changes && !gone.Changes->empty()) {
+					if (const auto* changes = changes_of(aChanges, candidate); changes != nullptr && *changes == *gone.Changes) {
+						same.push_back({ .Gone = gone.Oid, .Candidate = candidate, .Basis = filter_rematch_basis::same_change });
+						continue;
+					}
+				}
+				if (!gone.Headline.empty() && !gone.Author.empty() && headline_of(aGraph, candidate) == gone.Headline && author_of(aGraph, candidate) == gone.Author) {
+					guessed.push_back({ .Gone = gone.Oid, .Candidate = candidate, .Basis = filter_rematch_basis::same_headline_and_author });
+				}
+			}
+			const auto& chosen = same.empty() ? guessed : same;
+			offers.insert(offers.end(), chosen.begin(), chosen.end());
+		}
+		return offers;
+	}
+
+	auto apply_rematch(const commit_filter_state& aState, const filter_commit_graph& aGraph,
+					   std::span<const filter_commit_changes> aChanges, const filter_rematch_offer& aOffer)
+		-> std::expected<commit_filter_state, commit_filter_refusal>
+	{
+		if (!valid(aState)) {
+			return std::unexpected{ commit_filter_refusal::invalid_state };
+		}
+		const auto offers = rematch_offers(aState, aGraph, aChanges);
+		if (std::ranges::find(offers, aOffer) == offers.end()) {
+			return std::unexpected{ commit_filter_refusal::not_offered };
+		}
+		auto result = commit_filter_state{ };
+		for (const auto& entry : aState.Hidden) {
+			if (entry.Oid != aOffer.Gone) {
+				result.Hidden.push_back(entry);
+			}
+		}
+		auto hidden     = filter_hidden_commit{ };
+		hidden.Oid      = aOffer.Candidate;
+		hidden.Headline = headline_of(aGraph, aOffer.Candidate);
+		hidden.Author   = author_of(aGraph, aOffer.Candidate);
+		if (const auto* changes = changes_of(aChanges, aOffer.Candidate); changes != nullptr) {
+			hidden.Changes = *changes;
+		}
+		result.Hidden.push_back(std::move(hidden));
+		std::ranges::sort(result.Hidden, { }, &filter_hidden_commit::Oid);
+		if (!valid(result)) {
+			return std::unexpected{ commit_filter_refusal::invalid_state };
+		}
+		return result;
+	}
+
+	auto combined_split_receipt(const file_identity& aFile, std::span<const std::optional<file_receipt>> aSegments)
+		-> std::optional<file_receipt>
+	{
+		if (!aFile.valid() || std::ranges::none_of(aSegments, [](const std::optional<file_receipt>& aReceipt) { return aReceipt.has_value(); })) {
+			return std::nullopt;
+		}
+		auto result     = file_receipt{ };
+		result.File     = aFile;
+		result.Read     = file_read_state::read;
+		result.Accepted = true;
+		result.Excluded = true;
+		for (const auto& segment : aSegments) {
+			if (!segment) {
+				result.Read     = file_read_state::unread;
+				result.Accepted = false;
+				result.Excluded = false;
+				continue;
+			}
+			if (!result.Material.valid()) {
+				result.Material = segment->Material;
+			}
+			result.Read     = std::min(result.Read, segment->Read);
+			result.Accepted = result.Accepted && segment->Accepted;
+			result.Excluded = result.Excluded && segment->Excluded;
 		}
 		return result;
 	}

@@ -1,5 +1,6 @@
 // RFC-BPR-0089 M1: the commit filter model joins the snapshot, the comparison,
-// the chain's tree diffs and the reviewer's filter.
+// the chain's tree diffs and the reviewer's filter. M3: a split file's
+// per-commit diffs, and the rematch offers after a force push.
 #include "bpr/application/commit_filter_model.hpp"
 
 #include <algorithm>
@@ -483,6 +484,97 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	auto blob(const char aDigit) -> core::git_blob_oid
+	{
+		return *core::parse_git_blob_oid(std::string(40U, aDigit));
+	}
+
+	auto changed(std::string aPath, const char aChange, const char aLeft, const char aRight) -> application::commit_filter_touched_path
+	{
+		auto value      = touched(std::move(aPath), aChange);
+		value.LeftBlob  = aChange == 'A' ? std::nullopt : std::optional{ blob(aLeft) };
+		value.RightBlob = aChange == 'D' ? std::nullopt : std::optional{ blob(aRight) };
+		return value;
+	}
+
+	/// RFC-BPR-0089 M3 (owner, Q2): src/both.cpp, which hidden C2 changes
+	/// between shown C1 and C3, is one file with two exact per-commit diffs.
+	void test_split_segments()
+	{
+		auto model = ready();
+		expect(model.apply(gesture(core::commit_filter_operation_kind::hide, { '2' })) == core::commit_filter_refusal::none, "Hide C2");
+		const auto files = model.files();
+		expect(files.has_value() && files->SplitFiles == 1U, "one file is split");
+		const auto both = std::ranges::find(files->Files, std::string{ "src/both.cpp" }, [](const application::commit_filter_file& aFile) -> const std::string& { return aFile.Record.Path; });
+		expect(both != files->Files.end() && both->Split && !both->Filter && both->Segments.size() == 2U, "it keeps one row with two per-commit diffs");
+		expect(both->Segments[0].Endpoints == core::filtered_diff_endpoints{ .Left = oid('b'), .Right = oid('1') } && both->Segments[0].HiddenAfter == std::vector{ oid('2') }
+				   && both->Segments[1].Endpoints == core::filtered_diff_endpoints{ .Left = oid('2'), .Right = oid('3') } && both->Segments[1].HiddenAfter.empty()
+				   && both->Segments[0].Change == application::github_file_change::modified,
+			   "C1's own diff, then C3's, with C2 named after the first");
+		const auto entries = application::workbench_segments(both->Segments);
+		expect(entries.size() == 2U && entries[1].Endpoints == both->Segments[1].Endpoints && entries[1].Change == application::workbench_file_change_kind::modified && !entries[1].PreviousPath,
+			   "the workbench reads the same two diffs");
+		const auto parts = model.split_parts("src/both.cpp");
+		expect(parts && parts->Path == "src/both.cpp" && parts->Parts.size() == 2U && parts->Parts[0].ShortCommit == "1111111"
+				   && parts->Parts[0].Headline == "Change the generator input" && parts->Parts[0].HiddenAfter.size() == 1U
+				   && parts->Parts[0].HiddenAfter[0].ShortCommit == "2222222" && parts->Parts[0].HiddenAfter[0].Headline == "Regenerate"
+				   && parts->Parts[1].Commit == hex('3'),
+			   "the strip names each shown commit and the hidden one between");
+		expect(!model.split_parts("src/a.cpp"), "a file with one exact diff has no strip");
+		expect(model.apply(gesture(core::commit_filter_operation_kind::clear, { })) == core::commit_filter_refusal::none && !model.split_parts("src/both.cpp"),
+			   "Clear all filters forgets the split");
+	}
+
+	/// RFC-BPR-0089 M3, AC06: a force push rewrites hidden C3; the commit
+	/// carrying the same change is offered and applied only when chosen.
+	void test_rematch_after_force_push()
+	{
+		auto model = application::commit_filter_model{ };
+		model.adopt(snapshot());
+		model.adopt_comparison(core::filter_comparison{ });
+		auto answer    = touches(model, application::commit_filter_touches_status::resolved);
+		answer.Touches = {
+			{ .Commit = oid('1'), .Paths = { changed("src/a.cpp", 'M', 'a', 'b'), changed("src/both.cpp", 'M', 'a', 'b'), changed("src/new.cpp", 'A', '0', 'c') } },
+			{ .Commit = oid('2'), .Paths = { changed("gen/x.cpp", 'A', '0', 'd'), changed("gen/y.cpp", 'A', '0', 'e'), changed("src/both.cpp", 'M', 'b', 'f') } },
+			{ .Commit = oid('3'), .Paths = { changed("gen/x.cpp", 'M', 'd', '7'), changed("src/a.cpp", 'M', 'b', '8'), changed("src/both.cpp", 'M', 'f', '9') } },
+		};
+		model.begin_touches();
+		model.adopt_touches(answer);
+		expect(model.apply(gesture(core::commit_filter_operation_kind::hide, { '3' })) == core::commit_filter_refusal::none, "Hide C3");
+		expect(model.state().Hidden.size() == 1U && model.state().Hidden[0].Changes && model.state().Hidden[0].Changes->size() == 3U && model.state().Hidden[0].Author == "octo-author",
+			   "hiding C3 records what it changes, with its blobs, and its author");
+
+		// The force push: C3 amended as C4 on C2, the same change.
+		auto pushed                = snapshot();
+		pushed.PullRequest.HeadOid = application::commit_oid{ hex('4') };
+		pushed.Commits[2]          = commit('4', { '2' }, "Follow-ups, amended");
+		model.adopt(pushed);
+		auto projection = model.projection();
+		expect(projection.Gone.size() == 1U && projection.Gone[0].ShortCommit == "3333333" && projection.Rematches.empty(),
+			   "the gone commit is named; with a new headline and the trees unread nothing is offered yet");
+		auto again              = touches(model, application::commit_filter_touches_status::resolved);
+		again.Touches           = { answer.Touches[0], answer.Touches[1], answer.Touches[2] };
+		again.Touches[2].Commit = oid('4');
+		model.begin_touches();
+		model.adopt_touches(again);
+		projection = model.projection();
+		expect(projection.Rematches.size() == 1U && projection.Rematches[0].Gone == hex('3') && projection.Rematches[0].Candidate == hex('4')
+				   && projection.Rematches[0].Basis == core::filter_rematch_basis::same_change && projection.Rematches[0].CandidateHeadline == "Follow-ups, amended"
+				   && projection.Rematches[0].GoneHeadline == "Follow-ups",
+			   "once its trees are read, C4 is offered as the same change");
+		expect(projection.Rows[2].State == core::filter_commit_state::shown && projection.Status == core::commit_filter_status::inactive,
+			   "the offer applies nothing: C4 is shown");
+		expect(model.rematch({ .Gone = hex('3'), .Candidate = hex('1') }) == core::commit_filter_refusal::not_offered && model.projection().Refusal == core::commit_filter_refusal::not_offered,
+			   "a commit that is not offered is refused");
+		expect(model.rematch({ .Gone = hex('3'), .Candidate = hex('4') }) == core::commit_filter_refusal::none, "choosing the offer is accepted");
+		projection = model.projection();
+		expect(projection.Gone.empty() && projection.Rematches.empty() && projection.Rows[2].State == core::filter_commit_state::hidden
+				   && projection.Status == core::commit_filter_status::active && projection.Shown == 2U,
+			   "C4 is hidden in C3's place and the gone commit is forgotten");
+	}
+} // namespace
+
 auto main() -> int
 {
 	test_steps_and_rows();
@@ -493,6 +585,8 @@ auto main() -> int
 	test_head_attributes_are_read();
 	test_hide_files_these_commits_changed();
 	test_bulk_label();
+	test_split_segments();
+	test_rematch_after_force_push();
 	std::cout << "commit-filter-model-tests:pass\n";
 	return 0;
 }

@@ -75,6 +75,18 @@ namespace bpr::application {
 		unchanged,
 	};
 
+	/// \brief RFC-BPR-0089 M3. One exact per-commit diff of a split file: the
+	/// path at a shown commit's parent against the path at that commit, with
+	/// that commit's own change to it.
+	struct workbench_split_segment
+	{
+		core::filtered_diff_endpoints        Endpoints;
+		workbench_file_change_kind           Change = workbench_file_change_kind::modified;
+		std::optional<std::filesystem::path> PreviousPath;
+
+		auto operator<=>(const workbench_split_segment&) const = default;
+	};
+
 	/// \brief Retains one bounded provider-free workbench file observation.
 	struct workbench_file_observation_entry
 	{
@@ -94,8 +106,12 @@ namespace bpr::application {
 		std::optional<core::filtered_diff_endpoints> Filter;
 		/// RFC-BPR-0089. A hidden commit changes this file between two shown
 		/// ones, so no one exact diff covers what is shown. It is listed and
-		/// walked; opening it says so and reads nothing.
+		/// walked as one file.
 		bool SplitByFilter = false;
+		/// RFC-BPR-0089 M3 (owner, Q2). A split file's exact per-commit diffs, in
+		/// chain order; each is read on its own, as its own material. A split
+		/// file without them reads nothing and says why.
+		std::vector<workbench_split_segment> Segments;
 
 		auto operator<=>(const workbench_file_observation_entry&) const = default;
 	};
@@ -432,6 +448,10 @@ namespace bpr::application {
 		std::string                Path;
 		std::optional<std::string> PreviousPath;
 		char                       Change = 'M';
+		/// RFC-BPR-0089 M3. The blob on each side of the change, none where the
+		/// path is absent: what "the same change" compares after a force push.
+		std::optional<core::git_blob_oid> LeftBlob;
+		std::optional<core::git_blob_oid> RightBlob;
 
 		auto operator<=>(const commit_filter_touched_path&) const = default;
 	};

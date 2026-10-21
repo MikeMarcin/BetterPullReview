@@ -31,6 +31,12 @@
 //       Opens MikeMarcin/BPR-Test#N, waits for the head's .gitattributes and
 //       writes what Whole PR, each commit filter and Clear all filters list
 //       and set aside into DIR/generated.jsonl ([[BPR-1692]]).
+//   --course force-push --root DIR --pull N --path FILE
+//       RFC-BPR-0089 M3. Opens MikeMarcin/BPR-Test#N, marks FILE read, hides
+//       the chain's last commit, then waits at `at-push` while the operator
+//       force-pushes a rewrite of it. After `go-push` it refreshes, writes what
+//       the chip and the Commits tab offer, chooses the offer and writes the
+//       filter after it into DIR/force-push.jsonl.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -163,10 +169,10 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated")
+			 && result.Course != "generated" && result.Course != "force-push")
 			|| result.Root.empty() || result.Pull <= 0
-			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))) {
-			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated --root DIR --pull N [--author LOGIN --path PREFIX]");
+			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty())) || (result.Course == "force-push" && result.Path.empty())) {
+			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -634,20 +640,39 @@ namespace {
 					const auto& result  = surface->current_result();
 					return context && result && result->Alignment.Key == context->Key && context->Key.File == core::file_identity_of(path);
 				};
-				const auto split = [&] { return surface->status_text().contains(QStringLiteral("hidden commit changed this file")); };
-				if (!wait_for([&] { return settled() || split(); }, std::string{ aName }.append(" ").append(path), std::chrono::seconds{ 120 })) {
+				if (!wait_for(settled, std::string{ aName }.append(" ").append(path), std::chrono::seconds{ 120 })) {
 					fail(std::string{ aName }.append(": ").append(path).append(" never showed"));
 				}
-				if (!settled()) {
-					diffs += (diffs.empty() ? "" : ",") + std::string{ "{\"path\":" } + json_text(path) + ",\"split\":true}";
+				const auto shown = [&] {
+					const auto& context = *surface->current_context();
+					const auto& result  = *surface->current_result();
+					return std::string{ "\"left\":" } + (context.Key.Filter ? hex(context.Key.Filter->Left) : std::string{ "null" })
+						+ ",\"right\":" + (context.Key.Filter ? hex(context.Key.Filter->Right) : std::string{ "null" }) + ",\"left_blob\":" + blob(context.Key.LeftBlob)
+						+ ",\"right_blob\":" + blob(context.Key.RightBlob) + ",\"removed\":" + changed_lines(result, core::diff_side::left)
+						+ ",\"added\":" + changed_lines(result, core::diff_side::right);
+				};
+				// RFC-BPR-0089 M3. A split file reads each shown commit's own
+				// diff in turn, through the strip over it.
+				auto* const strip = aWindow.split_strip();
+				wait_for([&] { return strip->isVisibleTo(&aWindow); }, "a strip, if the file is split (expected for most files)", std::chrono::seconds{ 1 });
+				if (!strip->isVisibleTo(&aWindow)) {
+					diffs += (diffs.empty() ? "" : ",") + std::string{ "{\"path\":" } + json_text(path) + "," + shown() + "}";
 					continue;
 				}
-				const auto& context = *surface->current_context();
-				const auto& result  = *surface->current_result();
-				diffs += (diffs.empty() ? "" : ",") + std::string{ "{\"path\":" } + json_text(path) + ",\"left\":" + (context.Key.Filter ? hex(context.Key.Filter->Left) : std::string{ "null" })
-					+ ",\"right\":" + (context.Key.Filter ? hex(context.Key.Filter->Right) : std::string{ "null" }) + ",\"left_blob\":" + blob(context.Key.LeftBlob)
-					+ ",\"right_blob\":" + blob(context.Key.RightBlob) + ",\"removed\":" + changed_lines(result, core::diff_side::left)
-					+ ",\"added\":" + changed_lines(result, core::diff_side::right) + "}";
+				auto segments = std::string{ };
+				for (std::size_t part = 0U; part < strip->parts().size(); ++part) {
+					strip->parts()[part]->click();
+					require([&] { return settled() && strip->parts().size() > part && strip->parts()[part]->isChecked() && strip->projection() && strip->projection()->Parts[part].Selected; },
+							std::string{ aName }.append(": ").append(path).append(" diff ").append(std::to_string(part + 1U)));
+					segments += (segments.empty() ? "{" : ",{") + shown() + ",\"commit\":" + json_text(strip->projection()->Parts[part].Commit) + "}";
+				}
+				auto hidden = std::string{ };
+				for (const auto* const label : strip->hidden()) {
+					hidden += (hidden.empty() ? "" : ",") + json_text(text(label->accessibleName()));
+				}
+				auto entry = std::string{ "{\"path\":" };
+				entry.append(json_text(path)).append(",\"split\":true,\"segments\":[").append(segments).append("],\"hidden\":[").append(hidden).append("]}");
+				diffs.append(diffs.empty() ? "" : ",").append(entry);
 			}
 			out << "{\"kind\":\"scenario\",\"name\":" << json_text(aName) << ",\"commits\":[";
 			for (std::size_t index = 0U; index < aCommits.size(); ++index) {
@@ -673,6 +698,108 @@ namespace {
 			scenario("hide-2", QStringLiteral("commitFilterHide"), { chain[1] });
 		}
 		say("commit-filter:scenarios=" + std::to_string(chain.size() + (chain.size() >= 2U ? 1U : 0U)));
+	}
+
+	/// RFC-BPR-0089 M3, AC06. Opens the pull request, marks `--path` read in
+	/// Review (a local receipt only), hides the chain's last commit, and waits
+	/// at `at-push` for the operator's force push. After `go-push` it
+	/// refreshes and writes, into DIR/force-push.jsonl, the rows, the chip and
+	/// the rematch offers, whether the receipt is still read, and after the
+	/// reviewer's choice of the chip's offer the rows and the chip again.
+	/// Nothing here writes to GitHub.
+	void force_push_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1300, 860);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		auto* const drawer = aWindow.overview_page()->status_drawer();
+		auto* const tab    = drawer->commits();
+		auto* const chip   = aWindow.overview_page()->commit_chip();
+		const auto  trees  = [&] {
+			drawer->tabs()->setCurrentIndex(1);
+			return tab->projection() && !tab->projection()->Rows.empty() && tab->projection()->Trees == application::commit_filter_trees::ready;
+		};
+		require(trees, "the Commits tab reads the chain's trees", std::chrono::seconds{ 600 });
+		std::ofstream out{ aOptions.Root / "force-push.jsonl" };
+		const auto    rows = [&] {
+			auto result = std::string{ };
+			for (const auto& row : tab->projection()->Rows) {
+				result += (result.empty() ? "" : ",") + std::string{ "{\"commit\":" } + json_text(row.Commit) + ",\"state\":" + std::to_string(static_cast<int>(row.State)) + "}";
+			}
+			return "[" + result + "]";
+		};
+		const auto chipText = [&] { return json_text(text(chip->summary()->text()) + " / " + text(chip->detail()->text())); };
+
+		// A Whole PR receipt before anything moves.
+		const auto path = core::file_identity_of(aOptions.Path);
+		const auto read = [&] { return aWindow.read_action()->text() == QStringLiteral("Mark &unread"); };
+		const auto open = [&] {
+			aWindow.choose_modality(qt::review_modality::review);
+			require([&] { return aWindow.files_drawer()->contents()->index_for_file(path).isValid(); }, "the receipt's file is listed");
+			aWindow.files_drawer()->contents_view()->setCurrentIndex(aWindow.files_drawer()->contents()->index_for_file(path));
+			require([&] {
+				const auto& context = aWindow.comparison_surface()->current_context();
+				return context && context->Key.File == path && aWindow.read_action()->isEnabled();
+			},
+					"the receipt's file is shown");
+		};
+		open();
+		const auto readBefore = read();
+		if (!readBefore) {
+			aWindow.read_action()->trigger();
+		}
+		require(read, "the receipt's file is read");
+		aWindow.show_commits();
+		require(trees, "the Commits tab again");
+		const auto last = tab->projection()->Rows.back().Commit;
+		tab->list()->selectionModel()->select(tab->model()->index(tab->model()->row_of(last)), QItemSelectionModel::ClearAndSelect);
+		{
+			auto        menu   = std::unique_ptr<QMenu>{ tab->make_menu(nullptr) };
+			auto* const action = menu->findChild<QAction*>(QStringLiteral("commitFilterHide"));
+			if (action == nullptr || !action->isEnabled()) {
+				fail("Hide selected is not offered for the last commit");
+			}
+			action->trigger();
+		}
+		require([&] { return tab->projection()->Status == core::commit_filter_status::active; }, "the last commit is hidden");
+		out << "{\"kind\":\"before\",\"hidden\":" << json_text(last) << ",\"rows\":" << rows() << ",\"chip\":" << chipText() << "}\n";
+		out.flush();
+		say("force-push:hidden " + last + " chip=" + text(chip->summary()->text()));
+		checkpoint(aOptions.Root, "push", "{\"hidden\":" + json_text(last) + "}");
+
+		aWindow.github_refresh_action()->trigger();
+		const auto offered = [&] {
+			const auto& projection = tab->projection();
+			return trees() && projection->Gone.size() == 1U && !projection->Rematches.empty() && projection->Rematches.front().Basis == core::filter_rematch_basis::same_change
+				&& !chip->rematch_button()->isHidden();
+		};
+		const auto sameChange = wait_for(offered, "the same-change offer after the push", std::chrono::seconds{ 600 });
+		auto       offers     = std::string{ };
+		for (const auto& offer : tab->projection()->Rematches) {
+			offers += (offers.empty() ? "" : ",") + std::string{ "{\"gone\":" } + json_text(offer.Gone) + ",\"candidate\":" + json_text(offer.Candidate) + ",\"basis\":" + std::to_string(static_cast<int>(offer.Basis)) + "}";
+		}
+		auto gone = std::string{ };
+		for (const auto& entry : tab->projection()->Gone) {
+			gone += (gone.empty() ? "" : ",") + json_text(entry.ShortCommit);
+		}
+		const auto shownBefore = tab->projection()->Status;
+		open();
+		const auto kept = wait_for(read, "the receipt after the push", std::chrono::seconds{ 60 });
+		aWindow.show_commits();
+		out << "{\"kind\":\"pushed\",\"same_change\":" << (sameChange ? "true" : "false") << ",\"rows\":" << rows() << ",\"gone\":[" << gone << "],\"rematches\":[" << offers
+			<< "],\"status\":" << static_cast<int>(shownBefore) << ",\"chip\":" << chipText() << ",\"button\":" << json_text(text(chip->rematch_button()->text()))
+			<< ",\"receipt_kept\":" << (kept ? "true" : "false") << "}\n";
+		out.flush();
+		say("force-push:offered " + text(chip->rematch_button()->text()) + " chip=" + text(chip->detail()->text()));
+		if (!sameChange) {
+			fail("no same-change offer after the push");
+		}
+		chip->rematch_button()->click();
+		require([&] { return tab->projection()->Gone.empty() && tab->projection()->Rematches.empty() && tab->projection()->Status == core::commit_filter_status::active; },
+				"the offer is applied");
+		out << "{\"kind\":\"rematched\",\"rows\":" << rows() << ",\"chip\":" << chipText() << "}\n";
+		out.flush();
+		say("force-push:rematched chip=" + text(chip->summary()->text()));
 	}
 
 	/// [[BPR-1692]]. Opens the pull request on Overview and waits until the
@@ -862,6 +989,8 @@ try {
 		commit_filter_course(chosen, *window);
 	} else if (chosen.Course == "generated") {
 		generated_course(chosen, *window);
+	} else if (chosen.Course == "force-push") {
+		force_push_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

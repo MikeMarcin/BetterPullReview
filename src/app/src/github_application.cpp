@@ -1100,6 +1100,7 @@ namespace bpr::app {
 			// RFC-BPR-0089. Served like nested-folders: github.com, one head.
 			case detail::github_public_path_fixture::commit_filter_v1:
 			case detail::github_public_path_fixture::commit_filter_attributes_v1:
+			case detail::github_public_path_fixture::commit_filter_split_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },
@@ -3262,6 +3263,22 @@ namespace bpr::app {
 			return aReceipt;
 		}
 
+		/// \brief RFC-BPR-0089 M3. Whether `aReceipt` is the receipt of one of a
+		/// split file's per-commit diffs.
+		[[nodiscard]] auto split_receipt(const core::file_identity aReceipt) const -> bool
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (!Review.has_value() || !Review->Filtered.has_value()) {
+				return false;
+			}
+			return std::ranges::any_of(*Review->Filtered, [&](const application::commit_filter_file& aFile) {
+				const auto identity = core::file_identity_of(aFile.Record.Path);
+				return std::ranges::any_of(aFile.Segments, [&](const application::commit_filter_segment& aSegment) {
+					return core::filtered_receipt_file(identity, aSegment.Endpoints) == aReceipt;
+				});
+			});
+		}
+
 		/// \brief RFC-BPR-0089. How the commit filter forms one file's diff.
 		[[nodiscard]] auto file_filter(
 			const application::workbench_pull_request_authority& aAuthority,
@@ -3274,7 +3291,7 @@ namespace bpr::app {
 			}
 			for (const auto& file : *Review->Filtered) {
 				if ((file.Filter.has_value() || file.Split) && core::file_identity_of(file.Record.Path) == aFile) {
-					return application::snapshot_workbench_observation::file_filter{ .Endpoints = file.Filter, .Split = file.Split };
+					return application::snapshot_workbench_observation::file_filter{ .Endpoints = file.Filter, .Split = file.Split, .Segments = application::workbench_segments(file.Segments) };
 				}
 			}
 			return std::nullopt;
@@ -7314,6 +7331,7 @@ namespace bpr::app {
 			}
 			entry->Filter        = found->Filter;
 			entry->SplitByFilter = found->Split;
+			entry->Segments      = application::workbench_segments(found->Segments);
 			if (!application::valid(*entry)) {
 				return;
 			}
@@ -8371,6 +8389,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_generated_dispatch([this](const application::generated_file_gesture& aGesture) { apply_generated_gesture(aGesture); });
 			// [[BPR-1693]]. A set-aside file's diff, read on request.
 			Window->set_generated_open_dispatch([this](const std::string& aPath) { open_set_aside_file(aPath); });
+			// RFC-BPR-0089 M3. A split file's per-commit diff, and a rematch offer.
+			Window->set_split_segment_dispatch([this](const std::size_t aSegment) {
+				if (!Closing && WorkbenchHost != nullptr && SelectedDiffPublication) {
+					WorkbenchHost->select_split_segment(SelectedDiffPublication->Request.File.File, aSegment);
+				}
+			});
+			Window->set_commit_rematch_dispatch([this](const application::commit_filter_rematch_gesture& aGesture) { apply_commit_rematch(aGesture); });
 			Window->set_commit_open_dispatch([this](const std::string& aCommit) {
 				if (!Closing && WindowRead) {
 					static_cast<void>(WindowRead->open_pull_request_commit_page(aCommit, Profile->WindowBrowser));
@@ -9059,7 +9084,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					const core::file_identity                            aFile)
 					-> std::optional<core::actionability_input> {
 					// RFC-BPR-0089. A filtered diff's receipt is its own.
-					const auto filtered    = WorkbenchReview.file_filter(aAuthority, aFile);
+					const auto filtered = WorkbenchReview.file_filter(aAuthority, aFile);
+					// M3. A split file's diffs each have their own receipt; the
+					// file stays in the walk until the reviewer leaves it.
+					if (filtered && filtered->Split) {
+						return std::nullopt;
+					}
 					const auto receiptFile = filtered && filtered->Endpoints ? core::filtered_receipt_file(aFile, *filtered->Endpoints) : aFile;
 					const auto lock        = std::scoped_lock{ ReviewLedgerStateMutex };
 					if (!ReviewLedgerAuthority.has_value()
@@ -14205,6 +14235,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			++CommitFilterPublications;
 			Window->publish(CommitFilter.projection());
+			present_split_strip();
 		}
 
 		/// \brief Asks for the chain's tree diffs once the tab or a filter
@@ -14298,6 +14329,65 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			static_cast<void>(CommitFilter.apply(aGesture));
 			refresh_commit_filter();
+		}
+
+		/// \brief RFC-BPR-0089 M3. The reviewer chose a rematch offer after a
+		/// force push; the core applies only an offer it makes now.
+		void apply_commit_rematch(const application::commit_filter_rematch_gesture& aGesture)
+		{
+			if (Closing) {
+				return;
+			}
+			static_cast<void>(CommitFilter.rematch(aGesture));
+			refresh_commit_filter();
+		}
+
+		/// \brief RFC-BPR-0089 M3 (owner, Q2). The strip over a split file's
+		/// diff: each per-commit diff with its own receipt, the one on screen,
+		/// and the hidden commits named between them. None for any other diff.
+		void present_split_strip()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto& publication = SelectedDiffPublication;
+			if (!publication || !publication->Request.File.SplitByFilter || !publication->Request.Filter) {
+				Window->present_split_diff(std::nullopt);
+				return;
+			}
+			auto        parts = CommitFilter.split_parts(publication->Request.File.PresentationPath);
+			const auto  files = CommitFilter.files();
+			const auto* file  = [&]() -> const application::commit_filter_file* {
+				if (!files) {
+					return nullptr;
+				}
+				for (const auto* list : { &files->Files, &files->SetAside }) {
+					const auto found = std::ranges::find(*list, publication->Request.File.PresentationPath, [](const application::commit_filter_file& aFile) -> const std::string& { return aFile.Record.Path; });
+					if (found != list->end()) {
+						return &*found;
+					}
+				}
+				return nullptr;
+			}();
+			if (!parts || file == nullptr || file->Segments.size() != parts->Parts.size()) {
+				Window->present_split_diff(std::nullopt);
+				return;
+			}
+			const auto identity = core::file_identity_of(file->Record.Path);
+			{
+				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				for (std::size_t index = 0U; index < parts->Parts.size(); ++index) {
+					auto&      part = parts->Parts[index];
+					const auto ends = file->Segments[index].Endpoints;
+					part.Selected   = publication->Request.Filter == std::optional{ ends };
+					if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
+						if (const auto held = ReviewLedgerHost->cached_receipt(core::filtered_receipt_file(identity, ends)); held.has_value() && held->has_value()) {
+							part.Read = (*held)->Read;
+						}
+					}
+				}
+			}
+			Window->present_split_diff(std::move(parts));
 		}
 
 		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed".
@@ -14775,6 +14865,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto filtered         = accepted.has_value() ? CommitFilter.files() : std::nullopt;
 			auto       filteredSnapshot = std::optional<application::github_pull_request_snapshot>{ };
 			auto       filteredEnds     = std::map<std::string_view, core::filtered_diff_endpoints>{ };
+			// M3. A split file's row is as far read as its least read diff.
+			auto filteredSegments = std::map<std::string_view, std::vector<core::filtered_diff_endpoints>>{ };
 			if (filtered.has_value()) {
 				filteredSnapshot = *accepted;
 				filteredSnapshot->Files.clear();
@@ -14785,6 +14877,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				for (const auto& file : filtered->Files) {
 					if (file.Filter.has_value()) {
 						filteredEnds.emplace(file.Record.Path, *file.Filter);
+					}
+					if (file.Split && !file.Segments.empty()) {
+						auto& ends = filteredSegments[file.Record.Path];
+						for (const auto& segment : file.Segments) {
+							ends.push_back(segment.Endpoints);
+						}
 					}
 				}
 			}
@@ -14813,9 +14911,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					for (const auto& file : snapshot->Files) {
 						++OverviewReceiptVisits;
 						const auto identity = core::file_identity_of(file.Path);
-						const auto ends     = filteredEnds.find(file.Path);
-						const auto key      = ends != filteredEnds.end() ? core::filtered_receipt_file(identity, ends->second) : identity;
-						const auto held     = ReviewLedgerHost->cached_receipt(key);
+						if (const auto split = filteredSegments.find(file.Path); split != filteredSegments.end()) {
+							auto parts = std::vector<std::optional<core::file_receipt>>{ };
+							for (const auto& segment : split->second) {
+								const auto key  = core::filtered_receipt_file(identity, segment);
+								const auto held = ReviewLedgerHost->cached_receipt(key);
+								if (!held.has_value()) {
+									missing.push_back(key);
+								}
+								parts.push_back(held.has_value() ? *held : std::nullopt);
+							}
+							if (const auto combined = core::combined_split_receipt(identity, parts)) {
+								context.Receipts.push_back(*combined);
+							}
+							continue;
+						}
+						const auto ends = filteredEnds.find(file.Path);
+						const auto key  = ends != filteredEnds.end() ? core::filtered_receipt_file(identity, ends->second) : identity;
+						const auto held = ReviewLedgerHost->cached_receipt(key);
 						if (!held.has_value()) {
 							missing.push_back(key);
 						} else if (held->has_value()) {
@@ -15109,10 +15222,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// selection's in-memory receipt, or a reload that found nothing
 				// new, leaves them as the last overview read them; a commit moves
 				// only its own rows.
-				if (ReviewLedgerHost == nullptr || OverviewChangedPathsPending) {
+				// RFC-BPR-0089 M3. A split file's row combines its diffs' receipts.
+				const auto split = WorkbenchReview.split_receipt(aProjection.Receipt.File);
+				if (ReviewLedgerHost == nullptr || OverviewChangedPathsPending || split) {
 					publish_overview();
 				} else {
 					refresh_overview_receipts();
+				}
+				present_split_strip();
+				if (split) {
+					return;
 				}
 			}
 			if (WorkbenchHost != nullptr && authority.has_value()
@@ -18154,6 +18273,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			SelectedDiffPublication.reset();
 			AutoSeenPresentedRequest.reset();
 			ReviewSourceMaterial.reset();
+			present_split_strip();
 			// [[BPR-1387]]. Clearing a displayed source removes its permalink
 			// placement. Initial PR setup has no source and already published
 			// the host's conversations, so it owes no second full publication.
@@ -18314,6 +18434,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// base; a commit-filtered diff's sides are other commits, so its
 			// threads stay in the conversation drawer, unmarked (M4 marks them).
 			Window->set_thread_marks_suspended(aPublication.Key.Filter.has_value());
+			present_split_strip();
 			request_diff(
 				aPublication.Key,
 				aPublication.Request.Diff.Comparison,
@@ -18333,6 +18454,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (SelectedDiffRequest == std::optional{ aFailure.Request }) {
 				SelectedDiffRequest.reset();
+				// RFC-BPR-0089 M3. A failed diff has no strip over it.
+				Window->present_split_diff(std::nullopt);
 				if (TabDriver && TabDriver->position().File == aFailure.Request.File.File
 					&& TabDriver->position().Comparison == aFailure.Request.Diff.Comparison) {
 					TabFailed = true;

@@ -1,4 +1,5 @@
-// RFC-BPR-0089 M1: commit filter decisions, under core-only (AC08).
+// RFC-BPR-0089 M1: commit filter decisions, under core-only (AC08). M3: the
+// rematch offers after a force push (AC06) and a split file's row receipt.
 #include "bpr/core/commit_filter.hpp"
 
 #include <array>
@@ -269,6 +270,126 @@ namespace {
 		return { .Commit = aCommit, .Paths = std::move(aPaths) };
 	}
 
+	constexpr auto blob(const std::uint8_t aSeed) noexcept -> core::git_blob_oid
+	{
+		auto bytes = std::array<std::uint8_t, 32>{ };
+		bytes[0]   = aSeed;
+		bytes[19]  = 0xB1U;
+		return core::git_blob_oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	auto change(std::string aPath, const std::uint8_t aLeft, const std::uint8_t aRight) -> core::filter_path_change
+	{
+		auto result  = core::filter_path_change{ };
+		result.Path  = std::move(aPath);
+		result.Left  = blob(aLeft);
+		result.Right = blob(aRight);
+		return result;
+	}
+
+	auto authored(const std::uint8_t aSeed, std::vector<core::git_commit_oid> aParents, std::string aHeadline, std::string aAuthor)
+		-> core::filter_commit
+	{
+		auto result   = commit(aSeed, std::move(aParents), std::move(aHeadline));
+		result.Author = std::move(aAuthor);
+		return result;
+	}
+
+	/// RFC-BPR-0089 M3, AC06: after a force push rewrites hidden C3, the new
+	/// commit carrying the same change is offered, never applied by itself.
+	void test_rematch()
+	{
+		const auto list  = core::filter_commit_list{ .Head      = c3,
+													 .Commits   = { authored(0x01, { base }, "Change the generator input", "ana"),
+																	authored(0x02, { c1 }, "Regenerate", "ana"), authored(0x03, { c2 }, "Follow-ups", "ana") },
+													 .Truncated = false };
+		const auto graph = *core::build_filter_commit_graph(list);
+		expect(graph.Authors == std::vector<std::string>{ "ana", "ana", "ana" }, "the graph keeps each commit's author");
+		const auto c3Changes = std::vector{ change("gen/a.txt", 0x20, 0x21), change("src/app.cpp", 0x30, 0x31) };
+		const auto changes   = std::vector<core::filter_commit_changes>{ { .Commit = c1, .Changes = { change("src/app.cpp", 0x29, 0x30) } },
+																		 { .Commit = c3, .Changes = c3Changes } };
+
+		// Hide C3 and record what it changes while it is listed.
+		auto hidden = *apply({ }, graph, core::commit_filter_operation_kind::hide, { c3 });
+		expect(hidden.Hidden.size() == 1U && hidden.Hidden[0].Author == "ana" && !hidden.Hidden[0].Changes, "a hidden entry keeps its author, its changes not yet read");
+		hidden = core::record_hidden_changes(hidden, graph, changes);
+		expect(hidden.Hidden[0].Changes == std::optional{ c3Changes }, "the trees record what the hidden commit changes");
+		expect(core::rematch_offers(hidden, graph, changes).empty(), "nothing is gone, nothing is offered");
+
+		// The force push: C3 reworded (same change) and C4, a commit with C3's old headline and author.
+		const auto reworded   = oid(0x13);
+		const auto lookalike  = oid(0x14);
+		const auto pushed     = *core::build_filter_commit_graph({ .Head      = lookalike,
+																   .Commits   = { authored(0x01, { base }, "Change the generator input", "ana"),
+																				  authored(0x02, { c1 }, "Regenerate", "ana"),
+																				  authored(0x13, { c2 }, "Follow-ups, reworded", "ana"),
+																				  authored(0x14, { reworded }, "Follow-ups", "ana") },
+																   .Truncated = false });
+		const auto newChanges = std::vector<core::filter_commit_changes>{ { .Commit = reworded, .Changes = c3Changes },
+																		  { .Commit = lookalike, .Changes = { change("README.md", 0x40, 0x41) } } };
+		const auto recorded   = core::record_hidden_changes(hidden, pushed, newChanges);
+		expect(recorded == hidden, "a gone entry keeps what it recorded");
+		auto offers = core::rematch_offers(hidden, pushed, newChanges);
+		expect(offers == std::vector{ core::filter_rematch_offer{ .Gone = c3, .Candidate = reworded, .Basis = core::filter_rematch_basis::same_change } },
+			   "the commit with the same paths between the same blobs is offered; a headline match is not when a same change exists");
+		// Nothing is applied by the offer itself: the filter still names gone C3 only.
+		expect(hidden.Hidden.size() == 1U && hidden.Hidden[0].Oid == c3, "an offer changes nothing");
+		const auto rematched = core::apply_rematch(hidden, pushed, newChanges, offers.front());
+		expect(rematched && rematched->Hidden.size() == 1U && rematched->Hidden[0].Oid == reworded && rematched->Hidden[0].Changes == std::optional{ c3Changes }
+				   && rematched->Hidden[0].Headline == "Follow-ups, reworded",
+			   "choosing it hides the new commit in the gone one's place and forgets the gone entry");
+		expect(core::summarize_commit_filter(*rematched, pushed, std::optional{ core::filter_span_for(pushed, { }) }).Gone.empty()
+				   && core::rematch_offers(*rematched, pushed, newChanges).empty(),
+			   "then nothing is gone and nothing more is offered");
+		expect(core::apply_rematch(hidden, pushed, newChanges, { .Gone = c3, .Candidate = lookalike, .Basis = core::filter_rematch_basis::same_change }).error()
+				   == core::commit_filter_refusal::not_offered,
+			   "a rematch the core does not offer is refused");
+		expect(core::apply_rematch(*rematched, pushed, newChanges, offers.front()).error() == core::commit_filter_refusal::not_offered,
+			   "an offer already taken is refused");
+
+		// Without its changes read, the same change cannot be told: the headline and author match is offered as a guess.
+		const auto unread = core::rematch_offers(hidden, pushed, { });
+		expect(unread == std::vector{ core::filter_rematch_offer{ .Gone = c3, .Candidate = lookalike, .Basis = core::filter_rematch_basis::same_headline_and_author } },
+			   "with no trees read, only a commit with the same headline and author is offered, labelled a guess");
+		// A different change is not the same change.
+		auto differ                = newChanges;
+		differ[0].Changes[1].Right = blob(0x39);
+		expect(core::rematch_offers(hidden, pushed, differ).front().Basis == core::filter_rematch_basis::same_headline_and_author,
+			   "a path between other blobs is not the same change");
+		// A candidate already hidden is not offered; nor is anything once no author was recorded.
+		const auto hideLookalike = *core::apply_commit_filter(hidden, pushed, whole(pushed), { .Kind = core::commit_filter_operation_kind::hide, .Selection = { lookalike } });
+		expect(core::rematch_offers(hideLookalike, pushed, { }).empty(), "a hidden commit is not offered");
+		auto anonymous              = hidden;
+		anonymous.Hidden[0].Author  = { };
+		anonymous.Hidden[0].Changes = std::nullopt;
+		expect(core::rematch_offers(anonymous, pushed, newChanges).empty(), "without recorded changes or author nothing is offered");
+		// Malformed changes are never recorded.
+		auto unsorted = changes;
+		std::swap(unsorted[1].Changes[0], unsorted[1].Changes[1]);
+		expect(!core::record_hidden_changes(*apply({ }, graph, core::commit_filter_operation_kind::hide, { c3 }), graph, unsorted).Hidden[0].Changes,
+			   "unsorted changes are not recorded");
+	}
+
+	/// RFC-BPR-0089 M3 (owner, Q2): a split file's row is as far read as its least read diff.
+	void test_split_receipt()
+	{
+		const auto file    = core::file_identity_of("src/version.txt");
+		const auto receipt = [&](const core::file_read_state aRead, const bool aAccepted) {
+			auto result     = core::file_receipt{ };
+			result.File     = file;
+			result.Read     = aRead;
+			result.Accepted = aAccepted;
+			return std::optional{ result };
+		};
+		expect(!core::combined_split_receipt(file, std::vector<std::optional<core::file_receipt>>{ std::nullopt, std::nullopt }), "no diff read, no receipt");
+		const auto half = core::combined_split_receipt(file, std::vector{ receipt(core::file_read_state::read, false), std::optional<core::file_receipt>{ } });
+		expect(half && half->File == file && half->Read == core::file_read_state::unread && !half->Accepted, "one diff read of two leaves the file unread");
+		const auto seen = core::combined_split_receipt(file, std::vector{ receipt(core::file_read_state::read, true), receipt(core::file_read_state::seen, true) });
+		expect(seen && seen->Read == core::file_read_state::seen && seen->Accepted, "the least read diff says how far the file is read; accepted when both are");
+		const auto read = core::combined_split_receipt(file, std::vector{ receipt(core::file_read_state::read, false), receipt(core::file_read_state::read, true) });
+		expect(read && read->Read == core::file_read_state::read && !read->Accepted, "read when every diff is read");
+	}
+
 	void test_paths()
 	{
 		const auto graph   = owner_graph();
@@ -392,6 +513,8 @@ auto main() -> int
 	test_paths();
 	test_bulk_label();
 	test_file_filters();
+	test_rematch();
+	test_split_receipt();
 	std::cout << "commit filter decisions pass\n";
 	return 0;
 }

@@ -58,6 +58,8 @@ namespace bpr::application {
 		{
 			std::optional<core::filtered_diff_endpoints> Endpoints;
 			bool                                         Split = false;
+			/// M3. A split file's per-commit diffs, in chain order.
+			std::vector<workbench_split_segment> Segments;
 		};
 
 		/// \brief Supplies the commit filter's form for one file, or none when

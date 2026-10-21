@@ -109,6 +109,7 @@ namespace bpr::qt {
 	class compose_review_sheet;
 	class commit_filter_chip;
 	class generated_files_row;
+	class split_diff_strip;
 	class destructive_question;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
@@ -452,6 +453,15 @@ namespace bpr::qt {
 		void set_commit_filter_shown_dispatch(std::function<void()> aDispatch);
 		/// \brief Open on GitHub for one commit.
 		void set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief RFC-BPR-0089 M3. A rematch offer chosen in a chip or the
+		/// Commits tab, after a force push.
+		void set_commit_rematch_dispatch(std::function<void(const application::commit_filter_rematch_gesture&)> aDispatch);
+		/// \brief RFC-BPR-0089 M3 (owner, Q2). The strip over a split file's
+		/// diff, or none to hide it.
+		void present_split_diff(std::optional<application::split_diff_projection> aProjection);
+		/// \brief One of the split file's diffs chosen, by its position.
+		void               set_split_segment_dispatch(std::function<void(std::size_t)> aDispatch);
+		[[nodiscard]] auto split_strip() const noexcept -> split_diff_strip*;
 		/// \brief Shows the Overview's Commits tab, from wherever the window is.
 		void               show_commits();
 		[[nodiscard]] auto files_commit_chip() const noexcept -> commit_filter_chip*;
@@ -1798,6 +1808,7 @@ namespace bpr::qt {
 		/// RFC-BPR-0089. The Files drawer's commit filter chip, and the
 		/// gestures it shares with the Commits tab.
 		commit_filter_chip*                                            FilesCommitChip = nullptr;
+		split_diff_strip*                                              SplitStrip      = nullptr;
 		std::function<void(const application::commit_filter_gesture&)> CommitFilterDispatch;
 		/// RFC-BPR-0089 M2. The Files drawer's generated row, the projection
 		/// the file menus read their gestures from, and where gestures go.

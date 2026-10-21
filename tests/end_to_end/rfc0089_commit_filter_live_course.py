@@ -28,7 +28,9 @@ writes what the review showed. This script checks it against Git:
   a hidden commit changed outside the shown span is `git diff L R -- P` with
   L the parent of the first shown commit that changed it and R the last; a
   path a hidden commit changed between two shown ones (src/version.txt under
-  Hide C2) reads nothing in M1 and says why;
+  Hide C2) keeps one row and reads, in chain order, each shown commit's own
+  `git diff C^ C -- P`, blob for blob and line for line, with the hidden
+  commit named between them (RFC-BPR-0089 M3, AC03);
 - the removed and added lines equal `git diff` path by path;
 - GitHub's Viewed state for every file is the same before and after (AC05).
 
@@ -48,11 +50,19 @@ GitHub's Files changed honours:
 - the heading says they are set aside and nothing says the rules were not read;
 - GitHub's Viewed state is unchanged (AC05).
 
+With `--force-push` (RFC-BPR-0089 M3, AC06) the course runs `--course
+force-push` instead: it marks one file only C2 changed read, hides C3, and
+waits while this script force-pushes C3 reworded on C2 with C3's own tree.
+After the refresh it checks against Git that the chip names the gone C3,
+offers exactly the reworded commit as the same change, applies nothing until
+the course chooses it, keeps the identical-material receipt, and after the
+choice hides the reworded commit in C3's place.
+
 Run by hand on macOS. It stops when `X-RateLimit-Remaining` falls below 500,
 and `--cleanup` closes its pull request and deletes its branches:
 
     python3 tests/end_to_end/rfc0089_commit_filter_live_course.py \\
-        --build build/dev --work DIR --prefix rfc0089-live [--generated] [--cleanup | --close N]
+        --build build/dev --work DIR --prefix rfc0089-live [--generated | --force-push] [--cleanup | --close N]
 """
 
 from __future__ import annotations
@@ -278,7 +288,9 @@ class Course:
                 facts = []
                 if want["kind"] == "split":
                     if not diff.get("split"):
-                        facts.append("a split path showed a diff")
+                        facts.append("a split path showed one diff")
+                    else:
+                        facts.extend(self.check_split(shown, path, diff))
                 elif diff.get("split"):
                     facts.append(f"said split, expected {want['kind']}")
                 else:
@@ -303,6 +315,99 @@ class Course:
         missing = sorted(set(names) - seen)
         if missing:
             self.failures.append(f"scenarios not run: {missing}")
+
+    def check_split(self, shown: list[str], path: str, diff: dict) -> list[str]:
+        """RFC-BPR-0089 M3 (owner, Q2): one exact diff per shown commit that
+        changed the path, in chain order, the hidden ones named between."""
+        chain = ["C1", "C2", "C3"]
+        touches = [label for label in chain if path in self.touch[label]]
+        shown_touches = [label for label in touches if label in shown]
+        first, last = chain.index(shown_touches[0]), chain.index(shown_touches[-1])
+        hidden = [label for label in touches if label not in shown and first < chain.index(label) < last]
+        facts: list[str] = []
+        segments = diff.get("segments", [])
+        if [segment["commit"] for segment in segments] != [self.commits[label] for label in shown_touches]:
+            facts.append(f"segments name {[segment['commit'][:12] for segment in segments]}, not {[self.commits[label][:12] for label in shown_touches]}")
+            return facts
+        chain_blobs = {self.blob(self.commits[label], path) for label in ("M0", *chain)} - {None}
+        for label, segment in zip(shown_touches, segments):
+            left = run("git", "rev-parse", f"{self.commits[label]}^", cwd=self.repo).strip()
+            right = self.commits[label]
+            if segment["left"] != left or segment["right"] != right:
+                facts.append(f"{label}: endpoints {segment['left']}..{segment['right']} != {left[:12]}..{right[:12]}")
+            if segment["left_blob"] != self.blob(left, path) or segment["right_blob"] != self.blob(right, path):
+                facts.append(f"{label}: blobs {segment['left_blob']}..{segment['right_blob']} != {self.blob(left, path)}..{self.blob(right, path)}")
+            for side in ("left_blob", "right_blob"):
+                if segment[side] is not None and segment[side] not in chain_blobs:
+                    facts.append(f"{label}: {side} {segment[side]} is in no commit of the chain")
+            removed, added = patch_lines(run("git", "diff", "--no-color", "--no-ext-diff", "-U3", left, right, "--", path, cwd=self.repo))
+            if segment["removed"] != removed or segment["added"] != added:
+                facts.append(f"{label}: lines {segment['removed']} {segment['added']} != git {removed} {added}")
+        names = diff.get("hidden", [])
+        if len(names) != len(hidden) or any(not name.startswith(self.commits[label][:7]) or "also changed this file; hidden" not in name for label, name in zip(hidden, names)):
+            facts.append(f"hidden named {names}, expected {[self.commits[label][:7] for label in hidden]}")
+        print(f"      split into {len(segments)} per-commit diffs, {len(names)} hidden named")
+        return facts
+
+    def force_push(self, course: subprocess.Popen) -> str:
+        """Waits at the course's `at-push`, force-pushes C3 reworded on C2 with
+        C3's own tree, waits for GitHub to report it, and lets the course go."""
+        at = self.root / "at-push"
+        for _ in range(900):
+            if at.exists() or course.poll() is not None:
+                break
+            time.sleep(1)
+        if not at.exists():
+            raise RuntimeError("the course never reached the push")
+        headline = self.git("log", "-1", "--format=%s", self.commits["C3"])
+        reworded = self.git("commit-tree", f"{self.commits['C3']}^{{tree}}", "-p", self.commits["C2"], "-m", f"{headline} (reworded)")
+        self.commits["C3r"] = reworded
+        self.git("push", "-q", "--force", "origin", f"{reworded}:refs/heads/{self.head_branch}")
+        print(f"force-pushed C3r={reworded[:12]} over C3={self.commits['C3'][:12]}", flush=True)
+        for _ in range(60):
+            if json.loads(run("gh", "api", f"repos/{REPOSITORY}/pulls/{self.pull}"))["head"]["sha"] == reworded:
+                break
+            time.sleep(2)
+        else:
+            raise RuntimeError("GitHub never reported the force push")
+        (self.root / "go-push").write_text("go\n")
+        return reworded
+
+    def check_force_push(self) -> None:
+        lines = {line["kind"]: line for line in (json.loads(text) for text in (self.root / "force-push.jsonl").read_text().splitlines() if text.strip())}
+        c3, c3r = self.commits["C3"], self.commits["C3r"]
+        facts: list[str] = []
+        before, pushed, rematched = lines.get("before"), lines.get("pushed"), lines.get("rematched")
+        if before is None or before["hidden"] != c3:
+            facts.append(f"before the push the course hid {before and before['hidden']}, not C3")
+        if pushed is None:
+            facts.append("nothing written after the push")
+        else:
+            listed = [row["commit"] for row in pushed["rows"]]
+            if listed != [self.commits["C1"], self.commits["C2"], c3r]:
+                facts.append(f"after the push the Commits tab lists {[sha[:12] for sha in listed]}")
+            if pushed["gone"] != [c3[:7]] or f"Hidden commit {c3[:7]}" not in pushed["chip"] or "is no longer in the pull request" not in pushed["chip"]:
+                facts.append(f"the chip does not name gone C3: {pushed['chip']!r}")
+            if pushed["rematches"] != [{"gone": c3, "candidate": c3r, "basis": 0}]:
+                facts.append(f"offers {pushed['rematches']}, not C3r as the same change")
+            if f"{c3r[:7]} (" not in pushed["chip"] or f"makes the same change as {c3[:7]}." not in pushed["chip"] or pushed["button"] != f"Hide {c3r[:7]}":
+                facts.append(f"the chip's offer reads {pushed['chip']!r} / {pushed['button']!r}")
+            if pushed["rows"][2]["state"] != 0 or pushed["status"] != 0:
+                facts.append("the offer applied itself: C3r is not shown before the choice")
+            if not pushed["receipt_kept"]:
+                facts.append("the identical-material receipt did not persist")
+        if rematched is None:
+            facts.append("nothing written after the choice")
+        else:
+            states = [row["state"] for row in rematched["rows"]]
+            if [row["commit"] for row in rematched["rows"]][2] != c3r or states != [0, 0, 1] or not rematched["chip"].startswith("2 of 3 commits shown"):
+                facts.append(f"after the choice rows {states}, chip {rematched['chip']!r}")
+            if "no longer in the pull request" in rematched["chip"]:
+                facts.append("after the choice the chip still names a gone commit")
+        print(f"  {'MATCH' if not facts else 'DIFFERS'} force push: C3 {c3[:12]} -> C3r {c3r[:12]}")
+        for fact in facts:
+            print(f"      {fact}")
+        self.failures.extend(f"force push: {fact}" for fact in facts)
 
     def generated_states(self, paths: list[str]) -> dict[str, str]:
         answered = subprocess.run(["git", "check-attr", "--source", self.commits["C3"], "-z", "linguist-generated", "--", *paths],
@@ -361,23 +466,39 @@ class Course:
         guard()
         log = self.work / "course.log"
         started = time.time()
-        chosen = "generated" if self.arguments.generated else "commit-filter"
-        course = subprocess.run([str(Path(self.arguments.build).resolve() / "tests/end_to_end/live_second_account_course"), "--course", chosen,
-                                 "--root", str(self.root), "--pull", str(self.pull)],
-                                capture_output=True, text=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
-        log.write_text(course.stdout + course.stderr)
-        print(f"course: exit {course.returncode} in {time.time() - started:.0f}s (log {log})", flush=True)
-        for line in course.stdout.splitlines():
-            if line.startswith(("commit-filter:", "generated:", "live-second-account-course", "login:")):
+        chosen = "generated" if self.arguments.generated else "force-push" if self.arguments.force_push else "commit-filter"
+        command = [str(Path(self.arguments.build).resolve() / "tests/end_to_end/live_second_account_course"), "--course", chosen,
+                   "--root", str(self.root), "--pull", str(self.pull)]
+        if self.arguments.force_push:
+            # A file only C2 changes: its Whole PR material is the same before and after the push.
+            command += ["--path", f"{prefix}/gen/0010.txt"]
+        with log.open("w") as written:
+            process = subprocess.Popen(command, stdout=written, stderr=subprocess.STDOUT, text=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+            if self.arguments.force_push:
+                try:
+                    self.force_push(process)
+                except Exception:
+                    process.kill()
+                    raise
+            returncode = process.wait()
+        output = log.read_text()
+        print(f"course: exit {returncode} in {time.time() - started:.0f}s (log {log})", flush=True)
+        for line in output.splitlines():
+            if line.startswith(("commit-filter:", "generated:", "force-push:", "live-second-account-course", "login:", "checkpoint:")):
                 print("  " + line[:300])
-        if course.returncode != 0:
+        if returncode != 0:
             self.failures.append("the course failed")
         after = self.viewed()
         if after != before:
             changed = sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
             self.failures.append(f"Viewed state changed for {changed[:10]}")
         print(f"AC05: Viewed state {'unchanged' if after == before else 'CHANGED'} for {len(after)} files", flush=True)
-        if self.arguments.generated:
+        if self.arguments.force_push:
+            if (self.root / "force-push.jsonl").exists():
+                self.check_force_push()
+            else:
+                self.failures.append("the course wrote no force-push.jsonl")
+        elif self.arguments.generated:
             if (self.root / "generated.jsonl").exists():
                 self.check_generated()
             else:
@@ -400,6 +521,7 @@ def main() -> int:
     parser.add_argument("--prefix", required=True)
     parser.add_argument("--cleanup", action="store_true")
     parser.add_argument("--generated", action="store_true", help="BPR-1692: commit linguist-generated rules in the base and run the generated course")
+    parser.add_argument("--force-push", action="store_true", help="RFC-BPR-0089 M3: hide C3, force-push it reworded, and check the rematch offer")
     parser.add_argument("--close", type=int, help="only close this earlier run's pull request and delete the prefix's branches")
     arguments = parser.parse_args()
     course = Course(arguments)

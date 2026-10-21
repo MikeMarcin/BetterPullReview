@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-fixtures/commit-filter-split",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Synthetic course: a source change, a regeneration and follow-ups to both.\n",
+	"changed_files": 99,
+	"commits": 3,
+	"draft": false,
+	"head": {
+		"ref": "commit-filter-split",
+		"repo": {
+			"full_name": "bpr-fixtures/commit-filter-split",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_893",
+	"number": 893,
+	"state": "open",
+	"title": "Change the generator input and regenerate",
+	"user": {
+		"login": "fixture-author",
+		"node_id": "U_fixture-author"
+	}
+}

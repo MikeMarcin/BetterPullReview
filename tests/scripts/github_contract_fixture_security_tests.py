@@ -216,6 +216,14 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListPullRequestCommits": "with-parents"},
     },
+    # RFC-BPR-0089 M3. commit-filter-v1's chain with src/version.txt, which
+    # every commit changes, written by build_commit_filter_fixture.py --split.
+    "commit-filter-split-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "commit-filter-split", 893),
+        "mirrors": None,
+        "response_fields": {"ListPullRequestCommits": "with-parents"},
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {

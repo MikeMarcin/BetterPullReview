@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/commit-filter-split",
+	"id": 2,
+	"name": "commit-filter-split",
+	"node_id": "R_commit-filter-split",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}

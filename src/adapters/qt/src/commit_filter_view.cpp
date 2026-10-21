@@ -12,7 +12,9 @@
 #include <QLabel>
 #include <QMenu>
 #include <QPainter>
+#include <QResizeEvent>
 #include <QShowEvent>
+#include <QSizePolicy>
 #include <QStyle>
 #include <QTextOption>
 #include <QToolButton>
@@ -158,6 +160,8 @@ namespace bpr::qt {
 			return QStringLiteral("These commits can't be filtered.");
 		case core::commit_filter_refusal::invalid_state:
 			return QStringLiteral("The filter couldn't be changed.");
+		case core::commit_filter_refusal::not_offered:
+			return QStringLiteral("That commit is no longer offered in place of the gone one.");
 		case core::commit_filter_refusal::none:
 			return { };
 		}
@@ -206,6 +210,20 @@ namespace bpr::qt {
 							 .arg(text(gone.ShortCommit), gone.Headline.empty() ? QString{ } : QStringLiteral("(%1)").arg(text(gone.Headline)));
 		}
 		return sentences.join(QLatin1Char{ ' ' });
+	}
+
+	auto commit_filter_rematch_text(const application::commit_filter_rematch_row& aOffer) -> QString
+	{
+		const auto candidate = aOffer.CandidateHeadline.empty() ? text(aOffer.CandidateShort)
+																: QStringLiteral("%1 (%2)").arg(text(aOffer.CandidateShort), text(aOffer.CandidateHeadline));
+		return aOffer.Basis == core::filter_rematch_basis::same_change
+			? QStringLiteral("%1 makes the same change as %2.").arg(candidate, text(aOffer.GoneShort))
+			: QStringLiteral("%1 has the same headline and author as %2, so it may be the same commit.").arg(candidate, text(aOffer.GoneShort));
+	}
+
+	auto commit_filter_rematch_action_text(const application::commit_filter_rematch_row& aOffer) -> QString
+	{
+		return QStringLiteral("Hide %1").arg(text(aOffer.CandidateShort));
 	}
 
 	commit_filter_list_model::commit_filter_list_model(QObject* const aParent)
@@ -427,6 +445,16 @@ namespace bpr::qt {
 		connect(Clear, &QToolButton::clicked, this, [this] { dispatch(core::commit_filter_operation_kind::clear, { }); });
 		top->addWidget(Clear, 0, Qt::AlignTop);
 		column->addLayout(top);
+		// RFC-BPR-0089 M3. After a force push, the commits offered in place of
+		// gone hidden ones; nothing changes until the reviewer chooses one.
+		Rematches = new QWidget{ this };
+		Rematches->setObjectName(QStringLiteral("commitFilterRematches"));
+		Rematches->setAccessibleName(QStringLiteral("Commits offered in place of gone ones"));
+		auto* const offers = new QVBoxLayout{ Rematches };
+		offers->setContentsMargins(4, 0, 0, 0);
+		offers->setSpacing(2);
+		Rematches->hide();
+		column->addWidget(Rematches);
 
 		Model = new commit_filter_list_model{ this };
 		List  = new QListView{ this };
@@ -497,6 +525,48 @@ namespace bpr::qt {
 			Status->setText(status);
 		}
 		Clear->setVisible(application::commit_filter_chip_shown(aProjection));
+		// The offers, rebuilt only when they change.
+		const auto offers = aProjection.Rematches;
+		if (offers != ShownOffers) {
+			ShownOffers = offers;
+			OfferButtons.clear();
+			auto* const layout = Rematches->layout();
+			// Later, not now: the click that chose an offer is still being delivered.
+			while (auto* const item = layout->takeAt(0)) {
+				if (auto* const widget = item->widget(); widget != nullptr) {
+					widget->hide();
+					widget->deleteLater();
+				}
+				delete item;
+			}
+			for (std::size_t index = 0U; index < offers.size(); ++index) {
+				const auto& offer = offers[index];
+				auto* const line  = new QWidget{ Rematches };
+				auto* const row   = new QHBoxLayout{ line };
+				row->setContentsMargins(0, 0, 0, 0);
+				row->setSpacing(8);
+				auto* const said = new QLabel{ commit_filter_rematch_text(offer), line };
+				said->setTextFormat(Qt::PlainText);
+				said->setWordWrap(true);
+				row->addWidget(said, 1);
+				auto* const button = new QToolButton{ line };
+				button->setObjectName(QStringLiteral("commitFilterRematch%1").arg(static_cast<qulonglong>(index)));
+				button->setText(commit_filter_rematch_action_text(offer));
+				button->setAccessibleName(QStringLiteral("Hide %1 in place of %2").arg(text(offer.CandidateShort), text(offer.GoneShort)));
+				button->setToolTip(QStringLiteral("Hide %1 in place of %2, which is no longer in the pull request").arg(text(offer.CandidateShort), text(offer.GoneShort)));
+				button->setAutoRaise(true);
+				button->setFocusPolicy(Qt::StrongFocus);
+				connect(button, &QToolButton::clicked, this, [this, gesture = application::commit_filter_rematch_gesture{ .Gone = offer.Gone, .Candidate = offer.Candidate }] {
+					if (Rematch) {
+						Rematch(gesture);
+					}
+				});
+				row->addWidget(button, 0, Qt::AlignTop);
+				layout->addWidget(line);
+				OfferButtons.push_back(button);
+			}
+		}
+		Rematches->setVisible(!offers.empty());
 		List->setVisible(!aProjection.Rows.empty());
 		Hint->setVisible(!aProjection.Rows.empty() && !aProjection.Unavailable);
 	}
@@ -504,6 +574,16 @@ namespace bpr::qt {
 	void commit_filter_tab::set_gesture_dispatch(gesture_dispatch aDispatch)
 	{
 		Gestures = std::move(aDispatch);
+	}
+
+	void commit_filter_tab::set_rematch_dispatch(rematch_dispatch aDispatch)
+	{
+		Rematch = std::move(aDispatch);
+	}
+
+	auto commit_filter_tab::rematch_buttons() const -> std::vector<QToolButton*>
+	{
+		return OfferButtons;
 	}
 
 	void commit_filter_tab::set_shown_dispatch(std::function<void()> aDispatch)
@@ -669,6 +749,18 @@ namespace bpr::qt {
 		Detail->setForegroundRole(QPalette::PlaceholderText);
 		Detail->setWordWrap(true);
 		row->addWidget(Detail, 1);
+		// RFC-BPR-0089 M3. The first rematch offer, applied only when chosen.
+		Rematch = new QToolButton{ this };
+		Rematch->setObjectName(QStringLiteral("commitFilterChipRematch"));
+		Rematch->setAutoRaise(true);
+		Rematch->setFocusPolicy(Qt::StrongFocus);
+		Rematch->hide();
+		connect(Rematch, &QToolButton::clicked, this, [this] {
+			if (RematchDispatch && Offer) {
+				RematchDispatch(application::commit_filter_rematch_gesture{ .Gone = Offer->Gone, .Candidate = Offer->Candidate });
+			}
+		});
+		row->addWidget(Rematch, 0);
 		if (aOffersCommits) {
 			Commits = new QToolButton{ this };
 			Commits->setObjectName(QStringLiteral("commitFilterChipCommits"));
@@ -718,6 +810,18 @@ namespace bpr::qt {
 		if (const auto gone = commit_filter_gone_text(aProjection); !gone.isEmpty()) {
 			detail << gone;
 		}
+		Offer.reset();
+		if (!aProjection.Rematches.empty()) {
+			Offer = aProjection.Rematches.front();
+			detail << commit_filter_rematch_text(*Offer);
+			if (aProjection.Rematches.size() > 1U) {
+				detail << QStringLiteral("The Commits tab lists %1 offers.").arg(static_cast<qulonglong>(aProjection.Rematches.size()));
+			}
+			Rematch->setText(commit_filter_rematch_action_text(*Offer));
+			Rematch->setAccessibleName(QStringLiteral("Hide %1 in place of %2").arg(text(Offer->CandidateShort), text(Offer->GoneShort)));
+			Rematch->setToolTip(QStringLiteral("Hide %1 in place of %2, which is no longer in the pull request").arg(text(Offer->CandidateShort), text(Offer->GoneShort)));
+		}
+		Rematch->setVisible(Offer.has_value());
 		const auto summary = commit_filter_summary_text(aProjection);
 		Summary->setText(summary);
 		Detail->setText(detail.join(QLatin1Char{ ' ' }));
@@ -733,6 +837,16 @@ namespace bpr::qt {
 	void commit_filter_chip::set_commits_dispatch(std::function<void()> aDispatch)
 	{
 		CommitsDispatch = std::move(aDispatch);
+	}
+
+	void commit_filter_chip::set_rematch_dispatch(rematch_dispatch aDispatch)
+	{
+		RematchDispatch = std::move(aDispatch);
+	}
+
+	auto commit_filter_chip::rematch_button() const noexcept -> QToolButton*
+	{
+		return Rematch;
 	}
 
 	auto commit_filter_chip::summary() const noexcept -> QLabel*
@@ -753,5 +867,185 @@ namespace bpr::qt {
 	auto commit_filter_chip::commits_button() const noexcept -> QToolButton*
 	{
 		return Commits;
+	}
+
+	split_diff_strip::split_diff_strip(QWidget* const aParent)
+		: QWidget{ aParent }
+	{
+		setObjectName(QStringLiteral("splitDiffStrip"));
+		setAccessibleName(QStringLiteral("Diffs of this file, one per shown commit"));
+		// A long chain of diffs must never widen the window: the strip takes
+		// the width it is given, and each button's tooltip names its commit.
+		setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+		Row = new QHBoxLayout{ this };
+		Row->setSizeConstraint(QLayout::SetNoConstraint);
+		Row->setContentsMargins(8, 3, 8, 3);
+		Row->setSpacing(6);
+		Lead = new QLabel{ this };
+		Lead->setObjectName(QStringLiteral("splitDiffLead"));
+		Lead->setTextFormat(Qt::PlainText);
+		Lead->setForegroundRole(QPalette::PlaceholderText);
+		Row->addWidget(Lead, 0);
+		Row->addStretch(1);
+		hide();
+	}
+
+	void split_diff_strip::present(const std::optional<application::split_diff_projection>& aProjection)
+	{
+		if (Projection == aProjection) {
+			return;
+		}
+		Projection = aProjection;
+		// Later, not now: the click that chose a diff may still be being delivered.
+		for (auto* const button : Parts) {
+			Row->removeWidget(button);
+			button->hide();
+			button->deleteLater();
+		}
+		for (auto* const label : Hidden) {
+			Row->removeWidget(label);
+			label->hide();
+			label->deleteLater();
+		}
+		Parts.clear();
+		Hidden.clear();
+		if (!aProjection || aProjection->Parts.empty()) {
+			hide();
+			return;
+		}
+		const auto count = aProjection->Parts.size();
+		Lead->setProperty("bprFull", QStringLiteral("%1 diffs, one per shown commit:").arg(static_cast<qulonglong>(count)));
+		Lead->setProperty("bprCompact", QStringLiteral("%1 diffs:").arg(static_cast<qulonglong>(count)));
+		const auto quiet = palette().color(QPalette::PlaceholderText);
+		auto       at    = 1;
+		for (std::size_t index = 0U; index < count; ++index) {
+			const auto& part   = aProjection->Parts[index];
+			const auto  state  = part.Read == core::file_read_state::read ? QStringLiteral(" (read)")
+				: part.Read == core::file_read_state::seen                ? QStringLiteral(" (seen)")
+																		  : QString{ };
+			auto* const button = new QToolButton{ this };
+			button->setObjectName(QStringLiteral("splitDiffPart%1").arg(static_cast<qulonglong>(index)));
+			button->setCheckable(true);
+			button->setChecked(part.Selected);
+			button->setAutoRaise(true);
+			button->setFocusPolicy(Qt::StrongFocus);
+			button->setProperty("bprFull", part.Headline.empty() ? text(part.ShortCommit) + state : QStringLiteral("%1 %2%3").arg(text(part.ShortCommit), text(part.Headline), state));
+			button->setProperty("bprHeadline", text(part.Headline));
+			button->setProperty("bprCompact", text(part.ShortCommit) + state);
+			button->setProperty("bprState", state);
+			button->setToolTip(part.Headline.empty() ? QStringLiteral("This file as commit %1 changed it, from its parent to the commit").arg(text(part.ShortCommit))
+													 : QStringLiteral("This file as commit %1 (%2) changed it, from its parent to the commit").arg(text(part.ShortCommit), text(part.Headline)));
+			const auto read = part.Read == core::file_read_state::read ? QStringLiteral(", read")
+				: part.Read == core::file_read_state::seen             ? QStringLiteral(", seen")
+																	   : QString{ };
+			button->setAccessibleName(QStringLiteral("Diff %1 of %2: commit %3%4%5")
+										  .arg(static_cast<qulonglong>(index) + 1U)
+										  .arg(static_cast<qulonglong>(count))
+										  .arg(text(part.ShortCommit), part.Headline.empty() ? QString{ } : QStringLiteral(", ") + text(part.Headline), read));
+			connect(button, &QToolButton::clicked, this, [this, index] {
+				if (Dispatch) {
+					Dispatch(index);
+				}
+				// The host says which diff is on screen; until it does, the choice stays as it was.
+				if (Projection && Projection->Parts.size() == Parts.size()) {
+					for (std::size_t other = 0U; other < Parts.size(); ++other) {
+						Parts[other]->setChecked(Projection->Parts[other].Selected);
+					}
+				}
+			});
+			Row->insertWidget(at++, button, 0);
+			Parts.push_back(button);
+			for (const auto& hidden : part.HiddenAfter) {
+				auto* const label = new QLabel{ this };
+				label->setObjectName(QStringLiteral("splitDiffHidden"));
+				label->setTextFormat(Qt::PlainText);
+				const auto full = hidden.Headline.empty() ? QStringLiteral("%1 also changed this file; hidden").arg(text(hidden.ShortCommit))
+														  : QStringLiteral("%1 %2 also changed this file; hidden").arg(text(hidden.ShortCommit), text(hidden.Headline));
+				label->setProperty("bprFull", full);
+				label->setProperty("bprCompact", QStringLiteral("%1 hidden").arg(text(hidden.ShortCommit)));
+				label->setToolTip(full);
+				label->setAccessibleName(full);
+				auto ink = label->palette();
+				ink.setColor(QPalette::WindowText, quiet);
+				label->setPalette(ink);
+				// Not a diff: quieter and slanted, so it never reads as a button.
+				auto slanted = label->font();
+				slanted.setItalic(true);
+				label->setFont(slanted);
+				Row->insertWidget(at++, label, 0);
+				Hidden.push_back(label);
+			}
+		}
+		setAccessibleDescription(QStringLiteral("A hidden commit changed this file between shown ones, so each shown commit's change is its own diff."));
+		show();
+		fit();
+	}
+
+	void split_diff_strip::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		fit();
+	}
+
+	void split_diff_strip::fit()
+	{
+		if (Parts.empty()) {
+			return;
+		}
+		constexpr int headlineRoom = 140;
+		const auto    room         = width();
+		const auto    wanted       = [this] {
+			Row->invalidate();
+			return Row->sizeHint().width();
+		};
+		const auto words = [&](const int aTier) {
+			Lead->setText(Lead->property(aTier == 0 ? "bprFull" : "bprCompact").toString());
+			for (auto* const button : Parts) {
+				const auto headline = button->property("bprHeadline").toString();
+				if (aTier == 0 || headline.isEmpty()) {
+					button->setText(button->property(aTier == 0 ? "bprFull" : "bprCompact").toString());
+				} else if (aTier == 1) {
+					const auto shortened = button->fontMetrics().elidedText(headline, Qt::ElideRight, headlineRoom);
+					button->setText(button->property("bprCompact").toString().replace(button->property("bprState").toString(), QString{ }) + QLatin1Char{ ' ' } + shortened
+									+ button->property("bprState").toString());
+				} else {
+					button->setText(button->property("bprCompact").toString());
+				}
+			}
+			for (auto* const label : Hidden) {
+				label->setText(label->property(aTier == 0 ? "bprFull" : "bprCompact").toString());
+			}
+		};
+		for (auto tier = 0; tier < 3; ++tier) {
+			words(tier);
+			if (wanted() <= room) {
+				return;
+			}
+		}
+	}
+
+	void split_diff_strip::set_dispatch(std::function<void(std::size_t)> aDispatch)
+	{
+		Dispatch = std::move(aDispatch);
+	}
+
+	auto split_diff_strip::lead() const noexcept -> QLabel*
+	{
+		return Lead;
+	}
+
+	auto split_diff_strip::parts() const noexcept -> const std::vector<QToolButton*>&
+	{
+		return Parts;
+	}
+
+	auto split_diff_strip::hidden() const noexcept -> const std::vector<QLabel*>&
+	{
+		return Hidden;
+	}
+
+	auto split_diff_strip::projection() const noexcept -> const std::optional<application::split_diff_projection>&
+	{
+		return Projection;
 	}
 } // namespace bpr::qt

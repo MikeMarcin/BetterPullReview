@@ -24,9 +24,19 @@
 // reviewer's mark still outranks the attributes (AC04, AC05). [[BPR-1693]]:
 // a set-aside file's diff opens on request from either generated row and
 // leaves the walk, the counts and the marks as they were.
+//
+// RFC-BPR-0089 M3. A fourth course opens commit-filter-split-v1, whose
+// src/version.txt all three commits change: with C2 hidden the file keeps one
+// row and reads C1's and C3's own diffs, each against Git, each with its own
+// Seen and Read, C2 named between them; no shown blob is one no commit holds
+// (AC03). A fifth serves its next push, C3 reworded on the same parent and
+// tree: after hiding C3 and refreshing, the chip names the gone commit,
+// offers the reworded one and changes nothing until the reviewer chooses it;
+// identical-material receipts persist (AC06, AC05).
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/core/diff_compute.hpp"
+#include "bpr/core/git_objects.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/generated_files_view.hpp"
@@ -144,6 +154,8 @@ namespace {
 		app::detail::github_public_path_fixture Fixture = app::detail::github_public_path_fixture::commit_filter_v1;
 		QString                                 Address = QStringLiteral("bpr-fixtures/commit-filter#89");
 		std::size_t                             Files   = whole;
+		/// M3. The seed phase serves the fixture's second head after a refresh.
+		app::detail::github_epoch_fixture_phase Phase = app::detail::github_epoch_fixture_phase::single;
 	};
 
 	auto start(course& aCourse, const opening& aOpening = { }) -> qt::workbench_window&
@@ -152,6 +164,7 @@ namespace {
 		expect(dataRoot.has_value(), "private course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = dataRoot;
+		options.EpochPhase          = aOpening.Phase;
 		auto terminal               = false;
 		auto startup                = access::start(aOpening.Fixture, options, [&](auto aResult) {
 			terminal = true;
@@ -384,13 +397,13 @@ namespace {
 		chosen->trigger();
 	}
 
-	void read_commit_trees(qt::workbench_window& aWindow)
+	void read_commit_trees(qt::workbench_window& aWindow, const std::size_t aRegenerated = 96U)
 	{
 		auto* const drawer = aWindow.overview_page()->status_drawer();
 		drawer->tabs()->setCurrentIndex(1);
 		wait_for([&] {
 			const auto* rows = tab(aWindow)->model();
-			return rows->rowCount() == 3 && rows->row_at(1)->Files == std::optional<std::size_t>{ 96U };
+			return rows->rowCount() == 3 && rows->row_at(1)->Files == std::optional<std::size_t>{ aRegenerated };
 		},
 				 "the Commits tab reads the chain's trees");
 	}
@@ -603,6 +616,196 @@ namespace {
 		std::cout << "linguist-generated course files=" << overview_files(*window) << " set-aside=" << window->overview_page()->generated_row()->rows().size() << '\n';
 		finish(run);
 	}
+	// RFC-BPR-0089 M3. commit-filter-split-v1 (`scripts/build_commit_filter_fixture.py --split`).
+	constexpr auto split_base    = std::string_view{ "89a0ac4b6ba40b04017fdb11affbcd596ee5d851" };
+	constexpr auto split_c1      = std::string_view{ "91bd0b26750f6a959d63131fbcb86826c744dfef" };
+	constexpr auto split_c2      = std::string_view{ "798cde72705b0141fd70aa32b654e9a62294a2d8" };
+	constexpr auto split_c3      = std::string_view{ "968f89235fe4fe932ddab7f89563632b5de7cc7a" };
+	constexpr auto split_c3r     = std::string_view{ "cfaecb6889ad2da4edeb6b720834fd052c875bc1" };
+	constexpr auto split_whole   = std::size_t{ 99U };
+	constexpr auto split_version = std::string_view{ "src/version.txt" };
+
+	[[nodiscard]] auto content_blob(const std::string_view aText) -> core::git_blob_oid
+	{
+		const auto bytes = std::span{ reinterpret_cast<const std::uint8_t*>(aText.data()), aText.size() };
+		return *core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+	}
+
+	[[nodiscard]] auto split_opening(const app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single) -> opening
+	{
+		return { .Fixture = app::detail::github_public_path_fixture::commit_filter_split_v1,
+				 .Address = QStringLiteral("bpr-fixtures/commit-filter-split#893"),
+				 .Files   = split_whole,
+				 .Phase   = aPhase };
+	}
+
+	[[nodiscard]] auto overview_read(const qt::workbench_window& aWindow, const std::string_view aPath) -> std::optional<core::file_read_state>
+	{
+		const auto& projection = aWindow.overview_page()->projection();
+		if (!projection) {
+			return std::nullopt;
+		}
+		const auto row = std::ranges::find(projection->Files, std::string{ aPath }, &application::overview_file_row::Path);
+		return row != projection->Files.end() ? row->Read : std::nullopt;
+	}
+
+	/// \brief RFC-BPR-0089 M3, AC03 (owner, Q2): a file a hidden commit changed
+	/// between two shown ones keeps one row and reads each shown commit's own
+	/// diff, with its own Seen and Read, the hidden commit named between.
+	void split_files_read_per_commit()
+	{
+		auto  run    = course{ };
+		auto& window = start(run, split_opening());
+		read_commit_trees(window, 97U);
+
+		// Hide C2: the source, the two hand-edited files and src/version.txt.
+		gesture(window, { split_c2 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return overview_files(window) == 5U; }, "Hide C2 leaves five files");
+		expect(tab(window)->status()->text().contains(QStringLiteral("1 file has a hidden commit between two shown ones.")), "the Commits tab says one file is split");
+		enter_review(run);
+		const auto walked = walk(window);
+		expect(std::ranges::count(walked, std::string{ split_version }) == 1, "the split file keeps one row in the Files drawer and the walk");
+
+		// Its first diff is C1's own change: the path at C1's parent against C1.
+		const auto versionAt = [](const std::string_view aStage) -> std::string_view {
+			return aStage == "M" ? "version 1\nstamp none\n" : aStage == "C1" ? "version 2\nstamp none\n"
+				: aStage == "C2"                                              ? "version 2\nstamp regenerated\n"
+																			  : "version 3\nstamp regenerated\n";
+		};
+		const auto chainBlobs = std::vector{ content_blob(versionAt("M")), content_blob(versionAt("C1")), content_blob(versionAt("C2")), content_blob(versionAt("C3")) };
+		const auto inChain    = [&](const std::optional<core::git_blob_oid>& aBlob) { return aBlob && std::ranges::find(chainBlobs, *aBlob) != chainBlobs.end(); };
+		select(window, split_version);
+		auto* const strip = window.split_strip();
+		wait_for([&] { return strip->isVisibleTo(&window) && strip->parts().size() == 2U && strip->parts()[0]->isChecked(); }, "a strip names the file's two diffs, the first on screen");
+		expect(strip->parts()[0]->accessibleName().startsWith(QStringLiteral("Diff 1 of 2: commit 91bd0b2, Change the generator input"))
+				   && strip->parts()[1]->accessibleName().startsWith(QStringLiteral("Diff 2 of 2: commit 968f892, Follow-ups")) && strip->parts()[0]->text().startsWith(QStringLiteral("91bd0b2"))
+				   && strip->hidden().size() == 1U && strip->hidden().front()->accessibleName() == QStringLiteral("798cde7 Regenerate also changed this file; hidden")
+				   && strip->hidden().front()->text().startsWith(QStringLiteral("798cde7")),
+			   "each shown commit's diff is named in chain order, the hidden commit between them");
+		expect(strip->sizeHint().width() <= strip->width() + 1 && strip->width() < 800, "in the window's width the strip's wording fits, shortened");
+		{
+			const auto& result  = *window.comparison_surface()->current_result();
+			const auto& context = *window.comparison_surface()->current_context();
+			expect(context.Key.Filter == std::optional{ core::filtered_diff_endpoints{ .Left = commit(split_base), .Right = commit(split_c1) } }
+					   && context.Key.LeftBlob == std::optional{ content_blob(versionAt("M")) } && context.Key.RightBlob == std::optional{ content_blob(versionAt("C1")) },
+				   "the first diff is git diff C1^:P C1:P, blob for blob");
+			expect(changed(result, core::diff_side::left) == lines{ { 1U, "version 1" } } && changed(result, core::diff_side::right) == lines{ { 1U, "version 2" } },
+				   "and line for line: C1's version bump only");
+			expect(inChain(context.Key.LeftBlob) && inChain(context.Key.RightBlob), "both shown blobs are the file at a commit of the chain");
+		}
+		// Seen is this diff's own: the second is not seen yet.
+		wait_for([&] { return strip->parts()[0]->text().endsWith(QStringLiteral("(seen)")) && !strip->parts()[1]->text().endsWith(QStringLiteral(")")); },
+				 "presenting the first diff marks it seen, and only it");
+
+		// The second diff is C3's own change, from C2.
+		strip->parts()[1]->click();
+		wait_for([&] {
+			const auto& context = window.comparison_surface()->current_context();
+			return shown(window, split_version) && context->Key.Filter == std::optional{ core::filtered_diff_endpoints{ .Left = commit(split_c2), .Right = commit(split_c3) } };
+		},
+				 "choosing the second diff reads C2..C3");
+		{
+			const auto& result  = *window.comparison_surface()->current_result();
+			const auto& context = *window.comparison_surface()->current_context();
+			expect(context.Key.LeftBlob == std::optional{ content_blob(versionAt("C2")) } && context.Key.RightBlob == std::optional{ content_blob(versionAt("C3")) }
+					   && changed(result, core::diff_side::left) == lines{ { 1U, "version 2" } } && changed(result, core::diff_side::right) == lines{ { 1U, "version 3" } },
+				   "it is git diff C3^:P C3:P: C2's stamp is in neither side's change");
+			expect(inChain(context.Key.LeftBlob) && inChain(context.Key.RightBlob), "both shown blobs are the file at a commit of the chain");
+			// Negative control: the tree a cherry-pick of C1 and C3 would make holds a blob no commit has.
+			const auto synthesized = content_blob("version 3\nstamp none\n");
+			expect(!inChain(synthesized) && context.Key.RightBlob != std::optional{ synthesized } && context.Key.LeftBlob != std::optional{ synthesized },
+				   "a synthesized tree's blob is in no commit and would fail the check");
+		}
+		wait_for([&] { return strip->parts()[1]->isChecked() && !strip->parts()[0]->isChecked(); }, "the strip follows the diff on screen");
+		if (const auto directory = qEnvironmentVariable("BPR_RFC0089_RENDER_DIR"); !directory.isEmpty()) {
+			// The full window with the strip over the split file's second diff.
+			window.grab().save(directory + QStringLiteral("/split-window.png"));
+		}
+
+		// Read is each diff's own; the row is read once both are.
+		window.read_action()->trigger();
+		wait_for([&] { return strip->parts()[1]->text().endsWith(QStringLiteral("(read)")) && strip->parts()[0]->text().endsWith(QStringLiteral("(seen)")); },
+				 "Mark read on the second diff reads only it");
+		expect(overview_read(window, split_version) != std::optional{ core::file_read_state::read }, "the file's row is not read while one diff is only seen");
+		strip->parts()[0]->click();
+		wait_for([&] { return shown(window, split_version) && strip->parts()[0]->isChecked(); }, "back on the first diff");
+		window.read_action()->trigger();
+		wait_for([&] { return strip->parts()[0]->text().endsWith(QStringLiteral("(read)")) && overview_read(window, split_version) == std::optional{ core::file_read_state::read }; },
+				 "once both diffs are read the file's row is read");
+
+		// Next file leaves it; Clear all filters gives it back its Whole PR diff, with no strip.
+		window.overview_page()->commit_chip()->clear_button()->click();
+		wait_for([&] { return overview_files(window) == split_whole; }, "Clear all filters restores the 99 files");
+		enter_review(run);
+		select(window, split_version);
+		expect(!window.comparison_surface()->current_context()->Key.Filter && strip->isHidden(), "Whole PR reads the file's own diff, with no strip");
+		expect(overview_read(window, split_version) != std::optional{ core::file_read_state::read }, "the per-commit receipts are not Whole PR's");
+		expect(access::held_review_mutation_terminals(*run.Application) == 0U, "no split read asks GitHub for anything (AC05)");
+		std::cout << "split course files=" << overview_files(window) << '\n';
+		finish(run);
+	}
+
+	/// \brief RFC-BPR-0089 M3, AC06: a force push rewrites hidden C3; the chip
+	/// names it, offers the commit carrying the same change and applies it
+	/// only when the reviewer chooses it.
+	void force_push_rematch()
+	{
+		auto  run    = course{ };
+		auto& window = start(run, split_opening(app::detail::github_epoch_fixture_phase::seed));
+		read_commit_trees(window, 97U);
+
+		// A Whole PR receipt, before anything moves: gen/item_000.txt read.
+		enter_review(run);
+		select(window, "gen/item_000.txt");
+		wait_for([&] { return window.read_action()->isEnabled(); }, "Mark read is offered for gen/item_000.txt");
+		const auto read = [&] { return window.read_action()->text() == QStringLiteral("Mark &unread"); };
+		expect(!read(), "gen/item_000.txt is not read yet");
+		window.read_action()->trigger();
+		wait_for(read, "gen/item_000.txt is read");
+		window.show_commits();
+		gesture(window, { split_c3 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return window.overview_page()->commit_chip()->summary()->text() == QStringLiteral("2 of 3 commits shown"); }, "Hide C3");
+		// A file filter, which a force push leaves as it is.
+		gesture(window, { split_c1 }, QStringLiteral("commitFilterHideFiles"));
+		wait_for([&] { return window.overview_page()->commit_chip()->detail()->text().contains(QStringLiteral("hidden by file filters")); }, "a file filter on C1's files");
+
+		// The force push: the next refresh serves C3 reworded.
+		expect(window.github_refresh_action()->isEnabled(), "Refresh is available");
+		window.github_refresh_action()->trigger();
+		auto* const chip = window.overview_page()->commit_chip();
+		// Until the new head's trees are read only the headline and author can
+		// match, which is offered as a guess; then the same change is known.
+		wait_for([&] {
+			return tab(window)->model()->row_of(std::string{ split_c3r }) >= 0 && !chip->rematch_button()->isHidden()
+				&& tab(window)->projection()->Trees == application::commit_filter_trees::ready && chip->detail()->text().contains(QStringLiteral("makes the same change"));
+		},
+				 "after the push the chip offers a commit in place of the gone one");
+		expect(chip->detail()->text().contains(QStringLiteral("Hidden commit 968f892 (Follow-ups) is no longer in the pull request")),
+			   "the chip names the missing commit");
+		expect(chip->detail()->text().contains(QStringLiteral("cfaecb6 (Follow-ups) makes the same change as 968f892.")) && chip->rematch_button()->text() == QStringLiteral("Hide cfaecb6"),
+			   "and offers the commit carrying the same change");
+		const auto offered = tab(window)->rematch_buttons();
+		expect(offered.size() == 1U && offered.front()->text() == QStringLiteral("Hide cfaecb6"), "the Commits tab offers it too");
+		expect(tab(window)->model()->row_at(tab(window)->model()->row_of(std::string{ split_c3r }))->State == core::filter_commit_state::shown
+				   && chip->summary()->text() != QStringLiteral("2 of 3 commits shown"),
+			   "nothing is applied by itself: the new commit is shown");
+		expect(chip->detail()->text().contains(QStringLiteral("hidden by file filters")), "the file filter persists");
+		enter_review(run);
+		select(window, "gen/item_000.txt");
+		wait_for(read, "the identical-material receipt persists: gen/item_000.txt is still read under the new head");
+		window.show_commits();
+
+		// The reviewer chooses it.
+		chip->rematch_button()->click();
+		wait_for([&] { return chip->summary()->text() == QStringLiteral("2 of 3 commits shown") && chip->rematch_button()->isHidden(); },
+				 "choosing it hides the new commit in the gone one's place");
+		expect(!chip->detail()->text().contains(QStringLiteral("no longer in the pull request"))
+				   && tab(window)->model()->row_at(tab(window)->model()->row_of(std::string{ split_c3r }))->State == core::filter_commit_state::hidden,
+			   "the gone commit is forgotten and the new one is hidden");
+		expect(access::held_review_mutation_terminals(*run.Application) == 0U, "no rematch asks GitHub for anything (AC05)");
+		std::cout << "force-push course files=" << overview_files(window) << '\n';
+		finish(run);
+	}
 } // namespace
 
 auto main(int aArgc, char** aArgv) -> int
@@ -611,6 +814,8 @@ auto main(int aArgc, char** aArgv) -> int
 	filters_follow_the_commits();
 	generated_files_and_file_filters();
 	linguist_generated_at_head();
+	split_files_read_per_commit();
+	force_push_rematch();
 	std::cout << "COMMIT_FILTER_PUBLIC_PATH_OK qt=" << qVersion() << '\n';
 	return 0;
 }

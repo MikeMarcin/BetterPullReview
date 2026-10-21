@@ -94,6 +94,23 @@ namespace bpr::application {
 		auto operator<=>(const commit_filter_gone&) const = default;
 	};
 
+	/// \brief RFC-BPR-0089 M3. A listed commit offered in place of a hidden
+	/// commit a force push removed. Offered only; the reviewer chooses it.
+	struct commit_filter_rematch_row
+	{
+		/// Full IDs, the identities the gesture names.
+		std::string Gone;
+		std::string Candidate;
+		std::string GoneShort;
+		std::string GoneHeadline;
+		std::string CandidateShort;
+		std::string CandidateHeadline;
+		/// `same_headline_and_author` is a guess and is labelled one.
+		core::filter_rematch_basis Basis = core::filter_rematch_basis::same_change;
+
+		auto operator<=>(const commit_filter_rematch_row&) const = default;
+	};
+
 	/// \brief The Commits tab, the chip and the filtered counts.
 	struct commit_filter_projection
 	{
@@ -105,7 +122,9 @@ namespace bpr::application {
 		std::size_t                                    Shown   = 0U;
 		std::size_t                                    Spanned = 0U;
 		std::vector<commit_filter_gone>                Gone;
-		commit_filter_trees                            Trees = commit_filter_trees::idle;
+		/// RFC-BPR-0089 M3. What each gone commit may be matched to.
+		std::vector<commit_filter_rematch_row> Rematches;
+		commit_filter_trees                    Trees = commit_filter_trees::idle;
 		/// The files the filter leaves, while it applies to the file set.
 		std::optional<std::size_t> FilteredFiles;
 		/// The comparison's own file count.
@@ -159,6 +178,44 @@ namespace bpr::application {
 		core::generated_gesture Gesture = core::generated_gesture::treat_as_generated;
 
 		auto operator<=>(const generated_file_gesture&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M3. The reviewer chose a rematch offer: hide
+	/// `Candidate` in place of gone `Gone`. Full commit IDs.
+	struct commit_filter_rematch_gesture
+	{
+		std::string Gone;
+		std::string Candidate;
+
+		auto operator<=>(const commit_filter_rematch_gesture&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M3 (owner, Q2). One of a split file's per-commit
+	/// diffs, as the strip over its diff names it.
+	struct split_diff_part
+	{
+		/// The shown commit the diff is the change of; full and short IDs.
+		std::string Commit;
+		std::string ShortCommit;
+		std::string Headline;
+		/// This diff's own receipt: how far it is read.
+		core::file_read_state Read = core::file_read_state::unread;
+		/// Whether it is the diff on screen.
+		bool Selected = false;
+		/// Hidden commits that change the file after this diff and before the
+		/// next one, named in place.
+		std::vector<commit_filter_gone> HiddenAfter;
+
+		auto operator<=>(const split_diff_part&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M3. The strip over a split file's diff.
+	struct split_diff_projection
+	{
+		std::string                  Path;
+		std::vector<split_diff_part> Parts;
+
+		auto operator<=>(const split_diff_projection&) const = default;
 	};
 
 	/// \brief One gesture from the Commits tab or the chip.

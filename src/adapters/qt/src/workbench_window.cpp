@@ -2204,6 +2204,10 @@ namespace bpr::qt {
 			}
 		});
 		comparisonColumn->addWidget(DocumentTabs);
+		// RFC-BPR-0089 M3. Over a split file's diff, its per-commit diffs; it
+		// takes no room while hidden, so every other diff keeps its geometry.
+		SplitStrip = new split_diff_strip{ ComparisonPage };
+		comparisonColumn->addWidget(SplitStrip);
 		comparisonColumn->addWidget(ComparisonSurface, 1);
 		update_idle_direction();
 		ComparisonSurface->set_status_observer([this](const QString& aText, const bool aNotable) {
@@ -7613,6 +7617,40 @@ namespace bpr::qt {
 		if (OverviewPage != nullptr) {
 			OverviewPage->set_commit_open_dispatch(std::move(aDispatch));
 		}
+	}
+
+	void workbench_window::set_commit_rematch_dispatch(std::function<void(const application::commit_filter_rematch_gesture&)> aDispatch)
+	{
+		if (FilesCommitChip != nullptr) {
+			FilesCommitChip->set_rematch_dispatch(aDispatch);
+		}
+		if (OverviewPage != nullptr) {
+			if (OverviewPage->commit_chip() != nullptr) {
+				OverviewPage->commit_chip()->set_rematch_dispatch(aDispatch);
+			}
+			if (OverviewPage->status_drawer() != nullptr && OverviewPage->status_drawer()->commits() != nullptr) {
+				OverviewPage->status_drawer()->commits()->set_rematch_dispatch(std::move(aDispatch));
+			}
+		}
+	}
+
+	void workbench_window::present_split_diff(std::optional<application::split_diff_projection> aProjection)
+	{
+		if (SplitStrip != nullptr) {
+			SplitStrip->present(aProjection);
+		}
+	}
+
+	void workbench_window::set_split_segment_dispatch(std::function<void(std::size_t)> aDispatch)
+	{
+		if (SplitStrip != nullptr) {
+			SplitStrip->set_dispatch(std::move(aDispatch));
+		}
+	}
+
+	auto workbench_window::split_strip() const noexcept -> split_diff_strip*
+	{
+		return SplitStrip;
 	}
 
 	void workbench_window::show_commits()

@@ -4234,7 +4234,8 @@ namespace bpr::application {
 			}
 			struct touch_side final
 			{
-				std::string Path;
+				std::string        Path;
+				core::git_blob_oid Blob;
 			};
 			struct touch_change final
 			{
@@ -4251,8 +4252,8 @@ namespace bpr::application {
 																											   : commit_filter_touches_status::failure };
 					}
 					for (auto& entry : *read) {
-						changes.push_back({ .Left   = entry.Left ? std::optional{ touch_side{ std::move(entry.Left->Path) } } : std::nullopt,
-											.Right  = entry.Right ? std::optional{ touch_side{ std::move(entry.Right->Path) } } : std::nullopt,
+						changes.push_back({ .Left   = entry.Left ? std::optional{ touch_side{ .Path = std::move(entry.Left->Path), .Blob = entry.Left->Object } } : std::nullopt,
+											.Right  = entry.Right ? std::optional{ touch_side{ .Path = std::move(entry.Right->Path), .Blob = entry.Right->Object } } : std::nullopt,
 											.Change = entry.Change });
 					}
 					return changes;
@@ -4262,8 +4263,8 @@ namespace bpr::application {
 					return std::unexpected{ statusOf(read.error()) };
 				}
 				for (auto& entry : *read) {
-					changes.push_back({ .Left   = entry.Left ? std::optional{ touch_side{ std::move(entry.Left->Path) } } : std::nullopt,
-										.Right  = entry.Right ? std::optional{ touch_side{ std::move(entry.Right->Path) } } : std::nullopt,
+					changes.push_back({ .Left   = entry.Left ? std::optional{ touch_side{ .Path = std::move(entry.Left->Path), .Blob = entry.Left->Object } } : std::nullopt,
+										.Right  = entry.Right ? std::optional{ touch_side{ .Path = std::move(entry.Right->Path), .Blob = entry.Right->Object } } : std::nullopt,
 										.Change = entry.Change });
 				}
 				return changes;
@@ -4288,6 +4289,13 @@ namespace bpr::application {
 					auto path   = commit_filter_touched_path{ };
 					path.Path   = side->Path;
 					path.Change = change.Change;
+					// RFC-BPR-0089 M3. Each side's blob, for the same-change rematch.
+					if (change.Left) {
+						path.LeftBlob = change.Left->Blob;
+					}
+					if (change.Right) {
+						path.RightBlob = change.Right->Blob;
+					}
 					if ((change.Change == 'R' || change.Change == 'C') && change.Left && change.Right) {
 						path.PreviousPath = change.Left->Path;
 					}
@@ -4754,8 +4762,9 @@ namespace bpr::application {
 				result.Status = workbench_selected_diff_status::binary;
 				return result;
 			}
-			// RFC-BPR-0089. A split file has no one exact diff; nothing is read.
-			if (aRequest.File.SplitByFilter) {
+			// RFC-BPR-0089. A split file has no one exact diff; nothing is read
+			// unless the request names one of its per-commit diffs (M3).
+			if (aRequest.File.SplitByFilter && !aRequest.Filter) {
 				result.Status = workbench_selected_diff_status::split_by_commit_filter;
 				return result;
 			}

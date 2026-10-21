@@ -1,6 +1,8 @@
 // RFC-BPR-0089 M1 and M2: the Commits tab and the filter chip present the
 // host's projection, reconcile rows by commit, and dispatch gestures naming
 // commits; the generated row and the file menus offer the core's gestures.
+// M3: the strip over a split file's diff and the rematch offers after a force
+// push.
 #include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
@@ -402,6 +404,146 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	void render(QWidget& aWidget, const std::string& aName)
+	{
+		if (const auto* directory = std::getenv("BPR_RFC0089_RENDER_DIR"); directory != nullptr) {
+			const auto path = std::filesystem::path{ directory } / (aName + "-" + std::to_string(static_cast<int>(aWidget.devicePixelRatioF() * 100.0)) + ".png");
+			aWidget.grab().save(QString::fromStdString(path.string()));
+		}
+	}
+
+	/// RFC-BPR-0089 M3 (owner, Q2). The strip names each per-commit diff and
+	/// the hidden commit between, says how far each is read, and asks for a
+	/// diff by its position; the host says which one is on screen.
+	void test_split_strip()
+	{
+		auto strip  = qt::split_diff_strip{ };
+		auto chosen = std::vector<std::size_t>{ };
+		strip.set_dispatch([&chosen](const std::size_t aSegment) { chosen.push_back(aSegment); });
+		strip.present(std::nullopt);
+		expect(strip.isHidden(), "no split file, no strip");
+		auto projection    = application::split_diff_projection{ };
+		projection.Path    = "src/version.txt";
+		auto first         = application::split_diff_part{ };
+		first.Commit       = std::string(40U, '1');
+		first.ShortCommit  = "1111111";
+		first.Headline     = "Change the generator input";
+		first.Read         = core::file_read_state::seen;
+		first.Selected     = true;
+		first.HiddenAfter  = { { .ShortCommit = "2222222", .Headline = "Regenerate" } };
+		auto second        = application::split_diff_part{ };
+		second.Commit      = std::string(40U, '3');
+		second.ShortCommit = "3333333";
+		second.Headline    = "Follow-ups";
+		projection.Parts   = { first, second };
+		strip.resize(1200, 32);
+		strip.present(projection);
+		strip.show();
+		settle();
+		expect(!strip.isHidden() && strip.lead()->text() == QStringLiteral("2 diffs, one per shown commit:") && strip.parts().size() == 2U,
+			   "the strip leads with how many diffs the file has");
+		expect(strip.parts()[0]->text() == QStringLiteral("1111111 Change the generator input (seen)") && strip.parts()[0]->isChecked()
+				   && strip.parts()[1]->text() == QStringLiteral("3333333 Follow-ups") && !strip.parts()[1]->isChecked(),
+			   "each diff names its commit and how far it is read; the one on screen is checked");
+		expect(strip.hidden().size() == 1U && strip.hidden()[0]->text() == QStringLiteral("2222222 Regenerate also changed this file; hidden"),
+			   "the hidden commit is named in place");
+		expect(strip.parts()[1]->accessibleName() == QStringLiteral("Diff 2 of 2: commit 3333333, Follow-ups")
+				   && strip.parts()[0]->accessibleName() == QStringLiteral("Diff 1 of 2: commit 1111111, Change the generator input, seen"),
+			   "each diff's accessible name says which it is and how far it is read");
+		render(strip, "split-strip");
+		// Narrow, the wording shortens instead of widening the window.
+		strip.resize(420, strip.height());
+		settle();
+		expect(strip.parts()[0]->text() == QStringLiteral("1111111 (seen)") && strip.hidden()[0]->text() == QStringLiteral("2222222 hidden") && strip.lead()->text() == QStringLiteral("2 diffs:")
+				   && strip.hidden()[0]->toolTip() == QStringLiteral("2222222 Regenerate also changed this file; hidden") && strip.minimumSizeHint().width() <= 420,
+			   "a narrow strip names the diffs and the hidden commit by ID, the rest in tooltips");
+		render(strip, "split-strip-narrow");
+		strip.resize(640, strip.height());
+		settle();
+		expect(strip.parts()[0]->text().startsWith(QStringLiteral("1111111 ")) && strip.parts()[0]->text().endsWith(QStringLiteral("(seen)"))
+				   && strip.parts()[0]->text() != QStringLiteral("1111111 (seen)") && strip.hidden()[0]->text() == QStringLiteral("2222222 hidden"),
+			   "between, headlines are shortened");
+		render(strip, "split-strip-middle");
+		strip.resize(1200, strip.height());
+		settle();
+		strip.parts()[1]->click();
+		settle();
+		expect(chosen == std::vector<std::size_t>{ 1U } && strip.parts()[0]->isChecked() && !strip.parts()[1]->isChecked(),
+			   "a click asks for the diff; the check stays where the host put it until it answers");
+		projection.Parts[0].Selected = false;
+		projection.Parts[1].Selected = true;
+		projection.Parts[1].Read     = core::file_read_state::read;
+		strip.present(projection);
+		settle();
+		expect(strip.parts()[1]->isChecked() && strip.parts()[1]->text().endsWith(QStringLiteral("(read)")), "the host's answer moves the check and the read state");
+		strip.present(std::nullopt);
+		expect(strip.isHidden(), "another diff hides the strip");
+	}
+
+	/// RFC-BPR-0089 M3, AC06. After a force push the chip and the Commits tab
+	/// offer the commit carrying the gone one's change, labelled a guess when
+	/// only its headline and author match, and dispatch only when chosen.
+	void test_rematch_offers()
+	{
+		auto projection         = owner();
+		projection.Gone         = { { .ShortCommit = "3333333", .Headline = "Follow-ups" } };
+		auto same               = application::commit_filter_rematch_row{ };
+		same.Gone               = std::string(40U, '3');
+		same.Candidate          = std::string(40U, '4');
+		same.GoneShort          = "3333333";
+		same.GoneHeadline       = "Follow-ups";
+		same.CandidateShort     = "4444444";
+		same.CandidateHeadline  = "Follow-ups, amended";
+		auto guess              = same;
+		guess.Candidate         = std::string(40U, '5');
+		guess.CandidateShort    = "5555555";
+		guess.CandidateHeadline = "Follow-ups";
+		guess.Basis             = core::filter_rematch_basis::same_headline_and_author;
+		projection.Rematches    = { same, guess };
+		expect(qt::commit_filter_rematch_text(same) == QStringLiteral("4444444 (Follow-ups, amended) makes the same change as 3333333.")
+				   && qt::commit_filter_rematch_text(guess) == QStringLiteral("5555555 (Follow-ups) has the same headline and author as 3333333, so it may be the same commit."),
+			   "a same-change offer says so; a headline match is labelled a guess");
+
+		auto chip   = qt::commit_filter_chip{ false };
+		auto chosen = std::vector<application::commit_filter_rematch_gesture>{ };
+		chip.set_rematch_dispatch([&chosen](const application::commit_filter_rematch_gesture& aGesture) { chosen.push_back(aGesture); });
+		chip.present(projection);
+		chip.resize(900, chip.sizeHint().height());
+		chip.show();
+		settle();
+		expect(!chip.isHidden() && !chip.rematch_button()->isHidden() && chip.rematch_button()->text() == QStringLiteral("Hide 4444444")
+				   && chip.detail()->text().contains(QStringLiteral("makes the same change as 3333333.")) && chip.detail()->text().contains(QStringLiteral("The Commits tab lists 2 offers.")),
+			   "the chip names the gone commit, offers the first match and points at the rest");
+		render(chip, "rematch-chip");
+		expect(chosen.empty(), "nothing is dispatched until the reviewer chooses");
+		chip.rematch_button()->click();
+		expect(chosen.size() == 1U && chosen[0].Gone == same.Gone && chosen[0].Candidate == same.Candidate, "choosing it dispatches the gone and the offered commit");
+
+		auto tab     = qt::commit_filter_tab{ };
+		auto offered = std::vector<application::commit_filter_rematch_gesture>{ };
+		tab.set_rematch_dispatch([&offered](const application::commit_filter_rematch_gesture& aGesture) { offered.push_back(aGesture); });
+		tab.present(projection);
+		tab.resize(420, 520);
+		tab.show();
+		settle();
+		const auto buttons = tab.rematch_buttons();
+		expect(buttons.size() == 2U && buttons[0]->text() == QStringLiteral("Hide 4444444") && buttons[1]->text() == QStringLiteral("Hide 5555555")
+				   && buttons[1]->accessibleName() == QStringLiteral("Hide 5555555 in place of 3333333"),
+			   "the Commits tab lists every offer");
+		render(tab, "rematch-tab");
+		buttons[1]->click();
+		tab.present(projection);
+		expect(offered.size() == 1U && offered[0].Candidate == guess.Candidate && tab.rematch_buttons().size() == 2U, "a guess is applied only when chosen; an unchanged projection keeps its buttons");
+		projection.Rematches.clear();
+		projection.Gone.clear();
+		tab.present(projection);
+		chip.present(projection);
+		settle();
+		expect(tab.rematch_buttons().empty() && chip.isHidden(), "once matched nothing more is offered");
+	}
+} // namespace
+
 auto main(int aArgc, char** aArgv) -> int
 {
 	auto application = QApplication{ aArgc, aArgv };
@@ -413,6 +555,8 @@ auto main(int aArgc, char** aArgv) -> int
 	test_file_filter_chip_and_counts();
 	test_generated_row();
 	test_file_menus_offer_generated_gestures();
+	test_split_strip();
+	test_rematch_offers();
 	if (Failures != 0) {
 		std::cerr << Failures << " failures\n";
 		return EXIT_FAILURE;

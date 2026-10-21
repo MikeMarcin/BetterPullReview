@@ -90,6 +90,10 @@ namespace bpr::application {
 		/// \details Only the current exact selected-diff context admits an entry. Retention
 		/// is bounded to the sixteen live tabs plus the next explicit open.
 		auto retain_source_file(const workbench_selected_diff_context& aContext, workbench_file_observation_entry aEntry, std::span<const core::window_review_position> aTabs) -> bool;
+		/// \brief RFC-BPR-0089 M3. Reads the selected split file's per-commit
+		/// diff at `aSegment` (owner, Q2). Ignored unless `aFile` is the selected
+		/// split file and the diff exists.
+		void select_split_segment(core::workbench_file_id aFile, std::size_t aSegment);
 		// Reobserves receipt-derived actionability without replacing the accepted
 		// authority or detaching its retained selected diff.
 		void refresh_actionability();

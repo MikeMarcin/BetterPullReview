@@ -138,6 +138,10 @@ namespace bpr::app::detail {
 		/// nested `-linguist-generated`; see
 		/// `scripts/build_commit_filter_fixture.py --attributes`.
 		commit_filter_attributes_v1,
+		/// RFC-BPR-0089 M3. commit_filter_v1's chain with `src/version.txt`,
+		/// which all three commits change, and a next push that rewords C3 on
+		/// the same parent and tree; see `scripts/build_commit_filter_fixture.py --split`.
+		commit_filter_split_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

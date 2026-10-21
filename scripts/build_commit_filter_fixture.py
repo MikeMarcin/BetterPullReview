@@ -15,6 +15,13 @@ and the live BPR-Test course carries the owner's hundreds. The commit list
 carries GitHub's `parents`, and the pack holds every object reachable from
 `C3`, so each commit's tree diff can be read locally.
 
+With `--split` it writes commit-filter-split-v1 instead (RFC-BPR-0089 M3): the
+same chain with one more file, `src/version.txt`, that all three commits
+change (C1 its version, C2 its stamp, C3 its version again), so hiding C2
+splits it into C1's and C3's own diffs. Its pack also holds `C3r`, C3 reworded
+on the same parent and tree: the course serves it as the next push, a force
+push whose new head carries exactly C3's change. Files changed is 99 files.
+
 With `--attributes` it writes commit-filter-attributes-v1 instead ([[BPR-1692]]):
 the same chain, whose merge base also commits a root `.gitattributes` marking
 `gen/** linguist-generated` and a nested `gen/.gitattributes` returning
@@ -26,6 +33,7 @@ request, so its Files changed is the same 98 files and the head's rules mark
     build_commit_filter_fixture.py <out.json>      writes only the construction
     build_commit_filter_fixture.py --root <dir>    writes all three under <dir>
     build_commit_filter_fixture.py --attributes [--root <dir> | <out.json>]
+    build_commit_filter_fixture.py --split [--root <dir> | <out.json>]
 """
 
 from __future__ import annotations
@@ -50,9 +58,19 @@ ATTRIBUTES = {
     "gen/.gitattributes": "item_007.txt -linguist-generated\n",
 }
 VARIANTS = {
-    False: {"name": "commit-filter-v1", "repository": "commit-filter", "number": 89},
-    True: {"name": "commit-filter-attributes-v1", "repository": "commit-filter-attributes", "number": 1692},
+    "plain": {"name": "commit-filter-v1", "repository": "commit-filter", "number": 89},
+    "attributes": {"name": "commit-filter-attributes-v1", "repository": "commit-filter-attributes", "number": 1692},
+    "split": {"name": "commit-filter-split-v1", "repository": "commit-filter-split", "number": 893},
 }
+# RFC-BPR-0089 M3. The file every commit changes, so hiding C2 splits it.
+SPLIT_PATH = "src/version.txt"
+VERSION = {
+    "M": "version 1\nstamp none\n",
+    "C1": "version 2\nstamp none\n",
+    "C2": "version 2\nstamp regenerated\n",
+    "C3": "version 3\nstamp regenerated\n",
+}
+REWORDED = "Follow-ups, reworded"
 
 
 def numbered(name: str, count: int, changes: dict[int, str] | None = None) -> str:
@@ -65,8 +83,9 @@ def generated(value: int, index: int, adjusted: bool = False) -> str:
     return f"generated from value {value}\n{note}checksum {value * 1000 + index}\n"
 
 
-def snapshot(stage: str, attributes: bool = False) -> dict[str, str]:
+def snapshot(stage: str, variant: str = "plain") -> dict[str, str]:
     """The tree at M, C1, C2 or C3."""
+    attributes = variant == "attributes"
     value = 1 if stage == "M" else 2
     app = numbered("app", 60, {
         **({5: "app line 5 C1"} if stage != "M" else {}),
@@ -82,6 +101,8 @@ def snapshot(stage: str, attributes: bool = False) -> dict[str, str]:
         files[f"gen/item_{index:03}.txt"] = generated(regenerated, index, stage == "C3" and index in HAND_EDITED)
     if attributes:
         files.update(ATTRIBUTES)
+    if variant == "split":
+        files[SPLIT_PATH] = VERSION[stage]
     return files
 
 
@@ -106,22 +127,26 @@ def write(repository: str, files: dict[str, str]) -> None:
         target.write_bytes(text.encode("utf-8"))
 
 
-def build(repository: str, attributes: bool = False) -> dict[str, str]:
+def build(repository: str, variant: str = "plain") -> dict[str, str]:
     subprocess.run(["git", "init", "-q", "--initial-branch=main", repository], check=True, capture_output=True,
                    env={**os.environ, **pack.FIXTURE_ENVIRONMENT})
     commits: dict[str, str] = {}
     for stage in ("M", "C1", "C2", "C3"):
-        write(repository, snapshot(stage, attributes))
+        write(repository, snapshot(stage, variant))
         git(repository, "add", "-A")
         git(repository, "commit", "-q", "-m", MESSAGES.get(stage, "merge base"))
         commits[stage] = git(repository, "rev-parse", "HEAD")
+    if variant == "split":
+        # The force push: C3 reworded, on C2 with C3's own tree.
+        tree = git(repository, "rev-parse", f"{commits['C3']}^{{tree}}")
+        commits["C3r"] = git(repository, "commit-tree", tree, "-p", commits["C2"], "-m", REWORDED)
     return commits
 
 
-def construction(commits: dict[str, str], attributes: bool = False) -> dict:
-    variant = VARIANTS[attributes]
-    base = snapshot("M", attributes)
-    head = snapshot("C3", attributes)
+def construction(commits: dict[str, str], name: str = "plain") -> dict:
+    variant = VARIANTS[name]
+    base = snapshot("M", name)
+    head = snapshot("C3", name)
     nested.FILES = tuple((path, base[path], head[path]) for path in sorted(head) if base.get(path) != head[path])
     nested.BASE_OID = commits["M"]
     nested.HEAD_OID = commits["C3"]
@@ -143,9 +168,10 @@ def construction(commits: dict[str, str], attributes: bool = False) -> dict:
     return result
 
 
-def verify(result: dict, repository: str, commits: dict[str, str], attributes: bool = False) -> list[str]:
+def verify(result: dict, repository: str, commits: dict[str, str], variant: str = "plain") -> list[str]:
     failures = pack.verify(result, repository, commits["M"], commits["C3"])
-    if attributes:
+    split = variant == "split"
+    if variant == "attributes":
         # Git itself decides what the head's rules mark: 95 of C2's paths.
         paths = sorted(file["filename"] for file in result["files"])
         answered = subprocess.run(["git", "-C", repository, "check-attr", "--source", commits["C3"], "-z", "linguist-generated", "--", *paths],
@@ -155,18 +181,28 @@ def verify(result: dict, repository: str, commits: dict[str, str], attributes: b
         expected = sorted(f"gen/item_{index:03}.txt" for index in range(GENERATED) if index != 7)
         if marked != expected or states.get("gen/item_007.txt") != "unset":
             failures.append(f"the head's rules must mark {len(expected)} files and unset gen/item_007.txt: {len(marked)} marked")
-    if len(result["files"]) != GENERATED + 2:
-        failures.append(f"Whole PR must list {GENERATED + 2} files, not {len(result['files'])}")
+    extra = {SPLIT_PATH} if split else set()
+    if len(result["files"]) != GENERATED + 2 + len(extra):
+        failures.append(f"Whole PR must list {GENERATED + 2 + len(extra)} files, not {len(result['files'])}")
     touched = {
         stage: set(git(repository, "diff", "--name-only", f"{commits[stage]}^", commits[stage]).splitlines())
         for stage in ("C1", "C2", "C3")
     }
-    if touched["C1"] != {"src/app.cpp", "src/generator.in"}:
+    if touched["C1"] != {"src/app.cpp", "src/generator.in", *extra}:
         failures.append(f"C1 must change exactly the source: {sorted(touched['C1'])}")
-    if len(touched["C2"]) != GENERATED or any(not path.startswith("gen/") for path in touched["C2"]):
+    if touched["C2"] - extra != {f"gen/item_{index:03}.txt" for index in range(GENERATED)} or not extra <= touched["C2"]:
         failures.append("C2 must regenerate exactly the generated files")
-    if touched["C3"] != {"src/app.cpp", *(f"gen/item_{index:03}.txt" for index in HAND_EDITED)}:
+    if touched["C3"] != {"src/app.cpp", *(f"gen/item_{index:03}.txt" for index in HAND_EDITED), *extra}:
         failures.append(f"C3 must touch the source and the hand-edited files: {sorted(touched['C3'])}")
+    if split:
+        # The force push carries exactly C3's change: same parent, same tree.
+        if git(repository, "rev-parse", f"{commits['C3r']}^", f"{commits['C3r']}^{{tree}}").splitlines() != [
+                commits["C2"], git(repository, "rev-parse", f"{commits['C3']}^{{tree}}")]:
+            failures.append("C3r must be C3 reworded on C2")
+        # The synthesized tree a cherry-pick of C1 and C3 would make is in no commit.
+        synthesized = "version 3\nstamp none\n"
+        if synthesized in VERSION.values():
+            failures.append("the synthesized src/version.txt must be absent from every commit")
     if git(repository, "rev-parse", f"{commits['C3']}^", f"{commits['C2']}^", f"{commits['C1']}^").splitlines() != [commits["C2"], commits["C1"], commits["M"]]:
         failures.append("the chain must be M, C1, C2, C3 by first parents")
     return failures
@@ -175,10 +211,11 @@ def verify(result: dict, repository: str, commits: dict[str, str], attributes: b
 def main() -> int:
     source = Path(__file__).resolve().parents[1]
     arguments = sys.argv[1:]
-    attributes = arguments[:1] == ["--attributes"]
-    if attributes:
+    variant = "plain"
+    if arguments[:1] in (["--attributes"], ["--split"]):
+        variant = arguments[0][2:]
         arguments = arguments[1:]
-    name = VARIANTS[attributes]["name"]
+    name = VARIANTS[variant]["name"]
     root = source
     if arguments[:1] == ["--root"] and len(arguments) == 2:
         root = Path(arguments[1]).resolve()
@@ -186,14 +223,15 @@ def main() -> int:
     fixture = root / "tests/fixtures/github/pull-requests" / name
     recording = Path(arguments[0]) if arguments else fixture / "construction.json"
     with contained_temporary_directory() as repository:
-        commits = build(repository, attributes)
-        result = construction(commits, attributes)
-        failures = verify(result, repository, commits, attributes)
+        commits = build(repository, variant)
+        result = construction(commits, variant)
+        failures = verify(result, repository, commits, variant)
         if failures:
             for failure in failures:
                 print(f"FAILED: {failure}", file=sys.stderr)
             return 1
-        listing = git(repository, "rev-list", "--objects", commits["C3"])
+        heads = [commits["C3"]] + ([commits["C3r"]] if variant == "split" else [])
+        listing = git(repository, "rev-list", "--objects", *heads)
         objects = subprocess.run(["git", "-C", repository, "pack-objects", "--stdout"], input=(listing + "\n").encode(), capture_output=True,
                                  env={**os.environ, **pack.FIXTURE_ENVIRONMENT}, check=True).stdout
     recording.parent.mkdir(parents=True, exist_ok=True)

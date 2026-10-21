@@ -80,6 +80,13 @@ namespace bpr::application {
 		{
 		};
 
+		/// RFC-BPR-0089 M3. The reviewer chose one of a split file's diffs.
+		struct deferred_workbench_split_segment
+		{
+			core::workbench_file_id File;
+			std::size_t             Segment = 0U;
+		};
+
 		struct deferred_workbench_actionability_retain
 		{
 			workbench_pull_request_authority Authority;
@@ -146,6 +153,7 @@ namespace bpr::application {
 														deferred_workbench_invalidate,
 														deferred_workbench_selected_diff_refresh,
 														deferred_workbench_actionability_refresh,
+														deferred_workbench_split_segment,
 														deferred_workbench_actionability_retain,
 														deferred_workbench_change_navigation,
 														deferred_workbench_intent,
@@ -248,6 +256,23 @@ namespace bpr::application {
 			return aOrder[ordinal - 1U];
 		}
 
+		/// \brief RFC-BPR-0089 M3. The entry and endpoints a request for a file
+		/// carries: for a split file, the chosen per-commit diff's own change
+		/// and endpoints (the first when the choice is past its end); otherwise
+		/// the file's own.
+		[[nodiscard]] auto segment_request(const workbench_file_observation_entry& aFile, const std::size_t aSegment)
+			-> std::pair<workbench_file_observation_entry, std::optional<core::filtered_diff_endpoints>>
+		{
+			if (!aFile.SplitByFilter || aFile.Segments.empty()) {
+				return { aFile, aFile.Filter };
+			}
+			const auto& segment = aFile.Segments[aSegment < aFile.Segments.size() ? aSegment : 0U];
+			auto        file    = aFile;
+			file.Change         = segment.Change;
+			file.PreviousPath   = segment.PreviousPath;
+			return { std::move(file), segment.Endpoints };
+		}
+
 		[[nodiscard]] constexpr auto failure_for_status(
 			const workbench_observation_status aStatus) noexcept
 			-> workbench_host_failure
@@ -282,7 +307,14 @@ namespace bpr::application {
 					|| aEntry.ContentKind == workbench_file_content_kind::text
 					|| aEntry.ContentKind == workbench_file_content_kind::binary)
 				// RFC-BPR-0089. Valid endpoints, or a split file, never both.
-				&& (!aEntry.Filter || (core::valid(*aEntry.Filter) && !aEntry.SplitByFilter));
+				&& (!aEntry.Filter || (core::valid(*aEntry.Filter) && !aEntry.SplitByFilter))
+				// M3. Only a split file has per-commit diffs, each exact.
+				&& (aEntry.Segments.empty() || aEntry.SplitByFilter)
+				&& std::ranges::all_of(aEntry.Segments, [&validPath](const workbench_split_segment& aSegment) {
+					   const auto moved = aSegment.Change == workbench_file_change_kind::renamed || aSegment.Change == workbench_file_change_kind::copied;
+					   return core::valid(aSegment.Endpoints) && aSegment.Change != workbench_file_change_kind::uninitialized
+						   && aSegment.PreviousPath.has_value() == moved && (!aSegment.PreviousPath || validPath(*aSegment.PreviousPath));
+				   });
 		} catch (...) {
 			return false;
 		}
@@ -394,6 +426,8 @@ namespace bpr::application {
 											 ingress_type,
 											 deferred_workbench_actionability_refresh>) {
 						refresh_actionability_now();
+					} else if constexpr (std::is_same_v<ingress_type, deferred_workbench_split_segment>) {
+						select_split_segment_now(aTyped.File, aTyped.Segment);
 					} else if constexpr (std::is_same_v<
 											 ingress_type,
 											 deferred_workbench_actionability_retain>) {
@@ -790,12 +824,14 @@ namespace bpr::application {
 				// valid one. An open of the file is answered under its own.
 				auto identity    = local_context();
 				identity.Request = core::request_id{ result.size() + 1U };
+				// RFC-BPR-0089 M3. A split file is prepared at its first diff.
+				auto [entry, filter] = segment_request(file, 0U);
 				result.push_back(workbench_selected_diff_request{
 					.Context            = identity,
 					.WorkbenchAuthority = *Authority,
 					.Diff               = *context,
-					.File               = file,
-					.Filter             = file.Filter,
+					.File               = std::move(entry),
+					.Filter             = filter,
 				});
 			}
 			return result;
@@ -828,12 +864,14 @@ namespace bpr::application {
 				publish_failure(local_context(), workbench_host_failure::host_failure);
 				return;
 			}
-			const auto request = workbench_selected_diff_request{
+			// RFC-BPR-0089 M3. A split file reads the per-commit diff chosen.
+			auto [entry, filter] = segment_request(*selected_file(), SelectedSegment);
+			const auto request   = workbench_selected_diff_request{
 				.Context            = record->Context,
 				.WorkbenchAuthority = *Authority,
 				.Diff               = *context,
-				.File               = *selected_file(),
-				.Filter             = selected_file()->Filter,
+				.File               = std::move(entry),
+				.Filter             = filter,
 			};
 			deliver_projection(
 				[this, &request] { SelectedDiffProjections->begin(request); });
@@ -1289,10 +1327,25 @@ namespace bpr::application {
 				LastReason = core::workbench_reason_code::no_actionable_files;
 				return;
 			}
+			// RFC-BPR-0089 M3. Another file opens at its first per-commit diff.
+			if (Selected != target) {
+				SelectedSegment = 0U;
+			}
 			Selected          = target;
 			const auto* entry = catalogue_file(*target);
 			SelectedFile      = entry ? std::optional{ *entry } : std::nullopt;
 			observe_cursor();
+		}
+
+		void select_split_segment_now(const core::workbench_file_id aFile, const std::size_t aSegment)
+		{
+			const auto* file = selected_file();
+			if (Closing || file == nullptr || file->File != aFile || !file->SplitByFilter || aSegment >= file->Segments.size()
+				|| (aSegment == SelectedSegment && SelectedSegment < file->Segments.size())) {
+				return;
+			}
+			SelectedSegment = aSegment;
+			submit_selected_diff();
 		}
 
 		void observe_cursor()
@@ -2168,15 +2221,17 @@ namespace bpr::application {
 		bool                CatalogueAvailable = false;
 		/// [[BPR-0972]]. Catalogue files withheld from the order, by file, and
 		/// whether the order's catalogue positions are strictly increasing.
-		std::map<core::workbench_file_id, workbench_file_observation_entry>             Withheld;
-		bool                                                                            Numbered = false;
-		std::optional<workbench_files_delta>                                            PendingFilesDelta;
-		std::vector<std::pair<core::workbench_file_id, std::size_t>>                    FileIndex;
-		bool                                                                            FilesDirty = true;
-		std::vector<core::workbench_file_id>                                            Actionable;
-		std::vector<workbench_file_observation_entry>                                   Files;
-		std::optional<core::workbench_file_id>                                          Selected;
-		std::optional<workbench_file_observation_entry>                                 SelectedFile;
+		std::map<core::workbench_file_id, workbench_file_observation_entry> Withheld;
+		bool                                                                Numbered = false;
+		std::optional<workbench_files_delta>                                PendingFilesDelta;
+		std::vector<std::pair<core::workbench_file_id, std::size_t>>        FileIndex;
+		bool                                                                FilesDirty = true;
+		std::vector<core::workbench_file_id>                                Actionable;
+		std::vector<workbench_file_observation_entry>                       Files;
+		std::optional<core::workbench_file_id>                              Selected;
+		std::optional<workbench_file_observation_entry>                     SelectedFile;
+		/// RFC-BPR-0089 M3. Which of a split selected file's diffs is read.
+		std::size_t                                                                     SelectedSegment = 0U;
 		std::optional<workbench_pull_request_authority>                                 Authority;
 		std::vector<std::pair<core::comparison_pair, workbench_file_observation_entry>> SourceFiles;
 		std::optional<workbench_selected_diff_request>                                  AcceptedSelectedDiff;
@@ -2281,6 +2336,11 @@ namespace bpr::application {
 	void workbench_application_host::refresh_selected_diff()
 	{
 		Implementation->enqueue(deferred_workbench_selected_diff_refresh{ });
+	}
+
+	void workbench_application_host::select_split_segment(const core::workbench_file_id aFile, const std::size_t aSegment)
+	{
+		Implementation->enqueue(deferred_workbench_split_segment{ .File = aFile, .Segment = aSegment });
 	}
 
 	void workbench_application_host::refresh_actionability()

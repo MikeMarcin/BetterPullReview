@@ -2,6 +2,7 @@
 #define BPR_SRC_CORE_INCLUDE_BPR_CORE_COMMIT_FILTER_HPP
 
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/review_ledger.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -33,6 +34,9 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_filter_commit_parents = 16U;
 	/// Bytes of a commit headline the filter retains to name a gone commit.
 	inline constexpr std::size_t maximum_filter_headline_bytes = 256U;
+	/// RFC-BPR-0089 M3. Bytes of an author's login the filter retains to
+	/// offer a commit with the same headline and author after a force push.
+	inline constexpr std::size_t maximum_filter_author_bytes = 256U;
 	/// Hidden entries one filter may retain: every listed commit plus as many
 	/// that a force push removed.
 	inline constexpr std::size_t maximum_filter_hidden_commits = 2U * maximum_filter_commits;
@@ -48,6 +52,8 @@ namespace bpr::core {
 		git_commit_oid              Oid;
 		std::vector<git_commit_oid> Parents;
 		std::string                 Headline;
+		/// RFC-BPR-0089 M3. The author's login, or empty when GitHub named none.
+		std::string Author;
 
 		auto operator<=>(const filter_commit&) const = default;
 	};
@@ -132,6 +138,8 @@ namespace bpr::core {
 		std::vector<filter_commit_entry> Entries;
 		/// Headlines in `Entries` order, retained to name hidden commits.
 		std::vector<std::string> Headlines;
+		/// RFC-BPR-0089 M3. Authors in `Entries` order, retained the same way.
+		std::vector<std::string> Authors;
 
 		auto operator<=>(const filter_commit_graph&) const = default;
 	};
@@ -193,11 +201,44 @@ namespace bpr::core {
 	[[nodiscard]] auto filter_span_for(const filter_commit_graph& aGraph, const filter_comparison& aComparison)
 		-> std::expected<filter_commit_span, commit_filter_suspension>;
 
+	/// \brief RFC-BPR-0089 M3. One path a commit's first-parent diff changes,
+	/// with its blob on each side; a side the path is absent from has none.
+	///
+	/// \details `Path` is the touch key (`filter_commit_touch`): the path after
+	/// the change, or before it for a deletion. `PreviousPath` names a rename's
+	/// or copy's source.
+	struct filter_path_change
+	{
+		std::string                 Path;
+		std::optional<std::string>  PreviousPath;
+		std::optional<git_blob_oid> Left;
+		std::optional<git_blob_oid> Right;
+
+		auto operator<=>(const filter_path_change&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M3. Everything one listed commit's first-parent diff
+	/// changes, sorted by path and unique. Two commits make "the same change"
+	/// when these are equal: the same paths, each between the same two blobs.
+	struct filter_commit_changes
+	{
+		git_commit_oid                  Commit;
+		std::vector<filter_path_change> Changes;
+
+		auto operator<=>(const filter_commit_changes&) const = default;
+	};
+
 	/// \brief One commit the reviewer hid, named so it can be named once gone.
 	struct filter_hidden_commit
 	{
 		git_commit_oid Oid;
 		std::string    Headline;
+		/// RFC-BPR-0089 M3. Recorded while the commit is listed: its author and
+		/// what it changes, so that after a force push a new commit carrying the
+		/// same change can be offered in its place. `Changes` is absent until
+		/// the chain's trees are read.
+		std::string                                    Author;
+		std::optional<std::vector<filter_path_change>> Changes;
 
 		auto operator<=>(const filter_hidden_commit&) const = default;
 	};
@@ -256,6 +297,8 @@ namespace bpr::core {
 		base_merge_alone,
 		/// The state is malformed or would exceed its bound.
 		invalid_state,
+		/// RFC-BPR-0089 M3. A rematch the core does not offer now.
+		not_offered,
 	};
 
 	/// \brief Applies one gesture to the filter under a comparison's span.
@@ -345,7 +388,7 @@ namespace bpr::core {
 		exact,
 		/// A hidden commit changes the path between two shown ones: one exact
 		/// diff per shown commit, with the hidden ones named between
-		/// (owner, Q2). M3 draws these; M1 lists the path and says so.
+		/// (owner, Q2). Each is read on its own, as its own material.
 		split,
 	};
 
@@ -410,6 +453,67 @@ namespace bpr::core {
 	/// or the fork for the oldest. Invalid for a position off the chain.
 	[[nodiscard]] auto chain_parent(const filter_commit_graph& aGraph, std::size_t aChain) noexcept
 		-> git_commit_oid;
+
+	/// \brief RFC-BPR-0089 M3. Records on each hidden entry still listed its
+	/// author and, when `aChanges` names its commit and it has none yet, what
+	/// it changes. Entries that are gone, or not named, keep what they hold.
+	///
+	/// \details `aChanges` is any set of listed commits' changes, each sorted by
+	/// path and unique; one that is not is ignored. Applied while the chain's
+	/// trees are read, so a later force push still knows what a gone commit did.
+	[[nodiscard]] auto record_hidden_changes(const commit_filter_state& aState, const filter_commit_graph& aGraph,
+											 std::span<const filter_commit_changes> aChanges) -> commit_filter_state;
+
+	/// \brief RFC-BPR-0089 M3. Why a commit is offered in place of a gone one.
+	enum class filter_rematch_basis : std::uint8_t {
+		/// It changes exactly the paths the gone commit changed, each between
+		/// the same two blobs.
+		same_change,
+		/// Only its headline and author match: offered and labelled a guess.
+		same_headline_and_author,
+	};
+
+	/// \brief RFC-BPR-0089 M3. A listed commit the reviewer may hide in place
+	/// of a hidden commit a force push removed. Offered, never applied.
+	struct filter_rematch_offer
+	{
+		git_commit_oid       Gone;
+		git_commit_oid       Candidate;
+		filter_rematch_basis Basis = filter_rematch_basis::same_change;
+
+		auto operator<=>(const filter_rematch_offer&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M3. The commits each gone hidden entry may be
+	/// matched to, in the state's order and then chain order.
+	///
+	/// \details A candidate is a listed chain commit (not a merge from the base
+	/// branch, not a side commit) the filter does not hide. A gone entry whose
+	/// recorded changes some candidates' changes in `aChanges` equal is offered
+	/// those; otherwise, when it recorded a headline and an author, the
+	/// candidates with both equal, as a guess. Nothing else is offered.
+	[[nodiscard]] auto rematch_offers(const commit_filter_state& aState, const filter_commit_graph& aGraph,
+									  std::span<const filter_commit_changes> aChanges) -> std::vector<filter_rematch_offer>;
+
+	/// \brief RFC-BPR-0089 M3. Applies one offer the reviewer chose: the gone
+	/// entry is forgotten and the candidate is hidden in its place.
+	///
+	/// \details Refused with `not_offered` unless `rematch_offers` offers it
+	/// now, so nothing is ever rematched without its own offer.
+	[[nodiscard]] auto apply_rematch(const commit_filter_state& aState, const filter_commit_graph& aGraph,
+									 std::span<const filter_commit_changes> aChanges, const filter_rematch_offer& aOffer)
+		-> std::expected<commit_filter_state, commit_filter_refusal>;
+
+	/// \brief RFC-BPR-0089 M3. A split file's receipt for its row, from its
+	/// per-commit diffs' own receipts in chain order.
+	///
+	/// \details Each per-commit diff is its own material (owner, Q2), so the
+	/// file is only as far read as its least read diff: a diff with no receipt
+	/// counts as unread, and none at all gives none. It is accepted, or
+	/// excluded, only when every diff is. `aFile` names the row; the material
+	/// is the first diff's.
+	[[nodiscard]] auto combined_split_receipt(const file_identity& aFile, std::span<const std::optional<file_receipt>> aSegments)
+		-> std::optional<file_receipt>;
 
 	/// RFC-BPR-0089 M2. A commit whose first-parent diff changes at least this
 	/// many files is labelled bulk. The label is a hint and filters nothing.

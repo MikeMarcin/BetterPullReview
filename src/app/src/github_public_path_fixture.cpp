@@ -851,6 +851,31 @@ namespace bpr::app::detail {
 					.Packs               = { .File = "commit-filter-attributes-v1/objects.pack" },
 					.Commits             = 3U,
 				};
+			// RFC-BPR-0089 M3. The same chain with src/version.txt changed by all
+			// three commits. Its second head, served after a refresh in the seed
+			// phase, is C3 reworded on C2 with C3's tree: a force push carrying
+			// the same change. The one pack holds every object of both heads.
+			case github_public_path_fixture::commit_filter_split_v1:
+				return {
+					.ContractDirectory   = "commit-filter-split-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 893U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "commit-filter-split",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "89a0ac4b6ba40b04017fdb11affbcd596ee5d851",
+					.HeadOneOid          = "968f89235fe4fe932ddab7f89563632b5de7cc7a",
+					.HeadTwoOid          = "cfaecb6889ad2da4edeb6b720834fd052c875bc1",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "commit-filter-split-v1/objects.pack", .SecondFile = "commit-filter-split-v1/objects.pack" },
+					.Commits             = 3U,
+				};
 			}
 			return { };
 		}

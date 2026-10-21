@@ -17,6 +17,23 @@
 #include <vector>
 
 namespace bpr::application {
+	/// \brief RFC-BPR-0089 M3. One exact per-commit diff of a split file: the
+	/// path at the shown commit's parent against the path at that commit, with
+	/// that commit's own change to it and the hidden commits after it.
+	struct commit_filter_segment
+	{
+		core::filtered_diff_endpoints     Endpoints;
+		github_file_change                Change = github_file_change::modified;
+		std::optional<std::string>        PreviousPath;
+		std::vector<core::git_commit_oid> HiddenAfter;
+
+		auto operator<=>(const commit_filter_segment&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089 M3. A split file's per-commit diffs as the workbench
+	/// reads them.
+	[[nodiscard]] auto workbench_segments(const std::vector<commit_filter_segment>& aSegments) -> std::vector<workbench_split_segment>;
+
 	/// \brief One file of a commit-filtered review, ready for the workbench and
 	/// the Overview.
 	///
@@ -32,6 +49,8 @@ namespace bpr::application {
 		/// For a split file: the hidden commits that change it between shown
 		/// ones, oldest first.
 		std::vector<core::git_commit_oid> SplitHidden;
+		/// RFC-BPR-0089 M3. For a split file: its per-commit diffs, chain order.
+		std::vector<commit_filter_segment> Segments;
 		/// RFC-BPR-0089 M2. The file's generated decision. A file in the set is
 		/// generated only when the reviewer chose Review anyway.
 		core::generated_decision Generated;
@@ -105,6 +124,15 @@ namespace bpr::application {
 
 		[[nodiscard]] auto file_filter() const noexcept -> const core::file_filter_state&;
 
+		/// \brief RFC-BPR-0089 M3. Hides the offered commit in place of the
+		/// gone one, when the core offers exactly that now; `none` when accepted.
+		[[nodiscard]] auto rematch(const commit_filter_rematch_gesture& aGesture) -> core::commit_filter_refusal;
+
+		/// \brief RFC-BPR-0089 M3. The strip over a split file's diff, without
+		/// read states or the selection, which the composition knows; none when
+		/// the path is not split now.
+		[[nodiscard]] auto split_parts(std::string_view aPath) const -> std::optional<split_diff_projection>;
+
 		/// \brief RFC-BPR-0089 M2. Adopts the review's generated marks as the
 		/// ledger holds them. Refused when malformed.
 		[[nodiscard]] auto adopt_generated_marks(core::generated_file_marks aMarks) -> bool;
@@ -166,6 +194,12 @@ namespace bpr::application {
 		[[nodiscard]] auto commit_filtered_files() const -> std::optional<commit_filter_files>;
 		/// \brief The core's touch sets for the span's chain commits.
 		[[nodiscard]] auto span_touches(const core::filter_commit_span& aSpan) const -> std::vector<core::filter_commit_touch>;
+		/// \brief RFC-BPR-0089 M3. What each chain commit changes, with its
+		/// blobs, once the trees are read; empty otherwise.
+		[[nodiscard]] auto chain_changes() const -> std::vector<core::filter_commit_changes>;
+		/// \brief RFC-BPR-0089 M3. Records on the hidden entries what they
+		/// change while the trees are read.
+		void record_hidden_changes();
 		/// \brief The generated decision of one listed path.
 		[[nodiscard]] auto generated_decision_of(std::string_view aPath) const -> core::generated_decision;
 		/// \brief Whether the review lists the path, as the comparison or a

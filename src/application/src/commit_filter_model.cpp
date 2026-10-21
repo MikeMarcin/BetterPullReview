@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <filesystem>
 #include <map>
 #include <string_view>
 #include <utility>
@@ -50,7 +51,56 @@ namespace bpr::application {
 			const auto found = std::ranges::find(aGraph.Chain, aOid);
 			return found != aGraph.Chain.end() ? std::optional{ static_cast<std::size_t>(found - aGraph.Chain.begin()) } : std::nullopt;
 		}
+
+		/// \brief A commit's own change to one path, as a file change.
+		[[nodiscard]] auto change_of(const commit_filter_touched_path& aTouched) noexcept -> github_file_change
+		{
+			switch (aTouched.Change) {
+			case 'A': return github_file_change::added;
+			case 'D': return github_file_change::removed;
+			case 'R': return aTouched.PreviousPath ? github_file_change::renamed : github_file_change::added;
+			case 'C': return aTouched.PreviousPath ? github_file_change::copied : github_file_change::added;
+			case 'T': return github_file_change::type_changed;
+			default:  return github_file_change::modified;
+			}
+		}
+
+		[[nodiscard]] auto workbench_change(const github_file_change aChange) noexcept -> workbench_file_change_kind
+		{
+			switch (aChange) {
+			case github_file_change::added:         return workbench_file_change_kind::added;
+			case github_file_change::modified:      return workbench_file_change_kind::modified;
+			case github_file_change::removed:       return workbench_file_change_kind::removed;
+			case github_file_change::renamed:       return workbench_file_change_kind::renamed;
+			case github_file_change::copied:        return workbench_file_change_kind::copied;
+			case github_file_change::type_changed:  return workbench_file_change_kind::type_changed;
+			case github_file_change::unchanged:     return workbench_file_change_kind::unchanged;
+			case github_file_change::uninitialized: return workbench_file_change_kind::uninitialized;
+			}
+			return workbench_file_change_kind::uninitialized;
+		}
+
+		[[nodiscard]] auto repository_path(const std::string& aPath) -> std::filesystem::path
+		{
+			return std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(aPath.data()), aPath.size() } };
+		}
 	} // namespace
+
+	auto workbench_segments(const std::vector<commit_filter_segment>& aSegments) -> std::vector<workbench_split_segment>
+	{
+		auto result = std::vector<workbench_split_segment>{ };
+		result.reserve(aSegments.size());
+		for (const auto& segment : aSegments) {
+			auto entry      = workbench_split_segment{ };
+			entry.Endpoints = segment.Endpoints;
+			entry.Change    = workbench_change(segment.Change);
+			if (segment.PreviousPath) {
+				entry.PreviousPath = repository_path(*segment.PreviousPath);
+			}
+			result.push_back(std::move(entry));
+		}
+		return result;
+	}
 
 	void commit_filter_model::adopt(const github_pull_request_snapshot& aSnapshot)
 	{
@@ -81,6 +131,7 @@ namespace bpr::application {
 				}
 			}
 			commit.Headline = record.Headline;
+			commit.Author   = record.Author ? record.Author->Login : std::string{ };
 			list.Commits.push_back(std::move(commit));
 			authors.push_back(record.Author ? record.Author->Login : std::string{ });
 		}
@@ -191,6 +242,102 @@ namespace bpr::application {
 			}
 		}
 		Touches = aObservation.Touches;
+		// RFC-BPR-0089 M3. What the hidden commits change, while it is known.
+		record_hidden_changes();
+	}
+
+	auto commit_filter_model::chain_changes() const -> std::vector<core::filter_commit_changes>
+	{
+		auto result = std::vector<core::filter_commit_changes>{ };
+		if (!Graph || Trees != commit_filter_trees::ready || Touches.size() != Graph->Chain.size()) {
+			return result;
+		}
+		result.reserve(Touches.size());
+		for (const auto& touch : Touches) {
+			auto changes   = core::filter_commit_changes{ };
+			changes.Commit = touch.Commit;
+			changes.Changes.reserve(touch.Paths.size());
+			for (const auto& path : touch.Paths) {
+				auto change         = core::filter_path_change{ };
+				change.Path         = path.Path;
+				change.PreviousPath = path.PreviousPath;
+				change.Left         = path.LeftBlob;
+				change.Right        = path.RightBlob;
+				changes.Changes.push_back(std::move(change));
+			}
+			result.push_back(std::move(changes));
+		}
+		return result;
+	}
+
+	void commit_filter_model::record_hidden_changes()
+	{
+		if (Graph && !State.Hidden.empty()) {
+			State = core::record_hidden_changes(State, *Graph, chain_changes());
+		}
+	}
+
+	auto commit_filter_model::rematch(const commit_filter_rematch_gesture& aGesture) -> core::commit_filter_refusal
+	{
+		Refusal.reset();
+		const auto refuse = [this](const core::commit_filter_refusal aRefusal) {
+			Refusal = aRefusal;
+			return aRefusal;
+		};
+		const auto gone      = parse_commit(aGesture.Gone);
+		const auto candidate = parse_commit(aGesture.Candidate);
+		if (!Graph) {
+			return refuse(core::commit_filter_refusal::unavailable);
+		}
+		if (!gone || !candidate) {
+			return refuse(core::commit_filter_refusal::unknown_commit);
+		}
+		const auto changes = chain_changes();
+		const auto offers  = core::rematch_offers(State, *Graph, changes);
+		const auto offer   = std::ranges::find_if(offers, [&](const core::filter_rematch_offer& aOffer) { return aOffer.Gone == *gone && aOffer.Candidate == *candidate; });
+		if (offer == offers.end()) {
+			return refuse(core::commit_filter_refusal::not_offered);
+		}
+		auto next = core::apply_rematch(State, *Graph, changes, *offer);
+		if (!next) {
+			return refuse(next.error());
+		}
+		State = std::move(*next);
+		return core::commit_filter_refusal::none;
+	}
+
+	auto commit_filter_model::split_parts(const std::string_view aPath) const -> std::optional<split_diff_projection>
+	{
+		const auto filtered = files();
+		if (!filtered || !Graph) {
+			return std::nullopt;
+		}
+		const auto named = [&](const std::vector<commit_filter_file>& aFiles) -> const commit_filter_file* {
+			const auto found = std::ranges::find_if(aFiles, [&](const commit_filter_file& aFile) { return aFile.Record.Path == aPath; });
+			return found != aFiles.end() ? &*found : nullptr;
+		};
+		const auto* file = named(filtered->Files);
+		file             = file != nullptr ? file : named(filtered->SetAside);
+		if (file == nullptr || !file->Split || file->Segments.empty()) {
+			return std::nullopt;
+		}
+		const auto headline = [this](const core::git_commit_oid& aOid) {
+			const auto* entry = core::find_filter_commit(*Graph, aOid);
+			return entry != nullptr && entry->Listed < Graph->Headlines.size() ? Graph->Headlines[entry->Listed] : std::string{ };
+		};
+		auto result = split_diff_projection{ };
+		result.Path = file->Record.Path;
+		for (const auto& segment : file->Segments) {
+			auto part        = split_diff_part{ };
+			part.Commit      = hex(segment.Endpoints.Right);
+			part.ShortCommit = short_hex(segment.Endpoints.Right);
+			part.Headline    = headline(segment.Endpoints.Right);
+			for (const auto& hidden : segment.HiddenAfter) {
+				part.HiddenAfter.push_back({ .ShortCommit = short_hex(hidden), .Headline = headline(hidden) });
+			}
+			result.Parts.push_back(std::move(part));
+		}
+		return result;
 	}
 
 	auto commit_filter_model::span() const -> std::optional<std::expected<core::filter_commit_span, core::commit_filter_suspension>>
@@ -234,6 +381,7 @@ namespace bpr::application {
 			return refuse(next.error());
 		}
 		State = std::move(*next);
+		record_hidden_changes();
 		return core::commit_filter_refusal::none;
 	}
 
@@ -309,6 +457,18 @@ namespace bpr::application {
 					file.Split = true;
 					for (const auto& segment : path.Segments) {
 						file.SplitHidden.insert(file.SplitHidden.end(), segment.HiddenAfter.begin(), segment.HiddenAfter.end());
+						// M3. Each per-commit diff is that commit's own change to the path.
+						const auto  position = chain_position(graph, segment.Right);
+						const auto* own      = position && *position < Touches.size() ? touched(Touches[*position], path.Path) : nullptr;
+						if (own == nullptr) {
+							return std::nullopt;
+						}
+						auto part         = commit_filter_segment{ };
+						part.Endpoints    = core::filtered_diff_endpoints{ .Left = segment.Left, .Right = segment.Right };
+						part.Change       = change_of(*own);
+						part.PreviousPath = part.Change == github_file_change::renamed || part.Change == github_file_change::copied ? own->PreviousPath : std::nullopt;
+						part.HiddenAfter  = segment.HiddenAfter;
+						file.Segments.push_back(std::move(part));
 					}
 					++result.SplitFiles;
 				} else {
@@ -436,7 +596,7 @@ namespace bpr::application {
 			result = commit_filter_files{ };
 			result->Files.reserve(SnapshotFiles.size());
 			for (const auto& record : SnapshotFiles) {
-				result->Files.push_back({ .Record = record, .Filter = std::nullopt, .Split = false, .SplitHidden = { }, .Generated = { } });
+				result->Files.push_back({ .Record = record, .Filter = std::nullopt, .Split = false, .SplitHidden = { }, .Segments = { }, .Generated = { } });
 			}
 		}
 		result->CommitFiltered = commitFiltered;
@@ -691,6 +851,22 @@ namespace bpr::application {
 		result.Refusal     = Refusal;
 		for (const auto& gone : summary.Gone) {
 			result.Gone.push_back({ .ShortCommit = short_hex(gone.Oid), .Headline = gone.Headline });
+		}
+		// RFC-BPR-0089 M3. What each gone commit may be matched to, offered only.
+		if (Graph) {
+			for (const auto& offer : core::rematch_offers(State, *Graph, chain_changes())) {
+				const auto  gone      = std::ranges::find(State.Hidden, offer.Gone, &core::filter_hidden_commit::Oid);
+				const auto* listed    = core::find_filter_commit(*Graph, offer.Candidate);
+				auto        row       = commit_filter_rematch_row{ };
+				row.Gone              = hex(offer.Gone);
+				row.Candidate         = hex(offer.Candidate);
+				row.GoneShort         = short_hex(offer.Gone);
+				row.GoneHeadline      = gone != State.Hidden.end() ? gone->Headline : std::string{ };
+				row.CandidateShort    = short_hex(offer.Candidate);
+				row.CandidateHeadline = listed != nullptr && listed->Listed < Graph->Headlines.size() ? Graph->Headlines[listed->Listed] : std::string{ };
+				row.Basis             = offer.Basis;
+				result.Rematches.push_back(std::move(row));
+			}
 		}
 		result.ComparisonFiles    = SnapshotFiles.size();
 		result.FileFilterPaths    = FileFilter.Hidden.size();

@@ -202,6 +202,7 @@ namespace bpr::application {
 				if (const auto filtered = Filter(aRequest.Authority, identity)) {
 					file->Filter        = filtered->Endpoints;
 					file->SplitByFilter = filtered->Split;
+					file->Segments      = filtered->Segments;
 					if (!valid(*file)) {
 						return answer(aRequest, workbench_observation_status::unavailable);
 					}
