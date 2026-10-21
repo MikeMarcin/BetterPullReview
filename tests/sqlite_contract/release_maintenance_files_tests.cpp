@@ -71,7 +71,7 @@ namespace {
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
 	}
-	/// \brief [[BPR-PENDING-AG]]. The text of a saved export: its archive's
+	/// \brief [[BPR-1725]]. The text of a saved export: its archive's
 	/// one entry, which must have `aEntry`'s name; empty otherwise.
 	auto unzipped(const fs::path& aPath, std::string_view aEntry) -> std::string
 	{
@@ -227,7 +227,7 @@ namespace {
 		expect(output.has_value(), "local output admitted");
 		host.dispatch({ files.authority(), command::export_diagnostics, host.state().Prepared }, *output);
 		drain();
-		// [[BPR-PENDING-AG]]. The saved file is a ZIP archive whose one
+		// [[BPR-1725]]. The saved file is a ZIP archive whose one
 		// deflated entry, named for the file with .txt, is the preview.
 		expect(host.state().Phase == core::release_maintenance_phase::completed && unzipped(destination.Path / "diagnostics.zip", "diagnostics.txt") == expected, "public host exports exactly preview bytes as the archive's one entry");
 		const auto saved = read(destination.Path / "diagnostics.zip");

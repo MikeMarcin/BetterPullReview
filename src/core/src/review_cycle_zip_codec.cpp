@@ -62,7 +62,7 @@ namespace bpr::core::zip_codec {
 
 	auto deflate_raw(const std::string_view aBytes) -> std::optional<std::string>
 	{
-		// [[BPR-PENDING-AG]]. zlib raw deflate at level 6 with its default
+		// [[BPR-1725]]. zlib raw deflate at level 6 with its default
 		// window and memory, so a pinned zlib always gives the same stream.
 		auto stream = z_stream{ };
 		if (deflateInit2(&stream, 6, Z_DEFLATED, -MAX_WBITS, 8, Z_DEFAULT_STRATEGY) != Z_OK) {

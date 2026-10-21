@@ -75,7 +75,7 @@ namespace {
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
 	}
-	/// \brief [[BPR-PENDING-AG]]. The text of a saved export: its archive's
+	/// \brief [[BPR-1725]]. The text of a saved export: its archive's
 	/// one entry, named for the file with `.txt`; empty otherwise.
 	auto unzipped(const QString& aArchive) -> std::string
 	{
@@ -84,7 +84,7 @@ namespace {
 		const auto entry   = QFileInfo{ aArchive }.completeBaseName() + QStringLiteral(".txt");
 		return members && members->size() == 1U && members->front().Name == entry.toStdString() ? members->front().Bytes : std::string{ };
 	}
-	/// \brief [[BPR-PENDING-AG]]. The platform's own archive tools accept the
+	/// \brief [[BPR-1725]]. The platform's own archive tools accept the
 	/// saved file: Info-ZIP's `unzip` tests every CRC and extracts the entry,
 	/// and on macOS `ditto -x -k`, Archive Utility's extractor, does too.
 	void native_archive_check(const QString& aArchive, const std::string& aText, const QString& aScratch)
@@ -450,7 +450,7 @@ try {
 	choose(*panel, destination);
 	auto* status = panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"));
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "native export terminal returns to actual Settings");
-	// [[BPR-PENDING-AG]]. The saved file is a ZIP archive whose one entry,
+	// [[BPR-1725]]. The saved file is a ZIP archive whose one entry,
 	// diagnostic-é.txt, is the frozen preview; the preview still shows text.
 	const auto exported = unzipped(destination);
 	if (exported != bytes) {

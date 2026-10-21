@@ -496,7 +496,7 @@ namespace {
 		return entry;
 	}
 
-	/// [[BPR-PENDING-AG]]. A saved export is a standard single-entry ZIP: the
+	/// [[BPR-1725]]. A saved export is a standard single-entry ZIP: the
 	/// text deflated under the `.txt` name, with its CRC-32, sizes, UTF-8 name
 	/// and local time, which zlib's inflate reads back byte for byte.
 	void test_export_archive()
@@ -535,7 +535,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AG]]. The entry is named for the file, with `.txt`.
+	/// [[BPR-1725]]. The entry is named for the file, with `.txt`.
 	void test_export_entry_name()
 	{
 		expect(diagnostic_export_entry_name("BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.zip") == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt", "a final .zip becomes .txt");

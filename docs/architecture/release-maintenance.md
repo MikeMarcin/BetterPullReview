@@ -533,7 +533,7 @@ sized from the fixture courses' own diagnostics files:
   in an unoptimised build. The preview showed a 16,384-record (13 MiB)
   document in 31 ms offscreen.
 
-**Compression ([[BPR-PENDING-AG]]).** A saved export is a standard ZIP
+**Compression ([[BPR-1725]]).** A saved export is a standard ZIP
 archive holding the text. The owner approved zlib's deflate for it on
 2026-10-21, so `BprZlibProvider.cmake` now also compiles `deflate.c` and
 `trees.c` from the same pinned 1.3.2 archive. No ZIP library is adopted:
@@ -571,7 +571,7 @@ the core already had a minimal container writer for review bundles
 
 **Name and header.** The save dialog suggests
 `BetterPullReview-diagnostics-YYYY-MM-DD-HHmm-VERSION.zip` (`.txt` before
-[[BPR-PENDING-AG]]; its entry keeps the `.txt` name) from the local
+[[BPR-1725]]; its entry keeps the `.txt` name) from the local
 date and time (`core::diagnostic_export_file_name`): sortable by time, no
 colon, and the version only when it is dotted numbers, so no host, account or
 repository can reach the name. The header's first fields are `exported_at`,

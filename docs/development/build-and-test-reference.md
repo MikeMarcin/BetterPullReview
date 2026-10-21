@@ -3562,7 +3562,7 @@ stream parser, which lifts payloads out of a frame by their exact byte range.
 [[BPR-1435]] builds pinned zlib 1.3.2 for the functional core's review-bundle
 reader: `cmake/BprZlibProvider.cmake` checks archive SHA-256, size and license,
 honors the offline cache, and compiles only the raw-inflate and checksum
-sources with `Z_PREFIX` (so its symbols are `z_*`). Since [[BPR-PENDING-AG]] it
+sources with `Z_PREFIX` (so its symbols are `z_*`). Since [[BPR-1725]] it
 also compiles the raw-deflate sources `deflate.c` and `trees.c` from the same
 archive, which compress the diagnostics export's `.zip`. Like Glaze and RE2 it
 is part of the Qt-free core graph, which now needs SQLite and zlib. zlib is on

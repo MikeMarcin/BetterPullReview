@@ -563,7 +563,7 @@ whether a suitable library should be allowed instead.
   `review_cycle_zip_codec.cpp` includes it. Its raw inflate and CRC-32 read
   review bundles ([[BPR-1435]]). Its raw deflate (`deflate.c`, `trees.c`) is
   approved by the owner on 2026-10-21 for one use: compressing the diagnostics
-  export into its single-entry `.zip` ([[BPR-PENDING-AG]]). No gz* file I/O,
+  export into its single-entry `.zip` ([[BPR-1725]]). No gz* file I/O,
   `compress`/`uncompress` helpers or other zlib API is adopted. The ZIP
   container is the core's own minimal writer (`write_cycle_zip`); no ZIP
   library is adopted, and LibArchive stays a macOS update-staging reader.

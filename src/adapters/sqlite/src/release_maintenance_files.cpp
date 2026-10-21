@@ -56,7 +56,7 @@ namespace bpr::adapters::sqlite {
 				fail(reason::cancelled);
 			}
 		}
-		/// \brief [[BPR-PENDING-AG]]. A saved export's bytes: the frozen text
+		/// \brief [[BPR-1725]]. A saved export's bytes: the frozen text
 		/// as the one deflated entry of a ZIP archive named for the file,
 		/// dated now by the local clock.
 		auto archive(std::string_view aFileName, std::string_view aText) -> std::string

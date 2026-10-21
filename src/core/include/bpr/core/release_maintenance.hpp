@@ -117,10 +117,10 @@ namespace bpr::core {
 	/// when they were taken, and the name holds no colon or other character a
 	/// file system refuses. The version is added only when it is dotted
 	/// decimal numbers, so no host, account or repository can reach the name.
-	/// An impossible date or time is left out. [[BPR-PENDING-AG]]: the file is
+	/// An impossible date or time is left out. [[BPR-1725]]: the file is
 	/// a `.zip` holding the text (`diagnostic_export_archive`).
 	[[nodiscard]] auto diagnostic_export_file_name(const diagnostic_export_local_time& aTime, std::string_view aVersion) -> std::string;
-	/// \brief [[BPR-PENDING-AG]]. The name of the text inside a saved archive:
+	/// \brief [[BPR-1725]]. The name of the text inside a saved archive:
 	/// the file's name with a final `.zip` replaced by `.txt`, so
 	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt`.
 	/// \details Any case of `.zip` is replaced; a name that then does not end
@@ -128,7 +128,7 @@ namespace bpr::core {
 	/// NUL or a control character, is not UTF-8 or is over 255 bytes gives
 	/// `BetterPullReview-diagnostics.txt`.
 	[[nodiscard]] auto diagnostic_export_entry_name(std::string_view aFileName) -> std::string;
-	/// \brief [[BPR-PENDING-AG]]. The bytes of a saved export: a standard ZIP
+	/// \brief [[BPR-1725]]. The bytes of a saved export: a standard ZIP
 	/// archive with one regular-file entry, `aText` deflated under
 	/// `diagnostic_export_entry_name(aFileName)`, with its CRC-32, sizes, a
 	/// UTF-8 name, `aTime` as its modification time and owner-only (0600)

@@ -11,7 +11,7 @@ so its symbols are `z_*` and never collide with a system zlib. No gz* file
 I/O, compress/uncompress helper or upstream build runs. It is one of the
 owner-approved pure core libraries (2026-10-13) and serves the functional
 core's review-bundle reader ([[BPR-1435]]). The owner approved its deflate on
-2026-10-21 for the diagnostics export's `.zip` ([[BPR-PENDING-AG]]); every
+2026-10-21 for the diagnostics export's `.zip` ([[BPR-1725]]); every
 added source is upstream's, unmodified, under the same zlib license, which is
 retained alongside this record.
 

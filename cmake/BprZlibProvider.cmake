@@ -3,7 +3,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 # [[BPR-1435]]. zlib for the functional core's review-bundle reader, one of the
 # owner-approved core libraries (2026-10-13). Only the raw-inflate, checksum
-# and, since [[BPR-PENDING-AG]], raw-deflate sources are compiled: no gz* file
+# and, since [[BPR-1725]], raw-deflate sources are compiled: no gz* file
 # I/O, no compress/uncompress helpers, no upstream build. The owner admitted
 # deflate on 2026-10-21 for the diagnostics export's `.zip`.
 # Z_PREFIX renames every symbol to z_*, so this copy can never be confused with

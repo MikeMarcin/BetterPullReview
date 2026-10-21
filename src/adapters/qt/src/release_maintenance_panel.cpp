@@ -473,7 +473,7 @@ namespace bpr::qt {
 		chooser->setFileMode(QFileDialog::AnyFile);
 		chooser->setSupportedSchemes({ QStringLiteral("file") });
 		chooser->setOption(QFileDialog::DontConfirmOverwrite);
-		// [[BPR-PENDING-AG]]. A ZIP archive holding the text, which the
+		// [[BPR-1725]]. A ZIP archive holding the text, which the
 		// preview shows; the archive's one entry keeps the `.txt` name.
 		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.zip)"));
 		chooser->setDefaultSuffix(QStringLiteral("zip"));

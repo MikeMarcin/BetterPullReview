@@ -223,7 +223,7 @@ namespace bpr::core {
 			const auto at   = static_cast<std::uint32_t>(archive.size());
 			const auto size = static_cast<std::uint32_t>(member.Bytes.size());
 			const auto name = static_cast<std::uint32_t>(member.Name.size());
-			// [[BPR-PENDING-AG]]. A member deflate does not shrink stays stored.
+			// [[BPR-1725]]. A member deflate does not shrink stays stored.
 			auto packed = aOptions.Deflate ? zip_codec::deflate_raw(member.Bytes) : std::nullopt;
 			if (packed && packed->size() >= member.Bytes.size()) {
 				packed.reset();

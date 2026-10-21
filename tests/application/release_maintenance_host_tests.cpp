@@ -361,7 +361,7 @@ namespace {
 		expect(!document->Bytes.contains(session), "and anonymized");
 	}
 
-	/// [[BPR-PENDING-AG]]. A typical export saved as its archive: about 316
+	/// [[BPR-1725]]. A typical export saved as its archive: about 316
 	/// records of a working session, as in the owner's two 256 KiB exports
 	/// (801 bytes a record), with pull request pages, Home refreshes, review
 	/// endings and capability failures, and times and durations that vary.

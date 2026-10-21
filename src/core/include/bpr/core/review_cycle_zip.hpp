@@ -15,7 +15,7 @@
 /// touched, and nothing is extracted anywhere.
 /// \details The writer emits stored (uncompressed) members with fixed
 /// timestamps and UTF-8 names, so the same members always give the same
-/// bytes. [[BPR-PENDING-AG]]: it can instead deflate each member with the
+/// bytes. [[BPR-1725]]: it can instead deflate each member with the
 /// pinned zlib and stamp a given time, still the same bytes for the same
 /// members and options. The reader accepts stored and deflated members from any producer,
 /// and refuses before inflating anything: multi-disk and ZIP64 archives,
@@ -65,7 +65,7 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto stable_name(cycle_zip_problem aValue) noexcept -> std::string_view;
 
-	/// \brief [[BPR-PENDING-AG]]. How `write_cycle_zip` writes its members.
+	/// \brief [[BPR-1725]]. How `write_cycle_zip` writes its members.
 	struct cycle_zip_write_options
 	{
 		/// Deflate each member, keeping one stored when deflate would not
