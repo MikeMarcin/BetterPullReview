@@ -18,12 +18,15 @@ is budget resolution, not evidence of reduced memory use or a repaired leak.
    Qt 6.12.0, GCC 15.2, Ubuntu 26.04 x86_64, Release, style windows, scale 1.
 3. If close, change only Linux cache-byte RSS/VmHWM growth to 240 MiB while
    retaining the independent 216 MiB live-heap ceiling. Implemented; focused
-   clang-format 22.1.8 and all 67 documentation controls pass; complete native
-   confirmation and final documentation gate pending.
+   clang-format 22.1.8, documentation structure and all 67 documentation
+   controls pass.
 4. Rebuild the affected benchmark target, execute the complete registered course
-   once, retain every result, self-review and commit explicit paths. Pending.
+   once, retain every result, self-review and commit explicit paths. Complete
+   at `d6ac721037e242ef7ef4b934a003a26b9c60534a`; final tracker upkeep changes
+   only this checkpoint and the card's status/evidence.
 5. Return exact source/binary/cache/raw/JUnit identities and a process-drain
-   receipt to M3. Integration/release/package claims stay coordinator-owned.
+   receipt to M3. Complete: M3 explicitly accepts the returned PC/WSL lease;
+   integration/release/package claims stay coordinator-owned.
 
 ## Original current-source observation
 
@@ -68,8 +71,8 @@ ownership/cancellation, selection/epoch outcomes, eviction/revisit/supersession,
 close/shutdown/destruction, cleanup/input checks, registration and deadline
 remain unchanged. No production/core/application/Qt source is changed.
 
-The PC lease remains with this implementer through the bounded confirmation.
-M3 has no competing jobs; both independent preflight process audits were empty.
+The PC lease is returned to M3 after evidence collection/drain. Both independent
+preflight and final process audits are empty; no active command receipt remains.
 Published tags/assets/producer roots and unrelated PID 37820 are untouched.
 The two unrelated dirty MASK files retain their original hashes. No main
 integration, publication, version change or broad qualification is claimed.
@@ -82,3 +85,72 @@ also refuses the historical release-v030 plan because two unrelated old
 milestones lack its now-required boundary field. That refusal is retained;
 the historical plan is not rewritten to fit this narrow budget slice. The
 explicit bounded plan and owner amendment above govern this continuation.
+
+## Complete adjusted-course result
+
+The benchmark-only rebuild at exact candidate
+`d6ac721037e242ef7ef4b934a003a26b9c60534a` passes in 37.5041 seconds. Its log
+shows only the benchmark dependency scan, benchmark translation unit and link.
+Candidate benchmark source SHA-256:
+`caf5c78a6534aa26f25ea9bae7a2a91f35bc12f4d461d1f4608f95331dde0595`.
+Candidate binary SHA-256:
+`20693051715f6a5e57f9193dc4027bc52f2e3899a401965c6df229242f4968e0`.
+The CMake cache remains the exact original `a2c44545` hash recorded above.
+
+One complete uninstrumented adjusted course passes in 51.3084 seconds, CTest
+exit 0 with `LARGE_REVIEW_CACHE_BYTES_OK`, AllocationProfile false and
+BudgetsEnforced true. Its 26 original resource samples include every later
+cleanup/destruction phase. No retry, timing attribution qualification, metric
+relabeling or diagnostic latching supplies the pass.
+
+| Metric | Original 216 MiB course | Complete 240 MiB course |
+|---|---:|---:|
+| before_application absolute VmRSS | 29585408 | 30027776 |
+| maximum sampled absolute VmRSS | 256098304 | 265170944 |
+| maximum sampled VmRSS growth | 226512896 | 235143168 |
+| maximum absolute process-lifetime VmHWM | 256098304 | 269336576 |
+| maximum VmHWM growth above initial VmRSS | 226512896 | 239308800 |
+| outcome | FAIL at selection 18; later phases unreached | PASS through destruction |
+
+The complete sampled growth is 224.25 MiB; lifetime growth is 228.22265625 MiB,
+11.77734375 MiB below the new bound. This later observed high-water replaces
+neither the original failure nor the original baseline. The implementation
+changes the existing Linux `#else` platform scalar; Ubuntu/WSL is the measured
+station. Other Linux distributions/native environments remain unqualified.
+
+The independent 1 ms live-heap sampler reports peak 166620864 minus baseline
+269808, growth 166351056, against unchanged 226492416. Its sample intervals
+remain lower-bound observations, not proof against unsampled peaks. Maximum
+observed cache bytes are 66888888, below unchanged 67108864. The course completes
+all 20 selections and 32 retained epochs, exact source/rendering, byte/index
+eviction, revisit, held supersession, live loaded close with epoch storage,
+shutdown and destruction. Its final resource row has zero cache bytes/entries
+and diff/epoch jobs; final live-heap growth is 2388032 bytes. Unrequested
+maintenance/resource-course fields are not claimed as passing this course.
+
+Adjusted raw archive SHA-256:
+`61fd69af1d46125643ec2c67cfbb1d1673cdc585e4ad2d68d684a67b65d53eb0`.
+Native evidence: `/home/mmarcin/bpr1653-budget-evidence/adjusted-240-r1`.
+Local evidence: `/tmp/bpr-qt612-run/ubuntu-rss/adjusted-240-r1`.
+Both original and adjusted binaries, source/configuration snapshots and raw
+receipts are preserved separately. All earlier failed controls and abandoned
+candidate references remain preserved. Final bookkeeping changes do not alter
+the tested benchmark or any production execution input.
+
+Complete native evidence archive (45992134 bytes, including both ELF binaries,
+source/cache/preset snapshots, build log, commands, raw courses, JUnit, metrics
+and drain receipt) SHA-256:
+`18cdf89582f10ec12855bbf277c841d978a37a22f94b5b07d21e95f254d9c929`.
+Its persistent copy is under the canonical ignored session root
+`.mask/sessions/bpr1653-postpublication-v031/rss-budget-20261020/`; local raw
+archives and durable continuation remain under `/tmp/bpr-qt612-run/ubuntu-rss/`.
+The native original ref is `bpr1653-budget-original-f25`; preserved native
+evidence is `/home/mmarcin/bpr1653-budget-evidence`. M3 explicitly accepts
+ownership of that clean source/build root and preservation obligation.
+
+All task-owned native/local commands, collectors and copies have completed;
+no scheduled task, review server or process was created for later handoff.
+No process was stopped. Fresh Windows/WSL audits show no build/test/app process
+before the lease returns. M3 may resume native work; this leaf will issue no
+further native command. Only coordinator integration and any broader release
+qualification remain outside this completed budget slice.
