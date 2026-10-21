@@ -76,10 +76,56 @@ configurations in both single- and multi-configuration CMake generators. The
 actual manifest inspection initially exposed a multiset-construction error, which
 was corrected and covered by the complete 44-row control before costly cases ran.
 
-Pending: exact-binary four-command serial/four-slot contrast; the remaining 42 audited
-correctness rows; the retained exclusive drawer course; native selector/failure/scale
-controls; image/output and binary identity inspection; final integration and board
-acceptance. No timing improvement or milestone completion is claimed at this checkpoint.
+The exact-binary matched pilot executes the three complete default workbench scale
+courses and diff-workbench at scale 2.0. All four commands pass in both schedules,
+with 345 expected workbench entries entering and returning in each execution.
+
+| Schedule | Wall seconds | Summed test seconds | Actual maximum concurrent commands |
+|---|---:|---:|---:|
+| Serial | 710.031 | 709.915 | 1 |
+| Four slots | 220.079 | 729.679 | 4 |
+
+The matched wall reduction is 489.951 seconds (69.0%); summed work rises 2.78%.
+This measures scheduling on unchanged binaries, with setup/teardown inside CTest.
+It is neither a source-change comparison nor a full-suite/release estimate.
+
+The remaining 42 admitted correctness rows pass in 284.139 seconds wall /
+1134.065 summed seconds, with maximum concurrency four and all 101 expected
+workbench entries complete. The retained exclusive conversation-reveal course
+passes alone in 20.884 seconds wall / 20.774 summed seconds, with all 16 entries
+complete and its original 100 ms assertion active. Native unknown-selector,
+multiple-selector, duplicate-list and wrong-scale controls each exit 1 without a
+passing marker; the wrong-scale course reports its actual failed assertion.
+All five binary hashes and clean source identity remain unchanged. Poisoned optional
+inherited output roots contain only their original sentinel.
+
+The process-start observer began at 02:09:09 UTC, after the serial admission at
+02:05:59 UTC. Its initial snapshot records the serial CTest and two pre-existing WSL
+shells; all subsequent observed build/test starts belong to the named courses.
+The prior quiet-host refusal is retained. This is scoped process-start evidence,
+not a claim of continuous whole-host idleness before observation. Observer cleanup
+reported a null background-job ID after unsubscribing; the observer process exited,
+and its raw observation log survives. Its exit is not a qualification result.
+
+The pilot image sets have 661 equal names and dimensions; 660 byte hashes match.
+The exact scale-2 default row was repeated serially in 214.934 seconds, passed all
+115 entries on the same binary, and recovered the original serial PNG hash. The
+remaining image is `workbench-window-200-navigation-labels-selected-902.png`,
+1804 × 1640 pixels. Its entire delta is 258 pixels in the half-open box
+`(1128, 1326)–(1138, 1354)`, at the right edge of the lower horizontal scrollbar
+thumb. Navigation text, diff content and every other pixel are identical.
+Existing Qt scrollbar/layout timing variation is an inference; its precise cause
+is unproved. This is not evidence of a shared-output overwrite: each of the four
+pilot commands has a distinct explicit render basename, the source audit finds
+no second reachable writer to this path, and the poisoned inherited roots stay
+empty. Both artifacts retain complete content and the unchanged geometry, raster
+spacing and scale assertions. Raw pixels, crops, hashes and the exact-row repeat
+are retained without claiming universal pixel identity.
+
+The engineering candidate was safely merged into main `e9023554e` and chat primary
+`7591db7ff`. Both original dirty MASK declaration hashes are unchanged, and the
+unrelated main `scripts/capture_promo_assets.py` remains untracked and untouched.
+Final evidence/board upkeep is integrated separately.
 
 ## Durable evidence and ownership
 
@@ -88,8 +134,21 @@ Private raw evidence is retained under the task’s ignored
 `C:/Users/mikem/bpr1670-suite/evidence/m1*` roots. Preparation failures and the
 quiet-host refusal remain separate raw results. The first source/build handoff starts
 at 2026-10-21 01:43:02 UTC; the matched serial course starts at 02:05:59 UTC after the
-quiet-host admission. Preparation, repair and waiting remain in the implementation
-ledger; future release measurements still begin at their actual request.
+quiet-host admission. That native preparation/repair/wait interval is 22 min 56 s;
+it is not excluded from the implementation ledger or represented as a release run.
+The four retained preparation failures were a mistyped external allocation-control
+path, a CMake resource-name dot rejection, Windows UTF-8/path handling in the new
+registry control, and the case-list multiset bug. Each failed phase and later repair
+has its own child exit/source/elapsed record. Successful unchanged preflight inputs
+are explicitly marked reused across preparation attempts. The observer cleanup
+failure and bounded image repeat are retained as well. Future release measurements
+still begin at their actual request.
+
+At 02:31:39 UTC the final native command audit found no task-owned processes and
+confirmed the observer had exited. All eight exact task actions were inspected
+inactive and then unregistered. The retained archive contains 121 entries (758787
+bytes), passes ZIP integrity, and has SHA-256
+`36e7f3dcbe9e8b45a5c0060df5c8df3d3446b12ebc14a7c0074bc815a83a6fe2`.
 
 The old native recovery source has the preserved `bpr1670-preserved-recovery` ref.
 Published v0.3.1 and its frozen producers are untouched. Main and chat-primary MASK
@@ -97,3 +156,27 @@ working-file hashes/index state were captured before integration and must surviv
 Only exact task-owned commands/tasks may be stopped or removed. The coordinator
 receives the final lease, candidate, evidence and pending frontier in
 `/tmp/bpr-release-portfolio/m1-handoff.md`.
+
+
+## Evidence identities and continuation
+
+The complete matched/focused result SHA-256 is
+`3838234f8e435e6a9f219ae309906792631fa19416744d031d3a7e5d447ca4db`;
+the five-binary identity receipt SHA-256 is
+`17a60f33995cbbe1efc845a95bfb1d6a35717f405b7a9edc925ffda8dd53b1c3`.
+The native workbench image is
+`fbdb5e7d83131fa0110f911dff511c70e3d280e4fb34345a4fc9ec2731d1d93a`.
+
+M2 reuses `C:/Users/mikem/bpr1670-suite/repo` at clean source `a06e5bf3e` and
+its warm `build/windows-dev` multi-configuration tree. Only the five affected Debug
+targets have current-candidate build evidence; prior other binaries and tests-off
+composition caches retain their earlier source scope. Qt is 6.12.0, MSVC comes
+from Visual Studio 18 Community, CMake/Python from their existing Program Files
+installations, and the owned build cap is eight. Fixture paths still refer to this
+native source root. Preserve the source/build tree, old recovery ref and raw evidence.
+
+BPR-1674 is the next fresh milestone. Its bounded tests-on Release discriminator
+and explicit Debug residual precede any route adoption; complete input closure and
+the eight-method composition matrix precede conditional verdict/build reuse. M1
+does not reduce the historical shared-PC work floor or prove a thirty-minute full
+release. macOS/Linux activation and stabilized producer timing remain deferred.
