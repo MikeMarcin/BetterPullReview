@@ -2021,7 +2021,7 @@ namespace bpr::qt {
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
 		/// [[BPR-1578]]. Whether a click on the Seen or Read step does
-		/// something. [[BPR-PENDING-P]]: a reached step unchecks, through the
+		/// something. [[BPR-1701]]: a reached step unchecks, through the
 		/// inverse command the projection put in its slot.
 		[[nodiscard]] auto progress_step_offered(std::size_t aIndex) const -> bool;
 		void               take_progress_step(std::size_t aIndex);

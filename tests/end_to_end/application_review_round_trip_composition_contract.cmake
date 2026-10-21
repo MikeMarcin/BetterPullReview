@@ -1,4 +1,6 @@
-# [[BPR-PENDING-P]] reseal (2026-10-21) over last matching main 0b10fa71a,
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1701 note below
+# is renaming its [[BPR-PENDING-P]] comment tag to [[BPR-1701]]; no code change.
+# [[BPR-1701]] reseal (2026-10-21) over last matching main 0b10fa71a,
 # linear. Pinned-scope change: Seen and Read uncheck from the review bar, on
 # this card's own commit. Inside the manifest only github_application.cpp
 # changed, in one condition of the --review-ledger-composition-probe
@@ -1834,7 +1836,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"894053c121e81ff00dd71e26fd31f33f1cee52416b98d1f84da3e279d7c4a2e8"
+		"8886847de7cadb5cb49a5c59b65b886017dabddb7b824cfa8c05bf2096a1f8d7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2054,7 +2056,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0e773b9c7ea8fca4dad5e805da38d2f875500bd32c073738d088555090f0ef8b"
+        "49c6bd77840571e7169c55512fcd5be81facf02bdc984fd07b2e94c0d2f7c925"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

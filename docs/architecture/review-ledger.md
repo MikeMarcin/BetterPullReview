@@ -402,7 +402,7 @@ has none.
 The read progression is `unread → seen → read`. A weaker claim is absorbed
 rather than treated as a regression — marking a read file seen leaves it read —
 but it stays legal and reports no change. Only an explicit command moves it
-back ([[BPR-PENDING-P]]): `mark_unread` (Mark unseen, Seen's inverse) returns it
+back ([[BPR-1701]]): `mark_unread` (Mark unseen, Seen's inverse) returns it
 to `unread`, and `unmark_read` (Mark unread, Read's inverse) takes a read file
 back to `seen` and leaves any other file as it is. Read implies Seen, so taking
 Seen off clears Read too. Neither changes acceptance or exclusion, just as

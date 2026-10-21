@@ -11,7 +11,7 @@
 // and the summary counts the accepted files as done. Revoking one acceptance
 // returns that row to its read state and the count with it.
 //
-// [[BPR-PENDING-P]]. The review bar's checked Read and Seen steps uncheck as
+// [[BPR-1701]]. The review bar's checked Read and Seen steps uncheck as
 // its Accepted step does: Read off leaves a file seen and Overview counts it
 // not read; Seen off an accepted file leaves it accepted and done.
 #include "../../src/app/src/github_application_fixture_access.hpp"
@@ -208,7 +208,7 @@ try {
 	expect(!read->isChecked(), "the first file is not read");
 	read->trigger();
 	wait_for([&] { return read->isChecked() && access::review_ledger_settled(*application); }, "the reader explicitly marks the file Read");
-	// [[BPR-PENDING-P]]. The track's checked Read and Seen steps uncheck, as
+	// [[BPR-1701]]. The track's checked Read and Seen steps uncheck, as
 	// its Accepted step does: Read off leaves the file seen, Seen off leaves
 	// it unread.
 	auto* const readStep = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep"));
@@ -306,7 +306,7 @@ try {
 		   "the revoked file shows its read state again");
 	expect(filesRead() == doneOf(2U) && page->files_heading()->text().endsWith(notRead(2U)), "the summary counts one fewer done");
 
-	// [[BPR-PENDING-P]]. The track's Read step checks the revoked second file
+	// [[BPR-1701]]. The track's Read step checks the revoked second file
 	// read, and unchecking it leaves the file seen; Overview counts each.
 	// Enter on a file's Overview row opens it in Review.
 	const auto openFile = [&](const QString& aPath) {

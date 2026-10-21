@@ -326,7 +326,7 @@ try {
 							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::read && quiet(); },
 					 "Read exposes the existing Mark unread command");
 			expect(window->read_action()->text().contains(QStringLiteral("unread")) && window->read_action()->isEnabled(), "Mark unread is the projected command");
-			// [[BPR-PENDING-P]]. Mark unread takes Read off and leaves the file
+			// [[BPR-1701]]. Mark unread takes Read off and leaves the file
 			// seen; Mark unseen, Seen's inverse, makes it unread.
 			window->read_action()->trigger();
 			wait_for([&] { return window->review_editor()->shown_receipt()

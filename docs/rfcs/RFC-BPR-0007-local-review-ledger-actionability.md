@@ -100,7 +100,7 @@ it counts. The receipts it changes are committed in one transaction through
 `store_conversation_receipts`: all or none. It is a one-shot mark of the posts
 observed; no author identity is stored and nothing is muted.
 
-Amended 2026-10-21 by the owner's request on [[BPR-PENDING-P]], verbatim: "In
+Amended 2026-10-21 by the owner's request on [[BPR-1701]], verbatim: "In
 the toolbar I can uncheck accepted by clicking the accepted button. I should
 be able to do the same for read and seen." Seen and Read are toggles, as
 acceptance is. Read implies Seen, so taking Read off (`unmark_read`) leaves a

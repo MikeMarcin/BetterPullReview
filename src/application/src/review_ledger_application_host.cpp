@@ -61,7 +61,7 @@ namespace bpr::application {
 			};
 		};
 
-		// [[BPR-PENDING-P]]. Seen and Read carry their inverse once reached, as
+		// [[BPR-1701]]. Seen and Read carry their inverse once reached, as
 		// Accept and Exclude do: Seen's is Mark unseen, which clears Read
 		// with it; Read's is Mark unread, which leaves the file seen.
 		return file_receipt_action_projection{

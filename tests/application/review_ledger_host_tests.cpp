@@ -1459,7 +1459,7 @@ namespace {
 		receipt.Accepted   = true;
 		const auto actions = application::project_file_receipt_actions(receipt);
 
-		// [[BPR-PENDING-P]]. Seen is reached, so its slot carries the inverse
+		// [[BPR-1701]]. Seen is reached, so its slot carries the inverse
 		// gesture, as Accept's does: Mark unseen.
 		expect(actions.Receipt == receipt
 				   && actions.Actions[0].Enabled
@@ -1475,7 +1475,7 @@ namespace {
 			   "the four compact slots carry the inverse gestures and core legality");
 	}
 
-	/// [[BPR-PENDING-P]]. Seen and Read each toggle, as Accept does, and what
+	/// [[BPR-1701]]. Seen and Read each toggle, as Accept does, and what
 	/// they leave is what a later host reads back from the store: taking Read
 	/// off leaves the file seen, taking Seen off leaves it unread, and
 	/// acceptance stays through both.

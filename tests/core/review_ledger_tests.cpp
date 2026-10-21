@@ -841,7 +841,7 @@ namespace {
 		expect(!step(kind::revoke_acceptance), "and is not done once acceptance is revoked");
 	}
 
-	/// [[BPR-PENDING-P]]. The owner, 2026-10-21: "In the toolbar I can uncheck
+	/// [[BPR-1701]]. The owner, 2026-10-21: "In the toolbar I can uncheck
 	/// accepted by clicking the accepted button. I should be able to do the
 	/// same for read and seen." Read implies Seen, so taking Read off leaves
 	/// the file seen (`unmark_read`), and taking Seen off leaves it neither

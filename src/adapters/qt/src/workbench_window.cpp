@@ -1946,7 +1946,7 @@ namespace bpr::qt {
 			step->setObjectName(aName);
 			step->setText(aAccessible);
 			step->setAccessibleName(aAccessible);
-			// [[BPR-PENDING-P]]. Seen and Read are checked buttons, as Accept's
+			// [[BPR-1701]]. Seen and Read are checked buttons, as Accept's
 			// retained action is.
 			step->setCheckable(true);
 			step->setEnabled(false);
@@ -18725,7 +18725,7 @@ namespace bpr::qt {
 					return QStringLiteral("&Seen");
 				case core::file_receipt_command_kind::mark_read:
 					return QStringLiteral("&Read");
-				// [[BPR-PENDING-P]]. Seen's inverse, which takes Read off too,
+				// [[BPR-1701]]. Seen's inverse, which takes Read off too,
 				// and Read's, which leaves the file seen.
 				case core::file_receipt_command_kind::mark_unread:
 					return QStringLiteral("Mark u&nseen");
@@ -18848,7 +18848,7 @@ namespace bpr::qt {
 	auto workbench_window::progress_step_offered(const std::size_t aIndex) const -> bool
 	{
 		// [[BPR-1578]]. The command is the one the core projected for that
-		// action, never one the track makes up. [[BPR-PENDING-P]]. The owner,
+		// action, never one the track makes up. [[BPR-1701]]. The owner,
 		// 2026-10-21: "In the toolbar I can uncheck accepted by clicking the
 		// accepted button. I should be able to do the same for read and
 		// seen." A step not reached checks it (Mark seen, Mark read); a step
@@ -18901,7 +18901,7 @@ namespace bpr::qt {
 			const auto offered = progress_step_offered(aIndex);
 			const auto reached = aIndex == progress_track::seen_step ? shown.Seen : shown.Read;
 			aStep->setEnabled(offered);
-			// [[BPR-PENDING-P]]. Checked is the saved receipt's fact, so a
+			// [[BPR-1701]]. Checked is the saved receipt's fact, so a
 			// screen reader hears it too, and a click waits for persistence.
 			aStep->setChecked(reached);
 			const auto tip = !shown.Live ? unavailable : reached ? aDone

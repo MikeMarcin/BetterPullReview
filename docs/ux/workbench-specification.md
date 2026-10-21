@@ -344,7 +344,7 @@ last cell, on one accent rail parted from the Changes rail by a gap. The step
 the file has reached is solid in the accent, or in the acceptance green once
 accepted, when Accept reads **Accepted**; steps still to come are in full ink,
 and the step still to take shows the acceptance green's tick. Every step is a
-toggle, as Accept always was ([[BPR-PENDING-P]], the owner, 2026-10-21: "In
+toggle, as Accept always was ([[BPR-1701]], the owner, 2026-10-21: "In
 the toolbar I can uncheck accepted by clicking the accepted button. I should
 be able to do the same for read and seen"; this replaces BPR-1578's rule that
 a step already reached does nothing). Seen and Read are checked buttons, and

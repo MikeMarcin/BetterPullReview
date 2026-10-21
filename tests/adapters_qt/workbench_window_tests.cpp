@@ -7877,7 +7877,7 @@ namespace {
 		advanced.Accepted = true;
 		window.publish(application::project_file_receipt_actions(advanced));
 		process_events();
-		// [[BPR-PENDING-P]]. Seen reached offers its inverse, as Accept does.
+		// [[BPR-1701]]. Seen reached offers its inverse, as Accept does.
 		expect(window.seen_action()->isChecked()
 				   && window.seen_action()->isEnabled()
 				   && window.seen_action()->text() == QStringLiteral("Mark u&nseen")
@@ -8458,7 +8458,7 @@ namespace {
 	/// Progress track, refined"): Seen, Read and Accept as steps of one
 	/// control with the menu's chevron as its last cell. The reached step is
 	/// solid (the accent, or the acceptance green once accepted), steps still
-	/// to come are available. [[BPR-PENDING-P]]: every step toggles, as
+	/// to come are available. [[BPR-1701]]: every step toggles, as
 	/// Accept always has: Seen marks an unread file seen and a seen one
 	/// unseen, Read marks a file read and a read one unread but still seen,
 	/// and Accept toggles to Revoke. Checked state, names, tooltips,
@@ -8541,7 +8541,7 @@ namespace {
 			   "Space on the focused Read step marks the file read");
 		expect(!read->isChecked(), "the Read step waits for the saved receipt before it shows checked");
 
-		// [[BPR-PENDING-P]]. Read: a step already reached unchecks it, as the
+		// [[BPR-1701]]. Read: a step already reached unchecks it, as the
 		// Accepted step does. The owner, 2026-10-21: "In the toolbar I can
 		// uncheck accepted by clicking the accepted button. I should be able
 		// to do the same for read and seen."
@@ -14324,7 +14324,7 @@ namespace {
 		shared->setValue(shared->maximum());
 		process_events();
 		expect(log.Receipt.size() == 1U, "the same file and material is marked once");
-		// [[BPR-PENDING-P]]. The reader takes Read off the file again: it stays
+		// [[BPR-1701]]. The reader takes Read off the file again: it stays
 		// seen and is not marked read behind their back at the end.
 		auto read = receipt;
 		read.Read = core::file_read_state::read;

@@ -28249,7 +28249,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1506]]. The ordinary file gesture made Seen durable before
 			// any receipt action. A late receipt for another file, material or
 			// request generation must not submit a command, even if unread.
-			// [[BPR-PENDING-P]]. Seen reached is checked and offers Mark unseen.
+			// [[BPR-1701]]. Seen reached is checked and offers Mark unseen.
 			const auto durable = ledger->cached_receipt(probe.File);
 			if (retained.Read != core::file_read_state::seen || retained.Accepted || retained.Excluded
 				|| !window->seen_action()->isChecked() || progressMark() != "Private progress: seen"
