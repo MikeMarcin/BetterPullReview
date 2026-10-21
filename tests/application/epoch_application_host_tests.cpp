@@ -339,12 +339,19 @@ namespace {
 		bool                                                        CachedBlobMissing = false;
 		bool                                                        SparseObjects     = false;
 		/// RFC-BPR-0089. Commits neither inspection finds.
-		std::vector<core::git_commit_oid>                       MissingCommits;
-		bool                                                    SparseTreeMismatch         = false;
-		bool                                                    SparseCatalogMarkerMissing = false;
-		bool                                                    SupportsSparse             = false;
-		std::vector<application::git_smart_exact_blob_request>  ExactBlobRequests;
-		std::optional<application::git_smart_transport_failure> ExactBlobFailure;
+		std::vector<core::git_commit_oid> MissingCommits;
+		/// RFC-BPR-0089. What a sparse review's chain acquisition was asked,
+		/// the tree diff its store answers, and the paths read there.
+		std::vector<application::git_smart_chain_request>                  ChainRequests;
+		std::vector<application::git_chain_changed_entry>                  ChainEntries;
+		std::optional<application::git_smart_transport_failure>            ChainFailure;
+		std::vector<std::pair<core::git_commit_oid, std::string>>          ChainLookups;
+		std::vector<std::pair<core::git_commit_oid, core::git_commit_oid>> ChainDiffs;
+		bool                                                               SparseTreeMismatch         = false;
+		bool                                                               SparseCatalogMarkerMissing = false;
+		bool                                                               SupportsSparse             = false;
+		std::vector<application::git_smart_exact_blob_request>             ExactBlobRequests;
+		std::optional<application::git_smart_transport_failure>            ExactBlobFailure;
 		/// [[BPR-1327]]. Batched reads, what a batch answers, and the
 		/// simulated round trips of the single and batched reads.
 		std::vector<application::git_smart_exact_blobs_request> ExactBlobBatches;
@@ -2008,9 +2015,53 @@ namespace {
 		shared_state& State;
 	};
 
+	/// RFC-BPR-0089. A chain store that holds exactly the commits asked for.
+	class fake_chain_store final : public application::git_chain_tree_store
+	{
+	public:
+		fake_chain_store(shared_state& aState, std::vector<core::git_commit_oid> aHeld)
+			: State{ aState }
+			, Held{ std::move(aHeld) }
+		{
+		}
+
+		[[nodiscard]] auto holds(const core::git_commit_oid& aCommit) const noexcept -> bool override
+		{
+			return std::ranges::find(Held, aCommit) != Held.end();
+		}
+
+		[[nodiscard]] auto changed_entries(const core::git_commit_oid& aLeft, const core::git_commit_oid& aRight, std::stop_token)
+			-> application::git_smart_transport_result<std::vector<application::git_chain_changed_entry>> override
+		{
+			State.ChainDiffs.emplace_back(aLeft, aRight);
+			return State.ChainEntries;
+		}
+
+		[[nodiscard]] auto find_blob_at_path(const core::git_commit_oid& aCommit, const std::string& aPath, std::stop_token)
+			-> application::git_smart_transport_result<std::optional<core::git_blob_oid>> override
+		{
+			State.ChainLookups.emplace_back(aCommit, aPath);
+			return std::optional{ oid<core::git_blob_oid>(static_cast<std::uint8_t>(aCommit.bytes().front() + 2U)) };
+		}
+
+	private:
+		shared_state&                     State;
+		std::vector<core::git_commit_oid> Held;
+	};
+
 	class fake_transport final : public application::git_smart_transport_port
 	{
 	public:
+		[[nodiscard]] auto acquire_chain_trees(const application::git_smart_chain_request& aRequest, std::stop_token)
+			-> application::git_smart_transport_result<std::shared_ptr<application::git_chain_tree_store>> override
+		{
+			State.ChainRequests.push_back(aRequest);
+			if (State.ChainFailure) {
+				return std::unexpected{ application::git_smart_transport_error{ *State.ChainFailure } };
+			}
+			return std::make_shared<fake_chain_store>(State, aRequest.Commits);
+		}
+
 		fake_transport(
 			shared_state&                          aState,
 			application::git_smart_request_context aContext)
@@ -7097,6 +7148,67 @@ namespace {
 		expect(!value.Host->resolve_commit_filter_touches(self, record), "a commit diffed against itself is refused");
 	}
 
+	// RFC-BPR-0089. A sparse review holds only its epochs' commits: the touches
+	// job acquires the chain's trees once, through the review's own lease, into
+	// a transient store, diffs there, and filtered diffs read their files at
+	// the chain commits from it. A store that cannot hold the chain is said.
+	void sparse_review_acquires_the_chain_trees()
+	{
+		fixture value;
+		value.State.SupportsSparse = true;
+		value.State.SparseObjects  = true;
+		establish_ready_comparison(value, application::accepted_pull_request_shape{ 3U, 1U, 1U });
+		const auto authority       = workbench_authority_for(value.Host->state());
+		const auto head            = value.Host->state().AcceptedRevision->Head;
+		const auto fork            = oid<core::git_commit_oid>(0x51U);
+		const auto middle          = oid<core::git_commit_oid>(0x52U);
+		value.State.MissingCommits = { fork, middle };
+		value.State.ChainEntries   = {
+			{ .Left = std::nullopt, .Right = application::git_chain_changed_side{ .Path = "added.cpp", .Object = oid<core::git_blob_oid>(0x70U), .Mode = 0100644U }, .Change = 'A' },
+		};
+		auto       observations = std::vector<application::commit_filter_touches_observation>{ };
+		const auto record       = [&observations](const application::commit_filter_touches_observation& aObservation) { observations.push_back(aObservation); };
+		const auto request      = application::commit_filter_touches_request{
+			.WorkbenchAuthority = authority,
+			.Head               = head,
+			.Steps              = { { .Parent = fork, .Commit = middle }, { .Parent = middle, .Commit = head } },
+		};
+		const auto cacheDiffs = value.State.CatalogueRequests.size();
+		expect(value.Host->resolve_commit_filter_touches(request, record), "the touches job is admitted");
+		drain(value);
+		auto held = std::vector{ fork, middle, head };
+		std::ranges::sort(held);
+		expect(observations.size() == 1U && observations.back().Status == application::commit_filter_touches_status::resolved
+				   && observations.back().Touches.size() == 2U && observations.back().Touches.front().Paths.front().Path == "added.cpp",
+			   "a sparse review's chain is diffed from its acquired trees");
+		expect(value.State.ChainRequests.size() == 1U && value.State.ChainRequests.front().Depth == 3U && value.State.ChainRequests.front().Commits == held
+				   && value.State.ChainRequests.front().Head == head
+				   && value.State.ChainRequests.front().Context.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees
+				   && value.State.CatalogueRequests.size() == cacheDiffs,
+			   "the acquisition asks for the chain and its fork, sparsely, and nothing is diffed in the cache");
+		expect(value.State.ChainDiffs == std::vector<std::pair<core::git_commit_oid, core::git_commit_oid>>{ { fork, middle }, { middle, head } },
+			   "each commit is diffed against its first parent in the store");
+
+		auto filtered   = selected_diff_request_for(value);
+		filtered.Filter = core::filtered_diff_endpoints{ .Left = middle, .Right = head };
+		const auto read = resolve_selected_diff(value, filtered);
+		expect(read.Status == application::workbench_selected_diff_status::available
+				   && read.LeftBlob == std::optional{ oid<core::git_blob_oid>(static_cast<std::uint8_t>(middle.bytes().front() + 2U)) }
+				   && value.State.ChainLookups.size() == 2U && value.State.ChainLookups.front() == std::pair{ middle, std::string{ "file.cpp" } },
+			   "a filtered diff reads its file at the chain commits from the store");
+
+		value.State.ChainFailure = application::git_smart_transport_failure::response_limit;
+		expect(value.Host->resolve_commit_filter_touches(request, record), "a second job is admitted");
+		drain(value);
+		expect(observations.size() == 2U && observations.back().Status == application::commit_filter_touches_status::limit_exceeded,
+			   "a chain beyond the acquisition's bounds is said");
+		value.State.ChainFailure = application::git_smart_transport_failure::unavailable;
+		expect(value.Host->resolve_commit_filter_touches(request, record), "a third job is admitted");
+		drain(value);
+		expect(observations.size() == 3U && observations.back().Status == application::commit_filter_touches_status::objects_unavailable,
+			   "a chain that cannot be acquired leaves the filter's trees unavailable");
+	}
+
 	// [[BPR-1212]] v002. Whether a comparison's left document is numbered as
 	// GitHub numbers `LEFT` lines: the unique merge base of GitHub's base and
 	// the accepted head, from the retained objects, holds the same blob at the
@@ -9606,6 +9718,7 @@ int main(int argc, char** argv)
 	shutdown_waits_for_worker_and_decision_quiescence();
 	changed_paths_resolve_beside_the_selected_comparison();
 	commit_filter_touches_authorize_filtered_diffs();
+	sparse_review_acquires_the_chain_trees();
 	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;
 }

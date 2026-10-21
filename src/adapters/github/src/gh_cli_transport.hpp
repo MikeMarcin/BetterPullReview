@@ -211,7 +211,7 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_git_clone_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_request_context&, core::git_commit_oid,
-			const std::filesystem::path&, const std::filesystem::path&, std::size_t)
+			const std::filesystem::path&, const std::filesystem::path&, std::size_t, std::uint32_t)
 			-> std::optional<github_cli_process_request>;
 	};
 
@@ -373,12 +373,20 @@ namespace bpr::adapters::github::detail {
 		-> std::expected<std::vector<gh_cli_inventory_account>, gh_cli_auth_status_failure>;
 
 	/// \brief Compiles one exact-commit clone into an owned, write-confined store.
+	/// \details A sparse clone takes \p aDepth generations of trees without
+	/// blobs: one for an epoch's commit, more for RFC-BPR-0089's first-parent
+	/// chain (at most `maximum_gh_cli_clone_depth`). A complete clone takes no
+	/// depth, and any other \p aDepth refuses it.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,
 		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
-		std::size_t aIndex) -> std::optional<github_cli_process_request>;
+		std::size_t aIndex, std::uint32_t aDepth = 1U) -> std::optional<github_cli_process_request>;
+
+	/// \brief RFC-BPR-0089. The deepest sparse clone: 250 listed commits and
+	/// the commit the chain grew from.
+	inline constexpr std::uint32_t maximum_gh_cli_clone_depth = 251U;
 
 	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)

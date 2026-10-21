@@ -530,8 +530,18 @@ namespace {
 					return 12;
 				}
 			}
-			if (aArguments.size() == 21 && (aArguments[19] != "--depth=1" || aArguments[20] != "--filter=blob:none")) {
+			// RFC-BPR-0089. A chain clone asks for more than one generation; the
+			// fake records how many and keeps every commit it was asked for.
+			const auto chainDepth = aArguments.size() == 21 && aArguments[19].startsWith("--depth=") && aArguments[19] != "--depth=1";
+			if (aArguments.size() == 21 && ((!chainDepth && aArguments[19] != "--depth=1") || aArguments[20] != "--filter=blob:none")) {
 				return 6;
+			}
+			if (chainDepth) {
+				const auto depth = aArguments[19].mid(8).toInt();
+				if (depth < 2 || depth > 251) {
+					return 6;
+				}
+				std::ofstream{ root / "clone-depth" } << depth;
 			}
 			const std::filesystem::path target{ aArguments[4].toStdString() };
 			if (!target.parent_path().filename().string().starts_with("bpr-cli-git-") || target.parent_path().parent_path() != "/private/tmp") {
@@ -554,7 +564,7 @@ namespace {
 				return 5;
 			}
 			if (aArguments.size() == 21) {
-				std::ifstream omitted{ root / "sparse-omitted" };
+				std::ifstream omitted{ root / (chainDepth ? "chain-omitted" : "sparse-omitted") };
 				std::string   oid;
 				while (omitted >> oid) {
 					std::filesystem::remove(target / "objects" / oid.substr(0, 2) / oid.substr(2));
@@ -1504,6 +1514,52 @@ namespace {
 		expect(git(root, { sparseScope, "cat-file", "-t", tree }) == "tree", "sparse pack contains root tree");
 		const auto inventory = git(root, { sparseScope, "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)" });
 		expect(!inventory.contains("blob") && inventory.count("commit") == 2, "sparse pack excludes blobs and retains exact wants only");
+		{
+			// RFC-BPR-0089. The chain's trees: a deeper sparse clone under the
+			// same qualification and identity checks, kept for local reads.
+			write(root / "chain-omitted", blob.toStdString() + "\n" + changedBlob.toStdString() + "\n" + secondaryBlob.toStdString() + "\n" + changedSecondaryBlob.toStdString() + "\n");
+			const auto commitOf = [](const QString& aHex) { return *core::parse_git_commit_oid(aHex.toStdString()); };
+			auto       held     = std::vector{ commitOf(ancestor), commitOf(base), commitOf(head) };
+			std::ranges::sort(held);
+			const auto chain = application::git_smart_chain_request{ .Context = sparseContext, .Head = commitOf(head), .Depth = 3U, .Commits = held };
+			auto       store = (*sparseTransport)->acquire_chain_trees(chain, { });
+			expect(store && *store && (*store)->holds(commitOf(ancestor)) && (*store)->holds(commitOf(head)), "the chain's commits are cloned, trees only, and held");
+			{
+				QTemporaryDir cloneTemporary{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
+				const auto    cloneRoot = std::filesystem::canonical(cloneTemporary.path().toStdString());
+				const auto    deep      = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 3U);
+				const auto    tooDeep   = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 252U);
+				const auto    completeDeep
+					= compile_gh_cli_git_clone_request(*configuration, *profile, context, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 3U);
+				expect(deep && std::ranges::find(deep->Arguments, std::string{ "--depth=3" }) != deep->Arguments.end()
+						   && std::ranges::find(deep->Arguments, std::string{ "--filter=blob:none" }) != deep->Arguments.end() && !tooDeep && !completeDeep,
+					   "the chain clone asks for its depth without blobs; beyond 251 generations, or for a complete review, it is refused");
+			}
+			const auto diff = (*store)->changed_entries(commitOf(base), commitOf(head), { });
+			expect(diff && diff->size() == 2U && diff->front().Change == 'M' && diff->front().Right && diff->front().Right->Path == "file.txt"
+					   && core::canonical_hex(diff->front().Right->Object).view() == changedBlob.toStdString() && diff->front().Left
+					   && core::canonical_hex(diff->front().Left->Object).view() == blob.toStdString(),
+				   "a commit's own change is the store's raw tree diff, read without a blob");
+			const auto same = (*store)->changed_entries(commitOf(ancestor), commitOf(base), { });
+			expect(same && same->empty(), "a commit that changes nothing changes no path");
+			const auto found = (*store)->find_blob_at_path(commitOf(head), "secondary.txt", { });
+			expect(found && *found && core::canonical_hex(**found).view() == changedSecondaryBlob.toStdString(), "a path's blob is read from the held tree");
+			const auto absent = (*store)->find_blob_at_path(commitOf(head), "absent.txt", { });
+			expect(absent && !*absent, "an absent path answers none, without fetching");
+			expect(!(*store)->find_blob_at_path(commitOf(head), "two\nlines", { }) && !(*store)->changed_entries(commitOf(head), *core::parse_git_commit_oid(std::string(40U, 'f')), { }),
+				   "a path that is not one line, or a commit the store does not hold, is refused");
+			auto shallow  = chain;
+			shallow.Depth = 1U;
+			expect(!(*sparseTransport)->acquire_chain_trees(shallow, { }), "a chain request of one generation is refused");
+			auto complete                    = chain;
+			complete.Context.AcquisitionMode = application::git_smart_acquisition_mode::complete_closure;
+			expect(!(*sparseTransport)->acquire_chain_trees(complete, { }), "a complete review never asks for the chain");
+			write(root / "chain-omitted", blob.toStdString() + "\n" + ancestor.toStdString() + "\n");
+			const auto missing = (*sparseTransport)->acquire_chain_trees(chain, { });
+			expect(!missing && missing.error().Failure == application::git_smart_transport_failure::response_limit,
+				   "a chain commit the clone did not bring refuses the store");
+			std::filesystem::remove(root / "chain-omitted");
+		}
 		const auto expectCliRefusal = [&](std::string_view aWhy, application::git_smart_transport_step aStep, application::git_smart_transport_failure aFailure) {
 			// The sandboxed fake cannot record calls, so a viewer read or clone
 			// reached before refusal would fail and change the reported step.

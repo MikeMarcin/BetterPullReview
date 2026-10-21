@@ -13,6 +13,7 @@
 #include <optional>
 #include <span>
 #include <stop_token>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -211,6 +212,81 @@ namespace bpr::application {
 	/// blob in the batch; it may still be read on its own.
 	using git_smart_exact_blobs = std::vector<std::optional<std::vector<std::byte>>>;
 
+	/// \brief RFC-BPR-0089. Asks for the head's first-parent chain, trees and
+	/// no blobs, to read each commit's own change.
+	///
+	/// \details `Depth` generations from `Head` cover the chain and the commit
+	/// it grew from; `Commits` are every commit the host will read there, and
+	/// the store must hold each one. Only a sparse acquisition asks: a complete
+	/// one already holds the whole history.
+	struct git_smart_chain_request
+	{
+		git_smart_request_context         Context;
+		core::git_commit_oid              Head;
+		std::uint32_t                     Depth = 0U;
+		std::vector<core::git_commit_oid> Commits;
+	};
+
+	inline constexpr std::uint32_t maximum_git_smart_chain_depth = 251U;
+
+	/// \brief Checks the request's own shape; it does not check authority.
+	[[nodiscard]] inline auto valid(const git_smart_chain_request& aRequest) noexcept -> bool
+	{
+		return aRequest.Head.valid() && aRequest.Head == aRequest.Context.Revision.Head && aRequest.Depth >= 2U
+			&& aRequest.Depth <= maximum_git_smart_chain_depth && !aRequest.Commits.empty()
+			&& aRequest.Commits.size() <= 2U * maximum_git_smart_chain_depth
+			&& aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
+			&& std::ranges::all_of(aRequest.Commits, [&aRequest](const core::git_commit_oid& aCommit) {
+				   return aCommit.valid() && aCommit.algorithm() == aRequest.Head.algorithm();
+			   });
+	}
+
+	/// \brief One side of a path a chain commit's tree diff names.
+	struct git_chain_changed_side
+	{
+		std::string        Path;
+		core::git_blob_oid Object;
+		std::uint32_t      Mode = 0U;
+
+		auto operator<=>(const git_chain_changed_side&) const = default;
+	};
+
+	/// \brief One path a chain commit's tree diff names, as Git's raw letter.
+	struct git_chain_changed_entry
+	{
+		std::optional<git_chain_changed_side> Left;
+		std::optional<git_chain_changed_side> Right;
+		char                                  Change = 'M';
+
+		auto operator<=>(const git_chain_changed_entry&) const = default;
+	};
+
+	/// \brief RFC-BPR-0089. A transient, quarantined copy of the chain's
+	/// commits and trees, owned by the host for one review and removed with it.
+	///
+	/// \details Never fetches: an object it does not hold answers absent.
+	/// Its tree diff is the cache's own bounded one, with exact renames.
+	class git_chain_tree_store
+	{
+	public:
+		virtual ~git_chain_tree_store() = default;
+
+		git_chain_tree_store()                                               = default;
+		git_chain_tree_store(const git_chain_tree_store&)                    = delete;
+		auto operator=(const git_chain_tree_store&) -> git_chain_tree_store& = delete;
+		git_chain_tree_store(git_chain_tree_store&&)                         = delete;
+		auto operator=(git_chain_tree_store&&) -> git_chain_tree_store&      = delete;
+
+		/// \brief Whether the store holds this commit and its trees.
+		[[nodiscard]] virtual auto holds(const core::git_commit_oid& aCommit) const noexcept -> bool = 0;
+		/// \brief The tree diff from `aLeft` to `aRight`, both held.
+		[[nodiscard]] virtual auto changed_entries(const core::git_commit_oid& aLeft, const core::git_commit_oid& aRight, std::stop_token aStop)
+			-> git_smart_transport_result<std::vector<git_chain_changed_entry>> = 0;
+		/// \brief The blob at one path of a held commit, or none.
+		[[nodiscard]] virtual auto find_blob_at_path(const core::git_commit_oid& aCommit, const std::string& aPath, std::stop_token aStop)
+			-> git_smart_transport_result<std::optional<core::git_blob_oid>> = 0;
+	};
+
 	/// \brief Provides the git smart wire consumer contract.
 	class git_smart_wire_consumer
 	{
@@ -252,6 +328,14 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto read_exact_blobs(
 			const git_smart_exact_blobs_request&, std::stop_token)
 			-> git_smart_transport_result<git_smart_exact_blobs>
+		{
+			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
+
+		/// \brief RFC-BPR-0089. Acquires the head's first-parent chain trees
+		/// into a transient store; transports without this capability refuse.
+		[[nodiscard]] virtual auto acquire_chain_trees(const git_smart_chain_request&, std::stop_token)
+			-> git_smart_transport_result<std::shared_ptr<git_chain_tree_store>>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}

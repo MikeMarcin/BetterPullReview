@@ -205,6 +205,206 @@ namespace bpr::adapters::github::detail {
 			return executable_observation{ aGit, size, modified };
 		}
 
+		/// \brief RFC-BPR-0089. The output bound of one tree diff or lookup
+		/// over the chain store: 10,000 raw entries of long paths.
+		constexpr std::size_t chain_output_limit = 16U * 1024U * 1024U;
+		/// The cache's own tree-diff bound (`maximum_git_changed_entries`).
+		constexpr std::size_t chain_maximum_entries = 10000U;
+
+		[[nodiscard]] auto parse_hex_oid(std::string_view aText) -> std::optional<core::git_blob_oid>
+		{
+			auto parsed = core::parse_git_blob_oid(aText);
+			return parsed && core::canonical_hex(*parsed).view() == aText ? parsed : std::nullopt;
+		}
+
+		[[nodiscard]] auto valid_tree_path(std::string_view aPath) noexcept -> bool
+		{
+			return !aPath.empty() && aPath.size() <= 4096U && aPath.front() != '/' && aPath.find('\0') == std::string_view::npos
+				&& aPath.find('\n') == std::string_view::npos;
+		}
+
+		/// \brief Parses `diff-tree -r -z --raw --no-abbrev` output exactly.
+		[[nodiscard]] auto parse_raw_tree_diff(std::string_view aOutput) -> std::optional<std::vector<git_chain_changed_entry>>
+		{
+			auto entries = std::vector<git_chain_changed_entry>{ };
+			auto next    = [&aOutput]() -> std::optional<std::string_view> {
+				const auto end = aOutput.find('\0');
+				if (end == std::string_view::npos) {
+					return std::nullopt;
+				}
+				const auto token = aOutput.substr(0U, end);
+				aOutput.remove_prefix(end + 1U);
+				return token;
+			};
+			while (!aOutput.empty()) {
+				const auto header = next();
+				if (!header || header->size() < 2U || header->front() != ':') {
+					return std::nullopt;
+				}
+				// ":<mode> <mode> <oid> <oid> <status>"
+				auto fields = std::vector<std::string_view>{ };
+				for (auto rest = header->substr(1U); !rest.empty();) {
+					const auto space = rest.find(' ');
+					fields.push_back(rest.substr(0U, space));
+					rest = space == std::string_view::npos ? std::string_view{ } : rest.substr(space + 1U);
+				}
+				if (fields.size() != 5U || fields[4].empty()) {
+					return std::nullopt;
+				}
+				const auto mode = [](std::string_view aMode) -> std::optional<std::uint32_t> {
+					auto       value  = std::uint32_t{ 0U };
+					const auto parsed = std::from_chars(aMode.data(), aMode.data() + aMode.size(), value, 8);
+					return parsed.ec == std::errc{ } && parsed.ptr == aMode.data() + aMode.size() && aMode.size() == 6U ? std::optional{ value } : std::nullopt;
+				};
+				const auto leftMode  = mode(fields[0]);
+				const auto rightMode = mode(fields[1]);
+				const auto change    = fields[4].front();
+				if (!leftMode || !rightMode || std::string_view{ "ACDMRT" }.find(change) == std::string_view::npos) {
+					return std::nullopt;
+				}
+				const auto first = next();
+				if (!first || !valid_tree_path(*first)) {
+					return std::nullopt;
+				}
+				auto second = std::optional<std::string_view>{ };
+				if (change == 'R' || change == 'C') {
+					second = next();
+					if (!second || !valid_tree_path(*second)) {
+						return std::nullopt;
+					}
+				}
+				auto entry   = git_chain_changed_entry{ };
+				entry.Change = change;
+				if (change != 'A') {
+					const auto oid = parse_hex_oid(fields[2]);
+					if (!oid || !oid->valid()) {
+						return std::nullopt;
+					}
+					entry.Left = git_chain_changed_side{ .Path = std::string{ *first }, .Object = *oid, .Mode = *leftMode };
+				}
+				if (change != 'D') {
+					const auto oid = parse_hex_oid(fields[3]);
+					if (!oid || !oid->valid()) {
+						return std::nullopt;
+					}
+					entry.Right = git_chain_changed_side{ .Path = std::string{ second.value_or(*first) }, .Object = *oid, .Mode = *rightMode };
+				}
+				entries.push_back(std::move(entry));
+				if (entries.size() > chain_maximum_entries) {
+					return std::nullopt;
+				}
+			}
+			return entries;
+		}
+
+		/// \brief RFC-BPR-0089. The chain's commits and trees in a private
+		/// temporary root, read by local Git with no network, lazy fetch or
+		/// ambient configuration. Removed with the store; its runner is reaped
+		/// before its directory goes, as the acquisition's is.
+		class gh_cli_chain_tree_store final : public git_chain_tree_store
+		{
+		public:
+			gh_cli_chain_tree_store(std::unique_ptr<QTemporaryDir> aDirectory, std::filesystem::path aRoot, std::filesystem::path aGit,
+									std::unique_ptr<github_cli_process_port> aProcess, std::vector<core::git_commit_oid> aHeld)
+				: Directory{ std::move(aDirectory) }
+				, Root{ std::move(aRoot) }
+				, Git{ std::move(aGit) }
+				, Process{ std::move(aProcess) }
+				, Held{ std::move(aHeld) }
+			{
+				std::ranges::sort(Held);
+			}
+
+			[[nodiscard]] auto holds(const core::git_commit_oid& aCommit) const noexcept -> bool override
+			{
+				return std::ranges::binary_search(Held, aCommit);
+			}
+
+			[[nodiscard]] auto changed_entries(const core::git_commit_oid& aLeft, const core::git_commit_oid& aRight, std::stop_token aStop)
+				-> git_smart_transport_result<std::vector<git_chain_changed_entry>> override
+			{
+				if (!holds(aLeft) || !holds(aRight)) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::lock_guard lock{ Mutex };
+				const auto      request = compile_gh_cli_local_git_request(
+					Git, Root,
+					{ scope(), "diff-tree", "-r", "-z", "--raw", "--no-abbrev", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--find-renames=100%",
+					  "--find-copies=100%", "-l10000", std::string{ core::canonical_hex(aLeft).view() }, std::string{ core::canonical_hex(aRight).view() }, "--" },
+					{ }, chain_output_limit);
+				const auto result = Process->run(request, aStop);
+				if (!result) {
+					return std::unexpected{ git_smart_transport_error{ process_error(result.error()) } };
+				}
+				if (result->ExitCode != 0) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				auto entries = parse_raw_tree_diff(result->StandardOutput);
+				if (!entries) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				return std::move(*entries);
+			}
+
+			[[nodiscard]] auto find_blob_at_path(const core::git_commit_oid& aCommit, const std::string& aPath, std::stop_token aStop)
+				-> git_smart_transport_result<std::optional<core::git_blob_oid>> override
+			{
+				if (!holds(aCommit) || !valid_tree_path(aPath)) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::lock_guard lock{ Mutex };
+				// The trees alone name the blob: the store holds no blob, so a
+				// lookup that checked the object would answer missing.
+				const auto request
+					= compile_gh_cli_local_git_request(Git, Root, { scope(), "--literal-pathspecs", "ls-tree", "-z", std::string{ core::canonical_hex(aCommit).view() }, "--", aPath },
+													   { }, 64U * 1024U);
+				const auto result = Process->run(request, aStop);
+				if (!result) {
+					return std::unexpected{ git_smart_transport_error{ process_error(result.error()) } };
+				}
+				if (result->ExitCode != 0) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				// Nothing, or exactly "<mode> <type> <oid>\t<path>\0" for the path.
+				const auto output = std::string_view{ result->StandardOutput };
+				if (output.empty()) {
+					return std::optional<core::git_blob_oid>{ };
+				}
+				const auto tab = output.find('\t');
+				if (tab == std::string_view::npos || output.substr(tab + 1U) != aPath + std::string{ '\0' }) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				const auto record = output.substr(0U, tab);
+				if (record.size() < 52U) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				const auto type = record.substr(7U, record.size() - 7U - 41U);
+				if (type != "blob") {
+					// A tree or a gitlink at the path is not a file's text.
+					return type == "tree" || type == "commit" ? git_smart_transport_result<std::optional<core::git_blob_oid>>{ std::optional<core::git_blob_oid>{ } }
+															  : git_smart_transport_result<std::optional<core::git_blob_oid>>{ std::unexpected{ git_smart_transport_error{ failure::malformed_response } } };
+				}
+				const auto oid = parse_hex_oid(record.substr(record.size() - 40U));
+				if (!oid || !oid->valid() || record[6] != ' ' || record[record.size() - 41U] != ' ') {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				return std::optional{ *oid };
+			}
+
+		private:
+			[[nodiscard]] auto scope() const -> std::string
+			{
+				return "--git-dir=" + gh_cli_git_clone_store(Root, 0U).string();
+			}
+
+			std::unique_ptr<QTemporaryDir>           Directory;
+			std::filesystem::path                    Root;
+			std::filesystem::path                    Git;
+			std::unique_ptr<github_cli_process_port> Process;
+			std::vector<core::git_commit_oid>        Held;
+			std::mutex                               Mutex;
+		};
+
 		class gh_cli_git_smart_transport final : public git_smart_transport_port, public viewer_named_blob_reader
 		{
 		public:
@@ -511,6 +711,35 @@ namespace bpr::adapters::github::detail {
 				return named;
 			}
 
+			/// \brief RFC-BPR-0089. Clones the head's first-parent chain, trees
+			/// and no blobs, into a private temporary root under the same
+			/// qualification, identity observations and bounds as an epoch's
+			/// sparse acquisition, and keeps it for local reads.
+			auto acquire_chain_trees(const git_smart_chain_request& aRequest, std::stop_token aStop)
+				-> git_smart_transport_result<std::shared_ptr<git_chain_tree_store>> override
+			{
+				std::lock_guard lock{ Mutex };
+				auto            step = git_smart_transport_step::admission;
+				if (const auto error = admission(aRequest.Context, aStop)) {
+					return std::unexpected{ git_smart_transport_error{ *error, step } };
+				}
+				if (!application::valid(aRequest) || aRequest.Context.AcquisitionMode != git_smart_acquisition_mode::sparse_commit_trees) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::stop_source   stop;
+				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
+				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
+				try {
+					auto result = acquire_chain(aRequest, stop.get_token(), step);
+					if (!result) {
+						result.error().Step = step;
+					}
+					return result;
+				} catch (...) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable, step } };
+				}
+			}
+
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)
 				-> git_smart_transport_result<void> override
 			{
@@ -618,6 +847,126 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				process->set_insights_channel(Insights);
+				if (auto qualified = qualify(*process, root, aStop, aStep); !qualified) {
+					return std::unexpected{ qualified.error() };
+				}
+				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
+				if (!credential) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
+				}
+				gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+				identity.set_insights_channel(Insights);
+				aStep             = git_smart_transport_step::identity_before;
+				const auto before = viewer(identity, aStop);
+				if (!before) {
+					return std::unexpected{ before.error() };
+				}
+				return clone_and_pack(aWants, aMaximum, aConsumer, aStop, aStep, root, *process, *credential, identity, *before);
+			}
+
+			auto acquire_chain(const git_smart_chain_request& aRequest, std::stop_token aStop, git_smart_transport_step& aStep)
+				-> git_smart_transport_result<std::shared_ptr<git_chain_tree_store>>
+			{
+				aStep          = git_smart_transport_step::temporary_store;
+				auto directory = std::make_unique<QTemporaryDir>(QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX"));
+				if (!directory->isValid()) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				const std::filesystem::path root{ directory->path().toStdString() };
+				std::filesystem::create_directory(root / "empty");
+				aStep        = git_smart_transport_step::process_runner;
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
+				if (!process) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				process->set_insights_channel(Insights);
+				if (auto qualified = qualify(*process, root, aStop, aStep, true); !qualified) {
+					return std::unexpected{ qualified.error() };
+				}
+				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
+				if (!credential) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
+				}
+				{
+					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+					identity.set_insights_channel(Insights);
+					aStep             = git_smart_transport_step::identity_before;
+					const auto before = viewer(identity, aStop);
+					if (!before) {
+						return std::unexpected{ before.error() };
+					}
+					aStep = git_smart_transport_step::admission;
+					if (const auto error = admission(Context, aStop)) {
+						return std::unexpected{ git_smart_transport_error{ *error } };
+					}
+					aStep                 = git_smart_transport_step::clone;
+					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aRequest.Head, Git, root, 0U, aRequest.Depth);
+					if (!invocation) {
+						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+					}
+					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
+					if (!cloneProcess) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					cloneProcess->set_insights_channel(Insights);
+					const auto cloned = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
+					if (!cloned) {
+						return std::unexpected{ git_smart_transport_error{ process_error(cloned.error()) } };
+					}
+					if (cloned->ExitCode != 0) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					aStep            = git_smart_transport_step::identity_after;
+					const auto after = viewer(identity, aStop);
+					if (!after) {
+						return std::unexpected{ after.error() };
+					}
+					if (before->Account != after->Account || before->Login != after->Login) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+					}
+				}
+				// Every commit the host will read must be held, with its tree.
+				aStep      = git_smart_transport_step::object_check;
+				auto names = std::string{ };
+				for (const auto& commit : aRequest.Commits) {
+					const auto hex = std::string{ core::canonical_hex(commit).view() };
+					names += hex + "\n" + hex + "^{tree}\n";
+				}
+				auto       check   = compile_gh_cli_local_git_request(Git, root, { "--git-dir=" + gh_cli_git_clone_store(root, 0U).string(), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
+																	  names, chain_output_limit);
+				const auto checked = process->run(check, aStop);
+				if (!checked) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(checked.error()) } };
+				}
+				auto lines = std::vector<std::string_view>{ };
+				for (auto rest = std::string_view{ checked->StandardOutput }; !rest.empty();) {
+					const auto end = rest.find('\n');
+					lines.push_back(rest.substr(0U, end));
+					rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+				}
+				if (checked->ExitCode != 0 || lines.size() != 2U * aRequest.Commits.size()) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				for (std::size_t index = 0U; index < aRequest.Commits.size(); ++index) {
+					const auto hex = std::string{ core::canonical_hex(aRequest.Commits[index]).view() };
+					if (lines[2U * index] != hex + " commit" || !lines[2U * index + 1U].ends_with(" tree")) {
+						// Not within the depth asked for, or absent: the store holds
+						// less than the chain, which the host reports as such.
+						return std::unexpected{ git_smart_transport_error{ failure::response_limit } };
+					}
+				}
+				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Git, std::move(process), aRequest.Commits);
+			}
+
+			/// \brief Proves this `gh` and Git, by version and local help, before
+			/// any credentialed use: every operation either acquisition path
+			/// invokes, and the clone options its mode needs.
+			auto qualify(github_cli_process_port& aProcess, const std::filesystem::path& aRoot, std::stop_token aStop,
+						 git_smart_transport_step& aStep, const bool aDeepen = false) -> git_smart_transport_result<void>
+			{
+				auto*      process   = &aProcess;
+				const auto root      = aRoot;
 				aStep                = git_smart_transport_step::cli_version;
 				const auto ghVersion = run_gh_cli(*process, Configuration, compile_gh_cli_version_request(Configuration), aStop);
 				if (!ghVersion) {
@@ -671,21 +1020,23 @@ namespace bpr::adapters::github::detail {
 					|| !clone_option_available(capability->StandardOutput, "bare")
 					|| !clone_option_available(capability->StandardOutput, "template")
 					|| !clone_option_available(capability->StandardOutput, "config")
-					|| (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees
+					|| ((Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees || aDeepen)
 						&& (!clone_option_available(capability->StandardOutput, "filter") || !clone_option_available(capability->StandardOutput, "depth")))) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
-				if (!credential) {
-					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
-				}
-				gh_cli_transport identity{ Profile, Configuration, *process, *credential };
-				identity.set_insights_channel(Insights);
-				aStep             = git_smart_transport_step::identity_before;
-				const auto before = viewer(identity, aStop);
-				if (!before) {
-					return std::unexpected{ before.error() };
-				}
+				return { };
+			}
+
+			auto clone_and_pack(const std::vector<core::git_commit_oid>& aWants, std::uint64_t aMaximum, git_smart_wire_consumer& aConsumer,
+								std::stop_token aStop, git_smart_transport_step& aStep, const std::filesystem::path& aRoot,
+								github_cli_process_port& aProcess, const cli_transient_credential& aCredential, gh_cli_transport& aIdentity,
+								const github_viewer_record& aBefore) -> git_smart_transport_result<void>
+			{
+				const auto& root       = aRoot;
+				auto*       process    = &aProcess;
+				const auto* credential = &aCredential;
+				auto&       identity   = aIdentity;
+				const auto* before     = &aBefore;
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
 					aStep = git_smart_transport_step::admission;
 					if (const auto error = admission(Context, aStop)) {

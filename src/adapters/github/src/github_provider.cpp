@@ -921,6 +921,12 @@ namespace bpr::adapters::github::detail {
 					}
 					return perform_guarded<application::git_smart_exact_blobs>(aStop, [&] { return Inner->read_exact_blobs(aRequest, aStop); });
 				}
+				/// RFC-BPR-0089. The chain's trees, under the same guard.
+				auto acquire_chain_trees(const application::git_smart_chain_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<std::shared_ptr<application::git_chain_tree_store>> override
+				{
+					return perform_guarded<std::shared_ptr<application::git_chain_tree_store>>(aStop, [&] { return Inner->acquire_chain_trees(aRequest, aStop); });
+				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
 				{

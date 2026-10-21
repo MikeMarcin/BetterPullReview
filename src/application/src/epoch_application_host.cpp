@@ -1198,6 +1198,10 @@ namespace bpr::application {
 			/// request can never name a commit this review did not diff.
 			std::optional<workbench_pull_request_authority> FilterAuthority;
 			std::vector<core::git_commit_oid>               FilterCommits;
+			/// RFC-BPR-0089. A sparse review's chain trees, acquired into a
+			/// transient quarantined store for the same authority, and read
+			/// only at the filter commits above.
+			std::shared_ptr<git_chain_tree_store> ChainTrees;
 		};
 
 		/// Drops every prepared grant. Called under BlobAuthorityMutex.
@@ -1704,6 +1708,7 @@ namespace bpr::application {
 			aActor->RealignmentAuthority.reset();
 			aActor->FilterAuthority.reset();
 			aActor->FilterCommits.clear();
+			aActor->ChainTrees.reset();
 			aActor->SelectedBlobGrant.reset();
 			++aActor->SelectedBlobGrantSequence;
 			forget_prepared_grants(*aActor);
@@ -1762,6 +1767,7 @@ namespace bpr::application {
 				aActor->RealignmentAuthority.reset();
 				aActor->FilterAuthority.reset();
 				aActor->FilterCommits.clear();
+				aActor->ChainTrees.reset();
 				++aActor->BlobAuthorityGeneration;
 			}
 		}
@@ -4100,7 +4106,9 @@ namespace bpr::application {
 			}
 			auto       actor    = std::move(reviewActor->first);
 			const auto expected = std::move(reviewActor->second);
-			auto       admitted = admit_job(
+			// The review's own lease, for a sparse review's chain acquisition.
+			auto reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+			auto admitted      = admit_job(
 				std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
 			if (!admitted.has_value()) {
 				return false;
@@ -4114,6 +4122,7 @@ namespace bpr::application {
 					[this,
 					 actor,
 					 expected,
+					 context = std::move(reviewContext),
 					 gate,
 					 decisionLane,
 					 control,
@@ -4123,7 +4132,7 @@ namespace bpr::application {
 							.Request = request,
 							.Status  = commit_filter_touches_status::failure,
 						};
-						observation.Status = commit_filter_touches(*actor, expected, request, control->Stop.get_token(), observation.Touches);
+						observation.Status = commit_filter_touches(*actor, expected, context, request, control->Stop.get_token(), observation.Touches);
 						if (observation.Status != commit_filter_touches_status::resolved) {
 							observation.Touches.clear();
 						} else {
@@ -4165,8 +4174,8 @@ namespace bpr::application {
 		/// is diffed. The tree diff is the cache's own bounded one, with exact
 		/// rename and copy detection, so it needs no blob.
 		[[nodiscard]] auto commit_filter_touches(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
-												 const commit_filter_touches_request& aRequest, const std::stop_token aStop,
-												 std::vector<commit_filter_commit_touch>& aTouches) -> commit_filter_touches_status
+												 const std::shared_ptr<authority_context>& aContext, const commit_filter_touches_request& aRequest,
+												 const std::stop_token aStop, std::vector<commit_filter_commit_touch>& aTouches) -> commit_filter_touches_status
 		{
 			const auto statusOf = [](const git_cache_error& aError) {
 				return aError.Code == git_cache_failure::cancelled     ? commit_filter_touches_status::cancelled
@@ -4201,18 +4210,69 @@ namespace bpr::application {
 					: inspected.error() == git_cache_failure::object_mismatch                      ? commit_filter_touches_status::objects_unavailable
 																								   : commit_filter_touches_status::failure;
 			};
+			auto missing = false;
 			for (const auto& step : aRequest.Steps) {
 				for (const auto& commit : { step.Parent, step.Commit }) {
 					if (const auto refused = resident(commit)) {
-						return *refused;
+						if (*refused != commit_filter_touches_status::objects_unavailable) {
+							return *refused;
+						}
+						missing = true;
 					}
 				}
 			}
+			// A sparse review holds only its epochs' commits. The chain is
+			// acquired once into a transient quarantined store, under the
+			// review's own lease and the sparse acquisition's bounds.
+			auto store = std::shared_ptr<git_chain_tree_store>{ };
+			if (missing) {
+				auto acquired = acquire_chain_trees(aContext, aRequest, aStop);
+				if (!acquired) {
+					return acquired.error();
+				}
+				store = std::move(*acquired);
+			}
+			struct touch_side final
+			{
+				std::string Path;
+			};
+			struct touch_change final
+			{
+				std::optional<touch_side> Left;
+				std::optional<touch_side> Right;
+				char                      Change = 'M';
+			};
+			const auto diff = [&](const commit_filter_touch_step& aStep) -> std::expected<std::vector<touch_change>, commit_filter_touches_status> {
+				auto changes = std::vector<touch_change>{ };
+				if (store) {
+					auto read = store->changed_entries(aStep.Parent, aStep.Commit, aStop);
+					if (!read) {
+						return std::unexpected{ read.error().Failure == git_smart_transport_failure::cancelled ? commit_filter_touches_status::cancelled
+																											   : commit_filter_touches_status::failure };
+					}
+					for (auto& entry : *read) {
+						changes.push_back({ .Left   = entry.Left ? std::optional{ touch_side{ std::move(entry.Left->Path) } } : std::nullopt,
+											.Right  = entry.Right ? std::optional{ touch_side{ std::move(entry.Right->Path) } } : std::nullopt,
+											.Change = entry.Change });
+					}
+					return changes;
+				}
+				auto read = aActor.Cache->changed_entries({ .Left = aStep.Parent, .Right = aStep.Commit }, aStop);
+				if (!read.has_value()) {
+					return std::unexpected{ statusOf(read.error()) };
+				}
+				for (auto& entry : *read) {
+					changes.push_back({ .Left   = entry.Left ? std::optional{ touch_side{ std::move(entry.Left->Path) } } : std::nullopt,
+										.Right  = entry.Right ? std::optional{ touch_side{ std::move(entry.Right->Path) } } : std::nullopt,
+										.Change = entry.Change });
+				}
+				return changes;
+			};
 			aTouches.reserve(aRequest.Steps.size());
 			for (const auto& step : aRequest.Steps) {
-				const auto changes = aActor.Cache->changed_entries({ .Left = step.Parent, .Right = step.Commit }, aStop);
+				const auto changes = diff(step);
 				if (!changes.has_value()) {
-					return statusOf(changes.error());
+					return changes.error();
 				}
 				if (changes->size() >= maximum_git_changed_entries) {
 					return commit_filter_touches_status::limit_exceeded;
@@ -4239,7 +4299,63 @@ namespace bpr::application {
 				}
 				aTouches.push_back(std::move(touch));
 			}
-			return aStop.stop_requested() ? commit_filter_touches_status::cancelled : commit_filter_touches_status::resolved;
+			if (aStop.stop_requested()) {
+				return commit_filter_touches_status::cancelled;
+			}
+			if (store) {
+				std::scoped_lock lock{ aActor.BlobAuthorityMutex };
+				aActor.ChainTrees = std::move(store);
+			}
+			return commit_filter_touches_status::resolved;
+		}
+
+		/// \brief RFC-BPR-0089. Acquires the chain's trees for a sparse review
+		/// through its own lease, or says why it cannot.
+		[[nodiscard]] static auto acquire_chain_trees(const std::shared_ptr<authority_context>& aContext, const commit_filter_touches_request& aRequest,
+													  const std::stop_token aStop)
+			-> std::expected<std::shared_ptr<git_chain_tree_store>, commit_filter_touches_status>
+		{
+			const auto sparse = aContext && object_loading_for(aContext->Handoff.Shape) == pull_request_object_loading::selected_objects
+				&& aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees();
+			if (!sparse || aRequest.Head != aContext->Revision.Head) {
+				return std::unexpected{ commit_filter_touches_status::objects_unavailable };
+			}
+			const auto context = git_smart_request_context{
+				.ApplicationSession = aContext->Handoff.ApplicationSession,
+				.Authority          = aContext->Authority,
+				.Revision           = aContext->Revision,
+				.Repository         = aContext->Handoff.Locator,
+				.BaseRef            = aContext->Handoff.BaseRef,
+				.AcquisitionMode    = git_smart_acquisition_mode::sparse_commit_trees,
+			};
+			auto chain  = git_smart_chain_request{ .Context = context, .Head = aRequest.Head, .Depth = 0U, .Commits = { } };
+			chain.Depth = static_cast<std::uint32_t>(aRequest.Steps.size() + 1U);
+			for (const auto& step : aRequest.Steps) {
+				chain.Commits.push_back(step.Parent);
+				chain.Commits.push_back(step.Commit);
+			}
+			std::ranges::sort(chain.Commits);
+			chain.Commits.erase(std::unique(chain.Commits.begin(), chain.Commits.end()), chain.Commits.end());
+			if (!application::valid(chain)) {
+				return std::unexpected{ commit_filter_touches_status::objects_unavailable };
+			}
+			auto transport = aContext->Handoff.SmartGit->acquire(context);
+			if (!transport || !*transport) {
+				return std::unexpected{ commit_filter_touches_status::objects_unavailable };
+			}
+			auto store = (*transport)->acquire_chain_trees(chain, aStop);
+			if (!store || !*store) {
+				const auto failure = store ? git_smart_transport_failure::unavailable : store.error().Failure;
+				return std::unexpected{ failure == git_smart_transport_failure::cancelled            ? commit_filter_touches_status::cancelled
+											: failure == git_smart_transport_failure::response_limit ? commit_filter_touches_status::limit_exceeded
+																									 : commit_filter_touches_status::objects_unavailable };
+			}
+			for (const auto& commit : chain.Commits) {
+				if (!(*store)->holds(commit)) {
+					return std::unexpected{ commit_filter_touches_status::objects_unavailable };
+				}
+			}
+			return std::move(*store);
 		}
 
 		/// \brief [[BPR-1212]]. The review's cache actor and the session it
@@ -4614,9 +4730,24 @@ namespace bpr::application {
 									   != admittedGeneration) {
 								observation.Status = workbench_selected_diff_status::stale;
 							} else if (open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
+								// RFC-BPR-0089. A sparse review's chain commits are in its
+								// transient chain store, not its cache.
+								const auto chainTrees = [&] {
+									std::scoped_lock chainLock{ actor->BlobAuthorityMutex };
+									return aRequest.Filter ? actor->ChainTrees : std::shared_ptr<git_chain_tree_store>{ };
+								}();
 								const auto lookup = [&](const std::filesystem::path& aPath,
 														const core::git_commit_oid   aCommit)
 									-> git_cache_result<std::optional<core::git_blob_oid>> {
+									if (chainTrees && chainTrees->holds(aCommit)) {
+										const auto text  = aPath.generic_u8string();
+										const auto found = chainTrees->find_blob_at_path(aCommit, std::string{ reinterpret_cast<const char*>(text.data()), text.size() }, workStop);
+										if (!found) {
+											return std::unexpected{ found.error().Failure == git_smart_transport_failure::cancelled ? git_cache_failure::cancelled
+																																	: git_cache_failure::object_mismatch };
+										}
+										return *found;
+									}
 									return actor->Cache->find_blob_at_path(
 										git_cache_tree_entry_request{
 											.Commit = aCommit,
