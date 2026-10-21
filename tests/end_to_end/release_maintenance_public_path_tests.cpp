@@ -8,6 +8,7 @@
 #include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/core/review_cycle_zip.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -37,6 +38,7 @@
 #include <QListView>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QStandardPaths>
@@ -72,6 +74,53 @@ namespace {
 	{
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
+	}
+	/// \brief [[BPR-PENDING-AG]]. The text of a saved export: its archive's
+	/// one entry, named for the file with `.txt`; empty otherwise.
+	auto unzipped(const QString& aArchive) -> std::string
+	{
+		const auto bytes   = read(app::native_filesystem_path(aArchive));
+		const auto members = core::read_cycle_zip({ reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size() });
+		const auto entry   = QFileInfo{ aArchive }.completeBaseName() + QStringLiteral(".txt");
+		return members && members->size() == 1U && members->front().Name == entry.toStdString() ? members->front().Bytes : std::string{ };
+	}
+	/// \brief [[BPR-PENDING-AG]]. The platform's own archive tools accept the
+	/// saved file: Info-ZIP's `unzip` tests every CRC and extracts the entry,
+	/// and on macOS `ditto -x -k`, Archive Utility's extractor, does too.
+	void native_archive_check(const QString& aArchive, const std::string& aText, const QString& aScratch)
+	{
+		const auto run = [](const QString& aProgram, const QStringList& aArguments) {
+			QProcess process;
+			process.start(aProgram, aArguments);
+			expect(process.waitForFinished(30000) && process.exitStatus() == QProcess::NormalExit, "the archive tool finishes");
+			return std::pair{ process.exitCode(), process.readAllStandardOutput() };
+		};
+		const auto entry = QFileInfo{ aArchive }.completeBaseName() + QStringLiteral(".txt");
+		unsigned   tools = 0U;
+		if (const auto unzip = QStandardPaths::findExecutable(QStringLiteral("unzip")); !unzip.isEmpty()) {
+			++tools;
+			const auto [tested, report] = run(unzip, { QStringLiteral("-t"), aArchive });
+			expect(tested == 0 && report.contains("No errors detected"), "unzip -t finds the archive and its CRC sound");
+			const auto [listed, listing] = run(unzip, { QStringLiteral("-Z1"), aArchive });
+			expect(listed == 0 && QString::fromUtf8(listing).trimmed() == entry, "unzip lists exactly the one .txt entry under its UTF-8 name");
+			const auto [extracted, text] = run(unzip, { QStringLiteral("-p"), aArchive });
+			expect(extracted == 0 && text.toStdString() == aText, "unzip extracts exactly the previewed text");
+		}
+#if defined(__APPLE__)
+		if (const auto ditto = QStandardPaths::findExecutable(QStringLiteral("ditto")); !ditto.isEmpty()) {
+			++tools;
+			const auto into = aScratch + QStringLiteral("/ditto-") + QString::number(QDateTime::currentMSecsSinceEpoch());
+			expect(run(ditto, { QStringLiteral("-x"), QStringLiteral("-k"), aArchive, into }).first == 0, "ditto -x -k, as Archive Utility, extracts the archive");
+			expect(QDir{ into }.entryList(QDir::AllEntries | QDir::NoDotAndDotDot) == QStringList{ entry } && read(app::native_filesystem_path(into + QStringLiteral("/") + entry)) == aText,
+				   "into exactly the one .txt file holding the previewed text");
+			const auto mode = std::filesystem::status(app::native_filesystem_path(into + QStringLiteral("/") + entry)).permissions();
+			expect((mode & std::filesystem::perms::all) == (std::filesystem::perms::owner_read | std::filesystem::perms::owner_write), "the extracted text is owner-only, as the saved archive is");
+		}
+		expect(tools == 2U, "both macOS archive tools are present to check the archive");
+#else
+		static_cast<void>(aScratch);
+		static_cast<void>(tools);
+#endif
 	}
 	// [[BPR-1615]]. Each private Insights family is populated before the real
 	// frozen-preview/export course; an empty store cannot prove privacy.
@@ -165,7 +214,7 @@ namespace {
 		expect(initial.has_value(), "OS standard folder observation is available");
 		expect(dialog->directory().absolutePath() == QString::fromStdString(*initial), "composed chooser explicitly starts in admitted OS folder despite cwd/history");
 		// [[BPR-1722]]. Named for the local date and time, and the version when there is one.
-		expect(QRegularExpression{ QStringLiteral("^BetterPullReview-diagnostics-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}(-[0-9.]+)?\\.txt$") }.match(QFileInfo{ dialog->selectedFiles().front() }.fileName()).hasMatch(),
+		expect(QRegularExpression{ QStringLiteral("^BetterPullReview-diagnostics-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}(-[0-9.]+)?\\.zip$") }.match(QFileInfo{ dialog->selectedFiles().front() }.fileName()).hasMatch(),
 			   "chooser suggests a dated filename");
 		return dialog;
 	}
@@ -397,22 +446,26 @@ try {
 		expect(settings->grab().save(capture), "actual composed Settings screenshot");
 		expect(directDialog->grab().save(capture + QStringLiteral("-export.png")), "actual composed export screenshot");
 	}
-	const auto destination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/diagnostic-é.txt");
+	const auto destination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/diagnostic-é.zip");
 	choose(*panel, destination);
 	auto* status = panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"));
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "native export terminal returns to actual Settings");
-	const auto exported = read(app::native_filesystem_path(destination));
+	// [[BPR-PENDING-AG]]. The saved file is a ZIP archive whose one entry,
+	// diagnostic-é.txt, is the frozen preview; the preview still shows text.
+	const auto exported = unzipped(destination);
 	if (exported != bytes) {
 		std::cerr << "diagnostic-export-mismatch: preview-bytes=" << bytes.size() << " exported-bytes=" << exported.size()
 				  << " destination-exists=" << QFileInfo::exists(destination) << '\n';
 	}
-	expect(exported == bytes, "export bytes equal exact frozen preview despite later append and non-ASCII save path");
+	expect(exported == bytes, "the archive's entry equals the exact frozen preview despite later append and non-ASCII save path");
+	native_archive_check(destination, bytes, QFileInfo{ temporary.path() }.canonicalFilePath());
+	const auto savedArchive = read(app::native_filesystem_path(destination));
 	panel->action(command::preview_diagnostics)->trigger();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "fresh preview prepares stale chooser course");
 	QPointer<QFileDialog> staleChooser     = open_save(*panel);
-	const auto            staleDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/stale.txt");
+	const auto            staleDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/stale.zip");
 	staleChooser->setDirectory(temporary.path());
-	staleChooser->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"))->setText(QStringLiteral("stale.txt"));
+	staleChooser->findChild<QLineEdit*>(QStringLiteral("fileNameEdit"))->setText(QStringLiteral("stale.zip"));
 	directDialog->reject();
 	until([&] { return !staleChooser || !staleChooser->isVisible(); }, "preview cancellation dismisses the exact stale chooser after its serialized terminal");
 	if (staleChooser) {
@@ -425,7 +478,7 @@ try {
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "new explicit preview is required for another export");
 	choose(*panel, destination);
 	until([&] { return status->text().contains(QStringLiteral("export was refused")); }, "existing destination is refused with actionable local-file guidance");
-	expect(read(app::native_filesystem_path(destination)) == bytes, "failed export cannot overwrite an existing destination");
+	expect(read(app::native_filesystem_path(destination)) == savedArchive, "failed export cannot overwrite an existing destination");
 	auto* scope       = panel->findChild<QComboBox*>(QStringLiteral("diagnosticExportScope"));
 	auto* recent      = panel->findChild<QCheckBox*>(QStringLiteral("diagnosticExportRecent"));
 	auto* identifying = panel->findChild<QPushButton*>(QStringLiteral("diagnosticIdentifyingPreview"));
@@ -450,10 +503,10 @@ try {
 	const auto confirmedBytes = preview->toPlainText().toStdString();
 	check_insights_export(confirmedBytes, false);
 	open_save(*panel);
-	const auto identifyingDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/identifying.txt");
+	const auto identifyingDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/identifying.zip");
 	choose(*panel, identifyingDestination, false);
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "confirmed identifying write completed");
-	expect(read(app::native_filesystem_path(identifyingDestination)) == confirmedBytes, "confirmed identifying output matches exact preview");
+	expect(unzipped(identifyingDestination) == confirmedBytes, "confirmed identifying output matches exact preview");
 	scope->setCurrentIndex(1);
 	panel->action(command::preview_diagnostics)->trigger();
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "current-session preview prepared");
@@ -486,10 +539,10 @@ try {
 	until([&] { return panel->action(command::export_diagnostics)->isEnabled(); }, "live Standard ring is explicitly selected through UI");
 	const auto ringPreview = preview->toPlainText().toStdString();
 	expect(ringPreview.find("\"source\":\"recent_context\"") != std::string::npos, "unpersisted intermediate context reaches selected public export");
-	const auto ringDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/recent-context.txt");
+	const auto ringDestination = QFileInfo{ temporary.path() }.canonicalFilePath() + QStringLiteral("/recent-context.zip");
 	choose(*panel, ringDestination);
 	until([&] { return status->text().contains(QStringLiteral("saved locally")); }, "selected ring export saves locally");
-	expect(read(app::native_filesystem_path(ringDestination)) == ringPreview, "ring save equals frozen preview");
+	expect(unzipped(ringDestination) == ringPreview, "ring save equals frozen preview");
 	settings->close();
 	auto* newWindow = window->findChild<QAction*>(QStringLiteral("newBprWindowAction"));
 	expect(newWindow && newWindow->isEnabled(), "New Window remains available after diagnostics");
@@ -556,7 +609,7 @@ try {
 			}
 		});
 	expect(!std::filesystem::exists(root / "state" / "v1" / "device-bindings.sqlite3") && !std::filesystem::exists(root / "state" / "v1" / "review-queue.sqlite3"), "private stores and binding metadata are removed");
-	expect(read(app::native_filesystem_path(destination)) == bytes, "exported user file survives profile purge");
+	expect(read(app::native_filesystem_path(destination)) == savedArchive && unzipped(destination) == bytes, "exported user file survives profile purge");
 #if defined(__APPLE__)
 	desktop->desktop_menu()->quit_action()->trigger();
 #else

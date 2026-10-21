@@ -473,8 +473,10 @@ namespace bpr::qt {
 		chooser->setFileMode(QFileDialog::AnyFile);
 		chooser->setSupportedSchemes({ QStringLiteral("file") });
 		chooser->setOption(QFileDialog::DontConfirmOverwrite);
-		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.txt)"));
-		chooser->setDefaultSuffix(QStringLiteral("txt"));
+		// [[BPR-PENDING-AG]]. A ZIP archive holding the text, which the
+		// preview shows; the archive's one entry keeps the `.txt` name.
+		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.zip)"));
+		chooser->setDefaultSuffix(QStringLiteral("zip"));
 		chooser->setDirectory(QString::fromStdString(*aDirectory));
 		// [[BPR-1722]]. Named for when it was taken and by which
 		// version, so saved exports need no renaming and sort by time.

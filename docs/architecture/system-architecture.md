@@ -559,6 +559,14 @@ whether a suitable library should be allowed instead.
   sha1collisiondetection, HACL* generated SHA-2, rapidfuzz-cpp, dtl, RE2/Abseil
   and Git xdiff. Approval of one use does not admit arbitrary APIs from a
   library or its transitive dependencies.
+- zlib 1.3.2 is built from its pinned archive with `Z_PREFIX`, and only
+  `review_cycle_zip_codec.cpp` includes it. Its raw inflate and CRC-32 read
+  review bundles ([[BPR-1435]]). Its raw deflate (`deflate.c`, `trees.c`) is
+  approved by the owner on 2026-10-21 for one use: compressing the diagnostics
+  export into its single-entry `.zip` ([[BPR-PENDING-AG]]). No gz* file I/O,
+  `compress`/`uncompress` helpers or other zlib API is adopted. The ZIP
+  container is the core's own minimal writer (`write_cycle_zip`); no ZIP
+  library is adopted, and LibArchive stays a macOS update-staging reader.
 - SHA-1 retains collision detection. Unkeyed SHA-256 uses CommonCrypto on macOS,
   CNG on Windows and HACL as the portable backend (RFC-BPR-0080 r4,
   [[BPR-1617]]). Native types/APIs stay private to `sha256_commoncrypto.cpp`

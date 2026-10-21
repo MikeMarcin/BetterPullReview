@@ -35,8 +35,9 @@ Diagnostic logs stay on this computer, per profile, for 30 days (at most
 
 To share diagnostics, use **Help > Export anonymized diagnostics…**. The
 preview shows exactly what the file will contain, and saving only writes a
-file: nothing is uploaded. **Export with identifying details…** also keeps
-request and window IDs.
+file: nothing is uploaded. The file is a `.zip` holding that text as one
+`.txt` file, small enough to attach to an issue. **Export with identifying
+details…** also keeps request and window IDs.
 
 > [!WARNING]
 > Logs written by earlier versions can contain provider text and identifying

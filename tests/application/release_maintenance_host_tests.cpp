@@ -2,6 +2,8 @@
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/application/release_maintenance_application_host.hpp"
 #include "bpr/application/release_profile_cleanup.hpp"
+#include "bpr/core/release_maintenance.hpp"
+#include "bpr/core/review_cycle_zip.hpp"
 
 #include <charconv>
 #include <cstdlib>
@@ -357,6 +359,72 @@ namespace {
 				   && document->Bytes.contains("review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line"),
 			   "with its Home refreshes and review endings, and the header says nothing was left out");
 		expect(!document->Bytes.contains(session), "and anonymized");
+	}
+
+	/// [[BPR-PENDING-AG]]. A typical export saved as its archive: about 316
+	/// records of a working session, as in the owner's two 256 KiB exports
+	/// (801 bytes a record), with pull request pages, Home refreshes, review
+	/// endings and capability failures, and times and durations that vary.
+	/// The archive reads back through zlib's inflate as exactly the text and
+	/// is a small fraction of it; the owner's exports zipped to about 8 KB.
+	void test_export_archive_compresses()
+	{
+		const auto sessionText = [](const unsigned aRecords) {
+			std::string   input;
+			std::uint64_t utc  = 1780000000000ULL;
+			std::uint32_t seed = 2166136261U;
+			for (unsigned sequence = 1U; sequence <= aRecords; ++sequence) {
+				seed = (seed * 1664525U) + 1013904223U;
+				utc += 200U + (seed % 9000U);
+				std::string line;
+				if (sequence % 97U == 0U) {
+					line = event_line(sequence, utc, "github.review_submission", "failed", 422U, "review_submission", "none",
+									  "review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line stop=none comments=" + std::to_string(1U + (seed % 9U)) + " duplicate=0");
+				} else if (sequence % 11U == 0U) {
+					line = event_line(sequence, utc, "github.discovery", "succeeded", 0U, "none", "none",
+									  "discovery=refresh refresh=" + std::to_string(sequence / 11U) + " read=0 reason=none state=current repositories=" + std::to_string(3U + (seed % 5U)) + " pull_requests="
+										  + std::to_string(10U + (seed % 30U)) + " reads=6 failed=0 requests=" + std::to_string(5U + (seed % 9U)) + " wait_ms=" + std::to_string(seed % 400U) + " run_ms=" + std::to_string(800U + (seed % 6000U)));
+				} else if (sequence % 3U == 0U) {
+					line = event_line(sequence, utc, "github.pull_request", "succeeded", 200U, "none", "none", "");
+				} else {
+					line = structured_line(sequence);
+					line.replace(line.find("1780000000000"), 13U, std::to_string(utc));
+				}
+				line.replace(line.find("\"elapsed_us\":5,"), 15U, "\"elapsed_us\":" + std::to_string(seed % 2000000U) + ",");
+				input += line;
+			}
+			return input;
+		};
+		const application::diagnostic_export_capture capture{ std::string{ session }, 400U, { }, "0.3.1-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef-Release" };
+		const auto                                   when = core::diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 14, .Minute = 32, .Second = 5 };
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying, core::diagnostic_export_policy::metadata }) {
+			const auto input    = sessionText(316U);
+			const auto document = policy == core::diagnostic_export_policy::metadata
+				? application::prepare_release_diagnostics(input, core::release_maintenance_revision{ 1U })
+				: application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0U, { .UtcMs = 1780000000000ULL, .OffsetMinutes = -420 });
+			expect(document.has_value(), "a working session's export prepares");
+			const auto file    = core::diagnostic_export_file_name(when, "0.3.1");
+			const auto archive = core::diagnostic_export_archive(file, document->Bytes, when);
+			const auto read    = core::read_cycle_zip({ reinterpret_cast<const std::uint8_t*>(archive.data()), archive.size() });
+			expect(read && read->size() == 1U && read->front().Name == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt" && read->front().Bytes == document->Bytes,
+				   "the archive's one entry, under the .txt name, inflates to exactly the previewed text");
+			std::cerr << "export archive (policy " << static_cast<int>(policy) << "): " << document->Descriptor.Records << " records, " << document->Bytes.size() << " text bytes, " << archive.size() << " archive bytes, ratio "
+					  << (document->Bytes.size() / archive.size()) << ":1\n";
+			if (policy != core::diagnostic_export_policy::metadata) {
+				expect(document->Bytes.size() > 200U * 1024U && document->Bytes.starts_with("{\"format\":\"bpr-diagnostics-v2\",\"exported_at\":\"") && read->front().Bytes.starts_with("{\"format\":\"bpr-diagnostics-v2\""),
+					   "a typical export is about 256 KiB and keeps its header inside the archive");
+				expect(policy == core::diagnostic_export_policy::identifying || !read->front().Bytes.contains(session), "and the anonymized one keeps its labels inside");
+			}
+			expect(archive.size() * 10U < document->Bytes.size(), "and compresses at least ten times");
+		}
+		// The largest text an export holds still fits its archive.
+		const auto heavy    = sessionText(20000U);
+		const auto document = application::prepare_diagnostic_export(heavy, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, { std::string{ session }, 1000000U, { }, { } }, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document && document->Descriptor.Records == core::release_diagnostic_record_limit, "a full export prepares");
+		const auto archive = core::diagnostic_export_archive("full.zip", document->Bytes, when);
+		const auto read    = core::read_cycle_zip({ reinterpret_cast<const std::uint8_t*>(archive.data()), archive.size() });
+		std::cerr << "full export archive: " << document->Descriptor.Records << " records, " << document->Bytes.size() << " text bytes, " << archive.size() << " archive bytes\n";
+		expect(read && read->size() == 1U && read->front().Bytes == document->Bytes && archive.size() * 10U < document->Bytes.size(), "a full export's archive reads back whole and compresses as well");
 	}
 
 	/// [[BPR-1722]]. The raised limits still hold: past the record limit
@@ -715,6 +783,7 @@ auto main() -> int
 	test_export_keeps_newest();
 	test_review_submission_ending_export();
 	test_export_keeps_long_session();
+	test_export_archive_compresses();
 	test_export_bounds();
 	test_export_stamp();
 	test_preview_export();

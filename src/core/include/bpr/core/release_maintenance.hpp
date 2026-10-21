@@ -100,8 +100,8 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto valid_diagnostic_export_options(diagnostic_export_options aOptions) noexcept -> bool;
 
-	/// \brief [[BPR-1722]]. A local date and time to the minute, as the
-	/// presenter's clock reads it.
+	/// \brief [[BPR-1722]]. A local date and time, as the presenter's or
+	/// host's clock reads it; a name uses it to the minute.
 	struct diagnostic_export_local_time
 	{
 		int      Year   = 0;
@@ -109,15 +109,34 @@ namespace bpr::core {
 		unsigned Day    = 0U;
 		unsigned Hour   = 0U;
 		unsigned Minute = 0U;
+		unsigned Second = 0U;
 	};
 	/// \brief [[BPR-1722]]. The name a save suggests for an export:
-	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt`.
+	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.zip`.
 	/// \details The local date and time come first, so saved exports sort by
 	/// when they were taken, and the name holds no colon or other character a
 	/// file system refuses. The version is added only when it is dotted
 	/// decimal numbers, so no host, account or repository can reach the name.
-	/// An impossible date or time is left out.
+	/// An impossible date or time is left out. [[BPR-PENDING-AG]]: the file is
+	/// a `.zip` holding the text (`diagnostic_export_archive`).
 	[[nodiscard]] auto diagnostic_export_file_name(const diagnostic_export_local_time& aTime, std::string_view aVersion) -> std::string;
+	/// \brief [[BPR-PENDING-AG]]. The name of the text inside a saved archive:
+	/// the file's name with a final `.zip` replaced by `.txt`, so
+	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt`.
+	/// \details Any case of `.zip` is replaced; a name that then does not end
+	/// in `.txt` gains it. A name that is empty, holds a path separator, a
+	/// NUL or a control character, is not UTF-8 or is over 255 bytes gives
+	/// `BetterPullReview-diagnostics.txt`.
+	[[nodiscard]] auto diagnostic_export_entry_name(std::string_view aFileName) -> std::string;
+	/// \brief [[BPR-PENDING-AG]]. The bytes of a saved export: a standard ZIP
+	/// archive with one regular-file entry, `aText` deflated under
+	/// `diagnostic_export_entry_name(aFileName)`, with its CRC-32, sizes, a
+	/// UTF-8 name, `aTime` as its modification time and owner-only (0600)
+	/// permissions, as the saved file has.
+	/// \details The text is stored instead when deflate would not shrink it.
+	/// A time the format cannot hold (before 1980 or after 2107, or
+	/// impossible) gives 1980-01-01 00:00. Equal inputs give equal bytes.
+	[[nodiscard]] auto diagnostic_export_archive(std::string_view aFileName, std::string_view aText, const diagnostic_export_local_time& aTime) -> std::string;
 
 	/// \brief Immutable classified bytes retained by the host for preview and export.
 	struct release_diagnostic_snapshot

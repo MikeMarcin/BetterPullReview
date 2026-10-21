@@ -1,5 +1,8 @@
 #include "bpr/core/release_maintenance.hpp"
 
+#include "bpr/core/review_cycle_zip.hpp"
+#include "bpr/core/utf8.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <limits>
@@ -457,7 +460,39 @@ namespace bpr::core {
 			name += "-";
 			name += aVersion;
 		}
-		return name + ".txt";
+		return name + ".zip";
+	}
+
+	auto diagnostic_export_entry_name(const std::string_view aFileName) -> std::string
+	{
+		const auto endsWith = [](const std::string_view aName, const std::string_view aSuffix) {
+			return aName.size() >= aSuffix.size() && std::ranges::equal(aName.substr(aName.size() - aSuffix.size()), aSuffix, [](const char aLeft, const char aRight) {
+					   return (aLeft >= 'A' && aLeft <= 'Z' ? static_cast<char>(aLeft - 'A' + 'a') : aLeft) == aRight;
+				   });
+		};
+		const auto admitted = !aFileName.empty() && aFileName.size() <= 255U && utf8::valid(aFileName)
+			&& std::ranges::none_of(aFileName, [](const char aSymbol) { return static_cast<unsigned char>(aSymbol) < 0x20U || aSymbol == 0x7F || aSymbol == '/' || aSymbol == '\\'; });
+		auto name = admitted ? std::string{ aFileName } : std::string{ };
+		if (endsWith(name, ".zip")) {
+			name.resize(name.size() - 4U);
+		}
+		if (name.empty() || name == "." || name == "..") {
+			return "BetterPullReview-diagnostics.txt";
+		}
+		return endsWith(name, ".txt") ? name : name + ".txt";
+	}
+
+	auto diagnostic_export_archive(const std::string_view aFileName, const std::string_view aText, const diagnostic_export_local_time& aTime) -> std::string
+	{
+		// Owner-only once extracted, as the saved file is.
+		auto       options = cycle_zip_write_options{ .Deflate = true, .Mode = 0600U };
+		const auto date    = std::chrono::year{ aTime.Year } / std::chrono::month{ aTime.Month } / std::chrono::day{ aTime.Day };
+		if (aTime.Year >= 1980 && aTime.Year <= 2107 && date.ok() && aTime.Hour < 24U && aTime.Minute < 60U && aTime.Second < 60U) {
+			options.DosDate = static_cast<std::uint16_t>((static_cast<unsigned>(aTime.Year - 1980) << 9U) | (aTime.Month << 5U) | aTime.Day);
+			options.DosTime = static_cast<std::uint16_t>((aTime.Hour << 11U) | (aTime.Minute << 5U) | (aTime.Second / 2U));
+		}
+		const auto member = cycle_zip_member{ .Name = diagnostic_export_entry_name(aFileName), .Bytes = std::string{ aText } };
+		return write_cycle_zip(std::span{ &member, 1U }, options);
 	}
 
 	auto transition(release_maintenance_state& aState, const release_maintenance_event& aEvent) noexcept -> release_maintenance_output

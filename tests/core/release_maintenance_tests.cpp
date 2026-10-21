@@ -1,8 +1,11 @@
 #include "bpr/core/release_maintenance.hpp"
+#include "bpr/core/review_cycle_zip.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <span>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -434,25 +437,124 @@ namespace {
 	void test_export_file_name()
 	{
 		const auto at = diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 14, .Minute = 32 };
-		expect(diagnostic_export_file_name(at, "0.3.1") == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt", "the name holds the local date, time and version");
-		expect(diagnostic_export_file_name({ .Year = 2027, .Month = 1, .Day = 2, .Hour = 3, .Minute = 4 }, "1.0") == "BetterPullReview-diagnostics-2027-01-02-0304-1.0.txt", "every field is zero padded, so names sort by time");
+		expect(diagnostic_export_file_name(at, "0.3.1") == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.zip", "the name holds the local date, time and version");
+		expect(diagnostic_export_file_name({ .Year = 2027, .Month = 1, .Day = 2, .Hour = 3, .Minute = 4 }, "1.0") == "BetterPullReview-diagnostics-2027-01-02-0304-1.0.zip", "every field is zero padded, so names sort by time");
 		expect(diagnostic_export_file_name({ .Year = 2026, .Month = 10, .Day = 21, .Hour = 9, .Minute = 5 }, "0.3.1") < diagnostic_export_file_name(at, "0.3.1"), "an earlier export sorts first");
 		for (const std::string_view version : { "", "0.3.1-dirty", "ghe.example.invalid", "octo/repo", "0..3", ".3", "3.", "0.3.1 ", "0:3" }) {
-			expect(diagnostic_export_file_name(at, version) == "BetterPullReview-diagnostics-2026-10-21-1432.txt", "a version that is not dotted numbers is left out");
+			expect(diagnostic_export_file_name(at, version) == "BetterPullReview-diagnostics-2026-10-21-1432.zip", "a version that is not dotted numbers is left out");
 		}
 		for (const auto& impossible : { diagnostic_export_local_time{ }, diagnostic_export_local_time{ .Year = 2026, .Month = 2, .Day = 30, .Hour = 1, .Minute = 1 }, diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 24, .Minute = 0 },
 										diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 23, .Minute = 60 }, diagnostic_export_local_time{ .Year = 10000, .Month = 1, .Day = 1, .Hour = 0, .Minute = 0 } }) {
-			expect(diagnostic_export_file_name(impossible, "0.3.1") == "BetterPullReview-diagnostics-0.3.1.txt", "an impossible time is left out");
+			expect(diagnostic_export_file_name(impossible, "0.3.1") == "BetterPullReview-diagnostics-0.3.1.zip", "an impossible time is left out");
 		}
 		for (const auto& name : { diagnostic_export_file_name(at, "0.3.1"), diagnostic_export_file_name(at, "ghe.example.invalid") }) {
 			expect(name.find_first_of(":/\\<>|?*\" ") == std::string::npos, "no colon, separator, space or other character a file system refuses");
 		}
+	}
+
+	auto get16(const std::string_view aBytes, const std::size_t aAt) -> std::uint32_t
+	{
+		expect(aAt + 2U <= aBytes.size(), "a field lies inside the archive");
+		return static_cast<std::uint32_t>(static_cast<unsigned char>(aBytes[aAt])) | (static_cast<std::uint32_t>(static_cast<unsigned char>(aBytes[aAt + 1U])) << 8U);
+	}
+	auto get32(const std::string_view aBytes, const std::size_t aAt) -> std::uint32_t { return get16(aBytes, aAt) | (get16(aBytes, aAt + 2U) << 16U); }
+
+	/// \brief The one entry of a single-entry archive, read field by field
+	/// from its local header, central directory entry and end record, which
+	/// must agree with each other and end the archive exactly.
+	struct archive_entry
+	{
+		std::uint32_t Flags      = 0U;
+		std::uint32_t Method     = 0U;
+		std::uint32_t Time       = 0U;
+		std::uint32_t Date       = 0U;
+		std::uint32_t Crc        = 0U;
+		std::uint32_t Compressed = 0U;
+		std::uint32_t Size       = 0U;
+		std::uint32_t Attributes = 0U;
+		std::string   Name;
+	};
+	auto single_entry(const std::string_view aArchive) -> archive_entry
+	{
+		expect(get32(aArchive, 0U) == 0x04034B50U, "the archive begins with a local file header");
+		auto entry = archive_entry{ .Flags = get16(aArchive, 6U), .Method = get16(aArchive, 8U), .Time = get16(aArchive, 10U), .Date = get16(aArchive, 12U), .Crc = get32(aArchive, 14U), .Compressed = get32(aArchive, 18U), .Size = get32(aArchive, 22U) };
+		expect(get16(aArchive, 4U) == 20U && get16(aArchive, 28U) == 0U, "the local header needs version 2.0 and has no extra field");
+		const auto nameBytes = get16(aArchive, 26U);
+		entry.Name           = std::string{ aArchive.substr(30U, nameBytes) };
+		const auto central   = std::size_t{ 30U } + nameBytes + entry.Compressed;
+		expect(get32(aArchive, central) == 0x02014B50U, "the central directory follows the entry's data");
+		expect(get16(aArchive, central + 6U) == 20U && get16(aArchive, central + 8U) == entry.Flags && get16(aArchive, central + 10U) == entry.Method && get16(aArchive, central + 12U) == entry.Time
+				   && get16(aArchive, central + 14U) == entry.Date && get32(aArchive, central + 16U) == entry.Crc && get32(aArchive, central + 20U) == entry.Compressed && get32(aArchive, central + 24U) == entry.Size
+				   && get16(aArchive, central + 28U) == nameBytes && get16(aArchive, central + 30U) == 0U && get16(aArchive, central + 32U) == 0U && get32(aArchive, central + 42U) == 0U
+				   && aArchive.substr(central + 46U, nameBytes) == entry.Name,
+			   "the central directory entry repeats the local header and points at it");
+		entry.Attributes = get32(aArchive, central + 38U);
+		const auto end   = central + 46U + nameBytes;
+		expect(get32(aArchive, end) == 0x06054B50U && get16(aArchive, end + 4U) == 0U && get16(aArchive, end + 6U) == 0U && get16(aArchive, end + 8U) == 1U && get16(aArchive, end + 10U) == 1U
+				   && get32(aArchive, end + 12U) == 46U + nameBytes && get32(aArchive, end + 16U) == central && get16(aArchive, end + 20U) == 0U && end + 22U == aArchive.size(),
+			   "one end record on disk 0 counts one entry, sizes and places the directory, and ends the archive");
+		return entry;
+	}
+
+	/// [[BPR-PENDING-AG]]. A saved export is a standard single-entry ZIP: the
+	/// text deflated under the `.txt` name, with its CRC-32, sizes, UTF-8 name
+	/// and local time, which zlib's inflate reads back byte for byte.
+	void test_export_archive()
+	{
+		std::string text = "{\"format\":\"bpr-diagnostics-v2\",\"exported_at\":\"2026-10-21T14:32:05-07:00\",\"app_version\":\"0.3.1\"}\n";
+		for (unsigned sequence = 1U; sequence <= 300U; ++sequence) {
+			text += "{\"v\":3,\"event\":\"github.pull_request.succeeded\",\"utc_ms\":" + std::to_string(1780000000000ULL + (sequence * 3617ULL)) + ",\"sequence\":" + std::to_string(sequence)
+				+ ",\"op\":\"github.pull_request\",\"outcome\":\"succeeded\",\"elapsed_us\":" + std::to_string((sequence * 7919U) % 100000U) + ",\"request_label\":\"request-" + std::to_string(sequence % 17U) + "\"}\n";
+		}
+		const auto at      = diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 14, .Minute = 32, .Second = 5 };
+		const auto file    = diagnostic_export_file_name(at, "0.3.1");
+		const auto archive = diagnostic_export_archive(file, text, at);
+		const auto entry   = single_entry(archive);
+		expect(entry.Name == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt", "the entry keeps the export's .txt name");
+		expect(entry.Method == 8U && entry.Flags == 0x0800U, "the entry is deflated, unencrypted, with a UTF-8 name and its sizes in the header");
+		expect(entry.Crc == cycle_crc32(text) && entry.Size == text.size() && entry.Compressed == archive.size() - 30U - 46U - 22U - (2U * entry.Name.size()), "the CRC-32 and both sizes are the text's");
+		expect(entry.Date == ((46U << 9U) | (10U << 5U) | 21U) && entry.Time == ((14U << 11U) | (32U << 5U) | 2U), "the entry is dated 2026-10-21 14:32:04, the local time to two seconds");
+		expect((entry.Attributes >> 16U) == 0100600U, "a regular file, owner-only once extracted, as the saved file is");
+		const auto data = std::span{ reinterpret_cast<const std::uint8_t*>(archive.data()) + 30U + entry.Name.size(), entry.Compressed };
+		expect(inflate_cycle_deflate(data, text.size()) == text, "zlib's raw inflate gives back the text byte for byte");
+		const auto read = read_cycle_zip({ reinterpret_cast<const std::uint8_t*>(archive.data()), archive.size() });
+		expect(read && read->size() == 1U && read->front().Name == entry.Name && read->front().Bytes == text, "the archive reader admits it and returns exactly the text");
+		expect(diagnostic_export_archive(file, text, at) == archive, "equal inputs give equal bytes");
+		expect(archive.size() * 5U < text.size(), "repetitive records compress at least five times");
+
+		// A text deflate cannot shrink is stored, with the standard CRC-32.
+		const auto check = diagnostic_export_archive("check.zip", "123456789", at);
+		const auto small = single_entry(check);
+		expect(small.Name == "check.txt" && small.Method == 0U && small.Crc == 0xCBF43926U && small.Size == 9U && small.Compressed == 9U && check.substr(30U + small.Name.size(), 9U) == "123456789",
+			   "a text deflate cannot shrink is stored, with CRC-32 CBF43926 for 123456789");
+		expect(single_entry(diagnostic_export_archive("\xC3\xA9.zip", "x", at)).Name == "\xC3\xA9.txt", "a non-ASCII name is kept as UTF-8");
+		for (const auto& impossible : { diagnostic_export_local_time{ }, diagnostic_export_local_time{ .Year = 1979, .Month = 12, .Day = 31, .Hour = 23, .Minute = 59 }, diagnostic_export_local_time{ .Year = 2108, .Month = 1, .Day = 1 },
+										diagnostic_export_local_time{ .Year = 2026, .Month = 2, .Day = 30 }, diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Second = 60 } }) {
+			const auto dated = single_entry(diagnostic_export_archive(file, "x", impossible));
+			expect(dated.Date == 0x21U && dated.Time == 0U, "a time the format cannot hold gives 1980-01-01 00:00");
+		}
+	}
+
+	/// [[BPR-PENDING-AG]]. The entry is named for the file, with `.txt`.
+	void test_export_entry_name()
+	{
+		expect(diagnostic_export_entry_name("BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.zip") == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt", "a final .zip becomes .txt");
+		expect(diagnostic_export_entry_name("Bug 42.ZIP") == "Bug 42.txt", "in any case");
+		expect(diagnostic_export_entry_name("notes") == "notes.txt" && diagnostic_export_entry_name("notes.txt") == "notes.txt" && diagnostic_export_entry_name("a.zip.zip") == "a.zip.txt", "a name gains .txt once");
+		expect(diagnostic_export_entry_name("diagnostic-\xC3\xA9.zip") == "diagnostic-\xC3\xA9.txt", "a UTF-8 name is kept");
+		using namespace std::string_view_literals;
+		for (const auto refused : { ""sv, ".zip"sv, "a/b.zip"sv, "a\\b.zip"sv, "a\nb.zip"sv, "a\0b.zip"sv, "\xFF.zip"sv, ".."sv }) {
+			expect(diagnostic_export_entry_name(refused) == "BetterPullReview-diagnostics.txt", "an empty, separated, controlled or non-UTF-8 name gives the default");
+		}
+		expect(diagnostic_export_entry_name(std::string(256U, 'a')) == "BetterPullReview-diagnostics.txt", "a name over 255 bytes gives the default");
 	}
 }
 
 auto main() -> int
 {
 	test_export_file_name();
+	test_export_entry_name();
+	test_export_archive();
 	test_safe_defaults_and_closed_fields();
 	test_public_two_phase_courses();
 	test_snapshot_privacy_and_bounds();

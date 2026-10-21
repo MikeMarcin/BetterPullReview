@@ -5,6 +5,7 @@
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/profile_data_reset.hpp"
+#include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/sha256.hpp"
 #include "storage_internal.hpp"
 
@@ -54,6 +55,29 @@ namespace bpr::adapters::sqlite {
 			if (aStop.stop_requested()) {
 				fail(reason::cancelled);
 			}
+		}
+		/// \brief [[BPR-PENDING-AG]]. A saved export's bytes: the frozen text
+		/// as the one deflated entry of a ZIP archive named for the file,
+		/// dated now by the local clock.
+		auto archive(std::string_view aFileName, std::string_view aText) -> std::string
+		{
+			const auto seconds = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+			std::tm    local{ };
+#ifdef _WIN32
+			const bool converted = ::localtime_s(&local, &seconds) == 0;
+#else
+			const bool converted = ::localtime_r(&seconds, &local) != nullptr;
+#endif
+			auto time = core::diagnostic_export_local_time{ };
+			if (converted && local.tm_mon >= 0 && local.tm_mday >= 0 && local.tm_hour >= 0 && local.tm_min >= 0 && local.tm_sec >= 0) {
+				time = { .Year   = local.tm_year + 1900,
+						 .Month  = static_cast<unsigned>(local.tm_mon) + 1U,
+						 .Day    = static_cast<unsigned>(local.tm_mday),
+						 .Hour   = static_cast<unsigned>(local.tm_hour),
+						 .Minute = static_cast<unsigned>(local.tm_min),
+						 .Second = static_cast<unsigned>(std::min(local.tm_sec, 59)) };
+			}
+			return core::diagnostic_export_archive(aFileName, aText, time);
 		}
 		auto safe_relative(std::string_view aPath) -> bool
 		{
@@ -871,13 +895,14 @@ namespace bpr::adapters::sqlite {
 					}
 					cancelled(aStop);
 					static std::atomic<std::uint64_t> sequence{ 0U };
-					temporary = ".bpr-export-" + std::to_string(::getpid()) + "-" + std::to_string(sequence.fetch_add(1U));
-					file      = descriptor{ ::openat(Parent.Value, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600) };
+					const auto                        zipped = archive(Name, aBytes);
+					temporary                                = ".bpr-export-" + std::to_string(::getpid()) + "-" + std::to_string(sequence.fetch_add(1U));
+					file                                     = descriptor{ ::openat(Parent.Value, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600) };
 					if (file.Value < 0) {
 						temporary.clear();
 						fail(reason::io_failure);
 					}
-					write_all(file.Value, aBytes);
+					write_all(file.Value, zipped);
 					cancelled(aStop);
 					if (!still_owned()) {
 						fail(reason::selection_changed);
@@ -1346,8 +1371,10 @@ namespace bpr::adapters::sqlite {
 					cancelled(aStop);
 					static std::atomic<std::uint64_t> sequence{ 0U };
 					const auto                        temporary = ".bpr-export-" + std::to_string(::GetCurrentProcessId()) + "-" + std::to_string(sequence.fetch_add(1U));
+					const auto                        utf8      = Name.u8string();
+					const auto                        zipped    = archive({ reinterpret_cast<const char*>(utf8.data()), utf8.size() }, aBytes);
 					file                                        = create_private_file(Parent.Value, temporary);
-					write_all(file.Value, aBytes);
+					write_all(file.Value, zipped);
 					cancelled(aStop);
 					if (!still_owned()) {
 						fail(reason::selection_changed);

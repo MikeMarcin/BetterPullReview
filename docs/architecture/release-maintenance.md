@@ -533,16 +533,45 @@ sized from the fixture courses' own diagnostics files:
   in an unoptimised build. The preview showed a 16,384-record (13 MiB)
   document in 31 ms offscreen.
 
-**Compression.** The export stays an uncompressed text file. The core's pinned
-zlib compiles only its inflate and checksum sources (`BprZlibProvider.cmake`:
-"no deflate"), LibArchive is pinned only for macOS update staging and reads
-ZIP, and no other compressor is approved. Writing a `.zip` or `.gz` would need
-zlib's deflate sources admitted as a new use, which is an owner decision. A
-16 MiB export is within GitHub's 25 MB attachment limit; the owner zips exports
-by hand, which takes 256 KiB to about 8 KB.
+**Compression ([[BPR-PENDING-AG]]).** A saved export is a standard ZIP
+archive holding the text. The owner approved zlib's deflate for it on
+2026-10-21, so `BprZlibProvider.cmake` now also compiles `deflate.c` and
+`trees.c` from the same pinned 1.3.2 archive. No ZIP library is adopted:
+LibArchive is pinned only for macOS update staging, with only its reader, and
+the core already had a minimal container writer for review bundles
+(`write_cycle_zip`), which now can deflate its members and stamp a time.
+
+- **What is written.** `core::diagnostic_export_archive` gives one regular-file
+  entry: the frozen text, deflated at zlib's level 6 (stored instead if
+  deflate would not shrink it), with its CRC-32, compressed and uncompressed
+  sizes in the local header and central directory, the UTF-8 name flag,
+  owner-only mode 0600 (as the saved file and the earlier `.txt` had) and the
+  local time to two seconds, then one end record. There is no
+  data descriptor, extra field, comment, encryption or ZIP64; a 16 MiB text
+  fits the 32-bit fields. Equal inputs give equal bytes.
+- **Where.** The text is still decided by the application (classification,
+  anonymisation, header, "Current session only" and the metadata policy) and
+  is what the preview shows and the host digest-checks before saving. The
+  file adapter's output (`release_maintenance_files`) turns that text into the
+  archive at write time, on the effect lane, from the chosen file's name and
+  its own local clock, and writes it with the same private temporary file,
+  link and refusal of an existing destination as before.
+- **Names.** The save dialog's filter and default suffix are `.zip`. The entry
+  is the file's name with a final `.zip` (any case) replaced by `.txt`
+  (`core::diagnostic_export_entry_name`); a name that is not UTF-8, holds a
+  separator or control character, or is empty gives
+  `BetterPullReview-diagnostics.txt`.
+- **Size and cost.** A typical export of about 316 records (284 KiB) becomes
+  an 8.5 KB archive, about 33:1, as the owner's hand-zipped 256 KiB exports
+  became about 8 KB. A full 16,384-record export (14.7 MB) becomes about
+  369 KB.
+- **Checks.** Info-ZIP `unzip -t` and `ditto -x -k`, which Archive Utility
+  uses, accept the saved file in the public path course and extract exactly
+  the previewed text.
 
 **Name and header.** The save dialog suggests
-`BetterPullReview-diagnostics-YYYY-MM-DD-HHmm-VERSION.txt` from the local
+`BetterPullReview-diagnostics-YYYY-MM-DD-HHmm-VERSION.zip` (`.txt` before
+[[BPR-PENDING-AG]]; its entry keeps the `.txt` name) from the local
 date and time (`core::diagnostic_export_file_name`): sortable by time, no
 colon, and the version only when it is dotted numbers, so no host, account or
 repository can reach the name. The header's first fields are `exported_at`,

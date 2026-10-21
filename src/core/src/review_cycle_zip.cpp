@@ -214,7 +214,7 @@ namespace bpr::core {
 		return std::move(*output);
 	}
 
-	auto write_cycle_zip(const std::span<const cycle_zip_member> aMembers) -> std::string
+	auto write_cycle_zip(const std::span<const cycle_zip_member> aMembers, const cycle_zip_write_options& aOptions) -> std::string
 	{
 		auto archive = std::string{ };
 		auto central = std::string{ };
@@ -223,30 +223,37 @@ namespace bpr::core {
 			const auto at   = static_cast<std::uint32_t>(archive.size());
 			const auto size = static_cast<std::uint32_t>(member.Bytes.size());
 			const auto name = static_cast<std::uint32_t>(member.Name.size());
-			// Local header: version 2.0, UTF-8 names, stored, 1980-01-01 00:00.
+			// [[BPR-PENDING-AG]]. A member deflate does not shrink stays stored.
+			auto packed = aOptions.Deflate ? zip_codec::deflate_raw(member.Bytes) : std::nullopt;
+			if (packed && packed->size() >= member.Bytes.size()) {
+				packed.reset();
+			}
+			const auto method     = std::uint32_t{ packed ? deflated : stored };
+			const auto packedSize = static_cast<std::uint32_t>(packed ? packed->size() : member.Bytes.size());
+			// Local header: version 2.0, UTF-8 names, the method and the time.
 			put32(archive, local_signature);
-			for (const auto field : { 20U, std::uint32_t{ utf8_names }, std::uint32_t{ stored }, 0U, 0x21U }) {
+			for (const auto field : { 20U, std::uint32_t{ utf8_names }, method, std::uint32_t{ aOptions.DosTime }, std::uint32_t{ aOptions.DosDate } }) {
 				put16(archive, field);
 			}
 			put32(archive, crc);
-			put32(archive, size);
+			put32(archive, packedSize);
 			put32(archive, size);
 			put16(archive, name);
 			put16(archive, 0U);
 			archive += member.Name;
-			archive += member.Bytes;
-			// Central entry: made by Unix 2.0, a regular file with mode 0644.
+			archive += packed ? *packed : member.Bytes;
+			// Central entry: made by Unix 2.0, a regular file with its mode.
 			put32(central, central_signature);
-			for (const auto field : { 0x0314U, 20U, std::uint32_t{ utf8_names }, std::uint32_t{ stored }, 0U, 0x21U }) {
+			for (const auto field : { 0x0314U, 20U, std::uint32_t{ utf8_names }, method, std::uint32_t{ aOptions.DosTime }, std::uint32_t{ aOptions.DosDate } }) {
 				put16(central, field);
 			}
 			put32(central, crc);
-			put32(central, size);
+			put32(central, packedSize);
 			put32(central, size);
 			for (const auto field : { name, 0U, 0U, 0U, 0U }) {
 				put16(central, field);
 			}
-			put32(central, 0x81A40000U);
+			put32(central, (0100000U | (std::uint32_t{ aOptions.Mode } & 0777U)) << 16U);
 			put32(central, at);
 			central += member.Name;
 		}

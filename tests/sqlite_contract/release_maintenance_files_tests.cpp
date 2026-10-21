@@ -8,6 +8,7 @@
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
+#include "bpr/core/review_cycle_zip.hpp"
 #include "platform_test_support.hpp"
 
 #include <algorithm>
@@ -69,6 +70,14 @@ namespace {
 	{
 		std::ifstream file{ aPath, std::ios::binary };
 		return { std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } };
+	}
+	/// \brief [[BPR-PENDING-AG]]. The text of a saved export: its archive's
+	/// one entry, which must have `aEntry`'s name; empty otherwise.
+	auto unzipped(const fs::path& aPath, std::string_view aEntry) -> std::string
+	{
+		const auto bytes   = read(aPath);
+		const auto members = core::read_cycle_zip({ reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size() });
+		return members && members->size() == 1U && members->front().Name == aEntry ? members->front().Bytes : std::string{ };
 	}
 	auto lease(const fs::path& aPath) -> std::shared_ptr<application::profile_runtime_lease>
 	{
@@ -214,20 +223,24 @@ namespace {
 		const auto snapshot = std::get<core::release_diagnostic_snapshot>(host.state().Prepared->Selection);
 		expect(snapshot.Records == 2U && snapshot.OmittedRecords == 2U, "one partial tail is counted once alongside the malformed legacy record");
 		expect(expected.find("CANARY") == std::string::npos && expected.find("99") == std::string::npos, "actual snapshot has no source, comment, token or request id");
-		auto output = adapters::sqlite::admit_release_diagnostic_output(destination.Path / "diagnostics.txt");
+		auto output = adapters::sqlite::admit_release_diagnostic_output(destination.Path / "diagnostics.zip");
 		expect(output.has_value(), "local output admitted");
 		host.dispatch({ files.authority(), command::export_diagnostics, host.state().Prepared }, *output);
 		drain();
-		expect(host.state().Phase == core::release_maintenance_phase::completed && read(destination.Path / "diagnostics.txt") == expected, "public host exports exactly preview bytes");
+		// [[BPR-PENDING-AG]]. The saved file is a ZIP archive whose one
+		// deflated entry, named for the file with .txt, is the preview.
+		expect(host.state().Phase == core::release_maintenance_phase::completed && unzipped(destination.Path / "diagnostics.zip", "diagnostics.txt") == expected, "public host exports exactly preview bytes as the archive's one entry");
+		const auto saved = read(destination.Path / "diagnostics.zip");
+		expect(saved.starts_with(std::string_view{ "PK\x03\x04\x14\x00\x00\x08\x08\x00", 10U }), "the archive's entry is deflated with a UTF-8 name");
 #if !defined(_WIN32)
 		struct stat status{ };
-		expect(::stat((destination.Path / "diagnostics.txt").c_str(), &status) == 0 && (status.st_mode & 0777U) == 0600U, "output owner-only permissions");
+		expect(::stat((destination.Path / "diagnostics.zip").c_str(), &status) == 0 && (status.st_mode & 0777U) == 0600U, "output owner-only permissions");
 #else
 		const auto canonical = adapters::native_storage::canonical_windows_root(destination.Path);
 		const auto security  = adapters::native_storage::private_security::load();
-		expect(canonical && security && adapters::native_storage::open_private_object(*canonical / L"diagnostics.txt", adapters::native_storage::windows_object_kind::regular_file, *security).has_value(), "output exact owner-only DACL and single native link");
+		expect(canonical && security && adapters::native_storage::open_private_object(*canonical / L"diagnostics.zip", adapters::native_storage::windows_object_kind::regular_file, *security).has_value(), "output exact owner-only DACL and single native link");
 #endif
-		expect(!adapters::sqlite::admit_release_diagnostic_output(destination.Path / "diagnostics.txt"), "existing output not overwritten");
+		expect(!adapters::sqlite::admit_release_diagnostic_output(destination.Path / "diagnostics.zip"), "existing output not overwritten");
 		auto anonymized                 = context(files, command::preview_diagnostics);
 		anonymized.ExportOptions.Policy = core::diagnostic_export_policy::anonymized;
 		const auto anonymousPreview     = files.prepare(anonymized, { });
@@ -263,7 +276,7 @@ namespace {
 		expect(!fs::exists(root.Path / "state/v1/remembered-connections.sqlite3") && !fs::exists(root.Path / "state/v1/remembered-connections.sqlite3-wal"), "profile purge removes remembered connection metadata and sidecar");
 		expect(read(root.Path / "profiles/profile-2/keep") == "sibling fixture" && read(root.Path / "state/v1/profile-registry.sqlite3") == "shared registry", "sibling and registry preserved");
 		expect(read(root.Path / "updates/transaction-1/keep") == "shared transaction" && read(root.Path / "state/v1/release-update.sqlite3") == "shared updater", "desktop updater preserved");
-		expect(read(destination.Path / "diagnostics.txt") == expected && !fs::exists(root.Path / ".bpr-maintenance-v1"), "export survives and completed journal removed");
+		expect(read(destination.Path / "diagnostics.zip") == saved && !fs::exists(root.Path / ".bpr-maintenance-v1"), "export survives and completed journal removed");
 		host.shutdown();
 	}
 	/// [[BPR-1717]]. Retained logs larger than the export's input limit
