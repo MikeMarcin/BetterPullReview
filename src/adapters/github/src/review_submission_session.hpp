@@ -14,7 +14,7 @@ namespace bpr::adapters::github::detail {
 		/// `aLog`, when given, receives one counts-only event for each
 		/// submission or Check status left unknown ([[BPR-1540]]). `aClock`,
 		/// when given, answers the UTC time in milliseconds since the Unix
-		/// epoch in place of the system clock ([[BPR-PENDING-Y]]).
+		/// epoch in place of the system clock ([[BPR-1715]]).
 		review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery,
 								  std::shared_ptr<application::diagnostic_log_port> aLog = { }, std::function<std::int64_t()> aClock = { });
 		[[nodiscard]] auto pending(std::stop_token aStop = { }) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure>;
@@ -54,16 +54,16 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto finish_known(const application::review_submission_recovery_record& aRecord, std::stop_token aStop, bool aDuplicate) -> application::review_submission_result;
 		/// \brief The one new exact review GitHub lists for the record, or,
 		/// when none can be it and `aPost` lets the core settle it
-		/// ([[BPR-PENDING-Y]]), the attempt withdrawn as definitely not
+		/// ([[BPR-1715]]), the attempt withdrawn as definitely not
 		/// published; otherwise unknown.
 		[[nodiscard]] auto resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop,
 											const std::optional<core::review_submission_post_record>& aPost) -> application::review_submission_result;
-		/// \brief [[BPR-PENDING-Y]]. Whether a new review GitHub lists could
+		/// \brief [[BPR-1715]]. Whether a new review GitHub lists could
 		/// be the record's: one that cannot be told apart from it, or an exact
 		/// one that holds as many comments as the record carries (any exact
 		/// one when it carries none). True when the comments cannot be read.
 		[[nodiscard]] auto could_be_listed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, std::stop_token aStop) -> bool;
-		/// \brief [[BPR-PENDING-Y]]. Now, in UTC milliseconds since the Unix epoch.
+		/// \brief [[BPR-1715]]. Now, in UTC milliseconds since the Unix epoch.
 		[[nodiscard]] auto now() const -> std::int64_t;
 		/// \brief [[BPR-1345]]. Whether the review GitHub lists as new holds
 		/// exactly the line comments the request carried.
@@ -75,7 +75,7 @@ namespace bpr::adapters::github::detail {
 		std::uint8_t                                             PostStatusClass = 0U;
 		std::uint16_t                                            Pages           = 0U;
 		std::uint16_t                                            Candidates      = 0U;
-		/// [[BPR-PENDING-Y]]. Whether this run's refused POST said a comment's
+		/// [[BPR-1715]]. Whether this run's refused POST said a comment's
 		/// line cannot be placed in the diff.
 		bool UnplaceableLine = false;
 		/// \brief [[BPR-1367]]. Every page of the pull request's review comment

@@ -230,7 +230,7 @@ namespace bpr::app {
 		if (!Draft || Draft->State != draft_state::drafting) {
 			return;
 		}
-		// [[BPR-PENDING-Y]]. The pending drafts are the current revision's.
+		// [[BPR-1715]]. The pending drafts are the current revision's.
 		// A review frozen on an earlier revision takes none of them, so it
 		// cannot list them or delete them when it is discarded.
 		const auto frozen  = Current && DraftBinding != std::optional{ Current->Binding };
@@ -418,7 +418,7 @@ namespace bpr::app {
 		}
 		auto status = Status;
 		if (Ready && Draft && Draft->State == draft_state::drafting && Current && DraftBinding != std::optional{ Current->Binding }) {
-			// [[BPR-PENDING-Y]]. Say what Discard deletes: the summary, never
+			// [[BPR-1715]]. Say what Discard deletes: the summary, never
 			// a comment.
 			status = QStringLiteral("The pull request revision changed after you wrote this summary. Discard starts a new review on the current revision; it deletes the summary, never a comment.");
 		} else if (Draft && Draft->State == draft_state::drafting && CommentsRefusal != core::review_submission_rejection::none) {
@@ -579,7 +579,7 @@ namespace bpr::app {
 				}
 			} else if (kind == command_kind::discard) {
 				if (discardsReview && DiscardReview) {
-					// [[BPR-PENDING-Y]]. Exactly the drafts this review carries,
+					// [[BPR-1715]]. Exactly the drafts this review carries,
 					// at the revisions it carries them; nothing written on
 					// another revision.
 					DiscardReview(carried, carriedHead);
@@ -691,7 +691,7 @@ namespace bpr::app {
 				} else if (!Draft || Draft->State == draft_state::submitted || Draft->State == draft_state::discarded
 						   || (Draft->State == draft_state::drafting && !core::kept(*Draft) && DraftBinding != std::optional{ Current->Binding })) {
 					// [[BPR-1345]] v003. A finished review is never shown again.
-					// [[BPR-PENDING-Y]]. Nor is one frozen on an earlier revision
+					// [[BPR-1715]]. Nor is one frozen on an earlier revision
 					// that keeps nothing (no summary, the default verdict): the
 					// review goes on at the current revision, with its comments.
 					new_draft();
@@ -727,7 +727,7 @@ namespace bpr::app {
 				const auto refused = *Pending;
 				Unknown.reset();
 				complete(command_kind::fail_submit);
-				// [[BPR-PENDING-Y]]. The review carries what is pending now, not
+				// [[BPR-1715]]. The review carries what is pending now, not
 				// the revisions the refused attempt held: those come back as
 				// its answer releases them, and only then can Submit hold them.
 				apply_review_comments();
@@ -742,7 +742,7 @@ namespace bpr::app {
 				if (!failureText.isEmpty()) {
 					Status = failureText;
 				}
-				// [[BPR-PENDING-Y]]. Why GitHub refused it, as far as its answer
+				// [[BPR-1715]]. Why GitHub refused it, as far as its answer
 				// says. It names no comment, so neither does the page.
 				if (result->Refusal == application::review_submission_refusal::unplaceable_line) {
 					Status = QStringLiteral("Not published: GitHub refused this review because one of its comments is on a line GitHub can't place in the pull request's diff, such as a line outside the changes. GitHub doesn't say which. Your summary and comments are kept: delete or edit that comment, then submit again.");

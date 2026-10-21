@@ -42,7 +42,7 @@ namespace bpr::adapters::github::detail {
 			}
 			return written_place{ .Line = *aComment.Line, .StartLine = aComment.StartLine };
 		}
-		/// [[BPR-PENDING-Y]]. What a POST's completion says GitHub answered,
+		/// [[BPR-1715]]. What a POST's completion says GitHub answered,
 		/// in the same shape whichever transport carried it: the GitHub CLI
 		/// gives an HTTP error status as an answer, the native transport as an
 		/// error with its status.
@@ -511,7 +511,7 @@ namespace bpr::adapters::github::detail {
 			outcome.Duplicate   = aDuplicate;
 			return outcome;
 		}
-		// [[BPR-PENDING-Y]]. No review GitHub lists is this attempt. When no
+		// [[BPR-1715]]. No review GitHub lists is this attempt. When no
 		// listed review can be it either and the core says its answer, or
 		// the time since it, settles that, it was definitely not published:
 		// its record is withdrawn and the drafts it held are released.
@@ -673,7 +673,7 @@ namespace bpr::adapters::github::detail {
 					if (!marked || *marked != exact || !application::valid(*marked)) {
 						return false;
 					}
-					// [[BPR-PENDING-Y]]. No answer yet, and since when: a POST
+					// [[BPR-1715]]. No answer yet, and since when: a POST
 					// that never answers settles only after the delay. A POST
 					// leaves only once this is kept, so an attempt with no
 					// answer kept never left.
@@ -691,7 +691,7 @@ namespace bpr::adapters::github::detail {
 			} else {
 				PostAnswer = core::review_submission_post_answer::no_answer;
 			}
-			// [[BPR-PENDING-Y]]. What GitHub answered, kept with the attempt so
+			// [[BPR-1715]]. What GitHub answered, kept with the attempt so
 			// that a later Check status or restart can settle it.
 			const auto post = post_answer(completion, now());
 			if (const auto* answered = std::get_if<github_mutation_wire_success>(&completion); answered != nullptr && status_class(answered->Response.Status) == 4U) {
@@ -726,7 +726,7 @@ namespace bpr::adapters::github::detail {
 				note(reason::local_record_unavailable);
 				return result(aRequest);
 			}
-			// [[BPR-1345]], [[BPR-PENDING-Y]]. GitHub answered 4xx: it refused
+			// [[BPR-1345]], [[BPR-1715]]. GitHub answered 4xx: it refused
 			// the review, which it creates whole or not at all. With no new
 			// review that can be this one observed after the answer, it was
 			// definitely not published, and its record is withdrawn so it is

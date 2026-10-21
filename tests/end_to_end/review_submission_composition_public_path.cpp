@@ -93,7 +93,7 @@ namespace {
 		wait([&] { return aApp.status().ShutdownComplete; }, "whole-review shutdown");
 		confirmations_seen().clear();
 	}
-	/// [[BPR-PENDING-Y]]. A new comment on \p aLine of review.cpp's head
+	/// [[BPR-1715]]. A new comment on \p aLine of review.cpp's head
 	/// side, written in the drawer and put in the review with Start a review.
 	auto write_pending(app::github_application& aApp, const std::uint32_t aLine, const QString& aBody) -> core::review_comment_draft
 	{
@@ -115,7 +115,7 @@ namespace {
 		wait([&] { return editor->shown_draft() && core::pending_in_review(*editor->shown_draft()); }, "the comment is pending in the review");
 		return *editor->shown_draft();
 	}
-	/// [[BPR-PENDING-Y]]. Whether Saved comments keeps \p aDraft with exactly
+	/// [[BPR-1715]]. Whether Saved comments keeps \p aDraft with exactly
 	/// \p aBody, read through the Finish your review page's own button.
 	auto saved_exactly(qt::workbench_window& aWindow, const core::review_draft_id aDraft, const std::string& aBody) -> bool
 	{
@@ -791,7 +791,7 @@ auto main(int argc, char** argv) -> int
 			std::scoped_lock lock{ server->Mutex };
 			return server->ReviewPosts.size();
 		};
-		// [[BPR-PENDING-Y]]. The owner's course: a review with a comment, a
+		// [[BPR-1715]]. The owner's course: a review with a comment, a
 		// push, a refresh, another comment, publish. The push freezes the
 		// review's summary, which takes no comment of the new revision, so its
 		// Discard deletes the summary only; the comment written before the push
@@ -851,7 +851,7 @@ auto main(int argc, char** argv) -> int
 			}
 			expect(saved_exactly(course, earlier.Id, earlier.Body), "the comment written before the push is still saved with its text");
 		}
-		// [[BPR-PENDING-Y]]. The owner's stuck attempt, exactly: nine pending
+		// [[BPR-1715]]. The owner's stuck attempt, exactly: nine pending
 		// comments, a review an application before answers were kept sent,
 		// the GitHub CLI's 422 left unknown, and its comments held. After the
 		// upgrade the restored attempt is checked, settled as not published,

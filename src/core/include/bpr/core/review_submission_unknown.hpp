@@ -67,7 +67,7 @@ namespace bpr::core {
 		no_answer,
 	};
 
-	/// \brief [[BPR-PENDING-Y]]. What GitHub answered an attempt's one POST, as
+	/// \brief [[BPR-1715]]. What GitHub answered an attempt's one POST, as
 	/// the attempt's record keeps it from the moment the POST may leave.
 	/// \details `Answer` is `success`, `error_status` or `no_answer`, never
 	/// `not_sent`: a record is written only for a POST that may have been
@@ -83,15 +83,15 @@ namespace bpr::core {
 
 		auto operator<=>(const review_submission_post_record&) const = default;
 	};
-	/// \brief [[BPR-PENDING-Y]]. How long after a POST with no definite
+	/// \brief [[BPR-1715]]. How long after a POST with no definite
 	/// answer (none, a redirect or a server error) GitHub's list is trusted to
 	/// show the review if GitHub created it.
 	inline constexpr std::int64_t review_submission_settle_delay_ms = std::int64_t{ 10 } * 60 * 1000;
-	/// \brief [[BPR-PENDING-Y]]. Whether the answer is in range: a sent
+	/// \brief [[BPR-1715]]. Whether the answer is in range: a sent
 	/// answer, a class that matches it (2 for success, 3 to 5 for an error
 	/// status, 0 with no answer) and a time that is not negative.
 	[[nodiscard]] auto valid(const review_submission_post_record& aPost) noexcept -> bool;
-	/// \brief [[BPR-PENDING-Y]]. Whether an unresolved attempt that no review
+	/// \brief [[BPR-1715]]. Whether an unresolved attempt that no review
 	/// GitHub lists can be is definitely not published, so its drafts are
 	/// released, unchanged, to be submitted again.
 	/// \details The caller has read GitHub's whole review list and found no

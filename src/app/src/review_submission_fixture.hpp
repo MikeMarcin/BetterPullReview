@@ -47,10 +47,10 @@ namespace bpr::app::detail {
 		std::vector<std::string> ReviewPosts;
 		bool                     RefuseNextReview = false;
 		bool                     LoseNextReview   = false;
-		/// [[BPR-PENDING-Y]]. Refuse the next review with 422 as the GitHub
+		/// [[BPR-1715]]. Refuse the next review with 422 as the GitHub
 		/// CLI reports it, an answer with that status rather than an error.
 		bool RefuseNextReviewAsAnswer = false;
-		/// [[BPR-PENDING-Y]]. Create nothing for the next review and give no
+		/// [[BPR-1715]]. Create nothing for the next review and give no
 		/// answer: a refusal whose answer was lost, as an application before
 		/// answers were kept was left with after the CLI's 422.
 		bool DropNextReview = false;

@@ -3119,7 +3119,7 @@ namespace bpr::adapters::github::detail {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
 			if (review.State == "DISMISSED" || !review.User || !review.Body || !review.CommitId) {
-				// [[BPR-PENDING-Y]]. One that could be the request's own is
+				// [[BPR-1715]]. One that could be the request's own is
 				// not proof that the request created nothing.
 				if (!review.User || review.User->Id == aExpected.ActingIdentity.DatabaseId || review.User->Login == aExpected.ActingIdentity.Login) {
 					result.UncertainReviews.emplace_back(review.Id);

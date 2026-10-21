@@ -12376,7 +12376,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// review, in one durable write (owner, discard-review v001: "Discard
 		/// review should delete all the review comments"). A draft a
 		/// submission holds is never pending, so it is never deleted here.
-		/// [[BPR-PENDING-Y]]. The review's drafts are the ones it carries:
+		/// [[BPR-1715]]. The review's drafts are the ones it carries:
 		/// each at the revision it carries, pending at the review's head. A
 		/// draft written on another revision, or changed since, is kept.
 		void discard_review_comments(const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead)

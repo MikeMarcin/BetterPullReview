@@ -159,7 +159,7 @@ namespace {
 			store.reset();
 			execute_sql(database(root), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 			store = storage(root.Path);
-			// [[BPR-PENDING-Y]]. An unresolved one was possibly sent with no
+			// [[BPR-1715]]. An unresolved one was possibly sent with no
 			// answer kept, since time zero.
 			if (!succeeded) {
 				saved->Post = core::review_submission_post_record{ };
@@ -276,7 +276,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-Y]]. What GitHub answered a POST is kept with its
+	/// [[BPR-1715]]. What GitHub answered a POST is kept with its
 	/// possibly sent attempt, replaced by the next answer and gone with a
 	/// withdrawn attempt. A version 6 journal, which kept no answer, keeps
 	/// its possibly sent attempt exactly, with no answer since time zero,

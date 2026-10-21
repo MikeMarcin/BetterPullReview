@@ -341,7 +341,7 @@ namespace {
 		/// refusal of the next review.
 		std::optional<std::string> Comments45;
 		bool                       Refuse422 = false;
-		/// [[BPR-PENDING-Y]]. Refuse the next review with 422 as the GitHub
+		/// [[BPR-1715]]. Refuse the next review with 422 as the GitHub
 		/// CLI transport reports it: an answer with that status.
 		bool                  Refuse422AsAnswer = false;
 		std::function<void()> OnTarget;
@@ -535,7 +535,7 @@ namespace {
 			}
 			return result;
 		}
-		/// [[BPR-PENDING-Y]]. The witness keeps "no answer" after the mark,
+		/// [[BPR-1715]]. The witness keeps "no answer" after the mark,
 		/// before the POST may leave; then the answer.
 		auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, application::review_mutation_recovery_failure> override
 		{
@@ -820,7 +820,7 @@ namespace {
 		if (aPhase == "--kill-prepared") {
 			store->AfterAdmit = pause;
 		} else if (aPhase == "--kill-witnessed") {
-			// [[BPR-PENDING-Y]]. The whole witness: marked and "no answer" kept.
+			// [[BPR-1715]]. The whole witness: marked and "no answer" kept.
 			store->AfterNote = pause;
 		} else if (aPhase == "--kill-resolved") {
 			store->AfterResolve = pause;
@@ -893,7 +893,7 @@ namespace {
 		// the witnessed attempt is still unknown: GitHub lists no review.
 		auto       retained = loaded ? *loaded : std::nullopt;
 		const auto why      = retained ? retained->LastUnknown : std::nullopt;
-		// [[BPR-PENDING-Y]]. A POST that may have left keeps its answer, at
+		// [[BPR-1715]]. A POST that may have left keeps its answer, at
 		// first none, whatever its time.
 		const auto post = retained ? retained->Post : std::nullopt;
 		if (retained) {
@@ -2097,7 +2097,7 @@ namespace {
 		}
 		std::cout << "replay-busy-live:pass\n";
 	}
-	/// [[BPR-PENDING-Y]]. A record as an application before answers were
+	/// [[BPR-1715]]. A record as an application before answers were
 	/// kept wrote it, once migrated: a possibly sent attempt loads as no
 	/// answer at time zero, whatever was kept since.
 	class legacy_store final : public application::review_submission_recovery_port
@@ -2140,7 +2140,7 @@ namespace {
 		}
 		std::unique_ptr<application::review_submission_recovery_port> Inner;
 	};
-	/// [[BPR-PENDING-Y]]. An attempt GitHub refused, or whose answer was lost
+	/// [[BPR-1715]]. An attempt GitHub refused, or whose answer was lost
 	/// while GitHub created nothing, is settled as definitely not published
 	/// and withdrawn, so the drafts it holds are released: at once for a 4xx
 	/// in either transport's shape, on Check status for a record that keeps

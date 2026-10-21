@@ -22,7 +22,7 @@ namespace bpr::application {
 		/// [[BPR-1540]]. Why the last reconciliation of this unresolved
 		/// attempt left it unknown; none once it is resolved.
 		std::optional<core::review_submission_unknown_diagnosis> LastUnknown;
-		/// [[BPR-PENDING-Y]]. What GitHub answered the attempt's POST, kept
+		/// [[BPR-1715]]. What GitHub answered the attempt's POST, kept
 		/// from before it may leave; none in a record an earlier application
 		/// wrote, which kept no answer.
 		std::optional<core::review_submission_post_record> Post;
@@ -94,7 +94,7 @@ namespace bpr::application {
 			static_cast<void>(aDiagnosis);
 			return std::unexpected(review_mutation_recovery_failure::unavailable);
 		}
-		/// \brief [[BPR-PENDING-Y]]. Records, with the unresolved, possibly
+		/// \brief [[BPR-1715]]. Records, with the unresolved, possibly
 		/// transmitted attempt admitted with this exact fingerprint, what
 		/// GitHub answered its POST, replacing the answer recorded before.
 		[[nodiscard]] virtual auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost)

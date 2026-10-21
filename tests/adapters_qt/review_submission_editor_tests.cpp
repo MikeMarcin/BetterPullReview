@@ -397,7 +397,7 @@ auto main(int argc, char** argv) -> int
 	const auto deletes   = editor.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
 	expect(rowsShown.size() == 2 && deletes.size() == 2, "each pending comment is a row with its own Delete");
 	{
-		// [[BPR-PENDING-Y]]. While a submission may hold its comments, no row
+		// [[BPR-1715]]. While a submission may hold its comments, no row
 		// offers Delete, and a Delete asked for anyway asks nothing.
 		auto held        = finishing;
 		held.State       = core::review_submission_state::submitting;

@@ -345,7 +345,7 @@ namespace {
 			expect(notice(review_submission_unknown_diagnosis{ .Reason = review_submission_unknown_reason::http_status, .HttpStatusClass = status }).StatusClass == 0U, "only a refusal or a server error is told apart");
 		}
 	}
-	/// [[BPR-PENDING-Y]]. Which kept answers settle an attempt no listed
+	/// [[BPR-1715]]. Which kept answers settle an attempt no listed
 	/// review can be: a refusal at once, no answer kept (never sent) at once,
 	/// no definite answer after the delay; a success never.
 	void test_post_answers_settle()

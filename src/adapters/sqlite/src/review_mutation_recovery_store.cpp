@@ -117,7 +117,7 @@ namespace bpr::adapters::sqlite {
 							  "pages INTEGER NOT NULL CHECK(pages BETWEEN 0 AND 65535),"
 							  "PRIMARY KEY(scope_id,idempotency_key),"
 							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
-			// [[BPR-PENDING-Y]]. What GitHub answered an attempt's POST:
+			// [[BPR-1715]]. What GitHub answered an attempt's POST:
 			// written as no answer before it may leave, then with the answer.
 			std::string_view{ "CREATE TABLE submission_post("
 							  "scope_id INTEGER NOT NULL,idempotency_key TEXT NOT NULL,"
@@ -1886,7 +1886,7 @@ namespace bpr::adapters::sqlite {
 				} else if (noted != SQLITE_DONE) {
 					return std::unexpected(failure::unavailable);
 				}
-				// [[BPR-PENDING-Y]]. What GitHub answered its POST, if recorded.
+				// [[BPR-1715]]. What GitHub answered its POST, if recorded.
 				auto post = detail::prepare(Database, "SELECT answer,post_class,recorded_utc_ms FROM submission_post WHERE scope_id = ?1 AND idempotency_key = ?2");
 				if (!post || !scope_key(post->Value, 1, aKey)) {
 					return std::unexpected(failure::unavailable);
@@ -1969,7 +1969,7 @@ namespace bpr::adapters::sqlite {
 					if (*version < 6 && !detail::execute(aDatabase, RecoverySchema[8])) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					// [[BPR-PENDING-Y]]. An attempt that may have been sent before
+					// [[BPR-1715]]. An attempt that may have been sent before
 					// answers were kept had no answer kept, long enough ago.
 					if (*version < 7
 						&& (!detail::execute(aDatabase, RecoverySchema[9])

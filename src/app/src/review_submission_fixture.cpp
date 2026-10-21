@@ -622,7 +622,7 @@ namespace bpr::app::detail {
 			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.withdraw(aKey, aFingerprint); }
 			/// [[BPR-1540]]. Why an attempt is still unknown, kept in the same store.
 			auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.note_unknown(aKey, aFingerprint, aDiagnosis); }
-			/// [[BPR-PENDING-Y]]. What GitHub answered the POST, kept in the same store.
+			/// [[BPR-1715]]. What GitHub answered the POST, kept in the same store.
 			auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.note_post(aKey, aFingerprint, aPost); }
 
 		private:

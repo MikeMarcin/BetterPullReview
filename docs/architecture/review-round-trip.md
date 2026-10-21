@@ -746,7 +746,7 @@ removed on resolution or withdrawal) and writes it to the diagnostics log as a
 counts-only `github.review_submission` event. It never decides publication;
 an unknown outcome stays unknown and sends nothing.
 
-What GitHub answered the POST is kept with the attempt too ([[BPR-PENDING-Y]]):
+What GitHub answered the POST is kept with the attempt too ([[BPR-1715]]):
 schema 7 `submission_post` holds the answer (success, an error status's class,
 or none) and when it was recorded. The transmission witness writes "no
 answer" before the POST may leave and refuses the POST when it cannot, so an

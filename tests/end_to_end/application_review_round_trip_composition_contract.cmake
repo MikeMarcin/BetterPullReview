@@ -1,4 +1,6 @@
-# [[BPR-PENDING-Y]] reseal (2026-10-21) over the BPR-1714 upkeep note below,
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1715 note below
+# is renaming its [[BPR-PENDING-Y]] comment tags to [[BPR-1715]]; no code change.
+# [[BPR-1715]] reseal (2026-10-21) over the BPR-1714 upkeep note below,
 # linear. Pinned-scope change: a whole review GitHub refused, or one an earlier
 # version left unknown, settles as not published and gives its held drafts
 # back, on this card's own commit. Inside the manifest: github_application.cpp's
@@ -1932,7 +1934,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
+		"5a5df0dea3cc1d195efd34a9714583b0614bcea3d127f0ca9b18efe23e074edf"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2152,7 +2154,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "0b9e10d9308c015093915934a3ed52f750d8bc979a1fe2863447f682a37029e8"
+        "4d8f589a4746e2f986de8073f0bea8240d401078989a31f9d43bddc5bc3ed0d5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
