@@ -7,21 +7,21 @@ from the RFC implementation coordinator. Branch
 `07920aeb4473341ec22c435eb76896ce08f3e7b5`, which reseals the
 command-correctness pins that the composition changes move. The commit
 that adds this checkpoint and the cards changes only documentation. Issue IDs
-are provisional (`BPR-PENDING-F1` to `F4`); the coordinator allocates them on
+are provisional (`BPR-1685` to `F4`); the coordinator allocates them on
 main when the work lands.
 
 ## Result
 
 | RFC criterion | M1 status | Where |
 |---|---|---|
-| AC01 | pass, live and fixture | [[BPR-PENDING-F2]] AC1 |
-| AC02 | pass for contiguous filters; a split file reads nothing and says why (M3 splits it) | [[BPR-PENDING-F2]] AC2 |
+| AC01 | pass, live and fixture | [[BPR-1686]] AC1 |
+| AC02 | pass for contiguous filters; a split file reads nothing and says why (M3 splits it) | [[BPR-1686]] AC2 |
 | AC03 | M3 | not started |
 | AC04 | M2 | not started |
-| AC05 | pass, live | [[BPR-PENDING-F2]] AC3 |
-| AC06 | M1 part passes (the chip names a gone commit); rematch is M3 | [[BPR-PENDING-F2]] AC4 |
+| AC05 | pass, live | [[BPR-1686]] AC3 |
+| AC06 | M1 part passes (the chip names a gone commit); rematch is M3 | [[BPR-1686]] AC4 |
 | AC07 | M4; comments stay head-only | not started |
-| AC08 | M1 part passes under `core-only`; boundaries and documentation gates pass | [[BPR-PENDING-F1]] AC2 |
+| AC08 | M1 part passes under `core-only`; boundaries and documentation gates pass | [[BPR-1685]] AC2 |
 
 `frontend-design:frontend-design` was loaded before the Commits tab, the chip
 and the filtered heading were drawn. No criterion of M1 is a look-and-judge
@@ -69,7 +69,7 @@ panes) is edited.
 
 ## Open obligations
 
-- [[BPR-PENDING-F4]]: Find in files on the filtered set, and restoring the
+- [[BPR-1688]]: Find in files on the filtered set, and restoring the
   filter with the window. The RFC asks for both; no milestone names them.
 - M2: generated files and file filters. M3: split files and rematch. M4:
   comments from filtered diffs.

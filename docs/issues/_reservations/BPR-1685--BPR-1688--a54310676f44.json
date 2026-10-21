@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1685",
+    "BPR-1686",
+    "BPR-1687",
+    "BPR-1688"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0089 M1 cards",
+  "created": "2026-10-21T08:45:39.897124+00:00",
+  "base": "309445de276727c15888dfcbe4f216cf4dba6a0e"
+}

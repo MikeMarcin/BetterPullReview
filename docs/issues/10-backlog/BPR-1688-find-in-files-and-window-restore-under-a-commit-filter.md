@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-F4"
+id: "BPR-1688"
 title: "Find in files and window restore under a commit filter"
 status: "Backlog"
 rfcs: ["RFC-BPR-0089"]
-depends_on: ["BPR-PENDING-F2"]
+depends_on: ["BPR-1686"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"provisional_id":"issue IDs are allocated on main when the work lands","origin":"RFC-BPR-0089 'What a filter drives' and its window rule, which no milestone names","related_cards":["BPR-PENDING-F2"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1685--BPR-1688--a54310676f44.json","origin":"RFC-BPR-0089 'What a filter drives' and its window rule, which no milestone names","related_cards":["BPR-1686"]}
 ---
 
-# BPR-PENDING-F4: Find in files and window restore under a commit filter
+# BPR-1688: Find in files and window restore under a commit filter
 
 RFC-BPR-0089 says a filter drives "Find in files, which says that it searches
 the filtered set", and "The window keeps the filter with its comparison and

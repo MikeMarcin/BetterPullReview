@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-F1"
+id: "BPR-1685"
 title: "Keep commit parents and decide commit filters in the core"
 status: "Done"
 rfcs: ["RFC-BPR-0089"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"milestone":"RFC-BPR-0089 M1","provisional_id":"issue IDs are allocated on main when the work lands","related_cards":["BPR-PENDING-F2","BPR-PENDING-F3"]}
+metadata: {"milestone":"RFC-BPR-0089 M1","reservation":"docs/issues/_reservations/BPR-1685--BPR-1688--a54310676f44.json","related_cards":["BPR-1686","BPR-1687"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"07920aeb4473341ec22c435eb76896ce08f3e7b5","evidence":{"kind":"command","command":"ctest --preset dev -R '^(github_paged_read|github_read_contract|github_contract_fixture_security)$'","detail":"GitHub's commit list keeps each commit's parents (optional, at most 16, every one a full commit ID); the scenarios commit_parents and commit_parents_malformed admit exact parents and refuse a malformed array; the recorded contract admits only an exact parents array of {sha}. macOS."}},{"criterion":"AC2","outcome":"pass","revision":"07920aeb4473341ec22c435eb76896ce08f3e7b5","evidence":{"kind":"command","command":"cmake --preset core-only && cmake --build --preset core-only && ctest --preset core-only -R '^(core_commit_filter|core_diff_model)$'","detail":"The first-parent chain and roles, the span, shown-set operations and their refusals, suspension, truncation at 250, gone commits after a force push and each path's diff (unchanged, exact, split) run without Git or Qt. A filtered key's digest and receipt file are domain-separated and leave every persisted known-answer vector unchanged. Negative control: with the split rule disabled core_commit_filter fails. macOS."}}]
 ---
 
-# BPR-PENDING-F1: Keep commit parents and decide commit filters in the core
+# BPR-1685: Keep commit parents and decide commit filters in the core
 
 RFC-BPR-0089 M1, the decisions under the Commits tab.
 
