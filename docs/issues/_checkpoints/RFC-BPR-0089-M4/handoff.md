@@ -96,7 +96,8 @@ deleted.
 
 - Allocate `BPR-1703` to `L6` on main.
 - [[BPR-1706]]: the file-comment fallback for lines GitHub cannot
-  resolve. [[BPR-1707]]: the reread and refresh gestures.
+  resolve. [[BPR-1707]]: the reread and refresh gestures. Both done since;
+  see `docs/issues/_checkpoints/RFC-BPR-0089-followups/handoff.md`.
 - Windows and Linux are unmeasured.
 
 ## Command state
