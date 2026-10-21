@@ -51,7 +51,7 @@ conservative schedule. Focused native evidence must establish the twelve newly
 admitted Release rows before claiming their concurrency benefit; no full-suite
 receipt is silently rewritten as a run with the new schedule.
 Unknown configuration, source, feature and diagnostic-macro overrides remain
-exclusive. macOS/Linux activation is pending native evidence.
+exclusive. The portable activation is limited to single-config Release on macOS/Linux, and is pending the bounded native cohort before any full run uses it. The network-isolation CMake owner, macOS Python/profile and Linux namespace helper are pinned alongside the case sources. macOS-only branches preserve process-local shortcut, glyph, focus and geometry assertions. The existing macOS helper owns one private 0700 socket/TMPDIR and zero loopback grants per selected row; Linux owns a per-row user/network namespace and runtime root. Neither helper adds a shared writer. Unknown generators and portable Debug remain exclusive.
 
 ## Current frontier
 

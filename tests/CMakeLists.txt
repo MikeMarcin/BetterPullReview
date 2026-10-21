@@ -1540,8 +1540,14 @@ if(WIN32 AND bpr_standard_correctness_inputs)
 endif()
 
 # Source and exact argv are checked before widening the default serial policy.
-# BPR-1675 also audits these exact commands in Release; other configurations
-# and the older fixed Debug declarations retain whole-host exclusivity.
-if(WIN32 AND bpr_standard_correctness_inputs)
+# BPR-1675 audits the registry's portable commands with native Release images
+# on macOS/Linux too. Those single-config Release graphs are the only portable
+# activation; Debug and unknown generators/configurations retain exclusivity.
+# Platform-specific rows still require their explicit registry platform entry.
+set(bpr_portable_release_registry FALSE)
+if(CMAKE_BUILD_TYPE STREQUAL "Release" AND CMAKE_SYSTEM_NAME MATCHES "^(Darwin|Linux)$")
+    set(bpr_portable_release_registry TRUE)
+endif()
+if((WIN32 OR bpr_portable_release_registry) AND bpr_standard_correctness_inputs)
     bpr_apply_command_correctness_registry("${CMAKE_CURRENT_SOURCE_DIR}/command_correctness_registry.json")
 endif()

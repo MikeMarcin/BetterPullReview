@@ -918,6 +918,22 @@
         {
           "path": "tests/adapters_qt/diff_publication_fixture.hpp",
           "sha256": "a673c9bd1dd2c80075222f3352b6d7f5e310fc75bb10230220f467a76820e80e"
+        },
+        {
+          "path": "cmake/BprTestIsolation.cmake",
+          "sha256": "81a3858968864197ff0fcf795950689b5e730e798f96970a18d69fdf88e9c90b"
+        },
+        {
+          "path": "scripts/run_network_isolated_test.py",
+          "sha256": "1be61e5c7abd6d2faa314cbb8fa7291aad5c167e677d30f89b295c156a7e0ccd"
+        },
+        {
+          "path": "cmake/sandbox/macos-network-deny.sb",
+          "sha256": "aa60d795abd7eb4646e9ad0c8c4361e851380385be412c80937924d1c46fe18f"
+        },
+        {
+          "path": "tests/network_isolation/linux_network_sandbox.cpp",
+          "sha256": "bc658455dbfb64f8a4873d6055e6be938fb2b9563c18a56721dc981be9227081"
         }
       ]
     },
@@ -1003,6 +1019,22 @@
         {
           "path": "tests/adapters_qt/diff_publication_fixture.hpp",
           "sha256": "a673c9bd1dd2c80075222f3352b6d7f5e310fc75bb10230220f467a76820e80e"
+        },
+        {
+          "path": "cmake/BprTestIsolation.cmake",
+          "sha256": "81a3858968864197ff0fcf795950689b5e730e798f96970a18d69fdf88e9c90b"
+        },
+        {
+          "path": "scripts/run_network_isolated_test.py",
+          "sha256": "1be61e5c7abd6d2faa314cbb8fa7291aad5c167e677d30f89b295c156a7e0ccd"
+        },
+        {
+          "path": "cmake/sandbox/macos-network-deny.sb",
+          "sha256": "aa60d795abd7eb4646e9ad0c8c4361e851380385be412c80937924d1c46fe18f"
+        },
+        {
+          "path": "tests/network_isolation/linux_network_sandbox.cpp",
+          "sha256": "bc658455dbfb64f8a4873d6055e6be938fb2b9563c18a56721dc981be9227081"
         }
       ]
     },
@@ -1092,6 +1124,22 @@
         {
           "path": "src/app/src/github_application.cpp",
           "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        },
+        {
+          "path": "cmake/BprTestIsolation.cmake",
+          "sha256": "81a3858968864197ff0fcf795950689b5e730e798f96970a18d69fdf88e9c90b"
+        },
+        {
+          "path": "scripts/run_network_isolated_test.py",
+          "sha256": "1be61e5c7abd6d2faa314cbb8fa7291aad5c167e677d30f89b295c156a7e0ccd"
+        },
+        {
+          "path": "cmake/sandbox/macos-network-deny.sb",
+          "sha256": "aa60d795abd7eb4646e9ad0c8c4361e851380385be412c80937924d1c46fe18f"
+        },
+        {
+          "path": "tests/network_isolation/linux_network_sandbox.cpp",
+          "sha256": "bc658455dbfb64f8a4873d6055e6be938fb2b9563c18a56721dc981be9227081"
         }
       ]
     },
@@ -1181,6 +1229,22 @@
         {
           "path": "src/app/src/github_application.cpp",
           "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        },
+        {
+          "path": "cmake/BprTestIsolation.cmake",
+          "sha256": "81a3858968864197ff0fcf795950689b5e730e798f96970a18d69fdf88e9c90b"
+        },
+        {
+          "path": "scripts/run_network_isolated_test.py",
+          "sha256": "1be61e5c7abd6d2faa314cbb8fa7291aad5c167e677d30f89b295c156a7e0ccd"
+        },
+        {
+          "path": "cmake/sandbox/macos-network-deny.sb",
+          "sha256": "aa60d795abd7eb4646e9ad0c8c4361e851380385be412c80937924d1c46fe18f"
+        },
+        {
+          "path": "tests/network_isolation/linux_network_sandbox.cpp",
+          "sha256": "bc658455dbfb64f8a4873d6055e6be938fb2b9563c18a56721dc981be9227081"
         }
       ]
     },
@@ -1277,6 +1341,22 @@
         {
           "path": "src/app/src/github_application.cpp",
           "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        },
+        {
+          "path": "cmake/BprTestIsolation.cmake",
+          "sha256": "81a3858968864197ff0fcf795950689b5e730e798f96970a18d69fdf88e9c90b"
+        },
+        {
+          "path": "scripts/run_network_isolated_test.py",
+          "sha256": "1be61e5c7abd6d2faa314cbb8fa7291aad5c167e677d30f89b295c156a7e0ccd"
+        },
+        {
+          "path": "cmake/sandbox/macos-network-deny.sb",
+          "sha256": "aa60d795abd7eb4646e9ad0c8c4361e851380385be412c80937924d1c46fe18f"
+        },
+        {
+          "path": "tests/network_isolation/linux_network_sandbox.cpp",
+          "sha256": "bc658455dbfb64f8a4873d6055e6be938fb2b9563c18a56721dc981be9227081"
         }
       ]
     },
