@@ -454,6 +454,12 @@ namespace bpr::application {
 			if (comparison.Right.Commit != Coordinator.designated().ExpectedHead) {
 				return std::unexpected(review_mutation_failure::stale_head);
 			}
+			// RFC-BPR-0089 M1: comments stay head-only. A commit-filtered diff
+			// is commented on only when its right side is the head itself, and
+			// never as a new comment on its left, which is not GitHub's base.
+			if (key.Filter.has_value() && (key.Filter->Right != Coordinator.designated().ExpectedHead || newOnBase)) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
 			if (!core::valid(key)
 				|| key.Repository != Coordinator.designated().Repository
 				|| key.PullRequest != Coordinator.designated().PullRequest

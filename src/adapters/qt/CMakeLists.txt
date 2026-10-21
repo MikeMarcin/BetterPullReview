@@ -22,6 +22,7 @@ add_library(
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp
+        src/commit_filter_view.cpp
         src/compose_review_sheet.cpp
         src/thread_pick_gestures.cpp
         src/keyboard_shortcuts.cpp

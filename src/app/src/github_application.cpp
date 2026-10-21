@@ -135,6 +135,7 @@
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
 #endif
 #include "bpr/application/appearance_application_host.hpp"
+#include "bpr/application/commit_filter_model.hpp"
 #include "bpr/application/defect_correlation.hpp"
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/diff_application_host.hpp"
@@ -3203,7 +3204,64 @@ namespace bpr::app {
 				|| !Review->Available || !Review->Active) {
 				return std::nullopt;
 			}
+			// RFC-BPR-0089. While a commit filter applies, its file set.
+			if (Review->Filtered.has_value()) {
+				auto records = std::vector<application::github_file_record>{ };
+				records.reserve(Review->Filtered->size());
+				for (const auto& file : *Review->Filtered) {
+					records.push_back(file.Record);
+				}
+				return records;
+			}
 			return Review->Files;
+		}
+
+		/// \brief RFC-BPR-0089. Adopts the commit filter's file set, or none.
+		/// \returns Whether the files the workbench observes changed.
+		auto filter(std::optional<std::vector<application::commit_filter_file>> aFiles) -> bool
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (!Review.has_value() || Review->Filtered == aFiles) {
+				return false;
+			}
+			Review->Filtered = std::move(aFiles);
+			return true;
+		}
+
+		/// \brief RFC-BPR-0089. The file whose filtered diff's receipt is kept
+		/// under `aReceipt`, or `aReceipt` itself when it names a file.
+		[[nodiscard]] auto receipt_owner(const core::file_identity aReceipt) const -> core::file_identity
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (Review.has_value() && Review->Filtered.has_value()) {
+				for (const auto& file : *Review->Filtered) {
+					if (file.Filter.has_value()) {
+						const auto identity = core::file_identity_of(file.Record.Path);
+						if (core::filtered_receipt_file(identity, *file.Filter) == aReceipt) {
+							return identity;
+						}
+					}
+				}
+			}
+			return aReceipt;
+		}
+
+		/// \brief RFC-BPR-0089. How the commit filter forms one file's diff.
+		[[nodiscard]] auto file_filter(
+			const application::workbench_pull_request_authority& aAuthority,
+			const core::file_identity                            aFile) const
+			-> std::optional<application::snapshot_workbench_observation::file_filter>
+		{
+			const auto lock = std::scoped_lock{ Mutex };
+			if (!Review.has_value() || Review->Authority != aAuthority || !Review->Filtered.has_value()) {
+				return std::nullopt;
+			}
+			for (const auto& file : *Review->Filtered) {
+				if ((file.Filter.has_value() || file.Split) && core::file_identity_of(file.Record.Path) == aFile) {
+					return application::snapshot_workbench_observation::file_filter{ .Endpoints = file.Filter, .Split = file.Split };
+				}
+			}
+			return std::nullopt;
 		}
 
 		/// \brief Tombstones one exact authority and returns it for host invalidation.
@@ -3216,6 +3274,7 @@ namespace bpr::app {
 				return std::nullopt;
 			}
 			Review->Files.clear();
+			Review->Filtered.reset();
 			Review->Available = false;
 			Review->Active    = false;
 			return Review->Authority;
@@ -3255,6 +3314,8 @@ namespace bpr::app {
 			std::vector<application::github_file_record>  Files;
 			bool                                          Available = false;
 			bool                                          Active    = false;
+			/// RFC-BPR-0089. The commit filter's file set while it applies.
+			std::optional<std::vector<application::commit_filter_file>> Filtered;
 		};
 
 		[[nodiscard]] auto matches(
@@ -8207,6 +8268,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						publish_overview_feedback();
 					}
 				});
+			// RFC-BPR-0089. The Commits tab and the filter chips.
+			Window->set_commit_filter_dispatch([this](const application::commit_filter_gesture& aGesture) { apply_commit_filter_gesture(aGesture); });
+			Window->set_commit_filter_shown_dispatch([this] { want_commit_filter_trees(); });
+			Window->set_commit_open_dispatch([this](const std::string& aCommit) {
+				if (!Closing && WindowRead) {
+					static_cast<void>(WindowRead->open_pull_request_commit_page(aCommit, Profile->WindowBrowser));
+				}
+			});
 			Window->set_overview_drill_down_dispatch(
 				[this](const application::overview_drill_down& aDrillDown) {
 					if (!Closing && FeedbackRequest) {
@@ -8889,16 +8958,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					const application::workbench_pull_request_authority& aAuthority,
 					const core::file_identity                            aFile)
 					-> std::optional<core::actionability_input> {
-					const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+					// RFC-BPR-0089. A filtered diff's receipt is its own.
+					const auto filtered    = WorkbenchReview.file_filter(aAuthority, aFile);
+					const auto receiptFile = filtered && filtered->Endpoints ? core::filtered_receipt_file(aFile, *filtered->Endpoints) : aFile;
+					const auto lock        = std::scoped_lock{ ReviewLedgerStateMutex };
 					if (!ReviewLedgerAuthority.has_value()
 						|| *ReviewLedgerAuthority != aAuthority
 						|| !ReviewLedgerReceipt.has_value()
-						|| ReviewLedgerReceipt->File != aFile) {
+						|| ReviewLedgerReceipt->File != receiptFile) {
 						return std::nullopt;
 					}
+					auto receipt = *ReviewLedgerReceipt;
+					receipt.File = aFile;
 					return core::actionability_input{
-						.Receipt = *ReviewLedgerReceipt,
+						.Receipt = receipt,
 					};
+				},
+				[this](const application::workbench_pull_request_authority& aAuthority, const core::file_identity aFile) {
+					return WorkbenchReview.file_filter(aAuthority, aFile);
 				});
 
 			// One port, two readers, exactly as the device projection below:
@@ -13164,7 +13241,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					{
 						const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 						if (ReviewLedgerReceipt.has_value()
-							&& ReviewLedgerReceipt->File == SelectedDiffPublication->Request.File.File) {
+							&& ReviewLedgerReceipt->File == receipt_file(*SelectedDiffPublication)) {
 							receipt = ReviewLedgerReceipt;
 						}
 					}
@@ -13799,7 +13876,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| surface == nullptr || !surface->isVisibleTo(Window.get()) || !surface->current_result()
 				|| !surface->current_context() || surface->current_context()->Key != aPublication.Key
 				|| surface->current_result()->Alignment.Key != aPublication.Key
-				|| aReceipt.File != aPublication.Request.File.File
+				|| aReceipt.File != receipt_file(aPublication)
 				|| aReceipt.Material != core::file_material(aPublication.Key)) {
 				return;
 			}
@@ -13859,7 +13936,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// draft is presented against it then.
 			ReviewLedgerHost->observe_material(
 				core::file_material_observation{
-					.File     = SelectedDiffPublication->Request.File.File,
+					.File     = receipt_file(*SelectedDiffPublication),
 					.Material = material,
 				},
 				ledger_answer([this, presented = *SelectedDiffPublication](const std::expected<core::file_receipt, application::ledger_store_failure>& aReceipt) {
@@ -13968,6 +14045,140 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::uint64_t                                                                                      FeedbackBodiesParsed         = 0U;
 		std::uint64_t                                                                                      OverviewReceiptUpdates       = 0U;
 		std::uint64_t                                                                                      OverviewReceiptRows          = 0U;
+
+		/// RFC-BPR-0089 M1. The window's commit filter: the model, whether the
+		/// Commits tab has asked for the chain's trees, and the pull request
+		/// the filter belongs to. A filter is the reviewer's for one pull
+		/// request in one window; opening another forgets it.
+		application::commit_filter_model                                                                                  CommitFilter;
+		bool                                                                                                              CommitFilterWanted = false;
+		std::optional<std::tuple<core::git_host_id, core::github_account_id, core::repository_id, core::pull_request_id>> CommitFilterReview;
+		std::uint64_t                                                                                                     CommitFilterPublications = 0U;
+
+		/// \brief The comparison the filter applies to, by its two commits.
+		[[nodiscard]] auto commit_filter_comparison() const -> std::optional<core::filter_comparison>
+		{
+			if (EpochHost == nullptr) {
+				return std::nullopt;
+			}
+			const auto& state = EpochHost->state();
+			if (!state.AcceptedComparison.has_value() || state.PendingComparison.has_value()) {
+				return std::nullopt;
+			}
+			const auto* named = std::get_if<core::named_comparison_selection>(&state.RequestedSelection);
+			return core::filter_comparison{
+				.WholePullRequest = named != nullptr && named->Alias == core::named_comparison::whole_pr,
+				.Left             = state.AcceptedComparison->Left.Commit,
+				.Right            = state.AcceptedComparison->Right.Commit,
+			};
+		}
+
+		/// \brief Adopts an accepted review into the filter before the
+		/// workbench observes its files.
+		void adopt_commit_filter(const application::accepted_pull_request_handoff&               aHandoff,
+								 const std::optional<application::github_pull_request_snapshot>& aSnapshot)
+		{
+			const auto review = std::tuple{ aHandoff.Host, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
+			if (CommitFilterReview != std::optional{ review }) {
+				CommitFilter.clear();
+				CommitFilterWanted = false;
+				CommitFilterReview = review;
+			}
+			if (aSnapshot.has_value()) {
+				CommitFilter.adopt(*aSnapshot);
+			}
+			CommitFilter.adopt_comparison(commit_filter_comparison());
+			const auto files = CommitFilter.files();
+			static_cast<void>(WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt));
+			publish_commit_filter();
+		}
+
+		void publish_commit_filter()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			++CommitFilterPublications;
+			Window->publish(CommitFilter.projection());
+		}
+
+		/// \brief Asks for the chain's tree diffs once the tab or a filter
+		/// needs them. A refusal (the head's objects are still arriving) is
+		/// asked again on the next epoch update.
+		void request_commit_filter_trees()
+		{
+			if (Closing || EpochHost == nullptr || !LastAcceptedHandoff || (!CommitFilterWanted && CommitFilter.state().Hidden.empty())) {
+				return;
+			}
+			auto steps = CommitFilter.touches_steps();
+			if (!steps || !CommitFilter.head()) {
+				return;
+			}
+			auto request = application::commit_filter_touches_request{
+				.WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff),
+				.Head               = *CommitFilter.head(),
+				.Steps              = std::move(*steps),
+			};
+			if (EpochHost->resolve_commit_filter_touches(std::move(request), [this](const application::commit_filter_touches_observation& aObservation) {
+					if (Closing) {
+						return;
+					}
+					CommitFilter.adopt_touches(aObservation);
+					refresh_commit_filter();
+				})) {
+				CommitFilter.begin_touches();
+			}
+		}
+
+		/// \brief Re-decides the filtered file set and shows it everywhere it
+		/// applies: the Commits tab and chips, the Files drawer and walk, and
+		/// the Overview.
+		void refresh_commit_filter()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			CommitFilter.adopt_comparison(commit_filter_comparison());
+			request_commit_filter_trees();
+			const auto files   = CommitFilter.files();
+			const auto changed = WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt);
+			publish_commit_filter();
+			if (!changed) {
+				return;
+			}
+			cancel_preparation();
+			if (WorkbenchHost != nullptr && LastAcceptedHandoff) {
+				WorkbenchHost->observe(workbench_authority(*LastAcceptedHandoff));
+			}
+			publish_overview();
+		}
+
+		void apply_commit_filter_gesture(const application::commit_filter_gesture& aGesture)
+		{
+			if (Closing) {
+				return;
+			}
+			static_cast<void>(CommitFilter.apply(aGesture));
+			refresh_commit_filter();
+		}
+
+		/// \brief The Commits tab showed: its file counts need the trees.
+		void want_commit_filter_trees()
+		{
+			if (Closing || CommitFilterWanted) {
+				return;
+			}
+			CommitFilterWanted = true;
+			refresh_commit_filter();
+		}
+
+		/// \brief RFC-BPR-0089. The ledger file a selected diff's receipt is
+		/// kept under: its own for a commit-filtered diff.
+		[[nodiscard]] static auto receipt_file(const application::workbench_selected_diff_publication& aPublication) -> core::file_identity
+		{
+			return aPublication.Key.Filter ? core::filtered_receipt_file(aPublication.Request.File.File, *aPublication.Key.Filter)
+										   : aPublication.Request.File.File;
+		}
 
 		[[nodiscard]] auto observe_read_state() -> std::optional<observed_read_state>
 		{
@@ -14377,7 +14588,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				? std::optional{ EpochHost->state().AcceptedRevision->Head }
 				: std::nullopt;
 			OverviewChangedPathsPending = false;
-			const auto& snapshot        = WindowRead->accepted_snapshot();
+			const auto& accepted        = WindowRead->accepted_snapshot();
+			// RFC-BPR-0089. While a commit filter applies, the Overview is of
+			// its file set; an exact filtered diff's receipt is its own.
+			const auto filtered         = accepted.has_value() ? CommitFilter.files() : std::nullopt;
+			auto       filteredSnapshot = std::optional<application::github_pull_request_snapshot>{ };
+			auto       filteredEnds     = std::map<std::string_view, core::filtered_diff_endpoints>{ };
+			if (filtered.has_value()) {
+				filteredSnapshot = *accepted;
+				filteredSnapshot->Files.clear();
+				filteredSnapshot->Files.reserve(filtered->Files.size());
+				for (const auto& file : filtered->Files) {
+					filteredSnapshot->Files.push_back(file.Record);
+				}
+				for (const auto& file : filtered->Files) {
+					if (file.Filter.has_value()) {
+						filteredEnds.emplace(file.Record.Path, *file.Filter);
+					}
+				}
+			}
+			const auto& snapshot = filteredSnapshot.has_value() ? filteredSnapshot : accepted;
 			if (!snapshot.has_value()) {
 				PublishedOverview.reset();
 				OverviewReceipts.clear();
@@ -14402,11 +14632,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					for (const auto& file : snapshot->Files) {
 						++OverviewReceiptVisits;
 						const auto identity = core::file_identity_of(file.Path);
-						const auto held     = ReviewLedgerHost->cached_receipt(identity);
+						const auto ends     = filteredEnds.find(file.Path);
+						const auto key      = ends != filteredEnds.end() ? core::filtered_receipt_file(identity, ends->second) : identity;
+						const auto held     = ReviewLedgerHost->cached_receipt(key);
 						if (!held.has_value()) {
-							missing.push_back(identity);
+							missing.push_back(key);
 						} else if (held->has_value()) {
-							context.Receipts.push_back(**held);
+							auto receipt = **held;
+							receipt.File = identity;
+							context.Receipts.push_back(receipt);
 						}
 					}
 					if (missing.empty()) {
@@ -14447,6 +14681,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					*context.Private->LastReviewedHead, *context.Head, std::move(paths));
 			}
 			PublishedOverview = application::project_pull_request_overview(*snapshot, context);
+			if (filtered.has_value()) {
+				PublishedOverview->CommitFilterComparisonFiles = accepted->Files.size();
+			}
 			if (OverviewReceiptRevision.has_value()) {
 				OverviewReceipts.adopt(*PublishedOverview,
 									   context.Private.has_value() && context.Private->LastReviewedHead.has_value(),
@@ -14694,7 +14931,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& actionabilityChanged) {
 				// [[BPR-0972]]. The retained receipt names one file; the host
 				// moves that file and restores any it withheld, in place.
-				WorkbenchHost->retain_actionability(*authority, aProjection.Receipt.File, nowActionable);
+				WorkbenchHost->retain_actionability(*authority, WorkbenchReview.receipt_owner(aProjection.Receipt.File), nowActionable);
 			}
 		}
 
@@ -14749,6 +14986,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				WorkbenchReview.adopt(
 					aHandoff,
 					snapshot);
+				// RFC-BPR-0089. Before the workbench observes the files below.
+				adopt_commit_filter(aHandoff, snapshot);
 				if (snapshot.has_value() && QueueHost != nullptr
 					&& QueueRefresh != nullptr) {
 					auto observation = queue_observation_for(aHandoff, *snapshot);
@@ -14868,6 +15107,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			cancel_preparation();
 			const auto retiresLedger = matches_review_ledger(aInvalidation);
+			if (CommitFilterReview.has_value() && std::get<0>(*CommitFilterReview) == aInvalidation.Host
+				&& std::get<1>(*CommitFilterReview) == aInvalidation.Account && std::get<2>(*CommitFilterReview) == aInvalidation.Repository
+				&& std::get<3>(*CommitFilterReview) == aInvalidation.PullRequest) {
+				CommitFilter.clear();
+				CommitFilterWanted = false;
+				CommitFilterReview.reset();
+				publish_commit_filter();
+			}
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
 				authority.has_value() && WorkbenchHost != nullptr) {
 #if defined(BPR_BUILD_TESTING)
@@ -16566,7 +16813,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto& selected = *SelectedDiffPublication;
 				const auto  lock     = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerReceipt.has_value()
-					&& ReviewLedgerReceipt->File == selected.Request.File.File) {
+					&& ReviewLedgerReceipt->File == receipt_file(selected)) {
 					observation.Files.push_back(application::agent_file_context_input{
 						.Path               = selected.Request.File.PresentationPath,
 						.Receipt            = *ReviewLedgerReceipt,
@@ -17665,6 +17912,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (PrFind) {
 				PrFind->observe_scope();
 			}
+			// RFC-BPR-0089. A new comparison or head moves the filter's span,
+			// and an ingestion that finished lets the trees be asked for.
+			if (aUpdate.Transition.has_value()) {
+				refresh_commit_filter();
+			}
 			const auto acceptedHead = EpochHost != nullptr && EpochHost->state().AcceptedRevision.has_value()
 				? std::optional{ EpochHost->state().AcceptedRevision->Head }
 				: std::nullopt;
@@ -17869,6 +18121,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SelectedDiffRequest = request;
 			}
 			SelectedDiffPublication = aPublication;
+			// RFC-BPR-0089 M1. A thread's line is GitHub's, on the head and the
+			// base; a commit-filtered diff's sides are other commits, so its
+			// threads stay in the conversation drawer, unmarked (M4 marks them).
+			Window->set_thread_marks_suspended(aPublication.Key.Filter.has_value());
 			request_diff(
 				aPublication.Key,
 				aPublication.Request.Diff.Comparison,

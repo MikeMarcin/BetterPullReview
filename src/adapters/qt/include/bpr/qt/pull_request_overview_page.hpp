@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_PULL_REQUEST_OVERVIEW_PAGE_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_PULL_REQUEST_OVERVIEW_PAGE_HPP
 
+#include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
@@ -46,6 +47,7 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class overview_status_drawer;
+	class commit_filter_chip;
 	class overview_status_splitter;
 	class drawer_meter;
 	class drawer_section_header;
@@ -523,6 +525,16 @@ namespace bpr::qt {
 		/// \brief [[BPR-1588]]. Puts the window's Open on GitHub on the Status
 		/// drawer's tab row.
 		void set_open_on_github_action(QAction* aAction);
+		/// \brief RFC-BPR-0089. Presents the commit filter in the Commits tab
+		/// and the chip above the files.
+		void present_commit_filter(const application::commit_filter_projection& aProjection);
+		/// \brief The Commits tab's and the chip's gestures.
+		void set_commit_filter_dispatch(std::function<void(const application::commit_filter_gesture&)> aDispatch);
+		/// \brief The Commits tab first showed.
+		void set_commit_filter_shown_dispatch(std::function<void()> aDispatch);
+		/// \brief Open on GitHub for one commit.
+		void               set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		[[nodiscard]] auto commit_chip() const noexcept -> commit_filter_chip*;
 		/// \brief [[BPR-1588]]. The Overview's right column, a real drawer.
 		[[nodiscard]] auto status_drawer() const noexcept -> overview_status_drawer*;
 		[[nodiscard]] auto status_splitter() const noexcept -> QSplitter*;
@@ -785,6 +797,11 @@ namespace bpr::qt {
 		std::size_t            ReportedFiles = 0U;
 		QString                ReadWaiting;
 		overview_pending_veils Veils;
+
+		/// RFC-BPR-0089. The chip above the files, and the gestures it shares
+		/// with the Commits tab.
+		commit_filter_chip*                                            CommitChip = nullptr;
+		std::function<void(const application::commit_filter_gesture&)> CommitFilterDispatch;
 	};
 } // namespace bpr::qt
 

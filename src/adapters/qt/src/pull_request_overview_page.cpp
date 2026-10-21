@@ -5,6 +5,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/identity_avatar.hpp"
@@ -2669,6 +2670,14 @@ namespace bpr::qt {
 		headingRow->addWidget(CollapseFolders);
 		headingRow->addWidget(ExpandFolders);
 		filesColumn->addLayout(headingRow);
+		// RFC-BPR-0089. What the commit filter shows, and Clear all filters.
+		CommitChip = new commit_filter_chip{ false, main };
+		CommitChip->set_clear_dispatch([this] {
+			if (CommitFilterDispatch) {
+				CommitFilterDispatch(application::commit_filter_gesture{ .Kind = core::commit_filter_operation_kind::clear, .Commits = { } });
+			}
+		});
+		filesColumn->addWidget(CommitChip);
 		refresh_folder_icons();
 
 		Model = new overview_file_model{ this };
@@ -3330,7 +3339,11 @@ namespace bpr::qt {
 	{
 		const auto& since   = aProjection.SinceLastReview;
 		const auto  notRead = aProjection.Progress.FilesTotal - std::min(aProjection.Progress.FilesRead, aProjection.Progress.FilesTotal);
-		auto        heading = QStringLiteral("Files: %1 in this pull request").arg(count_text(aProjection.Progress.FilesTotal));
+		// RFC-BPR-0089. A filtered count says so.
+		auto heading = aProjection.CommitFilterComparisonFiles
+			? QStringLiteral("Files: %1 of %2 in this pull request, filtered by commits")
+				  .arg(count_text(aProjection.Progress.FilesTotal), count_text(*aProjection.CommitFilterComparisonFiles))
+			: QStringLiteral("Files: %1 in this pull request").arg(count_text(aProjection.Progress.FilesTotal));
 		if (since.Known && since.FilesChanged.has_value()) {
 			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
 		} else if (since.Known) {
@@ -4538,6 +4551,33 @@ namespace bpr::qt {
 	void pull_request_overview_page::set_open_on_github_action(QAction* aAction)
 	{
 		StatusDrawer->set_tools(nullptr, aAction);
+	}
+
+	void pull_request_overview_page::present_commit_filter(const application::commit_filter_projection& aProjection)
+	{
+		StatusDrawer->commits()->present(aProjection);
+		CommitChip->present(aProjection);
+	}
+
+	void pull_request_overview_page::set_commit_filter_dispatch(std::function<void(const application::commit_filter_gesture&)> aDispatch)
+	{
+		CommitFilterDispatch = aDispatch;
+		StatusDrawer->commits()->set_gesture_dispatch(std::move(aDispatch));
+	}
+
+	void pull_request_overview_page::set_commit_filter_shown_dispatch(std::function<void()> aDispatch)
+	{
+		StatusDrawer->commits()->set_shown_dispatch(std::move(aDispatch));
+	}
+
+	void pull_request_overview_page::set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		StatusDrawer->commits()->set_open_dispatch(std::move(aDispatch));
+	}
+
+	auto pull_request_overview_page::commit_chip() const noexcept -> commit_filter_chip*
+	{
+		return CommitChip;
 	}
 
 	auto pull_request_overview_page::status_drawer() const noexcept -> overview_status_drawer*

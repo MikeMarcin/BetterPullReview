@@ -12,12 +12,14 @@
 class QAction;
 class QPaintEvent;
 class QShowEvent;
+class QStackedWidget;
 class QTabBar;
 class QToolButton;
 
 /// \file
 /// \brief [[BPR-1588]]. The Overview's Status drawer (RFC-BPR-0085).
 namespace bpr::qt {
+	class commit_filter_tab;
 	class drawer_header;
 	class workbench_drawer_rail;
 
@@ -60,6 +62,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto content() const noexcept -> QWidget*;
 		[[nodiscard]] auto tour_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto github_button() const noexcept -> QToolButton*;
+		/// \brief RFC-BPR-0089. The Commits tab beside Status.
+		[[nodiscard]] auto commits() const noexcept -> commit_filter_tab*;
+		/// \brief Shows the Commits tab, expanding a collapsed drawer the way
+		/// its rail does, and puts the keyboard on its list.
+		void show_commits();
 
 	protected:
 		void changeEvent(QEvent* aEvent) override;
@@ -83,6 +90,8 @@ namespace bpr::qt {
 		QToolButton*                         Hide     = nullptr;
 		workbench_drawer_rail*               Rail     = nullptr;
 		QWidget*                             Content  = nullptr;
+		QStackedWidget*                      Pages    = nullptr;
+		commit_filter_tab*                   Commits  = nullptr;
 	};
 
 	/// \brief The splitter between the Overview's main column and Status, with

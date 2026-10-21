@@ -113,9 +113,11 @@ namespace bpr::application {
 
 	snapshot_workbench_observation::snapshot_workbench_observation(
 		file_supplier          aFiles,
-		actionability_supplier aActionability)
+		actionability_supplier aActionability,
+		filter_supplier        aFilter)
 		: Files{ std::move(aFiles) }
 		, Actionability{ std::move(aActionability) }
+		, Filter{ std::move(aFilter) }
 	{
 	}
 
@@ -188,6 +190,16 @@ namespace bpr::application {
 			// [[BPR-0972]]. Numbered by catalogue position, and withheld files
 			// named, so the host can restore one in place later.
 			file->Ordinal = position;
+			// RFC-BPR-0089. A commit filter's exact endpoints, or its split.
+			if (Filter) {
+				if (const auto filtered = Filter(aRequest.Authority, identity)) {
+					file->Filter        = filtered->Endpoints;
+					file->SplitByFilter = filtered->Split;
+					if (!valid(*file)) {
+						return answer(aRequest, workbench_observation_status::unavailable);
+					}
+				}
+			}
 			if (Actionability) {
 				const auto facts = Actionability(aRequest.Authority, identity);
 				if (facts.has_value() && facts->Receipt.File == identity

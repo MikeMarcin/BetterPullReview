@@ -268,6 +268,10 @@ namespace bpr::application {
 		std::optional<std::string> EntryPath;
 		/// [[BPR-1589]]. My role and what needs attention.
 		overview_status Status;
+		/// RFC-BPR-0089. While a commit filter applies, the files it leaves
+		/// (`Files`) and the comparison's own count, so every count says it is
+		/// filtered.
+		std::optional<std::size_t> CommitFilterComparisonFiles;
 
 		auto operator<=>(const pull_request_overview_projection&) const = default;
 	};

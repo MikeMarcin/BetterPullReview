@@ -1,6 +1,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -282,9 +283,16 @@ namespace {
 		auto& drawer = *fixture.Drawer;
 		expect(drawer.width() == static_cast<int>(application::default_status_drawer_width) && fixture.Reported.empty(),
 			   "Status opens at 340 pixels and reports nothing it was not asked");
-		expect(drawer.tabs()->count() == 1 && drawer.tabs()->tabText(0) == QStringLiteral("Status") && drawer.tour_button()->isVisible()
-				   && drawer.github_button()->isVisible() && drawer.hide_button()->isVisible() && !drawer.rail()->isVisible(),
-			   "its header is its one tab, with Prepare review tour, Open on GitHub and Hide at the right");
+		// RFC-BPR-0089: Commits sits beside Status.
+		expect(drawer.tabs()->count() == 2 && drawer.tabs()->tabText(0) == QStringLiteral("Status") && drawer.tabs()->tabText(1) == QStringLiteral("Commits")
+				   && drawer.tour_button()->isVisible() && drawer.github_button()->isVisible() && drawer.hide_button()->isVisible() && !drawer.rail()->isVisible(),
+			   "its header holds Status and Commits, with Prepare review tour, Open on GitHub and Hide at the right");
+		expect(drawer.content()->isVisible() && !drawer.commits()->isVisible(), "Status shows first");
+		drawer.tabs()->setCurrentIndex(1);
+		settle();
+		expect(drawer.commits()->isVisible() && !drawer.content()->isVisible(), "the Commits tab shows the commits in Status's place");
+		drawer.tabs()->setCurrentIndex(0);
+		settle();
 		expect(qt::drawer_principle_violations(drawer, { .EmptyValueRows = false }).isEmpty(), "the Status drawer's chrome keeps the principles");
 		auto* const handle = fixture.Split->handle(1);
 		expect(handle != nullptr && handle->cursor().shape() == Qt::SplitHCursor, "its seam holds the resize cursor");

@@ -1,5 +1,6 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -12,6 +13,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QShowEvent>
+#include <QStackedWidget>
 #include <QStyle>
 #include <QTabBar>
 #include <QToolButton>
@@ -65,6 +67,9 @@ namespace bpr::qt {
 		configure_drawer_tabs(*Tabs);
 		Tabs->addTab(QStringLiteral("Status"));
 		Tabs->setTabToolTip(0, QStringLiteral("Where this pull request stands and your part in its review"));
+		// RFC-BPR-0089. The pull request's commits, and the filter set on them.
+		Tabs->addTab(QStringLiteral("Commits"));
+		Tabs->setTabToolTip(1, QStringLiteral("The pull request's commits; show or hide them to filter the files"));
 		Tools = new QWidget{ Header };
 		Tools->setObjectName(QStringLiteral("overviewStatusTools"));
 		auto* const tools = new QHBoxLayout{ Tools };
@@ -82,11 +87,17 @@ namespace bpr::qt {
 		tools->addWidget(Hide);
 		Header->set_parts(Tabs, Tools);
 		column->addWidget(Header);
-		Content->setParent(Expanded);
+		Pages = new QStackedWidget{ Expanded };
+		Pages->setObjectName(QStringLiteral("overviewStatusPages"));
+		Content->setParent(Pages);
 		if (auto* const scroll = qobject_cast<QScrollArea*>(Content); scroll != nullptr && scroll->widget() != nullptr) {
 			scroll->widget()->installEventFilter(this);
 		}
-		column->addWidget(Content, 1);
+		Pages->addWidget(Content);
+		Commits = new commit_filter_tab{ Pages };
+		Pages->addWidget(Commits);
+		connect(Tabs, &QTabBar::currentChanged, Pages, &QStackedWidget::setCurrentIndex);
+		column->addWidget(Pages, 1);
 		row->addWidget(Expanded, 1);
 		refresh_icons();
 		present();
@@ -195,6 +206,20 @@ namespace bpr::qt {
 	auto overview_status_drawer::github_button() const noexcept -> QToolButton*
 	{
 		return Github;
+	}
+
+	auto overview_status_drawer::commits() const noexcept -> commit_filter_tab*
+	{
+		return Commits;
+	}
+
+	void overview_status_drawer::show_commits()
+	{
+		if (Drawer.State != core::workbench_drawer_state::expanded) {
+			toggle();
+		}
+		Tabs->setCurrentIndex(1);
+		Commits->list()->setFocus(Qt::OtherFocusReason);
 	}
 
 	auto overview_status_drawer::floor_width() const -> int

@@ -2361,6 +2361,28 @@ foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# RFC-BPR-0089 M1. The Commits tab and the commit filter chip.
+bpr_add_executable(test_better_pull_review_qt_commit_filter_view_tests commit_filter_view_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_commit_filter_view_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_commit_filter_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_commit_filter_view_tests)
+foreach(bpr_commit_filter_scale IN ITEMS 100 200)
+    math(EXPR bpr_commit_filter_whole "${bpr_commit_filter_scale} / 100")
+    math(EXPR bpr_commit_filter_fraction "${bpr_commit_filter_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_commit_filter_view_scale_${bpr_commit_filter_scale}
+        COMMAND test_better_pull_review_qt_commit_filter_view_tests
+    )
+    set_tests_properties(
+        qt_commit_filter_view_scale_${bpr_commit_filter_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_commit_filter_whole}.${bpr_commit_filter_fraction}"
+            PASS_REGULAR_EXPRESSION "commit-filter-view-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
+
 # [[BPR-1602]]. Settings › Storage & privacy › Troubleshooting, its confirmations and the recovery dialog.
 bpr_add_executable(
     test_better_pull_review_qt_profile_data_reset_views_tests

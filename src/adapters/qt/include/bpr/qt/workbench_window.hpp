@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #include "bpr/core/conversation_reply.hpp"
 
+#include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/application/profile_management_projection.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 
@@ -106,6 +107,7 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class compose_review_sheet;
+	class commit_filter_chip;
 	class destructive_question;
 	/// \brief [[BPR-1336]]. Whether an editable text field keeps a typed
 	/// Control+Alt character from the window's shortcuts.
@@ -440,6 +442,18 @@ namespace bpr::qt {
 		/// \brief [[BPR-1089]]. Adopts the host's label counts for the
 		/// Overview's request: its chips, mode and sort.
 		void publish(const application::overview_feedback_projection& aFeedback);
+		/// \brief RFC-BPR-0089. Presents the commit filter: the Commits tab and
+		/// the chips above the Overview's files and in the Files drawer.
+		void publish(const application::commit_filter_projection& aProjection);
+		/// \brief The Commits tab's and the chips' gestures.
+		void set_commit_filter_dispatch(std::function<void(const application::commit_filter_gesture&)> aDispatch);
+		/// \brief The Commits tab first showed, so its trees are wanted.
+		void set_commit_filter_shown_dispatch(std::function<void()> aDispatch);
+		/// \brief Open on GitHub for one commit.
+		void set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief Shows the Overview's Commits tab, from wherever the window is.
+		void               show_commits();
+		[[nodiscard]] auto files_commit_chip() const noexcept -> commit_filter_chip*;
 		/// \brief [[BPR-1089]]. Where the Overview's request goes: whenever its
 		/// chips (from Settings), its mode or its sort change.
 		void set_overview_feedback_dispatch(std::function<void(const application::overview_feedback_request&)> aDispatch);
@@ -1761,6 +1775,18 @@ namespace bpr::qt {
 		/// \brief [[BPR-0818]]. Applies the anchor on its own event-loop turn.
 		void schedule_conversation_anchor();
 		void apply_thread_marks();
+
+	public:
+		/// \brief RFC-BPR-0089 M1. Marks no thread on the diff while its sides
+		/// are commits a filter chose rather than the comparison's.
+		void set_thread_marks_suspended(bool aSuspended);
+
+	private:
+		bool ThreadMarksSuspended = false;
+		/// RFC-BPR-0089. The Files drawer's commit filter chip, and the
+		/// gestures it shares with the Commits tab.
+		commit_filter_chip*                                            FilesCommitChip = nullptr;
+		std::function<void(const application::commit_filter_gesture&)> CommitFilterDispatch;
 		/// \brief [[BPR-1290]]. The thread a gutter marker or scroll-bar tick
 		/// marks, with the drawer shown on its Comments tab; none when no
 		/// placed thread is on that zero-based line.

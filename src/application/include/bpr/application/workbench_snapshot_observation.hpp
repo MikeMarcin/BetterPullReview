@@ -44,9 +44,24 @@ namespace bpr::application {
 				const workbench_pull_request_authority&,
 				core::file_identity)>;
 
+		/// \brief RFC-BPR-0089. How a commit filter forms one file's diff.
+		struct file_filter
+		{
+			std::optional<core::filtered_diff_endpoints> Endpoints;
+			bool                                         Split = false;
+		};
+
+		/// \brief Supplies the commit filter's form for one file, or none when
+		/// the file keeps the comparison's own diff.
+		using filter_supplier = std::function<
+			std::optional<file_filter>(
+				const workbench_pull_request_authority&,
+				core::file_identity)>;
+
 		explicit snapshot_workbench_observation(
 			file_supplier          aFiles,
-			actionability_supplier aActionability = { });
+			actionability_supplier aActionability = { },
+			filter_supplier        aFilter        = { });
 
 		[[nodiscard]] auto assemble(
 			const workbench_observation_request& aRequest,
@@ -56,6 +71,7 @@ namespace bpr::application {
 	private:
 		file_supplier          Files;
 		actionability_supplier Actionability;
+		filter_supplier        Filter;
 	};
 } // namespace bpr::application
 

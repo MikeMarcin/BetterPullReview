@@ -26,6 +26,7 @@
 
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -3961,6 +3962,16 @@ namespace bpr::qt {
 			FilesFilter->setClearButtonEnabled(true);
 			controls->addWidget(FilesFilter, 1);
 			surfaceColumn->addLayout(controls);
+			// RFC-BPR-0089. A commit filter is never active out of sight: the
+			// chip names it here and opens the Commits tab.
+			FilesCommitChip = new commit_filter_chip{ true, filesSurface };
+			FilesCommitChip->set_clear_dispatch([this] {
+				if (CommitFilterDispatch) {
+					CommitFilterDispatch(application::commit_filter_gesture{ .Kind = core::commit_filter_operation_kind::clear, .Commits = { } });
+				}
+			});
+			FilesCommitChip->set_commits_dispatch([this] { show_commits(); });
+			surfaceColumn->addWidget(FilesCommitChip);
 			FilesFilterNotice = new filter_empty_notice{
 				QStringLiteral("files"), QStringLiteral("files"), filesSurface
 			};
@@ -7508,6 +7519,54 @@ namespace bpr::qt {
 		return ToggleDrawersAction;
 	}
 
+	void workbench_window::publish(const application::commit_filter_projection& aProjection)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->present_commit_filter(aProjection);
+		}
+		if (FilesCommitChip != nullptr) {
+			FilesCommitChip->present(aProjection);
+		}
+	}
+
+	void workbench_window::set_commit_filter_dispatch(std::function<void(const application::commit_filter_gesture&)> aDispatch)
+	{
+		CommitFilterDispatch = aDispatch;
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_commit_filter_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::set_commit_filter_shown_dispatch(std::function<void()> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_commit_filter_shown_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::set_commit_open_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_commit_open_dispatch(std::move(aDispatch));
+		}
+	}
+
+	void workbench_window::show_commits()
+	{
+		if (OverviewPage == nullptr) {
+			return;
+		}
+		if (Modality == nullptr || Modality->current() != review_modality::overview) {
+			choose_modality(review_modality::overview, core::workbench_modality_entry::enter);
+		}
+		OverviewPage->status_drawer()->show_commits();
+	}
+
+	auto workbench_window::files_commit_chip() const noexcept -> commit_filter_chip*
+	{
+		return FilesCommitChip;
+	}
+
 	void workbench_window::choose_modality(const review_modality aModality, const core::workbench_modality_entry aEntry)
 	{
 		if (ReviewNavigationDispatch) {
@@ -8029,6 +8088,15 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::set_thread_marks_suspended(const bool aSuspended)
+	{
+		if (ThreadMarksSuspended == aSuspended) {
+			return;
+		}
+		ThreadMarksSuspended = aSuspended;
+		apply_thread_marks();
+	}
+
 	void workbench_window::apply_thread_marks()
 	{
 		if (ComparisonSurface == nullptr || ConversationPanel == nullptr) {
@@ -8043,7 +8111,7 @@ namespace bpr::qt {
 		for (const auto side : { core::diff_side::left, core::diff_side::right }) {
 			auto       marks      = std::vector<diff_line_mark>{ };
 			const auto onNotesTab = TrayTabs != nullptr && TrayTabs->currentIndex() == tray_notes_tab;
-			for (const auto& mark : cards->line_marks(side)) {
+			for (const auto& mark : ThreadMarksSuspended ? std::vector<thread_line_mark>{ } : cards->line_marks(side)) {
 				marks.push_back(diff_line_mark{
 					.Line        = mark.Line,
 					.Kind        = mark.Unread ? diff_line_mark_kind::new_thread : diff_line_mark_kind::thread,

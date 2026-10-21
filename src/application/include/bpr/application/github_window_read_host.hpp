@@ -71,6 +71,9 @@ namespace bpr::application {
 	/// HTTPS on the admitted hostname, then owner, repository, "pull" and number,
 	/// exactly what the provider contract requires a pull request's `html_url` to be.
 	[[nodiscard]] auto pull_request_page_address(const core::pull_request_page& aPage) -> std::string;
+	/// \brief RFC-BPR-0089. One listed commit's page within its pull request:
+	/// the admitted page address, "commits" and the full commit ID.
+	[[nodiscard]] auto pull_request_commit_page_address(const core::pull_request_page& aPage, const core::git_commit_oid& aCommit) -> std::string;
 
 	/// Owns one PR request, accepted snapshot and its revocable epoch authorities.
 	/// [[BPR-1447]]. With \p aBodyDigests, a fetched snapshot's feedback bodies
@@ -124,6 +127,10 @@ namespace bpr::application {
 		/// this window's current publication. The address is built from the accepted profile
 		/// authority's hostname and the accepted snapshot, never from remote or typed text.
 		[[nodiscard]] auto open_pull_request_page(const core::markdown_context& aContext, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
+		/// \brief RFC-BPR-0089. Opens one of the accepted pull request's listed
+		/// commits on its host. A commit the accepted list does not name, or a
+		/// malformed ID, is refused before any address exists.
+		[[nodiscard]] auto open_pull_request_commit_page(const std::string& aCommit, device_authorization_browser_port* aBrowser) -> core::markdown_link_result;
 		void               read_cached_source(std::string aPath);
 		/// \brief RFC-BPR-0084. Admits a rendered body's image references against the
 		/// current publication and starts their resolution and loads; results arrive
