@@ -227,8 +227,9 @@ namespace bpr::qt {
 	[[nodiscard]] auto shortcut_group_title(shortcut_group aGroup) -> QString;
 
 	/// \brief Whether the keyboard in a text field takes an entry's key for
-	/// itself on this platform: the entry says so, or, on macOS, the key is
-	/// Option with a character and acts window-wide ([[BPR-1536]]).
+	/// itself on this platform: the entry says so, or, on macOS, every key is
+	/// Option with a character and acts window-wide ([[BPR-1536]],
+	/// [[BPR-PENDING-D]]).
 	[[nodiscard]] auto steps_aside_while_typing(const shortcut_entry& aEntry) -> bool;
 
 	/// \brief A key in words a screen reader speaks: "Option-Shift-Up Arrow"

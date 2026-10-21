@@ -1321,17 +1321,19 @@ namespace bpr::qt {
 			"Home, the drawer toggles, the pull request, the review modality, "
 			"refresh, comments, account and settings"));
 
-		const auto makeDrawer = [this](const QString&      aText,
-									   const QString&      aName,
-									   const QString&      aAccessible,
-									   const QString&      aObjectName,
-									   const QString&      aCollapse,
-									   const QString&      aExpand,
-									   const QKeySequence& aShortcut) -> drawer_entry {
+		const auto makeDrawer = [this](const QString&             aText,
+									   const QString&             aName,
+									   const QString&             aAccessible,
+									   const QString&             aObjectName,
+									   const QString&             aCollapse,
+									   const QString&             aExpand,
+									   const QList<QKeySequence>& aShortcuts) -> drawer_entry {
 			auto* const action = new QAction{ aText, this };
 			action->setObjectName(aObjectName);
 			action->setCheckable(true);
-			action->setShortcut(aShortcut);
+			// [[BPR-PENDING-D]]. Every catalogue key: Files and Repositories
+			// have a second, command-modifier key that acts while typing.
+			action->setShortcuts(aShortcuts);
 			action->setShortcutContext(Qt::WindowShortcut);
 			action->setIconText(aName);
 			addAction(action);
@@ -1354,7 +1356,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchFilesDrawerAction"),
 			QStringLiteral("Hide the file drawer and give its width to the comparison."),
 			QStringLiteral("Show the file drawer at its saved width."),
-			shortcut_key(shortcut_command::files_drawer));
+			shortcut_keys(shortcut_command::files_drawer));
 		Drawers[1] = makeDrawer(
 			// [[BPR-1293]]. The drawer is Comments, as its tab and title-row
 			// toggle say; only the modality is called Threads ([[BPR-1341]]).
@@ -1364,7 +1366,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchConversationsDrawerAction"),
 			QStringLiteral("Hide the comments drawer and give its width to the comparison."),
 			QStringLiteral("Show the comments drawer at its saved width."),
-			shortcut_key(shortcut_command::comments_drawer));
+			shortcut_keys(shortcut_command::comments_drawer));
 		// [[BPR-0651]]. The repositories drawer, left of the files. Alt+Shift+3
 		// to 5 are taken by the line numbers, review controls and review
 		// details, so this one is mnemonic.
@@ -1375,7 +1377,7 @@ namespace bpr::qt {
 			QStringLiteral("toggleWorkbenchRepositoriesDrawerAction"),
 			QStringLiteral("Hide the repositories drawer and give its width to the comparison."),
 			QStringLiteral("Show the repositories drawer at its saved width."),
-			shortcut_key(shortcut_command::repositories_drawer));
+			shortcut_keys(shortcut_command::repositories_drawer));
 
 		const auto make = [this](const QString&             aText,
 								 const QString&             aName,

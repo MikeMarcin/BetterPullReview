@@ -19051,6 +19051,218 @@ namespace {
 		expect(refreshes() == 4 && pullTriggers == 1 && pullIntents == 1 && other == 0, "and ⌘R refreshes Home, not the review behind it");
 		window.hide();
 	}
+
+	/// \brief [[BPR-PENDING-D]]. The owner, 2026-10-20: "I would like a hotkey
+	/// for the file drawer toggle. And maybe one for the repository drawer
+	/// toggle." Files and Repositories keep Option-Shift-1 and Option-Shift-R,
+	/// which a text field takes on macOS, and gain Control-Command-1 and
+	/// Control-Command-R there (Ctrl+Shift+1 and Ctrl+Shift+R elsewhere). The
+	/// new keys are free in the catalogue, no Qt standard key and no text
+	/// widget's, and they are on the toggles themselves. Through the real core
+	/// each toggles its drawer from the code and from a field, in Overview it
+	/// meets the core's collapsed drawers like the toggle, and the toggle's
+	/// checked state and its button's accessible state follow. Help > Keyboard
+	/// Shortcuts lists both keys with no typing note.
+	void test_drawer_keys_toggle_their_drawers()
+	{
+#if defined(Q_OS_MACOS)
+		const auto filesKey = QKeySequence{ QStringLiteral("Ctrl+Meta+1") };
+		const auto reposKey = QKeySequence{ QStringLiteral("Ctrl+Meta+R") };
+#else
+		const auto filesKey = QKeySequence{ QStringLiteral("Ctrl+Shift+1") };
+		const auto reposKey = QKeySequence{ QStringLiteral("Ctrl+Shift+R") };
+#endif
+		expect(qt::shortcut_keys(qt::shortcut_command::files_drawer) == QList{ QKeySequence{ QStringLiteral("Alt+Shift+1") }, filesKey }
+				   && qt::shortcut_keys(qt::shortcut_command::repositories_drawer) == QList{ QKeySequence{ QStringLiteral("Alt+Shift+R") }, reposKey },
+			   "the catalogue keeps each drawer's Option-Shift key first and adds a command key");
+
+		// The catalogue has no conflict: no two entries that act window-wide
+		// share a key, and the new keys are no other entry's anywhere.
+		auto windowWide = std::map<QString, std::string_view>{ };
+		for (const auto& entry : qt::shortcut_catalogue()) {
+			for (const auto& key : qt::shortcut_keys(entry)) {
+				const auto text = key.toString(QKeySequence::PortableText);
+				if (entry.Place.empty()) {
+					const auto [held, fresh] = windowWide.emplace(text, entry.Title);
+					expect(fresh, "the key " + text.toStdString() + " is held by " + std::string{ held->second } + " and " + std::string{ entry.Title });
+				}
+			}
+		}
+		for (const auto& [key, owner] : { std::pair{ filesKey, qt::shortcut_command::files_drawer }, std::pair{ reposKey, qt::shortcut_command::repositories_drawer } }) {
+			const auto name = key.toString(QKeySequence::PortableText).toStdString();
+			for (const auto& entry : qt::shortcut_catalogue()) {
+				expect(entry.Command == owner || !qt::shortcut_keys(entry).contains(key), name + " is not also " + std::string{ entry.Title });
+			}
+			for (int standard = QKeySequence::HelpContents; standard <= QKeySequence::Cancel; ++standard) {
+				expect(!QKeySequence::keyBindings(static_cast<QKeySequence::StandardKey>(standard)).contains(key), name + " is no Qt standard key: " + std::to_string(standard));
+			}
+			auto field  = QLineEdit{ };
+			auto editor = QPlainTextEdit{ };
+			for (QWidget* const widget : std::initializer_list<QWidget*>{ &field, &editor }) {
+				auto event = QKeyEvent{ QEvent::ShortcutOverride, static_cast<int>(key[0].key()), key[0].keyboardModifiers() };
+				event.ignore();
+				QApplication::sendEvent(widget, &event);
+				expect(!event.isAccepted(), "a text widget does not claim " + name);
+			}
+			expect(!qt::steps_aside_while_typing(qt::shortcut(owner)), name + " leaves its row without a typing note");
+		}
+
+		// The window, through the real core.
+		auto  state   = core::workbench_interaction_state{ };
+		auto  toggled = std::vector<core::workbench_drawer>{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				if (const auto* const toggle = std::get_if<core::toggle_workbench_drawer_intent>(&aIntent); toggle != nullptr) {
+					toggled.push_back(toggle->Drawer);
+				}
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 1U };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, file)));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+
+		auto* const filesToggle = window.files_drawer_toggle_action();
+		auto* const reposToggle = window.repositories_drawer_toggle_action();
+		expect(filesToggle->shortcuts() == qt::shortcut_keys(qt::shortcut_command::files_drawer)
+				   && reposToggle->shortcuts() == qt::shortcut_keys(qt::shortcut_command::repositories_drawer)
+				   && filesToggle->shortcutContext() == Qt::WindowShortcut && reposToggle->shortcutContext() == Qt::WindowShortcut,
+			   "each toggle action carries both catalogue keys, window-wide");
+		auto holders = std::map<QString, QStringList>{ };
+		for (const auto& binding : live_bindings(window)) {
+			for (const auto& key : binding.Keys) {
+				holders[key.toString(QKeySequence::PortableText)].push_back(binding.Name);
+			}
+		}
+		expect(holders[filesKey.toString(QKeySequence::PortableText)] == QStringList{ QStringLiteral("toggleWorkbenchFilesDrawerAction") }
+				   && holders[reposKey.toString(QKeySequence::PortableText)] == QStringList{ QStringLiteral("toggleWorkbenchRepositoriesDrawerAction") },
+			   "nothing else in the window binds either key");
+
+		const auto open = [](const qt::workbench_drawer_panel* const aPanel) {
+			return aPanel->state() == core::workbench_drawer_state::expanded && aPanel->isVisible();
+		};
+		const auto accessiblyChecked = [&window](QAction* const aAction) {
+			auto* const button    = window.primary_toolbar()->widgetForAction(aAction);
+			auto* const interface = button == nullptr ? nullptr : QAccessible::queryAccessibleInterface(button);
+			return interface != nullptr && interface->state().checkable && interface->state().checked;
+		};
+		const auto press = [&window](const QKeySequence& aKey) {
+			deliver_key(window, static_cast<int>(aKey[0].key()), aKey[0].keyboardModifiers());
+		};
+		struct drawer_key
+		{
+			const char*                       Name;
+			QKeySequence                      Key;
+			QAction*                          Toggle;
+			const qt::workbench_drawer_panel* Panel;
+			core::workbench_drawer            Drawer;
+		};
+		const auto drawers = std::array{
+			drawer_key{ "Files", filesKey, filesToggle, window.files_drawer(), core::workbench_drawer::files },
+			drawer_key{ "Repositories", reposKey, reposToggle, window.repositories_drawer(), core::workbench_drawer::repositories },
+		};
+
+		// From the code.
+		auto* const code = window.comparison_surface()->right_pane();
+		for (const auto& drawer : drawers) {
+			const auto name = std::string{ drawer.Name };
+			code->setFocus(Qt::OtherFocusReason);
+			process_events();
+			const auto before = open(drawer.Panel);
+			const auto count  = toggled.size();
+			press(drawer.Key);
+			expect(toggled.size() == count + 1U && toggled.back() == drawer.Drawer, name + "'s key sends one toggle of its drawer from the code");
+			expect(open(drawer.Panel) == !before && drawer.Toggle->isChecked() == !before && accessiblyChecked(drawer.Toggle) == !before,
+				   name + " changes, and its toggle and the toggle's button say so");
+			press(drawer.Key);
+			expect(toggled.size() == count + 2U && open(drawer.Panel) == before && drawer.Toggle->isChecked() == before
+					   && accessiblyChecked(drawer.Toggle) == before,
+				   name + "'s key again puts it back");
+		}
+
+		// From a single-line field: the key acts and types nothing there.
+		auto* const filter = window.files_filter();
+		for (const auto& drawer : { drawers[1], drawers[0] }) {
+			const auto name = std::string{ drawer.Name };
+			if (!open(window.files_drawer())) {
+				filesToggle->trigger();
+				process_events();
+			}
+			filter->setFocus(Qt::OtherFocusReason);
+			process_events();
+			expect(QApplication::focusWidget() == filter, "the files filter has the keyboard");
+			const auto text   = filter->text();
+			const auto before = open(drawer.Panel);
+			const auto count  = toggled.size();
+			press(drawer.Key);
+			expect(toggled.size() == count + 1U && toggled.back() == drawer.Drawer && open(drawer.Panel) == !before
+					   && drawer.Toggle->isChecked() == !before && filter->text() == text,
+				   name + "'s key toggles it from the files filter and types nothing there");
+#if defined(Q_OS_MACOS)
+			// Negative control: the Option-Shift key is the field's on macOS.
+			if (open(window.files_drawer())) {
+				filter->setFocus(Qt::OtherFocusReason);
+				process_events();
+				const auto held = toggled.size();
+				press(drawer.Toggle->shortcuts().front());
+				expect(toggled.size() == held, name + "'s Option-Shift key is left to the field");
+			}
+#endif
+			press(drawer.Key);
+			process_events();
+		}
+
+		// Overview keeps every drawer collapsed: the key is the toggle's
+		// gesture there too, and the toggle shows what the core kept.
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		for (const auto& drawer : drawers) {
+			const auto count = toggled.size();
+			press(drawer.Key);
+			expect(toggled.size() == count + 1U && toggled.back() == drawer.Drawer && !drawer.Toggle->isChecked() && !accessiblyChecked(drawer.Toggle),
+				   std::string{ drawer.Name } + "'s key in Overview is the toggle's gesture, and the toggle stays unchecked as the core keeps it");
+		}
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+
+		// Help > Keyboard Shortcuts lists both keys, with no typing note.
+		window.keyboard_shortcuts_action()->trigger();
+		process_events();
+		auto* const page = window.keyboard_shortcuts();
+		expect(page != nullptr && page->isVisible(), "the keyboard shortcuts page opens");
+		for (const auto& [command, key] : { std::pair{ qt::shortcut_command::files_drawer, filesKey }, std::pair{ qt::shortcut_command::repositories_drawer, reposKey } }) {
+			const auto* const row = row_of(*page, command);
+			expect(row != nullptr && row->text(1).contains(key.toString(QKeySequence::NativeText)) && row->text(1).contains(QStringLiteral(" or "))
+					   && row->data(0, Qt::UserRole + 2).toString().isEmpty()
+					   && row->data(1, Qt::AccessibleTextRole).toString().contains(qt::spoken_key(key)),
+				   "the page lists " + std::string{ qt::shortcut(command).Title } + " with both keys, spoken too, and no typing note");
+		}
+		page->close();
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -19197,6 +19409,8 @@ auto main(int argc, char** argv) -> int
 		runCase("test_keyboard_shortcuts_page", &test_keyboard_shortcuts_page);
 		// [[BPR-1600]]. ⌘R does whichever refresh the window shows.
 		runCase("test_refresh_key_does_the_refresh_showing", &test_refresh_key_does_the_refresh_showing);
+		// [[BPR-PENDING-D]]. The Files and Repositories drawers' command keys.
+		runCase("test_drawer_keys_toggle_their_drawers", &test_drawer_keys_toggle_their_drawers);
 		if (!listCases) {
 			std::cout << "keyboard-shortcuts:pass\n";
 		}

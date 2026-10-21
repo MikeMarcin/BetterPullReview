@@ -27,6 +27,19 @@ namespace bpr::qt {
 		constexpr auto in_cycle     = std::string_view{ "In a Review Cycle's code" };
 		constexpr auto in_cycle_box = std::string_view{ "In a Review Cycle note or suggestion" };
 
+		// [[BPR-PENDING-D]]. The Files and Repositories drawers' second keys,
+		// for automation: their first keys' 1 and R with the platform's command
+		// modifier rather than Option, so no text field takes them while you
+		// type. Control-Command on macOS, where Command-Shift-3 to 6 are the
+		// system's screenshots; Ctrl+Shift elsewhere, where Ctrl+Alt is AltGr.
+#if defined(Q_OS_MACOS)
+		constexpr auto files_drawer_keys        = std::string_view{ "Alt+Shift+1;Ctrl+Meta+1" };
+		constexpr auto repositories_drawer_keys = std::string_view{ "Alt+Shift+R;Ctrl+Meta+R" };
+#else
+		constexpr auto files_drawer_keys        = std::string_view{ "Alt+Shift+1;Ctrl+Shift+1" };
+		constexpr auto repositories_drawer_keys = std::string_view{ "Alt+Shift+R;Ctrl+Shift+R" };
+#endif
+
 		// One row per command, in the enumeration's order (checked below).
 		// Platform differences are written here and nowhere else.
 		constexpr auto catalogue = std::array{
@@ -98,9 +111,9 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::query_in_selection, .Group = find, .Binding = read, .Title = "Find in selection on or off", .Place = in_query, .Keys = "Alt+L" },
 
 			// Views and drawers.
-			shortcut_entry{ .Command = command::files_drawer, .Group = views, .Binding = bound, .Title = "Files drawer", .Keys = "Alt+Shift+1", .Objects = "toggleWorkbenchFilesDrawerAction" },
+			shortcut_entry{ .Command = command::files_drawer, .Group = views, .Binding = bound, .Title = "Files drawer", .Keys = files_drawer_keys, .Objects = "toggleWorkbenchFilesDrawerAction" },
 			shortcut_entry{ .Command = command::comments_drawer, .Group = views, .Binding = bound, .Title = "Comments drawer", .Keys = "Alt+Shift+2", .Objects = "toggleWorkbenchConversationsDrawerAction" },
-			shortcut_entry{ .Command = command::repositories_drawer, .Group = views, .Binding = bound, .Title = "Repositories drawer", .Keys = "Alt+Shift+R", .Objects = "toggleWorkbenchRepositoriesDrawerAction" },
+			shortcut_entry{ .Command = command::repositories_drawer, .Group = views, .Binding = bound, .Title = "Repositories drawer", .Keys = repositories_drawer_keys, .Objects = "toggleWorkbenchRepositoriesDrawerAction" },
 			shortcut_entry{ .Command = command::open_agent, .Group = views, .Binding = bound, .Title = "The Agent tab", .Keys = "Alt+Shift+A", .Objects = "openAgentTabAction" },
 			shortcut_entry{ .Command = command::ask_agent, .Group = views, .Binding = bound, .Title = "Ask the agent about the selected lines", .Keys = "Ctrl+I", .Objects = "askAgentAboutLinesAction" },
 			shortcut_entry{ .Command = command::new_note, .Group = comments, .Binding = bound, .Title = "A private note on the selected line", .Place = "In Notes", .Keys = "N", .Objects = "newLineNoteAction" },
@@ -329,8 +342,10 @@ namespace bpr::qt {
 #if defined(Q_OS_MACOS)
 		// A window-wide Option+character key; a key acting in one place is
 		// that place's own, and the Find query's toggles are the query's.
+		// [[BPR-PENDING-D]]. Only when every key is one: a text field claims
+		// each Option key alone, so a command key beside it still acts there.
 		const auto keys = shortcut_keys(aEntry);
-		return aEntry.Place.empty() && std::ranges::any_of(keys, option_character);
+		return aEntry.Place.empty() && !keys.isEmpty() && std::ranges::all_of(keys, option_character);
 #else
 		return false;
 #endif
