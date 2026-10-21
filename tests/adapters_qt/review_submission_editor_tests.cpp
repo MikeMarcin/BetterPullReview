@@ -17,6 +17,7 @@
 #include <QPushButton>
 #include <QTextEdit>
 #include <QToolButton>
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <set>
@@ -395,6 +396,30 @@ auto main(int argc, char** argv) -> int
 	const auto rowsShown = editor.pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
 	const auto deletes   = editor.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
 	expect(rowsShown.size() == 2 && deletes.size() == 2, "each pending comment is a row with its own Delete");
+	{
+		// [[BPR-PENDING-Y]]. While a submission may hold its comments, no row
+		// offers Delete, and a Delete asked for anyway asks nothing.
+		auto held        = finishing;
+		held.State       = core::review_submission_state::submitting;
+		held.Attempt     = core::review_submission_attempt_id{ 1U };
+		auto waiting     = finish;
+		waiting.Draft    = held;
+		waiting.Controls = core::controls(held);
+		editor.present(waiting);
+		QApplication::processEvents();
+		const auto heldDeletes = editor.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
+		expect(heldDeletes.size() == 2 && std::ranges::none_of(heldDeletes, [](const QToolButton* aButton) { return aButton->isVisibleTo(aButton->window()) || aButton->isEnabled(); }),
+			   "the rows of a review awaiting GitHub's answer offer no Delete");
+		auto asked = false;
+		editor.set_pending_delete([&](const core::review_submission_comment&) { asked = true; });
+		heldDeletes.front()->click();
+		QApplication::processEvents();
+		expect(!asked && editor.delete_confirmation() == nullptr, "and no Delete question opens for a held comment");
+		editor.set_pending_delete({ });
+		editor.present(finish);
+		QApplication::processEvents();
+		expect(std::ranges::all_of(heldDeletes, [](const QToolButton* aButton) { return aButton->isEnabled(); }), "a review being written offers Delete again");
+	}
 	for (auto* row : rowsShown) {
 		const auto box = QRect{ row->mapTo(&editor, QPoint{ }), row->size() };
 		expect(editor.rect().contains(box) && !row->toolTip().isEmpty() && row->focusPolicy() == Qt::StrongFocus, "each row fits the page, takes focus, and its tooltip names the whole comment");

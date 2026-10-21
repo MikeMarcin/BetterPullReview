@@ -1,3 +1,18 @@
+# [[BPR-PENDING-Y]] reseal (2026-10-21) over the BPR-1714 upkeep note below,
+# linear. Pinned-scope change: a whole review GitHub refused, or one an earlier
+# version left unknown, settles as not published and gives its held drafts
+# back, on this card's own commit. Inside the manifest: github_application.cpp's
+# Discard review deletes only the drafts the review carries, at the revisions
+# and head it carries them; review_submission_workflow.cpp gives a review frozen
+# on an earlier revision no comment of the current one, starts a new review in
+# place of a frozen one that keeps nothing, carries the comments pending now
+# after a refusal, says why GitHub refused a review when its answer reads that
+# a line cannot be placed, and says Discard deletes the summary only; the
+# fixture adds a GitHub CLI-shaped 422 with GitHub's review words and a dropped
+# review. The settling is the GitHub
+# adapter's session and the core's definitely_unpublished, outside src/app. No
+# credential, grant, provider selection or source-inventory change. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1714 note below
 # is renaming its [[BPR-PENDING-W]] comment tags to [[BPR-1714]]; no code change.
 # [[BPR-1714]] reseal (2026-10-21) over the [[BPR-1707]] commit below,
@@ -1917,7 +1932,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+		"80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2137,7 +2152,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "d0c821d986651f5f110648bf39b4f0ea2fb9a789225fb22762341326396b33f7"
+        "0b9e10d9308c015093915934a3ed52f750d8bc979a1fe2863447f682a37029e8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

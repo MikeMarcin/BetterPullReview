@@ -746,6 +746,25 @@ removed on resolution or withdrawal) and writes it to the diagnostics log as a
 counts-only `github.review_submission` event. It never decides publication;
 an unknown outcome stays unknown and sends nothing.
 
+What GitHub answered the POST is kept with the attempt too ([[BPR-PENDING-Y]]):
+schema 7 `submission_post` holds the answer (success, an error status's class,
+or none) and when it was recorded. The transmission witness writes "no
+answer" before the POST may leave and refuses the POST when it cannot, so an
+attempt with no answer kept never left; migration from schema 6 gives every
+possibly sent unresolved attempt "no answer" at time zero. The answer is read
+the same way from either transport: the GitHub CLI reports an HTTP error as
+an answer with that status, the native transport as an error carrying it.
+When no review GitHub lists can be the attempt (no new exact review, or only
+ones holding a different number of comments, and no new review of mine
+without an author, body or commit, or dismissed), `core::definitely_unpublished`
+decides from the kept answer whether it was definitely not published: a 4xx
+answer at once, no answer kept at once, and no definite answer (none, a
+redirect or a server error) once `review_submission_settle_delay_ms`, ten
+minutes, have passed since it was recorded. A success answer never settles
+this way. A settled attempt is withdrawn and its held drafts are released,
+unchanged, so Submit can carry them again; Check status and a restart apply
+the same rule.
+
 The compose page says why in one plain line under "Review status is unknown"
 ([[BPR-1541]]). The core picks the line (`core::notice`): the reason, comment
 counts only for a comment mismatch, and the status class only for an HTTP

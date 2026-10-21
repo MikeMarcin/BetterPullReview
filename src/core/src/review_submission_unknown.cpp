@@ -121,6 +121,34 @@ namespace bpr::core {
 			&& aDiagnosis.CommentsMatched <= aDiagnosis.CommentsFound;
 	}
 
+	auto valid(const review_submission_post_record& aPost) noexcept -> bool
+	{
+		if (aPost.RecordedUtcMs < 0) {
+			return false;
+		}
+		switch (aPost.Answer) {
+		case review_submission_post_answer::success:      return aPost.StatusClass == 2U;
+		case review_submission_post_answer::error_status: return aPost.StatusClass >= 3U && aPost.StatusClass <= 5U;
+		case review_submission_post_answer::no_answer:    return aPost.StatusClass == 0U;
+		case review_submission_post_answer::not_sent:     return false;
+		}
+		return false;
+	}
+
+	auto definitely_unpublished(const std::optional<review_submission_post_record>& aPost, const std::int64_t aNowUtcMs) noexcept -> bool
+	{
+		if (!aPost) {
+			return true;
+		}
+		if (!valid(*aPost) || aPost->Answer == review_submission_post_answer::success) {
+			return false;
+		}
+		if (aPost->Answer == review_submission_post_answer::error_status && aPost->StatusClass == 4U) {
+			return true;
+		}
+		return aNowUtcMs >= aPost->RecordedUtcMs && aNowUtcMs - aPost->RecordedUtcMs >= review_submission_settle_delay_ms;
+	}
+
 	auto describe(const review_submission_unknown_diagnosis& aDiagnosis) -> std::string
 	{
 		if (!valid(aDiagnosis)) {

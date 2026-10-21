@@ -23,7 +23,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 6 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 7 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -117,6 +117,15 @@ namespace bpr::adapters::sqlite {
 							  "pages INTEGER NOT NULL CHECK(pages BETWEEN 0 AND 65535),"
 							  "PRIMARY KEY(scope_id,idempotency_key),"
 							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
+			// [[BPR-PENDING-Y]]. What GitHub answered an attempt's POST:
+			// written as no answer before it may leave, then with the answer.
+			std::string_view{ "CREATE TABLE submission_post("
+							  "scope_id INTEGER NOT NULL,idempotency_key TEXT NOT NULL,"
+							  "answer INTEGER NOT NULL CHECK(answer BETWEEN 1 AND 3),"
+							  "post_class INTEGER NOT NULL CHECK(post_class BETWEEN 0 AND 5),"
+							  "recorded_utc_ms INTEGER NOT NULL CHECK(recorded_utc_ms >= 0),"
+							  "PRIMARY KEY(scope_id,idempotency_key),"
+							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -167,6 +176,18 @@ namespace bpr::adapters::sqlite {
 			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
 			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
 			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
+		};
+		constexpr std::array RecoverySchemaVersion7{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_post" }, RecoverySchema[9] },
 			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
 		};
 		[[nodiscard]] auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>;
@@ -1648,6 +1669,33 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				if (!core::valid(aPost)) {
+					return std::unexpected(failure::conflict);
+				}
+				return transaction<void>([&]() -> std::expected<void, failure> {
+					auto loaded = load_locked(aKey);
+					if (!loaded) {
+						return std::unexpected(loaded.error());
+					}
+					if (!*loaded || (**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved
+						|| (**loaded).Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
+						return std::unexpected(failure::conflict);
+					}
+					auto upsert = detail::prepare(Database,
+												  "INSERT INTO submission_post(scope_id,idempotency_key,answer,post_class,recorded_utc_ms) VALUES(?1,?2,?3,?4,?5) "
+												  "ON CONFLICT(scope_id,idempotency_key) DO UPDATE SET answer=excluded.answer,post_class=excluded.post_class,recorded_utc_ms=excluded.recorded_utc_ms");
+					if (!upsert || !scope_key(upsert->Value, 1, aKey) || ::sqlite3_bind_int64(upsert->Value, 3, static_cast<std::int64_t>(aPost.Answer)) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 4, aPost.StatusClass) != SQLITE_OK || ::sqlite3_bind_int64(upsert->Value, 5, aPost.RecordedUtcMs) != SQLITE_OK
+						|| ::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					return { };
+				});
+			}
+
 			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, failure> override
 			{
 				std::scoped_lock lock{ Mutex };
@@ -1670,7 +1718,7 @@ namespace bpr::adapters::sqlite {
 					if ((**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved || (**loaded).Receipt) {
 						return std::unexpected(failure::conflict);
 					}
-					for (const auto* statement : { "DELETE FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
+					for (const auto* statement : { "DELETE FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_post WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
 						auto erase = detail::prepare(Database, statement);
 						if (!erase || !scope_key(erase->Value, 1, aKey) || ::sqlite3_step(erase->Value) != SQLITE_DONE) {
 							return std::unexpected(failure::unavailable);
@@ -1838,6 +1886,25 @@ namespace bpr::adapters::sqlite {
 				} else if (noted != SQLITE_DONE) {
 					return std::unexpected(failure::unavailable);
 				}
+				// [[BPR-PENDING-Y]]. What GitHub answered its POST, if recorded.
+				auto post = detail::prepare(Database, "SELECT answer,post_class,recorded_utc_ms FROM submission_post WHERE scope_id = ?1 AND idempotency_key = ?2");
+				if (!post || !scope_key(post->Value, 1, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto answered = ::sqlite3_step(post->Value);
+				if (answered == SQLITE_ROW) {
+					const auto answer = ::sqlite3_column_int64(post->Value, 0);
+					const auto klass  = ::sqlite3_column_int64(post->Value, 1);
+					if (answer < 1 || answer > 3 || klass < 0 || klass > 5) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					value.Post = core::review_submission_post_record{ .Answer = static_cast<core::review_submission_post_answer>(answer), .StatusClass = static_cast<std::uint8_t>(klass), .RecordedUtcMs = ::sqlite3_column_int64(post->Value, 2) };
+					if (::sqlite3_step(post->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::integrity_failure);
+					}
+				} else if (answered != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
 				if (!application::valid(value)) {
 					return std::unexpected(failure::integrity_failure);
 				}
@@ -1870,7 +1937,7 @@ namespace bpr::adapters::sqlite {
 							return created;
 						}
 					}
-					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,6)")) {
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,7)")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				} else {
@@ -1882,7 +1949,8 @@ namespace bpr::adapters::sqlite {
 						: *version == 3                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion3)
 						: *version == 4                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion4)
 						: *version == 5                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion5)
-																													 : validate_schema(aDatabase, RecoverySchemaVersion6);
+						: *version == 6                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion6)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion7);
 					if (!schema) {
 						return schema;
 					}
@@ -1901,14 +1969,22 @@ namespace bpr::adapters::sqlite {
 					if (*version < 6 && !detail::execute(aDatabase, RecoverySchema[8])) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 6 WHERE singleton = 1")) {
+					// [[BPR-PENDING-Y]]. An attempt that may have been sent before
+					// answers were kept had no answer kept, long enough ago.
+					if (*version < 7
+						&& (!detail::execute(aDatabase, RecoverySchema[9])
+							|| !detail::execute(aDatabase, "INSERT INTO submission_post(scope_id,idempotency_key,answer,post_class,recorded_utc_ms) "
+														   "SELECT scope_id,idempotency_key,3,0,0 FROM submission_baseline JOIN submission_attempt USING(scope_id,idempotency_key) WHERE transmission = 1 AND state = 0"))) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 7 WHERE singleton = 1")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				}
-				if (!detail::execute(aDatabase, "PRAGMA user_version = 6")) {
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 7")) {
 					return std::unexpected(detail::failure::unavailable);
 				}
-				return validate_schema(aDatabase, RecoverySchemaVersion6);
+				return validate_schema(aDatabase, RecoverySchemaVersion7);
 			};
 			const auto migrated = migrate();
 			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {

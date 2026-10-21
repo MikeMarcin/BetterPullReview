@@ -67,6 +67,48 @@ namespace bpr::core {
 		no_answer,
 	};
 
+	/// \brief [[BPR-PENDING-Y]]. What GitHub answered an attempt's one POST, as
+	/// the attempt's record keeps it from the moment the POST may leave.
+	/// \details `Answer` is `success`, `error_status` or `no_answer`, never
+	/// `not_sent`: a record is written only for a POST that may have been
+	/// sent, first as `no_answer` before it leaves, then with the answer.
+	/// `StatusClass` is the hundreds digit of the answer's status (2 to 5),
+	/// 0 with no answer. `RecordedUtcMs` is when the record was last written,
+	/// in UTC milliseconds since the Unix epoch.
+	struct review_submission_post_record
+	{
+		review_submission_post_answer Answer        = review_submission_post_answer::no_answer;
+		std::uint8_t                  StatusClass   = 0U;
+		std::int64_t                  RecordedUtcMs = 0;
+
+		auto operator<=>(const review_submission_post_record&) const = default;
+	};
+	/// \brief [[BPR-PENDING-Y]]. How long after a POST with no definite
+	/// answer (none, a redirect or a server error) GitHub's list is trusted to
+	/// show the review if GitHub created it.
+	inline constexpr std::int64_t review_submission_settle_delay_ms = std::int64_t{ 10 } * 60 * 1000;
+	/// \brief [[BPR-PENDING-Y]]. Whether the answer is in range: a sent
+	/// answer, a class that matches it (2 for success, 3 to 5 for an error
+	/// status, 0 with no answer) and a time that is not negative.
+	[[nodiscard]] auto valid(const review_submission_post_record& aPost) noexcept -> bool;
+	/// \brief [[BPR-PENDING-Y]]. Whether an unresolved attempt that no review
+	/// GitHub lists can be is definitely not published, so its drafts are
+	/// released, unchanged, to be submitted again.
+	/// \details The caller has read GitHub's whole review list and found no
+	/// review that could be this attempt. That settles it when:
+	/// - GitHub refused the POST with a 4xx status: it creates a review whole
+	///   or not at all, and a refused one not at all;
+	/// - the record holds no answer (`aPost` none): the POST never left, as
+	///   the witness that lets it leave keeps "no answer" first;
+	/// - the POST had no definite answer and `review_submission_settle_delay_ms`
+	///   have passed since its record was written. An attempt kept before
+	///   answers were kept is migrated as no answer at time zero.
+	///
+	/// A POST GitHub answered with success, and an invalid record, never
+	/// settle here: GitHub created a review, and only a reviewer looking at
+	/// GitHub can say which. A clock earlier than the record waits.
+	[[nodiscard]] auto definitely_unpublished(const std::optional<review_submission_post_record>& aPost, std::int64_t aNowUtcMs) noexcept -> bool;
+
 	/// \brief [[BPR-1540]]. One reason with counts only.
 	/// \details `HttpStatusClass` and `PostStatusClass` are the hundreds digit
 	/// of a status (2 to 5), or 0 when none was observed. The counts are of

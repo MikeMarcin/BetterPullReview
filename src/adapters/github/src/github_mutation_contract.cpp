@@ -2873,6 +2873,46 @@ namespace bpr::adapters::github::detail {
 		return off_hunk_unsupported_contract{ .Resource = "PullRequestReviewComment", .Field = "pull_request_review_thread.line", .Code = "custom", .Message = "could not be resolved", .RecordedDesignatedScope = true };
 	}
 
+	auto refusal_names_unplaceable_line(const std::string_view aBody) -> bool
+	{
+		auto       envelope = diagnostic_json_object{ };
+		const auto body     = std::string{ aBody };
+		if (body.size() > 4096U || !json_preflight{ body }.run() || glz::read<review_json_options{ }>(envelope, body)) {
+			return false;
+		}
+		const auto found = envelope.find("errors");
+		if (found == envelope.end()) {
+			return false;
+		}
+		const auto unplaceable = [](std::string aText) {
+			std::ranges::transform(aText, aText.begin(), [](const unsigned char aValue) { return static_cast<char>(std::tolower(aValue)); });
+			return std::ranges::any_of(std::array<std::string_view, 3>{ "line must be part of the diff", "line could not be resolved", "diff hunk can't be blank" },
+									   [&aText](const std::string_view aWords) { return aText.find(aWords) != std::string::npos; });
+		};
+		auto texts = std::vector<std::string>{ };
+		if (!glz::read<review_json_options{ }>(texts, found->second.str)) {
+			return texts.size() <= 8U && std::ranges::any_of(texts, unplaceable);
+		}
+		auto errors = std::vector<diagnostic_json_object>{ };
+		if (glz::read<review_json_options{ }>(errors, found->second.str) || errors.size() > 8U) {
+			return false;
+		}
+		return std::ranges::any_of(errors, [&unplaceable](const diagnostic_json_object& aError) {
+			const auto message = aError.find("message");
+			auto       text    = std::string{ };
+			if (message == aError.end() || glz::read<review_json_options{ }>(text, message->second.str)) {
+				return false;
+			}
+			// GitHub's single-comment form names the field apart from the words.
+			const auto field = aError.find("field");
+			auto       named = std::string{ };
+			if (field != aError.end() && !glz::read<review_json_options{ }>(named, field->second.str) && named.ends_with("line")) {
+				text = "line " + text;
+			}
+			return unplaceable(std::move(text));
+		});
+	}
+
 	auto definitive_off_hunk_unsupported(const review_mutation_wire_response& aResponse,
 										 const review_mutation_wire_request& aRequest, const off_hunk_unsupported_contract& aContract) -> bool
 	{
@@ -3079,6 +3119,11 @@ namespace bpr::adapters::github::detail {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
 			if (review.State == "DISMISSED" || !review.User || !review.Body || !review.CommitId) {
+				// [[BPR-PENDING-Y]]. One that could be the request's own is
+				// not proof that the request created nothing.
+				if (!review.User || review.User->Id == aExpected.ActingIdentity.DatabaseId || review.User->Login == aExpected.ActingIdentity.Login) {
+					result.UncertainReviews.emplace_back(review.Id);
+				}
 				continue;
 			}
 			const auto exact = review_observation(review_response_json{
@@ -3092,6 +3137,7 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 		std::ranges::sort(result.ReviewIds);
+		std::ranges::sort(result.UncertainReviews);
 		if (std::ranges::adjacent_find(result.ReviewIds) != result.ReviewIds.end()) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}

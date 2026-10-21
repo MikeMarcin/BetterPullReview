@@ -157,8 +157,13 @@ namespace {
 				expect(saved.has_value(), "v3 receipt saved");
 			}
 			store.reset();
-			execute_sql(database(root), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+			execute_sql(database(root), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 			store = storage(root.Path);
+			// [[BPR-PENDING-Y]]. An unresolved one was possibly sent with no
+			// answer kept, since time zero.
+			if (!succeeded) {
+				saved->Post = core::review_submission_post_record{ };
+			}
 			expect(store->load(expected.Request.IdempotencyKey).value() == *saved, "v4 migration retains exact whole-review witness or receipt");
 		}
 	}
@@ -199,7 +204,7 @@ namespace {
 		const auto          original = record();
 		expect(store->admit(original).has_value(), "v4 summary exists");
 		store.reset();
-		execute_sql(database(root), "DROP TABLE submission_unknown; DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
+		execute_sql(database(root), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
 		store = storage(root.Path);
 		expect(store->load(original.Request.IdempotencyKey).value() == original && store->pending_staged()->empty(), "v4 migration preserves existing summary and admits empty staged table");
 	}
@@ -263,11 +268,72 @@ namespace {
 			auto                migrated = storage(older.Path);
 			expect(migrated->admit(expected).has_value(), "a v5 attempt exists");
 			migrated.reset();
-			execute_sql(database(older), "DROP TABLE submission_unknown; PRAGMA user_version=5; UPDATE recovery_meta SET schema_format=5;");
+			execute_sql(database(older), "DROP TABLE submission_post; DROP TABLE submission_unknown; PRAGMA user_version=5; UPDATE recovery_meta SET schema_format=5;");
 			migrated = storage(older.Path);
 			expect(migrated->load(expected.Request.IdempotencyKey).value() == expected
 					   && migrated->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first).has_value(),
-				   "v5 migrates to v6 keeping the attempt and taking reasons");
+				   "v5 migrates to the current version keeping the attempt and taking reasons");
+		}
+	}
+
+	/// [[BPR-PENDING-Y]]. What GitHub answered a POST is kept with its
+	/// possibly sent attempt, replaced by the next answer and gone with a
+	/// withdrawn attempt. A version 6 journal, which kept no answer, keeps
+	/// its possibly sent attempt exactly, with no answer since time zero,
+	/// and takes answers.
+	void test_post_answer_is_kept_with_the_attempt()
+	{
+		temporary_directory root;
+		auto                store    = storage(root.Path);
+		const auto          expected = record();
+		const auto          sending  = core::review_submission_post_record{ .Answer = core::review_submission_post_answer::no_answer, .RecordedUtcMs = 1'792'600'000'000 };
+		const auto          refused  = core::review_submission_post_record{ .Answer = core::review_submission_post_answer::error_status, .StatusClass = 4U, .RecordedUtcMs = 1'792'600'001'000 };
+		expect(store->admit(expected).has_value(), "the attempt is admitted");
+		expect(!store->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, sending), "no answer is kept for a POST that cannot have left");
+		expect(store->mark_possibly_transmitted(expected.Request.IdempotencyKey, expected.RequestFingerprint).has_value(), "the POST may leave");
+		auto wrong = expected.RequestFingerprint;
+		wrong[0] ^= 1U;
+		expect(!store->note_post(expected.Request.IdempotencyKey, wrong, sending), "nor for another fingerprint");
+		expect(!store->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, { .Answer = core::review_submission_post_answer::not_sent }), "nor an answer that was not sent");
+		expect(!store->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, { .Answer = core::review_submission_post_answer::error_status, .StatusClass = 2U }), "nor a class that does not match its answer");
+		expect(store->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, sending).has_value(), "no answer yet, before the POST leaves");
+		expect(store->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, refused).has_value(), "then GitHub's answer");
+		store.reset();
+		store       = storage(root.Path);
+		auto loaded = store->load(expected.Request.IdempotencyKey);
+		expect(loaded && *loaded && (**loaded).Post == std::optional{ refused }, "the answer survives a restart, replacing the first");
+		const auto pending = store->pending();
+		expect(pending && pending->size() == 1U && pending->front().Post == std::optional{ refused }, "discovery carries it");
+		store.reset();
+		execute_sql(database(root), "PRAGMA ignore_check_constraints=ON; UPDATE submission_post SET answer=9");
+		store = storage(root.Path);
+		expect(!store->load(expected.Request.IdempotencyKey), "an answer outside the set fails closed");
+		store.reset();
+		execute_sql(database(root), "PRAGMA ignore_check_constraints=OFF; UPDATE submission_post SET answer=2");
+		store = storage(root.Path);
+		expect(store->withdraw(expected.Request.IdempotencyKey, expected.RequestFingerprint).has_value(), "a refused attempt is withdrawn with its answer");
+		const auto again = store->admit(expected);
+		const auto fresh = store->load(expected.Request.IdempotencyKey);
+		expect(again && again->Inserted && fresh && *fresh && !(**fresh).Post, "nothing of the withdrawn attempt's answer is left behind");
+		{
+			// The owner's attempt: possibly sent, unknown, held by an
+			// application at version 6.
+			temporary_directory older;
+			auto                legacy    = storage(older.Path);
+			auto                diagnosis = core::review_submission_unknown_diagnosis{ .Reason = core::review_submission_unknown_reason::review_not_listed, .CommentsExpected = 0U };
+			expect(legacy->admit(expected).has_value() && legacy->mark_possibly_transmitted(expected.Request.IdempotencyKey, expected.RequestFingerprint).has_value()
+					   && legacy->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, diagnosis).has_value(),
+				   "a version 6 attempt is possibly sent and unknown");
+			legacy.reset();
+			execute_sql(database(older), "DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;");
+			legacy            = storage(older.Path);
+			auto sent         = expected;
+			sent.Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+			sent.LastUnknown  = diagnosis;
+			sent.Post         = core::review_submission_post_record{ };
+			const auto kept   = legacy->load(expected.Request.IdempotencyKey);
+			expect(kept && *kept && **kept == sent, "version 6 migrates keeping the attempt exactly, with no answer since time zero");
+			expect(legacy->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, refused).has_value(), "and takes answers");
 		}
 	}
 
@@ -284,7 +350,7 @@ namespace {
 			expect(!store->load(expected.Request.IdempotencyKey), "corrupt snapshot or baseline fails integrity checks");
 			expect(!store->pending(), "pending discovery rejects corrupt records atomically");
 		}
-		for (const auto* mutation : { "PRAGMA user_version = 7", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT", "ALTER TABLE submission_unknown ADD COLUMN detail TEXT" }) {
+		for (const auto* mutation : { "PRAGMA user_version = 8", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT", "ALTER TABLE submission_unknown ADD COLUMN detail TEXT", "ALTER TABLE submission_post ADD COLUMN detail TEXT" }) {
 			temporary_directory root;
 			auto                store = storage(root.Path);
 			store.reset();
@@ -447,6 +513,7 @@ try {
 	test_integrity_and_schema();
 	test_capacity_and_baseline_validation();
 	test_unknown_reason_is_kept_with_the_attempt();
+	test_post_answer_is_kept_with_the_attempt();
 	std::cout << "review-submission-recovery-storage-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

@@ -345,6 +345,28 @@ namespace {
 			expect(notice(review_submission_unknown_diagnosis{ .Reason = review_submission_unknown_reason::http_status, .HttpStatusClass = status }).StatusClass == 0U, "only a refusal or a server error is told apart");
 		}
 	}
+	/// [[BPR-PENDING-Y]]. Which kept answers settle an attempt no listed
+	/// review can be: a refusal at once, no answer kept (never sent) at once,
+	/// no definite answer after the delay; a success never.
+	void test_post_answers_settle()
+	{
+		using answer          = review_submission_post_answer;
+		constexpr auto at     = std::int64_t{ 1'792'600'000'000 };
+		const auto     post   = [](const answer aAnswer, const std::uint8_t aClass) { return review_submission_post_record{ .Answer = aAnswer, .StatusClass = aClass, .RecordedUtcMs = at }; };
+		const auto     settle = [](const std::optional<review_submission_post_record>& aPost, const std::int64_t aNow) { return definitely_unpublished(aPost, aNow); };
+		expect(valid(post(answer::success, 2U)) && valid(post(answer::error_status, 4U)) && valid(post(answer::error_status, 5U)) && valid(post(answer::no_answer, 0U)), "sent answers with their classes are valid");
+		for (const auto& invalid : { post(answer::not_sent, 0U), post(answer::success, 4U), post(answer::error_status, 2U), post(answer::no_answer, 5U), review_submission_post_record{ .RecordedUtcMs = -1 } }) {
+			expect(!valid(invalid) && !settle(invalid, at + review_submission_settle_delay_ms), "an invalid answer never settles");
+		}
+		expect(settle(std::nullopt, at), "no answer kept: the POST never left");
+		expect(settle(post(answer::error_status, 4U), at), "GitHub's refusal settles at once");
+		for (const auto& pending : { post(answer::no_answer, 0U), post(answer::error_status, 5U), post(answer::error_status, 3U) }) {
+			expect(!settle(pending, at + review_submission_settle_delay_ms - 1) && settle(pending, at + review_submission_settle_delay_ms), "no definite answer settles after the delay");
+			expect(!settle(pending, at - 1), "a clock earlier than the record waits");
+		}
+		expect(!settle(post(answer::success, 2U), at + std::int64_t{ 365 } * 24 * 60 * 60 * 1000), "a review GitHub said it created never settles as unpublished");
+		expect(settle(review_submission_post_record{ }, review_submission_settle_delay_ms), "a migrated record, no answer since time zero, settles");
+	}
 } // namespace
 
 int main()
@@ -360,6 +382,7 @@ int main()
 	expect(!render_conversation_reply(oversized), "oversized quote is refused rather than silently truncated");
 	test_unknown_reasons();
 	test_unknown_notices();
+	test_post_answers_settle();
 	test_decided_controls();
 	test_kept_drafts();
 	test_transitions();

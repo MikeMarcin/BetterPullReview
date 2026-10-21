@@ -6,6 +6,7 @@
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
+#include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "cli_publication_course.hpp"
@@ -16,6 +17,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
+#include <QDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -91,12 +93,59 @@ namespace {
 		wait([&] { return aApp.status().ShutdownComplete; }, "whole-review shutdown");
 		confirmations_seen().clear();
 	}
+	/// [[BPR-PENDING-Y]]. A new comment on \p aLine of review.cpp's head
+	/// side, written in the drawer and put in the review with Start a review.
+	auto write_pending(app::github_application& aApp, const std::uint32_t aLine, const QString& aBody) -> core::review_comment_draft
+	{
+		auto& window = aApp.window();
+		window.close_review_sheet();
+		window.choose_modality(qt::review_modality::review);
+		wait([&] { return access::reveal_fixture_file(aApp, "review.cpp") == app::detail::fixture_file_reveal_result::shown; }, "review.cpp is shown in Review");
+		wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, aLine); }, "a head line of review.cpp is selected");
+		wait([&] { return window.comment_action()->isEnabled(); }, "Comment is offered on the current head line");
+		window.comment_action()->trigger();
+		auto* const editor = window.review_editor();
+		auto* const cards  = window.conversation_panel()->cards();
+		wait([&] { return cards->writing_draft() && !editor->body_editor()->isReadOnly(); }, "the drawer opens a new comment");
+		editor->body_editor()->setPlainText(aBody);
+		wait([&] { return editor->shown_draft() && editor->shown_draft()->Body == aBody.toStdString() && !editor->rejected_candidate(); }, "the comment is kept locally");
+		auto* const start = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft")) : nullptr;
+		expect(start != nullptr && start->isEnabled(), "the comment offers Start a review");
+		start->click();
+		wait([&] { return editor->shown_draft() && core::pending_in_review(*editor->shown_draft()); }, "the comment is pending in the review");
+		return *editor->shown_draft();
+	}
+	/// [[BPR-PENDING-Y]]. Whether Saved comments keeps \p aDraft with exactly
+	/// \p aBody, read through the Finish your review page's own button.
+	auto saved_exactly(qt::workbench_window& aWindow, const core::review_draft_id aDraft, const std::string& aBody) -> bool
+	{
+		aWindow.open_review_composition();
+		QApplication::processEvents();
+		auto* const button = aWindow.review_submission_editor_view()->findChild<QToolButton*>(QStringLiteral("wholeReviewSavedComments"));
+		expect(button != nullptr, "Finish your review offers Saved comments");
+		button->click();
+		auto* const dialog = aWindow.private_review()->findChild<QDialog*>(QStringLiteral("savedComments"));
+		expect(dialog != nullptr && dialog->isVisible(), "Saved comments opens");
+		auto*      choices  = dialog->findChild<QComboBox*>(QStringLiteral("savedCommentChoices"));
+		const auto selected = choices->findData(QVariant::fromValue<qulonglong>(aDraft.value()));
+		auto       kept     = false;
+		if (selected >= 0) {
+			choices->setCurrentIndex(selected);
+			kept = dialog->findChild<QPlainTextEdit*>(QStringLiteral("savedCommentBody"))->toPlainText() == QString::fromStdString(aBody);
+		}
+		dialog->close();
+		return kept;
+	}
 	/// [[BPR-1345]] v003. GitHub confirmed the review: the editor says so once,
 	/// the window says "Review submitted…" and the next review starts at once.
 	void submitted(qt::review_submission_editor& aEditor)
 	{
 		auto& seen = confirmations_seen()[&aEditor];
-		wait([&] { return aEditor.confirmed_submissions() > seen; }, "exact review receipt");
+		if (!e2e::wait_until_plain([&] { return aEditor.confirmed_submissions() > seen; }, e2e::default_queue_budget)) {
+			std::cerr << "review-submission-composition: no receipt; the page says \"" << aEditor.status_label()->text().toStdString() << "\" state="
+					  << (aEditor.shown_draft() ? static_cast<int>(aEditor.shown_draft()->State) : -1) << '\n';
+			throw std::runtime_error{ "exact review receipt" };
+		}
 		seen = aEditor.confirmed_submissions();
 		expect(aEditor.last_submitted() && aEditor.last_submitted()->State == state::submitted, "the confirmed review is the submitted one");
 		auto* const window = qobject_cast<QMainWindow*>(aEditor.window());
@@ -738,6 +787,175 @@ auto main(int argc, char** argv) -> int
 		}
 		expect(access::verify_pending_first_file_choice_invalidation(*application),
 			   "only exact authority invalidation retires a pending first-file choice, with no empty tab");
+		const auto posts = [&] {
+			std::scoped_lock lock{ server->Mutex };
+			return server->ReviewPosts.size();
+		};
+		// [[BPR-PENDING-Y]]. The owner's course: a review with a comment, a
+		// push, a refresh, another comment, publish. The push freezes the
+		// review's summary, which takes no comment of the new revision, so its
+		// Discard deletes the summary only; the comment written before the push
+		// stays saved; the new review carries the new comment; the GitHub
+		// CLI's 422 is a definite refusal that releases it; publishing again
+		// sends it once.
+		shutdown(*application);
+		application.reset();
+		application = make(app::detail::github_epoch_fixture_phase::seed);
+		open(*application, cli);
+		{
+			auto&      course    = application->window();
+			auto&      composer  = *course.review_submission_editor_view();
+			const auto before    = posts();
+			const auto firstHead = access::accepted_head(*application);
+			const auto earlier   = write_pending(*application, 29U, QStringLiteral("issue: Written before the push."));
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 1U && composer.shown_draft()->Comments.front().Draft == earlier.Id && composer.submit_action()->isEnabled(); }, "the review carries the comment written before the push");
+			composer.body_editor()->setPlainText(QStringLiteral("Summary written before the push."));
+			wait([&] { return composer.shown_draft()->Body == "Summary written before the push."; }, "the summary is kept");
+			course.github_refresh_action()->trigger();
+			wait([&] { return access::accepted_head(*application) != firstHead && composer.status_label()->text().contains(QStringLiteral("revision changed")) && composer.discard_action()->isEnabled(); }, "the push freezes the review");
+			expect(composer.shown_draft()->Comments.empty() && !composer.submit_action()->isEnabled() && composer.discard_action()->text() == QStringLiteral("Discard")
+					   && composer.status_label()->text().contains(QStringLiteral("never a comment")),
+				   "a frozen review carries no comment, so its Discard is the summary's alone, and it says so");
+			const auto later = write_pending(*application, 30U, QStringLiteral("issue: Written after the push."));
+			course.open_review_composition();
+			QApplication::processEvents();
+			expect(composer.shown_draft()->Body == "Summary written before the push." && composer.shown_draft()->Comments.empty() && !composer.submit_action()->isEnabled(),
+				   "the frozen review takes no comment of the new revision");
+			composer.discard_action()->trigger();
+			QApplication::processEvents();
+			expect(composer.discard_confirmation() != nullptr && composer.discard_confirmation()->question() == QStringLiteral("Discard your review summary?"), "Discard asks about the summary only");
+			composer.discard_confirmation()->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"))->click();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Body.empty() && composer.shown_draft()->Comments.size() == 1U && composer.shown_draft()->Comments.front().Draft == later.Id && composer.submit_action()->isEnabled(); },
+				 "a new review on the current revision carries the comment written after the push");
+			expect(saved_exactly(course, earlier.Id, earlier.Body) && saved_exactly(course, later.Id, later.Body), "Discard deleted no comment: both are saved with their text");
+			course.open_review_composition();
+			QApplication::processEvents();
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseNextReviewAsAnswer = true;
+			}
+			composer.submit_action()->trigger();
+			wait([&] { return posts() == before + 1U && composer.shown_draft()->State == state::drafting && composer.submit_action()->isEnabled() && composer.shown_draft()->Comments.size() == 1U; },
+				 "the GitHub CLI's 422 is a definite refusal: not published, and the comment is released for another try");
+			expect(composer.status_label()->text().startsWith(QStringLiteral("Not published: GitHub refused this review because one of its comments is on a line GitHub can't place"))
+					   && !composer.reconcile_action()->isEnabled(),
+				   "the page says GitHub refused it for a line it can't place, with nothing to check");
+			composer.submit_action()->trigger();
+			submitted(composer);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->ReviewPosts.size() == before + 2U && server->ReviewPosts.back().find("Written after the push.") != std::string::npos
+						   && server->ReviewPosts.back().find("Written before the push.") == std::string::npos,
+					   "publishing again sends the new revision's comment once, and nothing else");
+			}
+			expect(saved_exactly(course, earlier.Id, earlier.Body), "the comment written before the push is still saved with its text");
+		}
+		// [[BPR-PENDING-Y]]. The owner's stuck attempt, exactly: nine pending
+		// comments, a review an application before answers were kept sent,
+		// the GitHub CLI's 422 left unknown, and its comments held. After the
+		// upgrade the restored attempt is checked, settled as not published,
+		// and all nine come back unlocked with their text; publishing sends
+		// them once.
+		shutdown(*application);
+		application.reset();
+		application = make();
+		open(*application, cli);
+		std::size_t stuck  = 0U;
+		auto        bodies = std::vector<std::string>{ "issue: Written before the push." };
+		{
+			auto& course   = application->window();
+			auto& composer = *course.review_submission_editor_view();
+			// The comment the first course wrote before its push is pending on
+			// this revision again, so the review carries it with eight more.
+			for (auto line = 31U; line <= 38U; ++line) {
+				bodies.push_back("issue: Held comment " + std::to_string(line) + " of the refused review.\nIts second line.");
+				static_cast<void>(write_pending(*application, line, QString::fromStdString(bodies.back())));
+			}
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 9U && composer.submit_action()->isEnabled(); }, "the review carries its nine comments");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->DropNextReview = true;
+			}
+			composer.submit_action()->trigger();
+			wait([&] { return composer.reconcile_action()->isEnabled() && composer.shown_draft()->State == state::submitting; }, "the attempt is left unknown, its nine comments held");
+			const auto rows = composer.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
+			expect(rows.size() == 9 && std::ranges::none_of(rows, [](const QToolButton* aButton) { return aButton->isVisible() || aButton->isEnabled(); }), "none of the nine held rows offers Delete");
+			stuck = posts();
+		}
+		shutdown(*application);
+		application.reset();
+		{
+			// The journal as version 6 kept it: no answer for any attempt.
+			const auto journal  = *dataRoot / "state" / "v1" / "review-mutation-recovery.sqlite3";
+			::sqlite3* database = nullptr;
+			expect(std::filesystem::exists(journal) && ::sqlite3_open_v2(journal.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the recovery journal opens");
+			const auto downgraded = ::sqlite3_exec(database, "DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;", nullptr, nullptr, nullptr);
+			static_cast<void>(::sqlite3_close_v2(database));
+			expect(downgraded == SQLITE_OK, "the journal is the version an earlier application wrote");
+		}
+		application = make();
+		open(*application, cli);
+		{
+			auto&      course         = application->window();
+			auto&      composer       = *course.review_submission_editor_view();
+			const auto carriedExactly = [&] {
+				const auto& shown = composer.shown_draft();
+				if (!shown || shown->State != state::drafting || shown->Comments.size() != bodies.size()) {
+					return false;
+				}
+				auto carried = std::vector<std::string>{ };
+				for (const auto& comment : shown->Comments) {
+					carried.push_back(comment.Body);
+				}
+				auto expected = bodies;
+				std::ranges::sort(carried);
+				std::ranges::sort(expected);
+				return carried == expected;
+			};
+			wait([&] { return carriedExactly() && composer.submit_action()->isEnabled(); }, "after the upgrade the restored attempt is settled and all nine comments come back unlocked, with their text");
+			expect(posts() == stuck && composer.status_label()->text().contains(QStringLiteral("not published")), "settling it sent nothing and says it was not published");
+			expect(std::ranges::all_of(composer.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete")), [](const QToolButton* aButton) { return aButton->isEnabled(); }),
+				   "the nine comments are pending again: each can be deleted");
+			// The owner's ninth comment is on a line outside every hunk, which
+			// GitHub refuses again: the page says so and keeps all nine.
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseNextReviewAsAnswer = true;
+			}
+			composer.submit_action()->trigger();
+			wait([&] { return posts() == stuck + 1U && carriedExactly() && composer.submit_action()->isEnabled(); }, "GitHub's refusal keeps all nine comments, unlocked");
+			expect(composer.status_label()->text().contains(QStringLiteral("a line GitHub can't place in the pull request's diff")) && composer.status_label()->text().contains(QStringLiteral("delete or edit that comment")),
+				   "the page says why GitHub refused it and what to do");
+			// Delete the off-hunk comment from its row, then publish the eight.
+			const auto offHunk = bodies.back();
+			bodies.pop_back();
+			auto* const row = [&]() -> QToolButton* {
+				const auto& carried = composer.shown_draft()->Comments;
+				const auto  found   = std::ranges::find(carried, offHunk, &core::review_submission_comment::Body);
+				const auto  rows    = composer.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
+				expect(found != carried.end() && rows.size() == static_cast<qsizetype>(carried.size()), "each comment has its row");
+				return rows.at(static_cast<qsizetype>(found - carried.begin()));
+			}();
+			expect(row->isEnabled(), "an unlocked comment's row offers Delete");
+			row->click();
+			QApplication::processEvents();
+			expect(composer.delete_confirmation() != nullptr, "Delete asks first");
+			composer.delete_confirmation()->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm"))->click();
+			wait([&] { return carriedExactly() && composer.submit_action()->isEnabled(); }, "the review carries the eight other comments");
+			composer.submit_action()->trigger();
+			submitted(composer);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->ReviewPosts.size() == stuck + 2U && server->ReviewPosts.back().find(offHunk) == std::string::npos, "publishing sends one review without the deleted comment");
+				for (const auto& body : bodies) {
+					const auto created = std::ranges::count_if(server->PreviousComments, [&body](const application::staged_review_comment& aComment) { return aComment.Body == body; });
+					expect(created == 1, "GitHub holds each of the eight comments once");
+				}
+				expect(std::ranges::none_of(server->PreviousComments, [&offHunk](const application::staged_review_comment& aComment) { return aComment.Body == offHunk; }), "and not the deleted one");
+			}
+		}
 		shutdown(*application);
 		cli.check();
 		std::cout << "review-submission-composition:pass\n";

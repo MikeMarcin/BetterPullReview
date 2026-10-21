@@ -22,7 +22,11 @@ namespace bpr::application {
 		/// [[BPR-1540]]. Why the last reconciliation of this unresolved
 		/// attempt left it unknown; none once it is resolved.
 		std::optional<core::review_submission_unknown_diagnosis> LastUnknown;
-		auto                                                     operator<=>(const review_submission_recovery_record&) const = default;
+		/// [[BPR-PENDING-Y]]. What GitHub answered the attempt's POST, kept
+		/// from before it may leave; none in a record an earlier application
+		/// wrote, which kept no answer.
+		std::optional<core::review_submission_post_record> Post;
+		auto                                               operator<=>(const review_submission_recovery_record&) const = default;
 	};
 	struct review_submission_recovery_admission
 	{
@@ -88,6 +92,17 @@ namespace bpr::application {
 			static_cast<void>(aKey);
 			static_cast<void>(aFingerprint);
 			static_cast<void>(aDiagnosis);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
+		/// \brief [[BPR-PENDING-Y]]. Records, with the unresolved, possibly
+		/// transmitted attempt admitted with this exact fingerprint, what
+		/// GitHub answered its POST, replacing the answer recorded before.
+		[[nodiscard]] virtual auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost)
+			-> std::expected<void, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aFingerprint);
+			static_cast<void>(aPost);
 			return std::unexpected(review_mutation_recovery_failure::unavailable);
 		}
 		/// \brief [[BPR-1345]]. Removes the unresolved attempt admitted with

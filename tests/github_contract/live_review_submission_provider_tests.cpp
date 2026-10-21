@@ -25,6 +25,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 
@@ -340,9 +341,12 @@ namespace {
 		/// refusal of the next review.
 		std::optional<std::string> Comments45;
 		bool                       Refuse422 = false;
-		std::function<void()>      OnTarget;
-		std::function<void()>      OnPublished;
-		auto                       perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		/// [[BPR-PENDING-Y]]. Refuse the next review with 422 as the GitHub
+		/// CLI transport reports it: an answer with that status.
+		bool                  Refuse422AsAnswer = false;
+		std::function<void()> OnTarget;
+		std::function<void()> OnPublished;
+		auto                  perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
 			// [[BPR-1121]]. The session calls this and catches what it throws, so a
 			// failure here, or in the hooks it calls, still ends the process rather
@@ -434,6 +438,13 @@ namespace {
 					expect(static_cast<bool>(aWitness) && aWitness(), "a refused POST was still witnessed first");
 					return github_mutation_wire_error{ .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = 422U };
 				}
+				if (Refuse422AsAnswer) {
+					expect(static_cast<bool>(aWitness) && aWitness(), "a refused POST was still witnessed first");
+					if (OnPublished) {
+						OnPublished();
+					}
+					return github_mutation_wire_success{ .Response = { .Status = 422, .Body = R"({"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff and Pull request review thread diff hunk can't be blank"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})" } };
+				}
 				expect(static_cast<bool>(aWitness), "POST requires durable witness");
 				WitnessRejected = !aWitness();
 				for (auto index = std::size_t{ }; index < NewCount; ++index) {
@@ -499,7 +510,7 @@ namespace {
 	public:
 		std::unique_ptr<application::review_submission_recovery_port> Inner;
 		bool                                                          FailMark = false, FailResolve = false;
-		std::function<void()>                                         AfterAdmit, AfterMark, AfterResolve;
+		std::function<void()>                                         AfterAdmit, AfterMark, AfterNote, AfterResolve;
 		explicit failing_store(std::unique_ptr<application::review_submission_recovery_port> aInner)
 			: Inner{ std::move(aInner) }
 		{ }
@@ -521,6 +532,16 @@ namespace {
 			auto result = Inner->mark_possibly_transmitted(aKey, aFingerprint);
 			if (result && AfterMark) {
 				AfterMark();
+			}
+			return result;
+		}
+		/// [[BPR-PENDING-Y]]. The witness keeps "no answer" after the mark,
+		/// before the POST may leave; then the answer.
+		auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, application::review_mutation_recovery_failure> override
+		{
+			auto result = Inner->note_post(aKey, aFingerprint, aPost);
+			if (result && AfterNote) {
+				AfterNote();
 			}
 			return result;
 		}
@@ -799,7 +820,8 @@ namespace {
 		if (aPhase == "--kill-prepared") {
 			store->AfterAdmit = pause;
 		} else if (aPhase == "--kill-witnessed") {
-			store->AfterMark = pause;
+			// [[BPR-PENDING-Y]]. The whole witness: marked and "no answer" kept.
+			store->AfterNote = pause;
 		} else if (aPhase == "--kill-resolved") {
 			store->AfterResolve = pause;
 		} else {
@@ -871,9 +893,14 @@ namespace {
 		// the witnessed attempt is still unknown: GitHub lists no review.
 		auto       retained = loaded ? *loaded : std::nullopt;
 		const auto why      = retained ? retained->LastUnknown : std::nullopt;
+		// [[BPR-PENDING-Y]]. A POST that may have left keeps its answer, at
+		// first none, whatever its time.
+		const auto post = retained ? retained->Post : std::nullopt;
 		if (retained) {
 			retained->LastUnknown.reset();
+			retained->Post.reset();
 		}
+		expect(prepared ? !post : post && (post->Answer == core::review_submission_post_answer::no_answer || post->Answer == core::review_submission_post_answer::success), "a possibly sent attempt keeps what GitHub answered");
 		expect(retained && *retained == expected, "abrupt restart retains exact request, authority, baseline, witness and receipt");
 		expect(!why || (witnessed && why->Reason == core::review_submission_unknown_reason::review_not_listed), "only an unknown witnessed attempt keeps a reason, and it names the review not listed");
 		auto current = configuration();
@@ -2070,6 +2097,168 @@ namespace {
 		}
 		std::cout << "replay-busy-live:pass\n";
 	}
+	/// [[BPR-PENDING-Y]]. A record as an application before answers were
+	/// kept wrote it, once migrated: a possibly sent attempt loads as no
+	/// answer at time zero, whatever was kept since.
+	class legacy_store final : public application::review_submission_recovery_port
+	{
+	public:
+		explicit legacy_store(std::unique_ptr<application::review_submission_recovery_port> aInner)
+			: Inner{ std::move(aInner) }
+		{ }
+		auto pending() -> std::expected<std::vector<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override
+		{
+			auto records = Inner->pending();
+			if (records) {
+				for (auto& record : *records) {
+					legacy(record);
+				}
+			}
+			return records;
+		}
+		auto load(const std::string& aKey) -> std::expected<std::optional<application::review_submission_recovery_record>, application::review_mutation_recovery_failure> override
+		{
+			auto loaded = Inner->load(aKey);
+			if (loaded && *loaded) {
+				legacy(**loaded);
+			}
+			return loaded;
+		}
+		auto admit(const application::review_submission_recovery_record& aRecord) -> std::expected<application::review_submission_recovery_admission, application::review_mutation_recovery_failure> override { return Inner->admit(aRecord); }
+		auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Inner->mark_possibly_transmitted(aKey, aFingerprint); }
+		auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_submission_receipt& aReceipt) -> std::expected<application::review_submission_recovery_record, application::review_mutation_recovery_failure> override { return Inner->resolve(aKey, aFingerprint, aReceipt); }
+		auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis) -> std::expected<void, application::review_mutation_recovery_failure> override { return Inner->note_unknown(aKey, aFingerprint, aDiagnosis); }
+		auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, application::review_mutation_recovery_failure> override { return Inner->withdraw(aKey, aFingerprint); }
+		auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, application::review_mutation_recovery_failure> override { return Inner->note_post(aKey, aFingerprint, aPost); }
+
+	private:
+		static void legacy(application::review_submission_recovery_record& aRecord)
+		{
+			if (aRecord.Post) {
+				aRecord.Post = core::review_submission_post_record{ };
+			}
+		}
+		std::unique_ptr<application::review_submission_recovery_port> Inner;
+	};
+	/// [[BPR-PENDING-Y]]. An attempt GitHub refused, or whose answer was lost
+	/// while GitHub created nothing, is settled as definitely not published
+	/// and withdrawn, so the drafts it holds are released: at once for a 4xx
+	/// in either transport's shape, on Check status for a record that keeps
+	/// no answer, and after the settle delay for a POST with no answer. A
+	/// listed review that could be the attempt, or a successful answer,
+	/// keeps it unknown. No case sends a second POST.
+	void test_refused_and_lost_reviews_settle()
+	{
+		auto first          = core::review_submission_comment{ };
+		first.Draft         = core::review_draft_id{ 7U };
+		first.DraftRevision = 3U;
+		first.Path          = "src/engine/renderer.cpp";
+		first.Line          = 430U;
+		first.Body          = "question: Where does 0.01 come from?";
+		auto second         = first;
+		second.Draft        = core::review_draft_id{ 8U };
+		second.Line         = 440U;
+		second.Body         = "nit: one line would do.";
+		const auto carried  = [&] {
+			auto value              = request();
+			value.IdempotencyKey    = "review-refused-by-cli";
+			value.Proposal.Body     = { };
+			value.Proposal.Comments = { first, second };
+			return value;
+		};
+		constexpr auto start = std::int64_t{ 1'792'600'000'000 };
+		using publication    = application::review_submission_publication;
+		{
+			// The owner's case: the GitHub CLI's 422 is a definite refusal.
+			temporary_directory root;
+			transport           wire;
+			wire.Request           = carried();
+			wire.NewCount          = 0U;
+			wire.Refuse422AsAnswer = true;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::refused_by_server && wire.Posts == 1U,
+				   "the GitHub CLI's 422, with no new review of mine after it, is a definite refusal by the server");
+			expect(session.pending() && session.pending()->empty() && session.admitted(wire.Request.IdempotencyKey) && !*session.admitted(wire.Request.IdempotencyKey),
+				   "and its attempt is withdrawn, so its drafts are released");
+			expect(result.Refusal == application::review_submission_refusal::unplaceable_line, "and GitHub's words say a comment's line cannot be placed in the diff");
+		}
+		{
+			// The same refusal in the native transport's shape carries no
+			// words: the review was refused.
+			temporary_directory root;
+			transport           wire;
+			wire.Request   = carried();
+			wire.NewCount  = 0U;
+			wire.Refuse422 = true;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == publication::definitely_not_published && result.Refusal == application::review_submission_refusal::review, "a refusal without words is the review refused");
+		}
+		for (const auto& [body, unplaceable] : { std::pair{ std::string_view{ R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"pull_request_review_thread.line","code":"custom","message":"could not be resolved"}]})" }, true },
+												 std::pair{ std::string_view{ R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReview","code":"custom","message":"User can only have one pending review per pull request"}]})" }, false },
+												 std::pair{ std::string_view{ R"({"message":"Unprocessable Entity"})" }, false },
+												 std::pair{ std::string_view{ "not json" }, false } }) {
+			expect(refusal_names_unplaceable_line(body) == unplaceable, "only words about a line GitHub cannot place in the diff are read as that");
+		}
+		{
+			// A single comment published meanwhile is a new review of mine
+			// with the same empty summary, but it holds one comment, not two.
+			temporary_directory root;
+			transport           wire;
+			wire.Request           = carried();
+			wire.Refuse422AsAnswer = true;
+			wire.Comments45        = "[" + listed_comment(901U, first) + "]";
+			wire.OnPublished       = [&] { wire.Reviews.push_back(review(wire.Request, 45U)); };
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::refused_by_server,
+				   "a refused review is not mistaken for another new review of mine that holds other comments");
+		}
+		{
+			// The owner's attempt as an earlier application left it: possibly
+			// sent, unknown, and no answer kept.
+			temporary_directory root;
+			transport           wire;
+			wire.Request      = carried();
+			wire.NewCount     = 0U;
+			wire.LoseResponse = true;
+			{
+				review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::make_unique<legacy_store>(storage(root.Path)), { }, [] { return start; } };
+				expect(session.submit_and_reconcile(wire.Request).Publication == publication::indeterminate, "a lost answer is unknown at first");
+			}
+			auto listed = wire.Reviews;
+			wire.Reviews.emplace_back(R"({"id":46,"node_id":"PRR_46","state":"COMMENTED","body":null,"commit_id":"1111111111111111111111111111111111111111","pull_request_url":"https://api.github.com/repos/MikeMarcin/BPR-Test/pulls/1","user":{"id":22,"node_id":"MDQ6VXNlcjIy","login":"fixture-reviewer"},"submitted_at":"2026-09-05T12:34:56Z"})");
+			{
+				review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::make_unique<legacy_store>(storage(root.Path)), { }, [] { return start; } };
+				expect(session.reconcile(wire.Request).Publication == publication::indeterminate, "a new review of mine that cannot be told apart keeps it unknown");
+			}
+			wire.Reviews = listed;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::make_unique<legacy_store>(storage(root.Path)), { }, [] { return start; } };
+			const auto                result = session.reconcile(wire.Request);
+			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::unavailable && wire.Posts == 1U,
+				   "Check status settles a record that keeps no answer when no review GitHub lists can be it");
+			expect(session.pending() && session.pending()->empty(), "and withdraws it, so its drafts are released");
+		}
+		for (const auto [answered, elapsed, settles] : { std::tuple{ false, core::review_submission_settle_delay_ms - 1, false }, std::tuple{ false, core::review_submission_settle_delay_ms, true }, std::tuple{ true, std::int64_t{ 24 } * 60 * 60 * 1000, false } }) {
+			// A POST with no answer settles after the delay; one GitHub
+			// answered with success never does.
+			temporary_directory root;
+			transport           wire;
+			wire.Request      = carried();
+			wire.NewCount     = 0U;
+			wire.LoseResponse = !answered;
+			{
+				review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path), { }, [] { return start; } };
+				expect(session.submit_and_reconcile(wire.Request).Publication == publication::indeterminate, "nothing listed after the POST is unknown at first");
+			}
+			const auto                later = start + elapsed;
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path), { }, [later] { return later; } };
+			const auto                result = session.reconcile(wire.Request);
+			expect((result.Publication == publication::definitely_not_published) == settles && (result.Publication == publication::indeterminate) == !settles && wire.Posts == 1U,
+				   "the kept answer and the time since it decide whether Check status settles it");
+		}
+	}
 	struct row
 	{
 		std::string_view Name;
@@ -2084,6 +2273,7 @@ namespace {
 		row{ "review_carries_its_comments_exactly", &test_a_review_carries_its_comments_exactly },
 		row{ "review_with_comments_reconciles_on_a_busy_pull_request", &test_a_review_with_comments_reconciles_on_a_busy_pull_request },
 		row{ "unknown_reasons_are_named_kept_and_logged", &test_unknown_reasons_are_named_kept_and_logged },
+		row{ "refused_and_lost_reviews_settle", &test_refused_and_lost_reviews_settle },
 	};
 }
 auto main(int aArgc, char** aArgv) -> int

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <chrono>
 #include <concepts>
 #include <limits>
 #include <type_traits>
@@ -41,16 +42,44 @@ namespace bpr::adapters::github::detail {
 			}
 			return written_place{ .Line = *aComment.Line, .StartLine = aComment.StartLine };
 		}
+		/// [[BPR-PENDING-Y]]. What a POST's completion says GitHub answered,
+		/// in the same shape whichever transport carried it: the GitHub CLI
+		/// gives an HTTP error status as an answer, the native transport as an
+		/// error with its status.
+		auto post_answer(const github_mutation_wire_completion& aCompletion, const std::int64_t aNow) -> core::review_submission_post_record
+		{
+			auto status = 0;
+			if (const auto* answered = std::get_if<github_mutation_wire_success>(&aCompletion)) {
+				status = answered->Response.Status;
+			} else if (const auto* failed = std::get_if<github_mutation_wire_error>(&aCompletion)) {
+				status = failed->HttpStatus;
+			}
+			switch (status_class(status)) {
+			case 2U: return { .Answer = core::review_submission_post_answer::success, .StatusClass = 2U, .RecordedUtcMs = aNow };
+			case 3U:
+			case 4U:
+			case 5U: return { .Answer = core::review_submission_post_answer::error_status, .StatusClass = status_class(status), .RecordedUtcMs = aNow };
+			default: return { .Answer = core::review_submission_post_answer::no_answer, .RecordedUtcMs = aNow };
+			}
+		}
 		auto receipt(const review_submission_observation& aReview) -> application::review_submission_receipt { return { .ReviewDatabaseId = application::review_database_id{ aReview.ReviewDatabaseId }, .ReviewNodeId = aReview.ReviewNodeId, .Target = aReview.Target.Semantic, .ActingAccount = aReview.Author.Account, .Disposition = aReview.Disposition }; }
 	}
 	review_submission_session::review_submission_session(github_mutation_wire_transport& aTransport, live_review_mutation_configuration aConfiguration, application::review_mutation_transport aLease, std::unique_ptr<application::review_submission_recovery_port> aRecovery,
-														 std::shared_ptr<application::diagnostic_log_port> aLog)
+														 std::shared_ptr<application::diagnostic_log_port> aLog, std::function<std::int64_t()> aClock)
 		: Transport{ &aTransport }
 		, Configuration{ std::move(aConfiguration) }
 		, Lease{ std::move(aLease) }
 		, Recovery{ std::move(aRecovery) }
 		, Log{ std::move(aLog) }
+		, Clock{ std::move(aClock) }
 	{ }
+	auto review_submission_session::now() const -> std::int64_t
+	{
+		if (Clock) {
+			return Clock();
+		}
+		return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+	}
 	void review_submission_session::note(const core::review_submission_unknown_reason aReason, const std::uint8_t aHttpClass)
 	{
 		if (!Why) {
@@ -307,7 +336,7 @@ namespace bpr::adapters::github::detail {
 		if (!observed) {
 			return outcome;
 		}
-		return resolve_observed(aRecord, *observed, aDuplicate, aStop);
+		return resolve_observed(aRecord, *observed, aDuplicate, aStop, aRecord.Post);
 	}
 	auto review_submission_session::observe_comment_collection(std::stop_token aStop) -> review_mutation_parse_result<std::vector<review_comment_collection_entry>>
 	{
@@ -417,43 +446,93 @@ namespace bpr::adapters::github::detail {
 		}
 		return unmatched.empty() || mismatch(core::review_submission_unknown_reason::comments_mismatch, matched);
 	}
-	auto review_submission_session::resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop) -> application::review_submission_result
+	auto review_submission_session::could_be_listed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, std::stop_token aStop) -> bool
+	{
+		const auto fresh = [&aRecord](const application::review_database_id aReview) { return !std::ranges::binary_search(*aRecord.BaselineReviewIds, aReview); };
+		if (std::ranges::any_of(aObserved.UncertainReviews, fresh)) {
+			return true;
+		}
+		auto exact = std::vector<std::uint64_t>{ };
+		for (const auto& review : aObserved.ExactReviews) {
+			if (fresh(application::review_database_id{ review.ReviewDatabaseId })) {
+				exact.push_back(review.ReviewDatabaseId);
+			}
+		}
+		if (exact.empty()) {
+			return false;
+		}
+		const auto carried = aRecord.Request.Proposal.Comments.size();
+		if (carried == 0U) {
+			return true;
+		}
+		// GitHub creates a review whole: one this attempt created holds
+		// every comment it carried, so an exact review that holds another
+		// number of comments is another review of mine.
+		const auto listed = observe_comment_collection(aStop);
+		if (!listed) {
+			return true;
+		}
+		return std::ranges::any_of(exact, [&listed, carried](const std::uint64_t aReview) {
+			return static_cast<std::size_t>(std::ranges::count_if(*listed, [aReview](const review_comment_collection_entry& aComment) { return aComment.Review == aReview; })) == carried;
+		});
+	}
+	auto review_submission_session::resolve_observed(const application::review_submission_recovery_record& aRecord, const review_submission_reconciliation& aObserved, bool aDuplicate, std::stop_token aStop,
+													 const std::optional<core::review_submission_post_record>& aPost) -> application::review_submission_result
 	{
 		auto                                                  outcome = result(aRecord.Request);
 		std::optional<application::review_submission_receipt> candidate;
 		// [[BPR-1540]]. How many new reviews of mine match.
-		Candidates = static_cast<std::uint16_t>(std::ranges::count_if(aObserved.ExactReviews, [&aRecord](const review_submission_observation& aReview) {
+		Candidates   = static_cast<std::uint16_t>(std::ranges::count_if(aObserved.ExactReviews, [&aRecord](const review_submission_observation& aReview) {
 			return !std::ranges::binary_search(*aRecord.BaselineReviewIds, application::review_database_id{ aReview.ReviewDatabaseId });
 		}));
+		auto several = false;
 		for (const auto& review : aObserved.ExactReviews) {
 			const auto current = receipt(review);
 			if (std::ranges::binary_search(*aRecord.BaselineReviewIds, current.ReviewDatabaseId)) {
 				continue;
 			}
 			if (candidate) {
-				note(core::review_submission_unknown_reason::several_reviews_listed);
-				return outcome;
+				several = true;
+				break;
 			}
 			candidate = current;
-		}
-		if (!candidate) {
-			note(core::review_submission_unknown_reason::review_not_listed);
-			return outcome;
 		}
 		// [[BPR-1345]]. A review that carried line comments is this one only
 		// if GitHub holds exactly those comments in it: a single comment
 		// published meanwhile is also a new review with no summary.
-		if (!aRecord.Request.Proposal.Comments.empty() && !carries_exactly(aRecord.Request, candidate->ReviewDatabaseId, aStop)) {
+		if (candidate && !several && (aRecord.Request.Proposal.Comments.empty() || carries_exactly(aRecord.Request, candidate->ReviewDatabaseId, aStop))) {
+			auto resolved = Recovery->resolve(aRecord.Request.IdempotencyKey, aRecord.RequestFingerprint, *candidate);
+			if (!resolved || !application::valid(*resolved) || resolved->Request != aRecord.Request || resolved->RequestFingerprint != aRecord.RequestFingerprint || resolved->AuthorityFingerprint != aRecord.AuthorityFingerprint || resolved->BaselineReviewIds != aRecord.BaselineReviewIds || resolved->Receipt != candidate) {
+				note(core::review_submission_unknown_reason::local_record_unavailable);
+				return outcome;
+			}
+			outcome.Publication = application::review_submission_publication::published;
+			outcome.Receipt     = std::move(candidate);
+			outcome.Duplicate   = aDuplicate;
 			return outcome;
 		}
-		auto resolved = Recovery->resolve(aRecord.Request.IdempotencyKey, aRecord.RequestFingerprint, *candidate);
-		if (!resolved || !application::valid(*resolved) || resolved->Request != aRecord.Request || resolved->RequestFingerprint != aRecord.RequestFingerprint || resolved->AuthorityFingerprint != aRecord.AuthorityFingerprint || resolved->BaselineReviewIds != aRecord.BaselineReviewIds || resolved->Receipt != candidate) {
-			note(core::review_submission_unknown_reason::local_record_unavailable);
-			return outcome;
+		// [[BPR-PENDING-Y]]. No review GitHub lists is this attempt. When no
+		// listed review can be it either and the core says its answer, or
+		// the time since it, settles that, it was definitely not published:
+		// its record is withdrawn and the drafts it held are released.
+		if (core::definitely_unpublished(aPost, now()) && !could_be_listed(aRecord, aObserved, aStop)) {
+			if (!Recovery->withdraw(aRecord.Request.IdempotencyKey, aRecord.RequestFingerprint)) {
+				note(core::review_submission_unknown_reason::local_record_unavailable);
+				return outcome;
+			}
+			const auto refused = aPost && aPost->Answer == core::review_submission_post_answer::error_status && aPost->StatusClass == 4U;
+			auto       settled = result(aRecord.Request, application::review_submission_publication::definitely_not_published,
+										refused ? application::review_mutation_failure::refused_by_server : application::review_mutation_failure::unavailable);
+			if (refused) {
+				settled.Refusal = UnplaceableLine ? application::review_submission_refusal::unplaceable_line : application::review_submission_refusal::review;
+			}
+			return settled;
 		}
-		outcome.Publication = application::review_submission_publication::published;
-		outcome.Receipt     = std::move(candidate);
-		outcome.Duplicate   = aDuplicate;
+		if (several) {
+			note(core::review_submission_unknown_reason::several_reviews_listed);
+		} else if (!candidate) {
+			note(core::review_submission_unknown_reason::review_not_listed);
+		}
 		return outcome;
 	}
 	auto review_submission_session::execute(const application::review_submission_request& aRequest, std::stop_token aStop, bool aAllowNew) -> application::review_submission_result
@@ -465,6 +544,7 @@ namespace bpr::adapters::github::detail {
 			PostStatusClass = 0U;
 			Pages           = 0U;
 			Candidates      = 0U;
+			UnplaceableLine = false;
 			auto outcome    = application::review_submission_result{ .Request = aRequest };
 			try {
 				outcome = run(aRequest, aStop, aAllowNew);
@@ -590,7 +670,14 @@ namespace bpr::adapters::github::detail {
 					const auto marked  = Recovery->mark_possibly_transmitted(expected.Request.IdempotencyKey, expected.RequestFingerprint);
 					auto       exact   = expected;
 					exact.Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
-					return marked && *marked == exact && application::valid(*marked);
+					if (!marked || *marked != exact || !application::valid(*marked)) {
+						return false;
+					}
+					// [[BPR-PENDING-Y]]. No answer yet, and since when: a POST
+					// that never answers settles only after the delay. A POST
+					// leaves only once this is kept, so an attempt with no
+					// answer kept never left.
+					return Recovery->note_post(expected.Request.IdempotencyKey, expected.RequestFingerprint, { .Answer = core::review_submission_post_answer::no_answer, .RecordedUtcMs = now() }).has_value();
 				});
 			} catch (...) { /* The durable witness and server observation decide the outcome. */
 			}
@@ -603,6 +690,15 @@ namespace bpr::adapters::github::detail {
 				PostStatusClass = status_class(failed->HttpStatus);
 			} else {
 				PostAnswer = core::review_submission_post_answer::no_answer;
+			}
+			// [[BPR-PENDING-Y]]. What GitHub answered, kept with the attempt so
+			// that a later Check status or restart can settle it.
+			const auto post = post_answer(completion, now());
+			if (const auto* answered = std::get_if<github_mutation_wire_success>(&completion); answered != nullptr && status_class(answered->Response.Status) == 4U) {
+				UnplaceableLine = refusal_names_unplaceable_line(answered->Response.Body);
+			}
+			if (witnessed->load()) {
+				static_cast<void>(Recovery->note_post(aRequest.IdempotencyKey, expected.RequestFingerprint, post));
 			}
 			// A POST receipt alone never establishes completion: server truth must contain one new exact review.
 			const auto observed         = observe_reviews(aRequest, { });
@@ -630,23 +726,14 @@ namespace bpr::adapters::github::detail {
 				note(reason::local_record_unavailable);
 				return result(aRequest);
 			}
-			// [[BPR-1345]]. GitHub answered 422: it refused the review, which
-			// it creates whole or not at all. With no new exact review of mine
-			// observed after the answer, it was definitely not published, and
-			// its record is withdrawn so it is not restored as unfinished. The
-			// server refused it: the connection supports the operation, so the
-			// refusal is not reported as `unsupported`, whose text says it does
-			// not (BPR-1429).
-			const auto* refusal = std::get_if<github_mutation_wire_error>(&completion);
-			if (refusal != nullptr && refusal->HttpStatus == 422U
-				&& std::ranges::all_of(observed->ExactReviews, [&expected](const review_submission_observation& aReview) {
-					   return std::ranges::binary_search(*expected.BaselineReviewIds, application::review_database_id{ aReview.ReviewDatabaseId });
-				   })) {
-				const auto unpublished = result(aRequest, publication::definitely_not_published, application::review_mutation_failure::refused_by_server);
-				static_cast<void>(Recovery->withdraw(aRequest.IdempotencyKey, (**persisted).RequestFingerprint));
-				return unpublished;
-			}
-			return resolve_observed(**persisted, *observed, false, aStop);
+			// [[BPR-1345]], [[BPR-PENDING-Y]]. GitHub answered 4xx: it refused
+			// the review, which it creates whole or not at all. With no new
+			// review that can be this one observed after the answer, it was
+			// definitely not published, and its record is withdrawn so it is
+			// not restored as unfinished. The server refused it: the connection
+			// supports the operation, so the refusal is not reported as
+			// `unsupported`, whose text says it does not (BPR-1429).
+			return resolve_observed(**persisted, *observed, false, aStop, post);
 		}
 	}
 	auto review_submission_session::pending(std::stop_token aStop) -> std::expected<std::vector<application::review_submission_request>, application::review_mutation_failure>

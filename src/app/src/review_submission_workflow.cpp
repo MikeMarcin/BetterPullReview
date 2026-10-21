@@ -230,7 +230,11 @@ namespace bpr::app {
 		if (!Draft || Draft->State != draft_state::drafting) {
 			return;
 		}
-		auto outcome = core::apply(*Draft, { .Id = Draft->Id, .Kind = command_kind::set_comments, .Comments = Comments });
+		// [[BPR-PENDING-Y]]. The pending drafts are the current revision's.
+		// A review frozen on an earlier revision takes none of them, so it
+		// cannot list them or delete them when it is discarded.
+		const auto frozen  = Current && DraftBinding != std::optional{ Current->Binding };
+		auto       outcome = core::apply(*Draft, { .Id = Draft->Id, .Kind = command_kind::set_comments, .Comments = frozen ? std::vector<core::review_submission_comment>{ } : Comments });
 		if (outcome.Draft) {
 			Draft           = std::move(outcome.Draft);
 			CommentsRefusal = core::review_comments_rejection(Draft->Body, Draft->Comments, true);
@@ -414,7 +418,9 @@ namespace bpr::app {
 		}
 		auto status = Status;
 		if (Ready && Draft && Draft->State == draft_state::drafting && Current && DraftBinding != std::optional{ Current->Binding }) {
-			status = QStringLiteral("The pull request revision changed. Discard this frozen draft and start a new review.");
+			// [[BPR-PENDING-Y]]. Say what Discard deletes: the summary, never
+			// a comment.
+			status = QStringLiteral("The pull request revision changed after you wrote this summary. Discard starts a new review on the current revision; it deletes the summary, never a comment.");
 		} else if (Draft && Draft->State == draft_state::drafting && CommentsRefusal != core::review_submission_rejection::none) {
 			status = comments_status(CommentsRefusal);
 		} else if (Locking) {
@@ -518,6 +524,8 @@ namespace bpr::app {
 			// of the review with its summary (owner, discard-review v001:
 			// "Discard review should delete all the review comments").
 			const auto discardsReview = kind == command_kind::discard && !Draft->Comments.empty();
+			const auto carried        = Draft->Comments;
+			const auto carriedHead    = Draft->Target.ExpectedHead;
 			auto       outcome        = core::apply(*Draft, aIntent.Command);
 			if (!outcome.Draft) {
 				Status = outcome.Rejection == core::review_submission_rejection::blank_comment || outcome.Rejection == core::review_submission_rejection::review_too_large
@@ -571,7 +579,10 @@ namespace bpr::app {
 				}
 			} else if (kind == command_kind::discard) {
 				if (discardsReview && DiscardReview) {
-					DiscardReview();
+					// [[BPR-PENDING-Y]]. Exactly the drafts this review carries,
+					// at the revisions it carries them; nothing written on
+					// another revision.
+					DiscardReview(carried, carriedHead);
 				}
 				// [[BPR-1345]] v002. A discarded review is gone: the next one
 				// starts at once, so nothing it said is shown again. v003: an
@@ -677,8 +688,12 @@ namespace bpr::app {
 				} else if (!Unresolved.empty()) {
 					restore(Unresolved.front());
 					reconcile();
-				} else if (!Draft || Draft->State == draft_state::submitted || Draft->State == draft_state::discarded) {
+				} else if (!Draft || Draft->State == draft_state::submitted || Draft->State == draft_state::discarded
+						   || (Draft->State == draft_state::drafting && !core::kept(*Draft) && DraftBinding != std::optional{ Current->Binding })) {
 					// [[BPR-1345]] v003. A finished review is never shown again.
+					// [[BPR-PENDING-Y]]. Nor is one frozen on an earlier revision
+					// that keeps nothing (no summary, the default verdict): the
+					// review goes on at the current revision, with its comments.
 					new_draft();
 				} else {
 					// A finished review never takes the next one's comments.
@@ -712,6 +727,10 @@ namespace bpr::app {
 				const auto refused = *Pending;
 				Unknown.reset();
 				complete(command_kind::fail_submit);
+				// [[BPR-PENDING-Y]]. The review carries what is pending now, not
+				// the revisions the refused attempt held: those come back as
+				// its answer releases them, and only then can Submit hold them.
+				apply_review_comments();
 				std::erase_if(Unresolved, [&refused](const auto& aRequest) { return aRequest.IdempotencyKey == refused.IdempotencyKey; });
 				Pending.reset();
 				Status                 = refused.Proposal.Comments.empty()
@@ -722,6 +741,13 @@ namespace bpr::app {
 															 : QString{ };
 				if (!failureText.isEmpty()) {
 					Status = failureText;
+				}
+				// [[BPR-PENDING-Y]]. Why GitHub refused it, as far as its answer
+				// says. It names no comment, so neither does the page.
+				if (result->Refusal == application::review_submission_refusal::unplaceable_line) {
+					Status = QStringLiteral("Not published: GitHub refused this review because one of its comments is on a line GitHub can't place in the pull request's diff, such as a line outside the changes. GitHub doesn't say which. Your summary and comments are kept: delete or edit that comment, then submit again.");
+				} else if (result->Refusal == application::review_submission_refusal::review) {
+					Status = QStringLiteral("Not published: GitHub refused this review. Your summary and comments are kept; check them and submit again.");
 				}
 				answer(refused, application::review_submission_publication::definitely_not_published);
 			} else {

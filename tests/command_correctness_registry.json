@@ -1148,7 +1148,7 @@
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
-          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+          "sha256": "bb20d3efd8a379a5102aa0f5e36e085fe1db88ff7019b53dd577616d14317d38"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1160,7 +1160,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+          "sha256": "80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1265,7 +1265,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+          "sha256": "80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1287,7 +1287,7 @@
     },
     {
       "source": "tests/end_to_end/review_submission_composition_public_path.cpp",
-      "sha256": "bea8b8bff9d099300d29873cbfc36195aeae64cc5f1719bc839726fa4402f042",
+      "sha256": "d880b84ee16bfa02102a3dec22f9cef806bfa4af6a400ec6cca234bcc75a65bb",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",
@@ -1361,7 +1361,7 @@
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
-          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+          "sha256": "bb20d3efd8a379a5102aa0f5e36e085fe1db88ff7019b53dd577616d14317d38"
         },
         {
           "path": "tests/end_to_end/cli_publication_course.hpp",
@@ -1377,7 +1377,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+          "sha256": "80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1429,7 +1429,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+          "sha256": "80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
@@ -1477,7 +1477,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+          "sha256": "80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
@@ -1530,7 +1530,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
+          "sha256": "80d792ab9ed88d35819b8ffb6b6124a26bc4795aee147d73d86b0d0880e57d95"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",

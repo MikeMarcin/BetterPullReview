@@ -1424,6 +1424,14 @@ namespace bpr::qt {
 				open->set_columns(fileColumn, linesColumn, code);
 			}
 		}
+		// [[BPR-PENDING-Y]]. A comment can be deleted from a review being
+		// written only. While a submission may hold them, the rows offer no
+		// Delete: nothing would be deleted, and the question would say it was.
+		const auto writing = Draft.has_value() && Draft->State == core::review_submission_state::drafting;
+		for (auto* const remove : Pending->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
+			remove->setVisible(writing);
+			remove->setEnabled(writing);
+		}
 		Pending->setVisible(!comments.empty());
 		// The heading holds my blocking feedback's chip whenever there is a
 		// draft, and the count when the review carries comments.
@@ -1538,7 +1546,7 @@ namespace bpr::qt {
 	}
 	void review_submission_editor::confirm_delete(const core::review_submission_comment& aComment)
 	{
-		if (!PendingDelete) {
+		if (!PendingDelete || !Draft || Draft->State != core::review_submission_state::drafting) {
 			return;
 		}
 		if (DeleteQuestion != nullptr) {

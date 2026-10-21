@@ -130,6 +130,10 @@ namespace bpr::application {
 		if (aRecord.LastUnknown && (aRecord.State != review_mutation_recovery_state::unresolved || !core::valid(*aRecord.LastUnknown))) {
 			return false;
 		}
+		// [[BPR-PENDING-Y]]. Only a POST that may have left has an answer.
+		if (aRecord.Post && (aRecord.Transmission != review_mutation_recovery_transmission::possibly_transmitted || !core::valid(*aRecord.Post))) {
+			return false;
+		}
 		if (aRecord.State == review_mutation_recovery_state::unresolved) {
 			return !aRecord.Receipt;
 		}
