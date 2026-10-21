@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1673"
 title: "Audit command ownership and accelerate correctness qualification"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
