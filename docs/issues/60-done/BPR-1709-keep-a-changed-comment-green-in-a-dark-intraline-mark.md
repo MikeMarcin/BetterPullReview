@@ -91,7 +91,7 @@ changed.
 - AC3: The focused appearance, diff, Markdown and public-path checks pass.
 - AC4: Format, tidy, registry reseal and documentation gates pass.
 
-## Owner look (pending)
+## Owner look
 
 The owner has not yet looked. The coordinator shows the offscreen renders
 inline. No attended session was opened and no build was frozen. Renders at 2x,
@@ -122,3 +122,5 @@ Changed paths: `src/core/src/appearance_contrast.cpp`,
 `docs/ux/appearance-and-accessibility.md`.
 
 The build tree was removed at the end.
+
+Verdict, 2026-10-21: the owner answered **Accept** in chat after viewing the 2x dark and light before and after renders.
