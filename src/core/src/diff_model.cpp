@@ -421,7 +421,11 @@ namespace bpr::core {
 			&& aKey.LeftAnchor.Authority == aKey.RightAnchor.Authority
 			&& aKey.LeftAnchor.Incarnation == aKey.RightAnchor.Incarnation
 			&& blobsValid && aKey.File.valid() && aKey.Options.valid()
-			&& aKey.Algorithm.value() != 0U;
+			&& aKey.Algorithm.value() != 0U
+			&& (!aKey.Filter.has_value()
+				|| (bpr::core::valid(*aKey.Filter)
+					&& (!aKey.LeftBlob.has_value() || aKey.LeftBlob->algorithm() == aKey.Filter->Left.algorithm())
+					&& (!aKey.RightBlob.has_value() || aKey.RightBlob->algorithm() == aKey.Filter->Right.algorithm())));
 	}
 
 	auto valid(const source_line_ref& aLine,
@@ -469,7 +473,8 @@ namespace bpr::core {
 		if (!valid(aKey)) {
 			return { };
 		}
-		auto encoder = canonical_encoder<640U>{ };
+		// Room for the filtered endpoints beside the largest unfiltered key.
+		auto encoder = canonical_encoder<768U>{ };
 		encoder.append_domain("BPR-file-comparison-v1");
 		append_authority(encoder, aKey.Authority);
 		encoder.append_u64(aKey.Repository.value());
@@ -481,6 +486,14 @@ namespace bpr::core {
 		encoder.append(aKey.File.bytes());
 		encoder.append(aKey.Options.bytes());
 		encoder.append_u64(persisted_algorithm_slot);
+		// RFC-BPR-0089. Only a filtered key appends its two commits, under
+		// their own domain, so every unfiltered digest is the one persisted.
+		if (aKey.Filter.has_value()) {
+			encoder.append_domain("BPR-filtered-endpoints-v1");
+			encoder.append_u8(static_cast<std::uint8_t>(aKey.Filter->Left.algorithm()));
+			encoder.append(aKey.Filter->Left.bytes());
+			encoder.append(aKey.Filter->Right.bytes());
+		}
 		return identity_from<file_comparison_digest>(encoder);
 	}
 

@@ -111,6 +111,29 @@ namespace bpr::core {
 	[[nodiscard]] auto options_digest(const diff_options& aOptions) noexcept
 		-> std::optional<diff_options_digest>;
 
+	/// \brief RFC-BPR-0089. The two commits a commit-filtered diff is between.
+	///
+	/// \details Both are commits of the pull request's first-parent chain (or
+	/// the commit the chain grew from): the diff is the path at `Left` against
+	/// the path at `Right`, a tree some commit contains on each side. The
+	/// comparison's anchors stay the window's comparison; these name what the
+	/// file's sides actually are, so nothing reads a filtered side as the
+	/// comparison's own.
+	struct filtered_diff_endpoints
+	{
+		git_commit_oid Left;
+		git_commit_oid Right;
+
+		auto operator<=>(const filtered_diff_endpoints&) const = default;
+	};
+
+	/// \brief Checks both commits are valid, distinct and of one format.
+	[[nodiscard]] constexpr auto valid(const filtered_diff_endpoints& aEndpoints) noexcept -> bool
+	{
+		return aEndpoints.Left.valid() && aEndpoints.Right.valid() && aEndpoints.Left != aEndpoints.Right
+			&& aEndpoints.Left.algorithm() == aEndpoints.Right.algorithm();
+	}
+
 	/// \brief Describes the file comparison key record.
 	struct file_comparison_key
 	{
@@ -124,6 +147,11 @@ namespace bpr::core {
 		file_identity               File;
 		diff_options_digest         Options;
 		diff_algorithm_revision     Algorithm;
+		/// RFC-BPR-0089. Present for a commit-filtered diff: its blobs are the
+		/// path at these two commits, not at the anchors. It enters the
+		/// comparison digest, and only when present, so every unfiltered key
+		/// keeps its digest; it does not enter the material, which is the blobs.
+		std::optional<filtered_diff_endpoints> Filter;
 
 		auto operator<=>(const file_comparison_key&) const = default;
 	};

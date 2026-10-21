@@ -38,7 +38,7 @@ namespace bpr::application {
 			return std::unexpected(review_tour_source_failure::unavailable);
 		}
 		const auto&                     diff = aRequest.Diff;
-		const core::file_comparison_key key{ diff.Authority, diff.Authority.Repository, diff.Authority.PullRequest, diff.Comparison.Left.Identity, diff.Comparison.Right.Identity, resolved.LeftBlob, resolved.RightBlob, aRequest.File.File, diff.OptionsDigest, diff.Algorithm };
+		const core::file_comparison_key key{ diff.Authority, diff.Authority.Repository, diff.Authority.PullRequest, diff.Comparison.Left.Identity, diff.Comparison.Right.Identity, resolved.LeftBlob, resolved.RightBlob, aRequest.File.File, diff.OptionsDigest, diff.Algorithm, std::nullopt };
 		if (!core::valid(key)) {
 			return std::unexpected(review_tour_source_failure::unavailable);
 		}

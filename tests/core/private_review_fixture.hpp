@@ -54,7 +54,7 @@ namespace private_review_fixture {
 		};
 		const auto key      = file_comparison_key{ authority, bound.Scope.Repository, bound.Scope.PullRequest, bound.LeftAnchor, bound.RightAnchor,
 												   parse_git_blob_oid("3333333333333333333333333333333333333333"), parse_git_blob_oid("4444444444444444444444444444444444444444"),
-												   file_identity_of("file.cpp"), *options_digest({ }), diff_algorithm_revision{ 1 } };
+												   file_identity_of("file.cpp"), *options_digest({ }), diff_algorithm_revision{ 1 }, std::nullopt };
 		const auto left     = std::string{ "first\nold\nlast\n" };
 		const auto right    = std::string{ "first\nnew\nlast\n" };
 		auto       computed = bpr::tests::product_file_diff({ .Key = key, .Options = { }, .LeftBytes = std::span{ reinterpret_cast<const std::uint8_t*>(left.data()), left.size() }, .RightBytes = std::span{ reinterpret_cast<const std::uint8_t*>(right.data()), right.size() } });

@@ -468,6 +468,28 @@ namespace {
 				   "every exact cache-key dimension but the algorithm changes comparison identity");
 		}
 
+		// RFC-BPR-0089. A commit-filtered key names its two commits in the
+		// comparison digest, never in the material, and only when present.
+		const auto commit = [](const std::uint8_t aSeed) {
+			auto bytes = std::array<std::uint8_t, 32U>{ };
+			bytes[0]   = aSeed;
+			return git_commit_oid{ git_hash_algorithm::sha1, bytes };
+		};
+		auto filtered   = key;
+		filtered.Filter = filtered_diff_endpoints{ .Left = commit(1U), .Right = commit(2U) };
+		expect(valid(filtered) && comparison_digest(filtered).valid() && comparison_digest(filtered) != keyDigest,
+			   "a filtered diff is a different comparison from the unfiltered one");
+		expect(file_material(filtered) == file_material(key), "a filtered diff with the same blobs has the same material");
+		auto otherEnds   = filtered;
+		otherEnds.Filter = filtered_diff_endpoints{ .Left = commit(1U), .Right = commit(3U) };
+		expect(comparison_digest(otherEnds) != comparison_digest(filtered), "different endpoint commits are different comparisons");
+		auto sameEnds   = filtered;
+		sameEnds.Filter = filtered_diff_endpoints{ .Left = commit(4U), .Right = commit(4U) };
+		expect(!valid(sameEnds) && !comparison_digest(sameEnds).valid(), "a filtered diff between one commit and itself is refused");
+		auto missingEnd   = filtered;
+		missingEnd.Filter = filtered_diff_endpoints{ .Left = commit(1U), .Right = git_commit_oid{ } };
+		expect(!valid(missingEnd), "both filtered endpoints must be commits");
+
 		auto contradictory       = key;
 		contradictory.Repository = repository_id{ 102U };
 		expect(!valid(contradictory),
