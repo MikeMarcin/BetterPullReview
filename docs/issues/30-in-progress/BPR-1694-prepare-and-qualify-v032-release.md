@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate":"release-v032-owner-request-20261021","baseline":"111235987772e808f4fae26383925759985b3041","execution_strategy":"direct","external_state":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
+metadata: {"mandate":"release-v032-owner-request-20261021","baseline":"111235987772e808f4fae26383925759985b3041","execution_strategy":"direct","milestone_plan":{"id":"release-v032","path":"docs/rfcs/plans/release-v032/milestone-plan.json"},"external_state":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
 ---
 
 # Prepare and qualify v0.3.2
@@ -37,3 +37,28 @@ BPR-1371's resource investigation and older BPR-1551/BPR-1404 qualification
 frontiers require current evidence reconciliation, not an assumption of a
 current product failure. External phase ledger preserves request timing,
 producer observations and subsequent results.
+
+## First rejected candidate and repair
+
+Candidate `b15be685a51d01053cf48a1d550bff0da2c7baa8` fails the macOS
+Debug build: `gh_cli_transport_tests.cpp` omits the new
+`list_home_pull_requests` operation from its exhaustive semantic-request
+helper. Warnings-as-errors stop compilation. The same exact-invocation test
+also needs the operation's repository authority parent rather than a
+pull-request parent. The repair supplies the two requested PR numbers and
+repository parent through the existing all-operation course; no product
+policy, warning, assertion or limit changes. Raw failure is retained externally.
+The remote candidate rejection sentinel blocks all unstarted downstream
+stages while its already-running Release build retains its own result.
+
+Target-only milestone discovery initially encountered an invalid unrelated
+legacy plan (missing boundary fields). This bounded release plan links the
+card directly, preserving the complete owner mandate and all four criteria;
+no historical plan is rewritten.
+
+The repaired Debug CLI target builds and `gh_cli_transport` passes in 0.70 s.
+The existing closed-invocation catalog now exercises the batched Home read
+with both server profiles, exact child argv/environment/body/bounds, and the
+validated repository parent. Focused clang-format 22 and clang-tidy 22
+warnings-as-errors pass, as do the documentation and whitespace gates. This
+fix changes only the contract fixture. Full native gates remain pending.

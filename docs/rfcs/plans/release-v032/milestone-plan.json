@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v032",
+  "scope": {
+    "issues": [
+      "BPR-1694"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "qualified-publication",
+      "outcome": "One committed v0.3.2 candidate passes the selected coordinated native qualification and exact-artifact obligations, and is published with verified downloads only when authorized and ready.",
+      "work": [
+        {
+          "issue": "BPR-1694",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Version and grounded user-facing notes identify one clean common candidate.",
+        "Comprehensive native Release and Debug results account for selected macOS, Windows and Ubuntu courses; reproduced blockers are repaired without weakened gates.",
+        "Exact source, SPDX, package, checksums, signatures and independent native/security/material decisions satisfy the existing release policy.",
+        "The guarded public publisher and downloaded native verification complete, or unfinished prerequisites retain precise durable continuation and no false acceptance."
+      ],
+      "boundary": "Existing full macOS universal, Windows x64 and Ubuntu26.04 WSL producer route only; no historical exception extension, inferred approval, desktop driving, unrelated source work or credential changes."
+    }
+  ]
+}
