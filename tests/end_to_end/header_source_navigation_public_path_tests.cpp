@@ -292,16 +292,21 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return window.exclude_action()->isEnabled(); }, "private receipt action ready");
 	window.exclude_action()->trigger();
 	wait_for([&] { return !window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(); }, "excluded header withheld from actionable order");
+	const auto withheldRows = window.files_drawer()->contents()->rowCount();
 	open(*application, "src/widget.cpp");
-	const auto beforeReceiptJump = window.files_drawer()->contents()->rowCount();
+	// [[BPR-PENDING-Q]]. Only the shown file's receipt withholds it: the
+	// header left behind is unselected material, conservatively actionable.
+	wait_for([&] { return window.files_drawer()->contents()->rowCount() == withheldRows + 1
+					   && window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(); },
+			 "the excluded header returns to the order once another file is shown");
 	window.files_tree()->setFocus();
 	QApplication::processEvents();
 	expect(action->isEnabled(), "Files drawer focus offers shortcut");
 	key(window);
-	wait_for([&] { return shown(window, "inc/widget.h"); }, "private-receipt-withheld counterpart still opens");
-	expect(window.files_drawer()->contents()->rowCount() == beforeReceiptJump
-			   && !window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(),
-		   "jump leaves receipt and actionable order unchanged");
+	wait_for([&] { return shown(window, "inc/widget.h"); }, "excluded counterpart still opens");
+	wait_for([&] { return window.exclude_action()->isChecked() && window.files_drawer()->contents()->rowCount() == withheldRows
+					   && !window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(); },
+			 "jump keeps the receipt, and its exclusion withholds the shown header again");
 	expect(window.comparison_surface()->isAncestorOf(QApplication::focusWidget()), "jump from Files returns focus to visible source");
 	window.exclude_action()->trigger();
 	wait_for([&] { return window.files_drawer()->contents()->index_for_file(core::file_identity_of("inc/widget.h")).isValid(); }, "private receipt restored for remaining course");

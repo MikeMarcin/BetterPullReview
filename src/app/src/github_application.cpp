@@ -18360,9 +18360,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
 			}
+			// [[BPR-PENDING-Q]]. The order withholds only the retained receipt's
+			// file, and only while that receipt says it needs nothing. Once the
+			// receipt goes, the file's material is unknown and it is actionable
+			// again, as a new observation would answer, so the host restores it
+			// now. Without this a read file the reviewer left stayed out of the
+			// Files drawer, and Enter on its Overview row opened nothing.
+			auto released = std::optional<std::pair<application::workbench_pull_request_authority, core::file_identity>>{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (ReviewLedgerReceipt.has_value() && ReviewLedgerAuthority.has_value()
+					&& !core::actionable(core::reason_for(core::actionability_input{ .Receipt = *ReviewLedgerReceipt }))) {
+					released.emplace(*ReviewLedgerAuthority, ReviewLedgerReceipt->File);
+				}
 				ReviewLedgerReceipt.reset();
+			}
+			if (released.has_value() && WorkbenchHost != nullptr) {
+				WorkbenchHost->retain_actionability(released->first, WorkbenchReview.receipt_owner(released->second), true);
 			}
 			if (Window != nullptr) {
 				Window->set_conversation_endpoint_placement(false, false);

@@ -1,3 +1,12 @@
+# [[BPR-PENDING-Q]] reseal (2026-10-21) over last matching main 1694a7f37,
+# linear. Pinned-scope change: a read file the reviewer leaves returns to the
+# Files drawer, on this card's own commit. Inside the manifest only
+# github_application.cpp changed, in clear_diff_selection: when the retained
+# receipt it drops had withheld its file from the actionable order, it asks the
+# workbench host's existing retain_actionability to restore that file, as an
+# observation without the receipt would answer. No credential, grant, provider
+# selection, publication, mutation, ledger write or source-inventory change.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1701 note below
 # is renaming its [[BPR-PENDING-P]] comment tag to [[BPR-1701]]; no code change.
 # [[BPR-1701]] reseal (2026-10-21) over last matching main 0b10fa71a,
@@ -1836,7 +1845,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"8886847de7cadb5cb49a5c59b65b886017dabddb7b824cfa8c05bf2096a1f8d7"
+		"ac79ebb3f3e46ac345fb64086d3f4313e822da2ed89598654fd5107e00687ec0"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2056,7 +2065,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "49c6bd77840571e7169c55512fcd5be81facf02bdc984fd07b2e94c0d2f7c925"
+        "4d7a78e2bc56ea154217fbd9e9742087d65834990671d9e663491a6f36e8aba9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
