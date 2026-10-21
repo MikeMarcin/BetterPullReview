@@ -248,6 +248,23 @@ def select_profile(names: list[str], profile: str, heavy_groups: list[str] | Non
     return result
 
 
+def validate_debug_configuration(manifest: dict) -> None:
+    """Require the requested CTest mode and its actual generated build cache."""
+    if any(row.get("config") != "Debug" for row in manifest["tests"]):
+        raise ValueError("Debug residual requires an actual Debug preset")
+    row = next((row for row in manifest["tests"] if row["name"] == "qt_workbench_window_scale_100"), None)
+    properties = {prop["name"]: prop["value"] for prop in row.get("properties", [])} if row else {}
+    directory = Path(properties.get("WORKING_DIRECTORY", ""))
+    cache = next((parent / "CMakeCache.txt" for parent in (directory, *directory.parents)
+                  if directory.is_absolute() and (parent / "CMakeCache.txt").is_file()), None)
+    if cache is None:
+        raise ValueError("Debug residual build cache is unavailable")
+    values = dict(re.findall(r"(?m)^([^/#:=]+):[^=]*=(.*)$", cache.read_text(encoding="utf-8")))
+    configurations = values.get("CMAKE_CONFIGURATION_TYPES", "")
+    if ("Debug" not in configurations.split(";") if configurations else values.get("CMAKE_BUILD_TYPE") != "Debug"):
+        raise ValueError("Debug residual cache does not build Debug")
+
+
 def committed_tooling_pin(root: Path) -> dict:
     """Bind the declared test dependency; MASK owns deployment verification."""
     locked = subprocess.run(["git", "show", "HEAD:.mask.lock.json"], cwd=root,
@@ -358,8 +375,8 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
                               check=True, text=True, capture_output=True)
     selected = json.loads(manifest.stdout)
     validate_schedule(selected)
-    if profile == "debug-residual" and any(row.get("config") != "Debug" for row in selected["tests"]):
-        raise ValueError("Debug residual requires an actual Debug preset")
+    if profile == "debug-residual":
+        validate_debug_configuration(selected)
     all_names = [test["name"] for test in selected["tests"]]
     selection = select_profile(all_names, profile, heavy_groups, change_scopes, root)
     included = [name for name in all_names if include_tests_regex is not None and re.search(include_tests_regex, name)]

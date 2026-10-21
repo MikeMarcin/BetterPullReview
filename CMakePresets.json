@@ -352,7 +352,8 @@
     {
       "name": "dev",
       "inherits": "_test-common",
-      "configurePreset": "dev"
+      "configurePreset": "dev",
+      "configuration": "Debug"
     },
     {
       "name": "core-only",

@@ -97,6 +97,30 @@ class SuiteRunnerTests(unittest.TestCase):
                     suite.run_suite("fixture", 1, root / ("refused-" + str(inclusion is None)), root=root,
                                     profile="normal", change_scopes=["incremental"], include_tests_regex=inclusion)
 
+    def test_debug_residual_checks_generated_cache_not_only_ctest_label(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            working = root / "tests/adapters_qt"
+            working.mkdir(parents=True)
+            row = {"name": "qt_workbench_window_scale_100", "config": "Debug", "properties": [
+                {"name": "WORKING_DIRECTORY", "value": str(working)}]}
+            manifest = {"tests": [row]}
+            cache = root / "CMakeCache.txt"
+            with self.assertRaisesRegex(ValueError, "unavailable"):
+                suite.validate_debug_configuration(manifest)
+            for value in ("CMAKE_BUILD_TYPE:STRING=Debug\n", "CMAKE_CONFIGURATION_TYPES:STRING=Debug;Release\n"):
+                cache.write_text(value)
+                suite.validate_debug_configuration(manifest)
+            for value in ("", "CMAKE_BUILD_TYPE:STRING=Release\n", "CMAKE_CONFIGURATION_TYPES:STRING=Release\n"):
+                cache.write_text(value)
+                with self.assertRaisesRegex(ValueError, "does not build Debug"):
+                    suite.validate_debug_configuration(manifest)
+            cache.write_text("CMAKE_BUILD_TYPE:STRING=Debug\n")
+            for label in (None, "Release"):
+                row["config"] = label
+                with self.assertRaisesRegex(ValueError, "actual Debug preset"):
+                    suite.validate_debug_configuration(manifest)
+
     def test_bounded_selection_keeps_preflight_fresh_and_never_credits_other_rows(self):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
