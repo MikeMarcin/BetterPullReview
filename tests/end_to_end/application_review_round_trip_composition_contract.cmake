@@ -1,3 +1,11 @@
+# [[BPR-1675]] f25a65274 observation repair over the previously reviewed c946:
+# the sole src/app delta prevents an enterprise preview probe from latching
+# transient signed-out mode before its typed refusal. Terminal refusal and zero
+# effects remain required; ordinary preview observation and all provider/vault/
+# grant/publication/mutation ownership are unchanged. The exact affected public
+# courses pass on Mac/Windows and current Ubuntu. Only this combined manifest
+# pin changes; full github_application and mutation seals stay exact. The Ubuntu
+# drift failure is retained; source/compiler hostile controls run fresh.
 # [[BPR-1675]] merged BPR-1676 promo9b9a4acc6 over native f230a8e5f:
 # scoped source review finds only a BUILD_TESTING fixture enum/host label,
 # fixture metadata and main fixture/attended-read-state selection. No new
@@ -1936,7 +1944,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "edf39abdc741e7e680cf0417c127a940af5cdd951b6aa83ea84699a3937f0ce3"
+        "ac73852673e9b92c68c32e06fbb3fb03c54868a5582a15f9b85b7d10203e49f2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
