@@ -108,10 +108,14 @@ def main() -> int:
                                        env=environment_for(row), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, check=True)
             validate_cases(record["cases"], completed.stdout)
             build = [line for line in completed.stdout.splitlines() if line.startswith("WORKBENCH_BUILD:")]
-            if len(build) != 1 or "NDEBUG=0" not in build[0]:
-                raise ValueError("Workbench binary does not have the inventoried Debug preconditions")
-            if args.platform == "Windows" and "ITERATOR_DEBUG_LEVEL=2" not in build[0]:
-                raise ValueError("Workbench binary does not preserve checked MSVC iterator diagnostics")
+            configuration = row.get("config") or manifest.get("build_configuration") or "Debug"
+            if configuration not in {"Debug", "Release"}:
+                raise ValueError("Uninventoried workbench build configuration")
+            optimized = configuration == "Release"
+            if len(build) != 1 or f"NDEBUG={int(optimized)}" not in build[0]:
+                raise ValueError("Workbench binary does not have the inventoried configuration preconditions")
+            if args.platform == "Windows" and f"ITERATOR_DEBUG_LEVEL={0 if optimized else 2}" not in build[0]:
+                raise ValueError("Workbench binary does not match the inventoried MSVC iterator mode")
             record["build_preconditions"] = build[0]
             record["listed"] = True
         result["rows"].append(record)

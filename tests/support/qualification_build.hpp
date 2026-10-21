@@ -37,6 +37,14 @@ namespace bpr::tests {
 #endif
 		std::cout << '\n';
 	}
+	/// Report completed occurrences; the function and its expectations stay intact.
+	template <typename Function>
+	void run_qualification_case(const char* aName, Function aFunction)
+	{
+		std::cout << "QUALIFICATION_CASE_BEGIN:" << aName << '\n';
+		aFunction();
+		std::cout << "QUALIFICATION_CASE_END:" << aName << '\n';
+	}
 } // namespace bpr::tests
 
 #endif

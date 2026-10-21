@@ -1304,21 +1304,21 @@ namespace {
 int main()
 {
 	bpr::tests::report_qualification_build();
-	test_identical_and_empty();
-	test_insertions_and_deletions();
-	test_replacements_pairing_and_replay();
-	test_whitespace_and_endings();
-	test_unicode_binary_and_unavailable();
-	test_moves_identity_and_limits();
-	test_bpr1485_primary_matches_come_from_the_line_matcher();
-	test_bpr1485_whitespace_only_final_lines();
-	test_large_files_degrade_instead_of_refusing();
-	test_computed_result_validator();
-	test_generated_replay_validation();
-	test_bpr1366_an_uninterrupted_run_is_the_one_call();
-	test_bpr1366_a_stop_is_honoured_within_the_bound();
-	test_bpr1366_interrupted_once_then_recomputed();
-	test_bpr1366_the_semantic_index_build_stops();
+	bpr::tests::run_qualification_case("test_identical_and_empty", &test_identical_and_empty);
+	bpr::tests::run_qualification_case("test_insertions_and_deletions", &test_insertions_and_deletions);
+	bpr::tests::run_qualification_case("test_replacements_pairing_and_replay", &test_replacements_pairing_and_replay);
+	bpr::tests::run_qualification_case("test_whitespace_and_endings", &test_whitespace_and_endings);
+	bpr::tests::run_qualification_case("test_unicode_binary_and_unavailable", &test_unicode_binary_and_unavailable);
+	bpr::tests::run_qualification_case("test_moves_identity_and_limits", &test_moves_identity_and_limits);
+	bpr::tests::run_qualification_case("test_bpr1485_primary_matches_come_from_the_line_matcher", &test_bpr1485_primary_matches_come_from_the_line_matcher);
+	bpr::tests::run_qualification_case("test_bpr1485_whitespace_only_final_lines", &test_bpr1485_whitespace_only_final_lines);
+	bpr::tests::run_qualification_case("test_large_files_degrade_instead_of_refusing", &test_large_files_degrade_instead_of_refusing);
+	bpr::tests::run_qualification_case("test_computed_result_validator", &test_computed_result_validator);
+	bpr::tests::run_qualification_case("test_generated_replay_validation", &test_generated_replay_validation);
+	bpr::tests::run_qualification_case("test_bpr1366_an_uninterrupted_run_is_the_one_call", &test_bpr1366_an_uninterrupted_run_is_the_one_call);
+	bpr::tests::run_qualification_case("test_bpr1366_a_stop_is_honoured_within_the_bound", &test_bpr1366_a_stop_is_honoured_within_the_bound);
+	bpr::tests::run_qualification_case("test_bpr1366_interrupted_once_then_recomputed", &test_bpr1366_interrupted_once_then_recomputed);
+	bpr::tests::run_qualification_case("test_bpr1366_the_semantic_index_build_stops", &test_bpr1366_the_semantic_index_build_stops);
 	std::cout << "BPR-0073 deterministic diff computation tests passed\n";
 	return EXIT_SUCCESS;
 }

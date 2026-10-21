@@ -9406,8 +9406,8 @@ auto main(int argc, char** argv) -> int
 	// the full run stops later at the card assertion [[BPR-0940]] owns.
 	// [[BPR-1290]]. The inline drawer on a long file, alone, at each scale.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--inline-drawer"))) {
-		test_inline_drawer_follows_the_code_and_opens_threads_in_place();
-		test_a_suggestion_reads_against_the_compared_lines();
+		bpr::tests::run_qualification_case("test_inline_drawer_follows_the_code_and_opens_threads_in_place", &test_inline_drawer_follows_the_code_and_opens_threads_in_place);
+		bpr::tests::run_qualification_case("test_a_suggestion_reads_against_the_compared_lines", &test_a_suggestion_reads_against_the_compared_lines);
 		std::cout << "inline-drawer:pass\n";
 		return EXIT_SUCCESS;
 	}
