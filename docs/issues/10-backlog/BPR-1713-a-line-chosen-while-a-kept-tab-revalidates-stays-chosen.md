@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-U1"
+id: "BPR-1713"
 title: "A line chosen while a kept tab revalidates after a reread stays chosen"
 status: "Backlog"
 rfcs: ["RFC-BPR-0089"]
 depends_on: ["BPR-1707"]
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"Observed while building BPR-1707's composed course (2026-10-21)","related_cards":["BPR-1707","BPR-1478","BPR-1527"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1713--BPR-1713--d7dfe4ce2b88.json","origin":"Observed while building BPR-1707's composed course (2026-10-21)","related_cards":["BPR-1707","BPR-1478","BPR-1527"]}
 ---
 
-# BPR-PENDING-U1: A line chosen while a kept tab revalidates after a reread stays chosen
+# BPR-1713: A line chosen while a kept tab revalidates after a reread stays chosen
 
 [[BPR-1707]] keeps the reviewer's chosen file across the reread that follows
 a publication. One narrower gesture is still lost.

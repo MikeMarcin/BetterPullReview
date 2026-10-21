@@ -880,7 +880,7 @@ namespace {
 		// previous request until another file was chosen and this one again.
 		// The window's own revalidation of the kept tab settles first: a line
 		// chosen during it is replaced by the tab's remembered line
-		// ([[BPR-PENDING-U1]]).
+		// ([[BPR-1713]]).
 		const auto chosen = core::file_identity_of("src/notes.txt");
 		wait_for([&] {
 			const auto identity = access::epoch_refresh_identity(*aRun.Application);

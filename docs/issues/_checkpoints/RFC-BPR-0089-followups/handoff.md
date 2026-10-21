@@ -6,7 +6,7 @@ verified and committed before the next. Branch
 `worktree-agent-a7e91eec21716b2ec`, rebased onto main `7435c6901`. Code
 commits: `e46cdedee` ([[BPR-1706]]) and `4c76e46e2` ([[BPR-1707]]); each card
 closes in the commit after its code. One new card has a provisional ID
-(`BPR-PENDING-U1`, no `provisional_id` key); the coordinator allocates it on
+(`BPR-1713`, no `provisional_id` key); the coordinator allocates it on
 main.
 
 `frontend-design:frontend-design` was loaded before the editor's file-comment
@@ -80,7 +80,7 @@ deleted.
 
 ## Open obligations and next action
 
-- Allocate `BPR-PENDING-U1` on main: a line chosen while a kept tab
+- Allocate `BPR-1713` on main: a line chosen while a kept tab
   revalidates after a reread is replaced by the tab's remembered line.
 - Windows and Linux are unmeasured.
 
