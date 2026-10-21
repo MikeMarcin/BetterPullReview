@@ -62,3 +62,20 @@ with both server profiles, exact child argv/environment/body/bounds, and the
 validated repository parent. Focused clang-format 22 and clang-tidy 22
 warnings-as-errors pass, as do the documentation and whitespace gates. This
 fix changes only the contract fixture. Full native gates remain pending.
+
+## Windows fixture portability blocker
+
+The original candidate's native Windows Release build completed with exit 1
+in 1004.75 s. Its sole collected compiler error is C4996 at
+`commit_filter_view_tests.cpp:355`: `std::getenv` is deprecated under MSVC's
+warnings-as-errors policy, which the test instructions explicitly prohibit.
+No Windows suite ran. The macOS producer for `ef5939561` was then stopped by
+its exact owned process IDs during Release compilation, before tests, signing
+or packaging. Its interruption and child identities remain in external evidence;
+neither candidate is qualified.
+
+The fixture now uses Qt's environment and path APIs for the optional generated
+row render directory, preserving unset/set handling and Unicode paths. No
+product code, warning policy, test assertion or budget changes. Both Mac
+100%/200% commit-filter view courses pass and write their requested PNGs into
+a temporary Unicode directory; the directory is removed after observation.

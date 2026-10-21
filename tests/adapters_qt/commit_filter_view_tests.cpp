@@ -8,6 +8,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QDir>
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -18,7 +19,6 @@
 #include <QTreeWidget>
 
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -352,9 +352,10 @@ namespace {
 			   "Review anyway dispatches the file's path");
 		expect(row.make_menu(7, nullptr) == nullptr, "no menu past the list");
 
-		if (const auto* directory = std::getenv("BPR_RFC0089_RENDER_DIR"); directory != nullptr) {
-			const auto path = std::filesystem::path{ directory } / ("generated-row-" + std::to_string(static_cast<int>(row.devicePixelRatioF() * 100.0)) + ".png");
-			row.grab().save(QString::fromStdString(path.string()));
+		if (qEnvironmentVariableIsSet("BPR_RFC0089_RENDER_DIR")) {
+			const auto directory = qEnvironmentVariable("BPR_RFC0089_RENDER_DIR");
+			const auto path      = QDir{ directory }.filePath(QStringLiteral("generated-row-%1.png").arg(static_cast<int>(row.devicePixelRatioF() * 100.0)));
+			row.grab().save(path);
 		}
 
 		row.present(owner());
