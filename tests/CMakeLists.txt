@@ -1460,6 +1460,9 @@ add_subdirectory(logging)
 bpr_add_network_isolated_test(NAME test_suite_runner_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_suite_runner_tests.py")
 
+bpr_add_network_isolated_test(NAME command_correctness_registry_contract
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/command_correctness_registry_tests.py")
+
 # [[BPR-1386]] keeps unclassified GUI/application courses exclusive. BPR-1670
 # permits only the audited correctness declarations below to share four slots.
 include("${PROJECT_SOURCE_DIR}/cmake/BprTestScheduling.cmake")
@@ -1473,11 +1476,11 @@ if(WIN32)
     # families share a conservative lock for their build/render directory;
     # offscreen clipboard, focus and application state are process-private.
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/adapters_qt"
-        MODE headless RESOURCE conversation_model
+        CONFIGURATIONS Debug MODE headless RESOURCE conversation_model
         TESTS
             qt_github_conversation_model_property)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/adapters_qt"
-        MODE offscreen RESOURCE qt_render_directory
+        CONFIGURATIONS Debug MODE offscreen RESOURCE qt_render_directory
         TESTS
             qt_pull_request_overview_page
             qt_pull_request_overview_chips_scale_125
@@ -1500,43 +1503,43 @@ if(WIN32)
             qt_review_cycle_view_1_0
             qt_review_cycle_view_2_0)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE epoch_catalogues
+        CONFIGURATIONS Debug MODE offscreen RESOURCE epoch_catalogues
         TESTS
             application_epoch_portable_occurrence_two_catalogues)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE headless RESOURCE binary_graph_inspection
+        CONFIGURATIONS Debug MODE headless RESOURCE binary_graph_inspection
         TESTS
             binary_dependency_surface)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE device_launch_renewal
+        CONFIGURATIONS Debug MODE offscreen RESOURCE device_launch_renewal
         TESTS
             application_device_binding_launch_renewal)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE profile_layout
+        CONFIGURATIONS Debug MODE offscreen RESOURCE profile_layout
         TESTS
             application_profile_window_layout_public_path)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE overview_summary
-        TESTS
-            application_overview_summary_1
-            application_overview_summary_1_25
-            application_overview_summary_2)
-    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE review_restoration
+        CONFIGURATIONS Debug MODE offscreen RESOURCE review_restoration
         TESTS
             application_profile_window_review_restoration_public_path
             application_document_tabs_restoration_public_path)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE offline_inventory
+        CONFIGURATIONS Debug MODE offscreen RESOURCE offline_inventory
         TESTS
             application_offline_inventory
             application_recent_account_isolation)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE headless RESOURCE diagnostic_contract
+        CONFIGURATIONS Debug MODE headless RESOURCE diagnostic_contract
         TESTS
             diagnostic_subsystem_contract)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        MODE offscreen RESOURCE pending_states
+        CONFIGURATIONS Debug MODE offscreen RESOURCE pending_states
         TESTS
             application_pending_states_public_path)
+endif()
+
+# Source and exact argv are checked before widening the default serial policy.
+# Optimized and unknown configurations retain whole-host exclusivity.
+if(BPR_BUILD_QT)
+    bpr_apply_command_correctness_registry("${CMAKE_CURRENT_SOURCE_DIR}/command_correctness_registry.json")
 endif()

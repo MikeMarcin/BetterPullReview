@@ -657,6 +657,7 @@ function(bpr_add_network_isolated_test)
         )
     endif()
 
+    set(bpr_logical_command "${bpr_test_COMMAND}")
     list(POP_FRONT bpr_test_COMMAND bpr_test_executable)
     if(TARGET "${bpr_test_executable}")
         set(bpr_test_executable "$<TARGET_FILE:${bpr_test_executable}>")
@@ -726,6 +727,7 @@ function(bpr_add_network_isolated_test)
         APPEND
         PROPERTY LABELS "${bpr_isolation_label}"
     )
+    set_property(TEST "${bpr_test_NAME}" PROPERTY BPR_LOGICAL_COMMAND "${bpr_logical_command}")
     # [[BPR-1343]]. Every platform marks a WINDOWS_UNCONTAINED registration, so
     # test_network_isolation_manifest requires its Windows pin wherever the row
     # is written, not only on the Windows station.
