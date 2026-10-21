@@ -31,3 +31,12 @@ Releases are public, so the pinned release routes need no credential.
 with no credential; the native transport now accepts an empty credential and
 simply omits Authorization. `release_update_desktop` offers that lease as the
 first account and falls back to it when the stored binding is empty or gone.
+
+The BPR-1670 native composition gate found the production-app review pin still
+at its pre-change value. Review of `c5a906abe..aac127fa4` finds only
+`c0d404c2c` inside that pinned scope, in `release_update_desktop.cpp`: the public
+release-only account and missing-account fallback retain the existing capability,
+closing and generation checks. Review mutation/publication composition and the
+other two pins are unchanged. The manifest pin is resealed with this recorded
+review; the original failed cold run and focused reseal controls are retained in
+[the BPR-1670 evidence report](../../verification/BPR-1670-windows-suite-runtime.md).

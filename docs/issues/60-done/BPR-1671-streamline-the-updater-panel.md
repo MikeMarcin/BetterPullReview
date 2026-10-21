@@ -145,3 +145,19 @@ Opened 2026-10-20 for the rejected release-notes question only.
 
 With the v001 verdicts on layout, the Settings group and the wording, the
 owner has accepted the look. AC5 passes on `75bd2349d` and the card is Done.
+
+## BPR-1670 integration source review
+
+The composition review tripwire was reconciled while integrating the suite work
+onto main `15bb7f8a4`, from matching manifest source `d989efb5c`. The only
+intervening pinned app commits are `6ad4c4f28` (this card) and `3ae1183f7`
+(BPR-1672), in `release_update_desktop.cpp` and its public header. Scoped source
+review confirms automatic offered-access restoration, the binding recorded
+before reentrant service publication, and unchanged readiness, capability,
+closing, generation and queued-binding guards. Native public release access
+remains the first offer and uses the same anonymous release-only transport.
+The presentation changes retain this card's recorded direct and owner evidence;
+this source review grants no new visual or native acceptance. Only the combined
+app manifest pin is resealed; the full application and production review-mutation
+pins remain exact. The [integration ledger](../../verification/BPR-1670-windows-suite-runtime.md)
+retains the initial refusal and focused verification boundary.

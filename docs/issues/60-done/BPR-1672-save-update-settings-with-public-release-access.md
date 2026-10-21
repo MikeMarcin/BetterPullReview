@@ -38,3 +38,18 @@ hex, and `start_native` offers it first. No stored binding needs migrating:
 the old one was never saved. `docs/architecture/release-updater.md` and
 `docs/security/release-updater.md` now say the release repository's releases
 are public and how the binding is formed.
+
+## BPR-1670 integration source review
+
+The composition tripwire review covers matching `d989efb5c` through main
+`15bb7f8a4`: only `6ad4c4f28` (BPR-1671) and `3ae1183f7` (this card) change
+the pinned app scope. The latter derives the public account binding from a fixed
+label through Qt's SHA-256, in the store's existing lowercase-hex format, and
+retains the same anonymous release-only acquisition callback. It adds no token,
+provider, review-mutation or publication authority; the application selection's
+readiness/capability/generation/closing guards remain. This confirms the owning
+source scope alongside the durable-store positive/old-binding negative evidence
+already recorded above. Only the combined manifest pin changes; full application
+and production mutation-branch pins remain exact. The [integration ledger](../../verification/BPR-1670-windows-suite-runtime.md)
+records the original refusal and merged-source focused check separately from
+the earlier Windows full-suite candidate.

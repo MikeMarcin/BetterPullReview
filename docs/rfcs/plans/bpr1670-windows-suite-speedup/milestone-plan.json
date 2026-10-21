@@ -1,0 +1,27 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr1670-windows-suite-speedup",
+  "scope": {
+    "issues": [
+      "BPR-1670"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "faster-native-windows-suite",
+      "outcome": "Diagnose and remove systemic avoidable native Windows build/suite wall time while preserving the full maintained graph and substantive acceptance.",
+      "work": [
+        {
+          "issue": "BPR-1670"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "BPR-1670 AC1 through AC4 pass with focused causal evidence and one exact-candidate full native Windows suite; no weakened coverage, schedule, limits or isolation."
+      ],
+      "boundary": "Mandate windows-suite-speedup-r2: systemic decomposition before implementation; prove any scheduling correction preserves isolation and exclusive performance/global resources. No release/sign/publication or broad RFC0038 closeout."
+    }
+  ],
+  "unplanned_work": []
+}

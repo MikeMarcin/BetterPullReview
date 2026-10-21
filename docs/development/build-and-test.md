@@ -51,6 +51,11 @@ Python 3.14 and Qt 6.11.1 on macOS arm64.
 
 ## First build
 
+Tests use the project’s locked portable tooling. For a fresh clone, register
+that owned checkout through MASK using its existing locks, then run the
+[actual cheap prerequisite checks](build-and-test-reference.md#complete-suite-timing-and-focused-work)
+before an expensive configure or build.
+
 From the repository root:
 
 ```sh
@@ -165,8 +170,15 @@ python3 scripts/run_test_suite.py --preset dev
 ```
 
 The runner executes every row the preset selects with four CTest jobs, keeping
-network isolation, resource locks and fixture dependencies. Interactive Qt and
-end-to-end courses, including the responsiveness benchmarks, run alone.
+network isolation, resource locks and fixture dependencies. Timing, native
+desktop, global-resource and unclassified courses run alone. Only the explicit
+audited Windows correctness allowlist may overlap under its resource locks;
+other platforms retain their schedule.
+
+Before starting the full graph, the runner executes its configured cheap
+tooling checks. A failed or incomplete preflight leaves the full graph explicitly
+not started. Passing preflight still runs every selected row. See the
+[policy, bootstrap commands and timing details](build-and-test-reference.md#complete-suite-timing-and-focused-work).
 
 - Use `--jobs 1` for a sequential diagnostic run.
 - Avoid other builds and test runs on the machine while measuring

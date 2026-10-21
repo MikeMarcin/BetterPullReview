@@ -7,6 +7,7 @@ from collections import Counter
 from contextlib import contextmanager
 from datetime import datetime, timezone
 import errno
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,9 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 ROW = re.compile(r"\d+/\d+ Test\s+#\d+: (\S+)\s+\.{2,}(.*?)\s*([\d.]+) sec")
+TOOLING_PREFLIGHT = frozenset({
+    "documentation_structure", "documentation_issue_graph_contract", "issue_id_allocation_contract",
+})
 
 
 def read_log(path: Path) -> dict:
@@ -66,13 +70,33 @@ def print_report(report: dict) -> None:
 
 
 def validate_schedule(manifest: dict) -> None:
-    """Refuse concurrent interactive/performance courses in the full gate."""
+    """Keep exclusive courses alone; admit only declared isolated correctness."""
     for row in manifest["tests"]:
         props = {prop["name"]: prop["value"] for prop in row.get("properties", [])}
         directory = props.get("WORKING_DIRECTORY", "").replace("\\", "/")
-        gui = any("QT_QPA_PLATFORM=" in item for item in props.get("ENVIRONMENT", []))
+        platforms = [item for item in props.get("ENVIRONMENT", []) if item.upper().startswith("QT_QPA_PLATFORM=")]
+        labels = props.get("LABELS", [])
         course = "/tests/end_to_end" in directory or "/tests/adapters_qt" in directory
-        if (gui or course or "bpr_serial_gui" in props.get("LABELS", [])) and not props.get("RUN_SERIAL"):
+        declared = "bpr_isolated_correctness" in labels
+        mode_labels = [label for label in labels if label.startswith("bpr_correctness_")]
+        if mode_labels and not declared:
+            raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
+        if declared:
+            locks = props.get("RESOURCE_LOCK", [])
+            valid_platform = (
+                mode_labels == ["bpr_correctness_headless"] and not platforms
+                or mode_labels == ["bpr_correctness_offscreen"] and platforms == ["QT_QPA_PLATFORM=offscreen"]
+            )
+            valid_lock = any(re.fullmatch(r"bpr_isolated_correctness_[a-z0-9_]+", lock) for lock in locks)
+            platform_override = any(item.upper().startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))
+            platform_argument = any(
+                item in {"-platform", "--platform"} or item.startswith(("-platform=", "--platform="))
+                for item in row.get("command", [])
+            )
+            exclusive = props.get("RUN_SERIAL") or "bpr_explicit_serial" in labels or "bpr_serial_gui" in labels
+            if not valid_platform or not valid_lock or platform_override or platform_argument or exclusive:
+                raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
+        if (platforms or course or "bpr_serial_gui" in labels) and not props.get("RUN_SERIAL") and not declared:
             raise ValueError(f"Interactive/performance test is not serial: {row['name']}")
 
 
@@ -104,7 +128,58 @@ def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: 
         return run_locked_suite(preset, jobs, output, ctest, root)
 
 
+def committed_tooling_pin(root: Path) -> dict:
+    """Bind the declared test dependency; MASK owns deployment verification."""
+    locked = subprocess.run(["git", "show", "HEAD:.mask.lock.json"], cwd=root,
+                            check=True, capture_output=True).stdout
+    value = json.loads(locked)
+    if (not isinstance(value, dict) or not isinstance(value.get("packages"), list)
+            or not all(isinstance(row, dict) for row in value["packages"])):
+        raise ValueError("Committed MASK lock has an invalid package inventory")
+    rows = [row for row in value["packages"]
+            if row.get("source") == "agentskills" and row.get("id") == "implement-rfc"]
+    if len(rows) != 1:
+        raise ValueError("Committed MASK lock must select exactly one implement-rfc test dependency")
+    row = rows[0]
+    if (not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", row.get("commit", ""))
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", row.get("payload_digest", ""))):
+        raise ValueError("Committed implement-rfc test dependency has an invalid pin")
+    return {"lock_source": "HEAD:.mask.lock.json", "lock_sha256": hashlib.sha256(locked).hexdigest(),
+            "source": row["source"], "id": row["id"], "commit": row["commit"],
+            "payload_digest": row["payload_digest"]}
+
+
+def tooling_preflight(expected: list[str], preset: str, jobs: int, output: Path, ctest: str, root: Path) -> dict | None:
+    names = [name for name in expected if name in TOOLING_PREFLIGHT]
+    if not names:
+        return None
+    report = {"schema": "bpr.test-preflight.v1", "expected": names, "passed": False}
+    started = time.monotonic()
+    try:
+        report["declared_dependency"] = committed_tooling_pin(root)
+        expression = "^(" + "|".join(re.escape(name) for name in names) + ")$"
+        command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure",
+                   "--no-tests=error", "--tests-regex", expression,
+                   "--output-log", str(output / "preflight.log"),
+                   "--output-junit", str(output / "preflight-junit.xml")]
+        report["command"] = command
+        completed = subprocess.run(command, cwd=root, check=False)
+        report["ctest_exit_code"] = completed.returncode
+        results = read_junit(output / "preflight-junit.xml", time.monotonic() - started)
+        report["results"] = results
+        actual = [row["name"] for row in results["tests"]]
+        report["complete"] = Counter(actual) == Counter(names)
+        report["passed"] = (report["complete"] and completed.returncode == 0
+                            and results["counts"].get("passed", 0) == len(names))
+    except (OSError, ValueError, KeyError, TypeError, ET.ParseError, subprocess.CalledProcessError) as error:
+        report["error"] = str(error)
+    report["wall_seconds"] = time.monotonic() - started
+    (output / "preflight.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    return report
+
+
 def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path) -> int:
+    runner_started = time.monotonic()
     output.mkdir(parents=True, exist_ok=False)
     manifest = subprocess.run([ctest, "--preset", preset, "--show-only=json-v1"], cwd=root,
                               check=True, text=True, capture_output=True)
@@ -114,6 +189,18 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     if not expected:
         raise ValueError("The selected CTest preset contains no tests")
     (output / "manifest.json").write_text(manifest.stdout, encoding="utf-8")
+    preflight = tooling_preflight(expected, preset, jobs, output, ctest, root)
+    if preflight is not None and not preflight["passed"]:
+        report = summarize([], 0.0)
+        report.update(preset=preset, jobs=jobs, full_graph_started=False, complete=False,
+                      missing=expected, unexpected=[], not_run=expected,
+                      preflight_wall_seconds=preflight["wall_seconds"],
+                      total_runner_wall_seconds=time.monotonic() - runner_started,
+                      reason="tooling prerequisite preflight failed")
+        (output / "timings.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        print(f"Full graph not started: tooling prerequisite preflight failed; {len(expected)} tests not run", file=sys.stderr)
+        print(f"Preflight report: {output / 'preflight.json'}", file=sys.stderr)
+        return preflight.get("ctest_exit_code", 1) or 1
     command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure",
                "--no-tests=error", "--output-log", str(output / "ctest.log"),
                "--output-junit", str(output / "junit.xml")]
@@ -124,10 +211,15 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     actual = [row["name"] for row in report["tests"]]
     complete = Counter(actual) == Counter(expected)
     report.update(preset=preset, jobs=jobs, ctest_exit_code=completed.returncode,
-                  complete=complete, missing=sorted(set(expected) - set(actual)),
+                  complete=complete, full_graph_started=True,
+                  preflight_wall_seconds=preflight["wall_seconds"] if preflight else 0.0,
+                  total_runner_wall_seconds=time.monotonic() - runner_started,
+                  missing=sorted(set(expected) - set(actual)),
                   unexpected=sorted(set(actual) - set(expected)))
     (output / "timings.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print_report(report)
+    if preflight is not None:
+        print(f"Prerequisite preflight: {preflight['wall_seconds']:.2f}s; total runner wall: {report['total_runner_wall_seconds'] / 60:.2f} min")
     print(f"Timing report: {output / 'timings.json'}")
     if not complete:
         print("CTest result inventory differs from the selected preset", file=sys.stderr)
@@ -137,7 +229,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--preset", default="dev")
-    parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; GUI/performance rows remain serial")
+    parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; exclusive courses stay serial; only audited correctness may overlap")
     parser.add_argument("--output-dir", type=Path, help="New directory for this run's log, JUnit and timing report")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
     parser.add_argument("--json", action="store_true", help="Print a JSON report when reading --report-log")

@@ -339,6 +339,27 @@ endfunction()
 #   4. Paste the printed values into the pins, and name the reviewed range in the
 #      commit.
 #
+# BPR-1670 main integration reseal over matching d989efb5c..15bb7f8a4.
+# Pinned-scope commits: 6ad4c4f28 (BPR-1671) and 3ae1183f7 (BPR-1672),
+# release_update_desktop.cpp/.hpp only. Reviewed offered-access restoration,
+# reentrant RequestedBinding ordering, unchanged readiness/capability/closing/
+# generation guards, and fixed-label SHA-256 public binding in the existing
+# SQLite format. Native public access stays first with the same anonymous
+# release-only transport. No review mutation/publication or inventory change.
+# Review is recorded on both owning cards and the BPR-1670 integration ledger;
+# their existing acceptance remains scoped to their own candidates. Only the
+# manifest pin changes; full-application and mutation-branch pins stay exact.
+# Original early mismatch is retained; print-only mode is not verification.
+#
+# BPR-1669 reseal, found by BPR-1670: c5a906abe..aac127fa4 contains only
+# c0d404c2c inside the pinned app scope (release_update_desktop.cpp). Reviewed
+# the public release-only account, missing-account fallback and preservation
+# of the existing generation, closing and capability guards. No review
+# mutation or publication path changed. The full-application and production
+# mutation-branch pins are unchanged. Review/evidence are recorded on BPR-1669
+# and docs/verification/BPR-1670-windows-suite-runtime.md; retain the original
+# failed cold run as evidence, rather than treating a printed digest as proof.
+#
 # BPR-1006 reseal: 6cff4914..22fd2150 (b56cad7e, 9a7ba459, 22fd2150).
 # Reviewed Tour update preview/journal handoff, same-owner observed conflicts,
 # immutable original versus proposed source and deliberate retarget/reaffirmation.
@@ -1908,7 +1929,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4b0e7b0739fef3e689f29c6034dc31c7e37090efa7f7df0c39dd3d3ab0af7ad5"
+        "6b06b77edfb18a31fd641994e977510b3338d0b7350679ecc578378bdc5766e1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
