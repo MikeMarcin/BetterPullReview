@@ -1,0 +1,51 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-PENDING-AF"
+title: "Suggest change edits the head file in place in pull request review"
+status: "Backlog"
+rfcs: []
+depends_on: []
+priority: "P2"
+platforms: ["mac","win","linux"]
+metadata: {"kind":"ux","origin":"owner report 2026-10-21 (relayed by the coordinator)","owner_note":"It seems like the suggest change logic from the local project where we can type our change into the main code pain doesnt exist for the pr review ux","draft_rfc":"docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md","design_frames":"docs/design/BPR-PENDING-AF-in-pane-suggest-v1/index.html","frontend_design":"frontend-design:frontend-design loaded before the design frames","related_cards":["BPR-1156","BPR-1212","BPR-1721","BPR-1084","BPR-1716","BPR-1706"],"related_rfcs":["RFC-BPR-0055","RFC-BPR-0022","RFC-BPR-0048","RFC-BPR-0089"],"phase":"1 (design); no product code changed"}
+---
+
+# BPR-PENDING-AF: Suggest change edits the head file in place in pull request review
+
+## Owner report
+
+The owner, 2026-10-21, verbatim:
+
+> It seems like the suggest change logic from the local project where we can
+> type our change into the main code pain doesnt exist for the pr review ux
+
+## Phase 1 finding
+
+The report is accurate, and no regression caused it. [[BPR-1212]]'s Q2
+("B: whole-file editor") kept the in-place editor for local projects and
+gave pull requests a ```` ```suggestion ```` block in the drawer
+([[BPR-1212]], [[BPR-1721]]). The two sides, the GitHub constraints and the
+proposed design are in the draft RFC
+[RFC-DRAFT-0025](../../rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md).
+The [design frames](../../design/BPR-PENDING-AF-in-pane-suggest-v1/index.html)
+show the current state and each open question. They are design evidence, not
+the product.
+
+## Plan
+
+The work is RFC-DRAFT-0025's milestones M1 to M4: core planning, the Qt pane,
+the drawer and lifecycle, then the live and attended checks. Each becomes its
+own card when the RFC is adopted and IDs are allocated. Q1 to Q5 must be
+answered first, because each changes the scope of M1 to M3.
+
+## Owner questions
+
+These are asked in a fresh, short attended-review session, with one question
+per decision. The session is recorded below. Its URL is kept in the external
+session state.
+
+## Acceptance
+
+The RFC's AC01 to AC10 govern. This card's own criterion: the owner's answers
+to Q1 to Q5 are recorded here and in the RFC, and the RFC is adopted, revised
+or set aside to match.

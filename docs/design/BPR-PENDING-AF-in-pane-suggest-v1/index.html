@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>In-pane Suggest change for pull requests: design frames v1</title>
+<!-- Design evidence for RFC-DRAFT-0025 / BPR-PENDING-AF, not the product.
+     Drawn with frontend-design:frontend-design. ?frame=N shows one frame. -->
+<style>
+:root{
+  --bg:#F6F7F9; --panel:#FFFFFF; --code:#FFFFFF; --gutter:#FAFBFC; --side:#F0F2F5;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#7A838D; --lnum:#8C959F;
+  --rule:#E1E5EB; --rule-2:#C9D0D8;
+  --ins:#E9F8EE; --ins-g:#D9F5E0; --ins-ink:#1A7F37;
+  --del:#FDECEC; --del-ink:#B42318;
+  --write:#2F6FD6; --write-soft:#E3ECFA; --write-line:#9DBDF0;
+  --read:#C98F12; --read-soft:#FDF3DC;
+  --kw:#B51D27; --nm:#0550AE; --fn:#6639BA; --cm:#6E7781; --ty:#7A4B00;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--ui)}
+main{max-width:1240px;margin:0 auto;padding:28px 28px 60px}
+.frame{margin:0 0 44px}
+.frame>h2{font-size:19px;font-weight:600;margin:0 0 4px;letter-spacing:-.005em}
+.frame>p{margin:0 0 14px;color:var(--ink-2);max-width:78ch}
+.pair{display:grid;grid-template-columns:1fr;gap:22px}
+.pair.side{grid-template-columns:1fr 1fr}
+.pair .opt>h3{font-size:14px;font-weight:600;margin:0 0 6px}
+.pair .opt>h3 b{display:inline-block;min-width:1.4em;color:var(--write)}
+.pair .opt>p{margin:0 0 8px;color:var(--ink-2);font-size:13px}
+/* window */
+.win{background:var(--panel);border:1px solid var(--rule-2);border-radius:8px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(31,35,40,.06)}
+.bar{display:flex;align-items:center;gap:10px;height:30px;padding:0 10px;background:var(--side);
+  border-bottom:1px solid var(--rule);font-size:12px;color:var(--ink-2)}
+.bar .path{font-weight:600;color:var(--ink)}
+.bar .state{margin-left:auto;color:var(--write);font-weight:600}
+.body{display:grid;grid-template-columns:1fr 18px 1fr 360px;min-height:300px}
+.body.one{grid-template-columns:1fr 360px}
+.body.nodrawer{grid-template-columns:1fr 18px 1fr}
+.pane{font:12.5px/20px var(--mono);background:var(--code);position:relative;padding:4px 0}
+.pane.editing{box-shadow:inset 0 0 0 2px var(--write)}
+.pane .row{display:grid;grid-template-columns:18px 30px 1fr;white-space:pre;height:20px}
+.pane .row .br{position:relative}
+.pane .row .n{color:var(--lnum);text-align:right;padding-right:10px}
+.row.add{background:var(--ins)} .row.add .hl{background:var(--ins-g)}
+.row.del{background:var(--del)}
+.row.mine{background:var(--write-soft)}
+.row.mine .br::after,.row.mine-x .br::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:var(--write)}
+.row.mine.first .br::after{top:3px;border-top-left-radius:2px}
+.row.mine.last .br::after{bottom:3px}
+.row.warn{background:var(--read-soft)}
+.row.warn .br::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:var(--read)}
+.row.sel{background:#DCE6F7}
+.caret{display:inline-block;width:1.5px;height:15px;background:var(--ink);vertical-align:-3px;margin-left:-1px}
+.tag{display:none}
+.br b{position:absolute;left:8px;top:2px;font:700 10px/16px var(--ui);color:var(--write)}
+.row.warn .br b{color:#8A6100}
+.map{background:var(--gutter);border-left:1px solid var(--rule);border-right:1px solid var(--rule);position:relative}
+.map i{position:absolute;left:2px;right:2px;background:rgba(31,35,40,.13);border-radius:2px}
+.map i.dim{background:rgba(31,35,40,.05)}
+.kw{color:var(--kw)} .nm{color:var(--nm)} .fn{color:var(--fn)} .cm{color:var(--cm)} .ty{color:var(--ty)}
+/* drawer */
+.drawer{min-width:0;overflow:hidden;background:#F7F8FA;border-left:1px solid var(--rule);padding:10px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--panel);border:1px solid var(--rule-2);border-left:3px solid var(--write);border-radius:6px;padding:8px 10px;font-size:12.5px}
+.card.dash{border-style:dashed;border-left-style:solid}
+.card.w{border-left-color:var(--read)}
+.card .hd{display:flex;gap:6px;align-items:baseline;margin-bottom:6px}
+.card .hd b{font-weight:600}
+.card .hd span{color:var(--ink-3)}
+.field{border:1px solid var(--rule-2);border-radius:4px;padding:6px 8px;min-height:44px;color:var(--ink);background:#fff}
+.field.ph{color:var(--ink-3)}
+.field.mono{font:12px/18px var(--mono);white-space:pre;min-height:0}
+.what{margin-top:7px;font:11.5px/17px var(--mono);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.what div{padding:0 6px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.what .d{background:var(--del)} .what .a{background:var(--ins)}
+.what .t{font:600 11px/18px var(--ui);color:var(--ink-2);background:var(--side);padding:0 6px}
+.foot{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+
+.btn{border:1px solid var(--rule-2);border-radius:11px;padding:1px 8px;background:#fff;color:var(--ink);font-size:11px}
+.btn.p{background:var(--write);border-color:var(--write);color:#fff}
+.note{font-size:11.5px;color:var(--ink-2);margin-top:6px}
+.note.w{color:#7A5200}
+.chip{display:inline-block;border:1px solid var(--rule-2);border-radius:9px;padding:0 7px;font-size:11px;color:var(--ink-2);margin-bottom:6px}
+.status{height:24px;border-top:1px solid var(--rule);background:var(--side);font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;padding:0 10px}
+@media (max-width:900px){.pair{grid-template-columns:1fr}}
+body.single main{max-width:none;padding:16px}
+body.single .frame{display:none;margin:0}
+body.single .frame.on{display:block}
+</style>
+</head>
+<body>
+<main id="m"></main>
+<script>
+// Base and head of src/render/scale.cpp, lines 10-27 (made-up code for the frames).
+const base = [
+ ["auto <span class=fn>clamp_scale</span>(<span class=kw>double</span> aScale) -> <span class=kw>double</span>",10],
+ ["{",11],
+ ["    <span class=kw>if</span> (aScale &lt; <span class=nm>0.5</span>) {",12],
+ ["        <span class=kw>return</span> <span class=nm>0.5</span>;",13],
+ ["    }",14],
+ ["    <span class=kw>return</span> aScale;",15],
+ ["}",16],
+ ["",17],
+ ["auto <span class=fn>pixel_ratio</span>(<span class=kw>const</span> <span class=ty>QScreen</span>&amp; aScreen) -> <span class=kw>double</span>",18],
+ ["{",19],
+ ["    <span class=kw>return</span> aScreen.logicalDotsPerInch() / <span class=nm>96.0</span>;",20],
+ ["}",21],
+];
+function row(n, html, cls="", tag="", tagcls=""){
+  return `<div class="row ${cls}" title="${tag}"><span class=br>${tag?`<b>${tag.startsWith("Change ")?tag.slice(7):"!"}</b>`:""}</span><span class=n>${n??""}</span><span>${html}${tag?`<span class="tag ${tagcls}">${tag}</span>`:""}</span></div>`;
+}
+const H = { // head lines by number
+ 10:"auto <span class=fn>clamp_scale</span>(<span class=kw>double</span> aScale) -> <span class=kw>double</span>",
+ 11:"{",
+ 12:"    <span class=kw>if</span> (aScale &lt; <span class=nm>0.5</span>) {",
+ 13:"        <span class=kw>return</span> <span class=nm>0.5</span>;",
+ 14:"    }",
+ 15:"    <span class=kw>return</span> <span class=hl>std::<span class=fn>min</span>(aScale, <span class=nm>4.0</span>)</span>;",
+ 16:"}",
+ 17:"",
+ 18:"auto <span class=fn>pixel_ratio</span>(<span class=kw>const</span> <span class=ty>QScreen</span>&amp; aScreen) -> <span class=kw>double</span>",
+ 19:"{",
+ 20:"    <span class=kw>return</span> <span class=hl>aScreen.devicePixelRatio()</span>;",
+ 21:"}",
+};
+const left = () => `<div class=pane>${base.map(([h,n])=>row(n,h,n===15||n===20?"del":"")).join("")}</div>`;
+const map = (dim) => `<div class=map><i class="${dim?"dim":""}" style="top:104px;height:20px"></i><i class="${dim?"dim":""}" style="top:204px;height:20px"></i></div>`;
+function head(edit, opts={}){
+  // edit: map line -> {html, cls, tag}
+  let out = "";
+  for (let n=10;n<=21;n++){
+    const e = edit[n];
+    if (e && e.before) for (const b of e.before) out += row(b.n, b.html, b.cls, b.tag, b.tagcls);
+    if (e && e.skip) continue;
+    out += row(e?.n ?? n, e?.html ?? H[n], e?.cls ?? (n===15||n===20?"add":""), e?.tag, e?.tagcls);
+  }
+  return `<div class="pane ${opts.editing?"editing":""}">${out}</div>`;
+}
+// Change 1 replaces head lines 12-15 with one line; Change 2 rewrites line 20.
+const c1 = {
+  12:{html:"    <span class=kw>return</span> std::<span class=fn>clamp</span>(aScale, <span class=nm>0.5</span>, <span class=nm>4.0</span>);<span class=caret></span>", cls:"mine first last", tag:"Change 1", n:12},
+  13:{skip:true},14:{skip:true},15:{skip:true},
+  20:{html:"    <span class=kw>return</span> std::<span class=fn>max</span>(aScreen.devicePixelRatio(), <span class=nm>1.0</span>);", cls:"mine first last", tag:"Change 2", n:17},
+  16:{n:13},17:{n:14},18:{n:15},19:{n:16},21:{n:18},
+};
+const what1 = `<div class=what><div class=t>What it changes, lines 12–15</div>
+<div class=d>-    if (aScale &lt; 0.5) {</div><div class=d>-        return 0.5;</div><div class=d>-    }</div><div class=d>-    return std::min(aScale, 4.0);</div><div class=a>+    return std::clamp(aScale, 0.5, 4.0);</div></div>`;
+const what2 = `<div class=what><div class=t>What it changes, line 20</div>
+<div class=d>-    return aScreen.devicePixelRatio();</div><div class=a>+    return std::max(aScreen.devicePixelRatio(), 1.0);</div></div>`;
+const foot = `<div class=foot>Private <span class=btn style="margin-left:auto">Delete</span><span class="btn">Add single comment</span><span class="btn p">Start a review</span></div>`;
+const card = (hd, body, extra="", cls="") => `<div class="card ${cls}"><div class=hd><b>${hd}</b><span>Suggested change</span></div>${body}${extra}</div>`;
+const win = (bar, bodyHtml, cls="", status="") => `<div class=win><div class=bar><span class=path>src/render/scale.cpp</span><span>#128 · head 4e1c0a7</span>${bar?`<span class=state>${bar}</span>`:""}</div><div class="body ${cls}">${bodyHtml}</div>${status?`<div class=status>${status}</div>`:""}</div>`;
+const drawer = (inner) => `<div class=drawer>${inner}</div>`;
+
+const frames = [];
+// 0 Today
+frames.push(`<section class=frame><h2>Today: Suggest change writes a block in the drawer</h2>
+<p>The panes stay read-only. Shift+Return on line 15 puts the head line into a suggestion block in the drawer field, and the change is typed there.</p>
+${win("", left()+map()+head({15:{cls:"add sel"}})+drawer(card("Line 15",
+ `<div class="field mono">\`\`\`suggestion\n    return std::clamp(aScale, 0.5, 4.0);<span class=caret></span>\n\`\`\`</div>`,
+ `<div class=what><div class=t>What it changes</div><div class=d>-    return std::min(aScale, 4.0);</div><div class=a>+    return std::clamp(aScale, 0.5, 4.0);</div></div>`+foot)))}
+</section>`);
+// 1 Q1
+frames.push(`<section class=frame><h2>Q1. The whole head file is editable, and each separate change is its own suggestion</h2>
+<p>Suggest change on line 15 makes the right pane editable in place, with the same text, scroll and colours. The blue edge says you are writing. Each changed run gets a numbered blue bracket and becomes one GitHub suggestion comment on its own lines, so this edit (lines 12–15 made one line, and line 20 rewritten) is two comments. The base pane stays read-only.</p>
+${win("Editing the head", left()+map(true)+head(c1,{editing:true})+drawer(
+  card("Lines 12–15", `<div class="field ph">Add your words (optional)</div>`, what1, "")+
+  card("Line 20", `<div class="field ph">Add your words (optional)</div>`, what2+foot, "dash")))}
+</section>`);
+// 2 Q2
+frames.push(`<section class=frame><h2>Q2. Where the words go when one edit makes several changes</h2>
+<p>The edit from Q1 has two changes, so it is two GitHub comments. They can carry their own words or share the words of the first change.</p>
+<div class="pair side">
+<div class=opt><h3><b>A</b>Each change has its own words</h3><p>Two drafts, each with its own field. A change with no words is sent as just the suggestion.</p>
+<div class=win><div class="body one" style="grid-template-columns:1fr">${drawer(
+ card("Lines 12–15", `<div class=field>clamp covers both bounds and reads as one rule.</div>`, what1)+
+ card("Line 20", `<div class=field>Some virtual screens report 0 here.</div>`, what2+foot, "dash"))}</div></div></div>
+<div class=opt><h3><b>B</b>One set of words, on the first change</h3><p>The words go on the first comment. The others carry only their block, with "Part 2 of 2" and a link to the first.</p>
+<div class=win><div class="body one" style="grid-template-columns:1fr">${drawer(
+ card("Lines 12–15", `<div class=field>Two small fixes in scale.cpp: clamp covers both bounds, and a virtual screen can report 0.</div>`, what1)+
+ card("Line 20", `<div class="field ph" style="min-height:0">Part 2 of 2. See the comment on lines 12–15.</div>`, what2+foot, "dash"))}</div></div></div>
+</div></section>`);
+// 3 Q3
+const offHead = head(Object.assign({}, c1, {20:{n:17}}), {editing:true});
+const offRow = row(41, "    <span class=cm>// pixels per point, at least 1</span>", "warn first last", "Not in the diff", "w");
+const offPane = offHead.slice(0, -6) + `<div class=row><span class=br></span><span class=n>⋮</span><span></span></div>` + offRow + `</div>`;
+frames.push(`<section class=frame><h2>Q3. A change GitHub cannot take as a suggestion</h2>
+<p>Line 41 is outside every changed region of the pull request. GitHub refuses an inline comment there, so it cannot carry a suggestion. The same applies to a filtered view whose lines changed again after its commit.</p>
+<div class=pair>
+<div class=opt><h3><b>A</b>Marked, and must be undone to send</h3><p>The pane marks it in amber and says why. Start a review and Add single comment stay unavailable until it is undone.</p>
+${win("Editing the head", offPane+drawer(card("Line 41",`<div class="note w">GitHub takes suggestions only on lines in the pull request's diff. Undo this change to send the others.</div>`,`<div class=foot><span class=btn>Undo this change</span><span class="btn" style="opacity:.45">Start a review</span></div>`,"w")),"one")}</div>
+<div class=opt><h3><b>B</b>Sent as text in a file comment</h3><p>It goes with the others as a file comment with a link to line 41 and the change as a diff block. GitHub cannot apply it, and the mark says so.</p>
+${win("Editing the head", offPane.replace("Not in the diff","Text only")+drawer(card("Line 41",`<div class="field ph" style="min-height:0">Add your words (optional)</div>`,`<div class=what><div class=t>Sent as a file comment, text only</div><div class=d>-    // pixels per point</div><div class=a>+    // pixels per point, at least 1</div></div>`+foot,"w")),"one")}</div>
+</div></section>`);
+// 4 Q4
+const unified = `<div class="pane editing">${[
+ row(10,H[10]),row(11,H[11]),
+ row(12,"    <span class=kw>return</span> std::<span class=fn>clamp</span>(aScale, <span class=nm>0.5</span>, <span class=nm>4.0</span>);<span class=caret></span>","mine first last","Change 1"),
+ row(13,H[16]),row(14,""),row(15,H[18]),row(16,H[19]),row(17,H[20],"add"),row(18,H[21])].join("")}</div>`;
+frames.push(`<section class=frame><h2>Q4. Suggest change in one pane</h2>
+<p>One pane interleaves removed and added rows, so there is no single file to type into. Either the pane shows the head alone while you edit, or the view switches to two panes for the edit.</p>
+<div class=pair>
+<div class=opt><h3><b>A</b>The one pane shows the head file while editing</h3><p>Removed rows are hidden while you edit and added rows stay green. The interleaved view returns when the edit ends.</p>
+${win("Editing the head", unified+drawer(card("Lines 12–15",`<div class="field ph" style="min-height:0">Add your words (optional)</div>`,what1)),"one")}</div>
+<div class=opt><h3><b>B</b>Two panes for the edit</h3><p>Suggest change switches to two panes, the right one editable as in Q1, and returns to one pane when the edit ends. The status bar says so.</p>
+${win("Editing the head", left()+map(true)+head(c1,{editing:true}),"nodrawer","Showing two panes while you edit. One pane returns when you finish.")}</div>
+</div></section>`);
+// 5 Q5
+frames.push(`<section class=frame><h2>Q5. The change is written only in the code</h2>
+<p>While an edit is open, the drawer holds your words and shows what each change does. The suggestion block itself is not a text field any more, and the code pane is the one place the change is typed. A fence typed or pasted into an ordinary comment still works as text.</p>
+<div class="pair side">
+<div class=opt><h3>Proposed</h3><p>Words, label, and the change read back in diff colours.</p>
+<div class=win><div class="body one" style="grid-template-columns:1fr">${drawer(card("Lines 12–15",`<span class=chip>suggestion</span><div class=field>clamp covers both bounds.</div>`,what1+foot))}</div></div></div>
+<div class=opt><h3>Today</h3><p>The block is typed in the field, and the code pane is read-only.</p>
+<div class=win><div class="body one" style="grid-template-columns:1fr">${drawer(card("Line 15",`<div class="field mono">\`\`\`suggestion\n    return std::clamp(aScale, 0.5, 4.0);\n\`\`\`</div>`,foot))}</div></div></div>
+</div></section>`);
+
+document.getElementById("m").innerHTML = frames.join("");
+const q = new URLSearchParams(location.search).get("frame");
+if (q !== null){ document.body.classList.add("single"); document.querySelectorAll(".frame")[+q]?.classList.add("on"); }
+</script>
+</body>
+</html>
