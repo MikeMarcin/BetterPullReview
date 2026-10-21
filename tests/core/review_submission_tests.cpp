@@ -309,6 +309,40 @@ namespace {
 			expect(!parse_review_submission_unknown(text), "anything but the exact line is not read");
 		}
 	}
+	/// [[BPR-PENDING-AD]]. A known ending is one line of fixed keys, enums
+	/// and counts that reads back exactly; nothing else is read.
+	void test_ending_lines()
+	{
+		using ending = review_submission_ending;
+		for (const auto& [diagnosis, line] : std::initializer_list<std::pair<review_submission_ending_diagnosis, std::string_view>>{
+				 { { .Ending = ending::published, .PostAnswer = review_submission_post_answer::success, .PostStatusClass = 2U, .Comments = 9U }, "review_submission_ending=published run=submit post=success post_class=2 refusal=none stop=none comments=9 duplicate=0" },
+				 { { .Ending = ending::published, .Run = review_submission_run::check, .Duplicate = true }, "review_submission_ending=published run=check post=not_sent post_class=0 refusal=none stop=none comments=0 duplicate=1" },
+				 { { .Ending = ending::refused, .PostAnswer = review_submission_post_answer::error_status, .PostStatusClass = 4U, .Refusal = review_submission_ending_refusal::unplaceable_line, .Comments = 9U }, "review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line stop=none comments=9 duplicate=0" },
+				 { { .Ending = ending::settled, .Run = review_submission_run::check, .PostAnswer = review_submission_post_answer::no_answer, .Comments = 9U }, "review_submission_ending=settled run=check post=no_answer post_class=0 refusal=none stop=none comments=9 duplicate=0" },
+				 { { .Ending = ending::not_sent, .Stop = review_submission_stop::stale_head, .Comments = 1U }, "review_submission_ending=not_sent run=submit post=not_sent post_class=0 refusal=none stop=stale_head comments=1 duplicate=0" } }) {
+			expect(valid(diagnosis) && describe(diagnosis) == line, "an ending is fixed keys, enums and counts");
+			expect(parse_review_submission_ending(line) == diagnosis, "and reads back exactly");
+		}
+		for (const auto& invalid : std::array{
+				 review_submission_ending_diagnosis{ .Ending = static_cast<ending>(4U) },
+				 review_submission_ending_diagnosis{ .Run = static_cast<review_submission_run>(2U) },
+				 review_submission_ending_diagnosis{ .PostStatusClass = 2U },
+				 review_submission_ending_diagnosis{ .Refusal = review_submission_ending_refusal::review },
+				 review_submission_ending_diagnosis{ .Stop = review_submission_stop::cancelled },
+				 review_submission_ending_diagnosis{ .Ending = ending::refused, .Duplicate = true },
+				 review_submission_ending_diagnosis{ .Comments = 51U },
+			 }) {
+			expect(!valid(invalid) && describe(invalid).empty(), "an out-of-range ending is not valid and is never written");
+		}
+		const auto line = describe(review_submission_ending_diagnosis{ });
+		for (const auto& text : std::array<std::string, 7>{ std::string{ }, line + " ", line + " host=example.invalid", "x" + line,
+															"review_submission_ending=published run=submit post=not_sent post_class=0 refusal=none stop=none comments=0 duplicate=2",
+															"review_submission_ending=published run=submit post=not_sent post_class=0 refusal=none stop=none comments=00 duplicate=0",
+															"review_submission_ending=published post=not_sent run=submit post_class=0 refusal=none stop=none comments=0 duplicate=0" }) {
+			expect(!parse_review_submission_ending(text), "anything but the exact line is not read");
+		}
+		expect(!parse_review_submission_unknown(line) && !parse_review_submission_ending(describe(review_submission_unknown_diagnosis{ })), "an ending and an unknown reason are never read as each other");
+	}
 	/// [[BPR-1541]]. The core chooses each reason's line and the only numbers
 	/// it may say: comment counts for a mismatch that carried comments, the
 	/// status class 4 or 5 for an HTTP status; nothing else reaches the page.
@@ -382,6 +416,7 @@ int main()
 	expect(!render_conversation_reply(oversized), "oversized quote is refused rather than silently truncated");
 	test_unknown_reasons();
 	test_unknown_notices();
+	test_ending_lines();
 	test_post_answers_settle();
 	test_decided_controls();
 	test_kept_drafts();

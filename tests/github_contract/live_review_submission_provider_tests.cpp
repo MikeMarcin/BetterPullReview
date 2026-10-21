@@ -1681,7 +1681,18 @@ namespace {
 					auto       check = busy_storage(selected, root.Path);
 					const auto kept  = check->load(server->Request.IdempotencyKey);
 					if (!cause) {
-						expect(result.Publication == publication::published && !result.Unknown && log->Events.empty(), label + "without its cause the review is confirmed and nothing is named or logged");
+						// [[BPR-PENDING-AD]]. A confirmed review is logged as one
+						// counts-only ending, Submit's or Check status's.
+						expect(result.Publication == publication::published && !result.Unknown && log->Events.size() == 1U, label + "without its cause the review is confirmed and nothing is named, and one ending is logged");
+						const auto& ending = log->Events.front();
+						expect(ending.Operation == application::diagnostic_operation::review_submission && ending.Outcome == application::diagnostic_outcome::succeeded && !ending.ReviewSubmission && ending.ReviewEnding
+								   && ending.ReviewEnding->Ending == core::review_submission_ending::published && ending.ReviewEnding->Comments == 3U
+								   && ending.ReviewEnding->Run == (entry.CheckStatus ? core::review_submission_run::check : core::review_submission_run::submit)
+								   && (ending.HttpStatus == 0U) == entry.CheckStatus && ending.Summary.State == application::diagnostic_summary_state::sanitized && ending.Summary.text() == core::describe(*ending.ReviewEnding),
+							   label + "as published, with its run, its comments counted and the POST's status");
+						for (const auto* secret : { "MikeMarcin", "BPR-Test", "github.com", "ghe.example", "fixture-reviewer", "question:", "nit:", "praise:", "src/" }) {
+							expect(ending.Summary.text().find(secret) == std::string_view::npos, label + "with no host, repository, account, path or comment words");
+						}
 						expect(kept && *kept && !(**kept).LastUnknown, label + "and the attempt keeps no reason");
 						continue;
 					}
@@ -2172,13 +2183,18 @@ namespace {
 			// The owner's case: the GitHub CLI's 422 is a definite refusal.
 			temporary_directory root;
 			transport           wire;
-			wire.Request           = carried();
-			wire.NewCount          = 0U;
-			wire.Refuse422AsAnswer = true;
-			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			wire.Request                  = carried();
+			wire.NewCount                 = 0U;
+			wire.Refuse422AsAnswer        = true;
+			auto                      log = std::make_shared<recording_log>();
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path), log };
 			const auto                result = session.submit_and_reconcile(wire.Request);
 			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::refused_by_server && wire.Posts == 1U,
 				   "the GitHub CLI's 422, with no new review of mine after it, is a definite refusal by the server");
+			// [[BPR-PENDING-AD]]. The refusal is logged: its status and what it said.
+			expect(log->Events.size() == 1U && log->Events.front().ReviewEnding && log->Events.front().HttpStatus == 422U && log->Events.front().Outcome == application::diagnostic_outcome::failed
+					   && log->Events.front().Summary.text() == "review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line stop=none comments=2 duplicate=0",
+				   "and logged as refused with GitHub's 422, the unplaceable line and the comments it carried");
 			expect(session.pending() && session.pending()->empty() && session.admitted(wire.Request.IdempotencyKey) && !*session.admitted(wire.Request.IdempotencyKey),
 				   "and its attempt is withdrawn, so its drafts are released");
 			expect(result.Refusal == application::review_submission_refusal::unplaceable_line, "and GitHub's words say a comment's line cannot be placed in the diff");
@@ -2233,11 +2249,16 @@ namespace {
 				review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::make_unique<legacy_store>(storage(root.Path)), { }, [] { return start; } };
 				expect(session.reconcile(wire.Request).Publication == publication::indeterminate, "a new review of mine that cannot be told apart keeps it unknown");
 			}
-			wire.Reviews = listed;
-			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::make_unique<legacy_store>(storage(root.Path)), { }, [] { return start; } };
+			wire.Reviews                  = listed;
+			auto                      log = std::make_shared<recording_log>();
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), std::make_unique<legacy_store>(storage(root.Path)), log, [] { return start; } };
 			const auto                result = session.reconcile(wire.Request);
 			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::unavailable && wire.Posts == 1U,
 				   "Check status settles a record that keeps no answer when no review GitHub lists can be it");
+			// [[BPR-PENDING-AD]]. Settling is logged as Check status's ending.
+			expect(log->Events.size() == 1U && log->Events.front().ReviewEnding && log->Events.front().HttpStatus == 0U
+					   && log->Events.front().Summary.text() == "review_submission_ending=settled run=check post=no_answer post_class=0 refusal=none stop=none comments=2 duplicate=0",
+				   "and logged as settled by Check status, with the no answer its migration kept");
 			expect(session.pending() && session.pending()->empty(), "and withdraws it, so its drafts are released");
 		}
 		for (const auto [answered, elapsed, settles] : { std::tuple{ false, core::review_submission_settle_delay_ms - 1, false }, std::tuple{ false, core::review_submission_settle_delay_ms, true }, std::tuple{ true, std::int64_t{ 24 } * 60 * 60 * 1000, false } }) {
@@ -2253,10 +2274,15 @@ namespace {
 				expect(session.submit_and_reconcile(wire.Request).Publication == publication::indeterminate, "nothing listed after the POST is unknown at first");
 			}
 			const auto                later = start + elapsed;
-			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path), { }, [later] { return later; } };
+			auto                      log   = std::make_shared<recording_log>();
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path), log, [later] { return later; } };
 			const auto                result = session.reconcile(wire.Request);
 			expect((result.Publication == publication::definitely_not_published) == settles && (result.Publication == publication::indeterminate) == !settles && wire.Posts == 1U,
 				   "the kept answer and the time since it decide whether Check status settles it");
+			// [[BPR-PENDING-AD]]. A settled one is logged with the kept answer; an unknown one as its reason.
+			expect(log->Events.size() == 1U && (log->Events.front().ReviewEnding.has_value() == settles) && (log->Events.front().ReviewSubmission.has_value() == !settles)
+					   && (!settles || log->Events.front().Summary.text() == "review_submission_ending=settled run=check post=no_answer post_class=0 refusal=none stop=none comments=2 duplicate=0"),
+				   "and logged as settled with the answer it kept, or as unknown");
 		}
 	}
 	struct row

@@ -5,6 +5,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -475,7 +476,12 @@ namespace bpr::qt {
 		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.txt)"));
 		chooser->setDefaultSuffix(QStringLiteral("txt"));
 		chooser->setDirectory(QString::fromStdString(*aDirectory));
-		chooser->selectFile(QStringLiteral("BetterPullReview-diagnostics.txt"));
+		// [[BPR-PENDING-AD]]. Named for when it was taken and by which
+		// version, so saved exports need no renaming and sort by time.
+		const auto now = QDateTime::currentDateTime();
+		chooser->selectFile(QString::fromStdString(core::diagnostic_export_file_name(
+			{ .Year = now.date().year(), .Month = static_cast<unsigned>(now.date().month()), .Day = static_cast<unsigned>(now.date().day()), .Hour = static_cast<unsigned>(now.time().hour()), .Minute = static_cast<unsigned>(now.time().minute()) },
+			QCoreApplication::applicationVersion().toStdString())));
 		Dialog = chooser;
 		connect(chooser, &QDialog::finished, this, [this, chooser, aIntent](int aResult) {
 			Dialog.clear();

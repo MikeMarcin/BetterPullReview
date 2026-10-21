@@ -184,6 +184,15 @@ namespace {
 		event.Summary.State    = application::diagnostic_summary_state::sanitized;
 		event.ReviewSubmission = diagnosis;
 		expect(live->record(event) == status::available, "the live session's review submission is admitted");
+		// [[BPR-PENDING-AD]]. A later Check status found it refused.
+		const auto ending    = core::review_submission_ending_diagnosis{ .Ending = core::review_submission_ending::refused, .Run = core::review_submission_run::check, .PostAnswer = core::review_submission_post_answer::error_status, .PostStatusClass = 4U, .Refusal = core::review_submission_ending_refusal::unplaceable_line, .Comments = 2U };
+		auto       ended     = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::failed };
+		const auto endedText = core::describe(ending);
+		std::ranges::copy(endedText, ended.Summary.Text.begin());
+		ended.Summary.Size  = static_cast<std::uint16_t>(endedText.size());
+		ended.Summary.State = application::diagnostic_summary_state::sanitized;
+		ended.ReviewEnding  = ending;
+		expect(live->record(ended) == status::available, "the live session's review submission ending is admitted");
 		std::string liveSession;
 		for (const auto& path : tests::diagnostic_files(aRoot)) {
 			if (path != renamed) {
@@ -210,9 +219,13 @@ namespace {
 		expect(preview.contains("\"op\":\"github.review_submission\"") && preview.contains("\"detail\":\"" + text + "\"")
 				   && preview.contains("\"failure_domain\":\"review_submission\",\"failure\":\"review_not_listed\""),
 			   "with its review submission's reason and counts");
+		expect(preview.contains("\"detail\":\"" + endedText + "\"") && preview.contains("\"failure_domain\":\"review_submission\",\"failure\":\"none\""),
+			   "and its ending, as exactly its counts-only line");
 		expect(!preview.contains(liveSession), "and no session identity survives anonymization");
-		expect(descriptor.LimitOmittedRecords > 0U && descriptor.Sessions == 2U && preview.contains("\"limit_keeps\":\"newest\""), "the older session's oldest records are the ones left out, and counted");
-		expect(preview.contains("\"sequence\":700,") && !preview.contains("\"sequence\":100,"), "and its newest records are kept");
+		// [[BPR-PENDING-AD]]. Under the raised limits both sessions fit whole;
+		// over them the oldest are left out (application_release_maintenance).
+		expect(descriptor.LimitOmittedRecords == 0U && descriptor.OmittedRecords == 0U && descriptor.Sessions == 2U && preview.contains("\"limit_keeps\":\"newest\""), "both sessions fit the export whole");
+		expect(preview.contains("\"sequence\":700,") && preview.contains("\"sequence\":1,") && preview.contains("\"sequence\":100,"), "the older session's oldest records are kept too");
 		live->close();
 	}
 
@@ -345,6 +358,27 @@ try {
 			auto misplaced      = event;
 			misplaced.Operation = application::diagnostic_operation::pull_request;
 			expect(log.record(misplaced) == status::dropped, "a reason rides only its own operation");
+			// [[BPR-PENDING-AD]]. A known ending: exactly its own line, on its own operation, never with a reason.
+			const auto ending = core::review_submission_ending_diagnosis{ .Ending = core::review_submission_ending::published, .PostAnswer = core::review_submission_post_answer::success, .PostStatusClass = 2U, .Comments = 3U };
+			auto       ended  = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::succeeded, .HttpStatus = 200U };
+			const auto line   = core::describe(ending);
+			std::ranges::copy(line, ended.Summary.Text.begin());
+			ended.Summary.Size  = static_cast<std::uint16_t>(line.size());
+			ended.Summary.State = application::diagnostic_summary_state::sanitized;
+			ended.ReviewEnding  = ending;
+			expect(log.record(ended) == status::available, "a review submission ending reaches the real log");
+			auto forged            = ended;
+			forged.Summary.Text[0] = 'X';
+			expect(log.record(forged) == status::dropped, "an ending whose detail is anything but its own line never enters the log");
+			auto both             = ended;
+			both.ReviewSubmission = diagnosis;
+			expect(log.record(both) == status::dropped, "a record carries an ending or a reason, never both");
+			auto elsewhere      = ended;
+			elsewhere.Operation = application::diagnostic_operation::pull_request;
+			expect(log.record(elsewhere) == status::dropped, "an ending rides only its own operation");
+			auto impossible               = ended;
+			impossible.ReviewEnding->Stop = core::review_submission_stop::cancelled;
+			expect(log.record(impossible) == status::dropped, "an invalid ending never enters the log");
 		}
 		{
 			// [[BPR-1680]]. A Home discovery read's end: its counts and

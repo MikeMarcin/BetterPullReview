@@ -11,6 +11,8 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
+#include <ctime>
 #include <exception>
 #include <iterator>
 #include <limits>
@@ -1428,11 +1430,33 @@ namespace bpr::adapters::sqlite {
 				}
 				parts.push_back(std::move(part));
 			}
+			// Each part is released once joined, so the join holds about one
+			// copy of the input rather than two.
 			result.Bytes.reserve(inputBytes + parts.size());
 			for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
 				result.Bytes += *part;
+				std::string{ }.swap(*part);
 			}
 			return result;
+		}
+		/// \brief [[BPR-PENDING-AD]]. Now, with the local offset from UTC, for the
+		/// export's header; a time zone the C library cannot convert gives
+		/// offset zero.
+		auto export_stamp() -> application::diagnostic_export_stamp
+		{
+			const auto now     = std::chrono::system_clock::now();
+			const auto utcMs   = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+			const auto seconds = std::chrono::system_clock::to_time_t(now);
+			std::tm    local{ };
+#ifdef _WIN32
+			const bool converted = ::localtime_s(&local, &seconds) == 0;
+			const auto asUtc     = converted ? ::_mkgmtime(&local) : static_cast<std::time_t>(-1);
+#else
+			const bool converted = ::localtime_r(&seconds, &local) != nullptr;
+			const auto asUtc     = converted ? ::timegm(&local) : static_cast<std::time_t>(-1);
+#endif
+			const auto offset = asUtc == static_cast<std::time_t>(-1) ? std::int64_t{ 0 } : (static_cast<std::int64_t>(asUtc) - static_cast<std::int64_t>(seconds)) / 60;
+			return { .UtcMs = utcMs > 0 ? static_cast<std::uint64_t>(utcMs) : 0U, .OffsetMinutes = static_cast<std::int32_t>(offset) };
 		}
 		auto export_namespace() -> std::string
 		{
@@ -1701,7 +1725,7 @@ namespace bpr::adapters::sqlite {
 															aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session ? std::string_view{ capture.Session } : std::string_view{ });
 				auto       document = aContext.ExportOptions.Policy == core::diagnostic_export_policy::metadata
 					? application::prepare_release_diagnostics(input.Bytes, revision)
-					: application::prepare_diagnostic_export(input.Bytes, revision, aContext.ExportOptions, capture, export_namespace(), input.UnreadFiles);
+					: application::prepare_diagnostic_export(input.Bytes, revision, aContext.ExportOptions, capture, export_namespace(), input.UnreadFiles, export_stamp());
 				if (!document) {
 					fail(document.error());
 				}

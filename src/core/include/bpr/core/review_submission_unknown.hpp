@@ -182,6 +182,78 @@ namespace bpr::core {
 	[[nodiscard]] auto describe(const review_submission_unknown_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes; anything else is none.
 	[[nodiscard]] auto parse_review_submission_unknown(std::string_view aText) -> std::optional<review_submission_unknown_diagnosis>;
+
+	/// \brief [[BPR-PENDING-AD]]. How a submission run ended when its outcome
+	/// is known. An unknown outcome is a `review_submission_unknown_diagnosis`.
+	enum class review_submission_ending : std::uint8_t {
+		/// GitHub lists the review: this run published it or found it.
+		published,
+		/// GitHub refused the POST with a 4xx answer; it was not published.
+		refused,
+		/// [[BPR-1715]]. No review GitHub lists can be it, and the kept answer
+		/// (none, or no definite answer once the delay passed) settles it as
+		/// not published.
+		settled,
+		/// It stopped before its POST could leave; it was not published.
+		not_sent,
+	};
+	/// \brief [[BPR-PENDING-AD]]. Which run ended it: Submit, or a later
+	/// Check status or restart.
+	enum class review_submission_run : std::uint8_t {
+		submit,
+		check,
+	};
+	/// \brief [[BPR-PENDING-AD]]. What a refusal said, as far as it is read
+	/// ([[BPR-1715]]); GitHub names no comment.
+	enum class review_submission_ending_refusal : std::uint8_t {
+		none,
+		review,
+		unplaceable_line,
+	};
+	/// \brief [[BPR-PENDING-AD]]. Why a run that sent nothing stopped.
+	enum class review_submission_stop : std::uint8_t {
+		none,
+		/// The pull request's head moved on before the POST.
+		stale_head,
+		/// The connection found the pull request moved and refused to send.
+		target_moved,
+		cancelled,
+		/// The account or pull request is not the one the review was written for.
+		undesignated_target,
+		/// A read or the local record before the POST failed.
+		unavailable,
+		other,
+	};
+	/// \brief [[BPR-PENDING-AD]]. A known ending with counts only: no
+	/// host, repository, account, URL or review text.
+	/// \details `PostStatusClass` is the hundreds digit of GitHub's answer to
+	/// this run's POST, or 0 with none; `Comments` is how many line comments
+	/// the review carried; `Duplicate` marks a review found already published
+	/// rather than published by this run.
+	struct review_submission_ending_diagnosis
+	{
+		review_submission_ending         Ending          = review_submission_ending::published;
+		review_submission_run            Run             = review_submission_run::submit;
+		review_submission_post_answer    PostAnswer      = review_submission_post_answer::not_sent;
+		std::uint8_t                     PostStatusClass = 0U;
+		review_submission_ending_refusal Refusal         = review_submission_ending_refusal::none;
+		review_submission_stop           Stop            = review_submission_stop::none;
+		std::uint16_t                    Comments        = 0U;
+		bool                             Duplicate       = false;
+
+		auto operator<=>(const review_submission_ending_diagnosis&) const = default;
+	};
+	/// \brief Whether every field is in range: known names, a POST status
+	/// class (0 or 2 to 5) only with an answered POST, a refusal only for a
+	/// refused review, a stop only for one not sent, a duplicate only when
+	/// published, at most `maximum_review_submission_comments` comments.
+	[[nodiscard]] auto valid(const review_submission_ending_diagnosis& aDiagnosis) noexcept -> bool;
+	/// \brief The ending as one line of fixed keys, enums and decimal counts:
+	/// `review_submission_ending=ENDING run=RUN post=ANSWER post_class=N
+	/// refusal=REFUSAL stop=STOP comments=N duplicate=0|1`. Empty when not valid.
+	[[nodiscard]] auto describe(const review_submission_ending_diagnosis& aDiagnosis) -> std::string;
+	/// \brief Reads exactly what `describe` writes; anything else is none.
+	[[nodiscard]] auto parse_review_submission_ending(std::string_view aText) -> std::optional<review_submission_ending_diagnosis>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_SUBMISSION_UNKNOWN_HPP

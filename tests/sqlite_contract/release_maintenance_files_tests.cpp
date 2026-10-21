@@ -7,8 +7,10 @@
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "platform_test_support.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -279,16 +281,21 @@ namespace {
 			return bytes;
 		};
 		const auto older = root.Path / "logs/session-11111111111111111111111111111111-00000001.jsonl";
-		write(older, lines(1U, 9U * 1024U * 1024U));
+		// [[BPR-PENDING-AD]]. Sized from the input limit, so the two files
+		// overrun it together and the newer one alone fits.
+		constexpr auto half = application::release_diagnostic_input_limit / 2U;
+		write(older, lines(1U, half + (1024U * 1024U)));
 		fs::last_write_time(older, fs::last_write_time(older) - std::chrono::hours{ 1 });
-		write(root.Path / "logs/session-00000000000000000000000000000000-00000001.jsonl", lines(2U, 8U * 1024U * 1024U));
+		const auto newer = lines(2U, half);
+		write(root.Path / "logs/session-00000000000000000000000000000000-00000001.jsonl", newer);
 		auto                                        owner = lease(root.Path);
 		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
 		const auto                                  prepared = files.prepare(context(files, command::preview_diagnostics), { });
 		expect(prepared.has_value(), "logs over the input limit still export");
-		const auto snapshot = std::get<core::release_diagnostic_snapshot>((*prepared)->selection());
-		const auto preview  = (*prepared)->preview();
-		expect(snapshot.UnreadFiles == 1U && snapshot.Records == core::release_diagnostic_record_limit && preview.find("dropped=2\n") != std::string_view::npos && preview.find("dropped=1\n") == std::string_view::npos,
+		const auto snapshot     = std::get<core::release_diagnostic_snapshot>((*prepared)->selection());
+		const auto preview      = (*prepared)->preview();
+		const auto newerRecords = static_cast<std::uint32_t>(std::ranges::count(newer, '\n'));
+		expect(snapshot.UnreadFiles == 1U && snapshot.Records == std::min(newerRecords, core::release_diagnostic_record_limit) && preview.find("dropped=2\n") != std::string_view::npos && preview.find("dropped=1\n") == std::string_view::npos,
 			   "the newest file is read and the older one is left unread and counted");
 	}
 	void test_inventory_refusals()

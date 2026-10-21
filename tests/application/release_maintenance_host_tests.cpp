@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -165,11 +166,11 @@ namespace {
 		auto rejected = application::prepare_release_diagnostics(bad, core::release_maintenance_revision{ 1U });
 		expect(rejected && rejected->Descriptor.Records == 0U && rejected->Descriptor.OmittedRecords == 1U, "invalid typed fields omitted");
 		std::string many;
-		for (unsigned index = 0U; index < 1027U; ++index) {
+		for (unsigned index = 0U; index < core::release_diagnostic_record_limit + 3U; ++index) {
 			many += log_line();
 		}
 		auto bounded = application::prepare_release_diagnostics(many, core::release_maintenance_revision{ 1U });
-		expect(bounded && bounded->Descriptor.Records == 1024U && bounded->Descriptor.OmittedRecords == 3U, "record bound counts omissions");
+		expect(bounded && bounded->Descriptor.Records == core::release_diagnostic_record_limit && bounded->Descriptor.OmittedRecords == 3U, "record bound counts omissions");
 		expect(!application::prepare_release_diagnostics(std::string(application::release_diagnostic_input_limit + 1U, 'x'), core::release_maintenance_revision{ 1U }), "input byte cap");
 		expect(!application::prepare_release_diagnostics(std::string(application::release_diagnostic_input_records + 1U, '\n'), core::release_maintenance_revision{ 1U }), "input work cap");
 	}
@@ -195,7 +196,7 @@ namespace {
 				const auto end   = line.find("\",\"epoch_stage\"", start);
 				expect(end != std::string::npos, "structured diagnostic detail is bounded");
 				line.replace(start, end - start, detail);
-				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
 				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 				const bool                                   allowed  = detail == "actor_conflict=viewer,review,ascii_case_only" || detail == "actor_conflict=pull_request,issue_comment,different";
 				expect(document && document->Descriptor.Records == 1U && (document->Bytes.find(detail) != std::string::npos) == allowed,
@@ -227,7 +228,7 @@ namespace {
 					replace(R"("failure_domain":"none","failure":"none")", R"("failure_domain":"review_submission","failure":")" + std::string{ failure } + "\"");
 					const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
 					line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
-					const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+					const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
 					const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 					const bool                                   known    = failure != "PRIVATE_CANARY";
 					const bool                                   exact    = !detail.contains("PRIVATE");
@@ -261,7 +262,7 @@ namespace {
 				replace(R"("failure_domain":"none","failure":"none")", R"("failure_domain":"github","failure":"permission")");
 				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
 				line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
-				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
 				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 				const bool                                   exact    = !detail.contains("PRIVATE");
 				expect(document && document->Descriptor.Records == 1U, "a discovery record exports under either policy");
@@ -272,6 +273,148 @@ namespace {
 		}
 	}
 
+	/// [[BPR-PENDING-AD]]. A record of `aOp`.`aOutcome` at `aUtc`, with the
+	/// given status, failure and detail, as the logger writes it.
+	auto event_line(unsigned aSequence, std::uint64_t aUtc, std::string_view aOp, std::string_view aOutcome, unsigned aHttp, std::string_view aDomain, std::string_view aFailure, std::string_view aDetail)
+		-> std::string
+	{
+		auto       line    = structured_line(aSequence);
+		const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+			const auto at = line.find(aFrom);
+			expect(at != std::string::npos, "record fixture field exists");
+			line.replace(at, aFrom.size(), aTo);
+		};
+		const auto severity = aOutcome == "failed" ? "error" : aHttp >= 400U ? "warning"
+																			 : "info";
+		replace(R"("event":"github.capability.failed")", "\"event\":\"" + std::string{ aOp } + "." + std::string{ aOutcome } + "\"");
+		replace(R"("severity":"error")", std::string{ "\"severity\":\"" } + severity + "\"");
+		replace("1780000000000", std::to_string(aUtc));
+		replace(R"("op":"github.capability","outcome":"failed")", "\"op\":\"" + std::string{ aOp } + "\",\"outcome\":\"" + std::string{ aOutcome } + "\"");
+		replace(R"("http_status":403)", "\"http_status\":" + std::to_string(aHttp));
+		replace(R"("failure_domain":"none","failure":"none")", "\"failure_domain\":\"" + std::string{ aDomain } + "\",\"failure\":\"" + std::string{ aFailure } + "\"");
+		const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+		line.replace(start, line.find("\",\"epoch_stage\"", start) - start, aDetail);
+		return line;
+	}
+
+	/// [[BPR-PENDING-AD]]. A review's known ending exports as exactly its
+	/// line of enums and counts; one with anything else in it is omitted.
+	void test_review_submission_ending_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const auto& [outcome, http, detail] : std::initializer_list<std::tuple<std::string_view, unsigned, std::string_view>>{
+					 { "succeeded", 200U, "review_submission_ending=published run=submit post=success post_class=2 refusal=none stop=none comments=9 duplicate=0" },
+					 { "failed", 422U, "review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line stop=none comments=9 duplicate=0" },
+					 { "failed", 0U, "review_submission_ending=settled run=check post=no_answer post_class=0 refusal=none stop=none comments=9 duplicate=0" },
+					 { "failed", 0U, "review_submission_ending=not_sent run=submit post=not_sent post_class=0 refusal=none stop=stale_head comments=2 duplicate=0" },
+					 { "failed", 422U, "review_submission_ending=refused run=submit post=error_status post_class=4 refusal=review stop=none comments=9 duplicate=0 repository=PRIVATE_REPOSITORY" },
+					 { "succeeded", 200U, "review_submission_ending=PRIVATE_HOST run=submit post=success post_class=2 refusal=none stop=none comments=9 duplicate=0" } }) {
+				const auto                                   line = event_line(1U, 1780000000000ULL, "github.review_submission", outcome, http, "review_submission", "none", detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   exact    = !detail.contains("PRIVATE");
+				expect(document && document->Descriptor.Records == 1U, "a review submission ending exports under either policy");
+				expect((document->Bytes.find(detail) != std::string::npos) == exact && document->Bytes.contains("\"http_status\":" + std::to_string(http) + ","),
+					   "and keeps exactly its counts-only line and the POST's status");
+				expect(document->Bytes.find("PRIVATE_") == std::string::npos && (policy == core::diagnostic_export_policy::identifying || !document->Bytes.contains(session)), "and nothing private");
+			}
+		}
+	}
+
+	/// [[BPR-PENDING-AD]]. An eight-hour session at the measured heavy rate
+	/// of about 1,000 records an hour, with Home refreshes and review
+	/// submissions among them, exports whole. Before, the 256 KiB output held
+	/// about 300 such records and left out the rest.
+	void test_export_keeps_long_session()
+	{
+		constexpr unsigned      records  = 8U * 1000U;
+		constexpr std::uint64_t start    = 1780000000000ULL;
+		constexpr std::uint64_t interval = 3600U;
+		std::string             input;
+		for (unsigned sequence = 1U; sequence <= records; ++sequence) {
+			const auto utc = start + (std::uint64_t{ sequence } * interval);
+			if (sequence % 500U == 0U) {
+				input += event_line(sequence, utc, "github.review_submission", "failed", 422U, "review_submission", "none",
+									"review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line stop=none comments=9 duplicate=0");
+			} else if (sequence % 25U == 0U) {
+				input += event_line(sequence, utc, "github.discovery", "succeeded", 0U, "none", "none",
+									"discovery=refresh refresh=" + std::to_string(sequence / 25U) + " read=0 reason=none state=current repositories=5 pull_requests=20 reads=6 failed=0 requests=9 wait_ms=40 run_ms=5200");
+			} else {
+				auto line = structured_line(sequence);
+				line.replace(line.find("1780000000000"), 13U, std::to_string(utc));
+				input += line;
+			}
+		}
+		const application::diagnostic_export_capture capture{ std::string{ session }, records, { }, "0.3.1-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef-Release" };
+		const auto                                   document = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture,
+																									   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0U, { .UtcMs = start + (std::uint64_t{ records + 1U } * interval), .OffsetMinutes = -420 });
+		expect(document.has_value(), "an eight-hour session prepares");
+		const auto& descriptor = document->Descriptor;
+		std::cerr << "eight-hour session: " << records << " records, " << input.size() << " input bytes, " << document->Bytes.size() << " export bytes\n";
+		expect(descriptor.Records == records && descriptor.OmittedRecords == 0U && descriptor.LimitOmittedRecords == 0U, "every record of an eight-hour session is kept");
+		expect(descriptor.FirstUtcMs == start + interval && descriptor.LastUtcMs == start + (std::uint64_t{ records } * interval), "from its first record to its last");
+		expect(document->Bytes.contains("\"limit_omitted_records\":0,") && document->Bytes.contains("discovery=refresh refresh=319 ")
+				   && document->Bytes.contains("review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line"),
+			   "with its Home refreshes and review endings, and the header says nothing was left out");
+		expect(!document->Bytes.contains(session), "and anonymized");
+	}
+
+	/// [[BPR-PENDING-AD]]. The raised limits still hold: past the record limit
+	/// the oldest are left out, wide records stop at the byte limit, and input
+	/// past its bounds is refused.
+	void test_export_bounds()
+	{
+		const application::diagnostic_export_capture capture{ std::string{ session }, 1000000U, { }, { } };
+		std::string                                  many;
+		for (unsigned sequence = 1U; sequence <= core::release_diagnostic_record_limit + 10U; ++sequence) {
+			many += event_line(sequence, 1780000000000ULL + sequence, "github.capability", "succeeded", 0U, "none", "none", "");
+		}
+		const auto counted = application::prepare_diagnostic_export(many, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(counted && counted->Descriptor.Records == core::release_diagnostic_record_limit && counted->Descriptor.LimitOmittedRecords == 10U
+				   && counted->Bytes.contains("\"utc_ms\":" + std::to_string(1780000000000ULL + 11U) + ",") && !counted->Bytes.contains("\"utc_ms\":" + std::to_string(1780000000000ULL + 10U) + ","),
+			   "past the record limit the oldest are left out and counted");
+		// A safe detail as wide as the classifier admits: about 4 KiB a record.
+		std::string wide;
+		while (wide.size() + 19U <= 4000U) {
+			wide += "code=\\\"FORBIDDEN\\\" ";
+		}
+		std::string heavy;
+		unsigned    lines = 0U;
+		while (heavy.size() < core::release_diagnostic_byte_limit + (1024U * 1024U)) {
+			++lines;
+			heavy += event_line(lines, 1780000000000ULL + lines, "github.capability", "failed", 0U, "none", "none", wide);
+		}
+		const auto sized = application::prepare_diagnostic_export(heavy, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(sized && sized->Bytes.size() <= core::release_diagnostic_byte_limit && sized->Descriptor.LimitOmittedRecords > 0U && sized->Descriptor.Records + sized->Descriptor.LimitOmittedRecords == lines
+				   && sized->Bytes.contains("\"utc_ms\":" + std::to_string(1780000000000ULL + lines) + ","),
+			   "wide records stop at the byte limit, keeping the newest");
+		expect(!application::prepare_diagnostic_export(std::string(application::release_diagnostic_input_limit + 1U, '\n'), core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+			   "input past its byte limit is refused");
+		expect(!application::prepare_diagnostic_export(std::string(application::release_diagnostic_input_records + 1U, '\n'), core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+			   "input past its line limit is refused");
+		static_assert(core::release_diagnostic_byte_limit <= std::uint64_t{ 16U } * 1024U * 1024U && core::release_diagnostic_record_limit <= 16384U && application::release_diagnostic_input_limit <= std::size_t{ 32U } * 1024U * 1024U,
+					  "an export stays something a person attaches to a report");
+	}
+
+	/// [[BPR-PENDING-AD]]. The header names when the export was taken, in
+	/// local time with its offset, and the build that took it.
+	void test_export_stamp()
+	{
+		// 2026-10-21T21:32:05.250Z.
+		constexpr std::uint64_t                      utc = 1792618325250ULL;
+		const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, "0.3.1-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef-Release" };
+		const auto                                   document = application::prepare_diagnostic_export(structured_line(1U), core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", 0U, { .UtcMs = utc, .OffsetMinutes = -420 });
+		expect(document && document->Bytes.starts_with(R"({"format":"bpr-diagnostics-v2","exported_at":"2026-10-21T14:32:05-07:00","app_version":"0.3.1","app_build":"0.3.1-0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef-Release","policy":"anonymized",)"),
+			   "the header names the local export time with its offset and the build");
+		expect(application::format_diagnostic_export_time({ .UtcMs = utc, .OffsetMinutes = 330 }) == "2026-10-22T03:02:05+05:30" && application::format_diagnostic_export_time({ .UtcMs = utc, .OffsetMinutes = 0 }) == "2026-10-21T21:32:05+00:00",
+			   "offsets east and at UTC");
+		expect(application::format_diagnostic_export_time({ }) == "unknown" && application::format_diagnostic_export_time({ .UtcMs = utc, .OffsetMinutes = 19 * 60 }) == "unknown", "no time, or an impossible offset, is unknown");
+		const application::diagnostic_export_capture unbuilt{ std::string{ session }, 1U, { }, "PRIVATE_HOST" };
+		const auto                                   plain = application::prepare_diagnostic_export(structured_line(1U), core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, unbuilt, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(plain && plain->Bytes.starts_with(R"({"format":"bpr-diagnostics-v2","exported_at":"unknown","app_version":"unknown","app_build":"unknown","policy":)") && !plain->Bytes.contains("PRIVATE"),
+			   "without a stamp or a well-formed build the header says unknown");
+	}
+
 	void test_git_capability_step_export()
 	{
 		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
@@ -280,7 +423,7 @@ namespace {
 				const auto position = line.find("\"git_step\":\"none\"");
 				expect(position != std::string::npos, "closed Git step fixture field exists");
 				line.replace(position, std::string_view{ "\"git_step\":\"none\"" }.size(), "\"git_step\":\"" + std::string{ step } + "\"");
-				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
 				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 				expect(document && document->Descriptor.Records == (step.contains("PRIVATE_CANARY") ? 0U : 1U)
 						   && document->Bytes.find("PRIVATE_CANARY") == std::string::npos,
@@ -297,7 +440,7 @@ namespace {
 				const auto position = line.find("\"failure\":\"none\"");
 				expect(position != std::string::npos, "closed Git failure fixture field exists");
 				line.replace(position, std::string_view{ "\"failure\":\"none\"" }.size(), "\"failure\":\"" + std::string{ failure } + "\"");
-				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { } };
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
 				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 				expect(document && document->Descriptor.Records == (failure.contains("PRIVATE_CANARY") ? 0U : 1U)
 						   && document->Bytes.find("PRIVATE_CANARY") == std::string::npos,
@@ -310,7 +453,7 @@ namespace {
 	{
 		using policy = core::diagnostic_export_policy;
 		using scope  = core::diagnostic_export_scope;
-		application::diagnostic_export_capture capture{ std::string{ session }, 3U, { structured_line(2), structured_line(3) } };
+		application::diagnostic_export_capture capture{ std::string{ session }, 3U, { structured_line(2), structured_line(3) }, { } };
 		for (auto& line : capture.Recent) {
 			line.pop_back();
 		}
@@ -343,13 +486,13 @@ namespace {
 		const auto legacy = application::prepare_diagnostic_export(log_line(), core::release_maintenance_revision{ 2U }, { policy::anonymized }, capture, "dddddddddddddddddddddddddddddddd");
 		expect(legacy && legacy->Descriptor.Categories == 2U && legacy->Descriptor.Sessions == 0U, "legacy metadata reports its known category without inventing a session");
 		std::string many;
-		for (unsigned sequence = 1U; sequence <= 1025U; ++sequence) {
+		for (unsigned sequence = 1U; sequence <= core::release_diagnostic_record_limit + 1U; ++sequence) {
 			many += structured_line(sequence);
 		}
 		auto unlimitedCapture     = capture;
-		unlimitedCapture.Sequence = 1025U;
+		unlimitedCapture.Sequence = core::release_diagnostic_record_limit + 1U;
 		const auto bounded        = application::prepare_diagnostic_export(many, core::release_maintenance_revision{ 2U }, { policy::anonymized }, unlimitedCapture, "dddddddddddddddddddddddddddddddd");
-		expect(bounded && bounded->Descriptor.Records + bounded->Descriptor.OmittedRecords == 1025U && bounded->Descriptor.OmittedRecords > 0U && bounded->Bytes.size() <= core::release_diagnostic_byte_limit, "rich export byte bound counts every omitted record");
+		expect(bounded && bounded->Descriptor.Records + bounded->Descriptor.OmittedRecords == core::release_diagnostic_record_limit + 1U && bounded->Descriptor.OmittedRecords > 0U && bounded->Bytes.size() <= core::release_diagnostic_byte_limit, "rich export byte bound counts every omitted record");
 
 		for (const std::string_view field : { "event", "category", "severity", "session", "build", "op", "outcome", "summary", "detail", "epoch_stage", "failure_domain", "failure", "pack_failure", "page_operation", "relationship_detail", "transport_source", "git_step", "request_label", "window_label", "capture_privacy", "capture_detail", "event_detail" }) {
 			auto       poisoned = structured_line(1);
@@ -402,12 +545,13 @@ namespace {
 			submission.replace(start, submission.find("\",\"epoch_stage\"", start) - start, "review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1");
 		}
 		// Older sessions come first in input, as a lower-sorting file name puts them.
-		std::string input;
-		for (unsigned sequence = 1U; sequence <= 1200U; ++sequence) {
+		constexpr unsigned older = core::release_diagnostic_record_limit + 200U;
+		std::string        input;
+		for (unsigned sequence = 1U; sequence <= older; ++sequence) {
 			input += at(sequence, old, 1770000000000ULL + sequence);
 		}
 		input += at(1U, session, 1780000500000ULL) + at(2U, session, 1780000550000ULL) + submission;
-		const application::diagnostic_export_capture capture{ std::string{ session }, 3U, { } };
+		const application::diagnostic_export_capture capture{ std::string{ session }, 3U, { }, { } };
 		const auto                                   document = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1U }, { policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 		expect(document.has_value(), "an export over its limits still prepares");
 		const auto& bytes      = document->Bytes;
@@ -417,11 +561,11 @@ namespace {
 				   && bytes.contains(R"("failure_domain":"review_submission","failure":"comment_page_too_large")"),
 			   "its review submission keeps its domain, reason and counts-only line");
 		expect(!bytes.contains(session) && !bytes.contains(old), "and no session identity survives anonymization");
-		expect(descriptor.LimitOmittedRecords > 0U && descriptor.OmittedRecords == descriptor.LimitOmittedRecords && descriptor.Records + descriptor.LimitOmittedRecords == 1203U,
+		expect(descriptor.LimitOmittedRecords > 0U && descriptor.OmittedRecords == descriptor.LimitOmittedRecords && descriptor.Records + descriptor.LimitOmittedRecords == older + 3U,
 			   "every record left out is counted, and all of them for the limit");
 		expect(bytes.contains("\"unclassified_records\":0,\"limit_omitted_records\":" + std::to_string(descriptor.LimitOmittedRecords) + ",\"limit_keeps\":\"newest\",\"unread_files\":0,"),
 			   "the header says what the limit left out and that the newest are kept");
-		const auto oldest = 1200U - (descriptor.Records - 3U) + 1U;
+		const auto oldest = older - (descriptor.Records - 3U) + 1U;
 		expect(bytes.contains("\"utc_ms\":" + std::to_string(1770000000000ULL + oldest) + ",") && !bytes.contains("\"utc_ms\":" + std::to_string(1770000000000ULL + oldest - 1U) + ","),
 			   "the older session's newest records are the ones kept");
 		std::uint64_t previous = 0U;
@@ -435,12 +579,12 @@ namespace {
 		expect(ordered && bytes.size() <= core::release_diagnostic_byte_limit, "records are written oldest first within the byte limit");
 		// Version-one lines carry no time, so they are the oldest and go first.
 		std::string metadata;
-		for (unsigned index = 0U; index < 1027U; ++index) {
+		for (unsigned index = 0U; index < core::release_diagnostic_record_limit + 3U; ++index) {
 			metadata += "2026-09-20T00:00:00Z v=1 op=github.pull_request outcome=failed request=1 http_status=403 summary=sanitized dropped=" + std::to_string(index) + " detail=\n";
 		}
 		const auto newest = application::prepare_release_diagnostics(metadata, core::release_maintenance_revision{ 1U });
-		expect(newest && newest->Descriptor.Records == 1024U && newest->Descriptor.LimitOmittedRecords == 3U && !newest->Bytes.contains("dropped=2\n")
-				   && newest->Bytes.contains("dropped=3\n") && newest->Bytes.ends_with("dropped=1026\n"),
+		expect(newest && newest->Descriptor.Records == core::release_diagnostic_record_limit && newest->Descriptor.LimitOmittedRecords == 3U && !newest->Bytes.contains("dropped=2\n")
+				   && newest->Bytes.contains("dropped=3\n") && newest->Bytes.ends_with("dropped=" + std::to_string(core::release_diagnostic_record_limit + 2U) + "\n"),
 			   "the metadata export keeps the newest records too");
 	}
 
@@ -569,6 +713,10 @@ auto main() -> int
 	test_git_tool_failure_export();
 	test_rich_export();
 	test_export_keeps_newest();
+	test_review_submission_ending_export();
+	test_export_keeps_long_session();
+	test_export_bounds();
+	test_export_stamp();
 	test_preview_export();
 	test_cancel_invalidate_and_shutdown();
 	test_lifecycle_failure_and_reentrancy();

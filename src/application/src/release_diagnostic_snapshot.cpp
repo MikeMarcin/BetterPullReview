@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
 #include <map>
 #include <optional>
 #include <set>
@@ -346,6 +347,10 @@ namespace bpr::application {
 			if (aDetail.starts_with("actor_conflict=")) {
 				return safe_actor_conflict_detail(aDetail);
 			}
+			// [[BPR-PENDING-AD]]. Exactly a known submission ending's line.
+			if (aDetail.starts_with("review_submission_ending=")) {
+				return core::parse_review_submission_ending(aDetail).has_value();
+			}
 			// [[BPR-1540]]. Exactly a counts-only review submission reason.
 			if (aDetail.starts_with("review_submission=")) {
 				return core::parse_review_submission_unknown(aDetail).has_value();
@@ -578,6 +583,26 @@ namespace bpr::application {
 		};
 
 	}
+	auto format_diagnostic_export_time(const diagnostic_export_stamp& aStamp) -> std::string
+	{
+		constexpr std::int32_t widestOffset = 18 * 60;
+		if (aStamp.UtcMs == 0U || aStamp.OffsetMinutes < -widestOffset || aStamp.OffsetMinutes > widestOffset || aStamp.UtcMs > 253402300799999ULL) {
+			return "unknown";
+		}
+		const auto local  = std::chrono::sys_seconds{ std::chrono::seconds{ static_cast<std::int64_t>(aStamp.UtcMs / 1000U) + (std::int64_t{ aStamp.OffsetMinutes } * 60) } };
+		const auto day    = std::chrono::floor<std::chrono::days>(local);
+		const auto date   = std::chrono::year_month_day{ day };
+		const auto time   = std::chrono::hh_mm_ss{ local - day };
+		const auto offset = aStamp.OffsetMinutes < 0 ? -aStamp.OffsetMinutes : aStamp.OffsetMinutes;
+		const auto padded = [](std::int64_t aValue, std::size_t aWidth) {
+			auto text = std::to_string(aValue);
+			return std::string(aWidth > text.size() ? aWidth - text.size() : 0U, '0') + text;
+		};
+		auto result = padded(static_cast<int>(date.year()), 4U) + "-" + padded(static_cast<unsigned>(date.month()), 2U) + "-" + padded(static_cast<unsigned>(date.day()), 2U);
+		result += "T" + padded(time.hours().count(), 2U) + ":" + padded(time.minutes().count(), 2U) + ":" + padded(time.seconds().count(), 2U);
+		result += (aStamp.OffsetMinutes < 0 ? "-" : "+") + padded(offset / 60, 2U) + ":" + padded(offset % 60, 2U);
+		return result;
+	}
 	auto prepare_release_diagnostics(std::string_view aLog, core::release_maintenance_revision aRevision)
 		-> std::expected<release_diagnostic_document, core::release_maintenance_reason>
 	{
@@ -596,7 +621,7 @@ namespace bpr::application {
 		return document;
 	}
 	auto prepare_diagnostic_export(std::string_view aLog, core::release_maintenance_revision aRevision,
-								   core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace, std::uint32_t aUnreadFiles)
+								   core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace, std::uint32_t aUnreadFiles, const diagnostic_export_stamp& aStamp)
 		-> std::expected<release_diagnostic_document, core::release_maintenance_reason>
 	{
 		using reason = core::release_maintenance_reason;
@@ -633,7 +658,14 @@ namespace bpr::application {
 		auto& document = builder.Document;
 		document.Descriptor.Fields |= core::release_diagnostic_classified_fields | (aOptions.Policy == export_policy::identifying ? static_cast<std::uint32_t>(core::release_diagnostic_field::captured_identity) : 0U);
 		document.Descriptor.Sessions = static_cast<std::uint32_t>(builder.Sessions.size());
-		std::string header           = "{\"format\":\"bpr-diagnostics-v2\",\"policy\":\"";
+		// [[BPR-PENDING-AD]]. When it was taken and by which build, so a saved
+		// export says so without being renamed.
+		const bool  built  = build_identity(aCapture.Build);
+		std::string header = "{\"format\":\"bpr-diagnostics-v2\",\"exported_at\":\"" + format_diagnostic_export_time(aStamp) + "\",\"app_version\":\"";
+		header += built ? aCapture.Build.substr(0U, aCapture.Build.find('-')) : std::string{ "unknown" };
+		header += "\",\"app_build\":\"";
+		header += built ? aCapture.Build : std::string{ "unknown" };
+		header += "\",\"policy\":\"";
 		header += aOptions.Policy == export_policy::identifying ? "identifying" : "anonymized";
 		header += "\",\"scope\":\"";
 		header += aOptions.Scope == export_scope::current_session ? "current_session" : "retained_sessions";

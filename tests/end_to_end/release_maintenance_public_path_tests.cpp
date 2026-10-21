@@ -38,6 +38,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QThread>
@@ -163,7 +164,9 @@ namespace {
 		const auto initial = app::resolve_diagnostic_export_directory(app::diagnostic_export_locations());
 		expect(initial.has_value(), "OS standard folder observation is available");
 		expect(dialog->directory().absolutePath() == QString::fromStdString(*initial), "composed chooser explicitly starts in admitted OS folder despite cwd/history");
-		expect(QFileInfo{ dialog->selectedFiles().front() }.fileName() == QStringLiteral("BetterPullReview-diagnostics.txt"), "chooser retains existing suggested filename");
+		// [[BPR-PENDING-AD]]. Named for the local date and time, and the version when there is one.
+		expect(QRegularExpression{ QStringLiteral("^BetterPullReview-diagnostics-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}(-[0-9.]+)?\\.txt$") }.match(QFileInfo{ dialog->selectedFiles().front() }.fileName()).hasMatch(),
+			   "chooser suggests a dated filename");
 		return dialog;
 	}
 	void controlled_directories(const QString& aRoot)

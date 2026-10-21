@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <iostream>
 #include <limits>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -424,8 +426,33 @@ namespace {
 	}
 }
 
+namespace {
+	/// [[BPR-PENDING-AD]]. A saved export is named for its local date and
+	/// time, to the minute, and the version: sortable, with no character a
+	/// file system refuses and nothing that could name a host, account or
+	/// repository.
+	void test_export_file_name()
+	{
+		const auto at = diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 14, .Minute = 32 };
+		expect(diagnostic_export_file_name(at, "0.3.1") == "BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt", "the name holds the local date, time and version");
+		expect(diagnostic_export_file_name({ .Year = 2027, .Month = 1, .Day = 2, .Hour = 3, .Minute = 4 }, "1.0") == "BetterPullReview-diagnostics-2027-01-02-0304-1.0.txt", "every field is zero padded, so names sort by time");
+		expect(diagnostic_export_file_name({ .Year = 2026, .Month = 10, .Day = 21, .Hour = 9, .Minute = 5 }, "0.3.1") < diagnostic_export_file_name(at, "0.3.1"), "an earlier export sorts first");
+		for (const std::string_view version : { "", "0.3.1-dirty", "ghe.example.invalid", "octo/repo", "0..3", ".3", "3.", "0.3.1 ", "0:3" }) {
+			expect(diagnostic_export_file_name(at, version) == "BetterPullReview-diagnostics-2026-10-21-1432.txt", "a version that is not dotted numbers is left out");
+		}
+		for (const auto& impossible : { diagnostic_export_local_time{ }, diagnostic_export_local_time{ .Year = 2026, .Month = 2, .Day = 30, .Hour = 1, .Minute = 1 }, diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 24, .Minute = 0 },
+										diagnostic_export_local_time{ .Year = 2026, .Month = 10, .Day = 21, .Hour = 23, .Minute = 60 }, diagnostic_export_local_time{ .Year = 10000, .Month = 1, .Day = 1, .Hour = 0, .Minute = 0 } }) {
+			expect(diagnostic_export_file_name(impossible, "0.3.1") == "BetterPullReview-diagnostics-0.3.1.txt", "an impossible time is left out");
+		}
+		for (const auto& name : { diagnostic_export_file_name(at, "0.3.1"), diagnostic_export_file_name(at, "ghe.example.invalid") }) {
+			expect(name.find_first_of(":/\\<>|?*\" ") == std::string::npos, "no colon, separator, space or other character a file system refuses");
+		}
+	}
+}
+
 auto main() -> int
 {
+	test_export_file_name();
 	test_safe_defaults_and_closed_fields();
 	test_public_two_phase_courses();
 	test_snapshot_privacy_and_bounds();

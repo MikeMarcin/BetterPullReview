@@ -210,4 +210,81 @@ namespace bpr::core {
 		}
 		return result;
 	}
+
+	namespace {
+		constexpr std::array<std::string_view, 4> ending_names{ "published", "refused", "settled", "not_sent" };
+		constexpr std::array<std::string_view, 2> run_names{ "submit", "check" };
+		constexpr std::array<std::string_view, 3> refusal_names{ "none", "review", "unplaceable_line" };
+		constexpr std::array<std::string_view, 7> stop_names{ "none", "stale_head", "target_moved", "cancelled", "undesignated_target", "unavailable", "other" };
+
+		template <std::size_t N>
+		[[nodiscard]] auto named(const std::array<std::string_view, N>& aNames, const auto aValue) noexcept -> std::string_view
+		{
+			const auto index = static_cast<std::size_t>(aValue);
+			return index < N ? aNames[index] : std::string_view{ };
+		}
+		template <typename Value, std::size_t N>
+		[[nodiscard]] auto lookup(const std::array<std::string_view, N>& aNames, const std::optional<std::string_view> aName) noexcept -> std::optional<Value>
+		{
+			const auto found = aName ? std::ranges::find(aNames, *aName) : aNames.end();
+			return found == aNames.end() ? std::nullopt : std::optional{ static_cast<Value>(found - aNames.begin()) };
+		}
+	} // namespace
+
+	auto valid(const review_submission_ending_diagnosis& aDiagnosis) noexcept -> bool
+	{
+		const auto answered = aDiagnosis.PostAnswer == review_submission_post_answer::success || aDiagnosis.PostAnswer == review_submission_post_answer::error_status;
+		return !named(ending_names, aDiagnosis.Ending).empty() && !named(run_names, aDiagnosis.Run).empty() && !name(aDiagnosis.PostAnswer).empty()
+			&& !named(refusal_names, aDiagnosis.Refusal).empty() && !named(stop_names, aDiagnosis.Stop).empty()
+			&& status_class(aDiagnosis.PostStatusClass) && (aDiagnosis.PostStatusClass == 0U || answered)
+			&& (aDiagnosis.Refusal == review_submission_ending_refusal::none || aDiagnosis.Ending == review_submission_ending::refused)
+			&& (aDiagnosis.Stop == review_submission_stop::none || aDiagnosis.Ending == review_submission_ending::not_sent)
+			&& (!aDiagnosis.Duplicate || aDiagnosis.Ending == review_submission_ending::published)
+			&& aDiagnosis.Comments <= maximum_review_submission_comments;
+	}
+
+	auto describe(const review_submission_ending_diagnosis& aDiagnosis) -> std::string
+	{
+		if (!valid(aDiagnosis)) {
+			return { };
+		}
+		auto text = std::string{ "review_submission_ending=" };
+		text += named(ending_names, aDiagnosis.Ending);
+		text += " run=";
+		text += named(run_names, aDiagnosis.Run);
+		text += " post=";
+		text += name(aDiagnosis.PostAnswer);
+		text += " post_class=" + std::to_string(aDiagnosis.PostStatusClass);
+		text += " refusal=";
+		text += named(refusal_names, aDiagnosis.Refusal);
+		text += " stop=";
+		text += named(stop_names, aDiagnosis.Stop);
+		text += " comments=" + std::to_string(aDiagnosis.Comments);
+		text += aDiagnosis.Duplicate ? " duplicate=1" : " duplicate=0";
+		return text;
+	}
+
+	auto parse_review_submission_ending(std::string_view aText) -> std::optional<review_submission_ending_diagnosis>
+	{
+		const auto ending   = lookup<review_submission_ending>(ending_names, word(aText, "review_submission_ending"));
+		const auto run      = ending ? lookup<review_submission_run>(run_names, word(aText, "run")) : std::nullopt;
+		const auto answer   = run ? lookup<review_submission_post_answer>(answer_names, word(aText, "post")) : std::nullopt;
+		const auto post     = answer ? number(aText, "post_class", std::numeric_limits<std::uint8_t>::max()) : std::nullopt;
+		const auto refusal  = post ? lookup<review_submission_ending_refusal>(refusal_names, word(aText, "refusal")) : std::nullopt;
+		const auto stop     = refusal ? lookup<review_submission_stop>(stop_names, word(aText, "stop")) : std::nullopt;
+		const auto comments = stop ? number(aText, "comments", std::numeric_limits<std::uint16_t>::max()) : std::nullopt;
+		const auto again    = comments ? number(aText, "duplicate", 1U) : std::nullopt;
+		if (!again || !aText.empty()) {
+			return std::nullopt;
+		}
+		const auto result = review_submission_ending_diagnosis{ .Ending          = *ending,
+																.Run             = *run,
+																.PostAnswer      = *answer,
+																.PostStatusClass = static_cast<std::uint8_t>(*post),
+																.Refusal         = *refusal,
+																.Stop            = *stop,
+																.Comments        = static_cast<std::uint16_t>(*comments),
+																.Duplicate       = *again == 1U };
+		return valid(result) ? std::optional{ result } : std::nullopt;
+	}
 } // namespace bpr::core

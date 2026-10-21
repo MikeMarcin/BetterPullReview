@@ -124,10 +124,71 @@ namespace bpr::adapters::github::detail {
 		default:                                                           note(reason::network); return;
 		}
 	}
+	void review_submission_session::log_ending(const application::review_submission_result& aResult)
+	{
+		using ending = core::review_submission_ending;
+		using stop   = core::review_submission_stop;
+		if (!Log) {
+			return;
+		}
+		const auto published = aResult.Publication == application::review_submission_publication::published;
+		const auto refused   = !published && aResult.Failure == application::review_mutation_failure::refused_by_server;
+		auto       ended     = ending::not_sent;
+		if (published) {
+			ended = ending::published;
+		} else if (refused) {
+			ended = ending::refused;
+		} else if (Settled) {
+			ended = ending::settled;
+		}
+		auto diagnosis = core::review_submission_ending_diagnosis{
+			.Ending          = ended,
+			.Run             = Submitting ? core::review_submission_run::submit : core::review_submission_run::check,
+			.PostAnswer      = PostAnswer,
+			.PostStatusClass = PostStatusClass,
+			.Comments        = static_cast<std::uint16_t>(std::min<std::size_t>(aResult.Request.Proposal.Comments.size(), core::maximum_review_submission_comments)),
+			.Duplicate       = published && aResult.Duplicate,
+		};
+		// A Check status or restart sends nothing; the answer that settled
+		// it is the one the attempt kept.
+		if (PostAnswer == core::review_submission_post_answer::not_sent && SettledPost && core::valid(*SettledPost)) {
+			diagnosis.PostAnswer      = SettledPost->Answer;
+			diagnosis.PostStatusClass = SettledPost->StatusClass;
+		}
+		if (refused) {
+			diagnosis.Refusal = aResult.Refusal == application::review_submission_refusal::unplaceable_line ? core::review_submission_ending_refusal::unplaceable_line : core::review_submission_ending_refusal::review;
+		}
+		if (diagnosis.Ending == ending::not_sent) {
+			switch (aResult.Failure) {
+			case application::review_mutation_failure::stale_head:          diagnosis.Stop = stop::stale_head; break;
+			case application::review_mutation_failure::target_moved:        diagnosis.Stop = stop::target_moved; break;
+			case application::review_mutation_failure::cancelled:           diagnosis.Stop = stop::cancelled; break;
+			case application::review_mutation_failure::undesignated_target: diagnosis.Stop = stop::undesignated_target; break;
+			case application::review_mutation_failure::unavailable:         diagnosis.Stop = stop::unavailable; break;
+			default:                                                        diagnosis.Stop = stop::other; break;
+			}
+		}
+		const auto text  = core::describe(diagnosis);
+		auto       event = application::diagnostic_event{
+			.Operation  = application::diagnostic_operation::review_submission,
+			.Outcome    = published ? application::diagnostic_outcome::succeeded : diagnosis.Stop == stop::cancelled ? application::diagnostic_outcome::cancelled
+																													 : application::diagnostic_outcome::failed,
+			.HttpStatus = PostStatus,
+		};
+		if (text.empty() || text.size() > event.Summary.Text.size()) {
+			return;
+		}
+		std::ranges::copy(text, event.Summary.Text.begin());
+		event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+		event.Summary.State = application::diagnostic_summary_state::sanitized;
+		event.ReviewEnding  = diagnosis;
+		static_cast<void>(Log->record(event));
+	}
 	void review_submission_session::explain(application::review_submission_result& aResult)
 	{
 		if (aResult.Publication != application::review_submission_publication::indeterminate) {
 			aResult.Unknown.reset();
+			log_ending(aResult);
 			return;
 		}
 		auto diagnosis             = Why.value_or(core::review_submission_unknown_diagnosis{ .Reason = reason::connection_unavailable });
@@ -520,6 +581,8 @@ namespace bpr::adapters::github::detail {
 				note(core::review_submission_unknown_reason::local_record_unavailable);
 				return outcome;
 			}
+			Settled            = true;
+			SettledPost        = aPost;
 			const auto refused = aPost && aPost->Answer == core::review_submission_post_answer::error_status && aPost->StatusClass == 4U;
 			auto       settled = result(aRecord.Request, application::review_submission_publication::definitely_not_published,
 										refused ? application::review_mutation_failure::refused_by_server : application::review_mutation_failure::unavailable);
@@ -545,7 +608,11 @@ namespace bpr::adapters::github::detail {
 			Pages           = 0U;
 			Candidates      = 0U;
 			UnplaceableLine = false;
-			auto outcome    = application::review_submission_result{ .Request = aRequest };
+			Submitting      = aAllowNew;
+			PostStatus      = 0U;
+			Settled         = false;
+			SettledPost.reset();
+			auto outcome = application::review_submission_result{ .Request = aRequest };
 			try {
 				outcome = run(aRequest, aStop, aAllowNew);
 			} catch (...) {
@@ -685,9 +752,11 @@ namespace bpr::adapters::github::detail {
 			if (const auto* answered = std::get_if<github_mutation_wire_success>(&completion)) {
 				PostAnswer      = answered->Response.Status >= 200 && answered->Response.Status < 300 ? core::review_submission_post_answer::success : core::review_submission_post_answer::error_status;
 				PostStatusClass = status_class(answered->Response.Status);
+				PostStatus      = PostStatusClass != 0U ? static_cast<std::uint16_t>(answered->Response.Status) : std::uint16_t{ 0U };
 			} else if (const auto* failed = std::get_if<github_mutation_wire_error>(&completion); failed != nullptr && status_class(failed->HttpStatus) != 0U) {
 				PostAnswer      = core::review_submission_post_answer::error_status;
 				PostStatusClass = status_class(failed->HttpStatus);
+				PostStatus      = static_cast<std::uint16_t>(failed->HttpStatus);
 			} else {
 				PostAnswer = core::review_submission_post_answer::no_answer;
 			}

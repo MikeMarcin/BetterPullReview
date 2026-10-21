@@ -7,12 +7,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <variant>
 
 namespace bpr::core {
 
-	inline constexpr std::uint32_t release_diagnostic_record_limit = 1024U;
-	inline constexpr std::uint64_t release_diagnostic_byte_limit   = 256U * 1024U;
+	/// \brief [[BPR-PENDING-AD]]. An export's output bounds: a heavy day's
+	/// records with room to spare.
+	/// \details A record is 706 to 867 bytes (783 to 795 on average in the
+	/// fixture courses), and heavy use writes about 1,000 an hour: a pull
+	/// request opened is about 30 to 45 records, a Home refresh about 5 to 10,
+	/// a session start about 15. 16,384 records is about 16 hours of heavy
+	/// use, and at 1 KiB each, wider than any measured, they fit 16 MiB.
+	/// Records with long classified details stop at the byte limit first.
+	inline constexpr std::uint32_t release_diagnostic_record_limit = 16384U;
+	inline constexpr std::uint64_t release_diagnostic_byte_limit   = 16U * 1024U * 1024U;
 	inline constexpr std::uint32_t release_maintenance_entry_limit = 4096U;
 
 	struct release_maintenance_root_id_tag;
@@ -89,6 +99,25 @@ namespace bpr::core {
 		auto                     operator==(const diagnostic_export_options&) const -> bool = default;
 	};
 	[[nodiscard]] auto valid_diagnostic_export_options(diagnostic_export_options aOptions) noexcept -> bool;
+
+	/// \brief [[BPR-PENDING-AD]]. A local date and time to the minute, as the
+	/// presenter's clock reads it.
+	struct diagnostic_export_local_time
+	{
+		int      Year   = 0;
+		unsigned Month  = 0U;
+		unsigned Day    = 0U;
+		unsigned Hour   = 0U;
+		unsigned Minute = 0U;
+	};
+	/// \brief [[BPR-PENDING-AD]]. The name a save suggests for an export:
+	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt`.
+	/// \details The local date and time come first, so saved exports sort by
+	/// when they were taken, and the name holds no colon or other character a
+	/// file system refuses. The version is added only when it is dotted
+	/// decimal numbers, so no host, account or repository can reach the name.
+	/// An impossible date or time is left out.
+	[[nodiscard]] auto diagnostic_export_file_name(const diagnostic_export_local_time& aTime, std::string_view aVersion) -> std::string;
 
 	/// \brief Immutable classified bytes retained by the host for preview and export.
 	struct release_diagnostic_snapshot

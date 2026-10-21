@@ -1,6 +1,7 @@
 #include "bpr/core/release_maintenance.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 
 namespace bpr::core {
@@ -436,6 +437,27 @@ namespace bpr::core {
 			return release_maintenance_command_projection{ aCommand, command_reason(aState, aCommand) };
 		});
 		return result;
+	}
+
+	auto diagnostic_export_file_name(const diagnostic_export_local_time& aTime, const std::string_view aVersion) -> std::string
+	{
+		const auto padded = [](const unsigned aValue, const std::size_t aWidth) {
+			auto text = std::to_string(aValue);
+			return std::string(aWidth > text.size() ? aWidth - text.size() : 0U, '0') + text;
+		};
+		auto       name = std::string{ "BetterPullReview-diagnostics" };
+		const auto date = std::chrono::year{ aTime.Year } / std::chrono::month{ aTime.Month } / std::chrono::day{ aTime.Day };
+		if (aTime.Year >= 1 && aTime.Year <= 9999 && date.ok() && aTime.Hour < 24U && aTime.Minute < 60U) {
+			name += "-" + padded(static_cast<unsigned>(aTime.Year), 4U) + "-" + padded(aTime.Month, 2U) + "-" + padded(aTime.Day, 2U) + "-" + padded(aTime.Hour, 2U) + padded(aTime.Minute, 2U);
+		}
+		// Dotted decimal numbers only: 0.3.1, never a suffix or other text.
+		bool numbered = !aVersion.empty() && aVersion.size() <= 32U && aVersion.front() != '.' && aVersion.back() != '.' && aVersion.find("..") == std::string_view::npos;
+		numbered      = numbered && std::ranges::all_of(aVersion, [](const char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || aCharacter == '.'; });
+		if (numbered) {
+			name += "-";
+			name += aVersion;
+		}
+		return name + ".txt";
 	}
 
 	auto transition(release_maintenance_state& aState, const release_maintenance_event& aEvent) noexcept -> release_maintenance_output
