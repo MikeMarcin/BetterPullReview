@@ -29,6 +29,7 @@ add_library(
         src/diff_semantics.cpp
         src/comparison_preparation.cpp
         src/commit_filter.cpp
+        src/generated_files.cpp
         src/header_source_navigation.cpp
         src/diff_transition.cpp
         src/document_tabs.cpp

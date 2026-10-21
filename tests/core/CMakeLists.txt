@@ -900,6 +900,12 @@ bpr_enable_hardening(test_commit_filter)
 bpr_enable_warnings(test_commit_filter)
 bpr_add_network_isolated_test(NAME core_commit_filter COMMAND test_commit_filter)
 
+bpr_add_executable(test_generated_files generated_files_tests.cpp)
+target_link_libraries(test_generated_files PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_generated_files)
+bpr_enable_warnings(test_generated_files)
+bpr_add_network_isolated_test(NAME core_generated_files COMMAND test_generated_files)
+
 bpr_add_executable(test_review_preparation review_preparation_tests.cpp)
 target_link_libraries(test_review_preparation PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_preparation)

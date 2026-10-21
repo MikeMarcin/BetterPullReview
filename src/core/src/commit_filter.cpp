@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <functional>
 #include <iterator>
 #include <ranges>
 #include <string_view>
@@ -72,6 +73,38 @@ namespace bpr::core {
 		{
 			const auto* entry = find_filter_commit(aGraph, aOid);
 			return entry != nullptr && entry->Listed < aGraph.Headlines.size() ? aGraph.Headlines[entry->Listed] : std::string{ };
+		}
+
+		[[nodiscard]] auto valid_filter_path(std::string_view aPath) noexcept -> bool
+		{
+			return !aPath.empty() && aPath.size() <= maximum_filter_path_bytes;
+		}
+
+		/// \brief The touches' total path count when they cover exactly the
+		/// span's chain commits in order, each sorted, unique and bounded.
+		[[nodiscard]] auto checked_touches(const filter_commit_graph& aGraph, const filter_commit_span& aSpan,
+										   std::span<const filter_commit_touch> aTouches) noexcept -> std::optional<std::size_t>
+		{
+			if (aSpan.End > aGraph.Chain.size() || aSpan.Begin > aSpan.End || aTouches.size() != aSpan.size()) {
+				return std::nullopt;
+			}
+			auto total = std::size_t{ 0U };
+			for (std::size_t offset = 0U; offset < aTouches.size(); ++offset) {
+				const auto& touch = aTouches[offset];
+				if (touch.Commit != aGraph.Chain[aSpan.Begin + offset] || touch.Paths.size() > maximum_filter_commit_paths) {
+					return std::nullopt;
+				}
+				for (std::size_t path = 0U; path < touch.Paths.size(); ++path) {
+					if (!valid_filter_path(touch.Paths[path]) || (path != 0U && !(touch.Paths[path - 1U] < touch.Paths[path]))) {
+						return std::nullopt;
+					}
+				}
+				total += touch.Paths.size();
+				if (total > maximum_filter_touched_paths) {
+					return std::nullopt;
+				}
+			}
+			return total;
 		}
 	} // namespace
 
@@ -421,29 +454,15 @@ namespace bpr::core {
 					  const filter_commit_span& aSpan, std::span<const filter_commit_touch> aTouches)
 		-> std::expected<filtered_path_set, filtered_path_refusal>
 	{
-		if (!valid(aState) || aSpan.End > aGraph.Chain.size() || aSpan.Begin > aSpan.End || aTouches.size() != aSpan.size()) {
+		const auto checked = checked_touches(aGraph, aSpan, aTouches);
+		if (!valid(aState) || !checked) {
 			return std::unexpected{ filtered_path_refusal::invalid_touches };
 		}
-		auto shown   = std::vector<bool>(aTouches.size(), true);
-		auto applies = false;
-		auto total   = std::size_t{ 0U };
+		const auto total   = *checked;
+		auto       shown   = std::vector<bool>(aTouches.size(), true);
+		auto       applies = false;
 		for (std::size_t offset = 0U; offset < aTouches.size(); ++offset) {
-			const auto& touch = aTouches[offset];
-			if (touch.Commit != aGraph.Chain[aSpan.Begin + offset] || touch.Paths.size() > maximum_filter_commit_paths) {
-				return std::unexpected{ filtered_path_refusal::invalid_touches };
-			}
-			for (std::size_t path = 0U; path < touch.Paths.size(); ++path) {
-				const auto& text = touch.Paths[path];
-				if (text.empty() || text.size() > maximum_filter_path_bytes
-					|| (path != 0U && !(touch.Paths[path - 1U] < text))) {
-					return std::unexpected{ filtered_path_refusal::invalid_touches };
-				}
-			}
-			total += touch.Paths.size();
-			if (total > maximum_filter_touched_paths) {
-				return std::unexpected{ filtered_path_refusal::invalid_touches };
-			}
-			shown[offset] = !hidden_oid(aState, touch.Commit);
+			shown[offset] = !hidden_oid(aState, aTouches[offset].Commit);
 			applies       = applies || !shown[offset];
 		}
 		if (!applies) {
@@ -508,6 +527,66 @@ namespace bpr::core {
 				}
 			}
 			result.Paths.push_back(std::move(entry));
+		}
+		return result;
+	}
+
+	auto valid(const file_filter_state& aState) noexcept -> bool
+	{
+		if (aState.Hidden.size() > maximum_filter_touched_paths) {
+			return false;
+		}
+		for (std::size_t index = 0U; index < aState.Hidden.size(); ++index) {
+			if (!valid_filter_path(aState.Hidden[index]) || (index != 0U && !(aState.Hidden[index - 1U] < aState.Hidden[index]))) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	auto file_filter_hides(const file_filter_state& aState, const std::string_view aPath) noexcept -> bool
+	{
+		return std::ranges::binary_search(aState.Hidden, aPath, std::less<>{ });
+	}
+
+	auto hide_files_changed_by(const file_filter_state& aState, const filter_commit_graph& aGraph,
+							   const filter_commit_span& aSpan, std::span<const filter_commit_touch> aTouches,
+							   std::span<const git_commit_oid> aSelection)
+		-> std::expected<file_filter_state, commit_filter_refusal>
+	{
+		if (!valid(aState) || !checked_touches(aGraph, aSpan, aTouches)) {
+			return std::unexpected{ commit_filter_refusal::invalid_state };
+		}
+		if (aSelection.empty() || aSelection.size() > maximum_filter_commits) {
+			return std::unexpected{ commit_filter_refusal::empty_selection };
+		}
+		auto selected = std::vector<bool>(aTouches.size(), false);
+		auto any      = false;
+		for (const auto& oid : aSelection) {
+			const auto* entry = find_filter_commit(aGraph, oid);
+			if (entry == nullptr) {
+				return std::unexpected{ commit_filter_refusal::unknown_commit };
+			}
+			const auto position = filtered_position(aGraph, *entry);
+			if (position && aSpan.contains(*position)) {
+				selected[*position - aSpan.Begin] = true;
+				any                               = true;
+			}
+		}
+		if (!any) {
+			return std::unexpected{ commit_filter_refusal::empty_selection };
+		}
+		auto result = aState;
+		for (std::size_t offset = 0U; offset < aTouches.size(); ++offset) {
+			if (selected[offset]) {
+				result.Hidden.insert(result.Hidden.end(), aTouches[offset].Paths.begin(), aTouches[offset].Paths.end());
+			}
+		}
+		std::ranges::sort(result.Hidden);
+		const auto repeated = std::ranges::unique(result.Hidden);
+		result.Hidden.erase(repeated.begin(), repeated.end());
+		if (!valid(result)) {
+			return std::unexpected{ commit_filter_refusal::invalid_state };
 		}
 		return result;
 	}

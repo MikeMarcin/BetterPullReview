@@ -334,6 +334,53 @@ namespace {
 			   "a file only shown C3 changed keeps the comparison's diff");
 		expect(narrowed->Paths[2].Path == "src/both.cpp" && narrowed->Paths[2].Kind == core::filtered_path_kind::exact, "and so does src/both.cpp, exactly");
 	}
+
+	// RFC-BPR-0089 M2: the bulk label and "Hide files these commits changed".
+	void test_bulk_label()
+	{
+		expect(core::bulk_commit_files == 100U, "the bulk threshold is 100 files");
+		expect(!core::bulk_commit(99U) && core::bulk_commit(100U) && core::bulk_commit(321U), "a commit that changes 100 files or more is bulk");
+		expect(!core::bulk_commit(0U), "an empty commit is not bulk");
+	}
+
+	void test_file_filters()
+	{
+		const auto graph   = owner_graph();
+		const auto touches = std::vector{ touch(c1, { "gen.in", "src/a.cpp" }),
+										  touch(c2, { "gen/x.cpp", "gen/y.cpp" }),
+										  touch(c3, { "gen/x.cpp", "src/a.cpp", "src/b.cpp" }) };
+
+		// Hide files C2 changed: gen/x.cpp goes from C3 as well.
+		const auto hidden = core::hide_files_changed_by({ }, graph, whole(graph), touches, std::vector{ c2 });
+		expect(hidden.has_value() && hidden->Hidden == std::vector<std::string>{ "gen/x.cpp", "gen/y.cpp" }, "every path C2 changed is hidden");
+		expect(core::valid(*hidden), "the file filter is valid");
+		expect(core::file_filter_hides(*hidden, "gen/x.cpp") && !core::file_filter_hides(*hidden, "src/a.cpp"), "the filter answers by path");
+
+		// Combining adds paths; a repeated gesture changes nothing.
+		const auto both = core::hide_files_changed_by(*hidden, graph, whole(graph), touches, std::vector{ c1 });
+		expect(both && both->Hidden == std::vector<std::string>{ "gen.in", "gen/x.cpp", "gen/y.cpp", "src/a.cpp" }, "file filters combine");
+		expect(core::hide_files_changed_by(*both, graph, whole(graph), touches, std::vector{ c1 }) == both, "hiding the same paths again is idempotent");
+
+		// A narrower span ignores commits it does not cover.
+		const auto later = *core::filter_span_for(graph, { .WholePullRequest = false, .Left = c2, .Right = c3 });
+		const auto none  = core::hide_files_changed_by({ }, graph, later, std::vector{ touches[2] }, std::vector{ c1 });
+		expect(!none && none.error() == core::commit_filter_refusal::empty_selection, "a commit outside the comparison hides nothing");
+
+		// Refusals.
+		expect(core::hide_files_changed_by({ }, graph, whole(graph), touches, std::vector<core::git_commit_oid>{ }).error()
+				   == core::commit_filter_refusal::empty_selection,
+			   "an empty selection is refused");
+		expect(core::hide_files_changed_by({ }, graph, whole(graph), touches, std::vector{ oid(0x77) }).error() == core::commit_filter_refusal::unknown_commit,
+			   "an unlisted commit is refused");
+		expect(core::hide_files_changed_by({ }, graph, whole(graph), std::vector{ touches[0] }, std::vector{ c1 }).error()
+				   == core::commit_filter_refusal::invalid_state,
+			   "touches must cover the span");
+		const auto unsorted = core::file_filter_state{ .Hidden = { "b", "a" } };
+		expect(!core::valid(unsorted), "an unsorted file filter is not valid");
+		expect(core::hide_files_changed_by(unsorted, graph, whole(graph), touches, std::vector{ c1 }).error() == core::commit_filter_refusal::invalid_state,
+			   "a malformed file filter is refused");
+		expect(!core::valid(core::file_filter_state{ .Hidden = { "" } }), "an empty path is not valid");
+	}
 } // namespace
 
 auto main() -> int
@@ -343,6 +390,8 @@ auto main() -> int
 	test_operations();
 	test_summary_and_force_push();
 	test_paths();
+	test_bulk_label();
+	test_file_filters();
 	std::cout << "commit filter decisions pass\n";
 	return 0;
 }

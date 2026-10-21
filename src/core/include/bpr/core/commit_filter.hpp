@@ -410,6 +410,48 @@ namespace bpr::core {
 	/// or the fork for the oldest. Invalid for a position off the chain.
 	[[nodiscard]] auto chain_parent(const filter_commit_graph& aGraph, std::size_t aChain) noexcept
 		-> git_commit_oid;
+
+	/// RFC-BPR-0089 M2. A commit whose first-parent diff changes at least this
+	/// many files is labelled bulk. The label is a hint and filters nothing.
+	inline constexpr std::size_t bulk_commit_files = 100U;
+
+	/// \brief Whether a commit that changes `aFiles` files is labelled bulk.
+	[[nodiscard]] constexpr auto bulk_commit(const std::size_t aFiles) noexcept -> bool
+	{
+		return aFiles >= bulk_commit_files;
+	}
+
+	/// \brief RFC-BPR-0089 M2. The reviewer's file filters: paths hidden by
+	/// "Hide files these commits changed", sorted and unique.
+	///
+	/// \details A file filter names paths, not commits, so it hides a path in
+	/// every comparison and under every commit filter, and a force push leaves
+	/// it as it was. Clear all filters forgets it.
+	struct file_filter_state
+	{
+		std::vector<std::string> Hidden;
+
+		auto operator<=>(const file_filter_state&) const = default;
+	};
+
+	/// \brief Checks the file filter's shape: sorted, unique, bounded paths.
+	[[nodiscard]] auto valid(const file_filter_state& aState) noexcept -> bool;
+
+	/// \brief Whether the file filter hides `aPath`.
+	[[nodiscard]] auto file_filter_hides(const file_filter_state& aState, std::string_view aPath) noexcept -> bool;
+
+	/// \brief "Hide files these commits changed": adds every path the selected
+	/// commits change to the file filter.
+	///
+	/// \details `aTouches` covers exactly the span's chain commits, oldest
+	/// first, as for `filter_paths`. A selected side commit acts through its
+	/// merge; selected commits the span does not cover are ignored. The
+	/// commits' shown or hidden state does not matter: the paths are hidden in
+	/// every shown commit. A path already hidden stays hidden.
+	[[nodiscard]] auto hide_files_changed_by(const file_filter_state& aState, const filter_commit_graph& aGraph,
+											 const filter_commit_span& aSpan, std::span<const filter_commit_touch> aTouches,
+											 std::span<const git_commit_oid> aSelection)
+		-> std::expected<file_filter_state, commit_filter_refusal>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_COMMIT_FILTER_HPP
