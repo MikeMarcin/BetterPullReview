@@ -92,7 +92,7 @@ namespace bpr::qt {
 			case home_group::waiting_on_others:
 				return application::home_collapsed_panel::waiting_on_others;
 			case home_group::ignored:
-				// [[BPR-PENDING-C]]. Not one of the window's remembered panels:
+				// [[BPR-1683]]. Not one of the window's remembered panels:
 				// Ignored starts collapsed in every window.
 				return 0U;
 			case home_group::following:
@@ -137,7 +137,7 @@ namespace bpr::qt {
 			return static_cast<home_group>(state.toInt());
 		}
 
-		/// \brief [[BPR-PENDING-C]]. The rows of a model that are not ignored.
+		/// \brief [[BPR-1683]]. The rows of a model that are not ignored.
 		[[nodiscard]] auto active_rows(const QAbstractItemModel& aModel) -> int
 		{
 			auto rows = 0;
@@ -305,7 +305,7 @@ namespace bpr::qt {
 		if (!row.isValid()) {
 			return false;
 		}
-		// [[BPR-PENDING-C]]. A slice of no one state holds every state but
+		// [[BPR-1683]]. A slice of no one state holds every state but
 		// Ignored, which has its own panel at the bottom of every arrangement.
 		const auto state = state_of_row(row);
 		if (State.has_value() ? state != State : state == home_group::ignored) {
@@ -608,7 +608,7 @@ namespace bpr::qt {
 		RecentPanel->hide();
 		Layout->addWidget(RecentPanel);
 
-		// [[BPR-PENDING-C]]. Ignored, last in every arrangement and neutral: its
+		// [[BPR-1683]]. Ignored, last in every arrangement and neutral: its
 		// rows have asked not to be called for, so it carries no state colour
 		// and starts collapsed to its count. Expanding it is the way back; each
 		// row's Unignore returns it to its own section.
@@ -1018,7 +1018,7 @@ namespace bpr::qt {
 	{
 		RefreshPending           = false;
 		const auto* const source = Queue.sourceModel();
-		// [[BPR-PENDING-C]]. Ignored rows are not the queue's: a queue of only
+		// [[BPR-1683]]. Ignored rows are not the queue's: a queue of only
 		// ignored rows says nothing needs me, above its Ignored panel.
 		const auto sourceRows = source != nullptr ? active_rows(*source) : 0;
 		const auto allEmpty   = QueueReady && QueueAccount && source != nullptr && sourceRows == 0;
@@ -1702,7 +1702,7 @@ namespace bpr::qt {
 				}
 			}
 		}
-		// [[BPR-PENDING-C]]. Ignored is the same in every arrangement.
+		// [[BPR-1683]]. Ignored is the same in every arrangement.
 		keep(IgnoredView);
 		return views;
 	}
@@ -2126,7 +2126,7 @@ namespace bpr::qt {
 			if (aWatched != view) {
 				continue;
 			}
-			// [[BPR-PENDING-C]]. Delete, or Backspace as macOS lists take it,
+			// [[BPR-1683]]. Delete, or Backspace as macOS lists take it,
 			// ignores the current row, as it removes a Recently viewed one; on
 			// an ignored row it unignores. Read here, so it never reaches the
 			// window's own Delete.

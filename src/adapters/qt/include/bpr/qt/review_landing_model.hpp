@@ -25,7 +25,7 @@ namespace bpr::qt {
 	/// \brief The core-decided Home sections; ownership is separate from attention.
 	using home_group = core::home_queue_section;
 
-	/// \brief [[BPR-PENDING-C]]. The words of a Home row's Ignore and Unignore,
+	/// \brief [[BPR-1683]]. The words of a Home row's Ignore and Unignore,
 	/// shared by the row's menu and the ignored row's own button.
 	[[nodiscard]] auto home_ignore_text() -> QString;
 	[[nodiscard]] auto home_unignore_text() -> QString;

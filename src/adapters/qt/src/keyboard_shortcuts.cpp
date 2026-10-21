@@ -168,7 +168,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::home_open_review, .Group = home, .Binding = read, .Title = "Open the review", .Place = "On a Home row", .Keys = "Return", .Objects = "homeOpenReviewAction" },
 			shortcut_entry{ .Command = command::home_open_window, .Group = home, .Binding = read, .Title = "Open the review in a new window", .Place = "On a Home row", .Keys = "Ctrl+Return", .Objects = "homeOpenReviewInNewWindowAction" },
 			shortcut_entry{ .Command = command::home_resume, .Group = home, .Binding = read, .Title = "Resume where you were", .Place = "In Recently viewed", .Keys = "Shift+Return", .Objects = "homeRecentResumeAction" },
-			// [[BPR-PENDING-C]]. Delete, or Backspace as macOS lists take it, as
+			// [[BPR-1683]]. Delete, or Backspace as macOS lists take it, as
 			// Recently viewed's Remove is; on an ignored row it unignores.
 			shortcut_entry{ .Command = command::home_ignore, .Group = home, .Binding = read, .Title = "Ignore or unignore the pull request", .Place = "On a Home pull request row", .Keys = "Del;Backspace", .Objects = "homeIgnoreAction" },
 			// [[BPR-1600]]. The window's Refresh key does whichever refresh is

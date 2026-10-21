@@ -17307,7 +17307,7 @@ namespace {
 		auto*      page  = window.open_on_github_action();
 		auto*      again = window.home_recent_resume_action();
 		auto*      drop  = window.home_recent_remove_action();
-		// [[BPR-PENDING-C]]. Ignore, after Open on GitHub, for a queue row only.
+		// [[BPR-1683]]. Ignore, after Open on GitHub, for a queue row only.
 		auto* ignore  = window.home_ignore_action();
 		auto  ignores = std::vector<core::home_ignore_intent>{ };
 		window.set_home_ignore_dispatch([&ignores](core::home_ignore_intent aIntent) { ignores.push_back(std::move(aIntent)); });

@@ -337,7 +337,7 @@ namespace {
 	// [[BPR-0989]]. The historical shapes the older-version fixtures carry.
 	// Version seven rebuilt the enrollment and preference tables, so a fixture
 	// made from the current store rebuilds them as they were before.
-	// [[BPR-PENDING-C]]. Every version before eleven had no ignored table.
+	// [[BPR-1683]]. Every version before eleven had no ignored table.
 	constexpr std::string_view downgrade_enrollment_to_version_one
 		= "DROP TABLE home_ignore;"
 		  "CREATE TABLE old_enrollment AS SELECT host, account, repository, pull_request, role, matched_rule,"
@@ -1202,7 +1202,7 @@ namespace {
 		expect(migrated->store(record).has_value() && migrated->load_all() == std::vector{ record }, "age, size and comment count round-trip, a zero kept as zero");
 	}
 
-	// [[BPR-PENDING-C]]. Ignores are kept by whole identity, survive a reopen,
+	// [[BPR-1683]]. Ignores are kept by whole identity, survive a reopen,
 	// are pruned by the same write path, and a version-ten file gains the table.
 	void test_home_ignores_round_trip_and_upgrade()
 	{

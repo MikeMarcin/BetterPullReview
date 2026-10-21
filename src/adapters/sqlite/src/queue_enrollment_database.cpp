@@ -207,7 +207,7 @@ namespace bpr::adapters::sqlite::detail {
 				") STRICT" }
 		};
 
-		/// \brief The table version 11 adds ([[BPR-PENDING-C]]).
+		/// \brief The table version 11 adds ([[BPR-1683]]).
 		///
 		/// \details The pull requests ignored on Home, by the same whole
 		/// identity an enrollment has. Nothing about the pull request is

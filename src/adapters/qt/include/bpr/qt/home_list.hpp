@@ -247,7 +247,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
 		void set_clear_filters_dispatch(std::function<void()> aDispatch);
 		void set_recent_action_dispatch(std::function<void(int aRow)> aDispatch);
-		/// \brief [[BPR-PENDING-C]]. A queue row asked to be ignored, or an
+		/// \brief [[BPR-1683]]. A queue row asked to be ignored, or an
 		/// ignored row to be unignored: Delete or Backspace on it, or an
 		/// ignored row's Unignore. The item says which it is.
 		void set_ignore_dispatch(std::function<void(const core::queue_item&)> aDispatch);
@@ -346,10 +346,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto account_chips() const -> bool;
 		[[nodiscard]] auto recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto recent_action() const noexcept -> home_row_action*;
-		/// \brief [[BPR-PENDING-C]]. Ignored, the last panel, starting collapsed.
+		/// \brief [[BPR-1683]]. Ignored, the last panel, starting collapsed.
 		[[nodiscard]] auto ignored_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto ignored_view() const noexcept -> QListView*;
-		/// \brief [[BPR-PENDING-C]]. An ignored row's Unignore button.
+		/// \brief [[BPR-1683]]. An ignored row's Unignore button.
 		[[nodiscard]] auto ignored_action() const noexcept -> home_row_action*;
 		[[nodiscard]] auto empty_sentence() const noexcept -> QLabel*;
 		/// \brief [[BPR-1580]]. The sentence shown when the queue has rows and
@@ -460,7 +460,7 @@ namespace bpr::qt {
 		home_panel*                               RecentPanel  = nullptr;
 		home_recent_view*                         RecentView   = nullptr;
 		home_row_action*                          RecentAction = nullptr;
-		/// [[BPR-PENDING-C]]. Ignored: its panel, slice, rows and Unignore.
+		/// [[BPR-1683]]. Ignored: its panel, slice, rows and Unignore.
 		home_panel*                                  IgnoredPanel  = nullptr;
 		home_slice_model*                            IgnoredModel  = nullptr;
 		home_row_view*                               IgnoredView   = nullptr;

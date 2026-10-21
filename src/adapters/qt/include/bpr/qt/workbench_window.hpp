@@ -196,7 +196,7 @@ namespace bpr::qt {
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
 	/// \brief [[BPR-0990]]. The local Follow or Unfollow of the open pull request.
 	using workbench_queue_follow_dispatch = std::function<void(application::queue_follow_intent)>;
-	/// \brief [[BPR-PENDING-C]]. Home's Ignore or Unignore of one queue row.
+	/// \brief [[BPR-1683]]. Home's Ignore or Unignore of one queue row.
 	using workbench_home_ignore_dispatch = std::function<void(core::home_ignore_intent)>;
 	/// \brief [[BPR-0990]]. Home's activation and its explicit Refresh.
 	using workbench_queue_discovery_dispatch = std::function<void(application::queue_discovery_intent)>;
@@ -626,10 +626,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto repository_addition_draft() const noexcept -> QWidget*;
 		/// \brief [[BPR-0990]]. Where the Pull Request menu's Follow goes.
 		void set_queue_follow_dispatch(workbench_queue_follow_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-C]]. Where Home's Ignore and Unignore go: the
+		/// \brief [[BPR-1683]]. Where Home's Ignore and Unignore go: the
 		/// profile's queue, never a provider.
 		void set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-C]]. The row menu's Ignore, named Unignore on an ignored row.
+		/// \brief [[BPR-1683]]. The row menu's Ignore, named Unignore on an ignored row.
 		[[nodiscard]] auto home_ignore_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
 		/// activation go: the profile's discovery, never a provider.
@@ -2016,7 +2016,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1342]]. Shows the one row menu for a queue or a Recently
 		/// viewed row the right click made current.
 		void popup_home_row_menu(const QPoint& aGlobal);
-		/// \brief [[BPR-PENDING-C]]. Ignores a queue row, or unignores an ignored one.
+		/// \brief [[BPR-1683]]. Ignores a queue row, or unignores an ignored one.
 		void dispatch_home_ignore(const core::queue_item& aItem);
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.

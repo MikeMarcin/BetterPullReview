@@ -12,13 +12,13 @@
 #include <vector>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-C]]. The most pull requests one profile can hold ignored.
+	/// \brief [[BPR-1683]]. The most pull requests one profile can hold ignored.
 	///
 	/// \details An ignore is only accepted for a pull request on Home, and Home
 	/// holds at most this many enrollments, so the bound is the same one.
 	inline constexpr std::size_t maximum_home_ignores = 16384U;
 
-	/// \brief [[BPR-PENDING-C]]. What Home last observed about one pull request.
+	/// \brief [[BPR-1683]]. What Home last observed about one pull request.
 	///
 	/// \details Read by the host from the queue's retained enrollment. `closed`
 	/// is a pull request GitHub reported closed or merged; `left` is one that is
@@ -46,7 +46,7 @@ namespace bpr::core {
 		unignore,
 	};
 
-	/// \brief [[BPR-PENDING-C]]. The reviewer's Ignore or Unignore on one Home row.
+	/// \brief [[BPR-1683]]. The reviewer's Ignore or Unignore on one Home row.
 	struct home_ignore_intent
 	{
 		pull_request_ref   Ref;
@@ -82,7 +82,7 @@ namespace bpr::core {
 	/// \brief Whether a reference can name an ignored pull request at all.
 	[[nodiscard]] auto ignorable(const pull_request_ref& aRef) noexcept -> bool;
 
-	/// \brief [[BPR-PENDING-C]]. The pull requests the reviewer chose to ignore on Home.
+	/// \brief [[BPR-1683]]. The pull requests the reviewer chose to ignore on Home.
 	///
 	/// \details Keyed by the whole pull request identity, so one ignore is
 	/// scoped to exactly one host, account, repository and number, and never

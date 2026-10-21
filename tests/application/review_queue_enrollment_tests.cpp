@@ -1929,7 +1929,7 @@ namespace {
 		return { .Ref = ref(aNumber), .Action = aAction };
 	}
 
-	// [[BPR-PENDING-C]]. Ignoring is decided by the core from the retained
+	// [[BPR-1683]]. Ignoring is decided by the core from the retained
 	// record, durable before it is kept, and moves only the row's section.
 	void test_ignore_is_durable_and_moves_only_the_section()
 	{

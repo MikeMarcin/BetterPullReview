@@ -1715,7 +1715,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# presentation and window close, holds discovery at once and posts its
 	# resumption. No provider selection, credential, grant, mutation,
 	# publication or source-inventory change; mutation-branch pin unchanged.
-	# BPR-PENDING-C reseal (2026-10-20), over 2085a4d6e: the window's Home
+	# BPR-1683 reseal (2026-10-20), over 2085a4d6e: the window's Home
 	# Ignore and Unignore reach the profile queue host as a local
 	# core::home_ignore_intent, beside Follow. Nothing reaches a provider;
 	# no credential, grant, mutation, publication or source-inventory

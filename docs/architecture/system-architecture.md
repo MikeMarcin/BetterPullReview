@@ -1941,7 +1941,7 @@ The core's `home_section_for` classifies each accepted queue row from its own au
 
 The host's window-owned `home_view_state` adds bit 16 for My pull requests without changing the original collapse bits. Workbench settings schema 19 widens the private window row's collapse bound to 31 and transactionally rebuilds older tables with all existing fields copied. The new bit starts zero on upgrade; named group/band collapse remains window-session state. Profile defaults carry no Home view.
 
-## Ignored Home pull requests ([[BPR-PENDING-C]])
+## Ignored Home pull requests ([[BPR-1683]])
 
 `core::home_ignore_list` (`bpr/core/home_ignore.hpp`) is the reviewer's
 ignore set, keyed by the whole `pull_request_ref` (host, account, repository,

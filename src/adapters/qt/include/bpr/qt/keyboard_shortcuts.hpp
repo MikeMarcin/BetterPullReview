@@ -143,7 +143,7 @@ namespace bpr::qt {
 		home_open_review,
 		home_open_window,
 		home_resume,
-		/// [[BPR-PENDING-C]]. Ignore a Home row, or unignore an ignored one.
+		/// [[BPR-1683]]. Ignore a Home row, or unignore an ignored one.
 		home_ignore,
 		/// [[BPR-1600]]. Home's refresh, on the Refresh key while Home shows.
 		home_refresh,

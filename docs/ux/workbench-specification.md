@@ -895,7 +895,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Repositories; observer rules are reached from View's Open Home & queue.
   No empty
   box is drawn in any arrangement.
-- **Ignored** ([[BPR-PENDING-C]], the owner, 2026-10-20). A queue row's menu
+- **Ignored** ([[BPR-1683]], the owner, 2026-10-20). A queue row's menu
   offers Ignore, and Delete (or Backspace) on the row does the same. The row
   moves to Ignored, a neutral panel after Recently viewed in every grouping
   and with State headers on or off. Its rows keep their reason sentence, but

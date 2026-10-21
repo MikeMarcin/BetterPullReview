@@ -8270,7 +8270,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						QueueHost->apply(std::move(aIntent));
 					}
 				});
-			// [[BPR-PENDING-C]]. Ignore is the queue's too, and local.
+			// [[BPR-1683]]. Ignore is the queue's too, and local.
 			Window->set_home_ignore_dispatch(
 				[this](core::home_ignore_intent aIntent) {
 					if (!Closing && QueueHost != nullptr) {

@@ -4244,7 +4244,7 @@ namespace bpr::qt {
 		menuKey(*HomeOpenReviewWindowAction, shortcut_command::home_open_window);
 		HomeOpenReviewWindowAction->setEnabled(false);
 		connect(HomeOpenReviewWindowAction, &QAction::triggered, this, [this] { open_home_review(true); });
-		// [[BPR-PENDING-C]]. Ignore, a queue row's only; Unignore on an ignored
+		// [[BPR-1683]]. Ignore, a queue row's only; Unignore on an ignored
 		// row. Delete (or Backspace) is read by the lists. Delete is the tour
 		// editor's Remove in this window, so, as Remove from Recently Viewed,
 		// the action claims no sequence; the catalogue names the key.
@@ -12941,7 +12941,7 @@ namespace bpr::qt {
 		HomeOpenReviewWindowAction->setEnabled(target.has_value() && ReviewWindowDispatch && NewBprWindowAction != nullptr
 											   && NewBprWindowAction->isEnabled());
 		if (HomeIgnoreAction != nullptr) {
-			// [[BPR-PENDING-C]]. The action names what it will do to this row.
+			// [[BPR-1683]]. The action names what it will do to this row.
 			const auto* const item = target.has_value() ? std::get_if<core::queue_item>(&*target) : nullptr;
 			HomeIgnoreAction->setText(item != nullptr && item->Ignored ? home_unignore_text() : home_ignore_text());
 			HomeIgnoreAction->setStatusTip(item != nullptr && item->Ignored
@@ -12987,7 +12987,7 @@ namespace bpr::qt {
 				action->setVisible(recent);
 			}
 		}
-		// [[BPR-PENDING-C]]. Ignore is a queue row's; a Recently viewed row is
+		// [[BPR-1683]]. Ignore is a queue row's; a Recently viewed row is
 		// not ignored from there.
 		HomeIgnoreAction->setVisible(!recent);
 		HomeRowMenu->popup(aGlobal);

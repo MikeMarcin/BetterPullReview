@@ -30,7 +30,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Ten since [[BPR-1407]]: the Home facts text gains each row's age, size
 	/// and comment count. The tables are version nine's; the version says an
 	/// earlier build cannot read the newer facts and must refuse the file.
-	/// Eleven since [[BPR-PENDING-C]]: the pull requests ignored on Home.
+	/// Eleven since [[BPR-1683]]: the pull requests ignored on Home.
 	inline constexpr std::int64_t queue_enrollment_schema_version = 11;
 
 	/// \brief Owns the durable queue enrollment database.
@@ -90,10 +90,10 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto load_all()
 			-> std::expected<std::vector<application::enrollment_record>, failure>;
 
-		/// \brief [[BPR-PENDING-C]]. Adds and removes ignored pull requests in one transaction.
+		/// \brief [[BPR-1683]]. Adds and removes ignored pull requests in one transaction.
 		[[nodiscard]] auto apply_home_ignores(std::span<const core::home_ignore_delta> aDeltas, std::stop_token aStop)
 			-> std::expected<void, failure>;
-		/// \brief [[BPR-PENDING-C]]. Every ignored pull request, in identity order.
+		/// \brief [[BPR-1683]]. Every ignored pull request, in identity order.
 		[[nodiscard]] auto load_home_ignores()
 			-> std::expected<std::vector<core::pull_request_ref>, failure>;
 

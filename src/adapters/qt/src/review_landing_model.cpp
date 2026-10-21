@@ -283,7 +283,7 @@ namespace bpr::qt {
 			summary = QStringLiteral("%1 followed").arg(QString::number(aRows.size()));
 			break;
 		case home_group::ignored:
-			// [[BPR-PENDING-C]]. Ignored rows ask nothing, so their summary
+			// [[BPR-1683]]. Ignored rows ask nothing, so their summary
 			// counts them and says nothing else about them.
 			return QStringLiteral("%1 ignored").arg(QString::number(aRows.size()));
 		}
@@ -499,7 +499,7 @@ namespace bpr::qt {
 			if (const auto change = home_change_sentence(item->Facts.Change, Now); !change.isEmpty()) {
 				why += QStringLiteral(". %1").arg(change);
 			}
-			// [[BPR-PENDING-C]]. An ignored row says so first, as its panel does.
+			// [[BPR-1683]]. An ignored row says so first, as its panel does.
 			if (item->Ignored) {
 				why = QStringLiteral("Ignored; %1").arg(why);
 			}
@@ -532,7 +532,7 @@ namespace bpr::qt {
 			}
 			return QString{ };
 		case group_role:
-			// [[BPR-PENDING-C]]. The decided item's section, ignored included.
+			// [[BPR-1683]]. The decided item's section, ignored included.
 			return static_cast<int>(core::home_section_for(*item));
 		case unseen_role:
 			return item->Facts.UnseenComments > 0U;
@@ -551,7 +551,7 @@ namespace bpr::qt {
 		case home_row_role::reason_word:
 			return item->Bucket == core::attention_bucket::quiet && core::merge_blocked(item->Facts.Waiting) ? QStringLiteral("Blocked") : home_reason_word(item->Bucket);
 		case home_row_role::state:
-			// [[BPR-PENDING-C]]. Colour means state; an ignored row has asked
+			// [[BPR-1683]]. Colour means state; an ignored row has asked
 			// to be left alone, so it carries none and is drawn neutral.
 			if (item->Ignored) {
 				return { };
@@ -578,7 +578,7 @@ namespace bpr::qt {
 		case home_row_role::comments:
 			return home_comments_text(item->Facts.Change);
 		case home_row_role::row_action:
-			// [[BPR-PENDING-C]]. An ignored row's own action, on hover and focus.
+			// [[BPR-1683]]. An ignored row's own action, on hover and focus.
 			return item->Ignored ? home_unignore_text() : QString{ };
 		case home_row_role::time:
 		case home_row_role::progress:

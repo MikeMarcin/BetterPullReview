@@ -35,7 +35,7 @@ namespace bpr::core {
 
 	/// \brief Home's section order, independent of a row's unchanged attention bucket.
 	///
-	/// \details [[BPR-PENDING-C]]. `ignored` is last: the reviewer has said the
+	/// \details [[BPR-1683]]. `ignored` is last: the reviewer has said the
 	/// row is not asking for attention, so it sorts after every other section.
 	enum class home_queue_section : std::uint8_t {
 		needs_you,
@@ -193,14 +193,14 @@ namespace bpr::core {
 		queue_membership Membership;
 		attention_bucket Bucket = attention_bucket::quiet;
 		queue_item_facts Facts;
-		/// [[BPR-PENDING-C]]. The reviewer ignored it on Home. Its bucket and
+		/// [[BPR-1683]]. The reviewer ignored it on Home. Its bucket and
 		/// facts are unchanged; only its section and its place in the order move.
 		bool Ignored = false;
 
 		auto operator<=>(const queue_item&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-C]]. The Home section of one decided item: `ignored`
+	/// \brief [[BPR-1683]]. The Home section of one decided item: `ignored`
 	/// for an ignored row, otherwise its membership's section.
 	[[nodiscard]] auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section;
 
@@ -232,7 +232,7 @@ namespace bpr::core {
 
 	/// \brief The deterministic priority relation used by complete and incremental projections.
 	///
-	/// \details [[BPR-PENDING-C]]. Ignored items follow every other item; within
+	/// \details [[BPR-1683]]. Ignored items follow every other item; within
 	/// each part the order is bucket, then identity.
 	[[nodiscard]] auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool;
 

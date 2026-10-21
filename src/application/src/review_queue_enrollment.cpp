@@ -613,7 +613,7 @@ namespace bpr::application {
 			saved_server,
 			/// [[BPR-0989]].
 			store_enrollments,
-			/// [[BPR-PENDING-C]].
+			/// [[BPR-1683]].
 			home_ignores,
 		};
 
@@ -847,7 +847,7 @@ namespace bpr::application {
 			Failure.reset();
 			Status = queue_landing_status::ready;
 			publish();
-			// [[BPR-PENDING-C]]. A prune whose write did not land last time is
+			// [[BPR-1683]]. A prune whose write did not land last time is
 			// decided again from the departures the store kept.
 			settle_ignored();
 			reconcile_last();
@@ -1448,7 +1448,7 @@ namespace bpr::application {
 			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, aReport.Observation), .Facts = aReport.Facts, .Ignored = Ignored.contains(aRecord.Ref) };
 		}
 
-		/// \brief [[BPR-PENDING-C]]. Where the queue's retained record puts one pull request.
+		/// \brief [[BPR-1683]]. Where the queue's retained record puts one pull request.
 		[[nodiscard]] auto tracking_of(const core::pull_request_ref& aRef) const -> std::optional<core::home_tracking>
 		{
 			const auto record = Enrollments.record_for(aRef);
@@ -1476,7 +1476,7 @@ namespace bpr::application {
 			persist_ignores({ *delta }, std::move(prior));
 		}
 
-		/// \brief [[BPR-PENDING-C]]. Prunes ignores whose pull request the queue
+		/// \brief [[BPR-1683]]. Prunes ignores whose pull request the queue
 		/// now holds closed or off Home.
 		///
 		/// \details Only a retained record is an observation. A pull request
@@ -1980,7 +1980,7 @@ namespace bpr::application {
 			}
 			Failure.reset();
 			Status = queue_landing_status::ready;
-			// [[BPR-PENDING-C]]. A stored departure is the observation that
+			// [[BPR-1683]]. A stored departure is the observation that
 			// prunes an ignore.
 			settle_ignored();
 			if (aDelta && ActivityIndex.contains(*aDelta)) {

@@ -885,7 +885,7 @@ namespace {
 		expect(!action->isVisible(), "and leaves with a row that has no reading");
 	}
 
-	// [[BPR-PENDING-C]]. Ignored is the last panel in every arrangement, starts
+	// [[BPR-1683]]. Ignored is the last panel in every arrangement, starts
 	// collapsed to its count, and its rows carry Unignore; Delete on a queue row
 	// asks for Ignore. The list decides nothing: it reports the row.
 	void test_ignored_is_last_collapsed_and_offers_unignore(const QString& aRenderPath)

@@ -419,7 +419,7 @@ The owner asked on 2026-10-20: "I want to be able to ignore a PR on the home
 screen, which will put it in a new ignored category that sorts to the bottom
 and starts collapsed, you can unignore something that's in ignored by
 expanding the collapsed. If an ignored PR gets closed it stops being tracked
-on home." [BPR-PENDING-C](../issues/60-done/BPR-PENDING-C-ignore-pull-requests-on-home.md)
+on home." [BPR-1683](../issues/60-done/BPR-1683-ignore-pull-requests-on-home.md)
 builds it.
 
 A queue row's menu offers **Ignore** (Delete, or Backspace as macOS lists take

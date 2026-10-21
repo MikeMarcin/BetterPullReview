@@ -247,7 +247,7 @@ namespace bpr::application {
 		/// queue because a closed pull request is not asking for attention.
 		/// Reports pair to enrollments by ref in any order: a report about an
 		/// unenrolled ref moves nothing, and an enrollment without a report is
-		/// quiet. [[BPR-PENDING-C]]: an item in `aIgnored` is marked ignored and
+		/// quiet. [[BPR-1683]]: an item in `aIgnored` is marked ignored and
 		/// ordered after the rest.
 		[[nodiscard]] auto project(
 			std::span<const queue_activity_report> aActivity,
@@ -501,7 +501,7 @@ namespace bpr::application {
 		std::vector<saved_repository>    SavedRepositories;
 		/// [[BPR-0660]].
 		std::vector<saved_server> SavedServers;
-		/// [[BPR-PENDING-C]]. The pull requests ignored on Home, by whole identity.
+		/// [[BPR-1683]]. The pull requests ignored on Home, by whole identity.
 		std::vector<core::pull_request_ref> Ignored;
 	};
 
@@ -570,7 +570,7 @@ namespace bpr::application {
 			std::stop_token            aStop)
 			-> std::expected<void, queue_store_failure> = 0;
 
-		/// \brief [[BPR-PENDING-C]]. Records ignores, unignores and prunes together.
+		/// \brief [[BPR-1683]]. Records ignores, unignores and prunes together.
 		///
 		/// \details One transaction: `ignored` adds the pull request, every other
 		/// change removes it. Removing one that is not there succeeds.
@@ -683,7 +683,7 @@ namespace bpr::application {
 		std::uint64_t DiscoveryAnswers      = 0U;
 		std::uint64_t StaleDiscoveryAnswers = 0U;
 		std::uint64_t FollowIntents         = 0U;
-		/// [[BPR-PENDING-C]].
+		/// [[BPR-1683]].
 		std::uint64_t IgnoreIntents = 0U;
 		std::uint64_t IgnoresPruned = 0U;
 
@@ -750,7 +750,7 @@ namespace bpr::application {
 		void apply(queue_metadata_answer aAnswer);
 		/// \brief [[BPR-0989]]. The reviewer's local follow; changes nothing on GitHub.
 		void apply(queue_follow_intent aIntent);
-		/// \brief [[BPR-PENDING-C]]. Ignores or unignores one Home row; changes nothing on GitHub.
+		/// \brief [[BPR-1683]]. Ignores or unignores one Home row; changes nothing on GitHub.
 		///
 		/// \details The core decides from the row's retained enrollment; the
 		/// store answers before the change is kept. An ignored pull request the
@@ -776,7 +776,7 @@ namespace bpr::application {
 		[[nodiscard]] auto queue() const -> std::vector<core::queue_item>;
 		/// \brief [[BPR-0989]]. Every retained record, departed ones included.
 		[[nodiscard]] auto enrollments() const noexcept -> std::span<const enrollment_record>;
-		/// \brief [[BPR-PENDING-C]]. The pull requests ignored on Home.
+		/// \brief [[BPR-1683]]. The pull requests ignored on Home.
 		[[nodiscard]] auto ignored() const noexcept -> const core::home_ignore_list&;
 		/// \brief [[BPR-0989]]. The session refreshes and answers are issued under.
 		[[nodiscard]] auto session() const noexcept -> const queue_session_id&;
