@@ -13,6 +13,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace bpr::application {
@@ -114,6 +115,31 @@ namespace bpr::application {
 		/// rules, or none while they are not read.
 		void adopt_generated_attributes(std::shared_ptr<const core::generated_attribute_rules> aRules);
 
+		/// \brief [[BPR-1692]]. The directories whose `.gitattributes` the
+		/// head's rules need, when they have not been asked for under this head:
+		/// the root and every ancestor of the paths the review lists, the
+		/// comparison's and those the chain's tree diffs name.
+		[[nodiscard]] auto generated_attributes_wanted() const -> std::optional<std::vector<std::string>>;
+
+		/// \brief Records that the head's attributes are asked for in these
+		/// directories. False, and nothing to ask, when there are more than
+		/// one read looks in: the attributes are then not read, and say why.
+		[[nodiscard]] auto begin_generated_attributes(std::vector<std::string> aDirectories) -> bool;
+
+		/// \brief The host refused the request before admission: it is asked
+		/// again on the next refresh.
+		void abandon_generated_attributes();
+
+		/// \brief Adopts the host's answer: the rules the core reads from the
+		/// files, or why there are none. An answer for another head or other
+		/// directories is ignored.
+		void adopt_generated_attributes(const generated_attributes_observation& aObservation);
+
+		/// \brief Whether the head's attributes are read, or why not.
+		[[nodiscard]] auto generated_attributes() const noexcept -> generated_attributes_read;
+		/// \brief The directory of a `.gitattributes` past the byte bound.
+		[[nodiscard]] auto generated_attributes_exceeded() const noexcept -> const std::optional<std::string>&;
+
 		/// \brief The mark a gesture leaves on one file the review lists, for
 		/// the composition to persist; none when the file is not listed, the
 		/// gesture is not offered for it, or the core refuses it.
@@ -165,6 +191,12 @@ namespace bpr::application {
 		core::generated_file_marks                 GeneratedMarks;
 		/// Shared so the model stays copyable; the rules are immutable.
 		std::shared_ptr<const core::generated_attribute_rules> AttributeRules;
+		/// [[BPR-1692]]. The head and directories last asked for, while the
+		/// answer is awaited or adopted.
+		std::optional<std::pair<core::git_commit_oid, std::vector<std::string>>> AttributesAsked;
+		bool                                                                     AttributesLoading = false;
+		generated_attributes_read                                                Attributes        = generated_attributes_read::pending;
+		std::optional<std::string>                                               AttributesExceeded;
 	};
 } // namespace bpr::application
 

@@ -3367,6 +3367,23 @@ namespace bpr::qt {
 				heading += QStringLiteral(", %1 generated set aside").arg(count_text(aProjection.GeneratedFiles));
 			}
 		}
+		// [[BPR-1692]]. When linguist-generated could not be read, say why:
+		// only the reviewer's own marks set files aside then.
+		using attributes = application::generated_attributes_read;
+		switch (aProjection.GeneratedAttributes) {
+		case attributes::pending:
+		case attributes::read:                 break;
+		case attributes::too_many_directories: heading += QStringLiteral(", linguist-generated not read: files in more than 4,096 folders"); break;
+		case attributes::too_many_files:       heading += QStringLiteral(", linguist-generated not read: more than 64 .gitattributes files"); break;
+		case attributes::file_too_large:
+			heading += aProjection.GeneratedAttributesExceeded && !aProjection.GeneratedAttributesExceeded->empty()
+				? QStringLiteral(", linguist-generated not read: %1/.gitattributes is over 512 KiB").arg(QString::fromStdString(*aProjection.GeneratedAttributesExceeded))
+				: QStringLiteral(", linguist-generated not read: .gitattributes is over 512 KiB");
+			break;
+		case attributes::too_many_rules:      heading += QStringLiteral(", linguist-generated not read: too many .gitattributes rules"); break;
+		case attributes::objects_unavailable: heading += QStringLiteral(", linguist-generated not read: the head's .gitattributes are not available"); break;
+		case attributes::failed:              heading += QStringLiteral(", linguist-generated could not be read"); break;
+		}
 		if (since.Known && since.FilesChanged.has_value()) {
 			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
 		} else if (since.Known) {

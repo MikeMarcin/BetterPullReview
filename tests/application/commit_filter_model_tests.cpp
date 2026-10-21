@@ -367,6 +367,76 @@ namespace {
 		expect(set && set_aside(*set) == std::vector<std::string>{ "src/new.cpp" }, "without attributes only the reviewer's marks set files aside");
 	}
 
+	/// \brief [[BPR-1692]]. The head's `.gitattributes` are asked for once per
+	/// head and directory set, read by the core, and say why when not read.
+	void test_head_attributes_are_read()
+	{
+		using status      = application::generated_attributes_status;
+		using read        = application::generated_attributes_read;
+		auto       model  = ready();
+		const auto wanted = model.generated_attributes_wanted();
+		expect(wanted == std::optional{ std::vector<std::string>{ "", "gen", "src" } }, "the root and every listed path's ancestors");
+		expect(model.projection().Attributes == read::pending && !model.files(), "nothing is set aside before they are read");
+		expect(model.begin_generated_attributes(*wanted), "the read begins");
+		expect(!model.generated_attributes_wanted(), "asked once while it is read");
+
+		auto answer = application::generated_attributes_observation{
+			.Request  = { .WorkbenchAuthority = { }, .Head = oid('3'), .Directories = *wanted },
+			.Status   = status::resolved,
+			.Files    = { { .Directory = "", .Contents = "gen/** linguist-generated\n" }, { .Directory = "gen", .Contents = "y.cpp -linguist-generated\n" } },
+			.Exceeded = std::nullopt,
+		};
+		auto other         = answer;
+		other.Request.Head = oid('2');
+		model.adopt_generated_attributes(other);
+		expect(model.projection().Attributes == read::pending, "an answer for another head is ignored");
+		model.adopt_generated_attributes(answer);
+		auto set = model.files();
+		expect(model.projection().Attributes == read::read && model.projection().AttributesRead, "the head's attributes are read");
+		expect(set && set_aside(*set) == std::vector<std::string>{ "gen/x.cpp" } && paths(*set) == std::vector<std::string>{ "gen/y.cpp", "src/a.cpp", "src/both.cpp", "src/new.cpp" },
+			   "gen/** sets gen/x.cpp aside and the nested -linguist-generated returns gen/y.cpp");
+		expect(!model.generated_attributes_wanted(), "not asked again under the same head");
+
+		// A refused request is asked again; a bound says why and reads nothing.
+		auto bounded = ready();
+		expect(bounded.begin_generated_attributes(*wanted), "the read begins");
+		bounded.abandon_generated_attributes();
+		expect(bounded.generated_attributes_wanted() == wanted, "a request the host refused is asked again");
+		expect(bounded.begin_generated_attributes(*wanted), "the read begins again");
+		auto large     = answer;
+		large.Status   = status::file_too_large;
+		large.Files    = { };
+		large.Exceeded = "gen";
+		bounded.adopt_generated_attributes(large);
+		auto projection = bounded.projection();
+		expect(projection.Attributes == read::file_too_large && projection.AttributesExceeded == std::optional<std::string>{ "gen" } && !projection.AttributesRead
+				   && !bounded.files(),
+			   "a file past 512 KiB is named and nothing is set aside by the attributes");
+		auto many  = ready();
+		auto files = std::vector<core::generated_attribute_file>{ };
+		for (std::size_t index = 0U; index <= core::maximum_generated_attribute_files; ++index) {
+			files.push_back({ .Directory = "d" + std::to_string(100U + index), .Contents = { } });
+		}
+		expect(many.begin_generated_attributes(*wanted), "the read begins");
+		auto counted  = answer;
+		counted.Files = files;
+		many.adopt_generated_attributes(counted);
+		expect(many.projection().Attributes == read::too_many_files, "the core refuses a 65th file too");
+		auto wide        = ready();
+		auto directories = std::vector<std::string>(application::maximum_generated_attribute_directories + 1U);
+		expect(!wide.begin_generated_attributes(std::move(directories)) && wide.projection().Attributes == read::too_many_directories,
+			   "more directories than one read looks in are not asked for, and say so");
+
+		// A new head forgets the old head's rules.
+		auto pushed                = snapshot();
+		pushed.PullRequest.HeadOid = application::commit_oid{ hex('4') };
+		pushed.Commits.push_back(commit('4', { '3' }, "More"));
+		pushed.PullRequest.ReportedCommitCount = 4U;
+		model.adopt(pushed);
+		expect(model.projection().Attributes == read::pending && !model.projection().AttributesRead && model.generated_attributes_wanted().has_value(),
+			   "a new head asks again");
+	}
+
 	void test_hide_files_these_commits_changed()
 	{
 		using kind = core::commit_filter_operation_kind;
@@ -420,6 +490,7 @@ auto main() -> int
 	test_unavailable_and_suspended();
 	test_force_push();
 	test_generated_files_are_set_aside();
+	test_head_attributes_are_read();
 	test_hide_files_these_commits_changed();
 	test_bulk_label();
 	std::cout << "commit-filter-model-tests:pass\n";

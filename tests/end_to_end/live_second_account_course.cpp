@@ -27,6 +27,10 @@
 //       every removed (left) and added (right) line with its number and text
 //       ([[BPR-1560]]). `tests/end_to_end/bpr1560_live_parity.py` compares
 //       those lines with GitHub's own Files changed for the same pull request.
+//   --course generated --root DIR --pull N
+//       Opens MikeMarcin/BPR-Test#N, waits for the head's .gitattributes and
+//       writes what Whole PR, each commit filter and Clear all filters list
+//       and set aside into DIR/generated.jsonl ([[BPR-1692]]).
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -34,6 +38,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
@@ -157,9 +162,11 @@ namespace {
 				fail("unknown argument " + key.toStdString());
 			}
 		}
-		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter") || result.Root.empty() || result.Pull <= 0
+		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
+			 && result.Course != "generated")
+			|| result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))) {
-			fail("usage: --course observer|reader|epoch|parity|commit-filter --root DIR --pull N [--author LOGIN --path PREFIX]");
+			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -668,6 +675,96 @@ namespace {
 		say("commit-filter:scenarios=" + std::to_string(chain.size() + (chain.size() >= 2U ? 1U : 0U)));
 	}
 
+	/// [[BPR-1692]]. Opens the pull request on Overview and waits until the
+	/// head's `.gitattributes` are read (or say why not). Writes Whole PR's
+	/// listed files, the generated row and the heading, then for each commit
+	/// Show only selected and Hide selected on the second, and Clear all
+	/// filters, the same again, and the Files drawer's walk in Review, into
+	/// DIR/generated.jsonl, which `rfc0089_commit_filter_live_course.py
+	/// --generated` compares with `git check-attr --source <head>`. Nothing
+	/// here writes to GitHub.
+	void generated_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1300, 860);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		const auto* const page = aWindow.overview_page();
+		require([&] { return page->projection().has_value() && page->projection()->GeneratedAttributes != application::generated_attributes_read::pending; },
+				"the head's .gitattributes are read", std::chrono::seconds{ 600 });
+		std::ofstream out{ aOptions.Root / "generated.jsonl" };
+		const auto    record = [&](const std::string& aName) {
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 1 });
+			const auto& projection = *page->projection();
+			auto        files      = std::string{ };
+			for (const auto& row : projection.Files) {
+				files += (files.empty() ? "" : ",") + json_text(row.Path);
+			}
+			auto generated = std::string{ };
+			for (const auto& row : page->generated_row()->rows()) {
+				generated += (generated.empty() ? "" : ",") + json_text(row.Path) + ":" + std::to_string(static_cast<int>(row.Reason));
+			}
+			out << "{\"kind\":\"view\",\"name\":" << json_text(aName) << ",\"attributes\":" << static_cast<int>(projection.GeneratedAttributes)
+				<< ",\"heading\":" << json_text(text(page->files_heading()->text())) << ",\"row\":" << json_text(text(page->generated_row()->toggle()->text()))
+				<< ",\"files\":[" << files << "],\"generated\":{" << generated << "}}\n";
+			out.flush();
+			say("generated:" + aName + " files=" + std::to_string(projection.Files.size()) + " set-aside=" + std::to_string(page->generated_row()->rows().size())
+				+ " heading=" + text(page->files_heading()->text()));
+		};
+		record("whole");
+		aWindow.choose_modality(qt::review_modality::review);
+		require([&] { return aWindow.files_drawer()->contents()->rowCount() == static_cast<int>(page->projection()->Files.size()); }, "the Files drawer lists the same files");
+		auto walk = std::string{ };
+		for (auto row = 0; row < aWindow.files_drawer()->contents()->rowCount(); ++row) {
+			walk += (walk.empty() ? "" : ",")
+				+ json_text(aWindow.files_drawer()->contents()->data(aWindow.files_drawer()->contents()->index(row, 0), Qt::DisplayRole).toString().toStdString());
+		}
+		out << "{\"kind\":\"walk\",\"paths\":[" << walk << "]}\n";
+		aWindow.show_commits();
+		auto* drawer = aWindow.overview_page()->status_drawer();
+		drawer->tabs()->setCurrentIndex(1);
+		auto* const tab = drawer->commits();
+		require([&] { return tab->projection() && !tab->projection()->Rows.empty() && tab->projection()->Trees == application::commit_filter_trees::ready; },
+				"the Commits tab reads the chain's trees", std::chrono::seconds{ 600 });
+		const auto whole    = page->projection()->CommitFilterComparisonFiles.value_or(page->projection()->Files.size());
+		const auto scenario = [&](const std::string& aName, const QString& aAction, const std::vector<std::string>& aCommits) {
+			auto selection = QItemSelection{ };
+			for (const auto& commit : aCommits) {
+				const auto row = tab->model()->row_of(commit);
+				selection.select(tab->model()->index(row), tab->model()->index(row));
+			}
+			tab->list()->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
+			auto        menu   = std::unique_ptr<QMenu>{ tab->make_menu(nullptr) };
+			auto* const action = menu->findChild<QAction*>(aAction);
+			if (action == nullptr || !action->isEnabled()) {
+				fail(aName + ": the context menu does not offer the action");
+			}
+			action->trigger();
+			require([&] { return tab->projection() && tab->projection()->FilteredFiles && page->projection() && page->projection()->Files.size() == *tab->projection()->FilteredFiles; },
+					aName + ": the filtered file set");
+			record(aName);
+			aWindow.overview_page()->commit_chip()->clear_button()->click();
+			require([&] { return !tab->projection()->CommitFiltered; }, aName + ": Clear all filters");
+		};
+		auto chain = std::vector<std::string>{ };
+		for (const auto& row : tab->projection()->Rows) {
+			if (row.Role != core::filter_commit_role::side) {
+				chain.push_back(row.Commit);
+			}
+		}
+		out << "{\"kind\":\"commits\",\"whole\":" << whole << ",\"chain\":[";
+		for (std::size_t index = 0U; index < chain.size(); ++index) {
+			out << (index == 0U ? "" : ",") << json_text(chain[index]);
+		}
+		out << "]}\n";
+		for (std::size_t index = 0U; index < chain.size(); ++index) {
+			scenario("only-" + std::to_string(index + 1U), QStringLiteral("commitFilterShowOnly"), { chain[index] });
+		}
+		if (chain.size() >= 2U) {
+			scenario("hide-2", QStringLiteral("commitFilterHide"), { chain[1] });
+		}
+		record("cleared");
+	}
+
 	void observer_course(const options& aOptions, qt::workbench_window& aWindow)
 	{
 		open_pull(aWindow, aOptions.Pull);
@@ -763,6 +860,8 @@ try {
 		parity_course(chosen, *window);
 	} else if (chosen.Course == "commit-filter") {
 		commit_filter_course(chosen, *window);
+	} else if (chosen.Course == "generated") {
+		generated_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

@@ -1,6 +1,7 @@
 // RFC-BPR-0089 M2: generated decisions and their precedence, under core-only
-// (AC04's decisions, AC08). Attribute rules here name exact paths only: the
-// pattern matcher behind `generated_attribute_rules` is not part of this test.
+// (AC04's decisions, AC08). The precedence tests use exact-path rules; the
+// head's `.gitattributes`, through the first-party reader, have their own
+// (BPR-1692).
 #include "bpr/core/generated_files.hpp"
 
 #include <algorithm>
@@ -217,6 +218,93 @@ namespace {
 		expect(directories == expected, "the root and every ancestor, each once, parents first");
 		expect(core::generated_attribute_directories({ }) == std::vector<std::string>{ std::string{ } }, "the root is always read");
 	}
+
+	/// \brief BPR-1692. The head's `.gitattributes` through the first-party
+	/// reader: patterns, nesting, macros and the three ways to say no. The
+	/// same corpus is checked against `git check-attr` by the RFC-BPR-0083
+	/// harness (`git_metadata_harness`, case `linguist-generated`).
+	auto head_files() -> std::vector<core::generated_attribute_file>
+	{
+		return {
+			{ .Directory = "",
+			  .Contents  = "[attr]generated linguist-generated\n"
+						   "gen/** linguist-generated\n"
+						   "*.min.js linguist-generated=true\n"
+						   "/anchored.gen linguist-generated\n"
+						   "build/ linguist-generated\n"
+						   "vendor/*.js generated\n"
+						   "docs/** -linguist-generated\n"
+						   "keep.json linguist-generated=false\n"
+						   "\"quoted name.txt\" linguist-generated\n" },
+			{ .Directory = "gen",
+			  .Contents  = "item_007.txt -linguist-generated\n"
+						   "special.txt !linguist-generated\n"
+						   "[attr]local linguist-generated\n"
+						   "*.loc local\n" },
+			{ .Directory = "nested", .Contents = "f.txt linguist-generated\n" },
+		};
+	}
+
+	void test_head_attribute_rules()
+	{
+		using kind       = core::git_attribute_state::kind;
+		const auto files = head_files();
+		const auto rules = core::read_generated_attribute_rules(files);
+		expect(rules.has_value() && *rules != nullptr, "the head's files are read");
+		const auto state = [&](const std::string_view aPath) { return (*rules)->linguist_generated(aPath); };
+		expect(state("gen/item_000.txt").Kind == kind::set, "gen/** marks a file below it");
+		expect(state("gen/sub/deep.txt").Kind == kind::set, "** crosses directories");
+		expect(state("gen/item_007.txt").Kind == kind::unset, "a deeper file's -linguist-generated outranks its parent");
+		expect(state("gen/special.txt").Kind == kind::unspecified, "!linguist-generated stops the lookup");
+		expect(state("gen/x.loc").Kind == kind::set, "a nested file defines no macro; the parent's rule still applies");
+		expect(state("a/b.min.js") == value("true"), "a basename pattern matches at any depth");
+		expect(state("anchored.gen").Kind == kind::set && state("sub/anchored.gen").Kind == kind::unspecified, "a leading slash anchors");
+		expect(state("build/out.txt").Kind == kind::unspecified, "a directory pattern never marks a file below it");
+		expect(state("vendor/lib.js").Kind == kind::set, "a root macro expands");
+		expect(state("vendor/deep/lib.js").Kind == kind::unspecified, "a star does not cross a slash");
+		expect(state("docs/a/b.md").Kind == kind::unset, "-linguist-generated");
+		expect(state("keep.json") == value("false"), "linguist-generated=false");
+		expect(state("quoted name.txt").Kind == kind::set, "a quoted pattern");
+		expect(state("nested/f.txt").Kind == kind::set && state("f.txt").Kind == kind::unspecified, "a nested file applies below itself only");
+		expect(state("GEN/item_001.txt").Kind == kind::unspecified, "matching is case-sensitive");
+		expect(state("src/app.cpp").Kind == kind::unspecified, "an unmatched path is unspecified");
+
+		const auto paths     = std::vector<std::string>{ "gen/item_000.txt", "gen/item_007.txt", "keep.json", "src/app.cpp" };
+		const auto decisions = core::decide_generated_files(paths, { }, rules->get());
+		expect(decisions[0].SetAside && decisions[0].Reason == core::generated_reason::attribute_set, "a marked path is set aside");
+		expect(!decisions[1].Generated && decisions[1].Reason == core::generated_reason::attribute_unset, "-linguist-generated returns a path to normal");
+		expect(!decisions[2].Generated && decisions[2].Reason == core::generated_reason::attribute_false, "=false is normal");
+		expect(!decisions[3].Generated && decisions[3].Reason == core::generated_reason::unspecified, "an ordinary file");
+		const auto again = core::read_generated_attribute_rules(files);
+		expect(core::decide_generated_files(paths, { }, again->get()) == decisions, "equal files decide equally");
+	}
+
+	void test_head_attribute_bounds()
+	{
+		using refusal = core::generated_attributes_refusal;
+		expect(core::read_generated_attribute_rules({ }).has_value(), "no file is no rule");
+		auto many = std::vector<core::generated_attribute_file>{ { .Directory = "", .Contents = "*.gen linguist-generated\n" } };
+		for (std::size_t index = 1U; index < core::maximum_generated_attribute_files; ++index) {
+			many.push_back({ .Directory = "d" + std::to_string(1000U + index), .Contents = "*.gen linguist-generated\n" });
+		}
+		expect(core::read_generated_attribute_rules(many).has_value(), "64 files are read");
+		many.push_back({ .Directory = "z", .Contents = { } });
+		expect(core::read_generated_attribute_rules(many) == std::unexpected{ refusal::too_many_files }, "a 65th file refuses the rules");
+
+		auto large = std::vector<core::generated_attribute_file>{ { .Directory = "", .Contents = std::string(core::maximum_generated_attribute_file_bytes, '#') } };
+		expect(core::read_generated_attribute_rules(large).has_value(), "512 KiB is read");
+		large.front().Contents.push_back('\n');
+		expect(core::read_generated_attribute_rules(large) == std::unexpected{ refusal::file_too_large }, "one byte more refuses the rules");
+
+		const auto refused = [](std::vector<core::generated_attribute_file> aFiles) {
+			return core::read_generated_attribute_rules(aFiles) == std::unexpected{ refusal::invalid_files };
+		};
+		expect(refused({ { .Directory = "b", .Contents = { } }, { .Directory = "a", .Contents = { } } }), "parents and siblings come in order");
+		expect(refused({ { .Directory = "a", .Contents = { } }, { .Directory = "a", .Contents = { } } }), "one file per directory");
+		for (const auto* directory : { "/a", "a/", "a//b", "a/../b", "./a", ".." }) {
+			expect(refused({ { .Directory = directory, .Contents = { } } }), "a directory is a normalized repository path");
+		}
+	}
 } // namespace
 
 auto main() -> int
@@ -227,6 +315,8 @@ auto main() -> int
 	test_gesture_availability();
 	test_review_decisions_follow_paths_marks_and_rules();
 	test_attribute_directories();
+	test_head_attribute_rules();
+	test_head_attribute_bounds();
 	std::cout << "generated files: all passed\n";
 	return 0;
 }

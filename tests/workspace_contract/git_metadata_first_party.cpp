@@ -5,6 +5,7 @@
 #include "bpr/adapters/workspace/local_workspace_source.hpp"
 #include "bpr/application/review_cycle_git_metadata.hpp"
 #include "bpr/application/review_cycle_words.hpp"
+#include "bpr/core/generated_files.hpp"
 #include "bpr/core/review_cycle.hpp"
 #include "bpr/core/review_cycle_git.hpp"
 #include "bpr/core/review_cycle_ignore.hpp"
@@ -337,6 +338,50 @@ namespace bpr::tests::workspace_contract {
 				answers.reserve(aPaths.size());
 				for (const auto& question : aPaths) {
 					const auto state = rules.filter(question.Path);
+					switch (state.Kind) {
+					case core::git_attribute_state::kind::unspecified: answers.emplace_back("unspecified"); break;
+					case core::git_attribute_state::kind::set:         answers.emplace_back("set"); break;
+					case core::git_attribute_state::kind::unset:       answers.emplace_back("unset"); break;
+					case core::git_attribute_state::kind::value:       answers.push_back(state.Value); break;
+					}
+				}
+				return answers;
+			}
+
+			/// \brief [[BPR-1692]]. The shipped head reader: the committed
+			/// `.gitattributes` of every ancestor directory, through
+			/// `core::read_generated_attribute_rules` (case-sensitive, no
+			/// `info/attributes`, its 64-file and 512 KiB bounds).
+			auto linguist_generated(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths) -> std::expected<std::vector<attribute_answer>, candidate_refusal> override
+			{
+				auto session = open_git(aRoot);
+				if (!session) {
+					return std::unexpected(session.error());
+				}
+				auto directories = std::set<std::string>{ "" };
+				for (const auto& question : aPaths) {
+					for (auto& directory : ancestors(question.Path)) {
+						directories.insert(std::move(directory));
+					}
+				}
+				auto files = std::vector<core::generated_attribute_file>{ };
+				for (const auto& directory : directories) {
+					auto contents = rule_file(**session, directory, ".gitattributes");
+					if (!contents) {
+						return std::unexpected(contents.error());
+					}
+					if (*contents) {
+						files.push_back({ .Directory = directory, .Contents = std::move(**contents) });
+					}
+				}
+				const auto rules = core::read_generated_attribute_rules(files);
+				if (!rules) {
+					return std::unexpected("head rules refused: " + std::to_string(static_cast<int>(rules.error())));
+				}
+				auto answers = std::vector<attribute_answer>{ };
+				answers.reserve(aPaths.size());
+				for (const auto& question : aPaths) {
+					const auto state = (*rules)->linguist_generated(question.Path);
 					switch (state.Kind) {
 					case core::git_attribute_state::kind::unspecified: answers.emplace_back("unspecified"); break;
 					case core::git_attribute_state::kind::set:         answers.emplace_back("set"); break;

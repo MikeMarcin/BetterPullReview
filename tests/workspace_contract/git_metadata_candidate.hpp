@@ -131,6 +131,15 @@ namespace bpr::tests::workspace_contract {
 		virtual auto ignored(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths) -> std::expected<std::vector<bool>, candidate_refusal> = 0;
 		/// \brief C6: each path's `filter` attribute.
 		virtual auto filter(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths) -> std::expected<std::vector<attribute_answer>, candidate_refusal> = 0;
+		/// \brief [[BPR-1692]]. Each path's `linguist-generated`, from the
+		/// committed `.gitattributes` files only, as RFC-BPR-0089 reads them at
+		/// a pull request's head. A candidate that does not offer it refuses.
+		virtual auto linguist_generated(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths) -> std::expected<std::vector<attribute_answer>, candidate_refusal>
+		{
+			static_cast<void>(aRoot);
+			static_cast<void>(aPaths);
+			return std::unexpected(candidate_refusal{ "not offered" });
+		}
 	};
 
 	/// \brief The first-party readers (K) composed as capture composes them.

@@ -28,6 +28,25 @@ namespace bpr::application {
 		failed,
 	};
 
+	/// \brief RFC-BPR-0089 M2 ([[BPR-1692]]). Whether the head's
+	/// `.gitattributes` were read for `linguist-generated`, or why not.
+	enum class generated_attributes_read : std::uint8_t {
+		/// Not asked for yet, or being read.
+		pending,
+		read,
+		/// The review's paths sit in more directories than one read looks in.
+		too_many_directories,
+		/// More than 64 `.gitattributes` files apply.
+		too_many_files,
+		/// One is larger than 512 KiB.
+		file_too_large,
+		/// They hold more rules than the reader keeps.
+		too_many_rules,
+		/// The head's objects are not in this review's local objects.
+		objects_unavailable,
+		failed,
+	};
+
 	/// \brief One listed commit, in GitHub's order.
 	struct commit_filter_row
 	{
@@ -109,6 +128,11 @@ namespace bpr::application {
 		/// Whether the head's `.gitattributes` were read. While they are not,
 		/// only the reviewer's marks set files aside.
 		bool AttributesRead = false;
+		/// Why they were not read, when a bound or the objects stopped it;
+		/// `AttributesExceeded` names the directory of a file past the byte
+		/// bound.
+		generated_attributes_read  Attributes = generated_attributes_read::pending;
+		std::optional<std::string> AttributesExceeded;
 		/// Files in the review whose menu is not an ordinary file's: marked,
 		/// or generated and reviewed anyway. Sorted by path.
 		std::vector<generated_file_row> Marked;

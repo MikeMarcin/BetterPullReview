@@ -179,4 +179,74 @@ namespace bpr::core {
 		directories.erase(repeated.begin(), repeated.end());
 		return directories;
 	}
+
+	namespace {
+		/// \brief A root-relative directory: empty, or segments without `.`,
+		/// `..`, empty segments or NUL, and within the path bound.
+		[[nodiscard]] auto normalized_directory(const std::string_view aDirectory) noexcept -> bool
+		{
+			if (aDirectory.empty()) {
+				return true;
+			}
+			if (aDirectory.size() > maximum_identified_path_bytes || aDirectory.find('\0') != std::string_view::npos) {
+				return false;
+			}
+			for (auto rest = aDirectory;;) {
+				const auto slash   = rest.find('/');
+				const auto segment = rest.substr(0U, slash);
+				if (segment.empty() || segment == "." || segment == "..") {
+					return false;
+				}
+				if (slash == std::string_view::npos) {
+					return true;
+				}
+				rest.remove_prefix(slash + 1U);
+			}
+		}
+
+		/// \brief `linguist-generated` from the first-party attribute reader.
+		class head_attribute_rules final : public generated_attribute_rules
+		{
+		public:
+			[[nodiscard]] auto add(const generated_attribute_file& aFile) -> bool
+			{
+				return Rules.add(aFile.Directory, aFile.Contents);
+			}
+
+			[[nodiscard]] auto linguist_generated(const std::string_view aPath) const -> git_attribute_state override
+			{
+				return Rules.linguist_generated(aPath);
+			}
+
+		private:
+			// GitHub's repositories are case-sensitive.
+			workspace_attribute_rules Rules{ false };
+		};
+	} // namespace
+
+	auto read_generated_attribute_rules(const std::span<const generated_attribute_file> aFiles)
+		-> std::expected<std::shared_ptr<const generated_attribute_rules>, generated_attributes_refusal>
+	{
+		if (aFiles.size() > maximum_generated_attribute_files) {
+			return std::unexpected{ generated_attributes_refusal::too_many_files };
+		}
+		for (std::size_t index = 0U; index < aFiles.size(); ++index) {
+			const auto& file = aFiles[index];
+			if (!normalized_directory(file.Directory) || (index != 0U && !(aFiles[index - 1U].Directory < file.Directory))) {
+				return std::unexpected{ generated_attributes_refusal::invalid_files };
+			}
+			if (file.Contents.size() > maximum_generated_attribute_file_bytes) {
+				return std::unexpected{ generated_attributes_refusal::file_too_large };
+			}
+		}
+		// Sorted by directory, every parent is added before its children, as
+		// the reader requires.
+		auto rules = std::make_shared<head_attribute_rules>();
+		for (const auto& file : aFiles) {
+			if (!rules->add(file)) {
+				return std::unexpected{ generated_attributes_refusal::too_many_rules };
+			}
+		}
+		return rules;
+	}
 } // namespace bpr::core

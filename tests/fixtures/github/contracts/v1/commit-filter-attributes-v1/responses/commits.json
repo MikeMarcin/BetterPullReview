@@ -1,0 +1,50 @@
+[
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "Change the generator input"
+		},
+		"node_id": "C_8e228455",
+		"parents": [
+			{
+				"sha": "1111111111111111111111111111111111111111"
+			}
+		],
+		"sha": "8e2284552315a346e5bb6515e68f0c8be4c0db5d"
+	},
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "Regenerate"
+		},
+		"node_id": "C_4fd2dc3e",
+		"parents": [
+			{
+				"sha": "8e2284552315a346e5bb6515e68f0c8be4c0db5d"
+			}
+		],
+		"sha": "4fd2dc3ebfe9af35064252092c2191e635c67bbe"
+	},
+	{
+		"author": {
+			"login": "fixture-author",
+			"node_id": "U_fixture-author"
+		},
+		"commit": {
+			"message": "Follow-ups"
+		},
+		"node_id": "C_22222222",
+		"parents": [
+			{
+				"sha": "4fd2dc3ebfe9af35064252092c2191e635c67bbe"
+			}
+		],
+		"sha": "2222222222222222222222222222222222222222"
+	}
+]

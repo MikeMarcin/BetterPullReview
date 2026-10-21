@@ -188,6 +188,19 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_commit_filter_touches(
 			commit_filter_touches_request    aRequest,
 			commit_filter_touches_completion aCompletion) -> bool;
+		/// \brief RFC-BPR-0089 M2 ([[BPR-1692]]). Reads the head's
+		/// `.gitattributes` files in the requested directories, for
+		/// `linguist-generated`.
+		/// \details Looks each up at the accepted head by literal path; reads
+		/// at most `core::maximum_generated_attribute_files` blobs of at most
+		/// `core::maximum_generated_attribute_file_bytes` and says which bound
+		/// stopped it. A sparse review's missing blob is read exactly through
+		/// its own lease and checked against its OID; nothing else is fetched.
+		/// Runs on the review's cache actor like `resolve_changed_paths`, with
+		/// the same admission and completion.
+		[[nodiscard]] auto resolve_generated_attributes(
+			generated_attributes_request    aRequest,
+			generated_attributes_completion aCompletion) -> bool;
 		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
 		/// the merge base's version of its file, which GitHub numbers `LEFT`
 		/// lines in.

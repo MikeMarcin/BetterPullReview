@@ -98,6 +98,12 @@ namespace bpr::application {
 		if (Head != head) {
 			Touches.clear();
 			Trees = commit_filter_trees::idle;
+			// [[BPR-1692]]. Generated status follows the head's attributes.
+			AttributeRules.reset();
+			AttributesAsked.reset();
+			AttributesLoading = false;
+			Attributes        = generated_attributes_read::pending;
+			AttributesExceeded.reset();
 		}
 		Head          = head;
 		Known         = true;
@@ -524,6 +530,116 @@ namespace bpr::application {
 	void commit_filter_model::adopt_generated_attributes(std::shared_ptr<const core::generated_attribute_rules> aRules)
 	{
 		AttributeRules = std::move(aRules);
+		Attributes     = AttributeRules != nullptr ? generated_attributes_read::read : generated_attributes_read::pending;
+	}
+
+	auto commit_filter_model::generated_attributes_wanted() const -> std::optional<std::vector<std::string>>
+	{
+		if (!Head || !Known || AttributesLoading) {
+			return std::nullopt;
+		}
+		auto paths = std::vector<std::string>{ };
+		paths.reserve(SnapshotFiles.size());
+		for (const auto& record : SnapshotFiles) {
+			paths.push_back(record.Path);
+		}
+		// A filtered diff can name a path the comparison does not list.
+		for (const auto& touch : Touches) {
+			for (const auto& touched : touch.Paths) {
+				paths.push_back(touched.Path);
+			}
+		}
+		auto directories = core::generated_attribute_directories(paths);
+		if (AttributesAsked && AttributesAsked->first == *Head && AttributesAsked->second == directories) {
+			return std::nullopt;
+		}
+		return directories;
+	}
+
+	auto commit_filter_model::begin_generated_attributes(std::vector<std::string> aDirectories) -> bool
+	{
+		if (!Head || AttributesLoading) {
+			return false;
+		}
+		AttributesAsked.emplace(*Head, std::move(aDirectories));
+		AttributesExceeded.reset();
+		if (AttributesAsked->second.size() > maximum_generated_attribute_directories) {
+			AttributeRules.reset();
+			Attributes = generated_attributes_read::too_many_directories;
+			return false;
+		}
+		// Rules read for fewer directories under this head stay until the
+		// wider answer arrives: the directories only grow.
+		AttributesLoading = true;
+		return true;
+	}
+
+	void commit_filter_model::abandon_generated_attributes()
+	{
+		if (AttributesLoading) {
+			AttributesLoading = false;
+			AttributesAsked.reset();
+		}
+	}
+
+	void commit_filter_model::adopt_generated_attributes(const generated_attributes_observation& aObservation)
+	{
+		if (!AttributesLoading || !AttributesAsked || AttributesAsked->first != aObservation.Request.Head
+			|| AttributesAsked->second != aObservation.Request.Directories) {
+			return;
+		}
+		AttributesLoading = false;
+		AttributesExceeded.reset();
+		switch (aObservation.Status) {
+		case generated_attributes_status::resolved: {
+			auto rules = core::read_generated_attribute_rules(aObservation.Files);
+			if (rules) {
+				AttributeRules = std::move(*rules);
+				Attributes     = generated_attributes_read::read;
+				return;
+			}
+			AttributeRules.reset();
+			switch (rules.error()) {
+			case core::generated_attributes_refusal::too_many_files: Attributes = generated_attributes_read::too_many_files; break;
+			case core::generated_attributes_refusal::file_too_large: Attributes = generated_attributes_read::file_too_large; break;
+			case core::generated_attributes_refusal::too_many_rules: Attributes = generated_attributes_read::too_many_rules; break;
+			case core::generated_attributes_refusal::invalid_files:  Attributes = generated_attributes_read::failed; break;
+			}
+			return;
+		}
+		case generated_attributes_status::too_many_files:
+			AttributeRules.reset();
+			Attributes = generated_attributes_read::too_many_files;
+			return;
+		case generated_attributes_status::file_too_large:
+			AttributeRules.reset();
+			Attributes         = generated_attributes_read::file_too_large;
+			AttributesExceeded = aObservation.Exceeded;
+			return;
+		case generated_attributes_status::objects_unavailable:
+			AttributeRules.reset();
+			Attributes = generated_attributes_read::objects_unavailable;
+			return;
+		case generated_attributes_status::stale:
+		case generated_attributes_status::cancelled:
+			// Asked again on the next refresh; rules already read stay.
+			AttributesAsked.reset();
+			return;
+		case generated_attributes_status::failure:
+			AttributeRules.reset();
+			Attributes = generated_attributes_read::failed;
+			return;
+		}
+	}
+
+	auto commit_filter_model::generated_attributes() const noexcept -> generated_attributes_read
+	{
+		return Attributes;
+	}
+
+	auto commit_filter_model::generated_attributes_exceeded() const noexcept -> const std::optional<std::string>&
+	{
+		return AttributesExceeded;
 	}
 
 	auto commit_filter_model::generated_decision_of(const std::string_view aPath) const -> core::generated_decision
@@ -576,9 +692,11 @@ namespace bpr::application {
 		for (const auto& gone : summary.Gone) {
 			result.Gone.push_back({ .ShortCommit = short_hex(gone.Oid), .Headline = gone.Headline });
 		}
-		result.ComparisonFiles = SnapshotFiles.size();
-		result.FileFilterPaths = FileFilter.Hidden.size();
-		result.AttributesRead  = AttributeRules != nullptr;
+		result.ComparisonFiles    = SnapshotFiles.size();
+		result.FileFilterPaths    = FileFilter.Hidden.size();
+		result.AttributesRead     = AttributeRules != nullptr;
+		result.Attributes         = Attributes;
+		result.AttributesExceeded = AttributesExceeded;
 		project_generated(result);
 		if (!Graph) {
 			return result;

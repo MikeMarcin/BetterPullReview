@@ -15,6 +15,13 @@
 // generated, Review anyway and Follow .gitattributes work from the file menus
 // and the generated row, survive a restart through the review ledger, and
 // Clear all filters leaves generated files behind their row (AC04, AC05).
+//
+// [[BPR-1692]]. A third course opens commit-filter-attributes-v1, the same
+// chain whose head marks `gen/**` linguist-generated and returns
+// gen/item_007.txt with a nested -linguist-generated: Whole PR and every
+// filter leave the 95 marked paths behind the generated row, out of the walk
+// and the counts and unprepared, Clear all filters leaves them there, and a
+// reviewer's mark still outranks the attributes (AC04, AC05).
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -43,6 +50,7 @@
 #include <QToolButton>
 #include <QTreeWidget>
 
+#include <algorithm>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -127,14 +135,23 @@ namespace {
 		return aWindow.overview_page()->projection() ? aWindow.overview_page()->projection()->Files.size() : 0U;
 	}
 
-	auto start(course& aCourse) -> qt::workbench_window&
+	/// \brief Which fixture a course opens and how many files its Overview
+	/// lists once open.
+	struct opening
+	{
+		app::detail::github_public_path_fixture Fixture = app::detail::github_public_path_fixture::commit_filter_v1;
+		QString                                 Address = QStringLiteral("bpr-fixtures/commit-filter#89");
+		std::size_t                             Files   = whole;
+	};
+
+	auto start(course& aCourse, const opening& aOpening = { }) -> qt::workbench_window&
 	{
 		const auto dataRoot = e2e::private_data_root(aCourse.Temporary);
 		expect(dataRoot.has_value(), "private course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
 		options.ApplicationDataRoot = dataRoot;
 		auto terminal               = false;
-		auto startup                = access::start(app::detail::github_public_path_fixture::commit_filter_v1, options, [&](auto aResult) {
+		auto startup                = access::start(aOpening.Fixture, options, [&](auto aResult) {
 			terminal = true;
 			if (aResult) {
 				aCourse.Application = std::move(*aResult);
@@ -147,19 +164,19 @@ namespace {
 		window.resize(1280, 860);
 		window.github_connect_action()->trigger();
 		wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
-		window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/commit-filter#89"));
+		window.home_open_bar()->setText(aOpening.Address);
 		window.home_open_action()->trigger();
 		auto opened = QElapsedTimer{ };
 		opened.start();
-		while (!(window.showing_overview() && overview_files(window) == whole) && opened.elapsed() < 30000) {
+		while (!(window.showing_overview() && overview_files(window) == aOpening.Files) && opened.elapsed() < 30000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
-		if (!(window.showing_overview() && overview_files(window) == whole)) {
+		if (!(window.showing_overview() && overview_files(window) == aOpening.Files)) {
 			std::cout << "commit-filter opening overview=" << window.showing_overview() << " files=" << overview_files(window)
 					  << " status=" << window.github_status_text() << '\n';
 		}
-		wait_for([&] { return window.showing_overview() && overview_files(window) == whole; }, "the pull request opens on Overview with GitHub's 98 files");
+		wait_for([&] { return window.showing_overview() && overview_files(window) == aOpening.Files; }, "the pull request opens on Overview with its expected files");
 		return window;
 	}
 
@@ -454,6 +471,86 @@ namespace {
 		std::cout << "generated-files course files=" << overview_files(*window) << '\n';
 		finish(run);
 	}
+
+	[[nodiscard]] auto in_overview_tree(qt::workbench_window& aWindow, const std::string_view aPath) -> bool
+	{
+		return aWindow.overview_page()->file_model()->index_for_path(QString::fromUtf8(aPath.data(), static_cast<qsizetype>(aPath.size()))).isValid();
+	}
+
+	[[nodiscard]] auto blob(const std::string_view aHex) -> core::git_blob_oid
+	{
+		return *core::parse_git_blob_oid(aHex);
+	}
+
+	/// \brief [[BPR-1692]]. commit-filter-attributes-v1: the head's root
+	/// `.gitattributes` marks `gen/**` and a nested one returns
+	/// `gen/item_007.txt` with `-linguist-generated` (AC04's attribute half).
+	void linguist_generated_at_head()
+	{
+		constexpr auto attributesC1 = std::string_view{ "8e2284552315a346e5bb6515e68f0c8be4c0db5d" };
+		constexpr auto attributesC3 = std::string_view{ "080975e555a2c41ca8d26e7becf1c1d8a997f145" };
+		constexpr auto marked       = std::size_t{ 95U };
+		constexpr auto ordinary     = whole - marked;
+		auto           run          = course{ };
+		auto*          window       = &start(run, { .Fixture = app::detail::github_public_path_fixture::commit_filter_attributes_v1, .Address = QStringLiteral("bpr-fixtures/commit-filter-attributes#1692"), .Files = ordinary });
+
+		// Whole PR: the head's rules set 95 files aside; -linguist-generated returns one.
+		auto* overviewRow = window->overview_page()->generated_row();
+		expect(!overviewRow->isHidden() && overviewRow->rows().size() == marked && overviewRow->toggle()->text() == QStringLiteral("95 generated files hidden"),
+			   "the Overview's tree ends with the 95 files the head's linguist-generated marks");
+		expect(std::ranges::all_of(overviewRow->rows(), [](const auto& aRow) { return aRow.Reason == core::generated_reason::attribute_set; }),
+			   "each is set aside because .gitattributes marks it");
+		expect(in_overview_tree(*window, "gen/item_007.txt") && in_overview_tree(*window, "src/app.cpp") && !in_overview_tree(*window, "gen/item_000.txt")
+				   && !in_overview_tree(*window, "gen/item_008.txt"),
+			   "gen/item_007.txt is back in the tree; the regenerated files, even one C3 edited, are not");
+		expect(window->overview_page()->files_heading()->text().contains(QStringLiteral("Files: 3 of 98 in this pull request"))
+				   && window->overview_page()->files_heading()->text().contains(QStringLiteral("95 generated set aside"))
+				   && !window->overview_page()->files_heading()->text().contains(QStringLiteral("linguist-generated")),
+			   "the Overview's count says they are set aside, and nothing says the attributes were not read");
+		expect(!window->overview_page()->commit_chip()->isVisible(), "set-aside files are not a filter: no chip");
+		enter_review(run);
+		auto walked = walk(*window);
+		std::ranges::sort(walked);
+		expect(walked == std::vector<std::string>{ "gen/item_007.txt", "src/app.cpp", "src/generator.in" }, "Next file and the counts cover the three ordinary files");
+		auto* drawerRow = window->files_generated_row();
+		expect(drawerRow != nullptr && drawerRow->rows().size() == marked, "the Files drawer's tree ends with the same row");
+		// Opening a file starts a preparation round over the files around it.
+		const auto rounds = access::diff_work_evidence(*run.Application).PreparationRounds;
+		select(*window, "gen/item_007.txt");
+		wait_for([&] {
+			const auto work = access::diff_work_evidence(*run.Application);
+			return work.PreparationRounds > rounds && work.Preparing == 0U && work.PreparationsInFlight == 0U && work.EpochOutstandingJobs == 0U;
+		},
+				 "the preparation round settles");
+		expect(access::diff_blob_reads(*run.Application, blob("85ff5e81d7a1adb4de252446bfabeaa1211d2718")) != 0U,
+			   "an ordinary file is prepared: src/generator.in's head blob is read");
+		expect(access::diff_blob_reads(*run.Application, blob("cbaab37374a1a5502c81ac45aaad3cc68f4a75ec")) == 0U
+				   && access::diff_blob_reads(*run.Application, blob("4764315f2893b5a3440fca43b5f7603f16197202")) == 0U,
+			   "set-aside files are not prepared: their head blobs are never read");
+
+		// Every filter: Hide C1 leaves C2 and C3, and still sets the 95 aside.
+		window->show_commits();
+		read_commit_trees(*window);
+		gesture(*window, { attributesC1 }, QStringLiteral("commitFilterHide"));
+		wait_for([&] { return overview_files(*window) == 2U && drawer_files(*window) == 2; }, "Hide C1 leaves gen/item_007.txt and src/app.cpp");
+		expect(window->overview_page()->generated_row()->rows().size() == marked, "under a commit filter generated files stay behind their row");
+		gesture(*window, { attributesC3 }, QStringLiteral("commitFilterShowOnly"));
+		wait_for([&] { return overview_files(*window) == 2U && in_overview_tree(*window, "gen/item_007.txt") && !in_overview_tree(*window, "gen/item_008.txt"); },
+				 "Show only C3 lists its two ordinary files; its hand edit of a generated file stays aside");
+		window->overview_page()->commit_chip()->clear_button()->click();
+		wait_for([&] { return window->overview_page()->commit_chip()->isHidden() && overview_files(*window) == ordinary; }, "Clear all filters");
+		expect(window->overview_page()->generated_row()->rows().size() == marked, "Clear all filters leaves generated files behind their row (owner, Q3)");
+
+		// A mark still outranks the attributes.
+		generated_row_gesture(*window->overview_page()->generated_row(), "gen/item_000.txt", QStringLiteral("Show as normal"));
+		wait_for([&] { return overview_files(*window) == ordinary + 1U && in_overview_tree(*window, "gen/item_000.txt"); }, "Show as normal outranks linguist-generated");
+		overview_gesture(*window, "gen/item_007.txt", QStringLiteral("Treat as generated"));
+		wait_for([&] { return overview_files(*window) == ordinary && !in_overview_tree(*window, "gen/item_007.txt"); }, "Treat as generated outranks -linguist-generated");
+
+		expect(access::held_review_mutation_terminals(*run.Application) == 0U, "reading .gitattributes asks GitHub for nothing (AC05)");
+		std::cout << "linguist-generated course files=" << overview_files(*window) << " set-aside=" << window->overview_page()->generated_row()->rows().size() << '\n';
+		finish(run);
+	}
 } // namespace
 
 auto main(int aArgc, char** aArgv) -> int
@@ -461,6 +558,7 @@ auto main(int aArgc, char** aArgv) -> int
 	auto qtApplication = QApplication{ aArgc, aArgv };
 	filters_follow_the_commits();
 	generated_files_and_file_filters();
+	linguist_generated_at_head();
 	std::cout << "COMMIT_FILTER_PUBLIC_PATH_OK qt=" << qVersion() << '\n';
 	return 0;
 }

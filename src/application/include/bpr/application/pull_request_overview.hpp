@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PULL_REQUEST_OVERVIEW_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PULL_REQUEST_OVERVIEW_HPP
 
+#include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/review_ledger_port.hpp"
@@ -277,6 +278,10 @@ namespace bpr::application {
 		bool        FilteredByCommits = false;
 		std::size_t FileFilteredFiles = 0U;
 		std::size_t GeneratedFiles    = 0U;
+		/// [[BPR-1692]]. Whether the head's `.gitattributes` were read for
+		/// `linguist-generated`, or why not, so the heading can say so.
+		generated_attributes_read  GeneratedAttributes = generated_attributes_read::pending;
+		std::optional<std::string> GeneratedAttributesExceeded;
 
 		auto operator<=>(const pull_request_overview_projection&) const = default;
 	};

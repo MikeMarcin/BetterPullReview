@@ -1,3 +1,16 @@
+# [[BPR-1692]] reseal (2026-10-21) over last matching main 5e4c77757, linear.
+# Pinned-scope change: RFC-BPR-0089 M2's linguist-generated read, on this
+# card's own commit. Inside the manifest only github_application.cpp changed:
+# the window asks the epoch host for the accepted head's .gitattributes once
+# per head and directory set, beside the chain's tree diffs, adopts the core's
+# rules into the commit filter, and publishes why they were not read to the
+# Overview. The BUILD_TESTING commit-filter-attributes-v1 fixture adds one
+# host-label case there, its enum (github_application_fixture_access.hpp) and
+# its descriptor (github_public_path_fixture.cpp), outside the manifest. No
+# credential, grant, provider selection, publication, mutation or
+# source-inventory change; the read is a local cache lookup, or a sparse
+# review's exact blob read through its own lease. Full and manifest pins bind
+# these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21) over last matching 1204a7194..7babe3593, linear.
 # Pinned-scope commits: RFC-BPR-0089 M2 8e296033d ([[BPR-1689]]..[[BPR-1691]]).
 # Only github_application.cpp changed inside the manifest: it wires the window's
@@ -1772,7 +1785,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"dac00e7954f8ff92cc14b0f03032a85008f41ea88a330921afc1e089136c42c8"
+		"b7411081f7c9d3eac1e7d53455452e5be78d449f4c202ff7d76a063346dcdedf"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1992,7 +2005,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "181292021d3a98e14204d0d1a8501dabaf939174d1a0e331b06bbef5907f9a8d"
+        "51bf3561ef0fa9927a96bc2658f7685a9e2705bbff8eb0f7c23a3412a4904c9e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

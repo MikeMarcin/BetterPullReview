@@ -931,7 +931,7 @@ namespace bpr::core {
 		}
 	}
 
-	auto workspace_attribute_rules::filter(const std::string_view aPath) const -> git_attribute_state
+	auto workspace_attribute_rules::attribute(const std::string_view aPath, const std::string_view aName) const -> git_attribute_state
 	{
 		auto assigned = assigned_states{ };
 		for (const auto* list : { &InfoRules, &Rules }) {
@@ -940,12 +940,22 @@ namespace bpr::core {
 					continue;
 				}
 				fill(current.Assignments, assigned);
-				if (const auto found = assigned.find(std::string_view{ "filter" }); found != assigned.end()) {
+				if (const auto found = assigned.find(aName); found != assigned.end()) {
 					return *found->second;
 				}
 			}
 		}
 		return { };
+	}
+
+	auto workspace_attribute_rules::filter(const std::string_view aPath) const -> git_attribute_state
+	{
+		return attribute(aPath, "filter");
+	}
+
+	auto workspace_attribute_rules::linguist_generated(const std::string_view aPath) const -> git_attribute_state
+	{
+		return attribute(aPath, "linguist-generated");
 	}
 
 	auto default_exclusion_names() noexcept -> std::span<const std::string_view>

@@ -32,11 +32,27 @@ writes what the review showed. This script checks it against Git:
 - the removed and added lines equal `git diff` path by path;
 - GitHub's Viewed state for every file is the same before and after (AC05).
 
+With `--generated` ([[BPR-1692]], RFC-BPR-0089 M2) the scratch base also
+commits `PREFIX/.gitattributes` marking `gen/** linguist-generated`, a nested
+`PREFIX/gen/.gitattributes` returning `0007.txt` with `-linguist-generated`,
+and a root `.gitattributes` line `PREFIX/gen/0001.txt linguist-generated=false`
+that the deeper file outranks. The course runs `--course generated` and checks
+against `git check-attr --source C3 linguist-generated`, the head's rules
+GitHub's Files changed honours:
+
+- Whole PR lists exactly the paths the head's rules leave normal, and the
+  generated row holds exactly the others (at least 300), each because the
+  attribute marks it; the Files drawer walks the same listed files;
+- each commit filter, and Clear all filters, lists its shown set minus the
+  generated paths, with the generated ones in its set behind the row;
+- the heading says they are set aside and nothing says the rules were not read;
+- GitHub's Viewed state is unchanged (AC05).
+
 Run by hand on macOS. It stops when `X-RateLimit-Remaining` falls below 500,
 and `--cleanup` closes its pull request and deletes its branches:
 
     python3 tests/end_to_end/rfc0089_commit_filter_live_course.py \\
-        --build build/dev --work DIR --prefix rfc0089-live [--cleanup | --close N]
+        --build build/dev --work DIR --prefix rfc0089-live [--generated] [--cleanup | --close N]
 """
 
 from __future__ import annotations
@@ -156,6 +172,12 @@ class Course:
             self.write(f"src/{name}.txt", [f"{name} line {n}" for n in range(1, 31)])
         for index in range(GENERATED):
             self.write(f"gen/{index:04}.txt", [f"// generated {index:04} v1"] + [f"gen {index:04} row {n}" for n in range(1, 21)])
+        if self.arguments.generated:
+            self.write(".gitattributes", ["gen/** linguist-generated"])
+            self.write("gen/.gitattributes", ["0007.txt -linguist-generated"])
+            root = self.repo / ".gitattributes"
+            existing = root.read_text() if root.exists() else ""
+            root.write_text(existing + ("" if not existing or existing.endswith("\n") else "\n") + f"{self.prefix}/gen/0001.txt linguist-generated=false\n")
         self.commit("M0", f"{self.prefix}: scratch base")
         self.git("push", "-q", "origin", f"{self.commits['M0']}:refs/heads/{self.base}")
         self.edit("src/a.txt", 5, "a line 5 C1")
@@ -282,6 +304,52 @@ class Course:
         if missing:
             self.failures.append(f"scenarios not run: {missing}")
 
+    def generated_states(self, paths: list[str]) -> dict[str, str]:
+        answered = subprocess.run(["git", "check-attr", "--source", self.commits["C3"], "-z", "linguist-generated", "--", *paths],
+                                  cwd=self.repo, capture_output=True, check=True).stdout.decode().split("\0")
+        return dict(zip(answered[0::3], answered[2::3]))
+
+    def check_generated(self) -> None:
+        lines = [json.loads(line) for line in (self.root / "generated.jsonl").read_text().splitlines() if line.strip()]
+        every = sorted({path for label in ("C1", "C2", "C3") for path in self.touch[label]})
+        states = self.generated_states(every)
+        generated = {path for path, state in states.items() if state not in ("unspecified", "unset", "false")}
+        print(f"git check-attr at C3: {len(generated)} of {len(every)} generated; "
+              f"{self.prefix}/gen/0007.txt {states.get(f'{self.prefix}/gen/0007.txt')}, {self.prefix}/gen/0001.txt {states.get(f'{self.prefix}/gen/0001.txt')}")
+        if len(generated) < 300:
+            self.failures.append(f"the course needs at least 300 generated files, git marks {len(generated)}")
+        names = {"whole": ["C1", "C2", "C3"], "cleared": ["C1", "C2", "C3"], "only-1": ["C1"], "only-2": ["C2"], "only-3": ["C3"], "hide-2": ["C1", "C3"]}
+        seen = set()
+        for view in (line for line in lines if line["kind"] == "view"):
+            name = view["name"]
+            seen.add(name)
+            shown = names[name]
+            listed = {path for path in every if self.expected(shown, path)["kind"] != "excluded"} if name not in ("whole", "cleared") else set(every)
+            want_files = sorted(listed - generated)
+            want_aside = sorted(listed & generated)
+            files, aside = sorted(view["files"]), sorted(view["generated"])
+            facts = []
+            if view["attributes"] != 1:
+                facts.append(f"attributes state {view['attributes']}, not read")
+            if files != want_files:
+                facts.append(f"lists {len(files)} != {len(want_files)}: extra {sorted(set(files) - set(want_files))[:5]} missing {sorted(set(want_files) - set(files))[:5]}")
+            if aside != want_aside:
+                facts.append(f"sets aside {len(aside)} != {len(want_aside)}: extra {sorted(set(aside) - set(want_aside))[:5]} missing {sorted(set(want_aside) - set(aside))[:5]}")
+            if any(reason != 1 for reason in view["generated"].values()):
+                facts.append("a set-aside file's reason is not the attribute")
+            if "linguist-generated" in view["heading"] or (want_aside and "generated set aside" not in view["heading"]):
+                facts.append(f"heading {view['heading']!r}")
+            print(f"  {'MATCH' if not facts else 'DIFFERS'} {name}: lists {len(files)}, sets aside {len(aside)}; row {view['row']!r}")
+            self.failures.extend(f"{name}: {fact}" for fact in facts)
+        walk = next((line for line in lines if line["kind"] == "walk"), None)
+        if walk is None or sorted(walk["paths"]) != sorted(set(every) - generated):
+            self.failures.append("the Files drawer does not walk exactly the listed files")
+        else:
+            print(f"  MATCH walk: {len(walk['paths'])} files")
+        missing = sorted(set(names) - seen)
+        if missing:
+            self.failures.append(f"views not written: {missing}")
+
     def course(self) -> None:
         guard()
         self.setup()
@@ -293,13 +361,14 @@ class Course:
         guard()
         log = self.work / "course.log"
         started = time.time()
-        course = subprocess.run([str(Path(self.arguments.build).resolve() / "tests/end_to_end/live_second_account_course"), "--course", "commit-filter",
+        chosen = "generated" if self.arguments.generated else "commit-filter"
+        course = subprocess.run([str(Path(self.arguments.build).resolve() / "tests/end_to_end/live_second_account_course"), "--course", chosen,
                                  "--root", str(self.root), "--pull", str(self.pull)],
                                 capture_output=True, text=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
         log.write_text(course.stdout + course.stderr)
         print(f"course: exit {course.returncode} in {time.time() - started:.0f}s (log {log})", flush=True)
         for line in course.stdout.splitlines():
-            if line.startswith(("commit-filter:", "live-second-account-course", "login:")):
+            if line.startswith(("commit-filter:", "generated:", "live-second-account-course", "login:")):
                 print("  " + line[:300])
         if course.returncode != 0:
             self.failures.append("the course failed")
@@ -308,7 +377,12 @@ class Course:
             changed = sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
             self.failures.append(f"Viewed state changed for {changed[:10]}")
         print(f"AC05: Viewed state {'unchanged' if after == before else 'CHANGED'} for {len(after)} files", flush=True)
-        if (self.root / "commit-filter.jsonl").exists():
+        if self.arguments.generated:
+            if (self.root / "generated.jsonl").exists():
+                self.check_generated()
+            else:
+                self.failures.append("the course wrote no generated.jsonl")
+        elif (self.root / "commit-filter.jsonl").exists():
             self.check()
         guard()
 
@@ -325,6 +399,7 @@ def main() -> int:
     parser.add_argument("--work", required=True)
     parser.add_argument("--prefix", required=True)
     parser.add_argument("--cleanup", action="store_true")
+    parser.add_argument("--generated", action="store_true", help="BPR-1692: commit linguist-generated rules in the base and run the generated course")
     parser.add_argument("--close", type=int, help="only close this earlier run's pull request and delete the prefix's branches")
     arguments = parser.parse_args()
     course = Course(arguments)

@@ -1099,6 +1099,7 @@ namespace bpr::app {
 				};
 			// RFC-BPR-0089. Served like nested-folders: github.com, one head.
 			case detail::github_public_path_fixture::commit_filter_v1:
+			case detail::github_public_path_fixture::commit_filter_attributes_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },
@@ -14174,6 +14175,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// \brief [[BPR-1692]]. Asks for the head's `.gitattributes` once the
+		/// review's paths are known, and again when the chain's tree diffs name
+		/// more directories. A refusal (the head's objects are still arriving)
+		/// is asked again on the next epoch update.
+		void request_generated_attributes()
+		{
+			if (Closing || EpochHost == nullptr || !LastAcceptedHandoff) {
+				return;
+			}
+			auto directories = CommitFilter.generated_attributes_wanted();
+			if (!directories || !CommitFilter.head()) {
+				return;
+			}
+			auto request = application::generated_attributes_request{
+				.WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff),
+				.Head               = *CommitFilter.head(),
+				.Directories        = *directories,
+			};
+			if (!CommitFilter.begin_generated_attributes(std::move(*directories))) {
+				return;
+			}
+			if (!EpochHost->resolve_generated_attributes(std::move(request), [this](const application::generated_attributes_observation& aObservation) {
+					if (Closing) {
+						return;
+					}
+					CommitFilter.adopt_generated_attributes(aObservation);
+					refresh_commit_filter();
+				})) {
+				CommitFilter.abandon_generated_attributes();
+			}
+		}
+
 		/// \brief Re-decides the filtered file set and shows it everywhere it
 		/// applies: the Commits tab and chips, the Files drawer and walk, and
 		/// the Overview.
@@ -14184,6 +14217,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			CommitFilter.adopt_comparison(commit_filter_comparison());
 			request_commit_filter_trees();
+			request_generated_attributes();
 			const auto files   = CommitFilter.files();
 			const auto changed = WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt);
 			publish_commit_filter();
@@ -14773,6 +14807,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				PublishedOverview->FilteredByCommits           = filtered->CommitFiltered;
 				PublishedOverview->FileFilteredFiles           = filtered->FileFiltered;
 				PublishedOverview->GeneratedFiles              = filtered->SetAside.size();
+			}
+			if (accepted.has_value()) {
+				PublishedOverview->GeneratedAttributes         = CommitFilter.generated_attributes();
+				PublishedOverview->GeneratedAttributesExceeded = CommitFilter.generated_attributes_exceeded();
 			}
 			if (OverviewReceiptRevision.has_value()) {
 				OverviewReceipts.adopt(*PublishedOverview,

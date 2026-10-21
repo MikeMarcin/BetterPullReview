@@ -93,12 +93,15 @@ namespace bpr::core {
 		auto        operator<=>(const git_attribute_state&) const = default;
 	};
 
-	/// \brief The `filter` attribute from `.gitattributes` files and
-	/// `info/attributes`, with Git's precedence and macros. Other attributes
-	/// are interpreted only as far as a macro needs them.
+	/// \brief The `filter` and `linguist-generated` attributes from
+	/// `.gitattributes` files and `info/attributes`, with Git's precedence and
+	/// macros. Other attributes are interpreted only as far as a macro needs
+	/// them.
 	/// \details A filtered path's Git object is a transformation of its
 	/// working bytes (LFS, for example); capture records that fact and never
-	/// runs the filter.
+	/// runs the filter. RFC-BPR-0089 M2 reads `linguist-generated` with the
+	/// same rules from a pull request's head (owner, 2026-10-21: reuse this
+	/// first-party matcher and adopt no library).
 	class workspace_attribute_rules
 	{
 	public:
@@ -118,6 +121,8 @@ namespace bpr::core {
 		auto add_info(std::string_view aContents) -> bool;
 		/// \brief The path's `filter` attribute.
 		[[nodiscard]] auto filter(std::string_view aPath) const -> git_attribute_state;
+		/// \brief The path's `linguist-generated` attribute.
+		[[nodiscard]] auto linguist_generated(std::string_view aPath) const -> git_attribute_state;
 
 	private:
 		struct assignment
@@ -143,6 +148,9 @@ namespace bpr::core {
 		void               fill(const std::vector<assignment>& aAssignments, assigned_states& aAssigned) const;
 		[[nodiscard]] auto definition(std::string_view aName) const -> const std::vector<assignment>*;
 		[[nodiscard]] auto matches(const rule& aRule, std::string_view aPath) const -> bool;
+		/// \brief One attribute's state for a path: the first rule, by
+		/// precedence, that assigns it directly or through a macro.
+		[[nodiscard]] auto attribute(std::string_view aPath, std::string_view aName) const -> git_attribute_state;
 
 		std::vector<rule> Rules;
 		std::vector<rule> InfoRules;

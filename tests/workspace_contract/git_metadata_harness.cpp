@@ -963,6 +963,34 @@ namespace {
 							  }
 							  return std::nullopt;
 						  } });
+		// [[BPR-1692]]. RFC-BPR-0089's linguist-generated corpus, the same as
+		// tests/core/generated_files_tests.cpp's: nested files, macros, `**`,
+		// anchored, directory and quoted patterns, and the three ways to say no.
+		cases.push_back({ .Name  = "linguist-generated",
+						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
+							  standard_repository(aContext, aSetup);
+							  aContext.Git(aSetup.Root, { "config", "core.ignorecase", "false" });
+							  write_file(aSetup.Root / ".gitattributes",
+										 "[attr]generated linguist-generated\n"
+										 "gen/** linguist-generated\n"
+										 "*.min.js linguist-generated=true\n"
+										 "/anchored.gen linguist-generated\n"
+										 "build/ linguist-generated\n"
+										 "vendor/*.js generated\n"
+										 "docs/** -linguist-generated\n"
+										 "keep.json linguist-generated=false\n"
+										 "\"quoted name.txt\" linguist-generated\n");
+							  write_file(aSetup.Root / "gen" / ".gitattributes",
+										 "item_007.txt -linguist-generated\nspecial.txt !linguist-generated\n[attr]local linguist-generated\n*.loc local\n");
+							  write_file(aSetup.Root / "nested" / ".gitattributes", "f.txt linguist-generated\n");
+							  for (const auto* name : { "gen/item_000.txt", "gen/sub/deep.txt", "gen/item_007.txt", "gen/special.txt", "gen/x.loc", "a/b.min.js",
+														"anchored.gen", "sub/anchored.gen", "build/out.txt", "vendor/lib.js", "vendor/deep/lib.js", "docs/a/b.md",
+														"keep.json", "quoted name.txt", "nested/f.txt", "f.txt", "src/app.cpp" }) {
+								  write_file(aSetup.Root / name, "x\n");
+							  }
+							  aSetup.ExtraPaths = { "GEN/item_001.txt", "build/" };
+							  return std::nullopt;
+						  } });
 		cases.push_back({ .Name  = "attributes-deleted-from-worktree",
 						  .Build = [](const build_context& aContext, case_setup& aSetup) -> std::optional<std::string> {
 							  standard_repository(aContext, aSetup);
@@ -1417,6 +1445,7 @@ namespace {
 			const auto oracleDiscovery  = aOracle.discover(setup.Root);
 			const auto oracleIgnored    = aOracle.ignored(setup.Root, questions);
 			const auto oracleFilter     = aOracle.filter(setup.Root, questions);
+			const auto oracleGenerated  = aOracle.linguist_generated(setup.Root, questions);
 			auto       oracleReferences = std::vector<std::expected<std::optional<std::string>, candidate_refusal>>{ };
 			for (const auto& name : references) {
 				oracleReferences.push_back(aOracle.reference(setup.Root, name));
@@ -1452,6 +1481,11 @@ namespace {
 					aReport.add({ .Candidate = name, .Component = "C6", .Case = caseName, .Verdict = verdict::skipped, .Detail = std::string{ *reason } });
 				} else {
 					aReport.add(compare(name, "C6", caseName, oracleFilter, candidate->filter(setup.Root, questions), per_path<attribute_answer>(questions)));
+				}
+				// [[BPR-1692]]. RFC-BPR-0089's head reader of linguist-generated,
+				// over the attribute cases, against `git check-attr`.
+				if (name == "K" && (caseName == "linguist-generated" || caseName == "attributes" || caseName == "ignorecase-false")) {
+					aReport.add(compare(name, "C6-generated", caseName, oracleGenerated, candidate->linguist_generated(setup.Root, questions), per_path<attribute_answer>(questions)));
 				}
 				if (name == "K") {
 					if (setup.SkipCapture) {

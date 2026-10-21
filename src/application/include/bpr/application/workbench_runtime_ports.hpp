@@ -4,6 +4,7 @@
 #include "bpr/application/home_view_state.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/feedback_label_columns.hpp"
+#include "bpr/core/generated_files.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/workbench_interaction.hpp"
@@ -469,6 +470,57 @@ namespace bpr::application {
 	};
 
 	using commit_filter_touches_completion = std::function<void(const commit_filter_touches_observation&)>;
+
+	/// \brief RFC-BPR-0089 M2 ([[BPR-1692]]). Asks for the head's
+	/// `.gitattributes` files, for `linguist-generated`.
+	///
+	/// \details `Directories` are `core::generated_attribute_directories` of
+	/// the review's paths: the root (empty) and every ancestor, sorted and
+	/// unique. The host looks up `<directory>/.gitattributes` at `Head` by
+	/// literal path and reads the blobs it finds. GitHub's Files changed reads
+	/// the head's files only (measured on BPR-Test #112), so no other commit
+	/// is read.
+	struct generated_attributes_request
+	{
+		workbench_pull_request_authority WorkbenchAuthority;
+		core::git_commit_oid             Head;
+		std::vector<std::string>         Directories;
+
+		auto operator<=>(const generated_attributes_request&) const = default;
+	};
+
+	/// Directories one request may name. A review with more is not read.
+	inline constexpr std::size_t maximum_generated_attribute_directories = 4096U;
+
+	enum class generated_attributes_status : std::uint8_t {
+		/// `Files` holds every `.gitattributes` the head has in the directories.
+		resolved,
+		/// More than `core::maximum_generated_attribute_files` were found.
+		too_many_files,
+		/// One is larger than `core::maximum_generated_attribute_file_bytes`;
+		/// `Exceeded` names its directory.
+		file_too_large,
+		/// The head's trees or a blob are not in this review's local objects
+		/// and cannot be read exactly.
+		objects_unavailable,
+		/// The retained cache no longer serves the accepted review.
+		stale,
+		cancelled,
+		failure,
+	};
+
+	/// \brief One exact answer to a `generated_attributes_request`.
+	struct generated_attributes_observation
+	{
+		generated_attributes_request                Request;
+		generated_attributes_status                 Status = generated_attributes_status::failure;
+		std::vector<core::generated_attribute_file> Files;
+		std::optional<std::string>                  Exceeded;
+
+		auto operator<=>(const generated_attributes_observation&) const = default;
+	};
+
+	using generated_attributes_completion = std::function<void(const generated_attributes_observation&)>;
 
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///

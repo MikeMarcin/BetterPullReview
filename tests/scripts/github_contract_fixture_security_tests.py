@@ -208,6 +208,14 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListPullRequestCommits": "with-parents"},
     },
+    # [[BPR-1692]]. commit-filter-v1's chain with linguist-generated rules at
+    # head, written by scripts/build_commit_filter_fixture.py --attributes.
+    "commit-filter-attributes-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "commit-filter-attributes", 1692),
+        "mirrors": None,
+        "response_fields": {"ListPullRequestCommits": "with-parents"},
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {

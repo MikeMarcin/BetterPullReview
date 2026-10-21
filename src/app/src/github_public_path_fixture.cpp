@@ -829,6 +829,28 @@ namespace bpr::app::detail {
 					.Packs               = { .File = "commit-filter-v1/objects.pack" },
 					.Commits             = 3U,
 				};
+			// [[BPR-1692]]. The same chain with linguist-generated at head.
+			case github_public_path_fixture::commit_filter_attributes_v1:
+				return {
+					.ContractDirectory   = "commit-filter-attributes-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 1692U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "commit-filter-attributes",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "173cfd1a75162defb15433afc19485821a25d66b",
+					.HeadOneOid          = "080975e555a2c41ca8d26e7becf1c1d8a997f145",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "commit-filter-attributes-v1/objects.pack" },
+					.Commits             = 3U,
+				};
 			}
 			return { };
 		}

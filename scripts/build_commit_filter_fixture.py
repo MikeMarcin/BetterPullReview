@@ -15,9 +15,17 @@ and the live BPR-Test course carries the owner's hundreds. The commit list
 carries GitHub's `parents`, and the pack holds every object reachable from
 `C3`, so each commit's tree diff can be read locally.
 
+With `--attributes` it writes commit-filter-attributes-v1 instead ([[BPR-1692]]):
+the same chain, whose merge base also commits a root `.gitattributes` marking
+`gen/** linguist-generated` and a nested `gen/.gitattributes` returning
+`item_007.txt` with `-linguist-generated`. Neither file changes in the pull
+request, so its Files changed is the same 98 files and the head's rules mark
+95 of C2's paths.
+
     build_commit_filter_fixture.py                 writes construction, pack, contract
     build_commit_filter_fixture.py <out.json>      writes only the construction
     build_commit_filter_fixture.py --root <dir>    writes all three under <dir>
+    build_commit_filter_fixture.py --attributes [--root <dir> | <out.json>]
 """
 
 from __future__ import annotations
@@ -35,6 +43,16 @@ from contained_temporary_support import contained_temporary_directory  # noqa: E
 
 GENERATED = 96
 HAND_EDITED = (7, 8)
+# [[BPR-1692]]. The head's rules: every regenerated file is generated, except
+# one a nested file returns to normal.
+ATTRIBUTES = {
+    ".gitattributes": "gen/** linguist-generated\n",
+    "gen/.gitattributes": "item_007.txt -linguist-generated\n",
+}
+VARIANTS = {
+    False: {"name": "commit-filter-v1", "repository": "commit-filter", "number": 89},
+    True: {"name": "commit-filter-attributes-v1", "repository": "commit-filter-attributes", "number": 1692},
+}
 
 
 def numbered(name: str, count: int, changes: dict[int, str] | None = None) -> str:
@@ -47,7 +65,7 @@ def generated(value: int, index: int, adjusted: bool = False) -> str:
     return f"generated from value {value}\n{note}checksum {value * 1000 + index}\n"
 
 
-def snapshot(stage: str) -> dict[str, str]:
+def snapshot(stage: str, attributes: bool = False) -> dict[str, str]:
     """The tree at M, C1, C2 or C3."""
     value = 1 if stage == "M" else 2
     app = numbered("app", 60, {
@@ -62,6 +80,8 @@ def snapshot(stage: str) -> dict[str, str]:
     regenerated = 2 if stage in ("C2", "C3") else 1
     for index in range(GENERATED):
         files[f"gen/item_{index:03}.txt"] = generated(regenerated, index, stage == "C3" and index in HAND_EDITED)
+    if attributes:
+        files.update(ATTRIBUTES)
     return files
 
 
@@ -86,30 +106,31 @@ def write(repository: str, files: dict[str, str]) -> None:
         target.write_bytes(text.encode("utf-8"))
 
 
-def build(repository: str) -> dict[str, str]:
+def build(repository: str, attributes: bool = False) -> dict[str, str]:
     subprocess.run(["git", "init", "-q", "--initial-branch=main", repository], check=True, capture_output=True,
                    env={**os.environ, **pack.FIXTURE_ENVIRONMENT})
     commits: dict[str, str] = {}
     for stage in ("M", "C1", "C2", "C3"):
-        write(repository, snapshot(stage))
+        write(repository, snapshot(stage, attributes))
         git(repository, "add", "-A")
         git(repository, "commit", "-q", "-m", MESSAGES.get(stage, "merge base"))
         commits[stage] = git(repository, "rev-parse", "HEAD")
     return commits
 
 
-def construction(commits: dict[str, str]) -> dict:
-    base = snapshot("M")
-    head = snapshot("C3")
+def construction(commits: dict[str, str], attributes: bool = False) -> dict:
+    variant = VARIANTS[attributes]
+    base = snapshot("M", attributes)
+    head = snapshot("C3", attributes)
     nested.FILES = tuple((path, base[path], head[path]) for path in sorted(head) if base.get(path) != head[path])
     nested.BASE_OID = commits["M"]
     nested.HEAD_OID = commits["C3"]
     result = nested.construction()
-    result["constructed"] = "Synthetic RFC-BPR-0089 commit-filter course written by scripts/build_commit_filter_fixture.py; not a recording"
-    result["repository"] = {"name": "commit-filter", "owner": "bpr-fixtures"}
-    result["pull_request"].update(number=89, title="Change the generator input and regenerate",
+    result["constructed"] = f"Synthetic RFC-BPR-0089 {variant['repository']} course written by scripts/build_commit_filter_fixture.py; not a recording"
+    result["repository"] = {"name": variant["repository"], "owner": "bpr-fixtures"}
+    result["pull_request"].update(number=variant["number"], title="Change the generator input and regenerate",
                                   body="Synthetic course: a source change, a regeneration and follow-ups to both.\n", commits=3)
-    result["pull_request"]["head"]["ref"] = "commit-filter"
+    result["pull_request"]["head"]["ref"] = variant["repository"]
     author = result["commits"][0]["author"]
     result["commits"] = [
         {"author": author, "message": MESSAGES["C1"], "parents": [commits["M"]], "sha": commits["C1"]},
@@ -122,8 +143,18 @@ def construction(commits: dict[str, str]) -> dict:
     return result
 
 
-def verify(result: dict, repository: str, commits: dict[str, str]) -> list[str]:
+def verify(result: dict, repository: str, commits: dict[str, str], attributes: bool = False) -> list[str]:
     failures = pack.verify(result, repository, commits["M"], commits["C3"])
+    if attributes:
+        # Git itself decides what the head's rules mark: 95 of C2's paths.
+        paths = sorted(file["filename"] for file in result["files"])
+        answered = subprocess.run(["git", "-C", repository, "check-attr", "--source", commits["C3"], "-z", "linguist-generated", "--", *paths],
+                                  capture_output=True, check=True, env={**os.environ, **pack.FIXTURE_ENVIRONMENT}).stdout.decode().split("\0")
+        states = dict(zip(answered[0::3], answered[2::3]))
+        marked = sorted(path for path, state in states.items() if state == "set")
+        expected = sorted(f"gen/item_{index:03}.txt" for index in range(GENERATED) if index != 7)
+        if marked != expected or states.get("gen/item_007.txt") != "unset":
+            failures.append(f"the head's rules must mark {len(expected)} files and unset gen/item_007.txt: {len(marked)} marked")
     if len(result["files"]) != GENERATED + 2:
         failures.append(f"Whole PR must list {GENERATED + 2} files, not {len(result['files'])}")
     touched = {
@@ -144,16 +175,20 @@ def verify(result: dict, repository: str, commits: dict[str, str]) -> list[str]:
 def main() -> int:
     source = Path(__file__).resolve().parents[1]
     arguments = sys.argv[1:]
+    attributes = arguments[:1] == ["--attributes"]
+    if attributes:
+        arguments = arguments[1:]
+    name = VARIANTS[attributes]["name"]
     root = source
     if arguments[:1] == ["--root"] and len(arguments) == 2:
         root = Path(arguments[1]).resolve()
         arguments = []
-    fixture = root / "tests/fixtures/github/pull-requests/commit-filter-v1"
+    fixture = root / "tests/fixtures/github/pull-requests" / name
     recording = Path(arguments[0]) if arguments else fixture / "construction.json"
     with contained_temporary_directory() as repository:
-        commits = build(repository)
-        result = construction(commits)
-        failures = verify(result, repository, commits)
+        commits = build(repository, attributes)
+        result = construction(commits, attributes)
+        failures = verify(result, repository, commits, attributes)
         if failures:
             for failure in failures:
                 print(f"FAILED: {failure}", file=sys.stderr)
@@ -167,7 +202,7 @@ def main() -> int:
         return 0
     (fixture / "objects.pack").write_bytes(objects)
     subprocess.run([sys.executable, str(source / "scripts/build_recorded_pull_request_contract.py"), str(recording),
-                    str(root / "tests/fixtures/github/contracts/v1/commit-filter-v1")], check=True, capture_output=True)
+                    str(root / "tests/fixtures/github/contracts/v1" / name)], check=True, capture_output=True)
     print("COMMIT_FILTER_FIXTURE_OK:" + ":".join(f"{stage}={sha}" for stage, sha in commits.items()) + f":{len(objects)}")
     return 0
 

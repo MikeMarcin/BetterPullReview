@@ -133,6 +133,11 @@ namespace bpr::app::detail {
 		/// change, a regeneration of 300 files and follow-ups to both, with
 		/// GitHub's parents; see `scripts/build_commit_filter_fixture.py`.
 		commit_filter_v1,
+		/// [[BPR-1692]]. commit_filter_v1's chain whose head marks 95 of the
+		/// regenerated files `linguist-generated` and returns one with a
+		/// nested `-linguist-generated`; see
+		/// `scripts/build_commit_filter_fixture.py --attributes`.
+		commit_filter_attributes_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

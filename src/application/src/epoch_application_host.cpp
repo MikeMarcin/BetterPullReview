@@ -4358,6 +4358,189 @@ namespace bpr::application {
 			return std::move(*store);
 		}
 
+		/// \brief RFC-BPR-0089 M2. See `epoch_application_host::resolve_generated_attributes`.
+		[[nodiscard]] auto resolve_generated_attributes(
+			generated_attributes_request    aRequest,
+			generated_attributes_completion aCompletion) -> bool
+		{
+			if (!aCompletion || aRequest.Directories.empty() || aRequest.Directories.size() > maximum_generated_attribute_directories
+				|| !aRequest.Directories.front().empty() || !std::ranges::is_sorted(aRequest.Directories)
+				|| std::ranges::adjacent_find(aRequest.Directories) != aRequest.Directories.end()
+				|| std::ranges::any_of(aRequest.Directories, [](const std::string& aDirectory) {
+					   return aDirectory.size() + 16U > maximum_git_tree_entry_path_bytes || aDirectory.starts_with('/') || aDirectory.ends_with('/');
+				   })) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto       actor    = std::move(reviewActor->first);
+			const auto expected = std::move(reviewActor->second);
+			// The review's own lease, for a sparse review's exact blob reads.
+			auto reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+			auto admitted      = admit_job(
+				std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 context = std::move(reviewContext),
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation = generated_attributes_observation{
+							.Request  = request,
+							.Status   = generated_attributes_status::failure,
+							.Files    = { },
+							.Exceeded = std::nullopt,
+						};
+						observation.Status = generated_attributes(*actor, expected, context, request, control->Stop.get_token(), observation);
+						if (observation.Status != generated_attributes_status::resolved) {
+							observation.Files.clear();
+						}
+						enqueue_completion(
+							gate,
+							decisionLane,
+							std::move(control),
+							[answer  = std::move(observation),
+							 deliver = std::move(completion)](implementation&) {
+								deliver(answer);
+							});
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
+		/// \brief RFC-BPR-0089 M2. The head's `.gitattributes` blobs, on the actor.
+		///
+		/// \details Each directory's file is looked up at head by literal
+		/// path, in the retained cache or, for a sparse review whose head
+		/// trees only its chain store holds, there. A blob the cache does not
+		/// hold is read exactly through the review's own lease when the review
+		/// is sparse, and checked against its OID. More files than the core
+		/// reads, or a larger one, stop the read and say so.
+		[[nodiscard]] auto generated_attributes(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+												const std::shared_ptr<authority_context>& aContext, const generated_attributes_request& aRequest,
+												const std::stop_token aStop, generated_attributes_observation& aObservation) -> generated_attributes_status
+		{
+			const auto statusOf = [](const git_cache_failure aFailure) {
+				return aFailure == git_cache_failure::cancelled      ? generated_attributes_status::cancelled
+					: aFailure == git_cache_failure::object_mismatch ? generated_attributes_status::objects_unavailable
+																	 : generated_attributes_status::failure;
+			};
+			if (aStop.stop_requested() || !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
+				return generated_attributes_status::cancelled;
+			}
+			if (!open_actor_cache(aActor, Caches, aExpected, aStop)) {
+				return generated_attributes_status::stale;
+			}
+			const auto chainTrees = [&] {
+				std::scoped_lock lock{ aActor.BlobAuthorityMutex };
+				return aActor.ChainTrees;
+			}();
+			const auto sparse = aContext && object_loading_for(aContext->Handoff.Shape) == pull_request_object_loading::selected_objects
+				&& aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees()
+				&& aRequest.Head == aContext->Revision.Head;
+			const auto lookup = [&](const std::string& aPath) -> std::expected<std::optional<core::git_blob_oid>, generated_attributes_status> {
+				auto found = aActor.Cache->find_blob_at_path(
+					git_cache_tree_entry_request{
+						.Commit = aRequest.Head,
+						.Path   = std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(aPath.data()), aPath.size() } },
+					},
+					aStop);
+				if (found.has_value()) {
+					return *found;
+				}
+				if (found.error().Code != git_cache_failure::object_mismatch || !chainTrees || !chainTrees->holds(aRequest.Head)) {
+					return std::unexpected{ statusOf(found.error().Code) };
+				}
+				auto held = chainTrees->find_blob_at_path(aRequest.Head, aPath, aStop);
+				if (!held) {
+					return std::unexpected{ held.error().Failure == git_smart_transport_failure::cancelled ? generated_attributes_status::cancelled
+																										   : generated_attributes_status::objects_unavailable };
+				}
+				return *held;
+			};
+			const auto read = [&](const core::git_blob_oid& aBlob) -> std::expected<std::string, generated_attributes_status> {
+				auto bytes = aActor.Cache->materialize_blob({ .Blob = aBlob, .MaximumBytes = core::maximum_generated_attribute_file_bytes }, aStop);
+				if (!bytes.has_value()) {
+					if (bytes.error().Code == git_cache_failure::quota_exceeded) {
+						return std::unexpected{ generated_attributes_status::file_too_large };
+					}
+					if (bytes.error().Code != git_cache_failure::object_mismatch || !sparse) {
+						return std::unexpected{ statusOf(bytes.error().Code) };
+					}
+					auto smart               = git_smart_request_context{ };
+					smart.ApplicationSession = aContext->Handoff.ApplicationSession;
+					smart.Authority          = aContext->Authority;
+					smart.Revision           = aContext->Revision;
+					smart.Repository         = aContext->Handoff.Locator;
+					smart.BaseRef            = aContext->Handoff.BaseRef;
+					const auto transport     = aContext->Handoff.SmartGit->acquire(smart);
+					if (!transport || !*transport) {
+						return std::unexpected{ generated_attributes_status::objects_unavailable };
+					}
+					const auto fetched = (*transport)->read_exact_blob({ smart, aBlob, core::maximum_generated_attribute_file_bytes }, aStop);
+					if (!fetched) {
+						const auto failure = fetched.error().Failure;
+						return std::unexpected{ failure == git_smart_transport_failure::response_limit  ? generated_attributes_status::file_too_large
+													: failure == git_smart_transport_failure::cancelled ? generated_attributes_status::cancelled
+																										: generated_attributes_status::objects_unavailable };
+					}
+					auto exact = std::vector<std::uint8_t>(fetched->size());
+					std::ranges::transform(*fetched, exact.begin(), [](const std::byte aByte) { return std::to_integer<std::uint8_t>(aByte); });
+					// A mismatch or a collision detection both end here, at failure.
+					if (blob_matches(aBlob, exact) != blob_check::matches) {
+						return std::unexpected{ generated_attributes_status::failure };
+					}
+					bytes = std::move(exact);
+				}
+				if (bytes->size() > core::maximum_generated_attribute_file_bytes) {
+					return std::unexpected{ generated_attributes_status::file_too_large };
+				}
+				return std::string{ bytes->begin(), bytes->end() };
+			};
+			for (const auto& directory : aRequest.Directories) {
+				if (aStop.stop_requested()) {
+					return generated_attributes_status::cancelled;
+				}
+				const auto path  = directory.empty() ? std::string{ ".gitattributes" } : directory + "/.gitattributes";
+				const auto found = lookup(path);
+				if (!found) {
+					return found.error();
+				}
+				if (!*found) {
+					continue;
+				}
+				if (aObservation.Files.size() == core::maximum_generated_attribute_files) {
+					return generated_attributes_status::too_many_files;
+				}
+				auto contents = read(**found);
+				if (!contents) {
+					if (contents.error() == generated_attributes_status::file_too_large) {
+						aObservation.Exceeded = directory;
+					}
+					return contents.error();
+				}
+				aObservation.Files.push_back({ .Directory = directory, .Contents = std::move(*contents) });
+			}
+			return aStop.stop_requested() ? generated_attributes_status::cancelled : generated_attributes_status::resolved;
+		}
+
 		/// \brief [[BPR-1212]]. The review's cache actor and the session it
 		/// expects, for a job asked about the accepted head; none when the
 		/// request would be refused before admission.
@@ -10047,6 +10230,13 @@ namespace bpr::application {
 		commit_filter_touches_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_commit_filter_touches(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_generated_attributes(
+		generated_attributes_request    aRequest,
+		generated_attributes_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_generated_attributes(std::move(aRequest), std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_github_base_numbering(

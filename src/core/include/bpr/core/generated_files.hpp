@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <memory>
 #include <span>
 #include <string>
 #include <string_view>
@@ -191,6 +192,42 @@ namespace bpr::core {
 	/// \details The host looks for a `.gitattributes` file in each one at head
 	/// and reads at most `maximum_generated_attribute_files` of them.
 	[[nodiscard]] auto generated_attribute_directories(std::span<const std::string> aPaths) -> std::vector<std::string>;
+
+	/// \brief One `.gitattributes` file the head holds: the root-relative
+	/// directory it sits in (empty for the root) and its bytes.
+	struct generated_attribute_file
+	{
+		std::string Directory;
+		std::string Contents;
+
+		auto operator<=>(const generated_attribute_file&) const = default;
+	};
+
+	/// \brief Why the head's `.gitattributes` files give no rules.
+	enum class generated_attributes_refusal : std::uint8_t {
+		/// More than `maximum_generated_attribute_files` files.
+		too_many_files,
+		/// One file is larger than `maximum_generated_attribute_file_bytes`.
+		file_too_large,
+		/// A directory is not a normalized repository path, or the files are
+		/// not sorted by directory and unique.
+		invalid_files,
+		/// The files hold more rules than the reader keeps.
+		too_many_rules,
+	};
+
+	/// \brief The head's `linguist-generated` rules, read with the core's
+	/// first-party attribute reader (`workspace_attribute_rules`).
+	///
+	/// \details Owner, 2026-10-21 (attended session `e081a94e`, Accept): the
+	/// existing wildmatch and attribute reader, kept by RFC-BPR-0083's decision
+	/// record, extended by this one attribute; no library. Git's precedence and
+	/// pattern rules apply: a deeper file outranks its parents, a later line an
+	/// earlier one, only the root file defines macros, and a directory pattern
+	/// never marks a file. Matching is case-sensitive, as on GitHub's servers.
+	/// There is no `info/attributes`: GitHub reads only the committed files.
+	[[nodiscard]] auto read_generated_attribute_rules(std::span<const generated_attribute_file> aFiles)
+		-> std::expected<std::shared_ptr<const generated_attribute_rules>, generated_attributes_refusal>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_GENERATED_FILES_HPP

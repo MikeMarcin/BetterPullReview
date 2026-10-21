@@ -291,10 +291,23 @@ namespace bpr::tests::workspace_contract {
 		/// \brief `git check-attr filter`.
 		auto filter(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths) const -> std::expected<std::vector<attribute_answer>, candidate_refusal>
 		{
+			return attribute(aRoot, aPaths, "filter");
+		}
+
+		/// \brief [[BPR-1692]]. `git check-attr linguist-generated`.
+		auto linguist_generated(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths) const -> std::expected<std::vector<attribute_answer>, candidate_refusal>
+		{
+			return attribute(aRoot, aPaths, "linguist-generated");
+		}
+
+		/// \brief `git check-attr <name>`.
+		auto attribute(const std::filesystem::path& aRoot, const std::vector<path_question>& aPaths, const std::string& aName) const
+			-> std::expected<std::vector<attribute_answer>, candidate_refusal>
+		{
 			if (aPaths.empty()) {
 				return std::vector<attribute_answer>{ };
 			}
-			const auto [status, text] = ask(aRoot, { "check-attr", "filter", "--stdin", "-z" }, joined(aPaths));
+			const auto [status, text] = ask(aRoot, { "check-attr", aName, "--stdin", "-z" }, joined(aPaths));
 			if (status != 0) {
 				return std::unexpected("check-attr exit " + std::to_string(status));
 			}
