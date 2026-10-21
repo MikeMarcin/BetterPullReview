@@ -2218,7 +2218,7 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
 		/// tabs show their names.
 		QWidget* TrayHeader = nullptr;
-		/// [[BPR-PENDING-G]]. Every tab's name while the row has room for
+		/// [[BPR-1684]]. Every tab's name while the row has room for
 		/// them; then the open tab's glyph and name and the others' glyphs;
 		/// then glyphs only. A tab without its name says it in its tooltip.
 		void fit_tray_tabs(bool aRepaint = false);

@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-G"
+id: "BPR-1684"
 title: "Right drawer tabs keep their names while they fit, and go compact on purpose"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"owner report 2026-10-20","owner_note":"When the right drawer in review gets too narrow for the full tab labels i cant tell what the tabs are easily, it looks broken. I cant tell if its because of the comments number or its just broken. Also the agents tab seems wider than necessary which might be forcing dropping to narrow labels earlier than necessary.","provisional_id":"allocated at landing","related_cards":["BPR-1134","BPR-1290","BPR-1511","BPR-1592","BPR-1594"],"requested_skill":"frontend-design"}
+metadata: {"origin":"owner report 2026-10-20","owner_note":"When the right drawer in review gets too narrow for the full tab labels i cant tell what the tabs are easily, it looks broken. I cant tell if its because of the comments number or its just broken. Also the agents tab seems wider than necessary which might be forcing dropping to narrow labels earlier than necessary.","reservation":"docs/issues/_reservations/BPR-1684--BPR-1684--abfa7f826da7.json","related_cards":["BPR-1134","BPR-1290","BPR-1511","BPR-1592","BPR-1594"],"requested_skill":"frontend-design"}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ae49e2777","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R qt_current_file_unread_badge; QT_SCALE_FACTOR=2 better_pull_review_qt_workbench_window_tests --current-file-unread-badge","detail":"test_the_right_tray_tabs_keep_their_names_while_they_fit drags the drawer through 760, 420, 375, 340, 335, 330, 320, 310, 300, 290 and 280 pixels with and without a count, in the application's style and in every QStyleFactory style (macOS, Windows, Fusion), and requires every name exactly while the row of names fits the room the header's grid gives the tabs. The names need 299 px (macOS) or 307 px (Fusion, Windows) without a count and 321 or 329 px with one; the tools wrap below first. Before: names went at a fixed 340. 1x and 2x pass. Failing-before control: with workbench_window.cpp and .hpp at df2244530 the case fails at 'the Comments tab keeps no room for a count it is not showing (app-fusion, no count)'."}},{"criterion":"AC2","outcome":"pass","revision":"ae49e2777","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R qt_current_file_unread_badge","detail":"Under every style the Agent tab is its spark (16 px), a 4 px gap and its name, padded as Notes is (within 1 px); Tour is padded as Notes; Comments is its name plus its count and a gap when the count shows, and keeps no room for a hidden count. Each name's own style text rectangle (a plain text tab as wide as its tab) holds the glyph, the name and the count, so no style elides it. Measured macOS-style metrics: Agent 115 px before, 85 px after; Comments without a count 116 before, 93 after; the row of names 352 before, 299 after (355 and 321 with a count)."}},{"criterion":"AC3","outcome":"pass","revision":"ae49e2777","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R qt_workbench_window_scale_; ctest --test-dir build/dev -R qt_current_file_unread_badge","detail":"Compact rows: every tab shows its glyph, only the open tab shows its name, whole; a glyph-only tab's tooltip starts with its accessible name and a newline, and every accessible name starts with the tab's name; the Comments count stays a pill inside its tab, beside the glyph; the whole row fits, nothing scrolls or is squeezed; choosing Agent in a compact row names it instead; widening brings every name back. The three window scales (with the existing right-tray case, whose wide-row names, tooltips and accessible names are unchanged) pass. coding-format-check (clang-format 22.1.8, 1695 files) passes; clang-tidy --warnings-as-errors reports nothing in workbench_window.cpp and only the two existing performance-avoid-endl findings in the test runner's case trace (main), none in this change."}}]
 ---
 
-# BPR-PENDING-G: Right drawer tabs keep their names while they fit, and go compact on purpose
+# BPR-1684: Right drawer tabs keep their names while they fit, and go compact on purpose
 
 ## Owner note
 
@@ -133,9 +133,9 @@ criteria, because they wait on the owner.
   Both candidates were ready at event 6 and the loopback host was serving. The
   authenticated URL stays in the external state.
 - Candidates, revision `frozen-04119f672-v001`, one question each:
-  - `BPR-PENDING-G-compact-v001` (`1f1def2b37ee…`): the narrow tab row reads
+  - `BPR-1684-compact-v001` (`1f1def2b37ee…`): the narrow tab row reads
     as intended, not broken.
-  - `BPR-PENDING-G-widths-v001` (`b8db69fa2593…`): each tab is the right
+  - `BPR-1684-widths-v001` (`b8db69fa2593…`): each tab is the right
     width, so the names last as long as they can.
 
   Each carries before and after offscreen renders at 1x or 2x, kept in

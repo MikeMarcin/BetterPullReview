@@ -12584,7 +12584,7 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-PENDING-G]]. The right tray's tabs keep their names for as
+	/// \brief [[BPR-1684]]. The right tray's tabs keep their names for as
 	/// long as the row has room for them. Each tab is as wide as what it
 	/// shows: the Agent tab is its spark and its name, and Comments keeps no
 	/// room for a count it is not showing. Narrower, the row names the open
@@ -12679,7 +12679,7 @@ namespace {
 					content += 4 + count->width();
 				}
 				if (textRect.width() < content || option.rect.width() < content) {
-					std::cout << "BPR-PENDING-G " << tabs->style()->name().toStdString() << " text rect " << textRect.width() << " for " << content << " px of '"
+					std::cout << "BPR-1684 " << tabs->style()->name().toStdString() << " text rect " << textRect.width() << " for " << content << " px of '"
 							  << shown.toStdString() << "' in a " << option.rect.width() << " px tab\n";
 					return false;
 				}
@@ -12740,7 +12740,7 @@ namespace {
 								  : "the Comments tab keeps no room for a count it is not showing")
 						   + context);
 				const auto fullRow = rowWidth();
-				std::cout << "BPR-PENDING-G tray row" << context << ": names need " << fullRow << " px; Notes padding " << notes << '\n';
+				std::cout << "BPR-1684 tray row" << context << ": names need " << fullRow << " px; Notes padding " << notes << '\n';
 				for (const auto width : widths) {
 					drag_conversations_handle(window, width);
 					process_events();
@@ -12782,7 +12782,7 @@ namespace {
 							   "the count stays a pill inside its tab, beside the glyph and never over it" + where);
 					}
 					if (styleName.isEmpty()) {
-						std::cout << "BPR-PENDING-G compact" << where << ": " << (glyphsOnly ? "glyphs only" : "open tab named") << ", row " << rowWidth() << " px\n";
+						std::cout << "BPR-1684 compact" << where << ": " << (glyphsOnly ? "glyphs only" : "open tab named") << ", row " << rowWidth() << " px\n";
 					}
 				}
 				if (styleName.isEmpty()) {

@@ -144,7 +144,7 @@ namespace bpr::qt {
 	} // namespace
 
 	namespace {
-		/// \brief [[BPR-1592]] [[BPR-PENDING-G]]. The tray's tabs, each as wide
+		/// \brief [[BPR-1592]] [[BPR-1684]]. The tray's tabs, each as wide
 		/// as what it shows.
 		///
 		/// \details A tab is the style's own text tab for its name, plus its
@@ -3156,7 +3156,7 @@ namespace bpr::qt {
 			"Comments, Notes and Tour. Notes and tour preparation are private until explicitly published."));
 		configure_drawer_tabs(*TrayTabs);
 		// [[BPR-1594]]. The Agent keeps its spark beside its name.
-		// [[BPR-PENDING-G]]: fit_tray_tabs gives each tab its face, glyph
+		// [[BPR-1684]]: fit_tray_tabs gives each tab its face, glyph
 		// and tooltip for the width the row has.
 		TrayTabs->addTab(tr("Comments"));
 		TrayTabs->addTab(tr("Notes"));
@@ -3166,7 +3166,7 @@ namespace bpr::qt {
 		TrayTabs->setAccessibleTabName(tray_notes_tab, tr("Notes"));
 		TrayTabs->setAccessibleTabName(tray_tour_tab, tr("Tour"));
 		TrayTabs->setAccessibleTabName(tray_findings_tab, tr("Agent"));
-		// [[BPR-PENDING-G]]. The count is the tab's button only while it
+		// [[BPR-1684]]. The count is the tab's button only while it
 		// shows, so a tab without new comments keeps no room for it.
 		TrayCommentsCount = new drawer_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
@@ -3241,7 +3241,7 @@ namespace bpr::qt {
 		trayToolsRow->addWidget(NotesTools);
 		trayToolsRow->addWidget(TourTools);
 		trayHeader->set_parts(TrayTabs, trayTools);
-		// [[BPR-1592]] [[BPR-PENDING-G]]. RFC-BPR-0085 D5: where the names do
+		// [[BPR-1592]] [[BPR-1684]]. RFC-BPR-0085 D5: where the names do
 		// not fit the tabs go compact, so four tabs never scroll.
 		trayHeader->installEventFilter(this);
 		TrayHeader = trayHeader;
@@ -3255,7 +3255,7 @@ namespace bpr::qt {
 			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			TrayPages->setCurrentIndex(aIndex);
-			// [[BPR-PENDING-G]]. A compact row names the open tab.
+			// [[BPR-1684]]. A compact row names the open tab.
 			fit_tray_tabs();
 			CommentsTools->setVisible(aIndex == tray_comments_tab);
 			NotesTools->setVisible(aIndex == tray_notes_tab);
@@ -8166,7 +8166,7 @@ namespace bpr::qt {
 			tr("Your review tour, stop by stop. Nothing in it is published until you publish the tour."),
 			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."),
 		};
-		// [[BPR-PENDING-G]]. The faces, widest first: every name; the open
+		// [[BPR-1684]]. The faces, widest first: every name; the open
 		// tab's glyph and name with the others' glyphs; glyphs only. The row
 		// takes the first that fits the header, whose tools move to their own
 		// row before any name goes.
@@ -8896,7 +8896,7 @@ namespace bpr::qt {
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
 			const auto newCount = fileUnread + NewConversationComments;
 			static_cast<drawer_count_pill*>(TrayCommentsCount)->set_count(newCount);
-			// [[BPR-PENDING-G]]. Only a showing count takes room in its tab.
+			// [[BPR-1684]]. Only a showing count takes room in its tab.
 			if (auto* const shown = newCount != 0U ? TrayCommentsCount : nullptr; TrayTabs->tabButton(tray_comments_tab, QTabBar::RightSide) != shown) {
 				TrayTabs->setTabButton(tray_comments_tab, QTabBar::RightSide, shown);
 				TrayCommentsCount->setVisible(shown != nullptr);

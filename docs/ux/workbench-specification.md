@@ -2244,7 +2244,7 @@ and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its
 intents and the finding queue's actions are unchanged: nothing is published
 until the existing explicit Publish.
-[[BPR-PENDING-G]]. Each of the tray's tabs is as wide as what it shows: the
+[[BPR-1684]]. Each of the tray's tabs is as wide as what it shows: the
 style's own tab for its name, plus the Agent's spark, plus the Comments count
 while there is one (no room is kept for a hidden count). The four names stay
 for as long as the row has room for them, and the tab row's tools move to a
