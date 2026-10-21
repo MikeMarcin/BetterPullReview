@@ -119,7 +119,7 @@ follow main's own new default case.
 The offscreen renders use Fusion. The native macOS look is for the owner to
 judge, below.
 
-## Owner look (pending)
+## Owner look
 
 Two Accept or Reject questions on the frozen build are pending in their own
 short attended session. They are recorded here rather than as acceptance
@@ -148,4 +148,4 @@ criteria, because they wait on the owner.
   It carries this change exactly. It does not carry main's later work from
   `4271e2ce2` to `8341758d1` (bulk Mark read and the long-file pick reveal),
   which no question asks about.
-- Verdicts: none yet.
+- Verdicts, 2026-10-21: the owner answered **Accept** in chat after viewing the 2x before and after renders (light and dark), covering both `BPR-1700-discoverable-v001` and `BPR-1700-quiet-v001`, without a note. The session host was stopped and the frozen root removed.
