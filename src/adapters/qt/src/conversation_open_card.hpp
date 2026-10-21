@@ -266,6 +266,12 @@ namespace bpr::qt {
 		std::function<void(const std::string&)> ShowInDiscussRequested;
 		/// \brief [[BPR-1586]]. The same post, to show in Threads.
 		std::function<void(const std::string&)> ShowInThreadsRequested;
+		/// \brief [[BPR-PENDING-M]]. How many posts a login wrote that are
+		/// new, over the pull request; none while the read state is unknown.
+		std::function<std::optional<std::size_t>(const QString&)> AuthorUnread;
+		/// \brief [[BPR-PENDING-M]]. A post's body menu's Mark all from its
+		/// author as read, with the login.
+		std::function<void(const QString&)> AuthorReadRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

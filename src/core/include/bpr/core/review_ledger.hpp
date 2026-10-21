@@ -25,6 +25,20 @@ namespace bpr::core {
 	/// is what makes that decidable.
 	using comment_edit_version = strong_id<struct comment_edit_version_tag>;
 
+	/// \brief [[BPR-PENDING-M]]. Names the person who wrote a post.
+	///
+	/// \details Derived from the GitHub login, which the read already holds
+	/// in REST form (`<name>[bot]` for an app, [[BPR-1321]]). Never stored:
+	/// it scopes one bulk Mark read and nothing else.
+	using review_author_id = strong_id<struct review_author_id_tag>;
+
+	/// \brief [[BPR-PENDING-M]]. The author identity of one GitHub login.
+	///
+	/// \details GitHub logins compare without ASCII case, so `Dependabot[bot]`
+	/// and `dependabot[bot]` are one author, while `name` and `name[bot]` are
+	/// two accounts and stay two. An empty login names nobody: zero.
+	[[nodiscard]] auto review_author_of(std::string_view aLogin) noexcept -> review_author_id;
+
 	/// \brief Identifies the material a file receipt is attached to.
 	///
 	/// \details A receipt attaches to material and never to a path or an epoch.
@@ -239,9 +253,73 @@ namespace bpr::core {
 		review_comment_id    Comment;
 		comment_edit_version Edit;
 		bool                 Mine = false;
+		/// [[BPR-PENDING-M]]. Who wrote it, for Mark all from a person as
+		/// read; zero when GitHub names no author (a deleted account).
+		review_author_id Author;
 
 		auto operator<=>(const conversation_post_observation&) const = default;
 	};
+
+	/// \brief [[BPR-PENDING-M]]. One conversation's posts, as the host observed them.
+	///
+	/// \details The posts in thread order, root first. The bulk read decides
+	/// over a pull request's conversations at once, so the core holds the
+	/// shape the host observes rather than a span per conversation.
+	struct conversation_thread_observation
+	{
+		review_conversation_id                     Conversation;
+		std::vector<conversation_post_observation> Posts;
+
+		auto operator<=>(const conversation_thread_observation&) const = default;
+	};
+
+	/// \brief [[BPR-PENDING-M]]. Which posts a bulk Mark read covers.
+	///
+	/// \details No author is every post: Mark all comments as read. An
+	/// author is that person's posts alone: Mark all comments from them as
+	/// read. Either is a one-shot mark of the posts observed now; a post that
+	/// arrives later is new as any other is.
+	struct conversation_read_scope
+	{
+		review_author_id Author;
+
+		auto operator<=>(const conversation_read_scope&) const = default;
+	};
+
+	/// \brief [[BPR-PENDING-M]]. What one bulk Mark read decides.
+	///
+	/// \details `Receipts` are the receipts that change, one per
+	/// conversation, ordered by conversation; a conversation with nothing new
+	/// in scope has none, so a repeated mark changes nothing. `MarkedPosts`
+	/// counts the posts in scope it makes read. `KeptPosts` counts the posts
+	/// in scope it leaves new: a read cursor never passes a post someone else
+	/// wrote that I have not read, so an author's post after such a post
+	/// stays new with it.
+	struct conversation_bulk_read
+	{
+		std::vector<conversation_receipt> Receipts;
+		std::uint32_t                     MarkedPosts = 0U;
+		std::uint32_t                     KeptPosts   = 0U;
+
+		auto operator<=>(const conversation_bulk_read&) const = default;
+	};
+
+	/// \brief [[BPR-PENDING-M]]. Marks a pull request's conversations read
+	/// in one decision.
+	///
+	/// \details `aReceipts` are the review's receipts, ordered by
+	/// conversation; a conversation without one starts from an empty
+	/// receipt. With every post in scope each conversation with something new
+	/// is read to its latest post, as Mark read does. With an author, the
+	/// cursor advances over the run of new posts that author (or I) wrote and
+	/// stops at the first new post by anyone else. Acceptance never moves.
+	/// A conversation observed twice is decided once, against the first
+	/// decision. The host commits `Receipts` together or not at all.
+	[[nodiscard]] auto mark_conversations_read(
+		std::span<const conversation_receipt>            aReceipts,
+		std::span<const conversation_thread_observation> aThreads,
+		conversation_read_scope                          aScope)
+		-> conversation_bulk_read;
 
 	/// \brief Decides which posts of a conversation are newer than the cursor.
 	///

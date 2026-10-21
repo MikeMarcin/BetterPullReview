@@ -103,6 +103,26 @@ namespace {
 			return { };
 		}
 
+		/// [[BPR-PENDING-M]]. All of them or none, as one transaction is.
+		auto store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				Log->emplace_back("conversation-batch-refused");
+				return std::unexpected(*failure);
+			}
+			Log->emplace_back("conversation-batch-stored");
+			++ConversationBatches;
+			for (const auto& receipt : aReceipts) {
+				std::erase_if(ConversationReceipts, [&receipt](const core::conversation_receipt& aStored) {
+					return aStored.Conversation == receipt.Conversation;
+				});
+				ConversationReceipts.push_back(receipt);
+			}
+			return { };
+		}
+		std::size_t ConversationBatches = 0U;
+
 		auto load_conversation_receipts() -> std::expected<
 			std::vector<core::conversation_receipt>,
 			application::ledger_store_failure> override
@@ -504,6 +524,11 @@ namespace {
 			pass();
 			return Target->store_conversation_receipt(aReceipt);
 		}
+		auto store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->store_conversation_receipts(aReceipts);
+		}
 		auto load_conversation_receipts() -> std::expected<std::vector<core::conversation_receipt>, application::ledger_store_failure> override
 		{
 			pass();
@@ -692,6 +717,13 @@ namespace {
 		{
 			auto got = answer<void>{ };
 			Host.mark_conversation_unread(aThread, into(got));
+			return settled(got);
+		}
+		auto mark_all(const std::vector<application::conversation_thread_observation>& aThreads, const core::conversation_read_scope aScope = { })
+			-> std::expected<core::conversation_bulk_read, application::ledger_store_failure>
+		{
+			auto got = answer<core::conversation_bulk_read>{ };
+			Host.mark_conversations_read(aThreads, aScope, into(got));
 			return settled(got);
 		}
 		/// Loads first, as a caller that has never observed would.
@@ -1359,6 +1391,65 @@ namespace {
 		expect(rigged.mark(core::conversation_observation{ .Conversation = thread, .LatestComment = core::review_comment_id{ 3U }, .LatestEdit = core::comment_edit_version{ 13U } }).has_value()
 				   && rigged.observe_conversations(threads)->Threads.empty(),
 			   "Mark read reads it again");
+	}
+
+	/// [[BPR-PENDING-M]]. A bulk Mark read is one batch through the store:
+	/// a refused batch keeps nothing, a committed one survives a new host,
+	/// a repeat writes nothing, and one author's mark leaves the rest new.
+	void test_bulk_mark_read_is_one_atomic_commit()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto bot    = core::review_author_of("coderabbitai[bot]");
+		const auto human  = core::review_author_of("tbutler");
+		const auto post   = [](const std::uint64_t aId, const core::review_author_id aAuthor) {
+			return core::conversation_post_observation{ .Comment = core::review_comment_id{ aId }, .Edit = core::comment_edit_version{ aId + 100U }, .Author = aAuthor };
+		};
+		const auto threads = std::vector<application::conversation_thread_observation>{
+			{ .Conversation = core::review_conversation_id{ 81U }, .Posts = { post(1U, bot) } },
+			{ .Conversation = core::review_conversation_id{ 82U }, .Posts = { post(2U, bot), post(3U, human) } },
+			{ .Conversation = core::review_conversation_id{ 83U }, .Posts = { post(4U, human) } },
+		};
+		const auto fresh = rigged.observe_conversations(threads);
+		expect(fresh && fresh->UnreadThreads == 3U, "the fixture starts with three new conversations");
+
+		// A refused batch: no receipt is stored or kept, the read state is
+		// as it was, and the answer says why.
+		const auto writes = rigged.Host.statistics().ConversationWrites;
+		store.fail_next(application::ledger_store_failure::unavailable);
+		const auto refused = rigged.mark_all(threads);
+		expect(!refused && refused.error() == application::ledger_store_failure::unavailable, "a refused batch answers its failure");
+		expect(store.ConversationReceipts.empty() && store.ConversationBatches == 0U && rigged.Host.statistics().ConversationWrites == writes + 1U,
+			   "one batch was attempted and nothing was stored");
+		expect(rigged.observe_conversations(threads) == fresh, "nothing is kept: every conversation is as new as before");
+
+		// One author: the bot's posts, up to the first post by anyone else.
+		const auto byBot = rigged.mark_all(threads, { .Author = bot });
+		expect(byBot && byBot->MarkedPosts == 2U && byBot->Receipts.size() == 2U && store.ConversationBatches == 1U && store.ConversationReceipts.size() == 2U,
+			   "the bot's two posts are read in one batch of two receipts");
+		const auto afterBot = rigged.observe_conversations(threads);
+		expect(afterBot && afterBot->UnreadThreads == 2U && afterBot->Threads[0].Conversation == core::review_conversation_id{ 82U }
+				   && afterBot->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 3U } }
+				   && afterBot->Threads[1].Conversation == core::review_conversation_id{ 83U },
+			   "the person's answer and their own thread stay new at once, from the kept receipts");
+
+		// Everything, then again: the repeat reaches no store.
+		const auto all = rigged.mark_all(threads);
+		expect(all && all->MarkedPosts == 2U && store.ConversationBatches == 2U && rigged.observe_conversations(threads)->Threads.empty(),
+			   "Mark all as read reads the rest in one more batch");
+		const auto batches = store.ConversationBatches;
+		const auto again   = rigged.mark_all(threads);
+		expect(again && again->Receipts.empty() && store.ConversationBatches == batches, "a repeated mark writes nothing");
+
+		// The durable result survives a new host over the same store.
+		auto restarted = rig{ store, log };
+		expect(restarted.observe_conversations(threads)->Threads.empty(), "the bulk mark is read back after a restart");
+		auto later = threads;
+		later[0].Posts.push_back(post(5U, bot));
+		const auto next = restarted.observe_conversations(later);
+		expect(next && next->UnreadThreads == 1U && next->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 5U } } && next->Threads[0].SeenBefore,
+			   "the bot's next post is new: the mark muted nothing");
 	}
 
 	void test_receipt_action_projection_contains_only_core_legal_changes()
@@ -2055,6 +2146,7 @@ auto main() -> int
 	test_receipt_action_projection_contains_only_core_legal_changes();
 	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
 	test_conversation_marks_unread_through_the_store();
+	test_bulk_mark_read_is_one_atomic_commit();
 	test_singleton_conversations_seen_before_and_restart();
 	test_a_held_store_operation_leaves_the_decision_lane_free();
 	test_admission_is_bounded();

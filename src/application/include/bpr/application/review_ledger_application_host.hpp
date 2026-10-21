@@ -106,13 +106,9 @@ namespace bpr::application {
 	/// edit is a different version without the provider naming a time.
 	/// [[BPR-1601]]. A PR comment or review summary is a one-post conversation;
 	/// the existing receipt keeps its read cursor without a storage migration.
-	struct conversation_thread_observation
-	{
-		core::review_conversation_id                     Conversation;
-		std::vector<core::conversation_post_observation> Posts;
-
-		auto operator<=>(const conversation_thread_observation&) const = default;
-	};
+	/// [[BPR-PENDING-M]]. The core's own shape, since the bulk read decides
+	/// over the pull request's conversations together.
+	using conversation_thread_observation = core::conversation_thread_observation;
 
 	/// \brief What the reader has not seen in one conversation.
 	///
@@ -313,6 +309,17 @@ namespace bpr::application {
 		/// \details Answers `invalid_record` without writing when every post
 		/// is mine, since nothing could become new.
 		void mark_conversation_unread(const conversation_thread_observation& aThread, ledger_completion<void> aDone);
+		/// \brief [[BPR-PENDING-M]]. Marks the observed conversations read in
+		/// one durable change: every post, or one author's.
+		///
+		/// \details `core::mark_conversations_read` decides against the
+		/// receipts held at the head of the queue, and the receipts it changes
+		/// are committed together through `store_conversation_receipts`. A
+		/// refused commit keeps none of them; a mark with nothing new in scope
+		/// writes nothing and answers what it decided.
+		void mark_conversations_read(std::vector<conversation_thread_observation>    aThreads,
+									 core::conversation_read_scope                   aScope,
+									 ledger_completion<core::conversation_bulk_read> aDone);
 
 		/// \brief The bounded private-state observation last loaded or committed.
 		/// \details Never reads the store; `unavailable` until `load_private` succeeds.

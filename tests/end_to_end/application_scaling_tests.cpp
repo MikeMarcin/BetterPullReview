@@ -396,6 +396,21 @@ try {
 					   && access::scaling_evidence(*owner).OverviewBuilds == before.OverviewBuilds,
 				   "one conversation command observes exactly its thread and post without overview work");
 
+			// [[BPR-PENDING-M]]. Mark All Comments as Read through the real
+			// composition: one ledger write for every conversation, and the
+			// counts and the action itself follow once it is durable.
+			settle([&] { return access::scaling_evidence(*owner); });
+			auto* const markAll = window->mark_all_comments_read_action();
+			expect(markAll != nullptr && markAll->isEnabled() && cards->unread_post_count() > 0U, "the Pull Request menu offers Mark All Comments as Read while comments are new");
+			before = access::scaling_evidence(*owner);
+			markAll->trigger();
+			wait_for([&] { return cards->unread_post_count() == 0U && !markAll->isEnabled(); }, "every comment presented read");
+			settle([&] { return access::scaling_evidence(*owner); });
+			const auto markedAll = access::scaling_evidence(*owner);
+			expect(markedAll.Ledger.ConversationWrites == before.Ledger.ConversationWrites + 1U && markedAll.OverviewBuilds == before.OverviewBuilds
+					   && !window->next_new_comment_action()->isEnabled(),
+				   "Mark All Comments as Read is one durable conversation write, with no Overview rebuild, and Next new comment has nothing left");
+
 			// [[BPR-1211]] AC3, composed. The profile's review-ledger lane is
 			// held, as slow or contended storage would hold it. The decision
 			// lane keeps turning: a posted task runs, the reviewer changes

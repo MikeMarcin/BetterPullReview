@@ -1,6 +1,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -8,6 +9,7 @@
 #include <iostream>
 #include <span>
 #include <string_view>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -513,6 +515,134 @@ namespace {
 		expect(core::unread_posts(initial, posts).empty() && !core::mark_conversation_unread(read, posts), "my own PR comments and summaries are never new");
 	}
 
+	[[nodiscard]] auto post(const std::uint64_t aComment, const core::review_author_id aAuthor, const bool aMine = false)
+		-> core::conversation_post_observation
+	{
+		return { .Comment = core::review_comment_id{ aComment }, .Edit = core::comment_edit_version{ aComment * 10U }, .Mine = aMine, .Author = aAuthor };
+	}
+
+	[[nodiscard]] auto unread_after(const core::conversation_bulk_read& aRead, const std::span<const core::conversation_receipt> aBefore,
+									const core::conversation_thread_observation& aThread) -> std::vector<std::size_t>
+	{
+		const auto found = std::ranges::find(aRead.Receipts, aThread.Conversation, &core::conversation_receipt::Conversation);
+		if (found != aRead.Receipts.end()) {
+			return core::unread_posts(*found, aThread.Posts);
+		}
+		const auto stored = std::ranges::find(aBefore, aThread.Conversation, &core::conversation_receipt::Conversation);
+		return core::unread_posts(stored != aBefore.end() ? *stored : core::conversation_receipt{ .Conversation = aThread.Conversation }, aThread.Posts);
+	}
+
+	// [[BPR-PENDING-M]]. A bot's login is one author whatever its case, and
+	// is not the same-named person; an empty login is nobody.
+	void test_an_author_is_the_login_without_case()
+	{
+		const auto bot = core::review_author_of("coderabbitai[bot]");
+		expect(bot != core::review_author_id{ } && bot == core::review_author_of("CodeRabbitAI[bot]"), "a bot login names one author in any case");
+		expect(bot != core::review_author_of("coderabbitai") && bot != core::review_author_of("dependabot[bot]"), "another account is another author");
+		expect(core::review_author_of("") == core::review_author_id{ }, "no login names nobody");
+		expect(core::review_author_of("octocat") == core::review_author_of("octocat"), "the identity is a pure function of the login");
+	}
+
+	// [[BPR-PENDING-M]]. Mark all comments as read: one decision over every
+	// conversation; only the receipts that move are written, acceptance
+	// stays, and a second mark changes nothing.
+	void test_mark_all_read_reads_every_conversation_once()
+	{
+		const auto bot     = core::review_author_of("coderabbitai[bot]");
+		const auto human   = core::review_author_of("tbutler");
+		const auto me      = core::review_author_of("reviewer-one");
+		const auto threads = std::vector<core::conversation_thread_observation>{
+			{ .Conversation = core::review_conversation_id{ 30U }, .Posts = { post(1U, bot), post(2U, human), post(3U, me, true) } },
+			{ .Conversation = core::review_conversation_id{ 10U }, .Posts = { post(4U, human) } },
+			{ .Conversation = core::review_conversation_id{ 20U }, .Posts = { post(5U, bot), post(6U, bot) } },
+			{ .Conversation = core::review_conversation_id{ 40U }, .Posts = { post(7U, me, true) } },
+		};
+		const auto stored = std::vector<core::conversation_receipt>{
+			{ .Conversation = core::review_conversation_id{ 10U }, .SeenComment = core::review_comment_id{ 4U }, .SeenEdit = core::comment_edit_version{ 40U } },
+			{ .Conversation = core::review_conversation_id{ 20U }, .SeenComment = core::review_comment_id{ 5U }, .SeenEdit = core::comment_edit_version{ 50U }, .AcceptedComment = core::review_comment_id{ 5U }, .AcceptedEdit = core::comment_edit_version{ 50U } },
+		};
+		const auto read = core::mark_conversations_read(stored, threads, { });
+		expect(read.MarkedPosts == 3U && read.KeptPosts == 0U, "every new post someone else wrote is marked, none kept");
+		expect(read.Receipts.size() == 2U && read.Receipts[0].Conversation == core::review_conversation_id{ 20U }
+				   && read.Receipts[1].Conversation == core::review_conversation_id{ 30U },
+			   "only the conversations with something new change, in conversation order");
+		expect(read.Receipts[0].SeenComment == core::review_comment_id{ 6U } && read.Receipts[0].AcceptedComment == core::review_comment_id{ 5U }
+				   && read.Receipts[1].SeenComment == core::review_comment_id{ 3U } && read.Receipts[1].SeenEdit == core::comment_edit_version{ 30U },
+			   "each is read to its latest post, and acceptance does not move");
+		for (const auto& thread : threads) {
+			expect(unread_after(read, stored, thread).empty(), "nothing in the pull request is new afterwards");
+		}
+		auto after = stored;
+		for (const auto& receipt : read.Receipts) {
+			std::erase_if(after, [&receipt](const core::conversation_receipt& aKept) { return aKept.Conversation == receipt.Conversation; });
+			after.push_back(receipt);
+		}
+		std::ranges::sort(after, { }, &core::conversation_receipt::Conversation);
+		const auto again = core::mark_conversations_read(after, threads, { });
+		expect(again.Receipts.empty() && again.MarkedPosts == 0U && again.KeptPosts == 0U, "marking again is legal and changes nothing");
+		expect(core::mark_conversations_read(after, { }, { }).Receipts.empty(), "a pull request with no conversations has nothing to mark");
+
+		// What arrives later is new: the mark is of the posts observed then.
+		auto later = threads;
+		later[2].Posts.push_back(post(8U, bot));
+		later[1].Posts[0].Edit = core::comment_edit_version{ 41U };
+		expect(unread_after(again, after, later[2]) == std::vector<std::size_t>{ 2U }, "a reply posted after the mark is new");
+		expect(unread_after(again, after, later[1]) == std::vector<std::size_t>{ 0U }, "a post edited after the mark is new");
+	}
+
+	// [[BPR-PENDING-M]]. Mark all from one author: their new posts are read,
+	// nobody else's are, and the cursor never passes someone else's new post.
+	void test_mark_author_read_reads_only_that_author()
+	{
+		const auto bot     = core::review_author_of("coderabbitai[bot]");
+		const auto human   = core::review_author_of("tbutler");
+		const auto me      = core::review_author_of("reviewer-one");
+		const auto threads = std::vector<core::conversation_thread_observation>{
+			// A bot's PR comment, review summary or thread of its own.
+			{ .Conversation = core::review_conversation_id{ 1U }, .Posts = { post(11U, bot) } },
+			{ .Conversation = core::review_conversation_id{ 2U }, .Posts = { post(21U, bot), post(22U, me, true), post(23U, bot) } },
+			// Someone answered the bot: the answer stays new.
+			{ .Conversation = core::review_conversation_id{ 3U }, .Posts = { post(31U, bot), post(32U, human) } },
+			// The bot answered someone: their post is first, so nothing moves.
+			{ .Conversation = core::review_conversation_id{ 4U }, .Posts = { post(41U, human), post(42U, bot) } },
+			// Interleaved: the bot's root is read, the answer and its reply stay new.
+			{ .Conversation = core::review_conversation_id{ 5U }, .Posts = { post(51U, bot), post(52U, human), post(53U, bot) } },
+			// A person's own thread, and a post with no author.
+			{ .Conversation = core::review_conversation_id{ 6U }, .Posts = { post(61U, human) } },
+			{ .Conversation = core::review_conversation_id{ 7U }, .Posts = { post(71U, core::review_author_id{ }) } },
+		};
+		const auto none = std::vector<core::conversation_receipt>{ };
+		const auto read = core::mark_conversations_read(none, threads, { .Author = bot });
+		expect(read.MarkedPosts == 5U && read.KeptPosts == 2U, "the bot's five reachable posts are read; two behind a new answer stay new");
+		expect(read.Receipts.size() == 4U, "the four conversations whose cursor moves are the only ones written");
+		const auto unread = [&](const std::size_t aThread) { return unread_after(read, none, threads[aThread]); };
+		expect(unread(0U).empty() && unread(1U).empty(), "a conversation of the bot's posts, my replies among them, is read");
+		expect(unread(2U) == std::vector<std::size_t>{ 1U }, "a person's answer to the bot stays new");
+		expect(unread(3U) == std::vector<std::size_t>{ 0U, 1U }, "a bot reply after a person's new post stays new with it");
+		expect(unread(4U) == std::vector<std::size_t>{ 1U, 2U }, "interleaved: the root is read, the rest stays new");
+		expect(unread(5U) == std::vector<std::size_t>{ 0U } && unread(6U) == std::vector<std::size_t>{ 0U }, "nobody else's conversation is touched");
+
+		const auto person = core::mark_conversations_read(none, threads, { .Author = human });
+		expect(person.MarkedPosts == 2U && person.Receipts.size() == 2U
+				   && person.Receipts[0].Conversation == core::review_conversation_id{ 4U }
+				   && person.Receipts[0].SeenComment == core::review_comment_id{ 41U },
+			   "the same rule for a person: their own thread and their post ahead of the bot's");
+		expect(core::mark_conversations_read(none, threads, { .Author = me }).Receipts.empty(), "my own posts are never new, so marking mine changes nothing");
+
+		// Idempotence over the stored result, then a later post by the bot.
+		auto       stored = read.Receipts;
+		const auto again  = core::mark_conversations_read(stored, threads, { .Author = bot });
+		expect(again.Receipts.empty() && again.MarkedPosts == 0U && again.KeptPosts == 2U, "marking the author again changes nothing and still counts the kept posts");
+		auto later = threads[0];
+		later.Posts.push_back(post(12U, bot));
+		expect(unread_after(again, stored, later) == std::vector<std::size_t>{ 1U }, "the author's next post is new: the mark is one-shot, not a mute");
+
+		// A conversation observed twice is decided once.
+		const auto twice = std::vector{ threads[0], threads[0] };
+		const auto once  = core::mark_conversations_read(none, twice, { .Author = bot });
+		expect(once.Receipts.size() == 1U && once.MarkedPosts == 1U, "a repeated observation adds no receipt and no post");
+	}
+
 	void test_the_queue_order_is_deterministic_including_ties()
 	{
 		// Two files share the highest reason. Without an explicit tie-break
@@ -726,6 +856,9 @@ auto main() -> int
 	test_unread_posts_follow_the_seen_cursor();
 	test_mark_unread_makes_the_latest_other_post_new();
 	test_single_post_conversation_read_state();
+	test_an_author_is_the_login_without_case();
+	test_mark_all_read_reads_every_conversation_once();
+	test_mark_author_read_reads_only_that_author();
 	test_the_queue_order_is_deterministic_including_ties();
 	test_the_explanation_follows_the_deciding_fact();
 	test_exclusion_leaves_the_queue_rather_than_ranking_in_it();

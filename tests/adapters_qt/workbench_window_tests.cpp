@@ -12929,6 +12929,100 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-PENDING-M]]. Mark All Comments as Read is on the Pull
+	/// Request menu while anything is new; it and a thread's Mark all from its
+	/// author go out through one dispatch, and the read state the composition
+	/// then presents moves every count and badge at once.
+	void test_mark_all_comments_read_moves_every_count_at_once()
+	{
+		qt::workbench_window window;
+		window.resize(1'440, 900);
+		window.show();
+		window.set_conversation_endpoint_placement(false, true);
+		auto       pr      = application::github_pull_request_projection{ };
+		const auto addPost = [&pr](const std::string& aThread, const std::string& aPost, const std::string& aAuthor, const std::uint32_t aLine) {
+			if (std::ranges::none_of(pr.Conversations, [&aThread](const application::github_conversation_projection& aEntry) { return aEntry.Id == aThread; })) {
+				pr.Conversations.push_back(application::github_conversation_projection{
+					.Id                 = aThread,
+					.Kind               = application::github_conversation_kind::review_thread,
+					.Path               = "src/first.cpp",
+					.Line               = aLine,
+					.DiffSide           = application::github_conversation_diff_side::right,
+					.AnchorAvailability = application::github_conversation_anchor_availability::current,
+				});
+			}
+			pr.Conversations.push_back(application::github_conversation_projection{
+				.Id          = aPost,
+				.ParentId    = aThread,
+				.Kind        = application::github_conversation_kind::review_comment,
+				.AuthorLogin = aAuthor,
+				.Body        = "A comment by " + aAuthor,
+				.Path        = "src/first.cpp",
+			});
+		};
+		addPost("bot-1", "bot-1-a", "coderabbitai[bot]", 1U);
+		addPost("bot-2", "bot-2-a", "coderabbitai[bot]", 2U);
+		addPost("bot-2", "bot-2-b", "tbutler", 2U);
+		addPost("human", "human-a", "tbutler", 3U);
+		window.publish(application::github_presentation_update{ .PullRequest = pr });
+		auto* const markAll = window.mark_all_comments_read_action();
+		auto* const prMenu  = window.findChild<QMenu*>(QStringLiteral("workbenchPullRequestMenu"));
+		expect(markAll != nullptr && prMenu != nullptr && prMenu->actions().contains(markAll) && markAll->text() == QStringLiteral("&Mark All Comments as Read")
+				   && markAll->statusTip().contains(QStringLiteral("nothing changes on GitHub")) && !markAll->isEnabled(),
+			   "the Pull Request menu holds Mark All Comments as Read, with its mnemonic, offered only once something is new");
+		// The composition's stand-in: what the ledger committed comes back as
+		// read state, then what the gesture did.
+		const auto everything = std::vector<qt::thread_read_state>{
+			{ .Thread = "bot-1", .UnreadPosts = { "bot-1-a" } },
+			{ .Thread = "bot-2", .UnreadPosts = { "bot-2-a", "bot-2-b" } },
+			{ .Thread = "human", .UnreadPosts = { "human-a" } },
+		};
+		auto asked = std::vector<std::optional<std::string>>{ };
+		window.set_conversations_read_dispatch([&](const std::optional<std::string>& aAuthor) {
+			asked.push_back(aAuthor);
+			if (!aAuthor.has_value()) {
+				window.present_read_state({ });
+				window.present_conversations_read(qt::conversations_read_result{ .Marked = 4U }, aAuthor);
+				return;
+			}
+			window.present_read_state({ { .Thread = "bot-2", .UnreadPosts = { "bot-2-b" } }, { .Thread = "human", .UnreadPosts = { "human-a" } } });
+			window.present_conversations_read(qt::conversations_read_result{ .Marked = 2U }, aAuthor);
+		});
+		window.present_read_state(everything);
+		process_events();
+		expect(markAll->isEnabled() && window.next_new_comment_action()->isEnabled() && window.overview_page()->new_threads() == 3U,
+			   "with new comments the menu offers Mark All Comments as Read");
+		markAll->trigger();
+		process_events();
+		expect(asked == std::vector<std::optional<std::string>>{ std::nullopt }, "Mark All Comments as Read asks for every author");
+		expect(!markAll->isEnabled() && !window.next_new_comment_action()->isEnabled() && window.overview_page()->new_threads() == 0U
+				   && window.conversation_panel()->cards()->unread_post_count() == 0U,
+			   "the counts, Next new comment and the action itself follow the committed state at once");
+		expect(window.statusBar()->currentMessage() == QStringLiteral("Marked 4 comments as read."), "the status bar says what was marked");
+
+		// One author, from a thread's menu: the bot's posts go, the person's stay.
+		window.present_read_state(everything);
+		process_events();
+		auto* const menu   = window.conversation_panel()->cards()->thread_menu("bot-1");
+		auto* const author = menu == nullptr ? nullptr : menu->findChild<QAction*>(QStringLiteral("markAuthorReadAction"));
+		expect(author != nullptr && author->isEnabled() && author->text() == QStringLiteral("Mark all from coderabbitai[bot] as read"), "the bot's thread offers Mark all from the bot");
+		menu->hide();
+		author->trigger();
+		delete menu;
+		process_events();
+		expect(asked.back() == std::optional<std::string>{ "coderabbitai[bot]" }, "the author's Mark all goes out with the login");
+		expect(markAll->isEnabled() && window.overview_page()->new_threads() == 2U && window.conversation_panel()->cards()->unread_post_count() == 2U,
+			   "the person's two posts stay new and are still counted");
+		expect(window.statusBar()->currentMessage() == QStringLiteral("Marked 2 comments from coderabbitai[bot] as read."), "the status bar names the author");
+		window.present_conversations_read(qt::conversations_read_result{ .Marked = 1U, .Kept = 2U }, std::string{ "coderabbitai[bot]" });
+		expect(window.statusBar()->currentMessage() == QStringLiteral("Marked 1 comment from coderabbitai[bot] as read. 2 more stay new: they follow a reply from someone else that you have not read."),
+			   "posts left new behind someone else's reply are said, with why");
+		window.present_conversations_read(std::nullopt, std::nullopt);
+		expect(window.statusBar()->currentMessage() == QStringLiteral("Your read state could not be saved, so no comment was marked read. Try again."),
+			   "a refused change says nothing was marked");
+		window.hide();
+	}
+
 	/// \brief [[BPR-1511]]. File badges follow accepted selection, while Next new stays review-wide.
 	void test_unread_badge_follows_only_the_current_file()
 	{
@@ -15759,10 +15853,12 @@ namespace {
 		auto* menu    = finder->row_menu();
 		auto* review  = finder->open_in_review_action();
 		auto* discuss = finder->open_in_discuss_action();
-		// [[BPR-1582]]. Then a separator and Mark as Read or Mark as Unread.
-		expect(menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("threadFinderRowMenu") && menu->actions().size() == 4
-				   && menu->actions().mid(0, 2) == QList<QAction*>{ review, discuss } && menu->actions()[2]->isSeparator() && menu->actions()[3] == finder->read_action(),
-			   "a right click opens the row menu: Open in Review, then Open in Discuss, then the read command");
+		// [[BPR-1582]]. Then a separator and Mark as Read or Mark as Unread;
+		// [[BPR-PENDING-M]] then Mark All from the thread's author as Read.
+		expect(menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("threadFinderRowMenu") && menu->actions().size() == 5
+				   && menu->actions().mid(0, 2) == QList<QAction*>{ review, discuss } && menu->actions()[2]->isSeparator() && menu->actions()[3] == finder->read_action()
+				   && menu->actions()[4] == finder->author_read_action() && finder->author_read_action()->text().startsWith(QStringLiteral("Mark All from ")),
+			   "a right click opens the row menu: Open in Review, then Open in Discuss, then the read commands");
 		expect(review->text() == QStringLiteral("Open in Review") && discuss->text() == QStringLiteral("Open in Discuss") && menu->defaultAction() == review
 				   && review->shortcut() == QKeySequence{ Qt::Key_Return } && discuss->shortcut() == QKeySequence{ Qt::SHIFT | Qt::Key_Return }
 				   && review->isShortcutVisibleInContextMenu() && discuss->isShortcutVisibleInContextMenu()
@@ -19876,6 +19972,7 @@ auto main(int argc, char** argv) -> int
 
 	if (QCoreApplication::arguments().contains(QStringLiteral("--current-file-unread-badge"))) {
 		runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
+		runCase("test_mark_all_comments_read_moves_every_count_at_once", &test_mark_all_comments_read_moves_every_count_at_once);
 		runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
 		runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
 		runCase("test_the_right_tray_tabs_keep_their_names_while_they_fit", &test_the_right_tray_tabs_keep_their_names_while_they_fit);
@@ -20212,6 +20309,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_selection_synchronisation_and_restart_persistence", &test_selection_synchronisation_and_restart_persistence);
 	runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
 	runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
+	runCase("test_mark_all_comments_read_moves_every_count_at_once", &test_mark_all_comments_read_moves_every_count_at_once);
 	runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
 	runCase("test_the_right_tray_tabs_keep_their_names_while_they_fit", &test_the_right_tray_tabs_keep_their_names_while_they_fit);
 	runCase("test_discuss_uses_main_content_and_open_in_code_returns_to_read", &test_discuss_uses_main_content_and_open_in_code_returns_to_read);

@@ -9,6 +9,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
+#include "bpr/qt/thread_pick_gestures.hpp"
 
 #include <QApplication>
 #include <QFontMetricsF>
@@ -1298,6 +1299,23 @@ namespace bpr::qt {
 			excerpt->setContentsMargins(text_left, 8, text_right, 0);
 			column->addWidget(excerpt);
 		}
+		// [[BPR-PENDING-M]]. A post someone else wrote offers Mark all from
+		// them as read in its body menu, after the menu's own items.
+		const auto addAuthorRead = [this](QMenu& aMenu, const QString& aLogin) {
+			if (aLogin.isEmpty()) {
+				return;
+			}
+			const auto  unread = AuthorUnread ? AuthorUnread(aLogin) : std::nullopt;
+			auto* const action = add_author_read_action(aMenu, aLogin, unread.value_or(0U), unread.has_value(), false);
+			action->setObjectName(QStringLiteral("postMarkAuthorRead"));
+			action->setEnabled(action->isEnabled() && static_cast<bool>(AuthorReadRequested));
+			connect(action, &QAction::triggered, this, [this, aLogin] {
+				const auto dispatch = AuthorReadRequested;
+				if (dispatch) {
+					dispatch(aLogin);
+				}
+			});
+		};
 		// The New rule goes only where a read post is followed by the first
 		// new one; a thread whose first post is new says so in its header.
 		auto seenNew = false;
@@ -1320,7 +1338,7 @@ namespace bpr::qt {
 																	  : QStringLiteral("No overall review comment. %1 file comments are linked below.").arg(count));
 			}
 			if (Style.Feed && !aCard.Draft) {
-				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
+				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
 					auto* const open = aMenu.addAction(QStringLiteral("Open in Review"));
@@ -1343,13 +1361,14 @@ namespace bpr::qt {
 							dispatch(id);
 						}
 					});
+					addAuthorRead(aMenu, author);
 				});
 			} else if (!aCard.Draft) {
 				// [[BPR-1581]]. In Review a comment's own menu shows it in
 				// Discuss, with the rest of the conversation; its tools stay
 				// in its name row.
 				view->reader()->set_extended_menu(true);
-				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
+				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
 					auto* const show = aMenu.addAction(QStringLiteral("Show in Discuss"));
@@ -1373,6 +1392,7 @@ namespace bpr::qt {
 							dispatch(id);
 						}
 					});
+					addAuthorRead(aMenu, author);
 				});
 			}
 			view->reader()->set_link_dispatch([this, id = post.Id](const std::string& aDestination) {

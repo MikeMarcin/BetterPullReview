@@ -1,3 +1,15 @@
+# [[BPR-PENDING-M]] reseal (2026-10-21) over last matching main d8a3f6b97,
+# linear. Pinned-scope change: Mark all comments as read, and all from one
+# author, on this card's own commit. Inside the manifest only
+# github_application.cpp changed: a post's read observation carries its
+# author's identity (core::review_author_of over the login), and the window's
+# Mark All Comments as Read and Mark all from <login> as read reach one new
+# composition method that observes every conversation of the accepted
+# snapshot, hands them to the review ledger host's mark_conversations_read,
+# and publishes the read state once the batch is durable. No credential,
+# grant, provider selection, publication, mutation or source-inventory change;
+# read state is the private ledger's and nothing reaches GitHub. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # RFC-BPR-0089 M3 reseal (2026-10-21) over last matching 8e73e5cb3 ([[BPR-1693]],
 # on main ef5939561), linear. Pinned-scope change: M3's split per-commit diffs
 # and force-push rematch, on this milestone's own commit. Inside the manifest
@@ -1811,7 +1823,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+		"f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2031,7 +2043,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "387de8dad55a498cf8269419b12dbf6d520f865c26ca61cb791f8c0dd34a8f80"
+        "aead8260aa05c852f0f27f26b5f993a1f7d03546d4eefa1f521bbf3455ac743e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

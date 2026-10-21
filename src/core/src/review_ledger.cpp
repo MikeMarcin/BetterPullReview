@@ -1,6 +1,9 @@
 #include "bpr/core/review_ledger.hpp"
 
+#include "bpr/core/sha256.hpp"
+
 #include <algorithm>
+#include <array>
 
 namespace bpr::core {
 	namespace {
@@ -15,7 +18,93 @@ namespace bpr::core {
 		{
 			return aOffered > aCurrent ? aOffered : aCurrent;
 		}
+
+		/// \brief The index of the first post newer than the seen cursor.
+		///
+		/// \details The post after the seen one, or the seen one itself when
+		/// it was edited since; the first post when the cursor names none.
+		[[nodiscard]] auto first_unseen(
+			const conversation_receipt&                          aReceipt,
+			const std::span<const conversation_post_observation> aPosts) noexcept -> std::size_t
+		{
+			for (std::size_t index = 0U; index < aPosts.size(); ++index) {
+				if (aPosts[index].Comment == aReceipt.SeenComment) {
+					return aPosts[index].Edit == aReceipt.SeenEdit ? index + 1U : index;
+				}
+			}
+			return 0U;
+		}
+
+		/// \brief One conversation's share of a bulk read.
+		struct scoped_read
+		{
+			std::optional<conversation_receipt> Receipt;
+			std::uint32_t                       Marked = 0U;
+			std::uint32_t                       Kept   = 0U;
+		};
+
+		[[nodiscard]] auto in_scope(const conversation_post_observation& aPost, const conversation_read_scope aScope) noexcept -> bool
+		{
+			return !aPost.Mine && (aScope.Author == review_author_id{ } || aPost.Author == aScope.Author);
+		}
+
+		/// \brief Moves one conversation's cursor over the new posts in scope.
+		///
+		/// \details The cursor passes my posts and the posts in scope, and
+		/// stops at the first new post someone else wrote: everything past it
+		/// stays new, the scope's own posts included, and is counted kept.
+		[[nodiscard]] auto read_in_scope(
+			const conversation_receipt&                          aReceipt,
+			const std::span<const conversation_post_observation> aPosts,
+			const conversation_read_scope                        aScope) noexcept -> scoped_read
+		{
+			auto result = scoped_read{ };
+			auto index  = first_unseen(aReceipt, aPosts);
+			auto last   = aPosts.size();
+			for (; index < aPosts.size(); ++index) {
+				const auto& post = aPosts[index];
+				if (!post.Mine && !in_scope(post, aScope)) {
+					break;
+				}
+				result.Marked += post.Mine ? 0U : 1U;
+				last = index;
+			}
+			for (; index < aPosts.size(); ++index) {
+				result.Kept += in_scope(aPosts[index], aScope) ? 1U : 0U;
+			}
+			if (result.Marked == 0U || last == aPosts.size()) {
+				return result;
+			}
+			auto read        = aReceipt;
+			read.SeenComment = aPosts[last].Comment;
+			read.SeenEdit    = aPosts[last].Edit;
+			result.Receipt   = read;
+			return result;
+		}
 	} // namespace
+
+	auto review_author_of(const std::string_view aLogin) noexcept -> review_author_id
+	{
+		if (aLogin.empty()) {
+			return review_author_id{ };
+		}
+		// A login is at most 39 characters and an app's a little more under
+		// its "[bot]"; folding into a bounded buffer keeps this noexcept.
+		constexpr auto bound  = std::size_t{ 256U };
+		auto           folded = std::array<std::uint8_t, bound>{ };
+		const auto     length = std::min(aLogin.size(), bound);
+		for (std::size_t index = 0U; index < length; ++index) {
+			const auto character = static_cast<std::uint8_t>(aLogin[index]);
+			folded.at(index)     = character >= 'A' && character <= 'Z' ? static_cast<std::uint8_t>(character - 'A' + 'a') : character;
+		}
+		const auto digest = sha256(std::span{ folded.data(), length });
+		auto       value  = std::uint64_t{ 0U };
+		for (std::size_t index = 0U; index < 8U; ++index) {
+			value = (value << 8U) | digest.at(index);
+		}
+		value &= std::uint64_t{ 0x7fff'ffff'ffff'ffffULL };
+		return review_author_id{ value == 0U ? 1U : value };
+	}
 
 	auto name(const file_read_state aState) noexcept -> std::string_view
 	{
@@ -286,14 +375,7 @@ namespace bpr::core {
 		-> std::vector<std::size_t>
 	{
 		auto result = std::vector<std::size_t>{ };
-		auto start  = std::size_t{ 0U };
-		for (std::size_t index = 0U; index < aPosts.size(); ++index) {
-			if (aPosts[index].Comment == aReceipt.SeenComment) {
-				start = aPosts[index].Edit == aReceipt.SeenEdit ? index + 1U : index;
-				break;
-			}
-		}
-		for (auto index = start; index < aPosts.size(); ++index) {
+		for (auto index = first_unseen(aReceipt, aPosts); index < aPosts.size(); ++index) {
 			if (!aPosts[index].Mine) {
 				result.push_back(index);
 			}
@@ -311,6 +393,42 @@ namespace bpr::core {
 		read.SeenComment  = aObservation.LatestComment;
 		read.SeenEdit     = aObservation.LatestEdit;
 		return read;
+	}
+
+	auto mark_conversations_read(
+		const std::span<const conversation_receipt>            aReceipts,
+		const std::span<const conversation_thread_observation> aThreads,
+		const conversation_read_scope                          aScope)
+		-> conversation_bulk_read
+	{
+		auto result = conversation_bulk_read{ };
+		// The decisions so far, by conversation: a conversation observed
+		// twice is decided against its first decision, not twice against
+		// the stored receipt.
+		auto& decided = result.Receipts;
+		for (const auto& thread : aThreads) {
+			const auto prior   = std::ranges::lower_bound(decided, thread.Conversation, { }, &conversation_receipt::Conversation);
+			const auto revisit = prior != decided.end() && prior->Conversation == thread.Conversation;
+			auto       receipt = conversation_receipt{ .Conversation = thread.Conversation };
+			if (revisit) {
+				receipt = *prior;
+			} else if (const auto stored = std::ranges::lower_bound(aReceipts, thread.Conversation, { }, &conversation_receipt::Conversation);
+					   stored != aReceipts.end() && stored->Conversation == thread.Conversation) {
+				receipt = *stored;
+			}
+			const auto read = read_in_scope(receipt, thread.Posts, aScope);
+			result.MarkedPosts += read.Marked;
+			result.KeptPosts += read.Kept;
+			if (!read.Receipt.has_value() || *read.Receipt == receipt) {
+				continue;
+			}
+			if (revisit) {
+				*prior = *read.Receipt;
+			} else {
+				decided.insert(prior, *read.Receipt);
+			}
+		}
+		return result;
 	}
 
 	auto mark_conversation_unread(

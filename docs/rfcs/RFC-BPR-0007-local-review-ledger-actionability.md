@@ -88,6 +88,18 @@ it is read or accepted (`core::progress_done`). Overview's read column and the
 Files drawer show the mark; "Files read", the "not read" count and Continue
 review's next file count done files.
 
+Amended 2026-10-21 by the owner's request on [[BPR-PENDING-M]], verbatim: "We
+have some automated review bots that are very spammy on reviews. I think I
+want the ability to Mark all comments as read and Mark all comments from a
+particular user as read." `core::mark_conversations_read` decides a bulk read
+over a pull request's conversations at once: every post, or one author's,
+named by `core::review_author_of` from the login. The conversation cursor is
+unchanged, so an author's mark moves each cursor over that author's (and my)
+new posts and stops at the first new post by anyone else; what it leaves new
+it counts. The receipts it changes are committed in one transaction through
+`store_conversation_receipts`: all or none. It is a one-shot mark of the posts
+observed; no author identity is stored and nothing is muted.
+
 Where review state targets a diff location, it uses RFC-BPR-0004's stable file,
 epoch, source-line/boundary, change-group, or move-relation identity. The ledger
 never persists Qt indexes, visual row numbers, ribbon paths, measured

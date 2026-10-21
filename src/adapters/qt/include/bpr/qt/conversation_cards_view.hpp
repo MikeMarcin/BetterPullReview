@@ -429,8 +429,15 @@ namespace bpr::qt {
 		void                      set_thread_dispatch(card_thread_dispatch aDispatch);
 		void                      set_action_dispatch(card_action_dispatch aDispatch);
 		using defect_badges = std::map<std::string, std::pair<QString, QString>>;
-		void               set_defect_badges(defect_badges aBadges);
-		void               set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
+		void set_defect_badges(defect_badges aBadges);
+		void set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
+		/// \brief [[BPR-PENDING-M]]. Where "Mark all from <login> as read"
+		/// goes, from a thread's menu (its first post's author) and from a
+		/// post's body menu (that post's author), with the GitHub login.
+		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-PENDING-M]]. How many posts this login wrote that are
+		/// new, over every card; what the author's Mark all is offered for.
+		[[nodiscard]] auto unread_post_count_from(const QString& aLogin) const -> std::size_t;
 		[[nodiscard]] auto thread_menu(const std::string& aIdentity) -> QMenu*;
 		void               show_thread_menu(const std::string& aIdentity, QPoint aGlobalPosition = { });
 		/// \brief Discuss's list ([[BPR-0649]]): every thread in file order
@@ -731,6 +738,7 @@ namespace bpr::qt {
 		card_action_dispatch                                                                 ActionDispatch;
 		defect_badges                                                                        DefectBadges;
 		std::function<void(QMenu&, const std::string&)>                                      ContextMenuBuilder;
+		std::function<void(const std::string&)>                                              AuthorReadDispatch;
 		std::function<void()>                                                                MarksObserver;
 		std::function<bool(QWheelEvent&)>                                                    ScrollForward;
 		std::function<void(const std::string&, const std::string&)>                          LinkDispatch;

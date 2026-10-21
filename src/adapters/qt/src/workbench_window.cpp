@@ -2403,6 +2403,14 @@ namespace bpr::qt {
 			connect(scrollbar, &QScrollBar::valueChanged, this, [this](int) { consider_mark_read_when_fully_seen(); });
 			connect(scrollbar, &QScrollBar::rangeChanged, this, [this](int, int) { consider_mark_read_when_fully_seen(); });
 		}
+		// [[BPR-PENDING-M]]. A thread's or a post's Mark all from its author
+		// as read goes where Mark All Comments as Read does, with the login.
+		ConversationPanel->cards()->set_author_read_dispatch([this](const std::string& aLogin) {
+			const auto dispatch = ConversationsReadDispatch;
+			if (dispatch) {
+				dispatch(aLogin);
+			}
+		});
 		ConversationPanel->cards()->set_action_dispatch(
 			[this](const card_action aAction, const std::string& aIdentity) {
 				// [[BPR-1046]]. A reply still waiting for its comparison is
@@ -2859,6 +2867,15 @@ namespace bpr::qt {
 				ConversationUnreadDispatch(aThread);
 			}
 		});
+		// [[BPR-PENDING-M]]. Mark All from an author as Read, from a row.
+		Finder->set_author_read_dispatch(
+			[this](const std::string& aLogin) {
+				const auto dispatch = ConversationsReadDispatch;
+				if (dispatch) {
+					dispatch(aLogin);
+				}
+			},
+			[this](const QString& aLogin) { return ConversationPanel->cards()->unread_post_count_from(aLogin); });
 		// [[BPR-1356]]. The notice that says which filters a pick cleared
 		// goes once the reviewer changes one.
 		ConversationPanel->set_discuss_filters_changed([this] {
@@ -8598,6 +8615,43 @@ namespace bpr::qt {
 		ConversationUnreadDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_conversations_read_dispatch(conversations_read_dispatch aDispatch)
+	{
+		ConversationsReadDispatch = std::move(aDispatch);
+		update_new_comment_group();
+	}
+
+	auto workbench_window::mark_all_comments_read_action() const noexcept -> QAction*
+	{
+		return MarkAllCommentsRead;
+	}
+
+	void workbench_window::present_conversations_read(const std::optional<conversations_read_result> aResult, const std::optional<std::string>& aAuthor)
+	{
+		// [[BPR-PENDING-M]]. The counts and badges have already moved with
+		// the read state; this says what the gesture did, once it is durable.
+		const auto who = aAuthor.has_value() ? QString::fromStdString(*aAuthor) : QString{ };
+		if (!aResult.has_value()) {
+			statusBar()->showMessage(tr("Your read state could not be saved, so no comment was marked read. Try again."), 10000);
+			return;
+		}
+		const auto comments = [](const std::uint32_t aCount) {
+			return aCount == 1U ? QStringLiteral("1 comment") : QStringLiteral("%1 comments").arg(aCount);
+		};
+		auto said = QString{ };
+		if (aResult->Marked == 0U) {
+			said = who.isEmpty() ? tr("Nothing on this pull request is new.") : tr("Nothing %1 wrote is new.").arg(who);
+		} else {
+			said = who.isEmpty() ? tr("Marked %1 as read.").arg(comments(aResult->Marked)) : tr("Marked %1 from %2 as read.").arg(comments(aResult->Marked), who);
+		}
+		if (aResult->Kept != 0U) {
+			said += QLatin1Char(' ')
+				+ (aResult->Kept == 1U ? tr("1 more stays new: it follows a reply from someone else that you have not read.")
+									   : tr("%1 more stay new: they follow a reply from someone else that you have not read.").arg(aResult->Kept));
+		}
+		statusBar()->showMessage(said, 10000);
+	}
+
 	void workbench_window::update_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
 	{
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
@@ -9060,6 +9114,10 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
+		// [[BPR-PENDING-M]]. Offered while anything on the pull request is new.
+		if (MarkAllCommentsRead != nullptr) {
+			MarkAllCommentsRead->setEnabled(!unread.empty() && static_cast<bool>(ConversationsReadDispatch));
+		}
 		// A refresh may retain the drawer's visual anchor without a selected
 		// file. Only standalone diff presentation falls back to that anchor.
 		const auto file       = LastWorkbenchContext.has_value()
@@ -17132,7 +17190,7 @@ namespace bpr::qt {
 		PullRequestMenu->setObjectName(QStringLiteral("workbenchPullRequestMenu"));
 		PullRequestMenu->setAccessibleName(QStringLiteral("Pull Request"));
 		PullRequestMenu->setAccessibleDescription(
-			QStringLiteral("Open the pull request on GitHub, or keep it or its repository in my queue; nothing changes on GitHub"));
+			QStringLiteral("Open the pull request on GitHub, keep it or its repository in my queue, or mark its comments read; nothing changes on GitHub"));
 		FollowPullRequest = PullRequestMenu->addAction(QStringLiteral("&Follow"));
 		FollowPullRequest->setObjectName(QStringLiteral("followPullRequestAction"));
 		FollowPullRequest->setCheckable(true);
@@ -17160,6 +17218,21 @@ namespace bpr::qt {
 			RepositoryPendingGesture       = ++RepositoryGesture;
 			RepositoryDisplayedDestination = QueueProjection.Session;
 			RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = ref->Repository });
+		});
+		// [[BPR-PENDING-M]]. Mark All Comments as Read: my read state for
+		// every comment on the open pull request, in one durable change.
+		// Like Follow it is local; GitHub is not told.
+		PullRequestMenu->addSeparator();
+		MarkAllCommentsRead = PullRequestMenu->addAction(QStringLiteral("&Mark All Comments as Read"));
+		MarkAllCommentsRead->setObjectName(QStringLiteral("markAllCommentsReadAction"));
+		MarkAllCommentsRead->setStatusTip(QStringLiteral("Mark every comment on this pull request as read. Only your own read state changes; nothing changes on GitHub."));
+		MarkAllCommentsRead->setToolTip(MarkAllCommentsRead->statusTip());
+		MarkAllCommentsRead->setEnabled(false);
+		connect(MarkAllCommentsRead, &QAction::triggered, this, [this] {
+			const auto dispatch = ConversationsReadDispatch;
+			if (dispatch) {
+				dispatch(std::nullopt);
+			}
 		});
 
 		ViewMenu = PrimaryMenuBar->addMenu(QStringLiteral("&View"));

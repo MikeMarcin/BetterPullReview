@@ -32,6 +32,7 @@
 #include <iostream>
 #include <iterator>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -1786,6 +1787,61 @@ namespace {
 			   "the port refuses a nameless conversation before the database");
 	}
 
+	// [[BPR-PENDING-M]]. A bulk Mark read commits its receipts in one
+	// transaction: a receipt the database refuses part way rolls back the
+	// ones before it, and a committed batch survives a restart.
+	void test_conversation_receipt_batches_commit_together_or_not_at_all()
+	{
+		const scratch_directory directory;
+		expect(directory.make_private(), "the scratch root becomes owner-private");
+		auto opened = review_ledger_database::open(directory.file("b.db"), { });
+		expect(opened_ok(opened), "the ledger opens");
+		const auto here = opened->scope_id(scope_of("github.com", "octo", "app", 11));
+		expect(here.has_value(), "the scope resolves");
+		const auto receipt = [](const std::uint64_t aConversation, const std::uint64_t aSeen) {
+			return core::conversation_receipt{
+				.Conversation = core::review_conversation_id{ aConversation },
+				.SeenComment  = core::review_comment_id{ aSeen },
+				.SeenEdit     = core::comment_edit_version{ aSeen * 10U },
+			};
+		};
+		const auto kept = receipt(901U, 1U);
+		expect(opened->store_conversation_receipt(*here, kept).has_value(), "an earlier single receipt commits");
+
+		// The second receipt's cursor does not fit the column, so the
+		// database refuses it after the first one's upsert has run.
+		auto unstorable        = receipt(903U, 3U);
+		unstorable.SeenComment = core::review_comment_id{ std::uint64_t{ 1U } << 63U };
+		const auto refused     = std::array{ receipt(901U, 2U), unstorable, receipt(904U, 4U) };
+		expect(!opened->store_conversation_receipts(*here, refused).has_value(), "a batch holding an unstorable receipt is refused");
+		expect(opened->load_conversation_receipts(*here) == std::vector{ kept }, "the refused batch rolled back: the earlier receipt is unchanged and none is added");
+
+		const auto batch = std::array{ receipt(901U, 2U), receipt(902U, 5U), receipt(904U, 4U) };
+		expect(opened->store_conversation_receipts(*here, batch).has_value(), "a valid batch commits");
+		expect(opened->store_conversation_receipts(*here, std::span<const core::conversation_receipt>{ }).has_value(), "an empty batch is a successful nothing");
+		opened = std::unexpected(catalog_database_failure::unavailable);
+		opened = review_ledger_database::open(directory.file("b.db"), { });
+		expect(opened_ok(opened), "the ledger reopens");
+		expect(opened->load_conversation_receipts(*here) == std::vector{ batch[0], batch[1], batch[2] }, "every receipt of the batch is read back after a restart, the first replaced");
+		expect(opened->store_conversation_receipt(*here, receipt(905U, 6U)).has_value(), "the connection is usable after the rollback and the commit");
+		opened = std::unexpected(catalog_database_failure::unavailable);
+
+		auto port = bpr::adapters::sqlite::make_review_ledger_store({
+			.StorageRoot = directory.path(),
+			.Host        = "github.com",
+			.Account     = "octo",
+			.Repository  = "app",
+			.PullRequest = 12,
+		});
+		expect(port.has_value(), "the application port opens");
+		expect(!(*port)->store_conversation_receipts(std::array{ receipt(1U, 1U), core::conversation_receipt{ } }).has_value()
+				   && (*port)->load_conversation_receipts()->empty(),
+			   "the port refuses a batch naming no conversation before the database");
+		expect((*port)->store_conversation_receipts(std::array{ receipt(1U, 1U), receipt(2U, 2U) }).has_value()
+				   && (*port)->load_conversation_receipts()->size() == 2U,
+			   "the port stores a batch");
+	}
+
 	void test_private_records_survive_restart_isolate_and_delete()
 	{
 		const scratch_directory directory;
@@ -2929,6 +2985,7 @@ try {
 	test_every_receipt_state_survives_a_restart();
 	test_a_receipt_does_not_cross_scopes();
 	test_conversation_receipts_round_trip_by_scope();
+	test_conversation_receipt_batches_commit_together_or_not_at_all();
 	test_private_records_survive_restart_isolate_and_delete();
 	test_generated_marks_migrate_and_round_trip();
 	test_private_record_bounds_and_anchor_honesty_are_enforced();

@@ -7,6 +7,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_conversation.hpp"
 
@@ -614,6 +615,21 @@ namespace bpr::qt {
 			connect(copy, &QAction::triggered, menu, [body = card.Posts.front().Body] {
 				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
 					clipboard->setText(body);
+				}
+			});
+		}
+		// [[BPR-PENDING-M]]. Mark all from the thread's author as read, for a
+		// thread someone else started (a spammy bot's, typically). It reaches
+		// past this thread, so it stands apart from the thread's own items.
+		if (!card.Posts.empty() && !card.Posts.front().Mine && !card.Posts.front().Author.isEmpty()) {
+			menu->addSeparator();
+			const auto  login  = card.Posts.front().Author;
+			auto* const author = add_author_read_action(*menu, login, unread_post_count_from(login), ReadStateKnown, false);
+			author->setEnabled(author->isEnabled() && static_cast<bool>(AuthorReadDispatch));
+			connect(author, &QAction::triggered, menu, [this, chosen = login.toStdString()] {
+				const auto dispatch = AuthorReadDispatch;
+				if (dispatch) {
+					dispatch(chosen);
 				}
 			});
 		}
@@ -1283,6 +1299,25 @@ namespace bpr::qt {
 			count += card.UnreadCount;
 		}
 		return count;
+	}
+
+	auto conversation_cards_view::unread_post_count_from(const QString& aLogin) const -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			if (card.Draft) {
+				continue;
+			}
+			count += static_cast<std::size_t>(std::ranges::count_if(card.Posts, [&aLogin](const card_post& aPost) {
+				return aPost.Unread && !aPost.Mine && aPost.Author.compare(aLogin, Qt::CaseInsensitive) == 0;
+			}));
+		}
+		return count;
+	}
+
+	void conversation_cards_view::set_author_read_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		AuthorReadDispatch = std::move(aDispatch);
 	}
 
 	auto conversation_cards_view::line_marks(const core::diff_side aSide) const -> std::vector<thread_line_mark>
@@ -2143,6 +2178,16 @@ namespace bpr::qt {
 			const auto dispatch = ActionDispatch;
 			if (dispatch) {
 				dispatch(card_action::show_in_threads, aPost);
+			}
+		};
+		// [[BPR-PENDING-M]]. A post's Mark all from its author as read.
+		OpenCard->AuthorUnread = [this](const QString& aLogin) -> std::optional<std::size_t> {
+			return ReadStateKnown ? std::optional{ unread_post_count_from(aLogin) } : std::nullopt;
+		};
+		OpenCard->AuthorReadRequested = [this](const QString& aLogin) {
+			const auto dispatch = AuthorReadDispatch;
+			if (dispatch) {
+				dispatch(aLogin.toStdString());
 			}
 		};
 		// [[BPR-1581]]. A card rebuilt while an arrival is marked carries it.

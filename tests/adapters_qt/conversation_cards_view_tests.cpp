@@ -338,6 +338,107 @@ namespace {
 	// the dot and count, the open thread offers Mark read, the first post
 	// unread makes the thread new for the gutter, and the strip walks the
 	// unread threads of the whole pull request in file order.
+	// [[BPR-PENDING-M]]. A thread someone else started offers Mark all from
+	// its author as read, and a post's body menu Mark all from that post's
+	// author; each counts that author's new posts over the pull request,
+	// names the login as written, an app's [bot] included, and goes out with
+	// it. Read state decides when they are offered, and a new state moves
+	// the count at once.
+	auto test_mark_all_from_an_author_is_offered_from_thread_and_post_menus() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(360, 900);
+		view.show();
+		view.set_viewer_login(QStringLiteral("reviewer-one"));
+		view.adopt({
+			thread("bot-1", "src/a.cpp", 1U),
+			reply("bot-1-a", "bot-1", "coderabbitai[bot]", "Nitpick: rename this."),
+			thread("bot-2", "src/a.cpp", 2U),
+			reply("bot-2-a", "bot-2", "coderabbitai[bot]", "Consider a guard clause."),
+			reply("bot-2-b", "bot-2", "tbutler", "I disagree with the bot here."),
+			thread("human", "src/a.cpp", 3U),
+			reply("human-a", "human", "tbutler", "Why this order?"),
+			thread("mine", "src/a.cpp", 4U),
+			reply("mine-a", "mine", "reviewer-one", "My own note."),
+		});
+		QApplication::processEvents();
+		auto logins = std::vector<std::string>{ };
+		view.set_author_read_dispatch([&logins](const std::string& aLogin) { logins.push_back(aLogin); });
+		const auto authorAction = [&view](const std::string& aThread) -> std::pair<QMenu*, QAction*> {
+			auto* const menu = view.thread_menu(aThread);
+			return { menu, menu == nullptr ? nullptr : menu->findChild<QAction*>(QStringLiteral("markAuthorReadAction")) };
+		};
+		{
+			auto [menu, action] = authorAction("bot-1");
+			expect(action != nullptr && !action->isEnabled() && action->toolTip() == QStringLiteral("Read state is not available yet."),
+				   "before any read state the author's Mark all is offered disabled, saying why");
+			delete menu;
+		}
+		view.set_read_state({
+			qt::thread_read_state{ .Thread = "bot-1", .UnreadPosts = { "bot-1-a" } },
+			qt::thread_read_state{ .Thread = "bot-2", .UnreadPosts = { "bot-2-a", "bot-2-b" } },
+			qt::thread_read_state{ .Thread = "human", .UnreadPosts = { "human-a" } },
+		});
+		QApplication::processEvents();
+		expect(view.unread_post_count_from(QStringLiteral("coderabbitai[bot]")) == 2U && view.unread_post_count_from(QStringLiteral("CodeRabbitAI[bot]")) == 2U
+				   && view.unread_post_count_from(QStringLiteral("coderabbitai")) == 0U && view.unread_post_count_from(QStringLiteral("tbutler")) == 2U,
+			   "an author's new posts are counted over the pull request, the login without case, an app apart from a same-named person");
+		{
+			auto [menu, action] = authorAction("bot-1");
+			expect(action != nullptr && action->isEnabled() && action->text() == QStringLiteral("Mark all from coderabbitai[bot] as read")
+					   && action->toolTip() == QStringLiteral("Mark the 2 new comments coderabbitai[bot] wrote on this pull request as read. Only your own read state changes."),
+				   "a bot's thread offers Mark all from the bot, counting its new posts everywhere");
+			menu->hide();
+			action->trigger();
+			expect(logins == std::vector<std::string>{ "coderabbitai[bot]" }, "the gesture goes out with the bot's login");
+			delete menu;
+		}
+		{
+			auto [menu, action] = authorAction("mine");
+			expect(menu != nullptr && action == nullptr, "a thread I started offers no Mark all from me");
+			delete menu;
+		}
+		// A post's own body menu names that post's author, here the reply.
+		view.set_feed(true);
+		view.open_thread("bot-2");
+		QApplication::processEvents();
+		auto* const reader = [&view]() -> qt::markdown_body_view* {
+			for (auto* const widget : view.open_card()->findChildren<QWidget*>()) {
+				if (auto* const body = dynamic_cast<qt::markdown_body_view*>(widget); body != nullptr && body->original_body() == "I disagree with the bot here.") {
+					return body;
+				}
+			}
+			return nullptr;
+		}();
+		expect(reader != nullptr, "the reply has its reader");
+		auto context = QContextMenuEvent{ QContextMenuEvent::Keyboard, QPoint{ 5, 5 }, reader->rendered_view()->viewport()->mapToGlobal(QPoint{ 5, 5 }) };
+		QApplication::sendEvent(reader->rendered_view()->viewport(), &context);
+		QApplication::processEvents();
+		auto* const bodyMenu = reader->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+		auto* const byPost   = bodyMenu == nullptr ? nullptr : bodyMenu->findChild<QAction*>(QStringLiteral("postMarkAuthorRead"));
+		expect(byPost != nullptr && byPost->isEnabled() && byPost->text() == QStringLiteral("Mark all from tbutler as read"),
+			   "the keyboard's body menu on a reply offers Mark all from the reply's author");
+		bodyMenu->hide();
+		byPost->trigger();
+		expect(logins.back() == "tbutler", "and goes out with that login");
+		delete bodyMenu;
+		// The composition publishes the state the ledger committed: the
+		// bot's posts read, the person's still new. The menus follow at once.
+		view.set_read_state({
+			qt::thread_read_state{ .Thread = "bot-2", .UnreadPosts = { "bot-2-b" } },
+			qt::thread_read_state{ .Thread = "human", .UnreadPosts = { "human-a" } },
+		});
+		QApplication::processEvents();
+		expect(view.unread_post_count() == 2U && view.unread_post_count_from(QStringLiteral("coderabbitai[bot]")) == 0U, "the counts move with the state");
+		{
+			auto [menu, action] = authorAction("bot-1");
+			expect(action != nullptr && !action->isEnabled() && action->toolTip() == QStringLiteral("Nothing coderabbitai[bot] wrote on this pull request is new."),
+				   "with nothing of the bot's new its Mark all is disabled and says so");
+			delete menu;
+		}
+		view.hide();
+	}
+
 	auto test_read_state_marks_unread_posts_and_offers_mark_read() -> void
 	{
 		qt::conversation_cards_view view;
@@ -2053,6 +2154,7 @@ auto main(int argc, char** argv) -> int
 	test_one_thread_read_state_matches_the_complete_state();
 	test_branching_conversation_reads_in_place();
 	test_read_state_marks_unread_posts_and_offers_mark_read();
+	test_mark_all_from_an_author_is_offered_from_thread_and_post_menus();
 	test_new_boundary_is_never_the_first_thing_in_a_thread();
 	test_discuss_lists_threads_that_open_in_place();
 	test_discuss_post_menus_open_the_exact_comment_in_review();

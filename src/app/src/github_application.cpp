@@ -8328,6 +8328,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
 			Window->set_conversation_unread_dispatch(
 				[this](const std::string& aThread) { mark_conversation_unread(aThread); });
+			Window->set_conversations_read_dispatch(
+				[this](const std::optional<std::string>& aAuthor) { mark_conversations_read(aAuthor); });
 
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -14132,6 +14134,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Edit    = core::comment_edit_version{ durable_identity_half(core::sha256(body), 8U) },
 				.Mine    = aComment.Author.has_value() && !aViewer.empty()
 					&& aComment.Author->Login == aViewer,
+				// [[BPR-PENDING-M]]. Who wrote it, for Mark all from them as read.
+				.Author = aComment.Author.has_value() ? core::review_author_of(aComment.Author->Login) : core::review_author_id{ },
 			};
 		}
 
@@ -14791,6 +14795,79 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (unseen.has_value()) {
 						refresh_queue_unseen(*unseen);
 					}
+				}));
+		}
+
+		/// \brief [[BPR-PENDING-M]]. Every conversation of the accepted
+		/// snapshot, as the read state observes them.
+		[[nodiscard]] auto accepted_read_conversations() const
+			-> std::optional<std::vector<application::conversation_thread_observation>>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto& viewer   = snapshot.Viewer.Login;
+			auto        threads  = std::vector<application::conversation_thread_observation>{ };
+			threads.reserve(snapshot.ReviewThreads.size() + snapshot.Reviews.size() + snapshot.IssueComments.size());
+			for (const auto& thread : snapshot.ReviewThreads) {
+				auto& observation        = threads.emplace_back();
+				observation.Conversation = core::review_conversation_id{ defect_identity(thread_identity(thread)).Conversation };
+				for (const auto& comment : thread.Comments) {
+					if (!comment.Deleted) {
+						observation.Posts.push_back(post_observation(comment, viewer));
+					}
+				}
+			}
+			const auto appendPost = [&](const auto& aPost) {
+				threads.push_back(application::conversation_thread_observation{
+					.Conversation = core::review_conversation_id{ defect_identity(comment_projection_id(aPost)).Conversation },
+					.Posts        = { post_observation(aPost, viewer) },
+				});
+			};
+			for (const auto& review : snapshot.Reviews) {
+				appendPost(review);
+			}
+			for (const auto& comment : snapshot.IssueComments) {
+				if (!comment.Deleted) {
+					appendPost(comment);
+				}
+			}
+			return threads;
+		}
+
+		/// \brief [[BPR-PENDING-M]]. Mark all comments as read, or all from
+		/// one author: the core decides over every conversation of the pull
+		/// request, the ledger host commits the receipts it changes as one
+		/// durable change, and the read state is presented once that is
+		/// durable. Local only: nothing reaches GitHub.
+		void mark_conversations_read(const std::optional<std::string>& aAuthor)
+		{
+			if (Closing || ReviewLedgerHost == nullptr || Window == nullptr) {
+				return;
+			}
+			const auto scope = core::conversation_read_scope{
+				.Author = aAuthor.has_value() ? core::review_author_of(*aAuthor) : core::review_author_id{ },
+			};
+			auto threads = accepted_read_conversations();
+			if (!threads.has_value() || (aAuthor.has_value() && scope.Author == core::review_author_id{ })) {
+				return;
+			}
+			ReviewLedgerHost->mark_conversations_read(
+				std::move(*threads),
+				scope,
+				ledger_answer([this, aAuthor](const std::expected<core::conversation_bulk_read, application::ledger_store_failure>& aRead) {
+					if (Window == nullptr) {
+						return;
+					}
+					if (!aRead.has_value()) {
+						Window->present_conversations_read(std::nullopt, aAuthor);
+						return;
+					}
+					if (const auto unseen = publish_read_state(); unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+					Window->present_conversations_read(qt::conversations_read_result{ .Marked = aRead->MarkedPosts, .Kept = aRead->KeptPosts }, aAuthor);
 				}));
 		}
 

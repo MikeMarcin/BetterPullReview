@@ -208,6 +208,38 @@ same path. The badge clears when the existing ledger reports a durable read;
 selection alone, passive refresh and unrelated cards do not advance a read
 cursor. The private result survives restart.
 
+**Mark all as read** ([[BPR-PENDING-M]], the owner, 2026-10-21: "We have
+some automated review bots that are very spammy on reviews. I think I want
+the ability to Mark all comments as read and Mark all comments from a
+particular user as read."). The Pull Request menu's **Mark All Comments as
+Read** reads every comment on the open pull request: file threads,
+pull-request comments and review summaries. It is offered while anything is
+new. **Mark all from coderabbitai[bot] as read** reads one author's comments,
+named by the login as GitHub writes it (an app's with its `[bot]`; logins
+compare without case, and `name` and `name[bot]` are two accounts). A
+thread's menu (More, a right click, the menu key, Shift+F10) offers it for
+the author of the thread's first post, a post's body menu for that post's
+author, and Threads' row menu, as **Mark All from coderabbitai[bot] as Read**,
+for the post under the pointer or else the thread's first post. My own posts
+are never new, so nothing offers me. Each is offered disabled, its tooltip
+saying why, until the read state is known or while nothing that author wrote
+is new; enabled, its tooltip counts that author's new comments. The core
+decides (`core::mark_conversations_read`) over every conversation at once,
+against the stored receipts, and the ledger host commits the receipts it
+changes in one transaction: all are read or none are. The counts, the
+badges, the Status drawer's lines, Next new comment and the actions
+themselves follow the committed state at once; the status bar then says what
+was marked ("Marked 12 comments from coderabbitai[bot] as read."). A refused
+change marks nothing and says so: "Your read state could not be saved, so no
+comment was marked read. Try again." Read is a cursor through each
+conversation, so one author's mark never passes a newer post by someone else
+that I have not read: in a thread where a person answered the bot, the
+answer stays new, and so does any later post of the bot's there, which the
+status bar counts ("2 more stay new: they follow a reply from someone else
+that you have not read."). The mark is of the comments shown now; whatever
+the author posts later is new as usual, and nothing is muted. Read state is
+private to the profile's review ledger: nothing reaches GitHub.
+
 
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s
@@ -2020,7 +2052,9 @@ open pull request's two local gestures: **Follow**, checked while the queue
 keeps it because it is followed, and **Save Repository**, offered while its
 repository is not saved for the account. Neither reaches GitHub; a pull
 request opened by link is only Recently viewed until one of them is used,
-and one read signed out offers neither. **View** holds the line-number toggle, the
+and one read signed out offers neither. After a separator it holds **Mark
+All Comments as Read** ([[BPR-PENDING-M]]), offered while anything on the
+pull request is new; it too changes only my private read state. **View** holds the line-number toggle, the
 one-pane toggle, Line Details ([[BPR-1334]]), Hide Drawers ([[BPR-1295]]) and, after a separator, Settings…. The bar was added by
 BPR-0457 because the owner asked for a "view menu option" and, offered the
 choice between a real menu bar and a checkable entry in the existing toolbar
