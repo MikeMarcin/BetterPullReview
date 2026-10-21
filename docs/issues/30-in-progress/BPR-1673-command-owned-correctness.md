@@ -22,3 +22,7 @@ metadata: {"milestone_plan": {"id": "release-qualification-portfolio", "path": "
 ## Scope and provenance
 
 Implements the owner’s thirty-minute release mandate `release-30min-portfolio-r1`, grounded in the retained Astra design (SHA-256 `ad0157d3693bf0ffda63d71504e7ee76c59a90c4fcb9185cfbff6ee0764812d1`). The [portfolio design](../../development/release-qualification-portfolio.md) and [milestone plan](../../rfcs/plans/release-qualification-portfolio/milestone-plan.json) retain boundaries and open choices. RFC-BPR-0038 remains open.
+
+## Execution checkpoint
+
+The [command-owned runtime ledger](../../verification/BPR-1673-command-owned-correctness.md) binds the implemented inventory and guards to native candidate `a06e5bf3e`. The matched/focused course and integration remain pending at this checkpoint. All acceptance criteria above remain in force.
