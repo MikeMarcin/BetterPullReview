@@ -1726,13 +1726,13 @@ namespace bpr::qt {
 		void update_account_action();
 		void apply_strip_width();
 		/// \brief [[BPR-1129]]. What yields on the review bar as it narrows:
-		/// Compose review's words to "Approve…" ([[BPR-PENDING-1]]), the
+		/// Compose review's words to "Approve…" ([[BPR-1700]]), the
 		/// comparison's dates, the positions' words and numbers, the steps'
 		/// names, and last "Approve…". Nothing folds away.
 		void apply_review_bar_width();
 		/// \brief [[BPR-1129]]. Marks Compose review while a review draft is kept.
 		void update_compose_mark();
-		/// \brief [[BPR-PENDING-1]]. Compose review's face: "Approve or
+		/// \brief [[BPR-1700]]. Compose review's face: "Approve or
 		/// comment…" beside its pencil on the accent's edge while no review is
 		/// in progress and the bar has room, its icon otherwise; its name and
 		/// description to match.
@@ -2238,7 +2238,7 @@ namespace bpr::qt {
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
 		bool ReviewBarCompact        = false;
 		bool ReviewBarPositionsShown = true;
-		/// [[BPR-PENDING-1]]. Compose review's words: "Approve or comment…",
+		/// [[BPR-1700]]. Compose review's words: "Approve or comment…",
 		/// shortened to "Approve…" first of the bar's yields, and the pencil
 		/// alone after every other.
 		enum class compose_words : std::uint8_t {

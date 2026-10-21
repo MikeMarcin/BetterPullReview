@@ -67,7 +67,7 @@ namespace bpr::qt {
 		/// tests pin that the navigation icons paint exactly that colour, so
 		/// the strip uses it rather than inventing a second disabled ink.
 		constexpr int soft_fill_alpha = 56;
-		/// [[BPR-PENDING-1]]. A lead button's edge: the accent, softened.
+		/// [[BPR-1700]]. A lead button's edge: the accent, softened.
 		constexpr int lead_edge_alpha = 150;
 
 		[[nodiscard]] auto disabled_ink(const QPalette& aPalette) -> QColor
@@ -400,7 +400,7 @@ namespace bpr::qt {
 			fill   = soft_fill(accent);
 			border = accent;
 		} else if (enabled && aWidget != nullptr && aWidget->property(lead_property).toBool()) {
-			// [[BPR-PENDING-1]]. The way in to a step the reviewer may not know
+			// [[BPR-1700]]. The way in to a step the reviewer may not know
 			// is there: a softened accent edge on the button's own face. Softened
 			// so the two-pixel focus ring still reads as focus over it.
 			border = accent;

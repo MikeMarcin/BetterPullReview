@@ -139,7 +139,7 @@ edge in the accent. While a review is in progress it is the icon again, after
 the chip. As the window narrows its words shorten first, to "Approve…", and
 "Approve…" yields last, so the 1280 layout keeps the dates and positions and
 the width floor does not move. The owner's look at the frozen candidate is pending
-([[BPR-PENDING-1]]). AC-03 says this.
+([[BPR-1700]]). AC-03 says this.
 
 ## Problem and outcome
 
@@ -195,7 +195,7 @@ command and its key. Comment is an icon. Compose review is its icon while a
 review is in progress. With none in progress it reads "Approve or comment…"
 beside its pencil, on the accent's edge. As the window narrows the words
 shorten first, to "Approve…", which is the bar's last yield
-([[BPR-PENDING-1]]). Compose review
+([[BPR-1700]]). Compose review
 shows a mark, in the amber of my last review's tick, while a review draft is
 kept. Comment's arrow is where the Conventional Comments labels are offered
 once RFC-BPR-0048 lands. Review details moves into the comparison's menu,
@@ -334,7 +334,7 @@ or review semantics.
 | [[BPR-1208]] | A thread's defect controls sit on the thread (owner amendment, 2026-09-25) | AC-09 |
 | [[BPR-1209]] | Dif leaves the right drawer for the status bar's corner (owner amendment, 2026-09-25) | AC-09 |
 | [[BPR-1210]] | Private notes are written in Notes and promoted to drafts in Comments (owner amendment, 2026-09-25) | AC-09 |
-| [[BPR-PENDING-1]] | Compose review says "Approve or comment…" with no review in progress (owner report, 2026-10-21) | AC-03 |
+| [[BPR-1700]] | Compose review says "Approve or comment…" with no review in progress (owner report, 2026-10-21) | AC-03 |
 | [[BPR-1135]] | Verify and close RFC-BPR-0052 | all |
 
 ## Verification

@@ -1037,7 +1037,7 @@ namespace {
 		};
 		for (const auto& [action, row] : required) {
 			auto* const button = qobject_cast<QToolButton*>(row->widgetForAction(action));
-			// [[BPR-PENDING-1]]. With no review in progress Compose review
+			// [[BPR-1700]]. With no review in progress Compose review
 			// carries its words beside its icon.
 			const auto style = action == window.compose_review_action() ? Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly;
 			expect(button != nullptr && button->isVisible()
@@ -6149,7 +6149,7 @@ namespace {
 		};
 		window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = kept, .Controls = core::controls(kept), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
 		process_events();
-		// [[BPR-PENDING-1]]. At 1280 Compose review says "Approve…" beside the
+		// [[BPR-1700]]. At 1280 Compose review says "Approve…" beside the
 		// comparison's dates and the position; from 1460 it says "Approve or
 		// comment…".
 		auto* const composeButton = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.compose_review_action()));
@@ -10071,7 +10071,7 @@ namespace {
 		window.hide();
 	}
 
-	/// [[BPR-PENDING-1]]. A draft held in the review (`aPending`), or one a
+	/// [[BPR-1700]]. A draft held in the review (`aPending`), or one a
 	/// submitted review holds (`aKey`), for the review bar's chip.
 	auto review_chip_draft(const std::uint64_t aId, const std::uint32_t aLine, const bool aPending, const std::string_view aKey = { })
 		-> core::review_comment_draft
@@ -10090,7 +10090,7 @@ namespace {
 		return value;
 	}
 
-	/// \brief [[BPR-PENDING-1]]. The owner, 2026-10-21: "I think the compose
+	/// \brief [[BPR-1700]]. The owner, 2026-10-21: "I think the compose
 	/// review button is a little too subtle when there's not a active review.
 	/// It might be difficult for the uninitiated to find out how to approve a
 	/// review." With no review in progress Compose review says what it is for,
@@ -10219,7 +10219,7 @@ namespace {
 		window.hide();
 	}
 
-	/// [[BPR-PENDING-1]]. Compose review in each state, in the built-in light
+	/// [[BPR-1700]]. Compose review in each state, in the built-in light
 	/// and dark themes, for a person to look at: no review, focused, a kept
 	/// draft, a review in progress, one being submitted, and the narrowest
 	/// window. Written only when `BPR_QT_RENDER_PATH` names a file; the theme
@@ -20321,7 +20321,7 @@ auto main(int argc, char** argv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
-	// [[BPR-PENDING-1]]. Compose review's words while no review is in
+	// [[BPR-1700]]. Compose review's words while no review is in
 	// progress, its yield in a narrow window, and its sheet for a person.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--compose-review-sheet"))) {
 		runCase("render_compose_review_entry_sheet", &render_compose_review_entry_sheet);

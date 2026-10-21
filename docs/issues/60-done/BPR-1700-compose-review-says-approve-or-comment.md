@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-1"
+id: "BPR-1700"
 title: "Compose review says \"Approve or comment…\" while no review is in progress"
 status: "Done"
 rfcs: ["RFC-BPR-0052"]
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"ux","origin":"owner report 2026-10-21","owner_note":"I think the compose review button is a little too subtle when there's not a active review. It might be difficult for the uninitiated to find out how to approve a review.","related_cards":["BPR-1129","BPR-1345","BPR-1157","BPR-1255","BPR-1578"],"requested_skill":"frontend-design"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1700--BPR-1700--963c73415d69.json","kind":"ux","origin":"owner report 2026-10-21","owner_note":"I think the compose review button is a little too subtle when there's not a active review. It might be difficult for the uninitiated to find out how to approve a review.","related_cards":["BPR-1129","BPR-1345","BPR-1157","BPR-1255","BPR-1578"],"requested_skill":"frontend-design"}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a7e7d1126","evidence":{"kind":"command","command":"ctest qt_compose_review_entry_scale_100 and qt_compose_review_entry_scale_200 (--compose-review-entry at 1x and 2x)","detail":"test_compose_review_says_approve_or_comment_with_no_review: with no review in progress the bar's Compose review presenter is TextBesideIcon, text \"Approve or comment…\", icon kept; accessible name \"Compose review: approve or comment\" (holds the shown words), description names Approve, Request changes and Comment; tooltip \"Compose review (⌥R)\\nApprove, request changes or comment on the whole pull request.\"; key Alt+R and menu text \"Compose &review\" unchanged; StrongFocus; whole, nothing folded; edge carries the accent's hue and the face is the button's own. Clicking it opens the review sheet and submits nothing. Failing-before control: with workbench_window.cpp and workbench_strip.cpp at 15bb7f8a4 both selector runs fail at 'with no review in progress Compose review reads \"Approve or comment…\" beside its pencil'."}},{"criterion":"AC2","outcome":"pass","revision":"a7e7d1126","evidence":{"kind":"command","command":"ctest qt_compose_review_entry_scale_100 and _200","detail":"With two pending drafts the chip shows and Compose review is IconOnly, named \"Compose review\", without the accent edge; so while the review is being submitted; with nothing pending the words and edge return. The kept-draft amber mark is unchanged (test_compose_review_marks_a_kept_draft runs in the same selector)."}},{"criterion":"AC3","outcome":"pass","revision":"a7e7d1126","evidence":{"kind":"command","command":"ctest: all 45 macOS rows of better_pull_review_qt_workbench_window_tests (1x, 1.25x, 2x), application_uiforetw_selected_diff_contract, application_start_review_contract, command_correctness_registry_contract","detail":"Narrowing 1600 to the floor in 5 px steps the words go \"Approve or comment…\" to \"Approve…\" to the pencil, each once, never back at a narrower width, the toolbar extension never shows and Comment stays inside the bar. The floor is unchanged (900 offscreen): it is measured with the pencil alone. At 1280 the accepted BPR-1129 layout keeps the comparison's dates, \"File 3 of 40\" and every progress step's name beside \"Approve…\"; at 1460 it says \"Approve or comment…\" with the dates. test_compact_icon_row_preserves_exact_order_and_edges now requires words on Compose review only."}}]
 ---
 
-# BPR-PENDING-1: Compose review says "Approve or comment…" while no review is in progress
+# BPR-1700: Compose review says "Approve or comment…" while no review is in progress
 
 ## Owner note
 
@@ -130,10 +130,10 @@ criteria, because they wait on the owner.
   Both candidates were ready at event 8, and the loopback host was serving.
   The authenticated URL stays in the external state.
 - Candidates, revision `frozen-a7e7d1126-v001`, one question each:
-  - `BPR-PENDING-1-discoverable-v001` (`d53b97823588…`): with no review in
+  - `BPR-1700-discoverable-v001` (`d53b97823588…`): with no review in
     progress, a newcomer can see from the review bar how to approve, request
     changes or comment on the whole pull request.
-  - `BPR-PENDING-1-quiet-v001` (`5e857caa818f…`): "Approve or comment…" and
+  - `BPR-1700-quiet-v001` (`5e857caa818f…`): "Approve or comment…" and
     its accent edge sit quietly beside the rest of the bar, in light and dark.
 
   Each carries before and after offscreen renders at 2x, light and dark, kept

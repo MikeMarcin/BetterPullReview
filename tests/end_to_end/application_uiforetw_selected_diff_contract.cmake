@@ -410,7 +410,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 	endif()
 	# [[BPR-1129]]. The review bar reads, from its left, the comparison's menu,
 	# the file pair, the change pair and private progress; Compose review and
-	# Comment close its right, after a flexible gap. [[BPR-PENDING-1]]: with no
+	# Comment close its right, after a flexible gap. [[BPR-1700]]: with no
 	# review in progress Compose review's words take that gap's room as far as
 	# they fit ("Approve…" at 1280, 35 pixels from private progress on macOS),
 	# so the gap is bound by the bar's own group separation, 8 pixels, rather

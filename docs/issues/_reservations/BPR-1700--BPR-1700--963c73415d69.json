@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1700"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Compose review says approve or comment",
+  "created": "2026-10-21T16:53:25.781108+00:00",
+  "base": "833b998f2d83950e46013c2bcdfe30e81a5152ac"
+}

@@ -127,7 +127,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1575]]. The dynamic property holding the colour of a
 		/// dot on the icon's upper right that says the last attempt failed.
 		static constexpr const char* alert_property = "stripAlert";
-		/// \brief [[BPR-PENDING-1]]. The dynamic property that marks a button
+		/// \brief [[BPR-1700]]. The dynamic property that marks a button
 		/// as the way into a step the reviewer may not know is there: its edge
 		/// in the accent, its face the button's own, so it never reads as
 		/// switched on.

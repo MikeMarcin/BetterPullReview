@@ -371,7 +371,7 @@ are **Compose review** (Option-R, Alt+R) and **Comment**
 icon. With no review in progress Compose review says what it is for:
 "Approve or comment…" beside its pencil, its edge in the accent and its face
 the bar's own, so a reviewer new to the window finds where the whole pull
-request is approved, sent back or commented on ([[BPR-PENDING-1]]; the owner,
+request is approved, sent back or commented on ([[BPR-1700]]; the owner,
 2026-10-21: "I think the compose review button is a little too subtle when
 there's not a active review"). Its accessible name is "Compose review: approve
 or comment", and its tooltip names Approve, Request changes and Comment. It

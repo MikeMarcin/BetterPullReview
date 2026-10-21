@@ -9181,7 +9181,7 @@ namespace bpr::qt {
 		const auto  key       = [this](const QAction* const aAction) {
 			return presented_key(aAction);
 		};
-		// [[BPR-PENDING-1]]. The tooltip names the three verdicts the review
+		// [[BPR-1700]]. The tooltip names the three verdicts the review
 		// page offers, so the command says what it is for in every state.
 		const auto compose = keptDraft
 			? QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
@@ -9201,7 +9201,7 @@ namespace bpr::qt {
 		if (button == nullptr) {
 			return;
 		}
-		// [[BPR-PENDING-1]]. The owner, 2026-10-21: "I think the compose review
+		// [[BPR-1700]]. The owner, 2026-10-21: "I think the compose review
 		// button is a little too subtle when there's not a active review. It
 		// might be difficult for the uninitiated to find out how to approve a
 		// review." With no review in progress it says what it is for, beside
@@ -10395,7 +10395,7 @@ namespace bpr::qt {
 		const auto shown = PendingReviewComments > 0U || held;
 		if (ReviewChipAction->isVisible() != shown) {
 			ReviewChipAction->setVisible(shown);
-			// [[BPR-PENDING-1]]. Compose review is the plain icon beside the chip.
+			// [[BPR-1700]]. Compose review is the plain icon beside the chip.
 			present_compose_entry();
 			apply_strip_width();
 		}
@@ -16944,7 +16944,7 @@ namespace bpr::qt {
 		if (ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(true);
 		}
-		// [[BPR-PENDING-1]]. Without Compose review's words, so the floor is
+		// [[BPR-1700]]. Without Compose review's words, so the floor is
 		// the bar with its icon, as before they were added.
 		ComposeReviewWords = compose_words::none;
 		present_compose_entry();
@@ -16962,7 +16962,7 @@ namespace bpr::qt {
 		if (ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(false);
 		}
-		// [[BPR-PENDING-1]]. Compose review's words shorten first, to
+		// [[BPR-1700]]. Compose review's words shorten first, to
 		// "Approve…", the verdict a newcomer looks for, and that goes last of
 		// all, after the dates, the positions' words and the steps' names.
 		ComposeReviewWords = compose_words::full;
