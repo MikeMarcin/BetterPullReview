@@ -22,6 +22,7 @@ add_library(
         src/device_authorization_transition.cpp
         src/xdiff_line_matcher.cpp
         src/cpp_identifier_context.cpp
+        src/known_namespaces.cpp
         src/diff_compute.cpp
         src/diff_intraline.cpp
 		src/diff_interaction.cpp

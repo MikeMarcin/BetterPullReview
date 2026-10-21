@@ -349,6 +349,15 @@ switches — with sizes in
 points rather than hundredths, beside a labelled Preview painted by the review
 window's own code painter from the accepted typography and the theme on
 screen, captioned with the values in effect. **Colours** is the editor above.
+**Syntax** ([[BPR-PENDING-W]]) is one row, **C++ namespaces**: a field of the
+names that read as namespaces before `::`, separated by commas or spaces,
+`std` until the reviewer changes it, with its Reset in the card's header.
+Return or leaving the field applies it. The core splits and judges the text: an
+entry is an ASCII identifier or a nested path of them joined by `::`, not a
+keyword, at most 128 bytes, listed once, and at most 64 entries. A list with a
+refused entry is not offered; the line under the field says "Not saved." and
+names the first three refused entries with their reasons, the text stays for
+correcting, and the line goes as soon as the text is legal.
 
 Every row is one line: label, an info glyph and the control. The consequence
 sentence lives in the glyph's popover, which is shown on hover and on keyboard
@@ -458,6 +467,21 @@ criterion exists for.
 The span cache is keyed by blob identity and definition version with the theme
 deliberately absent from the key, so a theme change *cannot* invalidate it. That
 is a stronger guarantee than remembering not to evict on theme change.
+
+C++ keys carry one more input, the known namespaces ([[BPR-PENDING-W]]),
+because the list changes which spans the bytes produce. The refinement
+predeclares each listed name, and every segment of a nested one, as if the blob
+declared it, and `std` brings the namespaces ISO C++ nests in it. So a listed
+name before `::` is a namespace, replacing even the grammar's built-in role
+(`Qt::AlignLeft` paints `Qt` as built-in until `Qt` is listed), while a class
+or enum the blob declares with that name wins in its scope and a scope under a
+listed name that the list does not name keeps the scope role. The key holds the
+list's legal entries sorted and unique, and other languages' keys hold none, so
+reordering the list reparses nothing and changing it keys only C++ afresh: no
+span cached under another list is served, an answer for a list no longer in
+effect is dropped, and an open C++ comparison asks again and recolours without a
+restart. A list in effect before answers from the cache. Fenced C++ in comments
+and Review Cycles still classify under `std` alone.
 
 Definitions and approved themes are packaged; standard-path discovery and
 downloads stay disabled in the production build. Build-time source acquisition

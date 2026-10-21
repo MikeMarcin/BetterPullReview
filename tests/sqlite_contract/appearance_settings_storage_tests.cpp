@@ -183,6 +183,16 @@ namespace {
 		::sqlite3* raw = nullptr;
 		expect(::sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK,
 			   "a legacy fixture opens raw");
+		// [[BPR-PENDING-W]]. Every version before 10 lacks the known namespaces.
+		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN known_namespaces", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "a legacy down-edit drops the version-10 column");
+		if (aVersion == 9) {
+			for (const auto& statement : { std::string{ "UPDATE appearance_meta SET schema_format = 9" }, std::string{ "PRAGMA user_version = 9" } }) {
+				expect(::sqlite3_exec(raw, statement.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "a version-9 down-edit statement runs: " + statement);
+			}
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the legacy fixture closes");
+			return;
+		}
 		// [[BPR-1336]]. Every version before 9 lacks the zoom column.
 		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN code_zoom_percent", nullptr, nullptr, nullptr) == SQLITE_OK,
 			   "a legacy down-edit drops the version-9 column");
@@ -1411,6 +1421,73 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-PENDING-W]]. Version 10 keeps the known C++ namespaces as
+	/// written: every list round-trips, an older file takes std alone, and a
+	/// list the core refuses is refused whole.
+	auto test_known_namespaces_round_trip_migrate_and_refuse() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		{
+			const auto path     = scratch.file("namespaces.sqlite3");
+			auto       database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "a fresh store opens");
+			for (const auto& names : { std::vector<std::string>{ }, std::vector<std::string>{ "std" },
+									   std::vector<std::string>{ "std", "Qt", "boost::asio" }, std::vector<std::string>{ "Qt", "std" } }) {
+				auto settings       = legal_baseline();
+				settings.Namespaces = core::known_namespaces{ .Names = names };
+				expect(database->store(settings, { }).has_value(), "every legal list stores");
+				const auto loaded = database->load({ });
+				expect(loaded.has_value() && loaded->has_value() && **loaded == settings,
+					   "and loads back exactly, in its order: " + core::join_known_namespaces(settings.Namespaces));
+			}
+			const auto columns = appearance_settings_columns(database->handle());
+			expect(columns.has_value() && std::ranges::find(*columns, std::string{ "appearance_settings.known_namespaces" }) != columns->end(),
+				   "the schema declares known_namespaces");
+		}
+		for (const auto version : { std::int64_t{ 9 }, std::int64_t{ 8 } }) {
+			const auto path     = scratch.file("v" + std::to_string(version) + "-namespaces.sqlite3");
+			auto       original = distinct_settings();
+			original.Namespaces = core::known_namespaces{ .Names = { "Qt" } };
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(original, { }).has_value(), "a current record stores before the down-edit");
+			}
+			down_edit_to_version(path, version, core::appearance_variant::dark, true);
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "an older file opens and migrates forward: version " + std::to_string(version));
+			const auto loaded   = migrated->load({ });
+			auto       expected = original;
+			expected.Namespaces = core::known_namespaces{ };
+			if (version < 9) {
+				expected.Typography.Code.ZoomPercent = core::actual_code_zoom_percent;
+			}
+			expect(loaded.has_value() && loaded->has_value() && **loaded == expected,
+				   "it keeps every value it had and takes std alone: version " + std::to_string(version));
+			const auto stamped = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			expect(stamped.has_value() && *stamped == appearance_settings_schema_version, "and is stamped at the current version");
+		}
+		{
+			const auto path = scratch.file("corrupt-namespaces.sqlite3");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(legal_baseline(), { }).has_value(), "a record stores");
+			}
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "the file opens raw");
+			const auto oversized = "UPDATE appearance_settings SET known_namespaces = '" + std::string(9'000U, 'a') + "'";
+			expect(::sqlite3_exec(raw, oversized.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK,
+				   "the table's CHECK refuses a list longer than any legal one");
+			expect(::sqlite3_exec(raw, "UPDATE appearance_settings SET known_namespaces = 'std, 3d'", nullptr, nullptr, nullptr) == SQLITE_OK,
+				   "an illegal entry stands in for a file edited by another tool");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the raw handle closes");
+			auto database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "the file still opens");
+			const auto loaded = database->load({ });
+			expect(!loaded.has_value() && loaded.error() == catalog_database_failure::integrity_failure,
+				   "and the reader refuses the record whole rather than keeping part of the list");
+		}
+	}
+
 	auto test_the_schema_stores_no_review_content() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1484,6 +1561,7 @@ try {
 	test_legacy_refusal_preserves_schema_and_rows();
 	test_white_space_round_trips_migrates_and_refuses();
 	test_code_zoom_round_trips_migrates_and_refuses();
+	test_known_namespaces_round_trip_migrate_and_refuse();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -15,13 +15,18 @@
 /// block layout rather than off the classification that was supposed to arrive.
 
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
+#include "bpr/application/appearance_application_host.hpp"
+#include "bpr/application/manual_executor.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 
 #include <QApplication>
 #include <QColor>
 #include <QElapsedTimer>
+#include <QKeyEvent>
+#include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QTextBlock>
@@ -31,6 +36,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <expected>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -38,6 +44,8 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <variant>
 #include <vector>
 
 namespace {
@@ -556,6 +564,240 @@ namespace {
 				   "a trailing return type's std is painted like the std inside it");
 		}
 	}
+
+	/// \brief Serves a comparison's two blobs by identity.
+	class pair_blobs final : public syntax::blob_source
+	{
+	public:
+		pair_blobs(std::string aLeft, std::string aRight)
+			: Left{ std::move(aLeft) }
+			, Right{ std::move(aRight) }
+		{ }
+
+		[[nodiscard]] auto blob_bytes(const core::git_blob_oid& aBlob)
+			-> std::optional<std::string> override
+		{
+			++Reads;
+			return aBlob == blob(21U) ? std::optional{ Left } : aBlob == blob(51U) ? std::optional{ Right }
+																				   : std::nullopt;
+		}
+
+		std::size_t Reads = 0U;
+
+	private:
+		std::string Left;
+		std::string Right;
+	};
+
+	class memory_settings final : public application::appearance_settings_port
+	{
+	public:
+		[[nodiscard]] auto load(std::stop_token)
+			-> application::appearance_settings_result<std::optional<application::appearance_settings>> override
+		{
+			return Stored;
+		}
+
+		[[nodiscard]] auto store(const application::appearance_settings& aSettings, std::stop_token)
+			-> application::appearance_settings_result<void> override
+		{
+			Stored = aSettings;
+			return { };
+		}
+
+		std::optional<application::appearance_settings> Stored;
+	};
+
+	class no_theme_documents final : public application::theme_document_port
+	{
+	public:
+		[[nodiscard]] auto read(std::string_view, std::size_t, std::stop_token)
+			-> application::theme_document_result<std::string> override
+		{
+			return std::unexpected{ application::theme_document_error{ } };
+		}
+	};
+
+	/// \brief Stands in for the application's composition: it shows each
+	/// side's spans in the workbench, drops spans for a list no longer in
+	/// effect, and asks again for the comparison's spans when the list moves.
+	class pane_composition final : public application::appearance_projection_port
+	{
+	public:
+		explicit pane_composition(qt::diff_workbench& aWorkbench)
+			: Workbench{ aWorkbench }
+		{ }
+
+		void publish(const application::appearance_projection& aProjection) override
+		{
+			if (aProjection.Spans.has_value() && Host != nullptr) {
+				if (Host->classification_key(aProjection.Spans->Key) != aProjection.Spans->Key) {
+					++Stale;
+				} else {
+					const auto side = aProjection.Spans->Key.Blob == blob(21U) ? core::diff_side::left : core::diff_side::right;
+					Adopted += Workbench.adopt_token_spans(side, aProjection.Spans->Spans) ? 1U : 0U;
+				}
+			}
+			if (aProjection.Presentation.has_value() && aProjection.Presentation->Namespaces.has_value() && Host != nullptr) {
+				++Reclassifications;
+				for (const auto& key : Shown) {
+					Host->classify(key);
+				}
+			}
+		}
+
+		void fail(const application::appearance_failure_publication&) override
+		{
+			++Failures;
+		}
+
+		qt::diff_workbench&                            Workbench;
+		application::appearance_application_host*      Host = nullptr;
+		std::vector<application::token_span_cache_key> Shown;
+		std::size_t                                    Adopted           = 0U;
+		std::size_t                                    Stale             = 0U;
+		std::size_t                                    Reclassifications = 0U;
+		std::size_t                                    Failures          = 0U;
+	};
+
+	/// [[BPR-PENDING-W]]: adding Qt in the Settings field recolours an open
+	/// C++ pane, through the real classifier, host and panel, without a restart.
+	void test_known_namespace_setting_recolours_an_open_pane()
+	{
+		const auto left = std::string{
+			"#include <QtCore>\n"
+			"\n"
+			"auto align(QWidget& aWidget) -> std::size_t\n"
+			"{\n"
+			"\tauto flags = Qt::AlignLeft | Qt::AlignTop;\n"
+			"\tauto found = std::ranges::find(aWidget.names(), \"x\");\n"
+			"\treturn flags;\n"
+			"}\n"
+		};
+		auto right = left;
+		right.replace(right.find("\"x\""), 3U, "\"y\"");
+		auto       leftBytes  = std::vector<std::uint8_t>{ left.begin(), left.end() };
+		auto       rightBytes = std::vector<std::uint8_t>{ right.begin(), right.end() };
+		const auto options    = core::diff_options{ };
+		const auto outcome    = bpr::tests::product_file_diff({
+			.Key        = comparison_key(options),
+			.Options    = options,
+			.LeftBytes  = std::span<const std::uint8_t>{ leftBytes },
+			.RightBytes = std::span<const std::uint8_t>{ rightBytes },
+		});
+		expect(outcome.Reason == core::diff_reason_code::none && outcome.Result.has_value(), "the Qt comparison computes");
+
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(1'120, 420);
+		workbench.show();
+		process_events();
+		const auto context = core::diff_request_context{
+			.Request            = core::request_id{ 1U },
+			.ApplicationSession = core::application_session_id{ 1U },
+			.Key                = outcome.Result->Alignment.Key,
+			.Generation         = core::request_generation{ 1U },
+		};
+		workbench.set_loading(context);
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = context,
+			.Result  = std::make_shared<const core::computed_file_diff>(*outcome.Result),
+		}));
+		process_events();
+
+		auto       catalog    = syntax::packaged_definition_catalog{ };
+		auto       blobs      = pair_blobs{ left, right };
+		auto       classifier = syntax::packaged_syntax_classifier{ catalog, blobs };
+		auto       settings   = memory_settings{ };
+		auto       documents  = no_theme_documents{ };
+		auto       effects    = application::manual_executor{ };
+		auto       lane       = application::manual_executor{ };
+		const auto builtins   = qt::builtin_appearance_palettes();
+		auto       initial    = application::appearance_settings{ };
+		initial.Typography    = qt::default_typography_settings();
+		auto composition      = pane_composition{ workbench };
+		auto host             = application::appearance_application_host{ initial, builtins, settings, documents, classifier, effects, lane, composition, core::application_session_id{ 7U } };
+		composition.Host      = &host;
+		const auto settle     = [&] {
+			while (effects.pending() || lane.pending()) {
+				effects.drain();
+				lane.drain();
+			}
+			process_events();
+		};
+		const auto definition = catalog.definition_for_path("align.cpp");
+		composition.Shown     = { { .Blob = blob(21U), .Definition = definition }, { .Blob = blob(51U), .Definition = definition } };
+		for (const auto& key : composition.Shown) {
+			host.classify(key);
+		}
+		settle();
+		expect(composition.Adopted == 2U, "both sides are coloured under the default list");
+		settle_geometry(workbench);
+
+		const auto row    = std::string_view{ "\tauto flags = Qt::AlignLeft | Qt::AlignTop;" };
+		const auto line   = static_cast<int>(line_of(left, "auto flags"));
+		const auto colour = [&](const std::string_view aWord) -> std::optional<QColor> {
+			const auto column = static_cast<int>(row.find(aWord));
+			for (const auto& range : block_formats(*workbench.left_pane(), line)) {
+				if (range.start <= column && range.start + range.length >= column + static_cast<int>(aWord.size())) {
+					return range.format.foreground().color();
+				}
+			}
+			return std::nullopt;
+		};
+		const auto root  = qEnvironmentVariable("BPR_KNOWN_NAMESPACES_RENDER_ROOT");
+		const auto modes = std::array{ core::appearance_mode::light, core::appearance_mode::dark };
+		const auto check = [&](const bool aListed, const QString& aStage) {
+			for (const auto mode : modes) {
+				auto profile = qt::appearance_profile{ };
+				static_cast<void>(profile.select_mode(mode));
+				// The window palette as the application applies it, so a Dark
+				// capture shows Dark chrome as well as Dark ink.
+				profile.apply_to(workbench);
+				workbench.adopt_appearance(profile);
+				process_events();
+				if (!root.isEmpty()) {
+					const auto name = mode == core::appearance_mode::light ? QStringLiteral("light") : QStringLiteral("dark");
+					expect(workbench.grab().save(QStringLiteral("%1/pane-%2-%3.png").arg(root, aStage, name)), "the composed workbench is saved offscreen");
+				}
+				const auto namespaceColour = profile.color(core::appearance_role::syntax_namespace);
+				const auto builtin         = profile.color(core::appearance_role::syntax_builtin);
+				expect(namespaceColour != builtin, "the profile paints namespaces and built-ins apart");
+				expect(colour("Qt") == (aListed ? namespaceColour : builtin),
+					   aListed ? "with Qt listed, Qt is painted in the namespace colour"
+							   : "without Qt listed, the grammar's built-in colour paints Qt");
+				expect(colour("AlignLeft") == builtin, "the name after Qt keeps the grammar's built-in colour");
+			}
+		};
+		check(false, QStringLiteral("before"));
+
+		auto panel = qt::appearance_settings_panel{ [&host](application::appearance_intent aIntent) {
+			if (const auto* const namespaces = std::get_if<application::apply_known_namespaces_intent>(&aIntent)) {
+				host.apply(namespaces->Namespaces);
+			}
+		} };
+		panel.adopt(host.settings());
+		auto* const field = panel.known_namespaces_editor();
+		expect(field != nullptr && field->text() == QStringLiteral("std"), "the Settings field shows std");
+		field->setText(QStringLiteral("std, Qt"));
+		auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(field, &press);
+		const auto readsBefore = blobs.Reads;
+		settle();
+		expect(host.settings().Namespaces == core::known_namespaces{ .Names = { "std", "Qt" } } && settings.Stored.has_value()
+				   && settings.Stored->Namespaces == host.settings().Namespaces,
+			   "the field's list is applied and persisted");
+		expect(composition.Reclassifications == 1U && blobs.Reads == readsBefore + 2U && composition.Adopted == 4U,
+			   "applying the list asks again for both sides, which are classified afresh and adopted");
+		check(true, QStringLiteral("after"));
+
+		host.apply(core::known_namespaces{ });
+		settle();
+		expect(blobs.Reads == readsBefore + 2U && composition.Adopted == 6U, "returning to std alone answers from the cache");
+		check(false, QStringLiteral("restored"));
+		host.shutdown();
+		settle();
+		expect(composition.Failures == 0U && composition.Stale == 0U, "no classification failed or arrived stale");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -567,6 +809,7 @@ auto main(int argc, char** argv) -> int
 	test_an_oversize_blob_paints_nothing_rather_than_a_prefix();
 	test_template_call_roles_reach_the_pane();
 	test_std_namespace_reaches_the_pane();
+	test_known_namespace_setting_recolours_an_open_pane();
 	std::cout << "syntax-pane-composition-tests:pass\n";
 	return EXIT_SUCCESS;
 }

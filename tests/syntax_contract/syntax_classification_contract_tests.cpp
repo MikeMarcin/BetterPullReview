@@ -1404,6 +1404,30 @@ namespace {
 
 		const auto again = classifier.classify(request(oid, definition), { });
 		expect(again.Spans == whole.Spans, "an equal blob yields equal spans");
+
+		// [[BPR-PENDING-W]]: the key's known namespaces are what the refinement
+		// predeclares, so the list is part of what an answer is cached under.
+		auto listedRequest           = request(oid, definition);
+		listedRequest.Key.Namespaces = core::known_namespaces{ .Names = { "std", "Qt" } };
+		const auto listed            = classifier.classify(listedRequest, { });
+		const auto listedHas         = [&](const std::string_view aMarker, const std::string_view aWord, const role aRole) {
+			return word_has_role(listed.Spans, text, line_of(text, aMarker), aWord, aRole);
+		};
+		expect(listed.Status == app::syntax_classification_status::available && listed.Key == listedRequest.Key,
+			   "an answer repeats the key with its list");
+		expect(listedHas("N13", "Qt", ns) && word_inside_role(listed.Spans, text, line_of(text, "N13"), "AlignLeft", builtin),
+			   "a listed Qt replaces the grammar's built-in role and the name after it keeps the grammar's");
+		expect(listedHas("N08", "std", ns) && listedHas("N08", "ranges", ns), "std and its nested namespaces stay beside it");
+		auto emptyRequest           = request(oid, definition);
+		emptyRequest.Key.Namespaces = core::known_namespaces{ .Names = { } };
+		const auto empty            = classifier.classify(emptyRequest, { });
+		expect(empty.Status == app::syntax_classification_status::available
+				   && !word_inside_role(empty.Spans, text, line_of(text, "N08"), "ranges", ns)
+				   && word_inside_role(empty.Spans, text, line_of(text, "N08"), "ranges", builtin),
+			   "an empty list predeclares nothing: only the blob's own `using namespace std` names std, and "
+			   "std::ranges keeps the grammar's built-in role");
+		expect(classifier.classify(request(oid, definition), { }).Spans == whole.Spans,
+			   "a key that names no list classifies under std alone");
 		const auto asC = classifier.classify(request(oid, *aCatalog.definition_named("C")), { });
 		expect(asC.Status == app::syntax_classification_status::available
 				   && !word_inside_role(asC.Spans, text, line_of(text, "N07"), "std", ns),

@@ -4,6 +4,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/known_namespaces.hpp"
 #include "bpr/core/model.hpp"
 #include "bpr/core/syntax_classification.hpp"
 #include "bpr/core/theme_exchange.hpp"
@@ -159,7 +160,9 @@ namespace bpr::application {
 	/// \brief Describes the durable appearance settings record.
 	///
 	/// \details This is the whole durable appearance state: the selected mode, one
-	/// colour customization per variant, both fonts, and Dif preferences. A fresh
+	/// colour customization per variant, both fonts, Dif preferences, and the C++
+	/// namespaces the reviewer names as known ([[BPR-PENDING-W]]), `std` until
+	/// they change it. A fresh
 	/// installation has no durable record, the mode defaults to `system`, and no
 	/// variant carries a customization. The host chooses no colour and no family:
 	/// the typography a host starts from is supplied by its composition, the
@@ -171,6 +174,7 @@ namespace bpr::application {
 		appearance_palette_customisations Palettes;
 		core::typography_settings         Typography;
 		core::dif_preferences             Dif;
+		core::known_namespaces            Namespaces;
 
 		auto operator<=>(const appearance_settings&) const = default;
 	};
@@ -298,18 +302,40 @@ namespace bpr::application {
 
 	/// \brief Identifies one cached classification.
 	///
-	/// \details The key is the blob identity and the definition version, and
-	/// nothing else. It deliberately carries no mode, palette, or typography: a
-	/// theme or font change alters how spans are drawn, never which spans the
-	/// bytes produce, so a colour that entered this key would force a reparse that
-	/// no rule requires.
+	/// \details The key is the blob identity, the definition version and the
+	/// classification's one reviewer input, the known C++ namespaces, and nothing
+	/// else. It deliberately carries no mode, palette, or typography: a theme or
+	/// font change alters how spans are drawn, never which spans the bytes
+	/// produce, so a colour that entered this key would force a reparse that no
+	/// rule requires.
+	///
+	/// [[BPR-PENDING-W]]. `Namespaces` does change which spans C++ bytes
+	/// produce, so it is part of the identity: a changed list keys every C++ blob
+	/// afresh rather than serving the spans of the old list. `classification_key`
+	/// sets it from the setting, canonical, and only for C++, so a list written
+	/// in another order shares an identity and no other language is keyed away.
+	/// A key built without it carries the default list, `std`.
 	struct token_span_cache_key
 	{
 		core::git_blob_oid        Blob;
 		syntax_definition_version Definition;
+		core::known_namespaces    Namespaces;
 
 		auto operator<=>(const token_span_cache_key&) const = default;
 	};
+
+	/// \brief The packaged C++ definition's stable name, the one that reads the list.
+	inline constexpr std::string_view cpp_syntax_definition_name = "C++";
+
+	/// \brief The key a classification of `aKey`'s blob is cached under for a setting.
+	[[nodiscard]] inline auto classification_key(token_span_cache_key aKey, const core::known_namespaces& aNamespaces)
+		-> token_span_cache_key
+	{
+		if (aKey.Definition.Name == cpp_syntax_definition_name) {
+			aKey.Namespaces = core::canonical_known_namespaces(aNamespaces);
+		}
+		return aKey;
+	}
 
 	/// \brief Checks whether the supplied value satisfies its contract.
 	[[nodiscard]] constexpr auto valid(const token_span_cache_key& aKey) noexcept
@@ -396,6 +422,9 @@ namespace bpr::application {
 		std::optional<appearance_palette_customisations> Palettes;
 		std::optional<core::typography_settings>         Typography;
 		std::optional<core::dif_resolution>              Dif;
+		/// [[BPR-PENDING-W]]. Not a pixel change but a classification input: a
+		/// consumer showing C++ asks again for its spans under the new list.
+		std::optional<core::known_namespaces> Namespaces;
 
 		auto operator<=>(const appearance_presentation_invalidation&) const = default;
 	};
@@ -406,7 +435,8 @@ namespace bpr::application {
 	{
 		return !aInvalidation.Resolution.has_value()
 			&& !aInvalidation.Palettes.has_value()
-			&& !aInvalidation.Typography.has_value() && !aInvalidation.Dif.has_value();
+			&& !aInvalidation.Typography.has_value() && !aInvalidation.Dif.has_value()
+			&& !aInvalidation.Namespaces.has_value();
 	}
 
 	/// \brief Describes one published classification.
@@ -497,6 +527,8 @@ namespace bpr::application {
 		classification_limit,
 		invalid_classification_key,
 		host_failure,
+		/// [[BPR-PENDING-W]]. `NamespaceRejections` names every refused entry.
+		invalid_known_namespaces,
 	};
 
 	/// \brief Describes the appearance failure publication record.
@@ -507,11 +539,12 @@ namespace bpr::application {
 	/// a clamped value would tell a settings surface that it was accepted.
 	struct appearance_failure_publication
 	{
-		appearance_request_context                 Context;
-		appearance_host_failure                    Failure = appearance_host_failure::host_failure;
-		std::vector<core::typography_rejection>    Rejections;
-		std::vector<core::theme_import_rejection>  ThemeRejections;
-		std::vector<appearance_contrast_rejection> ContrastRejections;
+		appearance_request_context                   Context;
+		appearance_host_failure                      Failure = appearance_host_failure::host_failure;
+		std::vector<core::typography_rejection>      Rejections;
+		std::vector<core::theme_import_rejection>    ThemeRejections;
+		std::vector<appearance_contrast_rejection>   ContrastRejections;
+		std::vector<core::known_namespace_rejection> NamespaceRejections;
 
 		auto operator<=>(const appearance_failure_publication&) const = default;
 	};
@@ -610,7 +643,8 @@ namespace bpr::application {
 													   mode,
 													   interface_font,
 													   code_font,
-													   palette };
+													   palette,
+													   known_namespaces };
 
 	struct reset_appearance_intent
 	{
@@ -634,13 +668,24 @@ namespace bpr::application {
 		core::dif_preferences Preferences;
 	};
 
+	/// \brief [[BPR-PENDING-W]]. Offers one whole known-namespace list.
+	/// \details Whole, for the reason typography is: the host refuses a list
+	/// with any refused entry rather than keeping part of it.
+	struct apply_known_namespaces_intent
+	{
+		core::known_namespaces Namespaces;
+
+		auto operator<=>(const apply_known_namespaces_intent&) const = default;
+	};
+
 	using appearance_intent = std::variant<apply_dif_preferences_intent, select_appearance_mode_intent,
 										   apply_typography_intent,
 										   step_code_zoom_intent,
 										   preview_appearance_palette_intent,
 										   commit_appearance_palette_intent,
 										   cancel_appearance_palette_preview_intent,
-										   import_appearance_theme_intent, reset_appearance_intent, export_appearance_theme_intent>;
+										   import_appearance_theme_intent, reset_appearance_intent, export_appearance_theme_intent,
+										   apply_known_namespaces_intent>;
 
 	using appearance_intent_dispatch = std::function<void(appearance_intent)>;
 } // namespace bpr::application

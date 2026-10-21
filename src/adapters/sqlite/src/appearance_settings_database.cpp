@@ -2,6 +2,7 @@
 
 #include "storage_internal.hpp"
 
+#include "bpr/core/known_namespaces.hpp"
 #include "bpr/core/theme_exchange.hpp"
 
 #include <sqlite3.h>
@@ -118,6 +119,22 @@ namespace bpr::adapters::sqlite::detail {
 		/// so a reviewer who never zoomed sees the code at the size they chose.
 		constexpr auto MigratedCodeZoom = core::code_font_settings{ }.ZoomPercent;
 
+		/// \brief [[BPR-PENDING-W]]. The one column version 10 adds, last: the
+		/// known C++ namespaces, as `core::join_known_namespaces` writes them.
+		constexpr std::string_view KnownNamespacesColumn = "known_namespaces";
+
+		/// \brief The longest text a legal list joins to: every entry at its
+		/// longest, each but the first after a comma and a space.
+		constexpr auto MaximumKnownNamespacesText
+			= core::maximum_known_namespaces * (core::maximum_known_namespace_bytes + 2U);
+
+		/// \brief What a version-9 record carries into version 10: the default
+		/// list, so a reviewer who never chose keeps `std` as a namespace.
+		[[nodiscard]] auto migrated_known_namespaces() -> std::string
+		{
+			return core::join_known_namespaces(core::known_namespaces{ });
+		}
+
 		/// \brief Returns every column the settings table declares, in order.
 		///
 		/// \details `aVersion` names a version from 7 on: version 7's shape
@@ -140,6 +157,9 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (aVersion >= 9) {
 				names.emplace_back(CodeZoomColumn);
+			}
+			if (aVersion >= 10) {
+				names.emplace_back(KnownNamespacesColumn);
 			}
 			return names;
 		}
@@ -203,6 +223,10 @@ namespace bpr::adapters::sqlite::detail {
 				sql += "," + std::string{ CodeZoomColumn } + " INTEGER NOT NULL CHECK("
 					+ std::string{ CodeZoomColumn } + " BETWEEN " + std::to_string(bounds.Minimum)
 					+ " AND " + std::to_string(bounds.Maximum) + ")";
+			}
+			if (aVersion >= 10) {
+				sql += "," + std::string{ KnownNamespacesColumn } + " TEXT NOT NULL CHECK(length("
+					+ std::string{ KnownNamespacesColumn } + ") <= " + std::to_string(MaximumKnownNamespacesText) + ")";
 			}
 			sql += ") STRICT";
 			return sql;
@@ -563,7 +587,7 @@ namespace bpr::adapters::sqlite::detail {
 				const auto name = text_of(columns->Value, 1);
 				const auto text = name == "mode" || name == "palette_document"
 					|| name == "palette_variant" || name == "ui_family" || name == "code_family"
-					|| name.ends_with("_palette_document");
+					|| name == KnownNamespacesColumn || name.ends_with("_palette_document");
 				const auto singleton = name == "singleton";
 				if (std::ranges::find(aNames, name) == aNames.end()
 					|| text_of(columns->Value, 2) != (text ? "TEXT" : "INTEGER")
@@ -833,6 +857,41 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
+		/// \brief [[BPR-PENDING-W]]. Adds the known C++ namespaces.
+		///
+		/// \details Carried across a fresh table as the earlier steps carry their
+		/// row, so the CHECK constraints are verified on the way through. The new
+		/// column takes the default list, `std`.
+		[[nodiscard]] auto migrate_to_version_10(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			const auto rows = scalar_integer(aDatabase, "SELECT count(*) FROM appearance_settings WHERE singleton != 1");
+			if (!rows || *rows != 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			const auto previous = joined(settings_column_names(9), ", ");
+			auto       carry    = std::string{ "INSERT INTO appearance_settings(" };
+			carry += previous;
+			carry += ", ";
+			carry += KnownNamespacesColumn;
+			carry += ") SELECT ";
+			carry += previous;
+			// The default is a fixed list of identifiers, with no quote in it.
+			carry += ", '" + migrated_known_namespaces() + "'";
+			carry += " FROM appearance_settings_previous";
+			for (const auto& statement : std::array{
+					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
+					 std::string{ "DROP TABLE appearance_settings" },
+					 settings_schema(10),
+					 carry,
+					 std::string{ "DROP TABLE appearance_settings_previous" } }) {
+				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+					return ran;
+				}
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto establish_schema(
 			::sqlite3* aDatabase, std::stop_token aStop)
 			-> std::expected<void, failure>
@@ -914,7 +973,15 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
-			if (auto migrated = migrate_to_version_9(aDatabase, aStop); !migrated) {
+			// A version-9 file skips the version-9 step, which would carry the
+			// row across without its zoom column.
+			if (*current < 9) {
+				if (auto migrated = migrate_to_version_9(aDatabase, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+			}
+			if (auto migrated = migrate_to_version_10(aDatabase, aStop); !migrated) {
 				rollback();
 				return migrated;
 			}
@@ -1120,6 +1187,7 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			columns += ", " + std::string{ WhiteSpaceColumn };
 			columns += ", " + std::string{ CodeZoomColumn };
+			columns += ", " + std::string{ KnownNamespacesColumn };
 			auto statement = prepare(
 				aDatabase,
 				columns + " FROM appearance_settings WHERE singleton = 1");
@@ -1219,6 +1287,13 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(codeZoom.error());
 			}
 			settings.Typography.Code.ZoomPercent = *codeZoom;
+			// [[BPR-PENDING-W]]. Refused whole, as typography is, when the core
+			// refuses any entry: a list repaired here would not be the reviewer's.
+			settings.Namespaces = core::split_known_namespaces(text_of(
+				statement->Value, static_cast<int>(3U + ScalarColumnNames.size() + 2U * core::appearance_variant_count)));
+			if (!core::validate_known_namespaces(settings.Namespaces).empty()) {
+				return std::unexpected(failure::integrity_failure);
+			}
 
 			// A durable record can be written by another build or edited by hand.
 			// The core is the authority on typography legality, so a record it
@@ -1375,9 +1450,10 @@ namespace bpr::adapters::sqlite::detail {
 				== SQLITE_OK;
 		};
 
-		const auto& ui    = aSettings.Typography.Ui;
-		const auto& code  = aSettings.Typography.Code;
-		auto        bound = text(mode);
+		const auto& ui         = aSettings.Typography.Ui;
+		const auto& code       = aSettings.Typography.Code;
+		const auto  namespaces = core::join_known_namespaces(aSettings.Namespaces);
+		auto        bound      = text(mode);
 		for (std::size_t index = 0U;
 			 bound && index < core::appearance_variant_count;
 			 ++index) {
@@ -1393,7 +1469,8 @@ namespace bpr::adapters::sqlite::detail {
 			&& integer(static_cast<std::int64_t>(aSettings.Dif.Visibility))
 			&& integer(static_cast<std::int64_t>(aSettings.Dif.Motion))
 			&& integer(static_cast<std::int64_t>(code.WhiteSpace))
-			&& integer(static_cast<std::int64_t>(code.ZoomPercent));
+			&& integer(static_cast<std::int64_t>(code.ZoomPercent))
+			&& text(namespaces);
 		if (!bound) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}

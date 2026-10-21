@@ -992,8 +992,11 @@ namespace bpr::core {
 		};
 	}
 
+	/// The candidate predates the known-namespace list ([[BPR-PENDING-W]]) and
+	/// reads none of it; it is accepted so the shipped signature links.
 	auto refine_cpp_identifiers(const std::string_view aText, core::token_span_list& aSpans,
-								const std::size_t aMaximumSpans, const std::stop_token aStop) -> core::syntax_classification_status
+								const std::size_t aMaximumSpans, const std::stop_token aStop,
+								const core::known_namespaces& /*aNamespaces*/) -> core::syntax_classification_status
 	{
 		return tree_sitter_context{ aText, aStop }.refine(aSpans, aMaximumSpans);
 	}

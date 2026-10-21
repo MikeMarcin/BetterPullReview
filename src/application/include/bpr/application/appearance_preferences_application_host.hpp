@@ -58,6 +58,12 @@ namespace bpr::application {
 		/// still queued. The core picks the step; the result is validated and
 		/// persisted as any typography record is.
 		void step_code_zoom(appearance_consumer_id aConsumer, core::code_zoom_step aStep);
+		/// \brief [[BPR-PENDING-W]]. Applies one whole known-namespace list.
+		///
+		/// \details Refused whole, with every refused entry named, when any entry is
+		/// not a namespace name; accepted, it is persisted and published as the
+		/// `Namespaces` invalidation, so every window asks again for its C++ spans.
+		void apply(appearance_consumer_id aConsumer, core::known_namespaces aNamespaces);
 		void import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
 		void cancel_theme_import(appearance_consumer_id aConsumer);
 		/// \brief Writes a theme document whose base is `aVariant`, the theme the palette customises.

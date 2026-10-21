@@ -9378,8 +9378,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					adopt_classification(aSpans);
 				});
 			AppearanceProjections.set_presentation_sink(
-				[this](const application::appearance_presentation_invalidation&
-					   /*aInvalidation*/) { adopt_appearance_settings(); });
+				[this](const application::appearance_presentation_invalidation& aInvalidation) {
+					adopt_appearance_settings();
+					// [[BPR-PENDING-W]]. The known namespaces are a classification
+					// input: the C++ on screen asks again under the new list.
+					if (aInvalidation.Namespaces.has_value()) {
+						reclassify_shown_comparison();
+					}
+				});
 			AppearanceProjections.set_palette_adoption_sink(
 				[this](const application::palette_adoption_publication&) {
 					adopt_appearance_settings(true);
@@ -19211,6 +19217,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// \brief [[BPR-PENDING-W]]. Asks again for the C++ spans of the
+		/// comparison on screen, under the known namespaces now in effect.
+		///
+		/// \details The panes keep the colours they have until the answer
+		/// arrives, and say the colours are coming. A list in effect before
+		/// answers from the cache at once; a new one is classified. Only C++
+		/// reads the list, so no other language is asked again.
+		void reclassify_shown_comparison()
+		{
+			if (Closing || Window == nullptr || AppearanceHost == nullptr || SyntaxBlobs == nullptr) {
+				return;
+			}
+			auto* const surface = Window->comparison_surface();
+			if (surface == nullptr || !surface->current_context().has_value()) {
+				return;
+			}
+			const auto context = *surface->current_context();
+			auto       wanted  = std::vector<std::pair<core::diff_side, application::token_span_cache_key>>{ };
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				const auto& blob = side == core::diff_side::left ? context.Key.LeftBlob : context.Key.RightBlob;
+				if (!blob.has_value()) {
+					continue;
+				}
+				const auto known = std::ranges::find_if(ClassifiedDefinitions, [&blob](const auto& aEntry) {
+					return aEntry.first == *blob;
+				});
+				if (known == ClassifiedDefinitions.end() || known->second.Name != application::cpp_syntax_definition_name) {
+					continue;
+				}
+				wanted.emplace_back(side, application::token_span_cache_key{ .Blob = *blob, .Definition = known->second });
+			}
+			if (wanted.empty()) {
+				return;
+			}
+			// The reads end with each answer, so they are bound again.
+			SyntaxBlobs->register_comparison(context);
+			for (const auto& [side, key] : wanted) {
+				surface->await_syntax(side);
+			}
+			for (auto& [side, key] : wanted) {
+				AppearanceHost->classify(std::move(key));
+			}
+		}
+
 		/// \brief Remembers which definition a blob was classified against.
 		///
 		/// \details Bounded and insert-if-absent for the same reason as the blob
@@ -19321,7 +19371,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// because the binding's lifetime is the classification's rather than
 			// this adoption's, and a dropped adoption still ends the read.
 			// BPR-0390.
-			if (SyntaxBlobs != nullptr) {
+			//
+			// [[BPR-PENDING-W]]. Except for an answer under a known-namespace
+			// list no longer in effect: the request for the current list may
+			// still need the same binding, and its own answer releases it.
+			const auto stale = AppearanceHost != nullptr && AppearanceHost->classification_key(aSpans.Key) != aSpans.Key;
+			if (SyntaxBlobs != nullptr && !stale) {
 				SyntaxBlobs->release_blob(aSpans.Key.Blob);
 			}
 			// [[BPR-1344]]. The classifier's blob read was reviewer epoch work
@@ -19339,6 +19394,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto* const surface = Window->comparison_surface();
 			const auto& context = surface->current_context();
 			if (!context) {
+				++DroppedClassifications;
+				return;
+			}
+			// [[BPR-PENDING-W]]. Spans for a known-namespace list no longer in
+			// effect are stale: an answer for the current list replaces them
+			// or already has.
+			if (stale) {
 				++DroppedClassifications;
 				return;
 			}
@@ -19466,6 +19528,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					} else if constexpr (std::is_same_v<intent, application::reset_appearance_intent>) {
 						AppearanceHost->reset(aValue.Scope, variant);
+					} else if constexpr (std::is_same_v<intent, application::apply_known_namespaces_intent>) {
+						AppearanceHost->apply(std::move(aValue.Namespaces));
 					} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
 						// The theme on screen, built-in colours included. The
 						// record holds only what a reviewer customised, so
@@ -19589,6 +19653,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					break;
 				case application::appearance_host_failure::palette_contrast_rejected:
 					panel->report(aFailure.ContrastRejections);
+					break;
+				case application::appearance_host_failure::invalid_known_namespaces:
+					panel->report(aFailure.NamespaceRejections);
 					break;
 				case application::appearance_host_failure::unknown_appearance_mode:
 				case application::appearance_host_failure::invalid_dif_preferences:

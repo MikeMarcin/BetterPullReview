@@ -1,3 +1,15 @@
+# [[BPR-PENDING-W]] reseal (2026-10-21) over the [[BPR-1707]] commit below,
+# linear. Pinned-scope change: the known C++ namespaces setting, on this
+# card's own commit. Inside the manifest only github_application.cpp changed:
+# the appearance dispatch routes apply_known_namespaces_intent to the host and
+# reports invalid_known_namespaces to the Settings panel; a Namespaces
+# presentation invalidation asks again for the C++ spans of the comparison on
+# screen (reclassify_shown_comparison, which binds its blob reads again); and
+# adopt_classification drops a span publication whose key is not the host's
+# classification_key for it, without releasing the binding the newer request
+# reads through. No credential, grant, provider selection, publication,
+# mutation, ledger write or source-inventory change. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-1707]] reseal (2026-10-21) over the [[BPR-1706]] commit below, linear.
 # Pinned-scope change: a reread after publishing keeps the chosen file and a
 # filter gesture during a refresh applies, on this card's own commit. Inside
@@ -1903,7 +1915,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"340b96ad40d2606fe4d07581fab99a88e156aca54aecd2da74510b00888277ef"
+		"b5f548b7cb56da4f59ead146f7d9620885b55912c17de90e58b7b293c3b9082c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2123,7 +2135,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4b35d7e01dbdf26c6accaf5456c9fa9fffdacd166ccf8b53ac9ee5fce44ff5bd"
+        "2a2276db30fa5a82c0cc600a655d3fd4a9da126e0981f3593c7ea4af4248d0bf"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

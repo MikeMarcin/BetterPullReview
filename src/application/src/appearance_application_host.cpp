@@ -160,7 +160,17 @@ namespace bpr::application {
 			Implementation->Preferences->step_code_zoom(Implementation->Consumer, aStep);
 		}
 	}
-	void appearance_application_host::classify(token_span_cache_key aKey) { Implementation->Classification.classify(std::move(aKey)); }
+	void appearance_application_host::apply(core::known_namespaces aNamespaces)
+	{
+		if (!Implementation->Closing) {
+			Implementation->Preferences->apply(Implementation->Consumer, std::move(aNamespaces));
+		}
+	}
+	auto appearance_application_host::classification_key(token_span_cache_key aKey) const -> token_span_cache_key
+	{
+		return application::classification_key(std::move(aKey), Implementation->Preferences->settings().Namespaces);
+	}
+	void appearance_application_host::classify(token_span_cache_key aKey) { Implementation->Classification.classify(classification_key(std::move(aKey))); }
 	void appearance_application_host::cancel_classifications() { Implementation->Classification.cancel(); }
 	void appearance_application_host::cancel()
 	{
@@ -177,7 +187,7 @@ namespace bpr::application {
 	auto appearance_application_host::observation() const noexcept -> const core::appearance_observation& { return Implementation->Preferences->observation(Implementation->Consumer); }
 	auto appearance_application_host::epoch() const noexcept -> appearance_epoch { return Implementation->Preferences->epoch(Implementation->Consumer); }
 	auto appearance_application_host::last_rejections() const noexcept -> std::span<const core::typography_rejection> { return Implementation->Preferences->last_rejections(); }
-	auto appearance_application_host::cached(const token_span_cache_key& aKey) const -> shared_token_spans { return Implementation->Classification.cached(aKey); }
+	auto appearance_application_host::cached(const token_span_cache_key& aKey) const -> shared_token_spans { return Implementation->Classification.cached(classification_key(aKey)); }
 	auto appearance_application_host::cached_classifications() const noexcept -> std::size_t { return Implementation->Classification.cached_classifications(); }
 	auto appearance_application_host::cache_hits() const noexcept -> std::size_t { return Implementation->Classification.cache_hits(); }
 	auto appearance_application_host::classification_submissions() const noexcept -> std::size_t { return Implementation->Classification.classification_submissions(); }

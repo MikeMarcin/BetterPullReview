@@ -45,8 +45,9 @@ namespace bpr::core {
 		///
 		/// \details [[BPR-1710]]. `std` is the namespace the language itself
 		/// names ([namespace.std]) and a program may not add to it, so this set is
-		/// closed by the standard rather than guessed. They are predeclared as if
-		/// the blob declared them, so its own declarations, `::std` and a `struct
+		/// closed by the standard rather than guessed. They come with `std`
+		/// whenever the known-namespace list declares it ([[BPR-PENDING-W]]),
+		/// predeclared as if the blob declared them, so its own declarations, `::std` and a `struct
 		/// std` resolve by the ordinary lookup; an unlisted scope under `std`
 		/// (`std::string::npos`) is a library class and keeps the grammar's role.
 		/// The inline literal namespaces sit under `std` and `std::literals`.
@@ -76,6 +77,9 @@ namespace bpr::core {
 			symbol_kind   Kind    = symbol_kind::unknown;
 			std::uint32_t Child   = NoIndex;
 			bool          Defined = false;
+			/// A known namespace no declaration in the blob has confirmed
+			/// ([[BPR-PENDING-W]]); the blob's own class or enum replaces it.
+			bool Predeclared = false;
 		};
 
 		enum class directive : std::uint8_t {
@@ -118,13 +122,13 @@ namespace bpr::core {
 		class cpp_context final
 		{
 		public:
-			cpp_context(const std::string_view aText, const std::stop_token aStop)
+			cpp_context(const std::string_view aText, const std::stop_token aStop, const known_namespaces& aNamespaces)
 				: Text{ aText }
 				, Stop{ aStop }
 				, Roles(aText.size(), role::syntax_normal)
 			{
 				Scopes.emplace_back();
-				predeclare_standard_namespaces();
+				predeclare(aNamespaces);
 			}
 
 			[[nodiscard]] auto refine(token_span_list& aSpans, const std::size_t aMaximumSpans)
@@ -302,8 +306,17 @@ namespace bpr::core {
 				auto found = Scopes[aParent].Symbols.find(aName);
 				if (found != Scopes[aParent].Symbols.end()) {
 					auto& existing = found->second;
+					// [[BPR-PENDING-W]]. A known namespace is evidence only where the
+					// blob gives none: its own class or enum of that name wins in the
+					// scope that declares it, enumerators and members included.
+					if (existing.Predeclared && aKind != symbol_kind::name_space) {
+						const auto child = new_scope(aParent, aKind == symbol_kind::enumeration);
+						Scopes[aParent].Symbols.insert_or_assign(aName, symbol{ .Kind = aKind, .Child = child, .Defined = aDefined });
+						return child;
+					}
 					if (existing.Kind == aKind && (aKind == symbol_kind::name_space || !existing.Defined)) {
-						existing.Defined = aDefined || existing.Defined;
+						existing.Defined     = aDefined || existing.Defined;
+						existing.Predeclared = false;
 						return existing.Child;
 					}
 					existing.Kind = symbol_kind::unknown;
@@ -314,20 +327,65 @@ namespace bpr::core {
 				return child;
 			}
 
-			void predeclare_standard_namespaces()
+			/// \brief Declares one known namespace under `aParent`, before the blob is read.
+			[[nodiscard]] auto predeclare_scope(const std::uint32_t aParent, const std::string_view aName) -> std::uint32_t
 			{
-				const auto standard = declare_scope(0U, "std", symbol_kind::name_space, false);
+				const auto child                           = declare_scope(aParent, aName, symbol_kind::name_space, false);
+				Scopes[aParent].Symbols[aName].Predeclared = true;
+				return child;
+			}
+
+			/// \brief Declares the known namespaces before the blob is read ([[BPR-PENDING-W]]).
+			/// \details Every segment of a legal entry is a namespace, nested in the one
+			/// before it; a refused entry declares nothing. Declared in the global scope
+			/// as if the blob had, so the blob's own `struct Qt` or `::Qt` resolves by
+			/// the ordinary lookup. The segments view the caller's list, which outlives
+			/// this context. At most `maximum_known_namespaces` entries are read.
+			void predeclare(const known_namespaces& aNamespaces)
+			{
+				auto read     = std::size_t{ 0U };
+				auto standard = false;
+				for (const auto& name : aNamespaces.Names) {
+					if (read == maximum_known_namespaces) {
+						return;
+					}
+					++read;
+					if (check_known_namespace(name)) {
+						continue;
+					}
+					auto scope = std::uint32_t{ 0U };
+					auto rest  = std::string_view{ name };
+					for (auto first = true;; first = false) {
+						const auto split   = rest.find("::");
+						const auto segment = rest.substr(0U, split);
+						scope              = predeclare_scope(scope, segment);
+						if (first && segment == "std" && !standard) {
+							standard = true;
+							predeclare_standard_namespaces(scope);
+						}
+						if (split == std::string_view::npos) {
+							break;
+						}
+						rest.remove_prefix(split + 2U);
+					}
+				}
+			}
+
+			/// \brief The namespaces ISO C++ nests in `std`, under it ([[BPR-1710]]).
+			void predeclare_standard_namespaces(const std::uint32_t aStandard)
+			{
+				const auto standard = aStandard;
 				auto       literals = standard;
 				for (const auto name : StandardNamespaces) {
-					const auto child = declare_scope(standard, name, symbol_kind::name_space, false);
+					const auto child = predeclare_scope(standard, name);
 					if (name == "ranges") {
-						static_cast<void>(declare_scope(child, "views", symbol_kind::name_space, false));
+						static_cast<void>(predeclare_scope(child, "views"));
 					}
 					literals = name == "literals" ? child : literals;
 				}
 				for (const auto literal : LiteralNamespaces) {
-					static_cast<void>(declare_scope(standard, literal, symbol_kind::name_space, false));
-					static_cast<void>(declare_scope(literals, literal, symbol_kind::name_space, false));
+					static_cast<void>(predeclare_scope(standard, literal));
+					static_cast<void>(predeclare_scope(literals, literal));
 				}
 			}
 
@@ -781,8 +839,9 @@ namespace bpr::core {
 	}
 
 	auto refine_cpp_identifiers(const std::string_view aText, token_span_list& aSpans,
-								const std::size_t aMaximumSpans, const std::stop_token aStop) -> syntax_classification_status
+								const std::size_t aMaximumSpans, const std::stop_token aStop,
+								const known_namespaces& aNamespaces) -> syntax_classification_status
 	{
-		return cpp_context{ aText, aStop }.refine(aSpans, aMaximumSpans);
+		return cpp_context{ aText, aStop, aNamespaces }.refine(aSpans, aMaximumSpans);
 	}
 }

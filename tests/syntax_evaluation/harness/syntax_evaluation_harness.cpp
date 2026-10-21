@@ -63,9 +63,9 @@
 #include <vector>
 
 namespace bpr::core {
-	auto refine_cpp_identifiers_baseline(std::string_view, application::token_span_list&, std::size_t, std::stop_token)
+	auto refine_cpp_identifiers_baseline(std::string_view, application::token_span_list&, std::size_t, std::stop_token, const known_namespaces&)
 		-> application::syntax_classification_status;
-	auto refine_cpp_identifiers_candidate(std::string_view, application::token_span_list&, std::size_t, std::stop_token)
+	auto refine_cpp_identifiers_candidate(std::string_view, application::token_span_list&, std::size_t, std::stop_token, const known_namespaces&)
 		-> application::syntax_classification_status;
 }
 
@@ -216,7 +216,8 @@ void operator delete(void* aMemory, std::size_t) noexcept
 
 namespace bpr::core {
 	auto refine_cpp_identifiers(const std::string_view aText, application::token_span_list& aSpans,
-								const std::size_t aMaximumSpans, const std::stop_token aStop) -> application::syntax_classification_status
+								const std::size_t aMaximumSpans, const std::stop_token aStop,
+								const known_namespaces& aNamespaces) -> application::syntax_classification_status
 	{
 		auto& seen = observation();
 		if (seen.Capture) {
@@ -227,8 +228,8 @@ namespace bpr::core {
 		const auto begin = now_nanos();
 		seen.StartedAt.store(begin);
 		const auto status = seen.Selected == engine::baseline
-			? refine_cpp_identifiers_baseline(aText, aSpans, aMaximumSpans, aStop)
-			: refine_cpp_identifiers_candidate(aText, aSpans, aMaximumSpans, aStop);
+			? refine_cpp_identifiers_baseline(aText, aSpans, aMaximumSpans, aStop, aNamespaces)
+			: refine_cpp_identifiers_candidate(aText, aSpans, aMaximumSpans, aStop, aNamespaces);
 		const auto end    = now_nanos();
 		heap().disarm();
 		seen.Nanos    = end - begin;
