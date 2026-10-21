@@ -41,8 +41,21 @@ answered first, because each changes the scope of M1 to M3.
 ## Owner questions
 
 These are asked in a fresh, short attended-review session, with one question
-per decision. The session is recorded below. Its URL is kept in the external
-session state.
+per decision. Its URL is kept in the external session state.
+
+- **Session.** `e5387830d18edd8d541b96e47ecbd9cb`, with its state in
+  `/Users/jaeger/.mask/attended-review/owner-review-20261021-in-pane-suggest-v001`.
+  It opened 2026-10-21, and all five candidates were ready at event cursor 15.
+  Its loopback host was started for the owner.
+- **Candidates**, all at revision `653e2ff2d`, each showing its design frame:
+  - `BPR-PENDING-AF-q1-extent-v001`: Accept or Reject.
+  - `BPR-PENDING-AF-q2-words-v001`: A or B.
+  - `BPR-PENDING-AF-q3-unplaceable-v001`: A or B.
+  - `BPR-PENDING-AF-q4-one-pane-v001`: A or B.
+  - `BPR-PENDING-AF-q5-drawer-block-v001`: Accept or Reject.
+- **Status.** No answer has been recorded. The next engineering round reads
+  `status --after 15`, records the answers here and in the RFC, and revises
+  the RFC to match.
 
 ## Acceptance
 
