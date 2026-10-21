@@ -126,3 +126,103 @@ registry/schedule negative controls, then a bounded matched same-binary serial v
 parallel workbench contrast before the one stabilized full native pass. Retain all
 scales, ordered fresh owners, per-command outputs and optional-root unsets. Do not
 classify Release while merely copying the Debug timing inventory.
+
+## Final bounded result
+
+Native engineering candidate: `f230a8e5f4fcc3a97985c72726a0069595b6617c`.
+Both configurations pass all five commands and all 237 ordered case entries.
+Each configuration's 44 workbench list inspections account for 481 occurrences;
+those inspections supply no extra behavioral pass credit or full-scale qualification.
+
+| Native serial course | Release seconds | Debug seconds |
+|---|---:|---:|
+| Workbench, same 115-case source/fixture/1.0x input | 29.875 | 185.604 |
+| Composed inline drawer, two cases | 1.562 | 11.131 |
+| Core diff, configuration-specific workload | 2.912 | 8.482 |
+| Diff host, configuration-specific workload | 2.795 | 5.054 |
+| GitHub host, configuration-specific allocation sweeps | 0.034 | 0.117 |
+| CTest wall | 37.299 | 210.502 |
+| Runner wall including bootstrap and input sealing | 57.477 | 230.233 |
+
+The matched workbench configuration comparison saves 155.729 seconds (83.9%) on
+one native pair. Optimization, Qt DLL and CRT/STL diagnostic modes all change;
+this does not establish equal diagnostic coverage or a universal/full-suite ratio.
+The other rows' changed workloads and sweep exclusions prohibit an aggregate
+same-input speedup claim. Release executes 40,000/30,000 lines, four actual 100 ms
+limits and sweeps of seven/nine failed allocations. Debug executes both 6,000-line
+inputs and reports both checked-STL sweep exclusions. Every existing test function
+and its ordered main invocation remains present.
+
+The final preparation records another 35.566-second configure, 23.207-second
+Release incremental build and 74.877-second affected Debug build. These follow
+the retained first 39.177/420.722-second configure/build and preliminary pilot;
+none is reset out or described as a cold/full-warm baseline. The final actual
+bootstrap costs 13.546 seconds in Release and 13.075 in Debug. A separate native
+bootstrap-only runner executes all three checks once, credits their exact same
+invocation proof for the selected occurrences, and passes in 19.969 seconds total.
+Input sealing and bootstrap are visible overhead; no standalone reuse-speed claim
+is made from this course. One-time engineering setup/repair/wait differs from a
+future release request's recurrent phases; M3 must measure its actual start.
+
+All seven Release controls pass: an ordinary expectation failure, the caught-failure
+exit backstop, and each of the four real drawer bounds tightened separately to
+zero, plus the successful expectation baseline. Debug pass/fail/caught controls
+also behave correctly. A separate real native CTest fixture uses the existing
+sandbox and actual failure properties with an early matching `QUALIFICATION_BUILD`
+pass regex. The existing suite runner exits **8** with one pass and two intentional
+failures, complete inventory, actual nonzero child markers and caught-backstop
+text. This proves the existing native runner path rejects the masked failures;
+those intentional failures are control evidence, not a failed qualification relabeled.
+The occurrence reader separately refuses missing/failed child status, cases,
+configuration, workload, threshold and sweep credit.
+
+Native identity is Windows 11 Home 10.0.26200, x64, 20 logical processors,
+137229926400 memory bytes, MSVC 19.51.36260.0, CMake/CTest 4.4.2, Python 3.14.6,
+Qt 6.12.0. Release reports `NDEBUG=1`, iterator level 0, dynamic non-Debug CRT and
+`QT_NO_DEBUG=1`; Debug reports 0/2/dynamic Debug CRT/`QT_NO_DEBUG=0`.
+Actual loaded Release `Qt6Core/Gui/Widgets` and MSVCP140/VCRUNTIME140, and Debug
+`Qt6Cored/Guid/Widgetsd` and MSVCP140D/VCRUNTIME140D/ucrtbased, have retained paths
+and hashes. Actual Qt runtime reports match the configuration; there is no hybrid.
+
+Quiet-host guards precede both final serial courses and latency controls. A
+read-only Highest observer records 353 process-start events and the runtime
+modules; the tests themselves remain InteractiveLimited Session 3. The first
+Limited observer exited 1 before its initial capture; its exact error was not
+captured, so access denial is an inference. The replacement observer ended cleanly.
+Its recorded UTC is event delivery time, and rapid control/list children often
+exit before inspection (93 module-observation failures). Some intermediate process
+ancestry was not subscribed, so it cannot prove continuous whole-host idleness or
+classify every event. Two existing WSL shells appear in its baseline. Preserve
+these observation limits and the quiet admission/lease evidence rather than
+claiming a perfect host monitor. No foreign process was stopped.
+
+Local/native runner controls (17), registry controls (7), inventory refusal table,
+source architecture and source-manifest/public-composition check pass. Documentation
+contracts (67), documentation structure, exact clang-format 22 checks and diff
+whitespace checks pass. The direct C-assert/include scan finds zero sites. The
+first native final occurrence read failed because CTest's regex-pass log says
+`Test Pass Reason`, not `Test Passed`; its raw five passing courses remain intact.
+The reader was corrected to demand real native child success too. A portable
+Ninja probe exposed missing explicit configuration metadata; the new test preset
+now sets Release and unknown configuration is refused. The final bounded course
+runs after these corrections; no full 786-row or extra native platform run occurred.
+
+Private archive: 200 entries, 731305 bytes, ZIP integrity PASS, SHA-256
+`96f4e1cd504f66487a01b3b37fcc784ba2a64d955d805b9d31a6beb42ede43d0`.
+Final native result SHA-256:
+`8f7e65afb519996843e98574a648bcfd342bf1dd21d98061c3a5ca82596f2eff`;
+binary identity receipt:
+`c90af60674e4c6985bba39f118775de3959959315770ad056607ac82fa13d240`.
+The final 03:15:43 UTC audit records clean native source, no task-owned processes,
+and all six exact inactive task actions checked then unregistered. Observer PID
+54964 exited at 03:14:38 UTC. Archive creation/transfer finished afterward. The
+native source/build trees remain for M3; frozen published producers are untouched.
+
+M2 closes its engineering scope. M3 owns one stabilized complete Release native
+portfolio after independently reviewing any Release correctness admission, plus
+normal-gate/Debug-residual promotion and request-to-artifact measurement. Main's
+separate promo changes are outside this exact native candidate and require their
+own input/trigger reconciliation. macOS/Linux activation, full Release target
+builds, strict RSS repair and final release/native/security/legal claims are still
+unready; the thirty-minute release target is unproved. No human M2 criterion,
+attended candidate or review server is pending.
