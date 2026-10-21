@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1680"
 title: "Home refresh is slow on GitHub Enterprise"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -363,3 +363,7 @@ overlap. The choices:
 Recommendation: 1, as a separate card, if native GHE accounts matter. The
 export's newest session ran GitHub CLI account discovery, which suggests the
 owner's connection is a CLI one, and option 5 covers that.
+
+Owner decision, 2026-10-21: leave native HTTPS as it is. Native accounts keep
+options 1 to 4 and [[BPR-1679]]'s give-way; AC5 holds for GitHub CLI accounts
+and is waived for native HTTPS by that decision. No dispatcher card is opened.
