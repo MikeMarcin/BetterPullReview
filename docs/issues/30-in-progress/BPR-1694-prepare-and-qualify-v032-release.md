@@ -121,3 +121,19 @@ warnings-as-errors pass; documentation and whitespace checks pass. The native
 engineering observation is built with only the repaired fixture substituted;
 its original source and binary are restored afterward. Final committed-source
 comprehensive gates remain due.
+
+## Expanded candidate and pack regeneration
+
+The owner explicitly included the features that landed before publication. The
+isolated release branch now includes RFC-BPR-0089 M3 and BPR-1693; the release
+notes describe split per-commit diffs, force-push rematch offers and opening a
+set-aside generated file. The original development checkout remains untouched.
+
+Windows Git encodes the regenerated fixture packs differently from the committed
+packs. The contract now imports each with Git's strict pack validator and
+compares the complete typed object contents in object-ID order. Every other
+fixture file remains byte-exact. All three variants, including M3's split
+fixture, pass on Mac and native Windows Release. Controls reject a truncated
+pack and a valid pack containing different objects. This follows the existing
+recorded-pack builder's cross-Git-version contract; no fixture data or product
+assertion is weakened. Expanded-source comprehensive qualification remains due.

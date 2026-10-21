@@ -2,8 +2,9 @@
 """RFC-BPR-0089. commit-filter-v1, commit-filter-attributes-v1 and
 commit-filter-split-v1 are exactly what their builder writes.
 
-The builder runs into a scratch root and every file it writes must equal the
-committed one byte for byte. Each composed fixture's descriptor names the same
+The builder runs into a scratch root. Metadata equals the committed bytes;
+Git validates each pack and its complete object inventory equals the committed
+objects. Git versions may encode those same objects differently. Each composed fixture's descriptor names the same
 merge base and head, and its commit list serves GitHub's parents along the
 chain: the base and the head as the served placeholders, the others as built.
 The attributes variant ([[BPR-1692]]) commits its `.gitattributes` in the
@@ -43,6 +44,16 @@ def files(root: Path) -> dict[str, bytes]:
     return {path.relative_to(root).as_posix(): path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
 
 
+def pack_objects(data: bytes) -> bytes:
+    """Validate the pack and read every typed object in Git's object-ID order."""
+    with contained_temporary_directory(prefix="bpr-commit-filter-objects-") as root:
+        subprocess.run(["git", "init", "-q", "--bare", root], check=True, capture_output=True)
+        subprocess.run(["git", "-C", root, "index-pack", "--stdin", "--strict"],
+                       input=data, check=True, capture_output=True)
+        return subprocess.run(["git", "-C", root, "cat-file", "--batch-all-objects", "--batch"],
+                              check=True, capture_output=True).stdout
+
+
 class CommitFilterFixtureTests(unittest.TestCase):
     def test_builder_regenerates_the_committed_tree(self) -> None:
         for name, flags in VARIANTS.values():
@@ -54,7 +65,26 @@ class CommitFilterFixtureTests(unittest.TestCase):
                 self.assertIn("COMMIT_FILTER_FIXTURE_OK:", result.stdout)
                 for relative in trees(name):
                     committed = {entry: data for entry, data in files(ROOT / relative).items() if entry != "README.md"}
-                    self.assertEqual(files(scratch / relative), committed)
+                    generated = files(scratch / relative)
+                    if "objects.pack" in committed:
+                        self.assertIn("objects.pack", generated)
+                        self.assertEqual(pack_objects(generated.pop("objects.pack")),
+                                         pack_objects(committed.pop("objects.pack")))
+                    self.assertEqual(generated, committed)
+
+    def test_pack_comparison_rejects_corruption_and_different_valid_objects(self) -> None:
+        fixture, _ = trees("commit-filter-v1")
+        original = (ROOT / fixture / "objects.pack").read_bytes()
+        with self.assertRaises(subprocess.CalledProcessError):
+            pack_objects(original[:-1])
+        with contained_temporary_directory(prefix="bpr-commit-filter-control-") as root:
+            subprocess.run(["git", "init", "-q", "--bare", root], check=True, capture_output=True)
+            oid = subprocess.run(["git", "-C", root, "hash-object", "-w", "--stdin"],
+                                 input=b"different fixture content\n", check=True, capture_output=True).stdout
+            different = subprocess.run(["git", "-C", root, "pack-objects", "--stdout"],
+                                       input=oid, check=True, capture_output=True).stdout
+        with self.assertRaises(AssertionError):
+            self.assertEqual(pack_objects(original), pack_objects(different))
 
     def test_descriptor_and_parents_name_the_chain(self) -> None:
         source = (ROOT / "src/app/src/github_public_path_fixture.cpp").read_text(encoding="utf-8")
