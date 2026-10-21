@@ -47,7 +47,7 @@ def validate_manifest(manifest: dict, platform: str, root: Path = ROOT) -> dict:
     rows = [row for row in manifest["tests"] if any(Path(arg).name.removesuffix(".exe") == "better_pull_review_qt_workbench_window_tests"
                                                     for arg in row.get("command", []))]
     names = [row["name"] for row in rows]
-    if Counter(names) != Counter(expected):
+    if Counter(names) != Counter(expected.keys()):
         raise ValueError("Missing, duplicate or unknown workbench invocation")
     registry = json.loads((root / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
     declarations = {row["name"]: row for family in registry["families"] for row in family["rows"]}

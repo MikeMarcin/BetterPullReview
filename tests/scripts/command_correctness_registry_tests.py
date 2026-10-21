@@ -50,6 +50,20 @@ class RegistryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             inventory.validate_cases(expected, 'WORKBENCH_CASE:first\nWORKBENCH_CASE:second\nworkbench:pass\n')
 
+    def test_real_registry_invocations_require_exact_manifest_coverage(self):
+        registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
+        rows = []
+        directory = Path("/build/tests/adapters_qt").as_posix()
+        for declaration in registry["families"][0]["rows"]:
+            rows.append({"name": declaration["name"],
+                         "command": [directory + "/" + declaration["executable"] + ".exe", *declaration["arguments"]],
+                         "properties": [{"name": "WORKING_DIRECTORY", "value": directory},
+                                        {"name": "ENVIRONMENT", "value": [item.replace("{binary_dir}", directory) for item in declaration["environment"]]}]})
+        self.assertEqual(len(inventory.validate_manifest({"tests": rows}, "Windows")), 44)
+        for changed in (rows[:-1], rows + [rows[0]], rows + [{**rows[0], "name": "unknown"}]):
+            with self.subTest(count=len(changed)), self.assertRaisesRegex(ValueError, "Missing, duplicate or unknown"):
+                inventory.validate_manifest({"tests": changed}, "Windows")
+
     def test_registry_command_scale_output_source_and_unset_mutations_fail_closed(self):
         registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
         for current in registry["families"]:
