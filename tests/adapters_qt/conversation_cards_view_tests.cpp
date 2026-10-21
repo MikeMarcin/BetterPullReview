@@ -1937,6 +1937,17 @@ namespace {
 		QApplication::processEvents();
 		expect(asked.size() == 1U && std::get<0>(asked[0]) == "src/engine/renderer.cpp" && std::get<1>(asked[0]) == 12U && std::get<2>(asked[0]) == 13U,
 			   "the commented lines are asked for from the start line to the line");
+		// [[BPR-PENDING-AB]]. The thread is on lines 12 to 13, and says so: its
+		// card, its header's line button, and its mark, whose open wash spans
+		// both lines. It read as a thread on line 13 alone.
+		const auto* const shown = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+		expect(view.open_card()->accessibleName() == QStringLiteral("Thread on lines 12–13") && shown != nullptr && shown->text() == QStringLiteral("12–13")
+				   && shown->toolTip() == QStringLiteral("Show lines 12–13 in the code"),
+			   "a published thread on two lines is named for both, and its header shows both");
+		const auto marks = view.line_marks(core::diff_side::right);
+		const auto mark  = std::ranges::find(marks, 12U, &qt::thread_line_mark::Line);
+		expect(mark != marks.end() && mark->FirstLine == std::optional<std::uint32_t>{ 11U } && mark->Open && mark->Description.startsWith(QStringLiteral("Lines 12–13: 1 post")),
+			   "its mark spans lines 12 and 13 and its description names both");
 		auto* const reader = dynamic_cast<qt::markdown_body_view*>(view.open_card()->findChild<QWidget*>(QStringLiteral("threadPostReader")));
 		expect(reader != nullptr, "the post reads through the shared reader");
 		const auto rows = [reader] {
@@ -1968,6 +1979,7 @@ namespace {
 			}
 		}
 		expect(asked.empty() && kinds == std::vector<int>{ 3, 2 }, "an outdated thread shows its header and the added row alone");
+		expect(view.open_card()->accessibleName() == QStringLiteral("Thread on line 13"), "a thread with no start line is on its one line");
 
 		// A pull request comment in Discuss: plain code, as on GitHub.
 		view.set_feed(true);

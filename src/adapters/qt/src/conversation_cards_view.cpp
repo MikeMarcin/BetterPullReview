@@ -1340,15 +1340,18 @@ namespace bpr::qt {
 				}
 				const auto posts = card.Posts.size();
 				// [[BPR-1212]] slice 1. A draft on several lines names them.
-				const auto lines = card.FirstLine.has_value() ? QStringLiteral("Lines %1–%2").arg(*card.FirstLine).arg(*card.Line)
-															  : QStringLiteral("Line %1").arg(*card.Line);
-				if (card.Draft && card.FirstLine.has_value() && *card.FirstLine > 0U) {
-					mark.FirstLine = *card.FirstLine - 1U;
+				// [[BPR-PENDING-AB]]. So does a published thread on several,
+				// from GitHub's `start_line`: it read as one line before.
+				const auto first = thread_first_line(card);
+				const auto lines = first.has_value() ? QStringLiteral("Lines %1–%2").arg(*first).arg(*card.Line)
+													 : QStringLiteral("Line %1").arg(*card.Line);
+				if (first.has_value() && *first > 0U) {
+					mark.FirstLine = *first - 1U;
 				}
 				mark.Description = card.Writing                  ? QStringLiteral("%1: your draft, being written").arg(lines)
 					: card.Draft && card.UnsentReply.has_value() ? QStringLiteral("%1: your reply, not sent").arg(lines)
 					: card.Draft                                 ? QStringLiteral("%1: your draft").arg(lines)
-																 : QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
+																 : QStringLiteral("%1: %2 %3").arg(lines).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
 				if (card.UnreadCount > 0U) {
 					mark.Description += QStringLiteral(", %1 new").arg(card.UnreadCount);
 				}

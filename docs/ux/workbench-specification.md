@@ -1944,8 +1944,10 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   selects it first, without a left click before it, unless it is inside the
   selection, which it keeps, with its selected line. The menu is headed "Line
   N", "Lines a–b" or "Base line N" and offers Add comment (Return) and Suggest
-  change (Shift+Return). A line selected by the right-click is not refused for
-  a draft still on its way. An item that cannot apply is unavailable, and a
+  change (Shift+Return). On several lines the items name them, "Add comment
+  on lines a–b" or "on base lines a–b" ([[BPR-PENDING-AB]]). A right-click on
+  a line number opens the same menu for that line. A line selected by the
+  right-click is not refused for a draft still on its way. An item that cannot apply is unavailable, and a
   row under the items says why in a few words ("This file's base is not
   GitHub's", "Base lines need a changed region", "Suggest change: head side
   only", "Lines must be in one changed region"), with the full reason as its
@@ -2587,7 +2589,12 @@ several lines (selected with Shift and the arrows, a drag or a Shift-click)
 says "Lines a–b" in its header and the bracket spans all of them; one on the
 base side says "Base line N". A right-click outside the selection selects its
 line first, and the menu, headed "Line N", "Lines a–b" or "Base line N",
-offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour stop. Suggest change starts the draft as a
+offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour stop,
+named for the lines when there are several ("Add comment on lines a–b").
+A published thread on several lines, GitHub's `start_line` to `line`, says
+"a–b" in its header and "Lines a–b" in its mark's description, and its open
+wash and bar span all of them, its edge mark on the last
+([[BPR-PENDING-AB]]). Suggest change starts the draft as a
 ```` ```suggestion ```` block holding the selected lines exactly, the caret
 at the end of its last line, set monospaced and unwrapped, and shows what the
 block changes as it is edited. Neither key nor item acts on lines the core

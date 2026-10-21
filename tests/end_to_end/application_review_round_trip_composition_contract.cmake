@@ -1,3 +1,13 @@
+# [[BPR-PENDING-AB]] reseal (2026-10-21) over last matching main cb5679683,
+# linear. Pinned-scope change: a comment on a selection shows its lines, on
+# this card's own commit. Inside the manifest only github_application.cpp
+# changed, in the label-authoring probe's --line-draft-course: three phases
+# drag three right lines through QWindowSystemInterface, right-click inside
+# them, click the popup's "Add comment on lines a-b", publish the draft and
+# read the thread the conversations show back. No product path, credential,
+# grant, provider selection, publication, mutation, ledger write or
+# source-inventory change. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1720 note below
 # is renaming its [[BPR-PENDING-AA]] comment tags to [[BPR-1720]]; no code change.
 # [[BPR-1720]] reseal (2026-10-21) over last matching main ae867c2db,
@@ -1954,7 +1964,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"5a5df0dea3cc1d195efd34a9714583b0614bcea3d127f0ca9b18efe23e074edf"
+		"e8411c19122e0f90425c226e48c2d36ce6c66165b5b476107e234b55a512e001"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2178,7 +2188,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "cec87dd74c99ebecaf5c17f451e8749a14c5c09f30d19ccf1ad23738e2f2d33e"
+        "0215ceb8ea8e8ade5096a0547ad568458209a0174aece60a22d255ed203ce530"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

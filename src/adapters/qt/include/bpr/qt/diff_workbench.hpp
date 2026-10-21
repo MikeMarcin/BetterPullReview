@@ -183,6 +183,8 @@ namespace bpr::qt {
 		bool Writing = false;
 		/// [[BPR-1212]] slice 1. A draft on several lines: the first line the
 		/// bracket spans (a unified pane's is its row); `Line` is its last.
+		/// [[BPR-PENDING-AB]]. Also a published thread's first line, which its
+		/// open wash spans.
 		std::optional<std::uint32_t> FirstLine;
 		/// What the marker's tooltip and accessible name say.
 		QString Description;

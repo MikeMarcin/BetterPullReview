@@ -17,6 +17,7 @@
 #include <QAccessible>
 #include <QApplication>
 #include <QClipboard>
+#include <QContextMenuEvent>
 #include <QCursor>
 #include <QElapsedTimer>
 #include <QEnterEvent>
@@ -591,7 +592,7 @@ namespace bpr::qt {
 			}
 
 			/// \brief [[BPR-1212]] slice 1. The rows a mark spans: its line, or
-			/// all the lines of a draft written on several.
+			/// all the lines of a draft or thread on several.
 			[[nodiscard]] auto mark_span_rect(const diff_line_mark& aMark) const -> QRect
 			{
 				const auto last = line_row_rect(aMark.Line);
@@ -1093,16 +1094,20 @@ namespace bpr::qt {
 				// with the gutter showing threads, its tinted number says so
 				// instead, and the open thread's line is washed amber (the note
 				// under the pointer, lightly).
+				// [[BPR-PENDING-AB]]. A thread on several lines washes them all
+				// when open, as my draft on several does; its edge mark stays
+				// on its last line, where GitHub anchors it.
 				for (const auto& mark : Marks) {
-					const auto row = mark.Writing ? mark_span_rect(mark) : line_row_rect(mark.Line);
-					if (row.isEmpty() || row.top() > viewport()->height() || row.bottom() < 0) {
+					const auto row   = mark.Writing ? mark_span_rect(mark) : line_row_rect(mark.Line);
+					const auto lines = mark.Open || mark.Hovered ? mark_span_rect(mark) : row;
+					if (row.isEmpty() || lines.top() > viewport()->height() || lines.bottom() < 0) {
 						continue;
 					}
 					painter.setPen(Qt::NoPen);
 					if (mark.Open || mark.Hovered) {
 						auto wash = mark.Writing ? palette().color(QPalette::Active, QPalette::Highlight) : ThreadMarkColor;
 						wash.setAlphaF(mark.Open ? (mark.Writing ? 0.14F : 0.18F) : 0.08F);
-						painter.fillRect(QRect{ 0, row.top(), viewport()->width(), row.height() }, wash);
+						painter.fillRect(QRect{ 0, lines.top(), viewport()->width(), lines.height() }, wash);
 					}
 					if (markers_shown()) {
 						continue;
@@ -1380,6 +1385,19 @@ namespace bpr::qt {
 			{
 				Pane->leave_add_hover();
 				QWidget::leaveEvent(aEvent);
+			}
+			/// [[BPR-PENDING-AB]]. A right-click on a line's number asks for
+			/// the pane's menu at that line, as one on its code does. The
+			/// scroll area drops a pointer's menu request that is not its
+			/// viewport's, so the numbers opened no menu.
+			void contextMenuEvent(QContextMenuEvent* const aEvent) override
+			{
+				if (Pane->contextMenuPolicy() != Qt::CustomContextMenu) {
+					QWidget::contextMenuEvent(aEvent);
+					return;
+				}
+				aEvent->accept();
+				Q_EMIT Pane->customContextMenuRequested(QPoint{ 0, Pane->viewport()->mapFrom(Pane, mapToParent(aEvent->pos())).y() });
 			}
 			auto event(QEvent* const aEvent) -> bool override
 			{
@@ -2094,7 +2112,8 @@ namespace bpr::qt {
 				if (!mark.Open) {
 					continue;
 				}
-				const auto row = line_row_rect(mark.Line);
+				// [[BPR-PENDING-AB]]. All the lines of a thread on several.
+				const auto row = mark_span_rect(mark);
 				if (row.isEmpty() || row.bottom() + header < 0 || row.top() + header > Gutter->height()) {
 					continue;
 				}

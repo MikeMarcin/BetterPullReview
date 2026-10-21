@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "a5374b908a5051dc4d18598e987761be7a30904bb2d51516c11a2b7473527d38",
+  "source_sha256": "b9fcc70c88184d8e5da38c19981cb1edbfbabe80162786cda5b15af484c92235",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -108,6 +108,7 @@
     "--line-draft": [
       "test_return_in_the_code_starts_a_draft_on_the_selection",
       "test_right_click_on_any_line_and_on_base_lines",
+      "test_a_selection_takes_a_range_comment_from_its_menu",
       "test_discuss_restore_top_right_and_whole_privacy_note",
       "test_the_review_chip_counts_the_review_and_opens_finish",
       "test_the_plus_on_a_pull_request_without_threads_opens_its_draft"

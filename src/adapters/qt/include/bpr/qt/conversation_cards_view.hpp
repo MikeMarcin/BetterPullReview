@@ -247,6 +247,15 @@ namespace bpr::qt {
 		std::vector<card_post> Posts;
 	};
 
+	/// \brief [[BPR-PENDING-AB]]. The one-based first line of a card on
+	/// several lines, or none for one line: my draft's `FirstLine`, or a
+	/// published thread's `StartLine`, when it is above the card's `Line`.
+	[[nodiscard]] inline auto thread_first_line(const thread_card& aCard) noexcept -> std::optional<std::uint32_t>
+	{
+		const auto first = aCard.Draft ? aCard.FirstLine : aCard.StartLine;
+		return aCard.Line.has_value() && first.has_value() && *first < *aCard.Line ? first : std::nullopt;
+	}
+
 	/// \brief [[BPR-1471]]. Where a closed note's meta row draws, in viewport
 	/// coordinates, from its right edge leftward. A note that is not a draft
 	/// keeps the resolved check's slot whether or not it is resolved, so the
@@ -286,7 +295,8 @@ namespace bpr::qt {
 		/// bracket in place of the amber wash.
 		bool Writing = false;
 		/// [[BPR-1212]] slice 1. My draft on several lines: its zero-based
-		/// first line, where the bracket starts.
+		/// first line, where the bracket starts. [[BPR-PENDING-AB]]: or a
+		/// published thread's, from GitHub's `start_line`.
 		std::optional<std::uint32_t> FirstLine;
 		/// The note under the pointer: its line is washed lightly.
 		bool Hovered = false;

@@ -20554,6 +20554,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_keyboard_range,
 				awaiting_range_prefilled,
 				awaiting_range_published,
+				// [[BPR-PENDING-AB]]. A dragged selection, a right-click inside
+				// it and Add comment, as a mouse delivers them to the window.
+				awaiting_mouse_range,
+				awaiting_mouse_range_opened,
+				awaiting_mouse_range_published,
 				// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
 				awaiting_base_numbering,
 				// [[BPR-1570]]. A refresh that keeps the file comes first.
@@ -20571,6 +20576,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			/// line-draft phases (`--line-draft-course`).
 			std::optional<std::uint32_t> RangeStart;
 			std::string                  Prefill;
+			/// [[BPR-PENDING-AB]]. The dragged range's first line, and whether
+			/// the drag has been made and the menu's item chosen.
+			std::optional<std::uint32_t> MouseRangeStart;
+			bool                         MouseDragged  = false;
+			std::size_t                  Waited        = 0U;
 			bool                         LineDraftOnly = false;
 			/// Whether this phase's key went to the pane; the drawer draft
 			/// may open a turn later, once the drawer shows.
@@ -31060,6 +31070,171 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& mutations.LastSide == "RIGHT" && mutations.LastLine == start + 3U && mutations.LastStartLine == start + 1U && mutations.LastStartSide == std::optional<std::string>{ "RIGHT" };
 			if (!probe.Evidence.RangePublishedExact) {
 				return fail("range-not-published-exact");
+			}
+			probe.Phase = state_type::phase::awaiting_mouse_range;
+			return result::pending;
+		}
+		// [[BPR-PENDING-AB]]. The owner's course: several right lines selected
+		// by a drag, a right-click inside the selection, and Add comment on
+		// the menu the window opens, each delivered to the window as the
+		// platform delivers it, with the event loop turning between them.
+		// The draft takes all the lines, and its Publish sends them.
+		case state_type::phase::awaiting_mouse_range: {
+			if (cards->writing_draft() && cards->draft_editor() != nullptr) {
+				paneKey(*cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+				return result::pending;
+			}
+			// The range's publication refreshes the conversations first, and the
+			// kept tab revalidates; a line chosen before that lands is replaced
+			// by the tab's remembered one ([[BPR-1713]]).
+			if (!window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value() || implementation->TabAdvanceQueued || implementation->TabLoad.has_value()
+				|| implementation->RefreshKeptTabView) {
+				return result::pending;
+			}
+			auto* const surface  = window->comparison_surface();
+			const auto& compared = surface->current_result();
+			if (!compared || !compared->RightDocument) {
+				return fail("no-comparison");
+			}
+			// Three right lines in one hunk with no thread on any, the last
+			// with text for the drag to end in.
+			if (!probe.MouseRangeStart) {
+				const auto hunks = core::github_review_hunks(compared->Alignment, core::diff_side::right);
+				for (const auto& hunk : hunks) {
+					for (auto start = hunk.Begin; start + 2U < hunk.End && !probe.MouseRangeStart; ++start) {
+						auto unthreaded = !surface->right_pane()->document()->findBlockByNumber(static_cast<int>(start + 2U)).text().isEmpty();
+						for (auto line = start; line < start + 3U && unthreaded; ++line) {
+							unthreaded = surface->select_conversation_line(core::diff_side::right, line) && window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0;
+						}
+						if (unthreaded) {
+							probe.MouseRangeStart = start;
+						}
+					}
+				}
+				if (!probe.MouseRangeStart) {
+					return fail("no-free-mouse-range");
+				}
+				// Somewhere else first, so the drag is what selects the lines.
+				static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.MouseRangeStart + 3U));
+				return result::pending;
+			}
+			const auto  start = *probe.MouseRangeStart;
+			auto* const right = surface->right_pane();
+			// A point in the window on a line's code, or at its end.
+			const auto point = [window, surface, right](const std::uint32_t aLine, const bool aEnd) {
+				const auto row    = surface->line_rect(core::diff_side::right, aLine);
+				const auto inPane = right->viewport()->mapFrom(surface, row.center());
+				return right->viewport()->mapTo(window, QPoint{ aEnd ? right->viewport()->width() - 4 : 40, inPane.y() });
+			};
+			const auto mouse = [window](const QPoint aAt, const QEvent::Type aType, const Qt::MouseButton aButton, const Qt::MouseButtons aHeld) {
+				QCursor::setPos(window->mapToGlobal(aAt));
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+					window->windowHandle(), QPointF{ aAt }, QPointF{ window->mapToGlobal(aAt) }, aHeld, aButton, aType, Qt::NoModifier);
+				QCoreApplication::processEvents();
+			};
+			if (!probe.MouseDragged) {
+				const auto from = point(start, false);
+				const auto to   = point(start + 2U, true);
+				mouse(from, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+				mouse(from, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
+				mouse((from + to) / 2, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+				mouse(to, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+				mouse(to, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+				probe.MouseDragged = true;
+				return result::pending;
+			}
+			const auto range = surface->line_draft_range();
+			note("start=" + std::to_string(start) + " range=" + (range ? std::to_string(range->first.Line) + "-" + std::to_string(range->second.Line) : std::string{ "-" })
+				 + " selected=" + (surface->selection() ? std::to_string(surface->selection()->PreferredLine.Line) : std::string{ "-" }));
+			if (!range || range->first.Line != start || range->second.Line != start + 2U) {
+				return fail("drag-did-not-select-the-lines");
+			}
+			// The right-click: the window opens its menu as a popup.
+			const auto inside = point(start + 1U, false);
+			mouse(inside, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+			mouse(inside, QEvent::MouseButtonPress, Qt::RightButton, Qt::RightButton);
+			auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+			if (menu == nullptr || menu->objectName() != QStringLiteral("codeContextMenu") || menu->windowHandle() == nullptr) {
+				return fail("right-click-opened-no-code-menu");
+			}
+			const auto corner = QPointF{ 1.0, 1.0 };
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				menu->windowHandle(), corner, QPointF{ menu->mapToGlobal(corner) }, Qt::NoButton, Qt::RightButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			const auto actions = menu->actions();
+			const auto found   = std::ranges::find_if(actions, [](const QAction* aAction) { return aAction->objectName() == QStringLiteral("addCommentAction"); });
+			const auto label   = QStringLiteral("Add comment on lines %1–%2").arg(start + 1U).arg(start + 3U);
+			note("start=" + std::to_string(start) + " item=" + (found != actions.end() ? (*found)->text().toStdString() : std::string{ "-" })
+				 + " kept=" + std::to_string(right->textCursor().hasSelection() ? 1 : 0));
+			if (found == actions.end() || !(*found)->isEnabled() || (*found)->text() != label) {
+				return fail("add-comment-not-on-the-lines");
+			}
+			// The item, clicked on the popup as a hand does.
+			const auto centre = QPointF{ menu->actionGeometry(*found).center() };
+			const auto global = QPointF{ menu->mapToGlobal(centre) };
+			QCursor::setPos(global.toPoint());
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(menu->windowHandle(), centre, global, Qt::NoButton, Qt::NoButton, QEvent::MouseMove, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(menu->windowHandle(), centre, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(menu->windowHandle(), centre, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_mouse_range_opened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_mouse_range_opened: {
+			const auto  start  = probe.MouseRangeStart.value_or(0U);
+			const auto& draft  = implementation->ReviewDraft;
+			auto* const writer = cards->writing_draft() ? cards->draft_editor() : nullptr;
+			const auto  words  = QStringLiteral("question: Do these three lines need the same guard?");
+			note("draft=" + (draft ? std::to_string(draft->Anchor.Line) + ":" + (draft->StartLine ? std::to_string(*draft->StartLine) : std::string{ "-" }) : std::string{ "-" })
+				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" })
+				 + " status=" + window->statusBar()->currentMessage().toStdString());
+			if (writer == nullptr || !draft || draft->Anchor.Line != start + 2U) {
+				return ++probe.Waited < 2'000U ? result::pending : fail("mouse-range-not-opened");
+			}
+			if (writer->toPlainText() != words) {
+				writer->setPlainText(words);
+				return result::pending;
+			}
+			if (draft->Body != words.toStdString() || !editor->publish_action()->isEnabled()) {
+				return result::pending;
+			}
+			probe.Waited                    = 0U;
+			probe.Evidence.MouseRangeOpened = draft->StartLine == std::optional<std::uint32_t>{ start } && draft->Anchor.Side == core::diff_side::right && !draft->ReplyToThread
+				&& cards->open_card() != nullptr && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U);
+			render("drawer-mouse-range");
+			if (!probe.Evidence.MouseRangeOpened) {
+				return fail("mouse-range-draft-not-on-the-lines");
+			}
+			auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+			if (publish == nullptr || !publish->isEnabled()) {
+				return fail("no-drawer-publish");
+			}
+			probe.Prefill      = words.toStdString();
+			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
+			publish->click();
+			probe.Phase = state_type::phase::awaiting_mouse_range_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_mouse_range_published: {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			const auto start     = probe.MouseRangeStart.value_or(0U);
+			note("native=" + std::to_string(mutations.NativePosts) + " line=" + std::to_string(mutations.LastLine.value_or(0U)) + " start=" + std::to_string(mutations.LastStartLine.value_or(0U)));
+			// The thread it makes, once the conversations are read again, is on
+			// all three lines, as GitHub has it.
+			const auto words  = QString::fromStdString(probe.Prefill);
+			const auto thread = std::ranges::find_if(cards->cards(), [&words](const qt::thread_card& aCard) { return !aCard.Draft && !aCard.Posts.empty() && aCard.Posts.front().Body == words; });
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || thread == cards->cards().end()) {
+				return result::pending;
+			}
+			probe.Evidence.MouseRangePublishedExact = mutations.NativePosts == probe.NativeBefore + 1U && !mutations.LastFile && mutations.LastBody == probe.Prefill && mutations.LastPath == path
+				&& mutations.LastSide == "RIGHT" && mutations.LastLine == start + 3U && mutations.LastStartLine == start + 1U && mutations.LastStartSide == std::optional<std::string>{ "RIGHT" }
+				&& thread->Line == std::optional<std::uint32_t>{ start + 3U } && qt::thread_first_line(*thread) == std::optional<std::uint32_t>{ start + 1U };
+			if (!probe.Evidence.MouseRangePublishedExact) {
+				return fail("mouse-range-not-published-exact");
 			}
 			probe.Phase = state_type::phase::awaiting_base_numbering;
 			return result::pending;

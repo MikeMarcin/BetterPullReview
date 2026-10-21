@@ -10236,9 +10236,18 @@ namespace bpr::qt {
 								   : several                    ? tr("Suggest new text for these lines: a suggestion block GitHub can apply")
 																: tr("Suggest new text for this line: a suggestion block GitHub can apply"));
 			action->setStatusTip(action->toolTip());
+			// [[BPR-PENDING-AB]]. An item that takes several lines names them,
+			// as the core decided them, so a range is seen before it is chosen.
+			auto text = action->text();
+			if (several && why.isEmpty()) {
+				const auto first = *decision->StartLine + 1U;
+				const auto last  = decision->Anchor.Line + 1U;
+				text             = decision->Anchor.Side == core::diff_side::left ? tr("%1 on base lines %2–%3").arg(text).arg(first).arg(last)
+																				  : tr("%1 on lines %2–%3").arg(text).arg(first).arg(last);
+			}
 			// The menu's item shows the code's key; it is the menu's own, so
 			// no window shortcut ever claims Return.
-			auto* const item = new QAction{ action->icon(), action->text(), menu };
+			auto* const item = new QAction{ action->icon(), text, menu };
 			item->setObjectName(action->objectName());
 			item->setShortcuts(shortcut_keys(action == AddCommentAction ? shortcut_command::add_comment : shortcut_command::suggest_change));
 			item->setShortcutContext(Qt::WidgetShortcut);
