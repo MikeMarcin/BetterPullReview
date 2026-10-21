@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1680",
+    "BPR-1681"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "GHE home refresh slowness; diagnostic export reruns stale refresh",
+  "created": "2026-10-21T07:00:03.026122+00:00",
+  "base": "2dfdb40ec8d9ab7209d342ca162f8848c8deba9f"
+}

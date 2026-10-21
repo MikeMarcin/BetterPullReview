@@ -1,13 +1,13 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-B2"
+id: "BPR-1681"
 title: "Closing the diagnostic export re-runs a Home refresh that just ended"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner report, 2026-10-20: exporting a diagnostic log after Home finishes a refresh causes another Home refresh (GHE environment)","provisional_id":"Allocate on main at landing and rename this card and its [[BPR-PENDING-B2]] references","related_cards":["BPR-PENDING-B1","BPR-0990","BPR-1679"]}
+metadata: {"origin":"Owner report, 2026-10-20: exporting a diagnostic log after Home finishes a refresh causes another Home refresh (GHE environment)","reservation":"docs/issues/_reservations/BPR-1680--BPR-1681--3313b46dcf00.json","related_cards":["BPR-1680","BPR-0990","BPR-1679"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"this card's commit on df2244530","evidence":{"kind":"command","detail":"application_review_queue_enrollment's new test_activation_after_a_refresh_that_ended_with_a_failure: a refresh with one unreadable repository ends stale; activation inside five minutes reads nothing; after five minutes it refreshes, retained metadata first; a refresh a network failure stopped is retried on the next activation. With activate() measuring from LastSuccess again the test fails on 'activation inside the freshness window of that ended refresh reads nothing'; with the fix it passes."}},{"criterion":"AC2","outcome":"pass","revision":"this card's commit on df2244530","evidence":{"kind":"command","detail":"application_personal_discovery_public_path's new export course (real composition, offscreen): the restarted session's first refresh ends stale with three refused repositories; the window's Export anonymized diagnostics action opens diagnosticExportDialog, which takes the window's activation; rejecting it and reactivating the window ran refresh 3 and four more reads before the fix (export refreshes=2:3 submitted=24:28, on 15bb7f8a4) and none after. Passes again rebased onto df2244530 with BPR-1679's yield."}},{"criterion":"AC3","outcome":"pass","revision":"this card's commit on df2244530","evidence":{"kind":"command","detail":"On df2244530: application_review_queue_enrollment, application_personal_discovery_public_path, application_personal_discovery_cli_public_path, application_home_waiting_public_path, application_home_waiting_cli_public_path, application_home_open_feedback_public_path and architecture_boundaries pass; format_check and clang-tidy (LLVM 22, warnings as errors) on the touched sources pass; the documentation gate passes with the provisional IDs replaced by allocated-form IDs."}}]
 ---
 
@@ -37,7 +37,7 @@ usually persistent, so the retry fails the same way and the cycle repeats on
 the next activation.
 
 The anonymized export cannot show which repository or pull request failed:
-personal discovery records no diagnostic events (see [[BPR-PENDING-B1]]). The
+personal discovery records no diagnostic events (see [[BPR-1680]]). The
 mechanism was reproduced through the real composition (AC2). A refresh that
 ends `current` or `partial` does not re-run on activation for five minutes, so
 if the owner still sees the export start a refresh after a refresh that ended

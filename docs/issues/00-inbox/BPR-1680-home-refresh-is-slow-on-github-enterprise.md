@@ -1,13 +1,13 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-B1"
+id: "BPR-1680"
 title: "Home refresh is slow on GitHub Enterprise"
 status: "Inbox"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"Owner report, 2026-10-20: Home takes a long time to refresh on a GHE environment; anonymized diagnostic export supplied out of band (not committed)","provisional_id":"Allocate on main at landing and rename this card and its [[BPR-PENDING-B1]] references","related_cards":["BPR-PENDING-B2","BPR-1679","BPR-0988","BPR-0989","BPR-0990","BPR-1370","BPR-1379","BPR-1436"],"needs":"owner decision on which option to take; each is a design change"}
+metadata: {"origin":"Owner report, 2026-10-20: Home takes a long time to refresh on a GHE environment; anonymized diagnostic export supplied out of band (not committed)","reservation":"docs/issues/_reservations/BPR-1680--BPR-1681--3313b46dcf00.json","related_cards":["BPR-1681","BPR-1679","BPR-0988","BPR-0989","BPR-0990","BPR-1370","BPR-1379","BPR-1436"],"needs":"owner decision on which option to take; each is a design change"}
 ---
 
 # Home refresh is slow on GitHub Enterprise
@@ -16,7 +16,7 @@ The owner reports that Home takes a long time to refresh against their GitHub
 Enterprise server. This card records what the diagnostic export shows, what the
 code does per refresh, and the options. No speed-up shipped with it: each
 option below changes a design decision. The related defect, an export that
-re-ran a stale refresh, is [[BPR-PENDING-B2]].
+re-ran a stale refresh, is [[BPR-1681]].
 
 ## What the export shows
 

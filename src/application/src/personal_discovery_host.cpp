@@ -190,7 +190,7 @@ namespace bpr::application {
 			if (Closing || !Session || CycleRunning) {
 				return;
 			}
-			// [[BPR-PENDING-B2]]. Freshness is measured from the last refresh
+			// [[BPR-1681]]. Freshness is measured from the last refresh
 			// that ran to its end, not only the last success: one that ended
 			// with an unreadable repository or pull request would fail the
 			// same way again, so every return to the window (closing the

@@ -117,7 +117,7 @@ namespace bpr::application {
 		/// \brief Refreshes when the last refresh that ran to its end is older
 		/// than the freshness window and no rate limit holds discovery off.
 		///
-		/// \details [[BPR-PENDING-B2]]. A refresh that ended with an unreadable
+		/// \details [[BPR-1681]]. A refresh that ended with an unreadable
 		/// repository or pull request counts: its failure is the same on the
 		/// next activation. A refresh a session-wide failure (offline,
 		/// authentication, rate limit) stopped does not, so activation retries it.

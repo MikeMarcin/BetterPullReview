@@ -203,7 +203,7 @@ try {
 	const auto draftStatus                           = std::make_shared<std::atomic<bool>>(true);
 	authoredRow->Draft                               = draftStatus;
 
-	// [[BPR-PENDING-B2]]. Set before the restart below.
+	// [[BPR-1681]]. Set before the restart below.
 	const auto otherRepositoriesRefused                 = std::make_shared<std::atomic<bool>>(false);
 	options.PersonalDiscovery->OtherRepositoriesRefused = otherRepositoriesRefused;
 
@@ -957,7 +957,7 @@ try {
 	expect(queue_item(*windowA, 17)->Facts.Draft == true, "queue agrees with accepted Recent draft before restart");
 	windowA->home_group_action(application::home_grouping::repository)->trigger();
 	QApplication::processEvents();
-	// [[BPR-PENDING-B2]]. The restarted session's first refresh finds the
+	// [[BPR-1681]]. The restarted session's first refresh finds the
 	// three saved repositories besides the fixture's own unreadable.
 	otherRepositoriesRefused->store(true);
 	owner->begin_shutdown();
@@ -998,7 +998,7 @@ try {
 	expect(windowA->home_view().Grouping == application::home_grouping::repository && windowA->home_list()->grouping() == application::home_grouping::repository
 			   && windowA->home_list()->group_panel(QStringLiteral("octo-org/review-repository")) != nullptr,
 		   "repository grouping survives restart and rebuilt queue rows");
-	// [[BPR-PENDING-B2]]. The diagnostic export's dialog takes the window's
+	// [[BPR-1681]]. The diagnostic export's dialog takes the window's
 	// activation and closing it gives it back. A refresh that has just ended,
 	// though with unreadable repositories, is not run again for that.
 	{

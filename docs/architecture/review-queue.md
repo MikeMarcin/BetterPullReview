@@ -272,7 +272,7 @@ refresh, or for a repository no longer saved, is dropped. The queue checks the
 session again when it applies an answer.
 
 Activation measures freshness from the last refresh that ran to its end,
-not only from the last success ([[BPR-PENDING-B2]]). A refresh that ended
+not only from the last success ([[BPR-1681]]). A refresh that ended
 with an unreadable repository or pull request would fail the same way again,
 so every return to the window (closing the diagnostic export's dialog, say)
 re-ran the whole refresh; on a slow server that is minutes of reads. A refresh

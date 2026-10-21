@@ -188,7 +188,7 @@ namespace bpr::app::detail {
 			std::shared_ptr<std::atomic<bool>> RequiredReviewPresent, CheckFailed;
 		};
 		std::vector<pull_request> OpenPullRequests;
-		/// [[BPR-PENDING-B2]]. While set, a personal search of any saved
+		/// [[BPR-1681]]. While set, a personal search of any saved
 		/// repository other than the fixture's own is refused as unreadable
 		/// (a repository-scoped failure), so a refresh ends stale.
 		std::shared_ptr<std::atomic<bool>> OtherRepositoriesRefused;

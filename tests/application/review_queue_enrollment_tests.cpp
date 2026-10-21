@@ -2452,7 +2452,7 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
-	// [[BPR-PENDING-B2]]. A refresh that ran to its end is fresh for activation
+	// [[BPR-1681]]. A refresh that ran to its end is fresh for activation
 	// even when one repository or pull request failed: coming back to Home (or
 	// to the window after the diagnostic export's dialog) does not run the whole
 	// refresh again. A refresh a session-wide failure stopped is retried.
