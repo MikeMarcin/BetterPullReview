@@ -25,7 +25,7 @@ Both anonymized and identifying exports use that chooser. The
 pass the chosen path to the existing local-output admission and write path.
 [Current chooser tests](../../../../../tests/adapters_qt/release_maintenance_panel_tests.cpp)
 check opening, cancellation and stale-preview dismissal, but not the starting
-directory. [The operator guide](../../../../development/storage-and-diagnostics.md#preview-and-export-diagnostics)
+directory. [The operator guide](../../../../development/storage-and-diagnostics.md#diagnostics)
 requires a new local filename and preserves the exact frozen preview.
 
 ## Proposed behavior and boundaries

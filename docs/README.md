@@ -47,7 +47,6 @@ Engineering references behind the user guides:
 
 - [Settings authority inventory](development/settings-authority-inventory.md)
 - [Profile and window authority inventory](development/profile-window-authority-inventory.md)
-- [Storage and diagnostics reference](development/storage-reference.md)
 - [Application updates: release operator gate](development/application-updates-release-gate.md)
 
 ## Architecture and records

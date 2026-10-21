@@ -698,3 +698,231 @@ loopback listener, connected socket and child process. On remote stations, run
 it under the station lease and qualification guard in a disposable root. A
 passing WSL probe records only the operations it observed; it does not qualify a
 clean Ubuntu desktop, Secret Service or the delivered installer.
+
+## Recipient package reference
+
+Detail moved from the recipient guide,
+[Install and verify BetterPullReview packages](release-packages.md), for
+auditors and redistributors who need it.
+
+### Other platforms and signature cases
+
+- An RPM for RHEL 10 (`linux-rhel-10-x64`) can be built but is not part of the
+  selected release set. Check it with `rpmkeys --checksig /absolute/candidate.rpm`,
+  which needs the signing key installed separately.
+- Linux packages run on X11 through `qxcb`; on Wayland they use XWayland. Native Wayland is not included or supported.
+- An unsigned MSI has no signature to check. Checking a hash installs nothing.
+- Older Linux source assets used the platform names `linux-ubuntu-24.04-x64`
+  or `linux-x64`; the optional RPM's source asset uses `linux-rhel-10-x64`.
+
+### Installed package contents
+
+- **Helpers.** The MCP context helper and `better_pull_review_agent_supervisor`
+  sit beside the main executable. On macOS the bundle also has
+  `bpr_update_helper`. The supervisor ships in every package, including the
+  agent-free variants, because guarded Git launches run inside it. It contains
+  no agent protocol, provider knowledge or credentials.
+- **Plugins.** The app loads Qt plugins only from its own installation. It
+  ignores plugin-path environment overrides, refuses command-line options that
+  load arbitrary plugins, and never falls back to a developer Qt installation.
+- **Windows resources.** The app icon, diff strips and syntax definitions ship
+  as `better_pull_review.rcc` beside the executable. The app checks that this
+  file is exactly the one it was built with. If it is not, the app does not
+  start and prints `INSTALLED_RESOURCES_REFUSED:better_pull_review.rcc:`
+  followed by `missing`, `unreadable`, `digest-mismatch` or
+  `not-a-resource-file`.
+- **Windows file properties.** The application and both helpers name the
+  vendor, product, description, version and original file name. These
+  properties are not a signature. Debug symbol files are not installed.
+- **Windows MSI.** The installer remembers the folder chosen, so repair and
+  uninstall find it.
+- **Ubuntu DEB.** The desktop entry is accompanied by a scalable icon in the
+  `hicolor` theme.
+
+### Bundled components and notices
+
+The full component list: Qt (QtBase, QtSvg and QtImageFormats), SQLite,
+KSyntaxHighlighting with its syntax and theme data, Quill, fmt, Glaze, zlib,
+utf8proc, sha1collisiondetection, HACL*'s SHA-2, rapidfuzz-cpp, dtl, RE2 with
+Abseil, Git's xdiff, the JetBrains Mono NL font (SIL OFL 1.1), LibArchive on
+macOS and ICU 73.2 on Linux.
+
+`THIRD-PARTY-NOTICES.txt` includes the full syntax and theme attributions, the
+font's licence and authors, ICU's mixed third-party text and the full
+LGPL-2.1. Provenance records cover the source and the Qt build used. Syntax and
+theme data are not relabelled MIT because the highlighting engine is MIT.
+
+The source archive holds the pinned upstream archives, including Qt's, with
+BetterPullReview's build inputs. On Linux it also carries the ICU source with a
+standalone rebuild recipe; start at
+`ICU-73.2-build/third_party/icu/rebuild/README.md`. The installed notices give
+its exact location as `releases/download/vVERSION/ASSET`.
+
+Source access obligations in full:
+
+- The GitHub release holds binaries and source under the same access rules,
+  whether the repository is private or public.
+- If the repository's access changes or the download URL stops working, the
+  distributor must supply the source archive through the channel that
+  delivered the binaries.
+- Retention lasts until the accountable distributor documents that every
+  source-offer and licence obligation has ended.
+- Package checks cannot prove future access or retention; the distributor has
+  to arrange and maintain both.
+
+### Replacing Qt or xdiff
+
+- **Qt:** replace the libraries with ABI-compatible modified builds.
+- **xdiff:** BetterPullReview's line matcher is Git 2.56.0's xdiff, shipped as
+  its own shared library. You may replace it with a modified build that
+  exports the same C interface (`xdiff/xdiff.h` of Git 2.56.0). It is:
+
+  | Platform | File |
+  |---|---|
+  | macOS | `Contents/Frameworks/libbpr_xdiff.dylib` |
+  | Windows | `bpr_xdiff.dll` beside `better_pull_review.exe` |
+  | Linux | `libbpr_xdiff.so` beside the application in `lib/betterpullreview` |
+
+  Its files are LGPL-2.1-or-later, except `xhistogram.c`, which comes from
+  JGit under the Eclipse Distribution License 1.0 (SPDX `BSD-3-Clause`).
+
+  To rebuild it, start at
+  `git-xdiff-2.56.0-build/third_party/git-xdiff/rebuild/README.md` in the
+  source archive. Verify and extract the supplied Git archive, then configure
+  the standalone CMake project with the absolute path of the extracted source.
+  It compiles the same seven C11 sources into the replaceable library using
+  only the included compatibility headers and hardening helper. No
+  BetterPullReview checkout, shared cache or network access is needed, and you
+  may modify the extracted source before you build. The README covers each
+  platform's architecture, output and import-library names, and resealing.
+
+Replacing a library gives that copy no update trust.
+
+### Agent-free variants: further detail
+
+- Installing one variant over another keeps profiles, cycles, rounds,
+  suggestions, responses, verification records, private history and
+  credentials, and an agent-free build opens them. No agent profile is offered.
+- Package identity shared across variants: the macOS bundle identifier, the
+  Linux package name and the Windows upgrade code.
+- A disposable agent workspace left by a full install is still cleaned up.
+- The `bpr` command-line tool is not a release package. If you installed it
+  from a build with CMake, uninstall it by deleting the files listed in
+  `build/tour-cli/install_manifest_TourCLI.txt`. The desktop app is unaffected.
+
+### Removal detail
+
+The profile purge retires that profile first, and cancelling does not restart
+it. It does not touch shared updater and registry state. Reconcile any
+publication in progress before purging.
+
+### Signature checks
+
+Get the package, its checksum file, the SPDX inventory, the corresponding-source
+archive with its checksum, and the publisher's identity through a trusted
+channel. A checksum that came from an untrusted source proves nothing about
+who made the file. On Windows, hash the source archive and the SPDX file too.
+
+**macOS**
+
+```sh
+codesign --verify --deep --strict --verbose=2 /absolute/BetterPullReview.app
+codesign -d --verbose=4 /absolute/BetterPullReview.app
+xcrun stapler validate /absolute/BetterPullReview.app
+spctl --assess --type execute --verbose=4 /absolute/BetterPullReview.app
+spctl --assess --type open --context context:primary-signature --verbose=4 /absolute/candidate.dmg
+```
+
+- The first command must pass.
+- The `codesign -d` output must show bundle identifier
+  `com.gamecoretech.betterpullreview`, team `YTQKP2V2A8` and the hardened
+  runtime.
+- The staple validation and both `spctl` assessments must pass. Validate the
+  DMG's staple as well as the app's.
+
+**Windows**
+
+Check each signed executable and DLL you received with `signtool verify` as
+well as the MSI. A zero exit code is not enough: compare the signer,
+certificate chain and timestamp with the expected publisher.
+
+**Linux**
+
+Use the publisher's signing key, identified by its full fingerprint, for a DEB
+or per-user archive delivered with a detached `.asc` signature. If you install
+from a corporate repository, that repository's signed metadata and package
+digest take the place of these checks, under its own policy.
+
+An ad-hoc `codesign` signature only proves the local seal; it is not a
+Developer ID signature or notarization.
+
+### Install detail
+
+- Install for your own account unless you need a managed system-wide install.
+- **Windows:** if you run `msiexec` from a command line, give it native
+  backslash paths. Paths with forward slashes are refused before installation.
+  If `better_pull_review.rcc` is missing or altered the app refuses to start
+  (see [Installed package contents](#installed-package-contents)); reinstall to
+  fix it.
+- **Ubuntu DEB:** needs administrator rights and installs into `/usr`: the
+  `better_pull_review` launcher, a desktop entry and icon, and the private
+  runtime under `/usr/lib/betterpullreview`. The package declares the system
+  libraries it needs, so the package manager installs them.
+- **Ubuntu per-user archive:** the archive does not install system libraries.
+  Unpack it into its own versioned folder under your local application
+  directory. Do not set global Qt or library search paths for it.
+- **Windows runtime ZIP:** `*-windows-x64-runtime.zip` beside the MSI is an
+  inventory for auditing, not a portable installation.
+- **macOS:** v0.3.0 packages require macOS 13 or later; packages built with Qt
+  6.12 require macOS 14.4 or later.
+
+### System requirements detail
+
+| Requirement | Detail |
+|---|---|
+| GitHub CLI (optional) | Select it in Settings after installing it yourself. |
+| AI agents (optional) | Installed separately and selected explicitly. |
+| Linux system libraries | libstdc++/libgcc, OpenSSL, X11/XCB, libsecret and other OS libraries come from the system, not the package. |
+| Linux C library | The package requires no glibc symbol version newer than 2.43. |
+
+Qt's libraries and plugins are bundled privately on every platform. On Linux
+the package also carries its own build of ICU 73.2.
+
+### Update detail
+
+**Check for Updates…** asks before it installs anything. Ad-hoc signed builds
+are not eligible. Windows, Linux and managed installations update by installing
+the new package.
+
+### Licence and removal detail
+
+- `SOURCE-OFFERS.txt` says where to get the corresponding source and how to
+  replace the LGPL libraries.
+- Where the SPDX inventory says `NOASSERTION`, no single licence has been
+  concluded; it is not a waiver.
+- On Windows the distributor must also supply Microsoft's applicable runtime
+  redistribution notice.
+- Source PLATFORM names are `macos-universal`, `windows-x64` and
+  `linux-ubuntu-26.04-x64`. The source is not embedded in the app, installer
+  or archive; the installed notices give its download location and SHA-256.
+- Keep the archive, its digest and the version tag unchanged for as long as any
+  matching binary is distributed, and for every retention period that applies
+  afterwards.
+- On macOS a modified copy has to be resealed locally after replacing Qt or
+  xdiff, and is no longer eligible for **Check for Updates…**.
+- Uninstalling also leaves desktop registration and update-recovery records;
+  reviews already published to GitHub are unaffected. Before purging, finish
+  or reconcile any publication or update in progress and sign out of each
+  account. To remove the program afterwards, quit the app, then delete it from
+  Applications (macOS), uninstall it from **Installed apps** or uninstall the
+  MSI (Windows), or remove the DEB or per-user folder (Linux).
+
+### Agent-free variant contents
+
+| Package name ends in | Removed | Still works |
+|---|---|---|
+| `-agent-free` | Agent launching, side chat, the finding queue, the comment workshop, tour writing assistance, the private **Ask agent**, agent-assisted composition, **Send to Agent**, the MCP context helper and the **Agents & context** settings page. | Review, Review Cycles, notes and suggestions, **Copy**, **Save** and the bundle, capture, comparisons, responses, verification, publication, private notes and history, and every stored record, including ones an agent wrote earlier. |
+| `-agent-free-automation-off` | All of the above, plus the local command endpoint that `bpr` talks to. | Everything above, single-instance activation, and tour routing inside the app. |
+
+The code is removed from the build, not just hidden. Replacing one variant with
+another on Windows and Linux has not yet been qualified natively.

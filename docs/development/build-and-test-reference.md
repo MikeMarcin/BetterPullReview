@@ -3340,7 +3340,7 @@ request URLs and source/review bodies are excluded. Local prose can still name
 contextual service information. The legacy metadata export omits that prose;
 the rich preview retains only reclassified closed explanations. Typed request/window identity privacy now follows the independent capture
 choice; older retained records are not rewritten. See the
-[diagnostic controls guide](storage-and-diagnostics.md#diagnostic-controls) for
+[diagnostic controls guide](storage-and-diagnostics.md#diagnostics) for
 persisted settings, barriers, bounded context and visible failures.
 
 Epoch preparation also records fixed `epoch_stage`, `failure_domain`, `failure`
