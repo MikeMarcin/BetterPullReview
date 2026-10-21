@@ -112,6 +112,7 @@
 #include <QStatusBar>
 #include <QStringList>
 #include <QStyle>
+#include <QStyleOption>
 #include <QTabBar>
 #include <QTextBlock>
 #include <QTextDocument>
@@ -143,23 +144,131 @@ namespace bpr::qt {
 	} // namespace
 
 	namespace {
-		/// \brief [[BPR-1592]]. The tray's tabs: a tab that is its icon alone
-		/// is as narrow as its icon, so the provisional Agent tab leaves the
-		/// Comments tools their place on the row.
+		/// \brief [[BPR-1592]] [[BPR-PENDING-G]]. The tray's tabs, each as wide
+		/// as what it shows.
+		///
+		/// \details A tab is the style's own text tab for its name, plus its
+		/// glyph and a gap when it shows one, plus its count when the count is
+		/// showing. The style draws each tab's shape and its name; the bar
+		/// places them, the glyph and the name as one group centred in the
+		/// tab, or ending a gap before the count. Left to the style, the macOS
+		/// style centres a tab's name and keeps its icon's width free on both
+		/// sides, which made the Agent tab about 30 pixels wider than its spark
+		/// and its name; the styles also kept room for the Comments count while
+		/// it was hidden, and set a glyph-only tab's glyph off centre.
 		class tray_tab_bar final : public QTabBar
 		{
 		public:
 			using QTabBar::QTabBar;
 
+			/// \brief The width tab `aIndex` takes showing `aText` and, when
+			/// `aGlyph`, its glyph; its count is counted while it is showing.
+			[[nodiscard]] auto face_width(const int aIndex, const QString& aText, const bool aGlyph) const -> int
+			{
+				auto option = QStyleOptionTab{ };
+				initStyleOption(&option, aIndex);
+				option.text            = aText;
+				option.icon            = QIcon{ };
+				option.leftButtonSize  = QSize{ };
+				option.rightButtonSize = QSize{ };
+				const auto metrics     = fontMetrics();
+				const auto text        = metrics.size(Qt::TextShowMnemonic, aText);
+				const auto contents    = QSize{ text.width() + style()->pixelMetric(QStyle::PM_TabBarTabHSpace, &option, this),
+												std::max(metrics.height(), iconSize().height()) + style()->pixelMetric(QStyle::PM_TabBarTabVSpace, &option, this) };
+				auto       width       = style()->sizeFromContents(QStyle::CT_TabBarTab, &option, contents, this).width();
+				if (aGlyph) {
+					width += iconSize().width() + (aText.isEmpty() ? 0 : glyph_gap);
+				}
+				if (const auto* const count = tabButton(aIndex, QTabBar::RightSide); count != nullptr && !count->isHidden()) {
+					width += glyph_gap + count->sizeHint().width();
+				}
+				return width;
+			}
+
 		protected:
 			[[nodiscard]] auto tabSizeHint(const int aIndex) const -> QSize override
 			{
 				auto size = QTabBar::tabSizeHint(aIndex);
-				if (tabText(aIndex).isEmpty() && !tabIcon(aIndex).isNull()) {
-					size.setWidth(iconSize().width() + 20);
-				}
+				size.setWidth(face_width(aIndex, tabText(aIndex), !tabIcon(aIndex).isNull()));
 				return size;
 			}
+
+			/// A tab never elides: the window chooses a face that fits.
+			[[nodiscard]] auto minimumTabSizeHint(const int aIndex) const -> QSize override
+			{
+				return tabSizeHint(aIndex);
+			}
+
+			/// \brief QTabBar's own painting (its base, then each tab with the
+			/// open one last) with each label placed by the bar.
+			void paintEvent(QPaintEvent* const aEvent) override
+			{
+				static_cast<void>(aEvent);
+				auto painter = QPainter{ this };
+				auto base    = QStyleOptionTabBarBase{ };
+				base.initFrom(this);
+				base.shape        = shape();
+				base.documentMode = documentMode();
+				auto overlap      = QStyleOptionTab{ };
+				overlap.shape     = shape();
+				if (const auto lap = style()->pixelMetric(QStyle::PM_TabBarBaseOverlap, &overlap, this); lap > 0) {
+					base.rect = QRect{ 0, height() - lap, width(), lap };
+				}
+				for (auto index = 0; index < count(); ++index) {
+					base.tabBarRect |= tabRect(index);
+				}
+				base.selectedTabRect = tabRect(currentIndex());
+				if (drawBase()) {
+					style()->drawPrimitive(QStyle::PE_FrameTabBarBase, &base, &painter, this);
+				}
+				for (auto index = 0; index < count(); ++index) {
+					if (index != currentIndex()) {
+						paint_tab(painter, index);
+					}
+				}
+				if (currentIndex() >= 0) {
+					paint_tab(painter, currentIndex());
+				}
+			}
+
+		private:
+			void paint_tab(QPainter& aPainter, const int aIndex) const
+			{
+				auto option = QStyleOptionTab{ };
+				initStyleOption(&option, aIndex);
+				if (!(option.state & QStyle::State_Enabled)) {
+					option.palette.setCurrentColorGroup(QPalette::Disabled);
+				}
+				style()->drawControl(QStyle::CE_TabBarTabShape, &option, &aPainter, this);
+				// The name, whole, drawn by the style as a plain text tab whose
+				// centre is the name's place in the group.
+				const auto text       = tabText(aIndex);
+				const auto glyph      = !option.icon.isNull();
+				auto       label      = option;
+				label.text            = text;
+				label.icon            = QIcon{ };
+				label.leftButtonSize  = QSize{ };
+				label.rightButtonSize = QSize{ };
+				const auto textWidth  = text.isEmpty() ? 0 : fontMetrics().size(Qt::TextShowMnemonic, text).width();
+				const auto group      = (glyph ? iconSize().width() + (text.isEmpty() ? 0 : glyph_gap) : 0) + textWidth;
+				auto       left       = option.rect.left() + (option.rect.width() - group) / 2;
+				if (const auto* const count = tabButton(aIndex, QTabBar::RightSide); count != nullptr && !count->isHidden()) {
+					left = count->geometry().left() - glyph_gap - group;
+				}
+				const auto textLeft = left + group - textWidth;
+				label.rect.translate(textLeft + textWidth / 2 - option.rect.center().x(), 0);
+				style()->drawControl(QStyle::CE_TabBarTabLabel, &label, &aPainter, this);
+				if (glyph) {
+					const auto middle = style()->subElementRect(QStyle::SE_TabBarTabText, &label, this).center().y();
+					const auto place  = QRect{ QPoint{ left, middle - iconSize().height() / 2 }, iconSize() };
+					option.icon.paint(&aPainter, place, Qt::AlignCenter, (option.state & QStyle::State_Enabled) ? QIcon::Normal : QIcon::Disabled,
+									  (option.state & QStyle::State_Selected) ? QIcon::On : QIcon::Off);
+				}
+			}
+
+			/// The gap QTabBar and the styles leave between a glyph, a name
+			/// and a tab button.
+			static constexpr int glyph_gap = 4;
 		};
 
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
@@ -3046,22 +3155,22 @@ namespace bpr::qt {
 		TrayTabs->setAccessibleDescription(QStringLiteral(
 			"Comments, Notes and Tour. Notes and tour preparation are private until explicitly published."));
 		configure_drawer_tabs(*TrayTabs);
+		// [[BPR-1594]]. The Agent keeps its spark beside its name.
+		// [[BPR-PENDING-G]]: fit_tray_tabs gives each tab its face, glyph
+		// and tooltip for the width the row has.
 		TrayTabs->addTab(tr("Comments"));
 		TrayTabs->addTab(tr("Notes"));
 		TrayTabs->addTab(tr("Tour"));
-		// [[BPR-1592]]. Provisional until [[BPR-1594]]: its spark alone, so
-		// four tabs and the Comments tools share one row.
 		TrayTabs->addTab(drawer_icon(drawer_glyph::agent, palette()), tr("Agent"));
-		TrayTabs->setAccessibleTabName(3, tr("Agent"));
-		TrayTabs->setAccessibleTabName(2, tr("Tour"));
-		TrayTabs->setAccessibleTabName(1, tr("Notes"));
-		TrayTabs->setTabToolTip(0, tr("The pull request's threads, with their scope and filters"));
-		TrayTabs->setTabToolTip(1, tr("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft."));
-		TrayTabs->setTabToolTip(3, tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."));
+		TrayTabs->setAccessibleTabName(tray_comments_tab, tr("Comments"));
+		TrayTabs->setAccessibleTabName(tray_notes_tab, tr("Notes"));
+		TrayTabs->setAccessibleTabName(tray_tour_tab, tr("Tour"));
+		TrayTabs->setAccessibleTabName(tray_findings_tab, tr("Agent"));
+		// [[BPR-PENDING-G]]. The count is the tab's button only while it
+		// shows, so a tab without new comments keeps no room for it.
 		TrayCommentsCount = new drawer_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
 		TrayCommentsCount->hide();
-		TrayTabs->setTabButton(0, QTabBar::RightSide, TrayCommentsCount);
 		TrayPages = new QStackedWidget{ conversationShell };
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
@@ -3132,10 +3241,11 @@ namespace bpr::qt {
 		trayToolsRow->addWidget(NotesTools);
 		trayToolsRow->addWidget(TourTools);
 		trayHeader->set_parts(TrayTabs, trayTools);
-		// [[BPR-1592]]. RFC-BPR-0085 D5: below 340 pixels the tray's tabs show
-		// their icons only, so four tabs never scroll.
+		// [[BPR-1592]] [[BPR-PENDING-G]]. RFC-BPR-0085 D5: where the names do
+		// not fit the tabs go compact, so four tabs never scroll.
 		trayHeader->installEventFilter(this);
 		TrayHeader = trayHeader;
+		fit_tray_tabs(true);
 		conversationShellLayout->addWidget(trayHeader);
 		conversationShellLayout->addWidget(TrayPages, 1);
 		AiToolsAction = new QAction{ tr("Agent"), this };
@@ -3145,6 +3255,8 @@ namespace bpr::qt {
 			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."));
 		connect(TrayTabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
 			TrayPages->setCurrentIndex(aIndex);
+			// [[BPR-PENDING-G]]. A compact row names the open tab.
+			fit_tray_tabs();
 			CommentsTools->setVisible(aIndex == tray_comments_tab);
 			NotesTools->setVisible(aIndex == tray_notes_tab);
 			TourTools->setVisible(aIndex == tray_tour_tab);
@@ -8041,19 +8153,75 @@ namespace bpr::qt {
 
 	void workbench_window::fit_tray_tabs(const bool aRepaint)
 	{
-		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() < 3) {
+		constexpr auto tabCount = 4;
+		if (TrayTabs == nullptr || TrayHeader == nullptr || TrayTabs->count() != tabCount) {
 			return;
 		}
-		const auto narrow = TrayHeader->width() > 0 && TrayHeader->width() < 340;
+		auto* const tabs = static_cast<tray_tab_bar*>(TrayTabs);
 		// [[BPR-1594]]. Four tabs; the Agent keeps its spark beside its name.
 		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
-		const QIcon   icons[] = { conversation_icon(conversation_glyph::comment, palette()), conversation_icon(conversation_glyph::lock, palette()), drawer_icon(drawer_glyph::tour, palette()),
-								  drawer_icon(drawer_glyph::agent, palette()) };
-		for (auto index = 0; index < std::min(4, TrayTabs->count()); ++index) {
-			const auto text = narrow ? QString{ } : names[index];
-			if (aRepaint || TrayTabs->tabText(index) != text) {
-				TrayTabs->setTabText(index, text);
-				TrayTabs->setTabIcon(index, narrow || index == 3 ? icons[index] : QIcon{ });
+		const QString about[] = {
+			tr("The pull request's threads, with their scope and filters"),
+			tr("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft."),
+			tr("Your review tour, stop by stop. Nothing in it is published until you publish the tour."),
+			tr("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it."),
+		};
+		// [[BPR-PENDING-G]]. The faces, widest first: every name; the open
+		// tab's glyph and name with the others' glyphs; glyphs only. The row
+		// takes the first that fits the header, whose tools move to their own
+		// row before any name goes.
+		enum class face : std::uint8_t { names,
+										 open_named,
+										 glyphs };
+		const auto current = tabs->currentIndex();
+		const auto textOf  = [&names, current](const face aFace, const int aIndex) {
+			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? names[aIndex] : QString{ };
+		};
+		const auto glyphOf = [](const face aFace, const int aIndex) { return aFace != face::names || aIndex == tray_findings_tab; };
+		// The room is what the header's grid gives the tabs alone on their
+		// row: its width less its left margin and the spacing of its columns.
+		auto room = TrayHeader->width();
+		if (const auto* const grid = qobject_cast<const QGridLayout*>(TrayHeader->layout()); grid != nullptr && room > 0) {
+			room -= grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing());
+		}
+		auto chosen = face::names;
+		if (room > 0) {
+			for (const auto candidate : { face::names, face::open_named, face::glyphs }) {
+				chosen     = candidate;
+				auto width = 0;
+				for (auto index = 0; index < tabCount; ++index) {
+					width += tabs->face_width(index, textOf(candidate, index), glyphOf(candidate, index));
+				}
+				if (width <= room) {
+					break;
+				}
+			}
+		}
+		const auto glyph = [this](const int aIndex) {
+			switch (aIndex) {
+			case tray_comments_tab:
+				return conversation_icon(conversation_glyph::comment, palette());
+			case tray_notes_tab:
+				return drawer_icon(drawer_glyph::page, palette());
+			case tray_tour_tab:
+				return drawer_icon(drawer_glyph::tour, palette());
+			default:
+				return drawer_icon(drawer_glyph::agent, palette());
+			}
+		};
+		for (auto index = 0; index < tabCount; ++index) {
+			const auto text  = textOf(chosen, index);
+			const auto shown = glyphOf(chosen, index);
+			if (aRepaint || tabs->tabIcon(index).isNull() == shown) {
+				tabs->setTabIcon(index, shown ? glyph(index) : QIcon{ });
+			}
+			if (tabs->tabText(index) != text) {
+				tabs->setTabText(index, text);
+			}
+			// A tab showing only its glyph says its name first.
+			const auto tip = text.isEmpty() ? QStringLiteral("%1\n%2").arg(tabs->accessibleTabName(index), about[index]) : about[index];
+			if (tabs->tabToolTip(index) != tip) {
+				tabs->setTabToolTip(index, tip);
 			}
 		}
 	}
@@ -8726,11 +8894,19 @@ namespace bpr::qt {
 		// [[BPR-1511]]. The file-context badges count this file; navigation
 		// continues to walk unread threads across the pull request.
 		if (TrayTabs != nullptr && TrayCommentsCount != nullptr) {
-			static_cast<drawer_count_pill*>(TrayCommentsCount)->set_count(fileUnread + NewConversationComments);
+			const auto newCount = fileUnread + NewConversationComments;
+			static_cast<drawer_count_pill*>(TrayCommentsCount)->set_count(newCount);
+			// [[BPR-PENDING-G]]. Only a showing count takes room in its tab.
+			if (auto* const shown = newCount != 0U ? TrayCommentsCount : nullptr; TrayTabs->tabButton(tray_comments_tab, QTabBar::RightSide) != shown) {
+				TrayTabs->setTabButton(tray_comments_tab, QTabBar::RightSide, shown);
+				TrayCommentsCount->setVisible(shown != nullptr);
+			}
 			TrayTabs->setAccessibleTabName(
 				tray_comments_tab,
 				NewConversationComments > 0U ? tr("Comments, %1 new file threads and %2 new comments on the pull request").arg(fileUnread).arg(NewConversationComments) : fileUnread == 0U ? tr("Comments")
 																																														   : tr("Comments, %1 with new comments in this file").arg(fileUnread == 1U ? tr("one thread") : tr("%1 threads").arg(fileUnread)));
+			// The count's width and the Comments tooltip follow it.
+			fit_tray_tabs();
 		}
 		const auto threadCount  = ConversationPanel->cards()->unread_threads_in_file_order().size();
 		const auto commentCount = unread.size() - threadCount;

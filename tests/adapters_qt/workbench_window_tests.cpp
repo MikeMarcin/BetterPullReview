@@ -56,6 +56,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHelpEvent>
 #include <QIcon>
@@ -97,6 +98,7 @@
 #include <QStringList>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QStyleOption>
 #include <QSysInfo>
 #include <QTabBar>
 #include <QTabWidget>
@@ -12582,6 +12584,238 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-PENDING-G]]. The right tray's tabs keep their names for as
+	/// long as the row has room for them. Each tab is as wide as what it
+	/// shows: the Agent tab is its spark and its name, and Comments keeps no
+	/// room for a count it is not showing. Narrower, the row names the open
+	/// tab beside its glyph and shows the others' glyphs, then glyphs only.
+	/// A tab without its name says it in its tooltip and to accessibility,
+	/// and the count stays a pill beside the glyph, never over it. Checked
+	/// in every style Qt offers here (on macOS its own, which counted a tab's
+	/// padding twice for an icon), with and without a count.
+	void test_the_right_tray_tabs_keep_their_names_while_they_fit()
+	{
+		qt::workbench_window window;
+		window.resize(1'600, 560);
+		window.show();
+		auto opened      = both_files_enabled();
+		opened.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = core::file_identity_of("src/file.cpp") } };
+		opened.Drawers   = drawer_states(core::workbench_drawer_state::collapsed, core::workbench_drawer_state::expanded);
+		opened.Layout    = application::workbench_layout_delta{ .FilesWidth = 320U, .ConversationsWidth = 420U };
+		window.publish(opened);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 40U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		window.set_conversation_endpoint_placement(false, true);
+		const auto thread = [](const std::string& aId, const std::uint32_t aLine) {
+			auto result               = application::github_conversation_projection{ };
+			result.Id                 = aId;
+			result.Kind               = application::github_conversation_kind::review_thread;
+			result.Path               = "src/file.cpp";
+			result.Line               = aLine;
+			result.DiffSide           = application::github_conversation_diff_side::right;
+			result.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			return result;
+		};
+		const auto post = [](const std::string& aId, const std::string& aParent) {
+			auto result        = application::github_conversation_projection{ };
+			result.Id          = aId;
+			result.ParentId    = aParent;
+			result.Kind        = application::github_conversation_kind::review_comment;
+			result.AuthorLogin = "someone";
+			result.Body        = "a post";
+			result.Path        = "src/file.cpp";
+			return result;
+		};
+		window.conversation_panel()->adopt(
+			{ thread("review-thread:a", 12U), post("review-comment:a-1", "review-thread:a"),
+			  thread("review-thread:b", 22U), post("review-comment:b-1", "review-thread:b") },
+			QStringLiteral("two conversations"));
+		static_cast<void>(publish_fixture(window, computed_comparison(text, text, 0U, core::file_identity_of("src/file.cpp"))));
+		process_events();
+		auto* const tabs   = window.tray_tabs();
+		auto* const header = window.findChild<QWidget*>(QStringLiteral("workbenchTrayHeader"));
+		auto* const pill   = window.findChild<QWidget*>(QStringLiteral("workbenchTrayCommentsCount"));
+		auto* const drawer = window.conversations_drawer();
+		expect(tabs != nullptr && header != nullptr && pill != nullptr && tabs->count() == 4, "the tray's tab row is composed");
+		const QString names[] = { QStringLiteral("Comments"), QStringLiteral("Notes"), QStringLiteral("Tour"), QStringLiteral("Agent") };
+		const auto    named   = [&] {
+			for (auto index = 0; index < 4; ++index) {
+				if (tabs->tabText(index) != names[index]) {
+					return false;
+				}
+			}
+			return true;
+		};
+		const auto rowWidth = [tabs] {
+			return tabs->tabRect(tabs->count() - 1).right() + 1;
+		};
+		// Each name is drawn by the style as a plain text tab as wide as its
+		// tab, beside its glyph and its count. The style's text rectangle for
+		// that tab holds the whole name, and the glyph, the name and the count
+		// fit the tab with the style's own text-tab padding, so nothing is
+		// elided, clipped or drawn over.
+		const auto namesWhole = [tabs] {
+			for (auto index = 0; index < tabs->count(); ++index) {
+				const auto shown   = tabs->tabText(index);
+				const auto metrics = tabs->fontMetrics();
+				auto       option  = QStyleOptionTab{ };
+				option.initFrom(tabs);
+				option.rect         = tabs->tabRect(index);
+				option.text         = shown;
+				option.shape        = tabs->shape();
+				option.documentMode = tabs->documentMode();
+				if (index == tabs->currentIndex()) {
+					option.state |= QStyle::State_Selected;
+				}
+				const auto textRect = tabs->style()->subElementRect(QStyle::SE_TabBarTabText, &option, tabs);
+				auto       content  = shown.isEmpty() ? 0 : metrics.size(Qt::TextShowMnemonic, shown).width();
+				if (!tabs->tabIcon(index).isNull()) {
+					content += tabs->iconSize().width() + (shown.isEmpty() ? 0 : 4);
+				}
+				if (const auto* const count = tabs->tabButton(index, QTabBar::RightSide); count != nullptr && count->isVisible()) {
+					content += 4 + count->width();
+				}
+				if (textRect.width() < content || option.rect.width() < content) {
+					std::cout << "BPR-PENDING-G " << tabs->style()->name().toStdString() << " text rect " << textRect.width() << " for " << content << " px of '"
+							  << shown.toStdString() << "' in a " << option.rect.width() << " px tab\n";
+					return false;
+				}
+			}
+			return true;
+		};
+		const auto saveHeader = [&](const QString& aSuffix) {
+			const auto bottom   = header->mapTo(drawer, QPoint{ 0, header->height() }).y() + 6;
+			const auto rendered = drawer->grab(QRect{ 0, 0, drawer->width(), bottom });
+			expect(!rendered.isNull(), "the tab row renders");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+					   "the tab row render is saved for inspection");
+			}
+		};
+		const auto widths = { 760, 420, 375, 340, 335, 330, 320, 310, 300, 290, 280 };
+		// The application's own style first, with the renders; then every
+		// style Qt offers here, for their metrics.
+		auto styleNames = QStringList{ QString{ } };
+		styleNames.append(QStyleFactory::keys());
+		for (const auto& styleName : styleNames) {
+			auto style = std::unique_ptr<QStyle>{ styleName.isEmpty() ? nullptr : QStyleFactory::create(styleName) };
+			if (!styleName.isEmpty() && style == nullptr) {
+				continue;
+			}
+			tabs->setStyle(style.get());
+			const auto label = styleName.isEmpty() ? QStringLiteral("app-%1").arg(tabs->style()->name()) : styleName;
+			for (const auto withCount : { false, true }) {
+				if (withCount) {
+					window.present_read_state({
+						qt::thread_read_state{ .Thread = "review-thread:a", .UnreadPosts = { "review-comment:a-1" } },
+						qt::thread_read_state{ .Thread = "review-thread:b", .UnreadPosts = { "review-comment:b-1" } },
+					});
+				} else {
+					window.present_read_state({ });
+				}
+				tabs->setCurrentIndex(0);
+				drag_conversations_handle(window, 760);
+				process_events();
+				const auto context = QStringLiteral(" (%1, %2)").arg(label, withCount ? QStringLiteral("count") : QStringLiteral("no count")).toStdString();
+				expect(named() && pill->isVisible() == withCount && window.comments_count_text() == (withCount ? QStringLiteral("2") : QString{ }),
+					   "a wide row shows every tab's name, and the count only when there is one" + context);
+				// Each tab is its style's text tab for its name, plus the
+				// Agent's spark and the Comments count when they show.
+				const auto metrics = tabs->fontMetrics();
+				const auto padding = [&](const int aIndex) {
+					return tabs->tabRect(aIndex).width() - metrics.size(Qt::TextShowMnemonic, names[aIndex]).width();
+				};
+				const auto notes = padding(1);
+				expect(std::abs(padding(2) - notes) <= 1, "Tour and Notes have the same padding" + context);
+				const auto spark = tabs->iconSize().width() + 4;
+				expect(std::abs(padding(3) - spark - notes) <= 1,
+					   "the Agent tab is as wide as its spark and its name, padded as Notes is" + context);
+				const auto count = withCount ? pill->sizeHint().width() + 4 : 0;
+				expect(std::abs(padding(0) - count - notes) <= 1,
+					   (withCount ? "the Comments tab is its name and its count, padded as Notes is"
+								  : "the Comments tab keeps no room for a count it is not showing")
+						   + context);
+				const auto fullRow = rowWidth();
+				std::cout << "BPR-PENDING-G tray row" << context << ": names need " << fullRow << " px; Notes padding " << notes << '\n';
+				for (const auto width : widths) {
+					drag_conversations_handle(window, width);
+					process_events();
+					// The room is what the header's grid can give the tabs alone
+					// on their row.
+					const auto* const grid  = qobject_cast<const QGridLayout*>(header->layout());
+					const auto        room  = header->width() - (grid == nullptr ? 0 : grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing()));
+					const auto        where = QStringLiteral(" at %1 px").arg(header->width()).toStdString() + context;
+					expect(rowWidth() <= room && tabs->width() >= rowWidth(), "the whole row fits the drawer, nothing scrolls or clips" + where);
+					expect(rowWidth() == tabs->sizeHint().width(), "no tab is squeezed below what it shows" + where);
+					expect(namesWhole(), "every name a tab shows has room for all of itself" + where);
+					if (fullRow <= room) {
+						expect(named(), "every name stays while the row has room for them" + where);
+						continue;
+					}
+					// Compact: the open tab is named when that fits; every tab
+					// shows its glyph; a tab without its name has a tooltip
+					// that starts with its accessible name, which is its name.
+					expect(!named(), "the names go only when they do not fit" + where);
+					auto glyphsOnly = true;
+					for (auto index = 0; index < 4; ++index) {
+						const auto shown = tabs->tabText(index);
+						expect(!tabs->tabIcon(index).isNull(), "every compact tab shows its glyph" + where);
+						expect(shown.isEmpty() || (index == tabs->currentIndex() && shown == names[index]),
+							   "a compact tab shows only the open tab's name, whole" + where);
+						expect(tabs->accessibleTabName(index).startsWith(names[index]), "every compact tab keeps its name for accessibility" + where);
+						if (shown.isEmpty()) {
+							expect(tabs->tabToolTip(index).startsWith(tabs->accessibleTabName(index) + QLatin1Char{ '\n' }),
+								   "a tab showing only its glyph says its name first in its tooltip" + where);
+						} else {
+							glyphsOnly = false;
+						}
+					}
+					if (withCount) {
+						const auto tab      = tabs->tabRect(0);
+						const auto hpadding = tabs->style()->pixelMetric(QStyle::PM_TabBarTabHSpace, nullptr, tabs) / 2;
+						expect(pill->isVisible() && tab.contains(pill->geometry())
+								   && pill->geometry().left() >= tab.left() + hpadding + tabs->iconSize().width(),
+							   "the count stays a pill inside its tab, beside the glyph and never over it" + where);
+					}
+					if (styleName.isEmpty()) {
+						std::cout << "BPR-PENDING-G compact" << where << ": " << (glyphsOnly ? "glyphs only" : "open tab named") << ", row " << rowWidth() << " px\n";
+					}
+				}
+				if (styleName.isEmpty()) {
+					for (const auto width : widths) {
+						drag_conversations_handle(window, width);
+						process_events();
+						saveHeader(QStringLiteral("tray-tabs-%1-%2").arg(width).arg(withCount ? QStringLiteral("count") : QStringLiteral("none")));
+					}
+				}
+				// Choosing another tab in a compact row names that tab.
+				drag_conversations_handle(window, 300);
+				process_events();
+				if (!named() && tabs->tabText(0) == names[0]) {
+					tabs->setCurrentIndex(3);
+					process_events();
+					expect(tabs->tabText(3) == names[3] && tabs->tabText(0).isEmpty() && rowWidth() <= header->width(),
+						   "choosing the Agent tab in a compact row names it instead" + context);
+					if (styleName.isEmpty()) {
+						saveHeader(QStringLiteral("tray-tabs-300-%1-agent").arg(withCount ? QStringLiteral("count") : QStringLiteral("none")));
+					}
+					tabs->setCurrentIndex(0);
+					process_events();
+				}
+				drag_conversations_handle(window, 760);
+				process_events();
+				expect(named(), "widening the drawer brings every name back" + context);
+			}
+			tabs->setStyle(nullptr);
+			process_events();
+		}
+		window.hide();
+	}
+
 	void test_read_state_reaches_the_gutter_and_the_strip()
 	{
 		qt::workbench_window window;
@@ -19468,6 +19702,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
 		runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
 		runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
+		runCase("test_the_right_tray_tabs_keep_their_names_while_they_fit", &test_the_right_tray_tabs_keep_their_names_while_they_fit);
 		if (!listCases) {
 			std::cout << "current-file-unread-badge:pass\n";
 		}
@@ -19801,6 +20036,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
 	runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
 	runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
+	runCase("test_the_right_tray_tabs_keep_their_names_while_they_fit", &test_the_right_tray_tabs_keep_their_names_while_they_fit);
 	runCase("test_discuss_uses_main_content_and_open_in_code_returns_to_read", &test_discuss_uses_main_content_and_open_in_code_returns_to_read);
 	runCase("test_a_reply_waits_for_its_threads_own_comparison", &test_a_reply_waits_for_its_threads_own_comparison);
 	runCase("test_change_arrows_are_bounded_and_always_enabled", &test_change_arrows_are_bounded_and_always_enabled);

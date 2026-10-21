@@ -2216,9 +2216,11 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
-		/// tabs show words or icons only.
+		/// tabs show their names.
 		QWidget* TrayHeader = nullptr;
-		/// [[BPR-1592]]. Words above 340 pixels, icons only below.
+		/// [[BPR-PENDING-G]]. Every tab's name while the row has room for
+		/// them; then the open tab's glyph and name and the others' glyphs;
+		/// then glyphs only. A tab without its name says it in its tooltip.
 		void fit_tray_tabs(bool aRepaint = false);
 		/// [[BPR-1592]]. Connects Notes to the code it hangs beside.
 		void wire_private_notes();

@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "7bad81283b77f70ee2b75ef173717851465fb53512841c9ba4743b31b85bb611",
+  "source_sha256": "1bcb2bb0c9ea39ab3ca8f93cfe3258f1aa95b4298387c35540244a720bb58bbb",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -10,7 +10,8 @@
     "--current-file-unread-badge": [
       "test_unread_badge_follows_only_the_current_file",
       "test_read_state_reaches_the_gutter_and_the_strip",
-      "test_the_right_tray_holds_comments_and_notes_tabs"
+      "test_the_right_tray_holds_comments_and_notes_tabs",
+      "test_the_right_tray_tabs_keep_their_names_while_they_fit"
     ],
     "--center-ribbon-width": [
       "test_center_ribbon_width_settings_and_rendering",
@@ -206,6 +207,7 @@
       "test_read_state_reaches_the_gutter_and_the_strip",
       "test_unread_badge_follows_only_the_current_file",
       "test_the_right_tray_holds_comments_and_notes_tabs",
+      "test_the_right_tray_tabs_keep_their_names_while_they_fit",
       "test_discuss_uses_main_content_and_open_in_code_returns_to_read",
       "test_a_reply_waits_for_its_threads_own_comparison",
       "test_change_arrows_are_bounded_and_always_enabled",

@@ -2225,7 +2225,7 @@ its other is **Draft comment**, which copies it to a local draft at its own line
 nothing is published until the existing explicit Publish. Esc on unsaved
 changes says so once and discards on the second press. Notes stays available
 with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
-follows Tour (its spark alone). Its context row names the agent, the head its
+follows Tour, its spark beside its name. Its context row names the agent, the head its
 session reads, the scope in words (Selected lines, This file, Pull request,
 Repository) and History, a menu with a new session, continuing on an earlier
 head, the private history and runs, and the sessions. Below it the
@@ -2244,7 +2244,17 @@ and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its
 intents and the finding queue's actions are unchanged: nothing is published
 until the existing explicit Publish.
-Below 340 pixels the tray's tabs show their icons only.
+[[BPR-PENDING-G]]. Each of the tray's tabs is as wide as what it shows: the
+style's own tab for its name, plus the Agent's spark, plus the Comments count
+while there is one (no room is kept for a hidden count). The four names stay
+for as long as the row has room for them, and the tab row's tools move to a
+row of their own before any name goes (about 300 pixels of drawer without a
+count and 320 with one, at the standard font). Narrower, the row names only the
+open tab, its glyph beside its name, and shows the others' glyphs: a speech
+bubble for Comments with its count as a pill beside it, a page for Notes, the
+route for Tour and the spark for Agent. Choosing a tab names it instead. At the
+narrowest the open tab's name goes too. A tab without its name gives it first
+in its tooltip, then what the tab holds, and its accessible name is unchanged.
 Finding conversions retain RFC-BPR-0012's existing actions. [[BPR-1208]] puts thread
 defects on their own cards: right-click, the context-menu key or Shift+F10
 opens the thread's actions. A classified thread also has a text badge with its
