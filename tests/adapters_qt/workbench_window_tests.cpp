@@ -15420,7 +15420,7 @@ namespace {
 		window.hide();
 	}
 
-	/// [[BPR-PENDING-O]]. A thread picked in Threads into a file that is not
+	/// [[BPR-1698]]. A thread picked in Threads into a file that is not
 	/// open, deep in a file long enough that its comparison is filled over
 	/// several turns ([[BPR-1264]]), opens with its line in view. The host
 	/// answers as the composition does: the placement, then the loading, the

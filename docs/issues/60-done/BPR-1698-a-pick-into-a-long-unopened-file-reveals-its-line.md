@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-O"
+id: "BPR-1698"
 title: "A thread picked into a long file that is not open shows its line"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"origin":"owner bug report 2026-10-21","owner_note":"if I'm in the threads view and there's a comment and I click review and that file isn't open and that comment is way down the page. In this case it's like change four on line 3000 when the file opens it's scrolled to line one instead of making the comment I tried to go to visible.","regressing_commit":"7778886c9","related_cards":["BPR-1264","BPR-1293","BPR-1383","BPR-1582","BPR-1682"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1698--BPR-1698--443572af2f9b.json","origin":"owner bug report 2026-10-21","owner_note":"if I'm in the threads view and there's a comment and I click review and that file isn't open and that comment is way down the page. In this case it's like change four on line 3000 when the file opens it's scrolled to line one instead of making the comment I tried to go to visible.","regressing_commit":"7778886c9","related_cards":["BPR-1264","BPR-1293","BPR-1383","BPR-1582","BPR-1682"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ac5cf6d8c","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_workbench_conversation_reveal$'","detail":"test_a_pick_into_a_long_unopened_file_reveals_its_line, through the real core's transitions: Review shows a 30-line file; src/big.cpp (3,200 lines, four changes, the fourth at line 2,991) is not open. In Threads a click puts the cursor on the deep thread's row and a click on its Review button opens it in Review; every click and key goes to the window through QWindowSystemInterface. The host answers in the composition's order (placement, loading, publication, placement in one turn), so the 6,400-line comparison is staged and adopted turns later. Once it shows, the thread is open at its post, the surface's conversation anchor is right line 2,990 (zero-based) and that line is in view while line 1 is not. A Return pick of a left-side thread on the same, open file reveals left line 2,001 at once; after a pick away to the short file, a Return pick back into the prepared long file reveals line 2,991 again. Failing-before control: with src/adapters/qt/src/workbench_window.cpp at the parent commit the case fails at 'the thread's line is the comparison's conversation anchor'. macOS offscreen at 1x."}},{"criterion":"AC2","outcome":"pass","revision":"ac5cf6d8c","evidence":{"kind":"command","command":"ctest --preset dev -R '^(command_correctness_registry_contract|qt_workbench_conversation_reveal|qt_workbench_line_draft|qt_thread_moves_scale_100|qt_thread_scroll_stability_scale_100|qt_workbench_window_scale_(100|125|200))$'","detail":"The existing picks (test_threads_finds_and_picks_into_review, Discuss's Open in code and Open in Review, the Threads Discuss route), line drafts, thread moves and thread scroll stability pass, and the full window run passes at 1x, 1.25x and 2x. The new case joins --conversation-reveal, so tests/command_correctness_registry.json and tests/workbench_case_inventory.json carry the new source pin and case. coding-format-check (clang-format 22.1.8) passes; clang-tidy --warnings-as-errors on workbench_window.cpp and workbench_window_tests.cpp reports only the two existing performance-avoid-endl findings in the test runner's case trace (b059676cc), none in this change. macOS, a Debug configuration of the dev preset built without debug information (-g0) to fit the disk."}}]
 ---
 
-# BPR-PENDING-O: A thread picked into a long file that is not open shows its line
+# BPR-1698: A thread picked into a long file that is not open shows its line
 
 ## Owner note
 

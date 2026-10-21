@@ -15161,7 +15161,7 @@ namespace bpr::qt {
 			// The selection authority names the picked post itself, as a
 			// revealed comment always has; its thread stays the one open.
 			if (const auto post = ConversationPanel->model()->index_for_id(pick.Post); post.isValid()) {
-				// [[BPR-PENDING-O]]. The pick reveals its line itself, once.
+				// [[BPR-1698]]. The pick reveals its line itself, once.
 				// Choosing moves the code only through the view's current
 				// change, and a long file's comparison is adopted turns after
 				// it is published, from the surface's selection observer,
