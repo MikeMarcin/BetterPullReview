@@ -196,6 +196,8 @@ namespace bpr::qt {
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
 	/// \brief [[BPR-0990]]. The local Follow or Unfollow of the open pull request.
 	using workbench_queue_follow_dispatch = std::function<void(application::queue_follow_intent)>;
+	/// \brief [[BPR-1683]]. Home's Ignore or Unignore of one queue row.
+	using workbench_home_ignore_dispatch = std::function<void(core::home_ignore_intent)>;
 	/// \brief [[BPR-0990]]. Home's activation and its explicit Refresh.
 	using workbench_queue_discovery_dispatch = std::function<void(application::queue_discovery_intent)>;
 	/// \brief [[BPR-0660]]. One remember or forget gesture for an enterprise server.
@@ -624,6 +626,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto repository_addition_draft() const noexcept -> QWidget*;
 		/// \brief [[BPR-0990]]. Where the Pull Request menu's Follow goes.
 		void set_queue_follow_dispatch(workbench_queue_follow_dispatch aDispatch);
+		/// \brief [[BPR-1683]]. Where Home's Ignore and Unignore go: the
+		/// profile's queue, never a provider.
+		void set_home_ignore_dispatch(workbench_home_ignore_dispatch aDispatch);
+		/// \brief [[BPR-1683]]. The row menu's Ignore, named Unignore on an ignored row.
+		[[nodiscard]] auto home_ignore_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
 		/// activation go: the profile's discovery, never a provider.
 		void set_queue_discovery_dispatch(workbench_queue_discovery_dispatch aDispatch);
@@ -2009,6 +2016,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1342]]. Shows the one row menu for a queue or a Recently
 		/// viewed row the right click made current.
 		void popup_home_row_menu(const QPoint& aGlobal);
+		/// \brief [[BPR-1683]]. Ignores a queue row, or unignores an ignored one.
+		void dispatch_home_ignore(const core::queue_item& aItem);
 		void open_from_home_bar();
 		/// \brief Builds Settings › Repositories and adopts it on its page.
 		void build_repositories_page();
@@ -2207,9 +2216,11 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
-		/// tabs show words or icons only.
+		/// tabs show their names.
 		QWidget* TrayHeader = nullptr;
-		/// [[BPR-1592]]. Words above 340 pixels, icons only below.
+		/// [[BPR-1684]]. Every tab's name while the row has room for
+		/// them; then the open tab's glyph and name and the others' glyphs;
+		/// then glyphs only. A tab without its name says it in its tooltip.
 		void fit_tray_tabs(bool aRepaint = false);
 		/// [[BPR-1592]]. Connects Notes to the code it hangs beside.
 		void wire_private_notes();
@@ -2555,6 +2566,8 @@ namespace bpr::qt {
 		QAction*                                           FollowPullRequest         = nullptr;
 		QAction*                                           SavePullRequestRepository = nullptr;
 		workbench_queue_follow_dispatch                    QueueFollowDispatch;
+		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
+		QAction*                                           HomeIgnoreAction = nullptr;
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
 		std::function<std::optional<std::int64_t>()>       HomeClock;
 		// The open pull request as the queue names it: owner/name, number and

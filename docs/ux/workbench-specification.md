@@ -680,6 +680,15 @@ restores the same file identities and order. These gestures never open a
 comparison. If the focused file becomes hidden, focus moves to its folder
 without changing the active source selection.
 
+The platform's document start and end go to the top and bottom of the list
+([[BPR-1677]], the owner, 2026-10-20): Command-Up and Command-Down on macOS,
+Ctrl+Home and Ctrl+End on Windows and Linux. The top row, a folder row, or the
+last row shown (the last file of the last open folder, or that folder's row
+when it is closed) becomes current and selected, keeping its column, and the
+list scrolls to that end. The keyboard stays on the list, accessibility is told
+of the new row as for any row change, and nothing opens until Enter. Like Up
+and Down, the move is the list's own and is not a review navigation command.
+
 Beside the Files heading, two glyph buttons fold every folder row at once
 ([[BPR-1269]]). Collapse all shows two chevrons closing upward, and expand all
 two chevrons opening downward. Each is named in its tooltip and to
@@ -886,6 +895,16 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Repositories; observer rules are reached from View's Open Home & queue.
   No empty
   box is drawn in any arrangement.
+- **Ignored** ([[BPR-1683]], the owner, 2026-10-20). A queue row's menu
+  offers Ignore, and Delete (or Backspace) on the row does the same. The row
+  moves to Ignored, a neutral panel after Recently viewed in every grouping
+  and with State headers on or off. Its rows keep their reason sentence, but
+  the panel draws no state colour. Ignored starts collapsed to its count
+  ("2 ignored") in every window. Its collapse lasts while the window is open
+  and is not part of the remembered view. Expanded, each row carries Unignore
+  on hover and focus, in its menu and on the same key, and returns to its own
+  section. An ignored pull request that closes or merges leaves Home and is
+  forgotten. Nothing changes on GitHub.
 - **Group by** offers None (the default), Organization, Repository and
   Account. A group is a neutral panel headed by its owner's avatar
   ([People's avatars](#peoples-avatars)) — round for an account, a small
@@ -1498,8 +1517,10 @@ never invents enabled state.
 | View > First change in the file ([[BPR-1532]]) | `Alt+Shift+Up` (⌥⇧↑) |
 | View > Last change in the file ([[BPR-1532]]) | `Alt+Shift+Down` (⌥⇧↓) |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
+| Top or bottom row of the files, in Overview's files ([[BPR-1677]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
-| Toggle files drawer | `Alt+Shift+1` |
+| Toggle files drawer; the second key acts while typing, for automation ([[BPR-1678]]) | `Alt+Shift+1` (⌥⇧1), or `Ctrl+Shift+1`; macOS ⌃⌘1 (`Ctrl+Meta+1`) |
+| Toggle repositories drawer; the second key acts while typing, for automation ([[BPR-1678]]) | `Alt+Shift+R` (⌥⇧R), or `Ctrl+Shift+R`; macOS ⌃⌘R (`Ctrl+Meta+R`) |
 | Toggle comments drawer | `Alt+Shift+2` |
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
@@ -2023,7 +2044,9 @@ the keyboard is in a widget that takes typed text (a field, a comment, reply,
 note or composer editor, an editable list, the Review Cycle suggestion editor,
 the find query), every Option+character window, button and menu key is that
 widget's: ⌥R types `®` instead of composing, ⌥⇧1 types `⁄` instead of hiding
-Files. The widget claims the key when it arrives, and the menu bar lifts its
+Files. Files and Repositories also have ⌃⌘1 and ⌃⌘R, which no text field
+takes, so a script can toggle them wherever the keyboard is ([[BPR-1678]]).
+The widget claims the key when it arrives, and the menu bar lifts its
 Option+character keys until the keyboard leaves, because AppKit fires a
 native menu item's key before Qt sees it ([[BPR-1295]]); tooltips keep naming
 the key. Elsewhere, including read-only code, the keys work as listed. Option
@@ -2052,8 +2075,9 @@ bound but not listed twice. A key that acts in one place says where under
 its command ("In the tour outline", "In a code pane", "On Overview"), and a
 key that a text field takes while you type says "Not while typing": on every
 platform Accept file, the change arrows, First and Last change and Hide
-Drawers, and on macOS each window-wide Option+character key
-([Option keys and typing](#menu-bar)). A footer states that rule. A key with
+Drawers, and on macOS each window-wide command whose every key is
+Option+character ([Option keys and typing](#menu-bar)); Files and
+Repositories, whose second key is not, say nothing ([[BPR-1678]]). A footer states that rule. A key with
 no binding on the platform (Quit on Windows, the Review Cycle sheets'
 Control-C off macOS) is not listed.
 
@@ -2201,7 +2225,7 @@ its other is **Draft comment**, which copies it to a local draft at its own line
 nothing is published until the existing explicit Publish. Esc on unsaved
 changes says so once and discards on the second press. Notes stays available
 with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
-follows Tour (its spark alone). Its context row names the agent, the head its
+follows Tour, its spark beside its name. Its context row names the agent, the head its
 session reads, the scope in words (Selected lines, This file, Pull request,
 Repository) and History, a menu with a new session, continuing on an earlier
 head, the private history and runs, and the sessions. Below it the
@@ -2220,7 +2244,17 @@ and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its
 intents and the finding queue's actions are unchanged: nothing is published
 until the existing explicit Publish.
-Below 340 pixels the tray's tabs show their icons only.
+[[BPR-1684]]. Each of the tray's tabs is as wide as what it shows: the
+style's own tab for its name, plus the Agent's spark, plus the Comments count
+while there is one (no room is kept for a hidden count). The four names stay
+for as long as the row has room for them, and the tab row's tools move to a
+row of their own before any name goes (about 300 pixels of drawer without a
+count and 320 with one, at the standard font). Narrower, the row names only the
+open tab, its glyph beside its name, and shows the others' glyphs: a speech
+bubble for Comments with its count as a pill beside it, a page for Notes, the
+route for Tour and the spark for Agent. Choosing a tab names it instead. At the
+narrowest the open tab's name goes too. A tab without its name gives it first
+in its tooltip, then what the tab holds, and its accessible name is unchanged.
 Finding conversions retain RFC-BPR-0012's existing actions. [[BPR-1208]] puts thread
 defects on their own cards: right-click, the context-menu key or Shift+F10
 opens the thread's actions. A classified thread also has a text badge with its
@@ -2262,7 +2296,9 @@ comment to show up in the drawer instead of the full screen add comment
 window"). Return on a selected line of the code, Add comment on the code's
 right-click menu, Comment (Option-C) on a line no thread is on, and the "+"
 button each open the line's draft as a draft thread in the drawer, pinned at
-its line, writing. The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
+its line, writing. That holds on a pull request no one has commented on yet:
+the drawer leaves its empty page for the draft and goes back to it when an
+empty draft is dropped ([[BPR-1682]]). The "+" is GitHub's ([[BPR-1335]], owner, 2026-10-08: "I
 don't like the + replacing the line number, i think github actual does it
 better"): a small blue button with a white cross on a head line no thread is
 on, at the start of the line's code, across the boundary with the number and

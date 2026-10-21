@@ -35,6 +35,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -882,6 +883,94 @@ namespace {
 		recent->setCurrentRow(0);
 		QApplication::processEvents();
 		expect(!action->isVisible(), "and leaves with a row that has no reading");
+	}
+
+	// [[BPR-1683]]. Ignored is the last panel in every arrangement, starts
+	// collapsed to its count, and its rows carry Unignore; Delete on a queue row
+	// asks for Ignore. The list decides nothing: it reports the row.
+	void test_ignored_is_last_collapsed_and_offers_unignore(const QString& aRenderPath)
+	{
+		home_fixture home;
+		auto         ignored = item(7, bucket::initial_review_requested, 2U, "Ignored work");
+		ignored.Ignored      = true;
+		auto other           = item(8, bucket::quiet);
+		other.Ignored        = true;
+		home.Source.apply(core::ordered_queue(std::vector{ ignored, item(1, bucket::initial_review_requested), item(3, bucket::quiet), other }));
+		auto asked = std::vector<std::pair<std::int64_t, bool>>{ };
+		home.List.set_ignore_dispatch([&asked](const core::queue_item& aItem) { asked.emplace_back(aItem.Ref.Number, aItem.Ignored); });
+		home.List.set_queue_status(true, true);
+		home.List.show();
+		home.List.activateWindow();
+		settle();
+
+		auto* const panel = home.List.ignored_panel();
+		auto* const view  = home.List.ignored_view();
+		expect(panel != nullptr && panel->isVisible() && panel->collapsed() && !view->isVisibleTo(panel),
+			   "Ignored is shown collapsed to its header");
+		expect(panel->title() == QStringLiteral("Ignored") && panel->count() == 2 && panel->summary() == QStringLiteral("2 ignored") && !panel->tone().isValid(),
+			   "its header names it, counts it and carries no state colour");
+		expect(home.List.state_panel(qt::home_group::needs_you)->count() == 1 && home.List.state_panel(qt::home_group::following)->count() == 1,
+			   "the ignored rows are in no other panel");
+		auto* const layout = home.List.widget()->layout();
+		expect(layout->indexOf(panel) > layout->indexOf(home.List.recent_panel()) && layout->indexOf(panel) > layout->indexOf(home.List.state_panel(qt::home_group::following)),
+			   "Ignored sorts after every other panel, Recently viewed included");
+		const auto chain = home.List.focus_chain();
+		expect(std::ranges::find(chain, panel->header()) != chain.end() && std::ranges::find(chain, view) == chain.end(),
+			   "collapsed, its header is a keyboard stop and its rows are not");
+		if (!aRenderPath.isEmpty()) {
+			expect(home.List.grab().save(QString{ aRenderPath }.replace(QStringLiteral(".png"), QStringLiteral("-ignored-collapsed.png"))),
+				   "the list with Ignored collapsed renders");
+		}
+
+		panel->header()->setFocus(Qt::OtherFocusReason);
+		send_key(*panel->header(), Qt::Key_Right);
+		settle(50);
+		expect(!panel->collapsed() && view->isVisibleTo(panel) && identities_of(*view) == QStringList{ QStringLiteral("octo/app#7"), QStringLiteral("octo/app#8") },
+			   "expanding it by keyboard shows the ignored rows in core order");
+		if (!aRenderPath.isEmpty()) {
+			expect(home.List.grab().save(QString{ aRenderPath }.replace(QStringLiteral(".png"), QStringLiteral("-ignored-expanded.png"))),
+				   "the list with Ignored expanded renders");
+		}
+		const auto first = view->model()->index(0, 0);
+		expect(first.data(qt::home_row_role::row_action).toString() == QStringLiteral("Unignore") && !first.data(qt::home_row_role::state).isValid()
+				   && first.data(Qt::AccessibleDescriptionRole).toString().contains(QStringLiteral("Ignored;")),
+			   "an ignored row offers Unignore, draws no state colour and says it is ignored");
+
+		view->setFocus(Qt::OtherFocusReason);
+		view->setCurrentIndex(first);
+		settle(50);
+		auto* const unignore = home.List.ignored_action();
+		expect(unignore != nullptr && unignore->isVisible() && unignore->text() == QStringLiteral("Unignore") && unignore->focusPolicy() == Qt::NoFocus
+				   && unignore->accessibleName() == QStringLiteral("Unignore octo/app#7"),
+			   "with the list focused, Unignore sits on the current row and names it");
+		click(*unignore, unignore->rect().center());
+		expect(asked == std::vector<std::pair<std::int64_t, bool>>{ { 7, true } }, "Unignore asks to unignore that row");
+		send_key(*view, Qt::Key_Backspace);
+		expect(asked.size() == 2U && asked.back() == std::pair<std::int64_t, bool>{ 7, true }, "Backspace on an ignored row asks the same");
+
+		auto* const needs = home.List.state_view(qt::home_group::needs_you);
+		needs->setFocus(Qt::OtherFocusReason);
+		needs->setCurrentIndex(needs->model()->index(0, 0));
+		send_key(*needs, Qt::Key_Delete);
+		expect(asked.size() == 3U && asked.back() == std::pair<std::int64_t, bool>{ 1, false }, "Delete on a queue row asks to ignore it");
+
+		home.List.set_grouping(application::home_grouping::repository);
+		settle(100);
+		const auto groups = home.List.group_panels();
+		expect(groups.size() == 1U && groups.front()->count() == 2 && home.List.ignored_panel()->isVisible() && home.List.ignored_panel()->count() == 2,
+			   "grouped, the group holds only the active rows and Ignored stays its own panel");
+		home.List.set_grouping(application::home_grouping::none);
+		home.List.set_state_headers(false);
+		settle(100);
+		expect(home.List.flat_view()->model()->rowCount() == 2 && home.List.ignored_panel()->isVisible(),
+			   "with State headers off, the one card holds only the active rows");
+		home.List.set_state_headers(true);
+
+		home.Source.apply(core::ordered_queue(std::vector{ ignored, other }));
+		home.List.refresh();
+		settle(100);
+		expect(home.List.empty_sentence()->isVisibleTo(&home.List) && home.List.ignored_panel()->isVisible(),
+			   "a queue of only ignored rows says nothing needs me, above Ignored");
 	}
 
 	// A row the core moves to another state moves panels without a reset and keeps its place.
@@ -1831,6 +1920,7 @@ auto main(int argc, char** argv) -> int
 	test_bands_stick_under_their_group_header();
 	test_empty_states_and_the_all_empty_sentence();
 	test_resume_is_a_row_action_on_hover_and_focus();
+	test_ignored_is_last_collapsed_and_offers_unignore(renderPath);
 	test_a_row_that_changes_state_moves_panels_and_keeps_its_place();
 	test_a_wheel_over_rows_scrolls_the_page();
 	// [[BPR-0783]]. Group, the state bands, the account chips and the keyboard.

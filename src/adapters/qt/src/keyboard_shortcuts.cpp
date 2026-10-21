@@ -1,6 +1,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include <QKeyCombination>
+#include <QKeyEvent>
 #include <QStringList>
 
 #include <algorithm>
@@ -18,12 +19,26 @@ namespace bpr::qt {
 		/// binds them with widget-with-children scope.
 		constexpr auto in_updates   = std::string_view{ "In the Updates control" };
 		constexpr auto in_code      = std::string_view{ "In a code pane" };
+		constexpr auto in_files     = std::string_view{ "In Overview's files" };
 		constexpr auto in_draft     = std::string_view{ "In a comment draft" };
 		constexpr auto in_query     = std::string_view{ "In the Find query" };
 		constexpr auto in_outline   = std::string_view{ "In the tour outline" };
 		constexpr auto in_editor    = std::string_view{ "In the tour editor" };
 		constexpr auto in_cycle     = std::string_view{ "In a Review Cycle's code" };
 		constexpr auto in_cycle_box = std::string_view{ "In a Review Cycle note or suggestion" };
+
+		// [[BPR-1678]]. The Files and Repositories drawers' second keys,
+		// for automation: their first keys' 1 and R with the platform's command
+		// modifier rather than Option, so no text field takes them while you
+		// type. Control-Command on macOS, where Command-Shift-3 to 6 are the
+		// system's screenshots; Ctrl+Shift elsewhere, where Ctrl+Alt is AltGr.
+#if defined(Q_OS_MACOS)
+		constexpr auto files_drawer_keys        = std::string_view{ "Alt+Shift+1;Ctrl+Meta+1" };
+		constexpr auto repositories_drawer_keys = std::string_view{ "Alt+Shift+R;Ctrl+Meta+R" };
+#else
+		constexpr auto files_drawer_keys        = std::string_view{ "Alt+Shift+1;Ctrl+Shift+1" };
+		constexpr auto repositories_drawer_keys = std::string_view{ "Alt+Shift+R;Ctrl+Shift+R" };
+#endif
 
 		// One row per command, in the enumeration's order (checked below).
 		// Platform differences are written here and nowhere else.
@@ -51,8 +66,10 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::extend_selection, .Group = navigation, .Binding = read, .Title = "Extend the selected lines", .Place = in_code, .Keys = "Shift+Up;Shift+Down" },
 #if defined(Q_OS_MACOS)
 			shortcut_entry{ .Command = command::comparison_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the comparison", .Place = in_code, .Keys = "Ctrl+Up;Ctrl+Down" },
+			shortcut_entry{ .Command = command::files_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the files", .Place = in_files, .Keys = "Ctrl+Up;Ctrl+Down" },
 #else
 			shortcut_entry{ .Command = command::comparison_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the comparison", .Place = in_code, .Keys = "Ctrl+Home;Ctrl+End" },
+			shortcut_entry{ .Command = command::files_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the files", .Place = in_files, .Keys = "Ctrl+Home;Ctrl+End" },
 #endif
 
 			// Review and files.
@@ -94,9 +111,9 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::query_in_selection, .Group = find, .Binding = read, .Title = "Find in selection on or off", .Place = in_query, .Keys = "Alt+L" },
 
 			// Views and drawers.
-			shortcut_entry{ .Command = command::files_drawer, .Group = views, .Binding = bound, .Title = "Files drawer", .Keys = "Alt+Shift+1", .Objects = "toggleWorkbenchFilesDrawerAction" },
+			shortcut_entry{ .Command = command::files_drawer, .Group = views, .Binding = bound, .Title = "Files drawer", .Keys = files_drawer_keys, .Objects = "toggleWorkbenchFilesDrawerAction" },
 			shortcut_entry{ .Command = command::comments_drawer, .Group = views, .Binding = bound, .Title = "Comments drawer", .Keys = "Alt+Shift+2", .Objects = "toggleWorkbenchConversationsDrawerAction" },
-			shortcut_entry{ .Command = command::repositories_drawer, .Group = views, .Binding = bound, .Title = "Repositories drawer", .Keys = "Alt+Shift+R", .Objects = "toggleWorkbenchRepositoriesDrawerAction" },
+			shortcut_entry{ .Command = command::repositories_drawer, .Group = views, .Binding = bound, .Title = "Repositories drawer", .Keys = repositories_drawer_keys, .Objects = "toggleWorkbenchRepositoriesDrawerAction" },
 			shortcut_entry{ .Command = command::open_agent, .Group = views, .Binding = bound, .Title = "The Agent tab", .Keys = "Alt+Shift+A", .Objects = "openAgentTabAction" },
 			shortcut_entry{ .Command = command::ask_agent, .Group = views, .Binding = bound, .Title = "Ask the agent about the selected lines", .Keys = "Ctrl+I", .Objects = "askAgentAboutLinesAction" },
 			shortcut_entry{ .Command = command::new_note, .Group = comments, .Binding = bound, .Title = "A private note on the selected line", .Place = "In Notes", .Keys = "N", .Objects = "newLineNoteAction" },
@@ -151,6 +168,9 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::home_open_review, .Group = home, .Binding = read, .Title = "Open the review", .Place = "On a Home row", .Keys = "Return", .Objects = "homeOpenReviewAction" },
 			shortcut_entry{ .Command = command::home_open_window, .Group = home, .Binding = read, .Title = "Open the review in a new window", .Place = "On a Home row", .Keys = "Ctrl+Return", .Objects = "homeOpenReviewInNewWindowAction" },
 			shortcut_entry{ .Command = command::home_resume, .Group = home, .Binding = read, .Title = "Resume where you were", .Place = "In Recently viewed", .Keys = "Shift+Return", .Objects = "homeRecentResumeAction" },
+			// [[BPR-1683]]. Delete, or Backspace as macOS lists take it, as
+			// Recently viewed's Remove is; on an ignored row it unignores.
+			shortcut_entry{ .Command = command::home_ignore, .Group = home, .Binding = read, .Title = "Ignore or unignore the pull request", .Place = "On a Home pull request row", .Keys = "Del;Backspace", .Objects = "homeIgnoreAction" },
 			// [[BPR-1600]]. The window's Refresh key does whichever refresh is
 			// showing: the key is on this action while Home shows and on the pull
 			// request's otherwise, never on both. Like the pull request's, it
@@ -325,8 +345,10 @@ namespace bpr::qt {
 #if defined(Q_OS_MACOS)
 		// A window-wide Option+character key; a key acting in one place is
 		// that place's own, and the Find query's toggles are the query's.
+		// [[BPR-1678]]. Only when every key is one: a text field claims
+		// each Option key alone, so a command key beside it still acts there.
 		const auto keys = shortcut_keys(aEntry);
-		return aEntry.Place.empty() && std::ranges::any_of(keys, option_character);
+		return aEntry.Place.empty() && !keys.isEmpty() && std::ranges::all_of(keys, option_character);
 #else
 		return false;
 #endif
@@ -360,5 +382,27 @@ namespace bpr::qt {
 #else
 		return aKey.toString(QKeySequence::NativeText);
 #endif
+	}
+
+	auto document_edge_for(const QKeyEvent& aEvent) -> std::optional<document_edge>
+	{
+		if (aEvent.matches(QKeySequence::MoveToStartOfDocument)) {
+			return document_edge::start;
+		}
+		if (aEvent.matches(QKeySequence::MoveToEndOfDocument)) {
+			return document_edge::end;
+		}
+#if defined(Q_OS_MACOS)
+		// macOS marks the arrow keys as keypad keys.
+		if ((aEvent.modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
+			if (aEvent.key() == Qt::Key_Up) {
+				return document_edge::start;
+			}
+			if (aEvent.key() == Qt::Key_Down) {
+				return document_edge::end;
+			}
+		}
+#endif
+		return std::nullopt;
 	}
 }

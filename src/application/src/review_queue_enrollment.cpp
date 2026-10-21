@@ -312,7 +312,8 @@ namespace bpr::application {
 
 	auto queue_enrollment_register::project(
 		const std::span<const queue_activity_report> aActivity,
-		queue_projection_work* const aWork, const queue_session_id* const aSession) const
+		queue_projection_work* const aWork, const queue_session_id* const aSession,
+		const core::home_ignore_list* const aIgnored) const
 		-> std::vector<core::queue_item>
 	{
 		auto items = std::vector<core::queue_item>{ };
@@ -377,6 +378,7 @@ namespace bpr::application {
 				.Membership = membership,
 				.Bucket     = core::bucket_for(membership, activity),
 				.Facts      = std::move(facts),
+				.Ignored    = aIgnored != nullptr && aIgnored->contains(record.Ref),
 			});
 		}
 		return core::ordered_queue(items);
@@ -611,6 +613,8 @@ namespace bpr::application {
 			saved_server,
 			/// [[BPR-0989]].
 			store_enrollments,
+			/// [[BPR-1683]].
+			home_ignores,
 		};
 
 		struct completion_gate
@@ -761,7 +765,7 @@ namespace bpr::application {
 			Projection.publish(queue_landing_projection{
 				.Status            = Status,
 				.Rules             = Rules,
-				.Items             = itemUpdate ? std::vector<core::queue_item>{ } : Enrollments.project(Activity, &Statistics.Projection, &Scheduler.session()),
+				.Items             = itemUpdate ? std::vector<core::queue_item>{ } : Enrollments.project(Activity, &Statistics.Projection, &Scheduler.session(), &Ignored),
 				.Preferences       = Preferences,
 				.Session           = Scheduler.session(),
 				.Online            = Scheduler.online(),
@@ -820,7 +824,8 @@ namespace bpr::application {
 				return;
 			}
 			if (aResult->Rules.size() > maximum_queue_rules || aResult->SavedRepositories.size() > maximum_saved_repositories
-				|| aResult->SavedServers.size() > maximum_saved_servers || aResult->Enrollments.size() > maximum_queue_enrollments) {
+				|| aResult->SavedServers.size() > maximum_saved_servers || aResult->Enrollments.size() > maximum_queue_enrollments
+				|| aResult->Ignored.size() > core::maximum_home_ignores) {
 				report_unavailable(queue_store_failure::collection_limit);
 				return;
 			}
@@ -837,10 +842,14 @@ namespace bpr::application {
 					Enrollments.depart(record.Ref, record.Departed);
 				}
 			}
+			Ignored = core::home_ignore_list{ aResult->Ignored };
 			restore_activity();
 			Failure.reset();
 			Status = queue_landing_status::ready;
 			publish();
+			// [[BPR-1683]]. A prune whose write did not land last time is
+			// decided again from the departures the store kept.
+			settle_ignored();
 			reconcile_last();
 		}
 
@@ -1433,10 +1442,107 @@ namespace bpr::application {
 			}
 		}
 
-		[[nodiscard]] static auto observed_item(const enrollment_record& aRecord, const queue_activity_report& aReport) -> core::queue_item
+		[[nodiscard]] auto observed_item(const enrollment_record& aRecord, const queue_activity_report& aReport) const -> core::queue_item
 		{
 			const auto membership = core::queue_membership_with_activity(aRecord.Membership, aReport.Facts.Authored, aReport.Observation.ReviewedByMe);
-			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, aReport.Observation), .Facts = aReport.Facts };
+			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, aReport.Observation), .Facts = aReport.Facts, .Ignored = Ignored.contains(aRecord.Ref) };
+		}
+
+		/// \brief [[BPR-1683]]. Where the queue's retained record puts one pull request.
+		[[nodiscard]] auto tracking_of(const core::pull_request_ref& aRef) const -> std::optional<core::home_tracking>
+		{
+			const auto record = Enrollments.record_for(aRef);
+			if (!record) {
+				return std::nullopt;
+			}
+			if (record->present()) {
+				return core::home_tracking::open;
+			}
+			return record->Departed == enrollment_departure::closed ? core::home_tracking::closed : core::home_tracking::left;
+		}
+
+		void apply(core::home_ignore_intent aIntent)
+		{
+			++Statistics.IgnoreIntents;
+			if (Closing || !Restored || !DurableStateLoaded) {
+				++Statistics.Failures;
+				return;
+			}
+			auto       prior = Ignored;
+			const auto delta = Ignored.apply(aIntent, tracking_of(aIntent.Ref).value_or(core::home_tracking::left));
+			if (!delta) {
+				return;
+			}
+			persist_ignores({ *delta }, std::move(prior));
+		}
+
+		/// \brief [[BPR-1683]]. Prunes ignores whose pull request the queue
+		/// now holds closed or off Home.
+		///
+		/// \details Only a retained record is an observation. A pull request
+		/// with no record is not known to have gone, so its ignore stays. A
+		/// pruned pull request is already off Home, so no row moves; the store
+		/// is told, and a refusal restores the ignore to be decided again.
+		void settle_ignored()
+		{
+			auto observations = std::vector<core::home_tracking_observation>{ };
+			for (const auto& ref : Ignored.refs()) {
+				if (const auto tracking = tracking_of(ref); tracking && *tracking != core::home_tracking::open) {
+					observations.push_back({ .Ref = ref, .Tracking = *tracking });
+				}
+			}
+			if (observations.empty()) {
+				return;
+			}
+			auto prior  = Ignored;
+			auto deltas = Ignored.observe(observations);
+			if (deltas.empty()) {
+				return;
+			}
+			Statistics.IgnoresPruned += deltas.size();
+			persist_ignores(std::move(deltas), std::move(prior));
+		}
+
+		void persist_ignores(std::vector<core::home_ignore_delta> aDeltas, core::home_ignore_list aPrior)
+		{
+			++Statistics.PersistenceRequests;
+			auto&      request  = begin(request_kind::home_ignores);
+			const auto id       = request.Id;
+			const auto stop     = request.Stop.get_token();
+			const auto gate     = std::weak_ptr<completion_gate>{ Gate };
+			const auto rollback = std::make_shared<core::home_ignore_list>(std::move(aPrior));
+			try {
+				Effects.post([this, gate, id, stop, deltas = std::move(aDeltas), rollback] {
+					auto result = Store.apply_home_ignores(deltas, stop);
+					DecisionLane.post([gate, id, rollback, storeResult = std::move(result)]() mutable {
+						if (auto* const host = locked_host(gate); host != nullptr) {
+							host->finish_ignores(id, rollback, std::move(storeResult));
+						}
+					});
+				});
+			} catch (...) {
+				(void)retire(id, request_kind::home_ignores);
+				Ignored = *rollback;
+				report_unavailable();
+			}
+		}
+
+		void finish_ignores(
+			const std::uint64_t                             aId,
+			const std::shared_ptr<core::home_ignore_list>&  aRollback,
+			const std::expected<void, queue_store_failure>& aResult)
+		{
+			if (!retire(aId, request_kind::home_ignores) || Closing) {
+				return;
+			}
+			if (!aResult) {
+				Ignored = *aRollback;
+				report_unavailable(aResult.error());
+				return;
+			}
+			Failure.reset();
+			Status = queue_landing_status::ready;
+			publish();
 		}
 
 		void remember_activity(
@@ -1813,6 +1919,7 @@ namespace bpr::application {
 			}
 			Failure.reset();
 			Status = queue_landing_status::ready;
+			settle_ignored();
 			publish();
 		}
 
@@ -1873,6 +1980,9 @@ namespace bpr::application {
 			}
 			Failure.reset();
 			Status = queue_landing_status::ready;
+			// [[BPR-1683]]. A stored departure is the observation that
+			// prunes an ignore.
+			settle_ignored();
 			if (aDelta && ActivityIndex.contains(*aDelta)) {
 				const auto  record = Enrollments.record_for(*aDelta);
 				const auto& report = Activity[ActivityIndex.at(*aDelta)];
@@ -1913,6 +2023,7 @@ namespace bpr::application {
 		queue_projection_hub                          Projection;
 		queue_refresh_scheduler                       Scheduler;
 		queue_enrollment_register                     Enrollments;
+		core::home_ignore_list                        Ignored;
 		std::vector<core::observer_rule>              Rules;
 		queue_presentation_preferences                Preferences;
 		std::vector<saved_repository>                 SavedRepositories;
@@ -2028,6 +2139,16 @@ namespace bpr::application {
 		Implementation->apply(std::move(aIntent));
 	}
 
+	void review_queue_application_host::apply(core::home_ignore_intent aIntent)
+	{
+		Implementation->apply(std::move(aIntent));
+	}
+
+	auto review_queue_application_host::ignored() const noexcept -> const core::home_ignore_list&
+	{
+		return Implementation->Ignored;
+	}
+
 	void review_queue_application_host::apply(queue_metadata_answer aAnswer)
 	{
 		Implementation->apply(std::move(aAnswer));
@@ -2089,7 +2210,7 @@ namespace bpr::application {
 	auto review_queue_application_host::queue() const
 		-> std::vector<core::queue_item>
 	{
-		return Implementation->Enrollments.project(Implementation->Activity, nullptr, &Implementation->Scheduler.session());
+		return Implementation->Enrollments.project(Implementation->Activity, nullptr, &Implementation->Scheduler.session(), &Implementation->Ignored);
 	}
 
 	auto review_queue_application_host::statistics() const noexcept

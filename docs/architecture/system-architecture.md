@@ -707,6 +707,14 @@ retains discovery membership before the old request is withdrawn. Existing
 unseen-comment and defect observations remain intact. Exact accepted account,
 session, request and enrollment checks reject late or foreign metadata; failed
 or limited reads preserve prior facts and do not trigger a projection retry loop.
+Discovery shares the profile's one GitHub provider lane with every pull request
+read, so it gives way to the reads a window waits on ([[BPR-1679]]). While
+`core::home_loading_yields` says any window of the profile has a pull request
+read pending, the composition holds the scheduler: it submits nothing new and
+cancels the reads of the current refresh in flight, and the provider launches
+nothing for a read cancelled before its turn. A read its cancellation answers
+is asked again under a new request identity once no window waits; one that
+answered first is applied as usual.
 For GitHub reads, an `accepted_snapshot_delta` is the explicit commit signal;
 a broad changed-domain bit cannot substitute for acceptance.
 
@@ -1932,6 +1940,25 @@ second mutation lane, or full model reset is introduced.
 The core's `home_section_for` classifies each accepted queue row from its own author-role/authored-discovery membership and unchanged attention bucket. Waiting-only authored rows stay in Waiting on others; other authored rows go to My pull requests. The Qt landing model projects this decision separately from its attention color role, and the existing window publication restores exact selected identity after accepted refresh. No new provider work, enrollment, notification policy or repository-drawer attention is introduced.
 
 The host's window-owned `home_view_state` adds bit 16 for My pull requests without changing the original collapse bits. Workbench settings schema 19 widens the private window row's collapse bound to 31 and transactionally rebuilds older tables with all existing fields copied. The new bit starts zero on upgrade; named group/band collapse remains window-session state. Profile defaults carry no Home view.
+
+## Ignored Home pull requests ([[BPR-1683]])
+
+`core::home_ignore_list` (`bpr/core/home_ignore.hpp`) is the reviewer's
+ignore set, keyed by the whole `pull_request_ref` (host, account, repository,
+number). It takes typed `home_ignore_intent`s and observations of each
+retained enrollment's place (`open`, `closed`, `left`). It returns
+`home_ignore_delta`s: `ignored`, `unignored`, `pruned_closed` or
+`pruned_left`. Only an open row can be ignored. An ignore is pruned once the
+queue holds its pull request as departed, and a pull request with no record is
+not observed. `queue_item::Ignored` puts the item in `home_queue_section::ignored`,
+`queue_precedes` orders ignored items after all others, and
+`notification_for` refuses them. The queue host decides from its register,
+persists each delta batch through `queue_enrollment_store_port::apply_home_ignores`
+before keeping it, and settles prunes after each stored departure and after
+restore. The SQLite queue store keeps them in `home_ignore` (schema 11, a new
+table; older files gain it empty). Qt projects the section: one neutral
+Ignored panel after Recently viewed whose collapse is window-session state,
+starting collapsed.
 
 ## Draft Home metadata allocation (RFC-BPR-0067)
 

@@ -215,7 +215,8 @@ namespace bpr::qt {
 	};
 
 	/// \brief [[BPR-0776]] [[BPR-0783]]. Home's list: the decided queue arranged
-	/// by the window's view, with Recently viewed last in every arrangement.
+	/// by the window's view, with Recently viewed and then Ignored last in every
+	/// arrangement.
 	///
 	/// \details Rows are always in state order — Needs me, then Waiting on
 	/// others, then Following — because state is Home's first key and Group only
@@ -246,6 +247,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
 		void set_clear_filters_dispatch(std::function<void()> aDispatch);
 		void set_recent_action_dispatch(std::function<void(int aRow)> aDispatch);
+		/// \brief [[BPR-1683]]. A queue row asked to be ignored, or an
+		/// ignored row to be unignored: Delete or Backspace on it, or an
+		/// ignored row's Unignore. The item says which it is.
+		void set_ignore_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		/// \brief [[BPR-1338]]. A queue row's Open on GitHub, from its icon button.
 		void set_page_dispatch(std::function<void(const core::queue_item&)> aDispatch);
 		/// \brief [[BPR-1338]]. The icon and tooltip every queue row's Open on
@@ -341,6 +346,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto account_chips() const -> bool;
 		[[nodiscard]] auto recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto recent_action() const noexcept -> home_row_action*;
+		/// \brief [[BPR-1683]]. Ignored, the last panel, starting collapsed.
+		[[nodiscard]] auto ignored_panel() const noexcept -> home_panel*;
+		[[nodiscard]] auto ignored_view() const noexcept -> QListView*;
+		/// \brief [[BPR-1683]]. An ignored row's Unignore button.
+		[[nodiscard]] auto ignored_action() const noexcept -> home_row_action*;
 		[[nodiscard]] auto empty_sentence() const noexcept -> QLabel*;
 		/// \brief [[BPR-1580]]. The sentence shown when the queue has rows and
 		/// the view's filters hide every one, with Clear filters.
@@ -436,20 +446,26 @@ namespace bpr::qt {
 		/// on it asks for nothing.
 		[[nodiscard]] auto opening(const QModelIndex& aIndex) const -> bool;
 
-		review_landing_filter_model&                 Queue;
-		QWidget*                                     Column   = nullptr;
-		QVBoxLayout*                                 Layout   = nullptr;
-		home_row_delegate*                           Delegate = nullptr;
-		std::array<home_slice_model*, 4U>            StateModels{ };
-		std::array<home_panel*, 4U>                  StatePanels{ };
-		std::array<home_row_view*, 4U>               StateViews{ };
-		home_panel*                                  FlatPanel = nullptr;
-		home_slice_model*                            FlatModel = nullptr;
-		home_row_view*                               FlatView  = nullptr;
-		std::vector<std::unique_ptr<group_entry>>    Groups;
-		home_panel*                                  RecentPanel      = nullptr;
-		home_recent_view*                            RecentView       = nullptr;
-		home_row_action*                             RecentAction     = nullptr;
+		review_landing_filter_model&              Queue;
+		QWidget*                                  Column   = nullptr;
+		QVBoxLayout*                              Layout   = nullptr;
+		home_row_delegate*                        Delegate = nullptr;
+		std::array<home_slice_model*, 4U>         StateModels{ };
+		std::array<home_panel*, 4U>               StatePanels{ };
+		std::array<home_row_view*, 4U>            StateViews{ };
+		home_panel*                               FlatPanel = nullptr;
+		home_slice_model*                         FlatModel = nullptr;
+		home_row_view*                            FlatView  = nullptr;
+		std::vector<std::unique_ptr<group_entry>> Groups;
+		home_panel*                               RecentPanel  = nullptr;
+		home_recent_view*                         RecentView   = nullptr;
+		home_row_action*                          RecentAction = nullptr;
+		/// [[BPR-1683]]. Ignored: its panel, slice, rows and Unignore.
+		home_panel*                                  IgnoredPanel  = nullptr;
+		home_slice_model*                            IgnoredModel  = nullptr;
+		home_row_view*                               IgnoredView   = nullptr;
+		home_row_action*                             IgnoredAction = nullptr;
+		std::function<void(const core::queue_item&)> IgnoreDispatch;
 		QLabel*                                      EmptySentence    = nullptr;
 		QLabel*                                      FilteredSentence = nullptr;
 		std::function<void()>                        ClearFiltersDispatch;

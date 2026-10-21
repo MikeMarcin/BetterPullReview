@@ -260,8 +260,8 @@ session — and searches the saved repositories of that server and account only,
 both reasons for each through `personal_discovery_port` ([[BPR-0988]]), at
 most two reads at a time.
 
-It runs when a session is adopted, on activation when the last success is
-older than five minutes, when a repository it has not searched is saved (at
+It runs when a session is adopted, on activation when the last refresh that
+ran to its end is older than five minutes, when a repository it has not searched is saved (at
 the end of a running refresh if one runs), and on an explicit Refresh. Nothing a window opens or
 selects starts it, and opening a pull request never waits on it. A rate limit
 holds it off until the retry-after has passed (a secondary limit without one
@@ -270,6 +270,15 @@ different session cancels what is in flight; every read is tagged with its
 session generation and refresh, so a completion from an earlier session or
 refresh, or for a repository no longer saved, is dropped. The queue checks the
 session again when it applies an answer.
+
+Activation measures freshness from the last refresh that ran to its end,
+not only from the last success ([[BPR-1681]]). A refresh that ended
+with an unreadable repository or pull request would fail the same way again,
+so every return to the window (closing the diagnostic export's dialog, say)
+re-ran the whole refresh; on a slow server that is minutes of reads. A refresh
+a session-wide failure stopped (offline, authentication, rate limit) does not
+count, so activation still retries it once any retry-after has passed. The
+status stays stale with its problem either way, and Refresh is unchanged.
 
 `queue_discovery_status` is published in the queue projection, per server and
 account: refreshing, current, partial (with why: GitHub's incomplete results,

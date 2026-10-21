@@ -34,14 +34,21 @@ namespace bpr::core {
 	};
 
 	/// \brief Home's section order, independent of a row's unchanged attention bucket.
+	///
+	/// \details [[BPR-1683]]. `ignored` is last: the reviewer has said the
+	/// row is not asking for attention, so it sorts after every other section.
 	enum class home_queue_section : std::uint8_t {
 		needs_you,
 		my_pull_requests,
 		waiting_on_others,
 		following,
+		ignored,
 	};
 
 	/// \brief Classifies accepted row-scoped authorship for Home without changing attention or notification eligibility.
+	///
+	/// \details Never `ignored`: ignoring is the reviewer's choice about a row,
+	/// not a fact of its membership. Ask the item for its section to include it.
 	[[nodiscard]] auto home_section_for(const queue_membership& aMembership, attention_bucket aBucket) noexcept -> home_queue_section;
 
 	/// \brief Durable local notification choices; pause preserves enablement.
@@ -186,9 +193,16 @@ namespace bpr::core {
 		queue_membership Membership;
 		attention_bucket Bucket = attention_bucket::quiet;
 		queue_item_facts Facts;
+		/// [[BPR-1683]]. The reviewer ignored it on Home. Its bucket and
+		/// facts are unchanged; only its section and its place in the order move.
+		bool Ignored = false;
 
 		auto operator<=>(const queue_item&) const = default;
 	};
+
+	/// \brief [[BPR-1683]]. The Home section of one decided item: `ignored`
+	/// for an ignored row, otherwise its membership's section.
+	[[nodiscard]] auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section;
 
 	/// \brief Whether one item is in this queue in the supplied role.
 	///
@@ -217,11 +231,14 @@ namespace bpr::core {
 		-> attention_bucket;
 
 	/// \brief The deterministic priority relation used by complete and incremental projections.
+	///
+	/// \details [[BPR-1683]]. Ignored items follow every other item; within
+	/// each part the order is bucket, then identity.
 	[[nodiscard]] auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool;
 
 	/// \brief Builds the ordered queue from enrolled items.
 	///
-	/// \details Ordered by bucket, then by identity. The identity is what makes
+	/// \details Ordered by bucket, then by identity, with ignored items last. The identity is what makes
 	/// the order *total*: a queue ordered by bucket alone would leave items
 	/// sharing a bucket in whatever order the host happened to read them, and
 	/// a queue that reshuffles between refreshes is one a reviewer cannot keep

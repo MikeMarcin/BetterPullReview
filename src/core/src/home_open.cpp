@@ -1,5 +1,7 @@
 #include "bpr/core/home_open.hpp"
 
+#include <algorithm>
+
 namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto in_flight(const std::optional<home_open_state>& aState) noexcept -> bool
@@ -99,5 +101,10 @@ namespace bpr::core {
 		const pull_request_number             aNumber) noexcept -> bool
 	{
 		return in_flight(aState) && aState->Repository == aRepository && aState->Number == aNumber;
+	}
+
+	auto home_loading_yields(const std::span<const github_state> aLanes) noexcept -> bool
+	{
+		return std::ranges::any_of(aLanes, [](const github_state& aLane) { return aLane.PendingPullRequest.has_value(); });
 	}
 } // namespace bpr::core

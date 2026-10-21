@@ -1,5 +1,7 @@
 #include "bpr/qt/comparison_scroll_controller.hpp"
 
+#include "bpr/qt/keyboard_shortcuts.hpp"
+
 #include <QEvent>
 #include <QGuiApplication>
 #include <QKeyEvent>
@@ -780,24 +782,11 @@ namespace bpr::qt {
 
 	auto comparison_scroll_edge_for(const QKeyEvent& aEvent) -> std::optional<comparison_scroll_edge>
 	{
-		if (aEvent.matches(QKeySequence::MoveToStartOfDocument)) {
-			return comparison_scroll_edge::top;
+		const auto edge = document_edge_for(aEvent);
+		if (!edge.has_value()) {
+			return std::nullopt;
 		}
-		if (aEvent.matches(QKeySequence::MoveToEndOfDocument)) {
-			return comparison_scroll_edge::bottom;
-		}
-#if defined(Q_OS_MACOS)
-		// macOS marks the arrow keys as keypad keys.
-		if ((aEvent.modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
-			if (aEvent.key() == Qt::Key_Up) {
-				return comparison_scroll_edge::top;
-			}
-			if (aEvent.key() == Qt::Key_Down) {
-				return comparison_scroll_edge::bottom;
-			}
-		}
-#endif
-		return std::nullopt;
+		return *edge == document_edge::start ? comparison_scroll_edge::top : comparison_scroll_edge::bottom;
 	}
 
 	auto comparison_scroll_controller::handle_key_event(QKeyEvent& aEvent) -> bool

@@ -56,6 +56,7 @@
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFileInfo>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHelpEvent>
 #include <QIcon>
@@ -97,6 +98,7 @@
 #include <QStringList>
 #include <QStyle>
 #include <QStyleFactory>
+#include <QStyleOption>
 #include <QSysInfo>
 #include <QTabBar>
 #include <QTabWidget>
@@ -6585,6 +6587,109 @@ namespace {
 	/// keeps a written draft and drops an empty one. Nothing publishes but
 	/// Publish. Failing before: Return did nothing and Comment opened the
 	/// full-page composer in place of the code (owner, 2026-10-08).
+	/// \brief [[BPR-1682]]. The "+" on a pull request no one has
+	/// commented on opens its draft in the drawer, and the line offers its
+	/// "+" again once the empty draft goes.
+	///
+	/// \details The owner: "i'm no longer able to get the add comment mouse
+	/// over column next to line number control to come up or click on a line
+	/// I have selected", on a line no thread was on. With no conversation the
+	/// Comments drawer showed its empty page, so the draft began on the
+	/// hidden notes: no composer opened, the line kept the mark of a draft
+	/// being written, and a line with a mark offers no "+". Every pointer
+	/// event here goes to the window, so Qt's own hit-testing picks the code,
+	/// the gutter or the button.
+	void test_the_plus_on_a_pull_request_without_threads_opens_its_draft()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 852);
+		window.show();
+		process_events();
+		window.activateWindow();
+		auto opened    = every_primary_command_offered(core::change_navigation_policy::wrap);
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		// An added line 14 above the line commented on, as the owner's file had.
+		auto text = std::string{ };
+		for (auto line = 0U; line < 40U; ++line) {
+			text += "#include \"Net" + std::to_string(line) + ".h\"\n";
+		}
+		auto laterText = text;
+		laterText.insert(laterText.find("#include \"Net13.h\""), "#include \"NetAdded.h\"\n");
+		const auto diff   = computed_comparison(text, laterText, 0U, core::file_identity_of("src/file.cpp"));
+		auto       drafts = std::vector<core::review_draft_command>{ };
+		window.set_review_draft_dispatch([&drafts](core::review_draft_command aCommand) { drafts.push_back(std::move(aCommand)); });
+		window.conversation_panel()->adopt({ }, QStringLiteral("No threads on this pull request yet."));
+		static_cast<void>(publish_fixture(window, diff));
+		window.set_conversation_endpoint_placement(true, true);
+		process_events();
+		// The host's part: a selected line has its draft, empty.
+		auto nextId = std::uint64_t{ 1U };
+		window.comparison_surface()->set_selection_sink([&window, &nextId](const std::optional<core::semantic_selection>& aSelection) {
+			if (aSelection) {
+				window.review_editor()->present(core::review_comment_draft{
+					.Id = core::review_draft_id{ nextId++ }, .Anchor = aSelection->PreferredLine, .Body = { } });
+			}
+		});
+		auto* const code   = window.comparison_surface()->right_pane();
+		auto* const cards  = window.conversation_panel()->cards();
+		auto* const button = code->findChild<QAbstractButton*>(QStringLiteral("diffLineAddButton"));
+		expect(button != nullptr && cards->cards().empty(), "a pull request without threads: the notes are empty and the \"+\" waits");
+		const auto marked = [&window](const std::uint32_t aLine) {
+			const auto& marks = window.comparison_surface()->line_marks(core::diff_side::right);
+			return std::ranges::any_of(marks, [aLine](const qt::diff_line_mark& aMark) { return aMark.Line == aLine; });
+		};
+		// Points in the window: line 15's "+" column, two pixels into its
+		// code, and a little further into the code.
+		const auto column = [&window, code](const std::uint32_t aLine) {
+			const auto row = window.comparison_surface()->line_rect(core::diff_side::right, aLine);
+			return QPoint{ code->viewport()->mapTo(&window, QPoint{ 0, 0 }).x() + 2, window.comparison_surface()->mapTo(&window, row.center()).y() };
+		};
+		const auto inCode = [&column](const std::uint32_t aLine) { return column(aLine) + QPoint{ 40, 0 }; };
+		const auto mouse  = [&window](const QPoint aPoint, const QEvent::Type aType, const Qt::MouseButtons aButtons) {
+			QCursor::setPos(window.mapToGlobal(aPoint));
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				window.windowHandle(), QPointF{ aPoint }, QPointF{ window.mapToGlobal(aPoint) }, aButtons,
+				aType == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton, aType, Qt::NoModifier);
+			process_events();
+		};
+		const auto click = [&mouse](const QPoint aPoint) {
+			mouse(aPoint, QEvent::MouseMove, Qt::NoButton);
+			mouse(aPoint, QEvent::MouseButtonPress, Qt::LeftButton);
+			mouse(aPoint, QEvent::MouseButtonRelease, Qt::NoButton);
+		};
+		constexpr auto line = 14U;
+
+		// The owner's line: selected by a click on its code, then the pointer
+		// in its "+" column.
+		click(inCode(line));
+		expect(window.comparison_surface()->selection().has_value() && window.comparison_surface()->selection()->PreferredLine.Line == line,
+			   "a click on line 15's code selects it");
+		mouse(column(line), QEvent::MouseMove, Qt::NoButton);
+		expect(!button->isHidden() && button->geometry().contains(code->mapFrom(&window, column(line))),
+			   "the pointer in the selected line's \"+\" column shows its \"+\"");
+
+		// A click on the "+" opens the draft in the drawer, with the keyboard.
+		click(column(line));
+		std::cout << "bpr-pending-e plus-click writing=" << cards->writing_draft() << " composer=" << drawer_writing(window)
+				  << " cards-shown=" << cards->isVisible() << '\n';
+		expect(drawer_writing(window) && cards->draft_editor()->hasFocus() && marked(line)
+				   && cards->open_card() != nullptr && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 15"),
+			   "on a pull request without threads, clicking the \"+\" opens a draft on line 15 in the drawer, with focus");
+
+		// Esc drops the empty draft: its mark goes, the drawer shows its
+		// empty state again, and line 15 offers its "+" once more.
+		QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+		QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), QEvent::KeyRelease, Qt::Key_Escape, Qt::NoModifier);
+		process_events();
+		expect(!cards->writing_draft() && !marked(line) && !cards->isVisible(), "Esc drops the empty draft and its mark, and the empty drawer stays empty");
+		mouse(inCode(line), QEvent::MouseMove, Qt::NoButton);
+		mouse(column(line), QEvent::MouseMove, Qt::NoButton);
+		expect(!button->isHidden() && button->geometry().contains(code->mapFrom(&window, column(line))), "line 15 offers its \"+\" again");
+	}
+
 	void test_compose_in_the_drawer()
 	{
 		qt::workbench_window window;
@@ -12479,6 +12584,238 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1684]]. The right tray's tabs keep their names for as
+	/// long as the row has room for them. Each tab is as wide as what it
+	/// shows: the Agent tab is its spark and its name, and Comments keeps no
+	/// room for a count it is not showing. Narrower, the row names the open
+	/// tab beside its glyph and shows the others' glyphs, then glyphs only.
+	/// A tab without its name says it in its tooltip and to accessibility,
+	/// and the count stays a pill beside the glyph, never over it. Checked
+	/// in every style Qt offers here (on macOS its own, which counted a tab's
+	/// padding twice for an icon), with and without a count.
+	void test_the_right_tray_tabs_keep_their_names_while_they_fit()
+	{
+		qt::workbench_window window;
+		window.resize(1'600, 560);
+		window.show();
+		auto opened      = both_files_enabled();
+		opened.Selection = core::workbench_selection_delta{ .Cursor = core::workbench_navigation_cursor{ .File = core::file_identity_of("src/file.cpp") } };
+		opened.Drawers   = drawer_states(core::workbench_drawer_state::collapsed, core::workbench_drawer_state::expanded);
+		opened.Layout    = application::workbench_layout_delta{ .FilesWidth = 320U, .ConversationsWidth = 420U };
+		window.publish(opened);
+		process_events();
+		auto text = std::string{ };
+		for (auto line = 0U; line < 40U; ++line) {
+			text += "line " + std::to_string(line) + '\n';
+		}
+		window.set_conversation_endpoint_placement(false, true);
+		const auto thread = [](const std::string& aId, const std::uint32_t aLine) {
+			auto result               = application::github_conversation_projection{ };
+			result.Id                 = aId;
+			result.Kind               = application::github_conversation_kind::review_thread;
+			result.Path               = "src/file.cpp";
+			result.Line               = aLine;
+			result.DiffSide           = application::github_conversation_diff_side::right;
+			result.AnchorAvailability = application::github_conversation_anchor_availability::current;
+			return result;
+		};
+		const auto post = [](const std::string& aId, const std::string& aParent) {
+			auto result        = application::github_conversation_projection{ };
+			result.Id          = aId;
+			result.ParentId    = aParent;
+			result.Kind        = application::github_conversation_kind::review_comment;
+			result.AuthorLogin = "someone";
+			result.Body        = "a post";
+			result.Path        = "src/file.cpp";
+			return result;
+		};
+		window.conversation_panel()->adopt(
+			{ thread("review-thread:a", 12U), post("review-comment:a-1", "review-thread:a"),
+			  thread("review-thread:b", 22U), post("review-comment:b-1", "review-thread:b") },
+			QStringLiteral("two conversations"));
+		static_cast<void>(publish_fixture(window, computed_comparison(text, text, 0U, core::file_identity_of("src/file.cpp"))));
+		process_events();
+		auto* const tabs   = window.tray_tabs();
+		auto* const header = window.findChild<QWidget*>(QStringLiteral("workbenchTrayHeader"));
+		auto* const pill   = window.findChild<QWidget*>(QStringLiteral("workbenchTrayCommentsCount"));
+		auto* const drawer = window.conversations_drawer();
+		expect(tabs != nullptr && header != nullptr && pill != nullptr && tabs->count() == 4, "the tray's tab row is composed");
+		const QString names[] = { QStringLiteral("Comments"), QStringLiteral("Notes"), QStringLiteral("Tour"), QStringLiteral("Agent") };
+		const auto    named   = [&] {
+			for (auto index = 0; index < 4; ++index) {
+				if (tabs->tabText(index) != names[index]) {
+					return false;
+				}
+			}
+			return true;
+		};
+		const auto rowWidth = [tabs] {
+			return tabs->tabRect(tabs->count() - 1).right() + 1;
+		};
+		// Each name is drawn by the style as a plain text tab as wide as its
+		// tab, beside its glyph and its count. The style's text rectangle for
+		// that tab holds the whole name, and the glyph, the name and the count
+		// fit the tab with the style's own text-tab padding, so nothing is
+		// elided, clipped or drawn over.
+		const auto namesWhole = [tabs] {
+			for (auto index = 0; index < tabs->count(); ++index) {
+				const auto shown   = tabs->tabText(index);
+				const auto metrics = tabs->fontMetrics();
+				auto       option  = QStyleOptionTab{ };
+				option.initFrom(tabs);
+				option.rect         = tabs->tabRect(index);
+				option.text         = shown;
+				option.shape        = tabs->shape();
+				option.documentMode = tabs->documentMode();
+				if (index == tabs->currentIndex()) {
+					option.state |= QStyle::State_Selected;
+				}
+				const auto textRect = tabs->style()->subElementRect(QStyle::SE_TabBarTabText, &option, tabs);
+				auto       content  = shown.isEmpty() ? 0 : metrics.size(Qt::TextShowMnemonic, shown).width();
+				if (!tabs->tabIcon(index).isNull()) {
+					content += tabs->iconSize().width() + (shown.isEmpty() ? 0 : 4);
+				}
+				if (const auto* const count = tabs->tabButton(index, QTabBar::RightSide); count != nullptr && count->isVisible()) {
+					content += 4 + count->width();
+				}
+				if (textRect.width() < content || option.rect.width() < content) {
+					std::cout << "BPR-1684 " << tabs->style()->name().toStdString() << " text rect " << textRect.width() << " for " << content << " px of '"
+							  << shown.toStdString() << "' in a " << option.rect.width() << " px tab\n";
+					return false;
+				}
+			}
+			return true;
+		};
+		const auto saveHeader = [&](const QString& aSuffix) {
+			const auto bottom   = header->mapTo(drawer, QPoint{ 0, header->height() }).y() + 6;
+			const auto rendered = drawer->grab(QRect{ 0, 0, drawer->width(), bottom });
+			expect(!rendered.isNull(), "the tab row renders");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+					   "the tab row render is saved for inspection");
+			}
+		};
+		const auto widths = { 760, 420, 375, 340, 335, 330, 320, 310, 300, 290, 280 };
+		// The application's own style first, with the renders; then every
+		// style Qt offers here, for their metrics.
+		auto styleNames = QStringList{ QString{ } };
+		styleNames.append(QStyleFactory::keys());
+		for (const auto& styleName : styleNames) {
+			auto style = std::unique_ptr<QStyle>{ styleName.isEmpty() ? nullptr : QStyleFactory::create(styleName) };
+			if (!styleName.isEmpty() && style == nullptr) {
+				continue;
+			}
+			tabs->setStyle(style.get());
+			const auto label = styleName.isEmpty() ? QStringLiteral("app-%1").arg(tabs->style()->name()) : styleName;
+			for (const auto withCount : { false, true }) {
+				if (withCount) {
+					window.present_read_state({
+						qt::thread_read_state{ .Thread = "review-thread:a", .UnreadPosts = { "review-comment:a-1" } },
+						qt::thread_read_state{ .Thread = "review-thread:b", .UnreadPosts = { "review-comment:b-1" } },
+					});
+				} else {
+					window.present_read_state({ });
+				}
+				tabs->setCurrentIndex(0);
+				drag_conversations_handle(window, 760);
+				process_events();
+				const auto context = QStringLiteral(" (%1, %2)").arg(label, withCount ? QStringLiteral("count") : QStringLiteral("no count")).toStdString();
+				expect(named() && pill->isVisible() == withCount && window.comments_count_text() == (withCount ? QStringLiteral("2") : QString{ }),
+					   "a wide row shows every tab's name, and the count only when there is one" + context);
+				// Each tab is its style's text tab for its name, plus the
+				// Agent's spark and the Comments count when they show.
+				const auto metrics = tabs->fontMetrics();
+				const auto padding = [&](const int aIndex) {
+					return tabs->tabRect(aIndex).width() - metrics.size(Qt::TextShowMnemonic, names[aIndex]).width();
+				};
+				const auto notes = padding(1);
+				expect(std::abs(padding(2) - notes) <= 1, "Tour and Notes have the same padding" + context);
+				const auto spark = tabs->iconSize().width() + 4;
+				expect(std::abs(padding(3) - spark - notes) <= 1,
+					   "the Agent tab is as wide as its spark and its name, padded as Notes is" + context);
+				const auto count = withCount ? pill->sizeHint().width() + 4 : 0;
+				expect(std::abs(padding(0) - count - notes) <= 1,
+					   (withCount ? "the Comments tab is its name and its count, padded as Notes is"
+								  : "the Comments tab keeps no room for a count it is not showing")
+						   + context);
+				const auto fullRow = rowWidth();
+				std::cout << "BPR-1684 tray row" << context << ": names need " << fullRow << " px; Notes padding " << notes << '\n';
+				for (const auto width : widths) {
+					drag_conversations_handle(window, width);
+					process_events();
+					// The room is what the header's grid can give the tabs alone
+					// on their row.
+					const auto* const grid  = qobject_cast<const QGridLayout*>(header->layout());
+					const auto        room  = header->width() - (grid == nullptr ? 0 : grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing()));
+					const auto        where = QStringLiteral(" at %1 px").arg(header->width()).toStdString() + context;
+					expect(rowWidth() <= room && tabs->width() >= rowWidth(), "the whole row fits the drawer, nothing scrolls or clips" + where);
+					expect(rowWidth() == tabs->sizeHint().width(), "no tab is squeezed below what it shows" + where);
+					expect(namesWhole(), "every name a tab shows has room for all of itself" + where);
+					if (fullRow <= room) {
+						expect(named(), "every name stays while the row has room for them" + where);
+						continue;
+					}
+					// Compact: the open tab is named when that fits; every tab
+					// shows its glyph; a tab without its name has a tooltip
+					// that starts with its accessible name, which is its name.
+					expect(!named(), "the names go only when they do not fit" + where);
+					auto glyphsOnly = true;
+					for (auto index = 0; index < 4; ++index) {
+						const auto shown = tabs->tabText(index);
+						expect(!tabs->tabIcon(index).isNull(), "every compact tab shows its glyph" + where);
+						expect(shown.isEmpty() || (index == tabs->currentIndex() && shown == names[index]),
+							   "a compact tab shows only the open tab's name, whole" + where);
+						expect(tabs->accessibleTabName(index).startsWith(names[index]), "every compact tab keeps its name for accessibility" + where);
+						if (shown.isEmpty()) {
+							expect(tabs->tabToolTip(index).startsWith(tabs->accessibleTabName(index) + QLatin1Char{ '\n' }),
+								   "a tab showing only its glyph says its name first in its tooltip" + where);
+						} else {
+							glyphsOnly = false;
+						}
+					}
+					if (withCount) {
+						const auto tab      = tabs->tabRect(0);
+						const auto hpadding = tabs->style()->pixelMetric(QStyle::PM_TabBarTabHSpace, nullptr, tabs) / 2;
+						expect(pill->isVisible() && tab.contains(pill->geometry())
+								   && pill->geometry().left() >= tab.left() + hpadding + tabs->iconSize().width(),
+							   "the count stays a pill inside its tab, beside the glyph and never over it" + where);
+					}
+					if (styleName.isEmpty()) {
+						std::cout << "BPR-1684 compact" << where << ": " << (glyphsOnly ? "glyphs only" : "open tab named") << ", row " << rowWidth() << " px\n";
+					}
+				}
+				if (styleName.isEmpty()) {
+					for (const auto width : widths) {
+						drag_conversations_handle(window, width);
+						process_events();
+						saveHeader(QStringLiteral("tray-tabs-%1-%2").arg(width).arg(withCount ? QStringLiteral("count") : QStringLiteral("none")));
+					}
+				}
+				// Choosing another tab in a compact row names that tab.
+				drag_conversations_handle(window, 300);
+				process_events();
+				if (!named() && tabs->tabText(0) == names[0]) {
+					tabs->setCurrentIndex(3);
+					process_events();
+					expect(tabs->tabText(3) == names[3] && tabs->tabText(0).isEmpty() && rowWidth() <= header->width(),
+						   "choosing the Agent tab in a compact row names it instead" + context);
+					if (styleName.isEmpty()) {
+						saveHeader(QStringLiteral("tray-tabs-300-%1-agent").arg(withCount ? QStringLiteral("count") : QStringLiteral("none")));
+					}
+					tabs->setCurrentIndex(0);
+					process_events();
+				}
+				drag_conversations_handle(window, 760);
+				process_events();
+				expect(named(), "widening the drawer brings every name back" + context);
+			}
+			tabs->setStyle(nullptr);
+			process_events();
+		}
+		window.hide();
+	}
+
 	void test_read_state_reaches_the_gutter_and_the_strip()
 	{
 		qt::workbench_window window;
@@ -17204,6 +17541,10 @@ namespace {
 		auto*      page  = window.open_on_github_action();
 		auto*      again = window.home_recent_resume_action();
 		auto*      drop  = window.home_recent_remove_action();
+		// [[BPR-1683]]. Ignore, after Open on GitHub, for a queue row only.
+		auto* ignore  = window.home_ignore_action();
+		auto  ignores = std::vector<core::home_ignore_intent>{ };
+		window.set_home_ignore_dispatch([&ignores](core::home_ignore_intent aIntent) { ignores.push_back(std::move(aIntent)); });
 
 		// The menu, on a queue row.
 		auto menuAt = QContextMenuEvent{ QContextMenuEvent::Mouse, row.center(), view->viewport()->mapToGlobal(row.center()) };
@@ -17211,9 +17552,11 @@ namespace {
 		process_events();
 		const auto items = menu->actions();
 		expect(menu->isVisible() && view->currentIndex() == index, "a right click makes the queue row current and opens its menu");
-		expect(items.size() == 7 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page
-				   && items[5]->isSeparator() && items[6] == drop && menu->defaultAction() == open,
-			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open on GitHub, then Remove from Recently Viewed");
+		expect(items.size() == 9 && items[0] == open && items[1] == fresh && items[2] == again && items[3]->isSeparator() && items[4] == page
+				   && items[5]->isSeparator() && items[6] == ignore && items[7]->isSeparator() && items[8] == drop && menu->defaultAction() == open,
+			   "the menu is Open Review (the default), Open Review in New Window, Resume, Open on GitHub, Ignore, then Remove from Recently Viewed");
+		expect(ignore->isVisible() && ignore->isEnabled() && ignore->text() == QStringLiteral("Ignore") && ignore->shortcut().isEmpty(),
+			   "on a queue row Ignore is offered, and its Delete is the list's, never the window's");
 		expect(open->text() == QStringLiteral("Open Review") && fresh->text() == QStringLiteral("Open Review in New Window") && open->isEnabled() && fresh->isEnabled()
 				   && !again->isVisible() && !drop->isVisible() && page->isEnabled(),
 			   "on a queue row both are offered and neither Resume nor Remove is");
@@ -17223,6 +17566,9 @@ namespace {
 			   "each item shows its key, and the keys are the lists' own, never a window shortcut");
 		save_open_review_render(*menu, QStringLiteral("queue-row-menu"));
 		save_open_review_render(window, QStringLiteral("queue-row-menu-window"));
+		ignore->trigger();
+		expect(ignores.size() == 1U && ignores.back().Ref == mine && ignores.back().Action == core::home_ignore_action::ignore,
+			   "Ignore asks the queue to ignore the row the menu was opened on");
 		fresh->trigger();
 		menu->hide();
 		process_events();
@@ -17243,6 +17589,9 @@ namespace {
 		expect(windows.size() == 2U && std::get<core::pull_request_ref>(windows.back()) == mine && opens.size() == 1U, "⌘Return opens the current row in a new window");
 		deliver_key(window, Qt::Key_Return, Qt::NoModifier);
 		expect(opens.size() == 2U && windows.size() == 2U, "Return opens it here");
+		deliver_key(window, Qt::Key_Delete, Qt::NoModifier);
+		expect(ignores.size() == 2U && ignores.back().Ref == mine && ignores.back().Action == core::home_ignore_action::ignore && opens.size() == 2U,
+			   "Delete on the current row asks to ignore it, and opens nothing");
 
 		// The pointer: ⌘-click and middle-click open in a new window and keep
 		// the row selected; a plain click only selects ([[BPR-1364]]) and a
@@ -17274,6 +17623,7 @@ namespace {
 			   "on a Recently viewed row the menu adds Resume with ⇧Return");
 		expect(drop->isVisible() && drop->isEnabled() && drop->text() == QStringLiteral("Remove from Recently Viewed") && drop->shortcut().isEmpty(),
 			   "and Remove from Recently Viewed, whose Delete the list reads rather than the window");
+		expect(!ignore->isVisible(), "a Recently viewed row is not ignored from its menu");
 		save_open_review_render(*menu, QStringLiteral("recent-row-menu"));
 		fresh->trigger();
 		menu->hide();
@@ -19051,6 +19401,218 @@ namespace {
 		expect(refreshes() == 4 && pullTriggers == 1 && pullIntents == 1 && other == 0, "and ⌘R refreshes Home, not the review behind it");
 		window.hide();
 	}
+
+	/// \brief [[BPR-1678]]. The owner, 2026-10-20: "I would like a hotkey
+	/// for the file drawer toggle. And maybe one for the repository drawer
+	/// toggle." Files and Repositories keep Option-Shift-1 and Option-Shift-R,
+	/// which a text field takes on macOS, and gain Control-Command-1 and
+	/// Control-Command-R there (Ctrl+Shift+1 and Ctrl+Shift+R elsewhere). The
+	/// new keys are free in the catalogue, no Qt standard key and no text
+	/// widget's, and they are on the toggles themselves. Through the real core
+	/// each toggles its drawer from the code and from a field, in Overview it
+	/// meets the core's collapsed drawers like the toggle, and the toggle's
+	/// checked state and its button's accessible state follow. Help > Keyboard
+	/// Shortcuts lists both keys with no typing note.
+	void test_drawer_keys_toggle_their_drawers()
+	{
+#if defined(Q_OS_MACOS)
+		const auto filesKey = QKeySequence{ QStringLiteral("Ctrl+Meta+1") };
+		const auto reposKey = QKeySequence{ QStringLiteral("Ctrl+Meta+R") };
+#else
+		const auto filesKey = QKeySequence{ QStringLiteral("Ctrl+Shift+1") };
+		const auto reposKey = QKeySequence{ QStringLiteral("Ctrl+Shift+R") };
+#endif
+		expect(qt::shortcut_keys(qt::shortcut_command::files_drawer) == QList{ QKeySequence{ QStringLiteral("Alt+Shift+1") }, filesKey }
+				   && qt::shortcut_keys(qt::shortcut_command::repositories_drawer) == QList{ QKeySequence{ QStringLiteral("Alt+Shift+R") }, reposKey },
+			   "the catalogue keeps each drawer's Option-Shift key first and adds a command key");
+
+		// The catalogue has no conflict: no two entries that act window-wide
+		// share a key, and the new keys are no other entry's anywhere.
+		auto windowWide = std::map<QString, std::string_view>{ };
+		for (const auto& entry : qt::shortcut_catalogue()) {
+			for (const auto& key : qt::shortcut_keys(entry)) {
+				const auto text = key.toString(QKeySequence::PortableText);
+				if (entry.Place.empty()) {
+					const auto [held, fresh] = windowWide.emplace(text, entry.Title);
+					expect(fresh, "the key " + text.toStdString() + " is held by " + std::string{ held->second } + " and " + std::string{ entry.Title });
+				}
+			}
+		}
+		for (const auto& [key, owner] : { std::pair{ filesKey, qt::shortcut_command::files_drawer }, std::pair{ reposKey, qt::shortcut_command::repositories_drawer } }) {
+			const auto name = key.toString(QKeySequence::PortableText).toStdString();
+			for (const auto& entry : qt::shortcut_catalogue()) {
+				expect(entry.Command == owner || !qt::shortcut_keys(entry).contains(key), name + " is not also " + std::string{ entry.Title });
+			}
+			for (int standard = QKeySequence::HelpContents; standard <= QKeySequence::Cancel; ++standard) {
+				expect(!QKeySequence::keyBindings(static_cast<QKeySequence::StandardKey>(standard)).contains(key), name + " is no Qt standard key: " + std::to_string(standard));
+			}
+			auto field  = QLineEdit{ };
+			auto editor = QPlainTextEdit{ };
+			for (QWidget* const widget : std::initializer_list<QWidget*>{ &field, &editor }) {
+				auto event = QKeyEvent{ QEvent::ShortcutOverride, static_cast<int>(key[0].key()), key[0].keyboardModifiers() };
+				event.ignore();
+				QApplication::sendEvent(widget, &event);
+				expect(!event.isAccepted(), "a text widget does not claim " + name);
+			}
+			expect(!qt::steps_aside_while_typing(qt::shortcut(owner)), name + " leaves its row without a typing note");
+		}
+
+		// The window, through the real core.
+		auto  state   = core::workbench_interaction_state{ };
+		auto  toggled = std::vector<core::workbench_drawer>{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				if (const auto* const toggle = std::get_if<core::toggle_workbench_drawer_intent>(&aIntent); toggle != nullptr) {
+					toggled.push_back(toggle->Drawer);
+				}
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 1U };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		static_cast<void>(publish_fixture(window, computed_comparison("old\n", "new\n", 0U, file)));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+
+		auto* const filesToggle = window.files_drawer_toggle_action();
+		auto* const reposToggle = window.repositories_drawer_toggle_action();
+		expect(filesToggle->shortcuts() == qt::shortcut_keys(qt::shortcut_command::files_drawer)
+				   && reposToggle->shortcuts() == qt::shortcut_keys(qt::shortcut_command::repositories_drawer)
+				   && filesToggle->shortcutContext() == Qt::WindowShortcut && reposToggle->shortcutContext() == Qt::WindowShortcut,
+			   "each toggle action carries both catalogue keys, window-wide");
+		auto holders = std::map<QString, QStringList>{ };
+		for (const auto& binding : live_bindings(window)) {
+			for (const auto& key : binding.Keys) {
+				holders[key.toString(QKeySequence::PortableText)].push_back(binding.Name);
+			}
+		}
+		expect(holders[filesKey.toString(QKeySequence::PortableText)] == QStringList{ QStringLiteral("toggleWorkbenchFilesDrawerAction") }
+				   && holders[reposKey.toString(QKeySequence::PortableText)] == QStringList{ QStringLiteral("toggleWorkbenchRepositoriesDrawerAction") },
+			   "nothing else in the window binds either key");
+
+		const auto open = [](const qt::workbench_drawer_panel* const aPanel) {
+			return aPanel->state() == core::workbench_drawer_state::expanded && aPanel->isVisible();
+		};
+		const auto accessiblyChecked = [&window](QAction* const aAction) {
+			auto* const button    = window.primary_toolbar()->widgetForAction(aAction);
+			auto* const interface = button == nullptr ? nullptr : QAccessible::queryAccessibleInterface(button);
+			return interface != nullptr && interface->state().checkable && interface->state().checked;
+		};
+		const auto press = [&window](const QKeySequence& aKey) {
+			deliver_key(window, static_cast<int>(aKey[0].key()), aKey[0].keyboardModifiers());
+		};
+		struct drawer_key
+		{
+			const char*                       Name;
+			QKeySequence                      Key;
+			QAction*                          Toggle;
+			const qt::workbench_drawer_panel* Panel;
+			core::workbench_drawer            Drawer;
+		};
+		const auto drawers = std::array{
+			drawer_key{ "Files", filesKey, filesToggle, window.files_drawer(), core::workbench_drawer::files },
+			drawer_key{ "Repositories", reposKey, reposToggle, window.repositories_drawer(), core::workbench_drawer::repositories },
+		};
+
+		// From the code.
+		auto* const code = window.comparison_surface()->right_pane();
+		for (const auto& drawer : drawers) {
+			const auto name = std::string{ drawer.Name };
+			code->setFocus(Qt::OtherFocusReason);
+			process_events();
+			const auto before = open(drawer.Panel);
+			const auto count  = toggled.size();
+			press(drawer.Key);
+			expect(toggled.size() == count + 1U && toggled.back() == drawer.Drawer, name + "'s key sends one toggle of its drawer from the code");
+			expect(open(drawer.Panel) == !before && drawer.Toggle->isChecked() == !before && accessiblyChecked(drawer.Toggle) == !before,
+				   name + " changes, and its toggle and the toggle's button say so");
+			press(drawer.Key);
+			expect(toggled.size() == count + 2U && open(drawer.Panel) == before && drawer.Toggle->isChecked() == before
+					   && accessiblyChecked(drawer.Toggle) == before,
+				   name + "'s key again puts it back");
+		}
+
+		// From a single-line field: the key acts and types nothing there.
+		auto* const filter = window.files_filter();
+		for (const auto& drawer : { drawers[1], drawers[0] }) {
+			const auto name = std::string{ drawer.Name };
+			if (!open(window.files_drawer())) {
+				filesToggle->trigger();
+				process_events();
+			}
+			filter->setFocus(Qt::OtherFocusReason);
+			process_events();
+			expect(QApplication::focusWidget() == filter, "the files filter has the keyboard");
+			const auto text   = filter->text();
+			const auto before = open(drawer.Panel);
+			const auto count  = toggled.size();
+			press(drawer.Key);
+			expect(toggled.size() == count + 1U && toggled.back() == drawer.Drawer && open(drawer.Panel) == !before
+					   && drawer.Toggle->isChecked() == !before && filter->text() == text,
+				   name + "'s key toggles it from the files filter and types nothing there");
+#if defined(Q_OS_MACOS)
+			// Negative control: the Option-Shift key is the field's on macOS.
+			if (open(window.files_drawer())) {
+				filter->setFocus(Qt::OtherFocusReason);
+				process_events();
+				const auto held = toggled.size();
+				press(drawer.Toggle->shortcuts().front());
+				expect(toggled.size() == held, name + "'s Option-Shift key is left to the field");
+			}
+#endif
+			press(drawer.Key);
+			process_events();
+		}
+
+		// Overview keeps every drawer collapsed: the key is the toggle's
+		// gesture there too, and the toggle shows what the core kept.
+		window.choose_modality(qt::review_modality::overview);
+		process_events();
+		for (const auto& drawer : drawers) {
+			const auto count = toggled.size();
+			press(drawer.Key);
+			expect(toggled.size() == count + 1U && toggled.back() == drawer.Drawer && !drawer.Toggle->isChecked() && !accessiblyChecked(drawer.Toggle),
+				   std::string{ drawer.Name } + "'s key in Overview is the toggle's gesture, and the toggle stays unchecked as the core keeps it");
+		}
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+
+		// Help > Keyboard Shortcuts lists both keys, with no typing note.
+		window.keyboard_shortcuts_action()->trigger();
+		process_events();
+		auto* const page = window.keyboard_shortcuts();
+		expect(page != nullptr && page->isVisible(), "the keyboard shortcuts page opens");
+		for (const auto& [command, key] : { std::pair{ qt::shortcut_command::files_drawer, filesKey }, std::pair{ qt::shortcut_command::repositories_drawer, reposKey } }) {
+			const auto* const row = row_of(*page, command);
+			expect(row != nullptr && row->text(1).contains(key.toString(QKeySequence::NativeText)) && row->text(1).contains(QStringLiteral(" or "))
+					   && row->data(0, Qt::UserRole + 2).toString().isEmpty()
+					   && row->data(1, Qt::AccessibleTextRole).toString().contains(qt::spoken_key(key)),
+				   "the page lists " + std::string{ qt::shortcut(command).Title } + " with both keys, spoken too, and no typing note");
+		}
+		page->close();
+		window.hide();
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -19140,6 +19702,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
 		runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
 		runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
+		runCase("test_the_right_tray_tabs_keep_their_names_while_they_fit", &test_the_right_tray_tabs_keep_their_names_while_they_fit);
 		if (!listCases) {
 			std::cout << "current-file-unread-badge:pass\n";
 		}
@@ -19197,6 +19760,8 @@ auto main(int argc, char** argv) -> int
 		runCase("test_keyboard_shortcuts_page", &test_keyboard_shortcuts_page);
 		// [[BPR-1600]]. ⌘R does whichever refresh the window shows.
 		runCase("test_refresh_key_does_the_refresh_showing", &test_refresh_key_does_the_refresh_showing);
+		// [[BPR-1678]]. The Files and Repositories drawers' command keys.
+		runCase("test_drawer_keys_toggle_their_drawers", &test_drawer_keys_toggle_their_drawers);
 		if (!listCases) {
 			std::cout << "keyboard-shortcuts:pass\n";
 		}
@@ -19359,6 +19924,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_right_click_on_any_line_and_on_base_lines", &test_right_click_on_any_line_and_on_base_lines);
 		runCase("test_discuss_restore_top_right_and_whole_privacy_note", &test_discuss_restore_top_right_and_whole_privacy_note);
 		runCase("test_the_review_chip_counts_the_review_and_opens_finish", &test_the_review_chip_counts_the_review_and_opens_finish);
+		runCase("test_the_plus_on_a_pull_request_without_threads_opens_its_draft", &test_the_plus_on_a_pull_request_without_threads_opens_its_draft);
 		if (!listCases) {
 			std::cout << "workbench-line-draft:pass\n";
 		}
@@ -19470,6 +20036,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_read_state_reaches_the_gutter_and_the_strip", &test_read_state_reaches_the_gutter_and_the_strip);
 	runCase("test_unread_badge_follows_only_the_current_file", &test_unread_badge_follows_only_the_current_file);
 	runCase("test_the_right_tray_holds_comments_and_notes_tabs", &test_the_right_tray_holds_comments_and_notes_tabs);
+	runCase("test_the_right_tray_tabs_keep_their_names_while_they_fit", &test_the_right_tray_tabs_keep_their_names_while_they_fit);
 	runCase("test_discuss_uses_main_content_and_open_in_code_returns_to_read", &test_discuss_uses_main_content_and_open_in_code_returns_to_read);
 	runCase("test_a_reply_waits_for_its_threads_own_comparison", &test_a_reply_waits_for_its_threads_own_comparison);
 	runCase("test_change_arrows_are_bounded_and_always_enabled", &test_change_arrows_are_bounded_and_always_enabled);

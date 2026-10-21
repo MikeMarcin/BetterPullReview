@@ -198,8 +198,27 @@ namespace {
 			return { };
 		}
 
-		std::size_t SavedChanges       = 0U;
-		std::size_t SavedServerChanges = 0U;
+		[[nodiscard]] auto apply_home_ignores(
+			const std::span<const core::home_ignore_delta> aDeltas,
+			std::stop_token) -> std::expected<void, application::queue_store_failure> override
+		{
+			IgnoreWrites.emplace_back(aDeltas.begin(), aDeltas.end());
+			if (FailIgnoreStore) {
+				return std::unexpected(application::queue_store_failure::unavailable);
+			}
+			for (const auto& delta : aDeltas) {
+				std::erase(State.Ignored, delta.Ref);
+				if (delta.Change == core::home_ignore_change::ignored) {
+					State.Ignored.push_back(delta.Ref);
+				}
+			}
+			return { };
+		}
+
+		std::size_t                                       SavedChanges       = 0U;
+		std::size_t                                       SavedServerChanges = 0U;
+		std::vector<std::vector<core::home_ignore_delta>> IgnoreWrites;
+		bool                                              FailIgnoreStore = false;
 
 		application::durable_queue_state State;
 		std::size_t                      Loads               = 0U;
@@ -1904,6 +1923,79 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	[[nodiscard]] auto home_ignore(const std::int64_t aNumber, const core::home_ignore_action aAction = core::home_ignore_action::ignore)
+		-> core::home_ignore_intent
+	{
+		return { .Ref = ref(aNumber), .Action = aAction };
+	}
+
+	// [[BPR-1683]]. Ignoring is decided by the core from the retained
+	// record, durable before it is kept, and moves only the row's section.
+	void test_ignore_is_durable_and_moves_only_the_section()
+	{
+		auto fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } }, { .Ref = ref(18), .Membership = { .Requested = true } } } };
+		fixture.Queue.apply(home_ignore(17));
+		fixture.settle();
+		expect(fixture.Store.State.Ignored == std::vector{ ref(17) }, "the ignore is written to the store");
+		expect(fixture.item(17)->Ignored && core::home_section_for(*fixture.item(17)) == core::home_queue_section::ignored,
+			   "the ignored row is in Ignored");
+		expect(fixture.item(17)->Bucket == core::attention_bucket::initial_review_requested, "its attention is unchanged");
+		expect(!fixture.item(18)->Ignored, "the other row is not ignored");
+		const auto queue = fixture.Queue.queue();
+		expect(queue.size() == 2U && queue.front().Ref == ref(18) && queue.back().Ref == ref(17), "the ignored row sorts last");
+		expect(!fixture.First->Published.empty() && fixture.First->Published.back().Items.back().Ignored,
+			   "the window is told, with the ignored row last");
+
+		const auto writes = fixture.Store.IgnoreWrites.size();
+		fixture.Queue.apply(home_ignore(17));
+		fixture.Queue.apply(home_ignore(99));
+		fixture.settle();
+		expect(fixture.Store.IgnoreWrites.size() == writes, "ignoring it again, or a row Home does not have, writes nothing");
+
+		fixture.Queue.apply(home_ignore(17, core::home_ignore_action::unignore));
+		fixture.settle();
+		expect(fixture.Store.State.Ignored.empty() && !fixture.item(17)->Ignored, "unignoring is written and the row returns");
+		expect(fixture.Queue.statistics().IgnoreIntents == 4U, "every gesture is counted");
+
+		fixture.Store.FailIgnoreStore = true;
+		fixture.Queue.apply(home_ignore(18));
+		fixture.settle();
+		expect(fixture.Queue.ignored().size() == 0U && !fixture.item(18)->Ignored, "a refused write is not kept");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_ignores_survive_restart_and_closed_ones_are_pruned()
+	{
+		auto closedRecord           = application::enrollment_record{ .Ref = ref(19), .Membership = { .Requested = true } };
+		closedRecord.Departed       = application::enrollment_departure::closed;
+		auto fixture                = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } }, { { .Ref = ref(17), .Membership = { .Requested = true } }, closedRecord }, false };
+		auto foreign                = ref(17);
+		foreign.Account             = "someone-else";
+		fixture.Store.State.Ignored = { ref(17), ref(19), foreign };
+		fixture.Queue.restore();
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Ignored, "a restored ignore marks its row");
+		expect(!fixture.Queue.ignored().contains(ref(19)) && fixture.Queue.ignored().contains(foreign),
+			   "a restored ignore of a closed record is pruned; one with no record is kept");
+		expect(!fixture.Store.IgnoreWrites.empty()
+				   && fixture.Store.IgnoreWrites.back() == std::vector<core::home_ignore_delta>{ { .Ref = ref(19), .Change = core::home_ignore_change::pruned_closed } },
+			   "the prune is written as a closed prune");
+
+		fixture.Discovery.adopt(discovery_session());
+		auto closed   = metadata_row(17U);
+		closed.Closed = true;
+		fixture.Provider.answer(fixture.Provider.rows({ closed }));
+		fixture.settle();
+		expect(fixture.record(17)->Departed == application::enrollment_departure::closed && !fixture.item(17),
+			   "the closed pull request leaves Home");
+		expect(!fixture.Queue.ignored().contains(ref(17)) && std::ranges::find(fixture.Store.State.Ignored, ref(17)) == fixture.Store.State.Ignored.end(),
+			   "and its ignore is pruned from the store");
+		expect(fixture.Queue.statistics().IgnoresPruned == 2U, "both prunes are counted");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_one_scheduler_discovers_the_saved_repositories_of_its_account()
 	{
 		auto fixture = discovery_fixture{ };
@@ -2111,6 +2203,81 @@ namespace {
 			   "an answer read under an earlier generation of the same account is refused");
 		expect(fixture.Provider.Requests.size() == 3U && fixture.Provider.Requests.back().Context.IdentityGeneration == core::github_identity_generation{ 7U },
 			   "the freed slot carries a read of the new generation");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	// [[BPR-1679]]. A pull request asked for while Home is still loading goes
+	// first. The owner: "Right now it seems like it queues behind the home load
+	// before it goes to open the PR". Discovery gives way at once: what it has
+	// in flight is cancelled and nothing new is asked. A read its cancellation
+	// answers is asked again, under a new identity, once it resumes; one that
+	// answered first is kept. The refresh ends current, not failed.
+	void test_discovery_gives_way_to_a_window_read_and_resumes()
+	{
+		auto  fixture  = discovery_fixture{ };
+		auto& provider = fixture.Provider;
+		fixture.Discovery.adopt(discovery_session());
+		expect(provider.Requests.size() == 2U && !fixture.Discovery.yielding(), "Home's refresh has two searches in flight");
+		const auto preempted = provider.Requests[0];
+		const auto raced     = provider.Requests[1];
+
+		fixture.Discovery.yield(true);
+		expect(fixture.Discovery.yielding() && provider.Cancelled == std::vector{ preempted.Context.Request, raced.Context.Request },
+			   "giving way cancels both reads in flight, in the same turn");
+		fixture.Discovery.yield(true);
+		expect(provider.Cancelled.size() == 2U && fixture.Discovery.statistics().Preempted == 2U, "giving way again cancels nothing more");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::refreshing, "Home still says it is loading");
+
+		provider.answer(application::personal_discovery_cancelled{ .Request = provider.next() });
+		fixture.settle();
+		expect(provider.Requests.size() == 2U, "a read stopped to give way is not asked again while the window reads");
+		provider.answer(provider.rows({ row(6U, true, 1U) }));
+		fixture.settle();
+		expect(provider.Requests.size() == 2U && fixture.item(6).has_value(), "a read that answered before its cancellation is kept, and nothing new is asked");
+		expect(fixture.Discovery.statistics().Failed == 0U && fixture.Discovery.statistics().CancelledRequests == 0U, "nothing was failed or given up");
+
+		fixture.Discovery.yield(false);
+		expect(!fixture.Discovery.yielding() && provider.Requests.size() == 4U, "once the window's read ends discovery resumes, two at a time");
+		const auto& again = provider.Requests[2];
+		expect(again.Context.Repository == preempted.Context.Repository && again.Reason == preempted.Reason
+				   && again.Context.Request != preempted.Context.Request && again.Context.Request != raced.Context.Request,
+			   "the stopped read goes first, under a new identity");
+		expect(fixture.Discovery.statistics().Resubmitted == 1U, "only the read its cancellation answered is asked again");
+		provider.answer(provider.rows({ row(5U) }));
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(provider.Requests.size() == 5U, "the last search follows");
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(fixture.item(5).has_value() && fixture.item(6).has_value(), "both found pull requests are listed");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::current, "the refresh that gave way ends current");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	// Giving way holds a refresh started meanwhile too, and a session change
+	// while it gives way refuses the stopped read's late answer.
+	void test_discovery_gives_way_across_a_session_change()
+	{
+		auto  fixture  = discovery_fixture{ { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } } };
+		auto& provider = fixture.Provider;
+		fixture.Discovery.yield(true);
+		fixture.Discovery.adopt(discovery_session("reviewer", 6U));
+		expect(provider.Requests.empty() && fixture.Discovery.status().State == application::queue_discovery_state::refreshing,
+			   "a refresh that starts while a window reads waits, and says it is loading");
+		fixture.Discovery.yield(false);
+		expect(provider.Requests.size() == 2U, "it starts once the read ends");
+		fixture.Discovery.yield(true);
+		fixture.Discovery.adopt(discovery_session("reviewer", 7U));
+		provider.answer(application::personal_discovery_cancelled{ .Request = provider.next() });
+		provider.answer(application::personal_discovery_cancelled{ .Request = provider.next() });
+		fixture.settle();
+		expect(fixture.Discovery.statistics().Resubmitted == 0U && fixture.Discovery.statistics().StaleCompletions == 2U,
+			   "a stopped read of an earlier generation is refused, not asked again");
+		fixture.Discovery.yield(false);
+		expect(provider.Requests.size() == 4U && provider.Requests[2].Context.IdentityGeneration == core::github_identity_generation{ 7U },
+			   "the new generation's reads go out once discovery resumes");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}
@@ -2377,6 +2544,52 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	// [[BPR-1681]]. A refresh that ran to its end is fresh for activation
+	// even when one repository or pull request failed: coming back to Home (or
+	// to the window after the diagnostic export's dialog) does not run the whole
+	// refresh again. A refresh a session-wide failure stopped is retried.
+	void test_activation_after_a_refresh_that_ended_with_a_failure()
+	{
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::permission));
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::repository_unavailable
+				   && !fixture.Discovery.status().LastSuccess && fixture.item(5),
+			   "a refresh with one unreadable repository ends stale, says why and keeps what it found");
+		const auto ended = fixture.Provider.Requests.size();
+		expect(ended == 4U && fixture.Discovery.statistics().Refreshes == 1U, "the refresh read each repository once");
+		fixture.Clock.Now += 30;
+		fixture.Discovery.activate();
+		fixture.Clock.Now += application::personal_discovery_freshness_seconds - 31;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == ended && fixture.Discovery.statistics().Refreshes == 1U,
+			   "activation inside the freshness window of that ended refresh reads nothing");
+		fixture.Clock.Now += 1;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == ended + 1U && fixture.Provider.next().Reason == application::personal_discovery_reason::retained
+				   && fixture.Discovery.statistics().Refreshes == 2U,
+			   "activation after the freshness window refreshes again, retained metadata first");
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::network));
+		fixture.settle();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::offline,
+			   "a network failure stops the refresh");
+		const auto stopped = fixture.Provider.Requests.size();
+		fixture.Clock.Now += 30;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == stopped + 1U && fixture.Discovery.statistics().Refreshes == 3U,
+			   "a refresh a session-wide failure stopped is retried on the next activation");
+		fixture.Discovery.shutdown();
+		fixture.settle();
+		fixture.Queue.shutdown();
+	}
+
 	void test_repository_addition_refuses_unknown_durable_state()
 	{
 		auto store     = memory_queue_store{ };
@@ -2590,11 +2803,15 @@ auto main() -> int
 	test_retained_metadata_budget_and_restore_after_session();
 	test_retained_failure_and_foreign_envelopes_preserve_accepted_state();
 	test_closed_metadata_cannot_be_revived_by_the_same_search_cycle();
+	test_ignore_is_durable_and_moves_only_the_section();
+	test_ignores_survive_restart_and_closed_ones_are_pruned();
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();
 	test_discovery_refuses_stale_and_foreign_answers();
 	test_discovery_refuses_an_earlier_generation_of_the_same_account();
+	test_discovery_gives_way_to_a_window_read_and_resumes();
+	test_discovery_gives_way_across_a_session_change();
 	test_a_refused_discovery_write_is_reported_not_kept();
 	test_the_discovery_session_of_an_accepted_session();
 	test_observer_authorship_does_not_change_enrollment();
@@ -2603,6 +2820,7 @@ auto main() -> int
 	test_partial_failed_check_restart_is_last_known();
 	test_discovery_follows_the_saved_repositories();
 	test_discovery_freshness_and_forgotten_repositories();
+	test_activation_after_a_refresh_that_ended_with_a_failure();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

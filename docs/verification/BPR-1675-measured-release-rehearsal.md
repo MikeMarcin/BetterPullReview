@@ -277,3 +277,15 @@ failure/success binaries, source refs and published products remain retained.
 Final administrative/doc changes get an explicit bridge to67cfff2dc; unrelated
 concurrent main product changes receive no native/artifact qualification from
 this rehearsal. RFC-BPR-0038 remains open.
+
+Final integration source review over main `b0e643531` preserves its added
+window-owned drawer/tab/draft correctness cases and local Home read-yield/Ignore
+behavior. The new renders retain per-row `BPR_QT_RENDER_PATH` ownership; no new
+timed deadline, external process, network access or shared output was added.
+The registry's exact changed source/input pins were reconciled after that audit,
+retaining M3's helper/configuration/output guards. Main's committed full-app pin
+was already stale against its `126f2ede8` source; the initial refusal is retained.
+The combined full/manifest pins are explicitly reviewed and renewed; mutation
+pin `16d135419` remains exact. Fresh source inventory, registry and runner controls
+cover the reconciliation. No native or producer result is transferred to the
+unrelated new product behavior; all measured products remain at `67cfff2dc`.

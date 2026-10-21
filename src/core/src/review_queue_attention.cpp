@@ -66,6 +66,11 @@ namespace bpr::core {
 		return home_queue_section::following;
 	}
 
+	auto home_section_for(const queue_item& aItem) noexcept -> home_queue_section
+	{
+		return aItem.Ignored ? home_queue_section::ignored : home_section_for(aItem.Membership, aItem.Bucket);
+	}
+
 	auto name(const attention_bucket aBucket) noexcept -> std::string_view
 	{
 		switch (aBucket) {
@@ -168,6 +173,9 @@ namespace bpr::core {
 
 	auto queue_precedes(const queue_item& aLeft, const queue_item& aRight) -> bool
 	{
+		if (aLeft.Ignored != aRight.Ignored) {
+			return aRight.Ignored;
+		}
 		return aLeft.Bucket == aRight.Bucket ? aLeft.Ref < aRight.Ref : aLeft.Bucket < aRight.Bucket;
 	}
 

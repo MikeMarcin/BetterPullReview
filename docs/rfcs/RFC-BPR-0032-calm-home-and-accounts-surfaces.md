@@ -412,3 +412,31 @@ and its evidence are unchanged. Historical human/native obligations are not waiv
 ## Remembered CLI sign-in amendment — 2026-10-12
 
 RFC-BPR-0071 preserves first-time CLI discovery, account choice and read trust. A saved successful connection instead follows targeted revalidation; shared windows do not repeat selection or trust. Existing connection status/recovery controls report validation failures and session-only persistence. This amendment introduces no account-page layout change and does not answer BPR-1373’s pending owner look.
+
+## Owner amendment: ignored pull requests — 2026-10-20
+
+The owner asked on 2026-10-20: "I want to be able to ignore a PR on the home
+screen, which will put it in a new ignored category that sorts to the bottom
+and starts collapsed, you can unignore something that's in ignored by
+expanding the collapsed. If an ignored PR gets closed it stops being tracked
+on home." [BPR-1683](../issues/60-done/BPR-1683-ignore-pull-requests-on-home.md)
+builds it.
+
+A queue row's menu offers **Ignore** (Delete, or Backspace as macOS lists take
+it). The row moves to **Ignored**, a neutral panel after Recently viewed in
+every grouping and with State headers on or off. Ignored starts collapsed to
+its count in every window. Its collapse lasts while the window is open and is
+not part of the remembered per-window view. Expanded, each row carries
+**Unignore** on hover and focus, in its menu and on the same key, and returns
+to its own section. An ignored row keeps its bucket and facts. It draws no
+state colour, is counted in no other panel, and raises no notification.
+
+The core owns the decision. `core::home_ignore_list` takes typed Ignore and
+Unignore intents and returns semantic deltas. Its observation step prunes an
+ignore once the queue holds that pull request as closed or merged, or as off
+Home for any other observed reason, so a pull request that comes back arrives
+as news. `home_section_for` places an ignored item in `ignored`, and
+`queue_precedes` orders ignored items after every other item. The queue host
+persists the deltas in the queue store's `home_ignore` table (schema 11),
+keyed by host, account, repository and number. Qt only projects the result.
+Nothing changes on GitHub.

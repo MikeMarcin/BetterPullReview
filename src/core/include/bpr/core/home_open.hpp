@@ -21,6 +21,7 @@
 #include <compare>
 #include <cstdint>
 #include <optional>
+#include <span>
 
 namespace bpr::core {
 	/// \brief How long a read may take before Home says which step it is on and
@@ -103,6 +104,18 @@ namespace bpr::core {
 		const std::optional<home_open_state>& aState,
 		const repository_locator&             aRepository,
 		pull_request_number                   aNumber) noexcept -> bool;
+
+	/// \brief [[BPR-1679]]. Whether Home's own loading gives way to the reads
+	/// the profile's windows are waiting for.
+	///
+	/// \details The owner, 2026-10-20: "When I'm on the home and it's still
+	/// loading prs, if i double click to open a PR, even though its greyed out,
+	/// it should give that action priority." Every GitHub read of a profile
+	/// runs on one lane, so a pull request asked for while Home's discovery is
+	/// reading waited behind it. Discovery gives way while any of \p aLanes has
+	/// a pull request read pending, the first read of an open and a reread
+	/// alike, and resumes once none has.
+	[[nodiscard]] auto home_loading_yields(std::span<const github_state> aLanes) noexcept -> bool;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_HOME_OPEN_HPP

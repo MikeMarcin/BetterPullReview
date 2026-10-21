@@ -387,7 +387,15 @@ namespace bpr::qt {
 			apply_filters();
 			filtersChanged();
 		});
-		Cards->set_layout_observer([this] { refresh_summary(); });
+		// The notes laid out anew may hold my draft where the snapshot has
+		// nothing: the page follows them once the pull request is adopted.
+		Cards->set_layout_observer([this] {
+			if (Adopted) {
+				show_loaded_page();
+			} else {
+				refresh_summary();
+			}
+		});
 		connect(ScopeThisFile, &QToolButton::toggled, this, [this, filtersChanged](const bool aChecked) {
 			// The file is chosen inside the scope, while File is on.
 			DiscussFileChoice->setVisible(aChecked);
@@ -607,6 +615,7 @@ namespace bpr::qt {
 				aConversations,
 		QString aAvailabilityText)
 	{
+		Adopted = true;
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		if (Retained == aConversations) {
 			show_loaded_page();
@@ -827,6 +836,7 @@ namespace bpr::qt {
 
 	void github_conversation_panel::clear(QString aAvailabilityText)
 	{
+		Adopted = false;
 		DiscussSelection.clear();
 		DefaultCurrent     = false;
 		DiscussScope       = cards_scope::whole_pull_request;
@@ -856,7 +866,11 @@ namespace bpr::qt {
 	{
 		// [[BPR-1214]]. The page follows the snapshot, not the selected line:
 		// a line no thread is on still shows the notes and their filters.
-		Stack->setCurrentIndex(Retained.empty() ? 0 : 1);
+		// [[BPR-1682]]. My draft is a note too. On a pull request with
+		// no conversation the "+" and Return began a draft on this hidden
+		// page: no composer opened, and the line offered no "+" while the
+		// draft's mark stayed on it.
+		Stack->setCurrentIndex(Retained.empty() && Cards->cards().empty() ? 0 : 1);
 		refresh_summary();
 	}
 

@@ -25,6 +25,11 @@ namespace bpr::qt {
 	/// \brief The core-decided Home sections; ownership is separate from attention.
 	using home_group = core::home_queue_section;
 
+	/// \brief [[BPR-1683]]. The words of a Home row's Ignore and Unignore,
+	/// shared by the row's menu and the ignored row's own button.
+	[[nodiscard]] auto home_ignore_text() -> QString;
+	[[nodiscard]] auto home_unignore_text() -> QString;
+
 	/// \brief The attention colour group for a bucket, independent of Home ownership placement.
 	[[nodiscard]] auto home_group_of(core::attention_bucket aBucket) noexcept -> home_group;
 	/// \brief The group's heading, first person and one line.

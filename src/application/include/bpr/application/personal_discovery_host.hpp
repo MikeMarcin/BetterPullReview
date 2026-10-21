@@ -51,7 +51,7 @@ namespace bpr::application {
 	[[nodiscard]] auto personal_discovery_session_of(const github_profile_session& aSession)
 		-> std::optional<personal_discovery_session>;
 
-	/// \brief How long a successful refresh stays fresh for activation.
+	/// \brief How long a refresh that ran to its end stays fresh for activation.
 	inline constexpr std::int64_t personal_discovery_freshness_seconds = 300;
 	/// \brief How many discovery reads one profile has in flight at once.
 	inline constexpr std::size_t maximum_personal_discovery_in_flight = 2U;
@@ -68,6 +68,9 @@ namespace bpr::application {
 		std::uint64_t RefusedRefreshes  = 0U;
 		std::uint64_t CancelledRequests = 0U;
 		std::uint64_t MaximumInFlight   = 0U;
+		/// [[BPR-1679]]. Reads stopped to give way, and reads asked again after.
+		std::uint64_t Preempted   = 0U;
+		std::uint64_t Resubmitted = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};
@@ -82,8 +85,10 @@ namespace bpr::application {
 	/// `maximum_personal_discovery_in_flight` reads at a time, and tags every
 	/// read with its session generation and refresh: a completion from an
 	/// earlier session or refresh is refused. It runs when a session is
-	/// adopted, when activated and the last success is older than the
-	/// freshness window, when a repository it has not searched is saved, and
+	/// adopted, when activated and the last refresh that ran to its end is
+	/// older than the freshness window (one a session-wide failure stopped
+	/// does not count; one that only failed for a repository or pull request
+	/// does), when a repository it has not searched is saved, and
 	/// on an explicit refresh; a rate limit holds it off until its
 	/// retry-after has passed. Nothing a window opens or selects
 	/// starts it. All calls run on the decision lane; provider completions are
@@ -109,8 +114,13 @@ namespace bpr::application {
 		/// last success, and starts a refresh under the new one. The same
 		/// session again changes nothing.
 		void adopt(std::optional<personal_discovery_session> aSession);
-		/// \brief Refreshes when the last success is older than the freshness
-		/// window and no rate limit holds discovery off.
+		/// \brief Refreshes when the last refresh that ran to its end is older
+		/// than the freshness window and no rate limit holds discovery off.
+		///
+		/// \details [[BPR-1681]]. A refresh that ended with an unreadable
+		/// repository or pull request counts: its failure is the same on the
+		/// next activation. A refresh a session-wide failure (offline,
+		/// authentication, rate limit) stopped does not, so activation retries it.
 		void activate();
 		/// \brief The explicit Refresh: refreshes now unless one is running or
 		/// a rate limit holds discovery off, which is said instead.
@@ -125,8 +135,22 @@ namespace bpr::application {
 		/// bounded read; rows already considered, including failures and overflow,
 		/// do not restart the cycle until activation or explicit Refresh.
 		void reconcile();
+		/// \brief [[BPR-1679]]. Gives way to the reads a window is waiting for,
+		/// or resumes.
+		///
+		/// \details Discovery shares the profile's one GitHub lane with every
+		/// pull request read, so a read a reviewer asked for waited behind it.
+		/// The composition asks `core::home_loading_yields` after each window
+		/// read changes. While yielding, nothing new is submitted, and every
+		/// read of the current refresh still in flight is cancelled. A read
+		/// whose cancellation is what answers it is asked again, under a new
+		/// request identity, ahead of the rest once discovery resumes; one that
+		/// answered before the cancellation reached it is applied as usual. The
+		/// refresh is still running throughout, so Home keeps saying so.
+		void yield(bool aYield);
 		void shutdown();
 
+		[[nodiscard]] auto yielding() const noexcept -> bool;
 		[[nodiscard]] auto status() const noexcept -> const queue_discovery_status&;
 		[[nodiscard]] auto statistics() const noexcept -> personal_discovery_statistics;
 		[[nodiscard]] auto in_flight() const noexcept -> std::size_t;

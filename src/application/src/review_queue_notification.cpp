@@ -60,7 +60,9 @@ namespace bpr::application {
 		const core::queue_item& aItem, const std::uint32_t aUnreadComments)
 		-> std::optional<queue_notification_request>
 	{
-		if (!warrants_notification(aItem.Bucket)) {
+		// [[BPR-1683]]. The reviewer said this one is not asking for
+		// their attention; interrupting them about it would be the opposite.
+		if (aItem.Ignored || !warrants_notification(aItem.Bucket)) {
 			return std::nullopt;
 		}
 		return queue_notification_request{

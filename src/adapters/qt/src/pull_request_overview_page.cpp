@@ -86,6 +86,15 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-1677]]. The files' keys for their top and bottom row,
+		/// as a screen reader speaks them: "Command-Up Arrow and Command-Down
+		/// Arrow go to the top and bottom row" on macOS.
+		[[nodiscard]] auto files_ends_help() -> QString
+		{
+			const auto ends = shortcut_keys(shortcut_command::files_ends);
+			return QStringLiteral("%1 and %2 go to the top and bottom row").arg(spoken_key(ends.value(0)), spoken_key(ends.value(1)));
+		}
+
 		class check_result_delegate final : public QStyledItemDelegate
 		{
 		public:
@@ -2666,12 +2675,14 @@ namespace bpr::qt {
 		Files = new QTreeView{ main };
 		Files->setObjectName(QStringLiteral("overviewFiles"));
 		Files->setAccessibleName(QStringLiteral("Files table"));
-		Files->setAccessibleDescription(QStringLiteral(
+		const auto keysHelp = QStringLiteral(
 			"Every file with its operation, line counts, whether it changed "
 			"since my last review, my read state, comment counts and my note; "
 			"activate a file to read it; click a folder, or use Left and Right, to hide and show its files; "
+			"%1; "
 			"Tab steps from a row onto its comment chips, Enter or Space lists a chip's threads and Escape returns to the row; "
-			"the context-menu key lists every chip of the row"));
+			"the context-menu key lists every chip of the row");
+		Files->setAccessibleDescription(keysHelp.arg(files_ends_help()));
 		Files->setModel(Model);
 		RowDelegate = new overview_row_delegate{ Colours, Files };
 		Files->setItemDelegate(RowDelegate);
@@ -3133,7 +3144,7 @@ namespace bpr::qt {
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, false);
 		}
-		Files->setAccessibleDescription(QStringLiteral("Current file catalogue; activate a file to read it."));
+		Files->setAccessibleDescription(QStringLiteral("Current file catalogue; activate a file to read it; %1.").arg(files_ends_help()));
 		Summary->setToolTip({ });
 		Summary->setAccessibleDescription({ });
 		Title->setText(text(aProjection.Title));
@@ -3574,7 +3585,7 @@ namespace bpr::qt {
 			Files->setColumnHidden(column, true);
 		}
 		FileColumns->apply();
-		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Open a file to read its exact retained base and head when available. Current thread counts and review progress unavailable."));
+		Files->setAccessibleDescription(QStringLiteral("Historical file catalogue; freshness unknown. Open a file to read its exact retained base and head when available; %1. Current thread counts and review progress unavailable.").arg(files_ends_help()));
 		CachedThreadsHeading->setText(aOverview.ReviewThreads
 										  ? QStringLiteral("Cached review threads — %1 observed · freshness unknown").arg(count_text(aOverview.ReviewThreads->size()))
 										  : QStringLiteral("Review threads unavailable offline"));
@@ -4171,6 +4182,13 @@ namespace bpr::qt {
 		const auto enter     = aKey.key() == Qt::Key_Return || aKey.key() == Qt::Key_Enter;
 		const auto chips     = current.isValid() ? row_chips(current) : std::vector<overview_comment_chip>{ };
 		const auto at        = focused_chip_position(chips);
+		// [[BPR-1677]]. The document start and end, Command-Up and
+		// Command-Down on macOS and Ctrl+Home and Ctrl+End elsewhere, go to
+		// the top and bottom row of the list, as the owner asked. A chip
+		// focused on the old row is left as any other row change leaves it.
+		if (const auto edge = document_edge_for(aKey); edge.has_value() && move_files_to(*edge)) {
+			return true;
+		}
 		// Tab steps from the row onto its chips and along them; past the last
 		// it leaves the files as Tab always does. Shift+Tab steps back to the
 		// row. The tree keeps Left and Right for folders until a chip is on.
@@ -4219,6 +4237,42 @@ namespace bpr::qt {
 			return true;
 		}
 		return false;
+	}
+
+	auto pull_request_overview_page::move_files_to(const document_edge aEdge) -> bool
+	{
+		// The first or last row the tree shows among `aParent`'s children.
+		const auto shownChild = [this, aEdge](const QModelIndex& aParent) {
+			const auto count = Model->rowCount(aParent);
+			for (auto step = 0; step < count; ++step) {
+				const auto at = aEdge == document_edge::start ? step : count - 1 - step;
+				if (!Files->isRowHidden(at, aParent)) {
+					return Model->index(at, 0, aParent);
+				}
+			}
+			return QModelIndex{ };
+		};
+		auto target = shownChild({ });
+		// The bottom row is the last shown row of the deepest open folder.
+		while (aEdge == document_edge::end && target.isValid() && Files->isExpanded(target)) {
+			const auto last = shownChild(target);
+			if (!last.isValid()) {
+				break;
+			}
+			target = last;
+		}
+		if (!target.isValid()) {
+			return false;
+		}
+		// The current column stays, as the tree's own Home and End keep it.
+		const auto current = Files->currentIndex();
+		Files->setCurrentIndex(current.isValid() ? target.siblingAtColumn(current.column()) : target);
+		if (aEdge == document_edge::start) {
+			Files->scrollToTop();
+		} else {
+			Files->scrollToBottom();
+		}
+		return true;
 	}
 
 	auto pull_request_overview_page::row_chips(const QModelIndex& aRow) const -> std::vector<overview_comment_chip>

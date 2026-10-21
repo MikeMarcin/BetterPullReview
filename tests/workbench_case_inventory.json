@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "847568e14fa32317a44db497c101aca75b3db6cdaff5f1023f8e571ba53ecb53",
+  "source_sha256": "70969a87f39a3d1d9290d8ceb9b4f611cfca4402cea9943d79ac5efb47e2017e",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -10,7 +10,8 @@
     "--current-file-unread-badge": [
       "test_unread_badge_follows_only_the_current_file",
       "test_read_state_reaches_the_gutter_and_the_strip",
-      "test_the_right_tray_holds_comments_and_notes_tabs"
+      "test_the_right_tray_holds_comments_and_notes_tabs",
+      "test_the_right_tray_tabs_keep_their_names_while_they_fit"
     ],
     "--center-ribbon-width": [
       "test_center_ribbon_width_settings_and_rendering",
@@ -38,7 +39,8 @@
     "--keyboard-shortcuts": [
       "test_shortcut_catalogue_is_what_the_window_binds",
       "test_keyboard_shortcuts_page",
-      "test_refresh_key_does_the_refresh_showing"
+      "test_refresh_key_does_the_refresh_showing",
+      "test_drawer_keys_toggle_their_drawers"
     ],
     "--change-end-keys": [
       "test_change_end_keys_yield"
@@ -106,7 +108,8 @@
       "test_return_in_the_code_starts_a_draft_on_the_selection",
       "test_right_click_on_any_line_and_on_base_lines",
       "test_discuss_restore_top_right_and_whole_privacy_note",
-      "test_the_review_chip_counts_the_review_and_opens_finish"
+      "test_the_review_chip_counts_the_review_and_opens_finish",
+      "test_the_plus_on_a_pull_request_without_threads_opens_its_draft"
     ],
     "--conversation-reveal": [
       "test_discard_and_back_keep_the_comments_drawer",
@@ -204,6 +207,7 @@
       "test_read_state_reaches_the_gutter_and_the_strip",
       "test_unread_badge_follows_only_the_current_file",
       "test_the_right_tray_holds_comments_and_notes_tabs",
+      "test_the_right_tray_tabs_keep_their_names_while_they_fit",
       "test_discuss_uses_main_content_and_open_in_code_returns_to_read",
       "test_a_reply_waits_for_its_threads_own_comparison",
       "test_change_arrows_are_bounded_and_always_enabled",

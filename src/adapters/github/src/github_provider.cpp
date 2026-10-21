@@ -2812,9 +2812,22 @@ namespace bpr::adapters::github::detail {
 		try {
 			state->Effects->post([state, job, profile, accountTransport, aRequest, delivery]() mutable {
 				try {
+					// [[BPR-1679]]. A read cancelled while it waited for its
+					// turn, as discovery's are when a window's read takes
+					// priority, launches nothing: the lane goes straight on to
+					// the read it gave way to. One cancelled while its
+					// operation began says it was cancelled, not that it failed.
+					if (job->Stop.stop_requested()) {
+						static_cast<void>(finish_job(state, job));
+						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
+						return;
+					}
 					auto operation = accountTransport->Transport->begin_operation(job->Stop.get_token());
 					if (!operation) {
-						finish_job(state, job);
+						if (finish_job(state, job)) {
+							delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest });
+							return;
+						}
 						delivery->deliver(application::personal_discovery_error{ .Request = aRequest, .Error = operation.error() });
 						return;
 					}

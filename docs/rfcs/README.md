@@ -645,3 +645,16 @@ implementation in an isolated worktree; no merge, push or release.
 Owner mandate `qt-6-12-r2`. [Plan](plans/qt-6-12-v1/milestone-plan.json);
 [verification](../verification/RFC-BPR-0088.md). Native/package release
 qualification remains a separate obligation.
+
+## Commit filters and generated files
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0089](RFC-BPR-0089-commit-scoped-review-and-generated-files.md) | Filter a pull request's review by its commits and set generated files aside | Proposed | RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0007, RFC-BPR-0022, RFC-BPR-0029 |
+
+Drafted 2026-10-20 from the owner's report of a change, its regeneration and
+follow-ups in separate commits. Revision r2 (2026-10-21) follows the owner's
+direction: a Commits tab beside Status whose multi-select context-menu filters
+drive the file tree and navigation. Revision r3 records the owner's answers to
+Q1 to Q4 (2026-10-21, session recorded on the RFC); no owner question remains
+open. Design only; nothing is implemented.

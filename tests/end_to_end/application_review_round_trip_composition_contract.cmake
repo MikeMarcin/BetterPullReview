@@ -1,3 +1,14 @@
+# [[BPR-1675]] final integration over main b0e643531 and measured67cfff2dc:
+# source review retains main's window-owned Home read-lane yield and local Ignore
+# intent, plus its unset-by-default recorded repository-refusal fixture field.
+# M3 adds only the previously reviewed enterprise preview observation guard in
+# main.cpp; provider/vault/grant/publication/mutation ownership and source
+# inventory are unchanged. The main full-source pin was already stale against
+# its committed126f2ede8 source; the retained initial refusal precedes renewal.
+# Full and combined manifest pins bind the explicitly reviewed merged bytes;
+# mutation16d135419 stays exact. This source-only reconciliation grants no native
+# or producer credit for main's concurrent product changes; measured products
+# stay bound to67cfff2dc. See BPR-1675 integration receipt and measured report.
 # [[BPR-1675]] f25a65274 observation repair over the previously reviewed c946:
 # the sole src/app delta prevents an enterprise preview probe from latching
 # transient signed-out mode before its typed refusal. Terminal refusal and zero
@@ -1723,8 +1734,20 @@ function(bpr_verify_full_application_digest source_variable)
         ${source_variable}
         bpr_full_application_digest
     )
+	# BPR-1679 reseal (2026-10-20), over 7a96faade: Home's discovery
+	# gives way to a window's pending pull request read. Each window observer
+	# exposes its read lane's core state; the profile asks
+	# core::home_loading_yields after each window read update, profile
+	# presentation and window close, holds discovery at once and posts its
+	# resumption. No provider selection, credential, grant, mutation,
+	# publication or source-inventory change; mutation-branch pin unchanged.
+	# BPR-1683 reseal (2026-10-20), over 2085a4d6e: the window's Home
+	# Ignore and Unignore reach the profile queue host as a local
+	# core::home_ignore_intent, beside Follow. Nothing reaches a provider;
+	# no credential, grant, mutation, publication or source-inventory
+	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+		"126f2ede8fdd2e209a558afcbe46cfc51c3f9a83004de157aa2d2010ad0af8bc"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1944,7 +1967,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ac73852673e9b92c68c32e06fbb3fb03c54868a5582a15f9b85b7d10203e49f2"
+        "0cc702d3f8f32b407116737536bc14d6e9c2edc09223cecefffa06a551dc4506"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

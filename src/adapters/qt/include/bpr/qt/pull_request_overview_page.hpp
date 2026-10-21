@@ -6,6 +6,7 @@
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/progress_mark.hpp"
 
 #include <QAbstractItemModel>
@@ -675,8 +676,11 @@ namespace bpr::qt {
 		void activate_chip(const QModelIndex& aCell, const overview_comment_chip& aChip);
 		/// The keyboard on the files: the tree's own keys, and Tab onto chips.
 		[[nodiscard]] auto handle_files_key(const QKeyEvent& aKey) -> bool;
-		bool               eventFilter(QObject* aObject, QEvent* aEvent) override;
-		void               changeEvent(QEvent* aEvent) override;
+		/// [[BPR-1677]]. Makes the files' top or bottom shown row current and
+		/// scrolls to that end; false when no row is shown.
+		auto move_files_to(document_edge aEdge) -> bool;
+		bool eventFilter(QObject* aObject, QEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
 
 		std::optional<application::pull_request_overview_projection> Projection;
 		void                                                         present_checks(bool aSamePullRequest);

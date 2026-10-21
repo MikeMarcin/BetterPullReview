@@ -6,8 +6,11 @@
 #include <QString>
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
+
+class QKeyEvent;
 
 namespace bpr::qt {
 	/// \brief [[BPR-1567]]. The area of the application a shortcut belongs to,
@@ -54,6 +57,8 @@ namespace bpr::qt {
 		line_cursor,
 		extend_selection,
 		comparison_ends,
+		/// [[BPR-1677]]. The top or bottom row of Overview's files.
+		files_ends,
 
 		accept_file,
 		private_progress,
@@ -138,6 +143,8 @@ namespace bpr::qt {
 		home_open_review,
 		home_open_window,
 		home_resume,
+		/// [[BPR-1683]]. Ignore a Home row, or unignore an ignored one.
+		home_ignore,
 		/// [[BPR-1600]]. Home's refresh, on the Refresh key while Home shows.
 		home_refresh,
 
@@ -222,12 +229,32 @@ namespace bpr::qt {
 	[[nodiscard]] auto shortcut_group_title(shortcut_group aGroup) -> QString;
 
 	/// \brief Whether the keyboard in a text field takes an entry's key for
-	/// itself on this platform: the entry says so, or, on macOS, the key is
-	/// Option with a character and acts window-wide ([[BPR-1536]]).
+	/// itself on this platform: the entry says so, or, on macOS, every key is
+	/// Option with a character and acts window-wide ([[BPR-1536]],
+	/// [[BPR-1678]]).
 	[[nodiscard]] auto steps_aside_while_typing(const shortcut_entry& aEntry) -> bool;
 
 	/// \brief A key in words a screen reader speaks: "Option-Shift-Up Arrow"
 	/// on macOS, the native text elsewhere.
 	[[nodiscard]] auto spoken_key(const QKeySequence& aKey) -> QString;
+
+	/// \brief [[BPR-1328]] [[BPR-1677]]. The start or end of a document or
+	/// list a key press goes to.
+	enum class document_edge : std::uint8_t {
+		start,
+		end,
+	};
+
+	/// \brief [[BPR-1328]] [[BPR-1677]]. The end a key press goes to, if it is
+	/// the platform's document start or end.
+	///
+	/// \details `QKeySequence::MoveToStartOfDocument` and
+	/// `MoveToEndOfDocument` (Ctrl+Home and Ctrl+End on Windows and Linux), and
+	/// on macOS Command-Up and Command-Down under every platform plugin, the
+	/// offscreen one too, whose key scheme is not macOS's. The code panes
+	/// scroll the comparison to it and Overview's files move to their top or
+	/// bottom row; the catalogue's `comparison_ends` and `files_ends` name
+	/// the same keys.
+	[[nodiscard]] auto document_edge_for(const QKeyEvent& aEvent) -> std::optional<document_edge>;
 }
 #endif
