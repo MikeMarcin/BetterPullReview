@@ -1037,10 +1037,13 @@ namespace {
 		};
 		for (const auto& [action, row] : required) {
 			auto* const button = qobject_cast<QToolButton*>(row->widgetForAction(action));
+			// [[BPR-PENDING-1]]. With no review in progress Compose review
+			// carries its words beside its icon.
+			const auto style = action == window.compose_review_action() ? Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly;
 			expect(button != nullptr && button->isVisible()
-					   && button->toolButtonStyle() == Qt::ToolButtonIconOnly
+					   && button->toolButtonStyle() == style
 					   && !button->icon().isNull(),
-				   "every drawer, navigation and composition presenter is visible, icon-only and has its icon");
+				   "every drawer, navigation and composition presenter is visible, has its icon, and only Compose review its words");
 			expect(button->focusPolicy() == Qt::StrongFocus
 					   && !button->accessibleName().isEmpty()
 					   && !button->accessibleDescription().isEmpty(),
@@ -6146,10 +6149,22 @@ namespace {
 		};
 		window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = kept, .Controls = core::controls(kept), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
 		process_events();
+		// [[BPR-PENDING-1]]. At 1280 Compose review says "Approve…" beside the
+		// comparison's dates and the position; from 1460 it says "Approve or
+		// comment…".
+		auto* const composeButton = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.compose_review_action()));
 		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
 				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
+				   && composeButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && composeButton->text() == QStringLiteral("Approve…")
 				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
-			   "at 1280 the title row names the pull request whole and the review bar names the comparison's dates and the position");
+			   "at 1280 the title row names the pull request whole and the review bar names the comparison's dates, the position and \"Approve…\"");
+		window.resize(1'460, 852);
+		process_events();
+		expect(window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
+				   && composeButton->text() == QStringLiteral("Approve or comment…") && window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
+			   "at 1460 the review bar names the comparison's dates, the position and \"Approve or comment…\"");
+		window.resize(1'280, 852);
+		process_events();
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
 			expect(!rendered.isNull(), "the chrome renders in the composed window");
@@ -10054,6 +10069,255 @@ namespace {
 		expect(!marked() && !window.compose_review_action()->toolTip().contains(QStringLiteral("kept")),
 			   "a discarded draft withdraws the mark");
 		window.hide();
+	}
+
+	/// [[BPR-PENDING-1]]. A draft held in the review (`aPending`), or one a
+	/// submitted review holds (`aKey`), for the review bar's chip.
+	auto review_chip_draft(const std::uint64_t aId, const std::uint32_t aLine, const bool aPending, const std::string_view aKey = { })
+		-> core::review_comment_draft
+	{
+		auto value        = core::review_comment_draft{ };
+		value.Id          = core::review_draft_id{ aId };
+		value.Anchor.Side = core::diff_side::right;
+		value.Anchor.Line = aLine;
+		value.Body        = "pending " + std::to_string(aId);
+		if (aPending) {
+			value.InReview = core::review_pending_mark{ .Path = "src/a.cpp", .Head = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 1U } }, .Submission = std::string{ aKey } };
+		}
+		if (!aKey.empty()) {
+			value.State = core::review_draft_state::publishing;
+		}
+		return value;
+	}
+
+	/// \brief [[BPR-PENDING-1]]. The owner, 2026-10-21: "I think the compose
+	/// review button is a little too subtle when there's not a active review.
+	/// It might be difficult for the uninitiated to find out how to approve a
+	/// review." With no review in progress Compose review says what it is for,
+	/// "Approve or comment…", beside its pencil, on the accent's edge; its
+	/// accessible name keeps the command's name and carries those words, and
+	/// its tooltip and key are unchanged. While a review is in progress the chip
+	/// is the way in and Compose review is its plain icon again. As the window
+	/// narrows the words are the bar's first yield, to "Approve…" and then the
+	/// pencil; nothing folds, and the floor does not move.
+	void test_compose_review_says_approve_or_comment_with_no_review()
+	{
+		qt::workbench_window window;
+		window.resize(1'600, 900);
+		window.show();
+		window.publish(both_files_enabled());
+		process_events();
+		auto* const bar    = window.review_bar();
+		auto* const action = window.compose_review_action();
+		auto* const button = qobject_cast<QToolButton*>(bar->widgetForAction(action));
+		auto* const chip   = window.review_chip_action();
+		auto* const ext    = bar->findChild<QToolButton*>(QStringLiteral("qt_toolbar_ext_button"));
+		const auto  folded = [ext] { return ext != nullptr && ext->isVisible(); };
+		const auto  key    = action->shortcut().toString(QKeySequence::NativeText);
+		const auto  lead   = [button] { return button->property(qt::strip_style::lead_property).toBool(); };
+		const auto  worded = [button] {
+			return button->isVisible() && button->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
+				&& button->text() == QStringLiteral("Approve or comment…") && !button->icon().isNull();
+		};
+		const auto wide = window.epoch_selectors()->comparing_button()->text();
+		expect(button != nullptr && !chip->isVisible() && worded(),
+			   "with no review in progress Compose review reads \"Approve or comment…\" beside its pencil");
+		expect(button->accessibleName() == QStringLiteral("Compose review: approve or comment")
+				   && button->accessibleName().contains(button->text().chopped(1), Qt::CaseInsensitive)
+				   && button->accessibleDescription().contains(QStringLiteral("Approve, Request changes or Comment")),
+			   "its accessible name keeps the command's name and holds the words it shows");
+		expect(action->toolTip() == QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.").arg(key)
+				   && action->shortcut() == QKeySequence{ QStringLiteral("Alt+R") } && action->text() == QStringLiteral("Compose &review"),
+			   "its tooltip names the command, its key and the three verdicts; the menu keeps the command's name and key");
+		expect(lead() && button->focusPolicy() == Qt::StrongFocus && button->width() >= button->sizeHint().width() && !folded(),
+			   "it stands on the accent's edge, keeps its focus, and shows whole with nothing folded");
+		{
+			// The edge leans to the accent and the face is the bar's button, so
+			// it reads as the way in and not as a button that is switched on.
+			const auto image    = button->grab().toImage();
+			const auto ratio    = image.devicePixelRatio();
+			const auto accent   = button->palette().color(QPalette::Active, QPalette::Highlight);
+			const auto plain    = button->palette().color(QPalette::Active, QPalette::Mid);
+			const auto face     = button->palette().color(QPalette::Active, QPalette::Button);
+			const auto at       = [&image, ratio](const int aX, const int aY) { return image.pixelColor(qRound(aX * ratio), qRound(aY * ratio)); };
+			const auto distance = [](const QColor& aLeft, const QColor& aRight) {
+				return std::abs(aLeft.red() - aRight.red()) + std::abs(aLeft.green() - aRight.green()) + std::abs(aLeft.blue() - aRight.blue());
+			};
+			// The plain edge is a grey; the lead's carries the accent's hue.
+			const auto edge   = at(0, button->height() / 2);
+			const auto inner  = at(button->width() / 2, 3 + ((button->height() - qt::strip_style::button_height) / 2));
+			const auto leaned = edge.hslSaturation() > plain.hslSaturation() + 60 && std::abs(edge.hslHue() - accent.hslHue()) < 20;
+			if (!(leaned && distance(inner, face) < 12)) {
+				std::cerr << "edge " << edge.name().toStdString() << " accent " << accent.name().toStdString() << " plain " << plain.name().toStdString()
+						  << " inner " << inner.name().toStdString() << " face " << face.name().toStdString() << '\n';
+			}
+			expect(leaned && distance(inner, face) < 12,
+				   "its edge leans to the accent and its face is the button's own, not the accent's fill");
+		}
+		// Clicking it opens the review sheet and submits nothing.
+		button->click();
+		process_events();
+		expect(window.review_sheet_open(), "it opens the review sheet, where the verdict is chosen");
+		window.close_review_sheet();
+		process_events();
+
+		window.present_saved_drafts({ review_chip_draft(1U, 4U, true), review_chip_draft(2U, 9U, true) });
+		process_events();
+		expect(chip->isVisible() && button->isVisible() && button->toolButtonStyle() == Qt::ToolButtonIconOnly && !lead()
+				   && button->accessibleName() == QStringLiteral("Compose review") && !folded(),
+			   "while a review is in progress the chip leads and Compose review is its plain icon");
+		window.present_saved_drafts({ review_chip_draft(1U, 4U, true, "key-1") });
+		process_events();
+		expect(chip->isVisible() && button->toolButtonStyle() == Qt::ToolButtonIconOnly && !lead(),
+			   "so it is while the review is being submitted");
+		window.present_saved_drafts({ review_chip_draft(3U, 12U, false) });
+		process_events();
+		expect(!chip->isVisible() && worded() && lead(), "with nothing pending again it says Approve or comment again");
+
+		// The narrowest window: the words yield, nothing folds and the floor is
+		// the yielded bar's, as it was.
+		window.resize(window.minimumWidth(), 900);
+		process_events();
+		expect(button->isVisible() && button->toolButtonStyle() == Qt::ToolButtonIconOnly && lead()
+				   && button->accessibleName() == QStringLiteral("Compose review: approve or comment") && !folded()
+				   && bar->widgetForAction(window.comment_action())->geometry().right() <= bar->width(),
+			   "at the window's floor the words yield to the icon, its name and edge stay, and nothing folds away");
+		const auto floor = window.minimumWidth();
+		// From wide to the floor the words shorten to "Approve…" and then go,
+		// each once, never coming back at a narrower width, and nothing ever
+		// folds into the bar's overflow.
+		{
+			const auto form = [button] {
+				if (button->toolButtonStyle() == Qt::ToolButtonIconOnly) {
+					return 2;
+				}
+				return button->text() == QStringLiteral("Approve…") ? 1 : button->text() == QStringLiteral("Approve or comment…") ? 0
+																																  : 3;
+			};
+			auto last   = 0;
+			auto seen   = std::array<bool, 3>{ };
+			auto steady = true;
+			for (auto width = 1'600; width >= floor; width -= 5) {
+				window.resize(width, 900);
+				process_events();
+				const auto now = form();
+				steady         = steady && now <= 2 && now >= last && !folded() && button->isVisible()
+					&& bar->widgetForAction(window.comment_action())->geometry().right() <= bar->width();
+				if (now <= 2) {
+					seen.at(static_cast<std::size_t>(now)) = true;
+				}
+				last = now;
+			}
+			expect(steady && seen[0] && seen[1] && seen[2],
+				   "narrowing, the words go to \"Approve…\" and then to the pencil, each once, and nothing folds at any width");
+		}
+		window.resize(1'280, 820);
+		process_events();
+		expect(button->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && button->text().startsWith(QStringLiteral("Approve"))
+				   && window.minimumWidth() == floor && !folded() && window.epoch_selectors()->comparing_button()->text() == wide,
+			   "at 1280 the words show beside the comparison as the wide bar names it, and the floor did not move");
+		window.hide();
+	}
+
+	/// [[BPR-PENDING-1]]. Compose review in each state, in the built-in light
+	/// and dark themes, for a person to look at: no review, focused, a kept
+	/// draft, a review in progress, one being submitted, and the narrowest
+	/// window. Written only when `BPR_QT_RENDER_PATH` names a file; the theme
+	/// is put before its extension.
+	void render_compose_review_entry_sheet()
+	{
+		const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH");
+		if (path.isEmpty()) {
+			return;
+		}
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto settings                = qt::default_appearance_settings();
+			settings.Mode                = mode;
+			auto                 profile = qt::appearance_profile{ settings };
+			qt::workbench_window window;
+			window.resize(1'280, 820);
+			profile.apply_to(window);
+			window.show();
+			window.publish(both_files_enabled());
+			process_events();
+			auto* const bar    = window.review_bar();
+			auto* const button = qobject_cast<QToolButton*>(bar->widgetForAction(window.compose_review_action()));
+			auto        crops  = std::vector<QImage>{ };
+			const auto  crop   = [&](const bool aWhole) {
+				const auto image = bar->grab().toImage();
+				const auto dpr   = image.devicePixelRatio();
+				auto       left  = 0;
+				if (!aWhole) {
+					left = button->x() - 260;
+				}
+				const auto area = QRect{ std::max(0, left), 0, bar->width() - std::max(0, left), bar->height() };
+				auto       part = image.copy(QRectF{ area.left() * dpr, area.top() * dpr, area.width() * dpr, area.height() * dpr }.toRect());
+				part.setDevicePixelRatio(dpr);
+				crops.push_back(part);
+			};
+			crop(false);
+			button->setFocus(Qt::TabFocusReason);
+			process_events();
+			crop(false);
+			button->clearFocus();
+			const auto head  = core::parse_git_commit_oid("abcdef0123456789abcdef0123456789abcdef01").value();
+			auto       draft = core::review_submission_draft{
+				.Id            = core::review_submission_draft_id{ 1U },
+				.Target        = { .Host = core::git_host_id{ 1U }, .Repository = core::repository_id{ 2U }, .PullRequest = core::pull_request_id{ 3U }, .ExpectedHead = head },
+				.ActingAccount = core::github_account_id{ 4U },
+			};
+			draft.Body = "Kept summary";
+			window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
+			process_events();
+			crop(false);
+			window.present_saved_drafts({ review_chip_draft(1U, 4U, true), review_chip_draft(2U, 9U, true) });
+			process_events();
+			crop(false);
+			window.present_saved_drafts({ review_chip_draft(1U, 4U, true, "key-1") });
+			process_events();
+			crop(false);
+			window.present_saved_drafts({ });
+			draft.State = core::review_submission_state::discarded;
+			window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = draft, .Controls = core::controls(draft), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
+			window.resize(window.minimumWidth(), 820);
+			process_events();
+			crop(true);
+			// The whole bar of a pull request with dated updates, at 1460 and at
+			// the design's 1280, where the dates and the words share the room.
+			const auto first = epoch_row(1);
+			const auto third = epoch_row(3);
+			window.publish(retained_epochs({ first, epoch_row(2), third }));
+			window.publish(resolved_pair_update(core::comparison_pair{
+				.Left  = epoch_anchor(first, core::comparison_anchor_kind::epoch_base),
+				.Right = epoch_anchor(third, core::comparison_anchor_kind::epoch_head),
+			}));
+			for (const auto width : { 1'460, 1'280 }) {
+				window.resize(width, 820);
+				process_events();
+				crop(true);
+			}
+			const auto dpr    = crops.front().devicePixelRatio();
+			auto       width  = 0.0;
+			auto       height = 8.0;
+			for (const auto& part : crops) {
+				width = std::max(width, part.width() / dpr);
+				height += (part.height() / dpr) + 8.0;
+			}
+			auto sheet = QImage{ static_cast<int>((width + 16.0) * dpr), static_cast<int>(height * dpr), QImage::Format_ARGB32_Premultiplied };
+			sheet.setDevicePixelRatio(dpr);
+			sheet.fill(window.palette().color(QPalette::Active, QPalette::Window));
+			auto painter = QPainter{ &sheet };
+			auto top     = 8.0;
+			for (const auto& part : crops) {
+				painter.drawImage(QPointF{ 8.0, top }, part);
+				top += (part.height() / dpr) + 8.0;
+			}
+			painter.end();
+			auto       info  = QFileInfo{ path };
+			const auto named = info.path() + QLatin1Char{ '/' } + info.completeBaseName() + (mode == core::appearance_mode::light ? QStringLiteral("-light.") : QStringLiteral("-dark.")) + info.suffix();
+			expect(sheet.save(named), "the compose-review sheet is written");
+			window.hide();
+		}
 	}
 
 	/// \brief A left-button mouse event at a row's centre.
@@ -19904,6 +20168,8 @@ auto main(int argc, char** argv) -> int
 		QStringLiteral("--keyboard-shortcuts"),
 		QStringLiteral("--change-end-keys"),
 		QStringLiteral("--option-keys"),
+		QStringLiteral("--compose-review-sheet"),
+		QStringLiteral("--compose-review-entry"),
 		QStringLiteral("--review-state-icon"),
 		QStringLiteral("--review-bar-directions"),
 		QStringLiteral("--review-bar-directions-round-2"),
@@ -20052,6 +20318,24 @@ auto main(int argc, char** argv) -> int
 		runCase("test_option_keys_step_aside_in_text_input", &test_option_keys_step_aside_in_text_input);
 		if (!listCases) {
 			std::cout << "option-keys:pass\n";
+		}
+		return EXIT_SUCCESS;
+	}
+	// [[BPR-PENDING-1]]. Compose review's words while no review is in
+	// progress, its yield in a narrow window, and its sheet for a person.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--compose-review-sheet"))) {
+		runCase("render_compose_review_entry_sheet", &render_compose_review_entry_sheet);
+		if (!listCases) {
+			std::cout << "compose-review-sheet:written\n";
+		}
+		return EXIT_SUCCESS;
+	}
+	if (QCoreApplication::arguments().contains(QStringLiteral("--compose-review-entry"))) {
+		runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);
+		runCase("test_compose_review_says_approve_or_comment_with_no_review", &test_compose_review_says_approve_or_comment_with_no_review);
+		runCase("render_compose_review_entry_sheet", &render_compose_review_entry_sheet);
+		if (!listCases) {
+			std::cout << "compose-review-entry:pass\n";
 		}
 		return EXIT_SUCCESS;
 	}
@@ -20247,6 +20531,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
 	runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);
+	runCase("test_compose_review_says_approve_or_comment_with_no_review", &test_compose_review_says_approve_or_comment_with_no_review);
 	runCase("test_settings_collection_limit_keeps_accepted_models_and_recovery_actions", &test_settings_collection_limit_keeps_accepted_models_and_recovery_actions);
 	runCase("test_settings_share_only_offered_agent_context_and_maintenance_actions", &test_settings_share_only_offered_agent_context_and_maintenance_actions);
 	runCase("test_all_four_primary_actions_follow_one_core_projection", &test_all_four_primary_actions_follow_one_core_projection);

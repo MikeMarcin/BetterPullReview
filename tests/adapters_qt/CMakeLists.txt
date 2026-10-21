@@ -1326,6 +1326,27 @@ set_tests_properties(qt_review_state_icon PROPERTIES
     TIMEOUT 60
 )
 
+# [[BPR-PENDING-1]]. With no review in progress Compose review reads
+# "Approve or comment…" on the accent's edge; while one is in progress it is
+# its icon again; a narrow window drops the words and nothing folds. At 1x
+# and 2x, since the words and the floor are measured.
+foreach(bpr_compose_percent IN ITEMS 100 200)
+    if(bpr_compose_percent EQUAL 100)
+        set(bpr_compose_scale 1.0)
+    else()
+        set(bpr_compose_scale 2.0)
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_compose_review_entry_scale_${bpr_compose_percent}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --compose-review-entry
+    )
+    set_tests_properties(qt_compose_review_entry_scale_${bpr_compose_percent} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_compose_scale};BPR_EXPECTED_QT_SCALE=${bpr_compose_scale}"
+        PASS_REGULAR_EXPRESSION "compose-review-entry:pass"
+        TIMEOUT 60
+    )
+endforeach()
+
 # [[BPR-1536]]. Option+character window, button and menu-bar keys step aside
 # in every widget that takes typed text on macOS, and work elsewhere.
 bpr_add_network_isolated_test(

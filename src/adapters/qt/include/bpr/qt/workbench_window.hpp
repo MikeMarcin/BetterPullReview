@@ -1725,11 +1725,18 @@ namespace bpr::qt {
 		void update_strip_identity();
 		void update_account_action();
 		void apply_strip_width();
-		/// \brief [[BPR-1129]]. What yields on the review bar as it narrows: the
-		/// comparison's dates, then the positions' words. Nothing folds away.
+		/// \brief [[BPR-1129]]. What yields on the review bar as it narrows:
+		/// Compose review's words to "Approve…" ([[BPR-PENDING-1]]), the
+		/// comparison's dates, the positions' words and numbers, the steps'
+		/// names, and last "Approve…". Nothing folds away.
 		void apply_review_bar_width();
 		/// \brief [[BPR-1129]]. Marks Compose review while a review draft is kept.
 		void update_compose_mark();
+		/// \brief [[BPR-PENDING-1]]. Compose review's face: "Approve or
+		/// comment…" beside its pencil on the accent's edge while no review is
+		/// in progress and the bar has room, its icon otherwise; its name and
+		/// description to match.
+		void present_compose_entry();
 		/// [[BPR-1345]]. The chip counts what the saved drafts say.
 		void update_review_chip();
 		/// \brief [[BPR-1133]]. The review thread Comment answers: the one the
@@ -2231,6 +2238,15 @@ namespace bpr::qt {
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
 		bool ReviewBarCompact        = false;
 		bool ReviewBarPositionsShown = true;
+		/// [[BPR-PENDING-1]]. Compose review's words: "Approve or comment…",
+		/// shortened to "Approve…" first of the bar's yields, and the pencil
+		/// alone after every other.
+		enum class compose_words : std::uint8_t {
+			full,
+			brief,
+			none,
+		};
+		compose_words ComposeReviewWords = compose_words::full;
 #if defined(_WIN32)
 		QToolButton*             StripMenuButton = nullptr;
 		windows_caption_buttons* CaptionButtons  = nullptr;

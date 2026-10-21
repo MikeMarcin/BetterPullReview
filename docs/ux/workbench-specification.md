@@ -367,8 +367,20 @@ non-Latin layout whose A key types another letter does not offer it.
 Opening or seeing
 a file does not accept it. At the bar's right
 are **Compose review** (Option-R, Alt+R) and **Comment**
-(Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
-review carries an amber mark while a review draft is kept. Review details is
+(Option-C, Alt+C), whose tooltips name the command and its key. Comment is an
+icon. With no review in progress Compose review says what it is for:
+"Approve or comment…" beside its pencil, its edge in the accent and its face
+the bar's own, so a reviewer new to the window finds where the whole pull
+request is approved, sent back or commented on ([[BPR-PENDING-1]]; the owner,
+2026-10-21: "I think the compose review button is a little too subtle when
+there's not a active review"). Its accessible name is "Compose review: approve
+or comment", and its tooltip names Approve, Request changes and Comment. It
+only opens the review: the verdict is chosen there. While a review is in
+progress the chip below leads and Compose review is its plain icon. As the
+window narrows its words shorten first, to "Approve…" (it shows at 1280 beside
+the comparison's dates and the positions). "Approve…" is the review bar's last
+yield, and the pencil and its edge stay after it, so the floor is unchanged.
+Compose review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
 Pull Request menu. Compose review opens the whole-review summary in Discuss,
 beside the conversations (owner's Q3 answer on [[BPR-1212]]: "A: move to

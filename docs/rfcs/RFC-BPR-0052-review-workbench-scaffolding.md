@@ -131,6 +131,16 @@ remain named even without a selection and at the width floor. Under the owner's
 design delegation, a separate palette-derived horizontal rail joins each label
 and its two arrows ([[BPR-1202]]).
 
+**Owner report, 2026-10-21:** "I think the compose review button is a little
+too subtle when there's not a active review. It might be difficult for the
+uninitiated to find out how to approve a review." With no review in progress,
+Compose review now reads "Approve or comment…" beside its pencil, with its
+edge in the accent. While a review is in progress it is the icon again, after
+the chip. As the window narrows its words shorten first, to "Approve…", and
+"Approve…" yields last, so the 1280 layout keeps the dates and positions and
+the width floor does not move. The owner's look at the frozen candidate is pending
+([[BPR-PENDING-1]]). AC-03 says this.
+
 ## Problem and outcome
 
 The owner, on round v2: the title bar is "too busy … it's getting distracting
@@ -180,8 +190,12 @@ From its left it reads:
 - private progress (Seen, Read, Accept, Exclude), as an icon whose tooltip
   names this file's state.
 
-On the bar's right are Compose review and Comment, as icons whose tooltips
-name the command and its key. Compose review
+On the bar's right are Compose review and Comment, whose tooltips name the
+command and its key. Comment is an icon. Compose review is its icon while a
+review is in progress. With none in progress it reads "Approve or comment…"
+beside its pencil, on the accent's edge. As the window narrows the words
+shorten first, to "Approve…", which is the bar's last yield
+([[BPR-PENDING-1]]). Compose review
 shows a mark, in the amber of my last review's tick, while a review draft is
 kept. Comment's arrow is where the Conventional Comments labels are offered
 once RFC-BPR-0048 lands. Review details moves into the comparison's menu,
@@ -290,7 +304,7 @@ or review semantics.
 
 - AC-01 The chrome above the comparison is the title row, then the review bar, then the Updates line's timeline while it is open, with no other row between them in any state, and the comparison's header is the document tab strip. The Updates line folds from the review bar without moving it, a new window starts with it folded, and each window restores its own choice.
 - AC-02 The title row holds Home, the drawer toggles, the pull request's name, the modality at its right beside refresh, the comments toggle carrying the new-comment count, account and settings, with the platform's window controls. No navigation, progress or composition control sits in it, and every control stays top level at each platform's width floor.
-- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then File and its position before previous and next file, Changes and its position before previous and next change, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment as icons whose tooltips name the command and its key. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
+- AC-03 The review bar reads, from its left, the Updates disclosure with the comparison and its dates, open or folded; then File and its position before previous and next file, Changes and its position before previous and next change, and private progress as an icon whose tooltip names the active tab's file state; and at its right Compose review and Comment, whose tooltips name the command and its key: Comment as an icon, and Compose review as an icon while a review is in progress and otherwise as "Approve or comment…" beside its icon, shortened to "Approve…" first as the bar narrows and dropped to the icon last. Open, the Updates line's timeline runs the full width just below it. Compose review marks a kept review draft, and Review details is reached from the comparison's menu.
 - AC-04 The Updates line carries no permanent caption. Its tooltip carries the history statement, and the line shows a mark whenever history is incomplete or ambiguous, as RFC-BPR-0029 requires.
 - AC-05 Document tabs follow RFC-BPR-0025's tab contract: a tab is a file, a comparison and a reading position; clicking a file reuses the active tab, Cmd-click (Ctrl-click) and Open in New Tab open another, Duplicate Tab copies the exact view, previous and next file change the active tab, closing a tab follows the neighbour rule, and each window keeps its pull request's tabs across restart.
 - AC-06 Each tab has its own comparison. New tabs take the window's comparison, a tab with its own pair says so on its label, and the tab's menu returns it to the window's comparison or makes its pair the one new tabs take. The Updates line shows the active tab's pair, Overview and Discuss show the window's, late work cannot reach another tab, and no exact view is silently retargeted. Amended 2026-10-06 ([[BPR-1293]]): Conversations, too, has no tab and shows the window's comparison underneath its finder. Amended 2026-10-08 ([[BPR-1341]]): that modality is now named Threads.
@@ -320,6 +334,7 @@ or review semantics.
 | [[BPR-1208]] | A thread's defect controls sit on the thread (owner amendment, 2026-09-25) | AC-09 |
 | [[BPR-1209]] | Dif leaves the right drawer for the status bar's corner (owner amendment, 2026-09-25) | AC-09 |
 | [[BPR-1210]] | Private notes are written in Notes and promoted to drafts in Comments (owner amendment, 2026-09-25) | AC-09 |
+| [[BPR-PENDING-1]] | Compose review says "Approve or comment…" with no review in progress (owner report, 2026-10-21) | AC-03 |
 | [[BPR-1135]] | Verify and close RFC-BPR-0052 | all |
 
 ## Verification

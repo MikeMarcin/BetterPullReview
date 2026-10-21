@@ -9181,24 +9181,63 @@ namespace bpr::qt {
 		const auto  key       = [this](const QAction* const aAction) {
 			return presented_key(aAction);
 		};
+		// [[BPR-PENDING-1]]. The tooltip names the three verdicts the review
+		// page offers, so the command says what it is for in every state.
 		const auto compose = keptDraft
-			? QStringLiteral("Compose review (%1)\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
-			: QStringLiteral("Compose review (%1)").arg(key(ComposeReviewAction));
+			? QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
+			: QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.").arg(key(ComposeReviewAction));
 		ComposeReviewAction->setToolTip(compose);
 		ComposeReviewAction->setStatusTip(compose);
 		update_comment_target();
-		if (ReviewBar == nullptr) {
+		present_compose_entry();
+	}
+
+	void workbench_window::present_compose_entry()
+	{
+		if (ComposeReviewAction == nullptr || ReviewBar == nullptr) {
 			return;
 		}
-		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeReviewAction)); button != nullptr) {
-			button->setAccessibleName(QStringLiteral("Compose review"));
-			button->setAccessibleDescription(keptDraft
-												 ? QStringLiteral("Open the review page; a review draft is kept for this pull request")
-												 : QStringLiteral("Open the review page without submitting"));
-			if (button->property(strip_style::mark_property).toBool() != keptDraft) {
-				button->setProperty(strip_style::mark_property, keptDraft);
-				button->update();
-			}
+		auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeReviewAction));
+		if (button == nullptr) {
+			return;
+		}
+		// [[BPR-PENDING-1]]. The owner, 2026-10-21: "I think the compose review
+		// button is a little too subtle when there's not a active review. It
+		// might be difficult for the uninitiated to find out how to approve a
+		// review." With no review in progress it says what it is for, beside
+		// its pencil, on the accent's edge. While a review is in progress the
+		// chip before it leads, and it is the plain icon again. It only ever
+		// opens the review page; the verdict is chosen there.
+		const auto& shown      = ReviewSubmissionEditor != nullptr ? ReviewSubmissionEditor->shown_draft() : std::optional<core::review_submission_draft>{ };
+		const auto  keptDraft  = shown.has_value() && core::kept(*shown);
+		const auto  inProgress = PendingReviewComments > 0U || HeldReviewComments > 0U;
+		const auto  worded     = !inProgress && ComposeReviewWords != compose_words::none;
+		// The bar's presenter takes its words from the action's icon text; the
+		// menus keep the command's own name. Where the bar is short of room
+		// the words keep Approve, the verdict a newcomer looks for.
+		const auto words = !worded                       ? tr("Compose review")
+			: ComposeReviewWords == compose_words::brief ? tr("Approve…")
+														 : tr("Approve or comment…");
+		if (ComposeReviewAction->iconText() != words) {
+			ComposeReviewAction->setIconText(words);
+		}
+		const auto style = worded ? Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly;
+		if (button->toolButtonStyle() != style) {
+			button->setToolButtonStyle(style);
+		}
+		// Its name keeps the command's and, with no review in progress, holds
+		// the words it shows, also when the bar is too narrow for them.
+		button->setAccessibleName(inProgress ? tr("Compose review") : tr("Compose review: approve or comment"));
+		button->setAccessibleDescription(keptDraft
+											 ? tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request; a review draft is kept for this pull request")
+											 : tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request"));
+		if (button->property(strip_style::mark_property).toBool() != keptDraft) {
+			button->setProperty(strip_style::mark_property, keptDraft);
+			button->update();
+		}
+		if (button->property(strip_style::lead_property).toBool() == inProgress) {
+			button->setProperty(strip_style::lead_property, !inProgress);
+			button->update();
 		}
 	}
 
@@ -10356,6 +10395,8 @@ namespace bpr::qt {
 		const auto shown = PendingReviewComments > 0U || held;
 		if (ReviewChipAction->isVisible() != shown) {
 			ReviewChipAction->setVisible(shown);
+			// [[BPR-PENDING-1]]. Compose review is the plain icon beside the chip.
+			present_compose_entry();
 			apply_strip_width();
 		}
 		if (FinishReviewAction != nullptr) {
@@ -16903,6 +16944,10 @@ namespace bpr::qt {
 		if (ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(true);
 		}
+		// [[BPR-PENDING-1]]. Without Compose review's words, so the floor is
+		// the bar with its icon, as before they were added.
+		ComposeReviewWords = compose_words::none;
+		present_compose_entry();
 		remeasure();
 		const auto inset = ReviewBar->isVisible() ? std::max(0, width() - ReviewBar->width()) : 0;
 		const auto floor = std::max(platform_floor_width, ReviewBar->sizeHint().width() + inset);
@@ -16917,7 +16962,17 @@ namespace bpr::qt {
 		if (ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(false);
 		}
+		// [[BPR-PENDING-1]]. Compose review's words shorten first, to
+		// "Approve…", the verdict a newcomer looks for, and that goes last of
+		// all, after the dates, the positions' words and the steps' names.
+		ComposeReviewWords = compose_words::full;
+		present_compose_entry();
 		remeasure();
+		if (ReviewBar->sizeHint().width() > available) {
+			ComposeReviewWords = compose_words::brief;
+			present_compose_entry();
+			remeasure();
+		}
 		if (ReviewBar->sizeHint().width() > available) {
 			EpochSelectors->set_comparing_dates_shown(false);
 			remeasure();
@@ -16934,6 +16989,11 @@ namespace bpr::qt {
 		}
 		if (ReviewBar->sizeHint().width() > available && ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(true);
+			remeasure();
+		}
+		if (ReviewBar->sizeHint().width() > available) {
+			ComposeReviewWords = compose_words::none;
+			present_compose_entry();
 			remeasure();
 		}
 	}

@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "adba37ae1430b3756985ea132ce76d564a5c995e2a2188c9d55d3cf79d8a3d09",
+      "sha256": "2d76b3197f82ee51a8e7b0f8b6685500daf3ecbd5ec6fe12f0739897b41cae66",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -344,6 +344,46 @@
           "environment": [
             "QT_SCALE_FACTOR=1.0",
             "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_compose_review_entry_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--compose-review-entry",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--compose-review-entry"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_compose_review_entry_scale_100",
+          "selector": "--compose-review-entry",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_compose_review_entry_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--compose-review-entry",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--compose-review-entry"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_compose_review_entry_scale_200",
+          "selector": "--compose-review-entry",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
           ]
         },
         {
