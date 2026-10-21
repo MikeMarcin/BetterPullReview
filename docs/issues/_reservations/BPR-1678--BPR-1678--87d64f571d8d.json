@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1678"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Drawer toggles: command-modifier keys",
+  "created": "2026-10-21T06:22:13.892195+00:00",
+  "base": "730d1c7ac72a52c2baa4acb34d66b3f9d286fcd1"
+}

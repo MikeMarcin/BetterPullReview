@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1683"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Ignore pull requests on Home",
+  "created": "2026-10-21T07:19:24.517804+00:00",
+  "base": "8aed8aaddd97cf31ae8d0009047223cbff0d0f8e"
+}

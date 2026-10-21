@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1682"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Plus opens its draft on a pull request without threads",
+  "created": "2026-10-21T07:18:30.277502+00:00",
+  "base": "fff40fafc35b1cea804866dc8c4f0c68d968eb8d"
+}
