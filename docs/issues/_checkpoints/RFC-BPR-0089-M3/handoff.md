@@ -7,7 +7,7 @@ BPR-1694). Code candidates: [[BPR-1693]] `51106f759`, M3 `2f3b95815` and
 `dfea666ec` (the Qt test's renders written through Qt, as main's rebased change
 to that test does). The
 commits that close the cards and add this checkpoint change only
-documentation. New issue IDs are provisional (`BPR-PENDING-K1` to `K3`); the
+documentation. New issue IDs are provisional (`BPR-1695` to `K3`); the
 coordinator allocates them on main. No card's metadata carries a
 `provisional_id` key.
 
@@ -21,10 +21,10 @@ attended session was opened.
 | RFC criterion | Status | Where |
 |---|---|---|
 | Generated row "opening one shows its diff on request" | pass, fixture through the shipped composition | [[BPR-1693]] |
-| AC03 | pass, fixture and live (BPR-Test #114) | [[BPR-PENDING-K2]] |
-| AC06 | pass, fixture and live (BPR-Test #115); M1 named the gone commit | [[BPR-PENDING-K3]] |
-| AC05 (M3 gestures) | pass: no review mutation terminal; Viewed unchanged for 325 files in both live runs | [[BPR-PENDING-K2]], [[BPR-PENDING-K3]] |
-| AC08 (M3 decisions) | pass under `core-only` | [[BPR-PENDING-K1]] |
+| AC03 | pass, fixture and live (BPR-Test #114) | [[BPR-1696]] |
+| AC06 | pass, fixture and live (BPR-Test #115); M1 named the gone commit | [[BPR-1697]] |
+| AC05 (M3 gestures) | pass: no review mutation terminal; Viewed unchanged for 325 files in both live runs | [[BPR-1696]], [[BPR-1697]] |
+| AC08 (M3 decisions) | pass under `core-only` | [[BPR-1695]] |
 | AC07 | M4, not started | |
 
 ## Decisions recorded
