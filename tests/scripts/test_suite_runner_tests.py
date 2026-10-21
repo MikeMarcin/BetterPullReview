@@ -92,8 +92,12 @@ class SuiteRunnerTests(unittest.TestCase):
         self.inputs.start()
 
     def test_python_optimization_is_refused_before_selection(self):
-        with patch.dict(os.environ, {"PYTHONOPTIMIZE": "1"}), self.assertRaisesRegex(ValueError, "Python assertions"):
-            suite.run_suite("fixture", 1, Path("unused"))
+        # A full runner legitimately owns the real checkout lock while this
+        # contract executes; this control owns a separate fixture checkout.
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.dict(os.environ, {"PYTHONOPTIMIZE": "1"}), self.assertRaisesRegex(ValueError, "Python assertions"):
+                suite.run_suite("fixture", 1, root / "unused", root=root)
 
     def test_real_preflight_stops_failed_candidate_and_retains_accepted_full_inventory(self):
         for failed in (True, False):
