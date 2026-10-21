@@ -3885,6 +3885,46 @@ namespace {
 				   "only a request that names the viewer as a user is kept; a team-only request is not the viewer's");
 		}
 		{
+			// [[BPR-1680]]. Pull requests the refresh's retained read already
+			// read come back as the search found them, with no detail read.
+			auto transport   = discovery_fixture_transport{ };
+			transport.Search = [](const github_wire_request&) {
+				return discovery_search({ discovery_item(8U, "author-a"), discovery_item(9U, "author-b"), discovery_item(10U, "author-c") }, 3U);
+			};
+			transport.Reviewers = [](const std::uint32_t aNumber) {
+				expect(aNumber == 10U, "only the pull request nothing has read is asked for its reviewers");
+				return requested_reviewers_response({ "octo-reviewer" }, 0U);
+			};
+			auto request  = discovery_request(reason::requested);
+			request.Known = {
+				{ .Repository = request.Context.Repository, .Number = core::pull_request_number{ 8U } },
+				{ .Repository = request.Context.Repository, .Number = core::pull_request_number{ 9U } },
+			};
+			const auto result = perform_personal_discovery_read(transport, profile(), request, { });
+			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 3U
+					   && result->Rows[0].Reused && !result->Rows[0].Detailed && result->Rows[0].Title == "Pull request 8"
+					   && result->Rows[1].Reused && !result->Rows[1].Detailed && !result->Rows[2].Reused && result->Rows[2].Detailed,
+				   "known rows are returned reused, even a team-only one, for the host to decide; the other is read");
+			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 1U
+					   && transport.count(read_operation::get_pull_request) == 1U,
+				   "a known row costs no requested-reviewer, pull request or summary read");
+			for (const auto& refused : {
+					 std::vector<application::personal_discovery_known>{ { .Repository = { "octo-org", "other" }, .Number = core::pull_request_number{ 8U } } },
+					 std::vector<application::personal_discovery_known>{ { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 9U } }, { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 8U } } },
+					 std::vector<application::personal_discovery_known>{ { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 0U } } },
+				 }) {
+				transport.Requests.clear();
+				auto hostile  = request;
+				hostile.Known = refused;
+				expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
+					   "known pull requests of another repository, out of order or invalid are refused before any request");
+			}
+			auto retained  = discovery_request(reason::retained);
+			retained.Known = request.Known;
+			transport.Requests.clear();
+			expect(!perform_personal_discovery_read(transport, profile(), retained, { }) && transport.Requests.empty(), "a retained read knows nothing");
+		}
+		{
 			auto transport      = discovery_fixture_transport{ };
 			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U, true); };
 			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
@@ -4164,6 +4204,21 @@ namespace {
 			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
 					   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
 				   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");
+			expect(!result->Rows.front().RequestsViewer, "[[BPR-1680]] a request of another user and a team does not ask the viewer");
+		}
+		{
+			// [[BPR-1680]]. The retained read says whether the viewer is asked
+			// by name, as the requested-reviewers read would.
+			auto transport     = discovery_fixture_transport{ };
+			transport.Metadata = [](const auto&) {
+				auto metadata = retained_metadata();
+				metadata.insert_or_assign("requested_reviewers", fixture_array{ rest_actor("U_other", "other"), rest_actor("U_viewer", "Octo-Reviewer") });
+				return success_response(fixture_json(metadata));
+			};
+			transport.Reviews = [](const auto&) { return success_response("[]"); };
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+			expect(result && result->Rows.size() == 1U && result->Rows.front().RequestsViewer && result->Rows.front().ReviewersAwaited == 3U,
+				   "a request that names the viewer, in any case, asks the viewer");
 		}
 		{
 			auto transport     = discovery_fixture_transport{ };

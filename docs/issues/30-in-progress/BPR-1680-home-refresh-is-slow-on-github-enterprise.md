@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"origin":"Owner report, 2026-10-20: Home takes a long time to refresh on a GHE environment; anonymized diagnostic export supplied out of band (not committed)","reservation":"docs/issues/_reservations/BPR-1680--BPR-1681--3313b46dcf00.json","related_cards":["BPR-1681","BPR-1679","BPR-0988","BPR-0989","BPR-0990","BPR-1370","BPR-1379","BPR-1436"],"owner_decision":"2026-10-21: options 1 to 5 approved, in order, one commit each; options 6 and 7 not approved"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"option 1 commit on 97c35a45b","evidence":{"kind":"command","detail":"core_home_discovery (line format, read-back, every refusal), application_review_queue_enrollment's new test_discovery_records_each_refresh_and_read (ten lines for one refresh of four reads: starts, verbose read starts, read ends with requests, lane wait and run time, a failed read's failure, the refresh's totals and duration; a session change ends a refresh cancelled), quill_logging (a discovery read's end reaches the real file with its failure; any other detail is dropped), application_release_maintenance's new test_discovery_export (both export policies keep exactly the counts-only line and omit one with a repository or login in it), and application_personal_discovery_public_path and its CLI variant reading the composed profile's own diagnostics file (every refresh with its reads and requests, read ends, no viewer login or repository name) pass. application_home_waiting_public_path and application_home_open_feedback_public_path pass."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"option 1 commit on 97c35a45b","evidence":{"kind":"command","detail":"core_home_discovery (line format, read-back, every refusal), application_review_queue_enrollment's new test_discovery_records_each_refresh_and_read (ten lines for one refresh of four reads: starts, verbose read starts, read ends with requests, lane wait and run time, a failed read's failure, the refresh's totals and duration; a session change ends a refresh cancelled), quill_logging (a discovery read's end reaches the real file with its failure; any other detail is dropped), application_release_maintenance's new test_discovery_export (both export policies keep exactly the counts-only line and omit one with a repository or login in it), and application_personal_discovery_public_path and its CLI variant reading the composed profile's own diagnostics file (every refresh with its reads and requests, read ends, no viewer login or repository name) pass. application_home_waiting_public_path and application_home_open_feedback_public_path pass."}},{"criterion":"AC2","outcome":"pass","revision":"option 2 commit over the option 1 commit","evidence":{"kind":"command","detail":"core_home_discovery's test_known_pull_requests (only open, fully read pull requests, ordered, once each; a requested row stays only when the viewer is asked by name), github_paged_read (known rows come back Reused with no requested-reviewer, pull request or summary read; known rows of another repository, out of order, invalid, or on a retained read are refused before any request; a retained read reports RequestsViewer in any case), application_review_queue_enrollment's new test_discovery_searches_reuse_the_refresh_retained_reads (both searches know the three fully read pull requests and not the bounded one; two rows reused; a team-only reused row is not requested; an authored reused row takes the retained detail; a search-only row is read as before; an unknown Reused row is dropped), and the four fixture courses pass. application_personal_discovery_public_path asserts three reuses on its explicit Refresh: 19 requests before, 13 after; its restart refresh 23 before, 17 after."}}]
 ---
 
 # Home refresh is slow on GitHub Enterprise
@@ -170,3 +170,26 @@ The fixture answers Home's summary reads only for its waiting-detail rows, so
 a fixture retained read costs two requests rather than the six it costs on a
 real server; durations on the fixture network are tens of milliseconds and are
 not a timing measurement.
+
+**Option 2, done.** A search carries `Known`, the pull requests of its
+repository this refresh's retained reads read in full
+(`core::discovery_known_pull_requests`: open, summary not bounded). The
+adapter returns a found row for one of them `Reused`, without its
+requested-reviewer, pull request and summary reads and without spending a
+detail read; the host fills it from the retained read, keeps a requested row
+only when that read named the viewer as a user (`core::keeps_reused_row`, the
+retained read now reports `RequestsViewer` from the same `requested_reviewers`
+array), and drops a `Reused` row the request did not know. A pull request the
+retained read found closed or only partly read is searched and read as
+before.
+
+| Course refresh | Requests before | After option 2 |
+|---|---|---|
+| Save Repository (no retained) | 11 | 11 |
+| explicit Refresh (4 retained, 3 found again) | 19 | 13 |
+| restart, three refused | 23 | 17 |
+
+The three reused rows save two fixture requests each; on a real server each
+saves about six (requested reviewers, the pull request, review requests, merge
+assessment, check runs, commit statuses). The course now asserts the three
+reuses and its detail-read count; Home lists the same rows.

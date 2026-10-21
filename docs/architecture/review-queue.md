@@ -292,6 +292,19 @@ A discovery answer is stored before it is shown. A refused write rolls the
 update back and reports the queue's store unavailable, exactly as any other
 queue write; it is never answered from another profile's store.
 
+**One read per pull request per refresh** ([[BPR-1680]]). A refresh reads its
+retained pull requests before it searches, so a pull request both retained and
+found was read twice. A search now carries the pull requests of its repository
+that this refresh's retained reads read in full (`personal_discovery_known`,
+decided by `core::discovery_known_pull_requests`: found open, with the Home
+summary unbounded). The adapter returns a found row for one of them `Reused`,
+with no requested-reviewer, pull request or summary read and no detail read
+spent; the host fills it from the retained read. A requested row stays only
+when that read named the viewer as a user (`core::keeps_reused_row`), exactly
+as the requested-reviewer read would have decided, and a `Reused` row for a
+pull request the request did not know is dropped. Each reused row saves the
+six requests of its own detail and summary reads on a real server.
+
 **Diagnostics** ([[BPR-1680]]). Each refresh records a `github.discovery`
 start and end in the profile's diagnostics log, and each read a start
 (verbose detail) and an end. The detail is one `core::discovery_diagnosis`

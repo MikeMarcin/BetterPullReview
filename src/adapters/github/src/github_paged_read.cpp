@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <limits>
 #include <map>
@@ -4324,7 +4325,16 @@ namespace bpr::adapters::github::detail {
 				: (aRequest.Reason == application::personal_discovery_reason::authored
 				   || aRequest.Reason == application::personal_discovery_reason::requested)
 					&& !aRequest.Number;
-			return reason && limits_valid(aLimits) && application::detail::valid_context(context)
+			// [[BPR-1680]]. A search's known pull requests are of its own
+			// repository, valid, in order and once each.
+			const auto& known      = aRequest.Known;
+			const auto  knownValid = known.empty()
+				|| (aRequest.Reason != application::personal_discovery_reason::retained && known.size() <= application::maximum_personal_discovery_retained
+					&& std::ranges::all_of(known, [&context](const application::personal_discovery_known& aKnown) {
+						   return aKnown.Repository == context.Repository && aKnown.Number.value() != 0U && aKnown.Number.value() <= core::maximum_pull_request_number;
+					   })
+					&& std::ranges::adjacent_find(known, std::greater_equal<>{ }) == known.end());
+			return reason && knownValid && limits_valid(aLimits) && application::detail::valid_context(context)
 				&& (!aRequest.AuthenticationSession || aRequest.AuthenticationSession->value() != 0U)
 				&& application::valid(authority) && aRequest.AccountTransport != nullptr
 				&& aRequest.Viewer.Account.value() != 0U && aRequest.Viewer.Account == context.Account
@@ -4655,6 +4665,12 @@ namespace bpr::adapters::github::detail {
 				.Draft            = json_is_bool(draft) ? std::optional<bool>{ json_bool(draft) } : std::nullopt,
 			};
 			row.AuthorIdentity = author.Actor ? std::optional{ author.Actor->Actor } : std::nullopt;
+			// [[BPR-1680]]. What the requested-reviewers read would say of the
+			// viewer, so a search row in the same refresh need not ask it.
+			row.RequestsViewer = std::ranges::any_of(json_array(users), [&aRequest](const page_json_value& aUser) {
+				const auto reviewer = optional_rest_actor(aUser);
+				return reviewer.Actor && application::detail::ascii_equal_fold(reviewer.Actor->Login, aRequest.Viewer.Login);
+			});
 			const auto change  = parse_change_facts(object);
 			if (!change) {
 				return execution.terminal_failure(application::github_provider_failure::malformed_response);
@@ -4857,11 +4873,22 @@ namespace bpr::adapters::github::detail {
 				}
 				result.Rows.push_back(std::move(*row));
 			}
-			auto homeBudget = shared_home_budget{ };
-			auto details    = std::size_t{ 0U };
-			auto kept       = std::vector<application::personal_discovery_row>{ };
-			auto overflow   = false;
+			auto       homeBudget = shared_home_budget{ };
+			auto       details    = std::size_t{ 0U };
+			auto       kept       = std::vector<application::personal_discovery_row>{ };
+			auto       overflow   = false;
+			const auto known      = [&aRequest](const core::pull_request_number aNumber) {
+				return std::ranges::binary_search(aRequest.Known, application::personal_discovery_known{ .Repository = aRequest.Context.Repository, .Number = aNumber });
+			};
 			for (auto& row : result.Rows) {
+				// [[BPR-1680]]. Read in full by this refresh's retained read:
+				// no requested-reviewers, pull request or summary read again,
+				// and no detail read spent.
+				if (known(row.Number)) {
+					row.Reused = true;
+					kept.push_back(std::move(row));
+					continue;
+				}
 				if (details == application::maximum_personal_discovery_details) {
 					overflow = true;
 					if (!requested) {

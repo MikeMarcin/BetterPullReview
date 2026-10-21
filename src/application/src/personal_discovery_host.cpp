@@ -1,10 +1,12 @@
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/core/home_discovery_plan.hpp"
 
 #include <algorithm>
 #include <deque>
 #include <limits>
+#include <map>
 #include <optional>
 #include <set>
 #include <string>
@@ -433,7 +435,7 @@ namespace bpr::application {
 		}
 
 		void enqueue(const std::string& aRepository, const personal_discovery_reason aReason,
-					 const std::optional<core::pull_request_number> aNumber = std::nullopt)
+					 const std::optional<core::pull_request_number> aNumber = std::nullopt, std::vector<personal_discovery_known> aKnown = { })
 		{
 			auto context       = Session->Context;
 			context.Request    = core::request_id{ NextRequest++ };
@@ -448,6 +450,7 @@ namespace bpr::application {
 					.Reason                = aReason,
 					.AuthenticationSession = Session->AuthenticationSession,
 					.Number                = aNumber,
+					.Known                 = std::move(aKnown),
 				},
 				.Repository = aRepository,
 				.Generation = Generation,
@@ -455,14 +458,56 @@ namespace bpr::application {
 			});
 		}
 
+		/// [[BPR-1680]]. The pull requests of one repository the searches
+		/// need not read again: the ones this refresh's retained reads read
+		/// in full, as the core decides.
+		[[nodiscard]] auto known_in(const std::string& aRepository) const -> std::vector<personal_discovery_known>
+		{
+			auto       known   = std::vector<personal_discovery_known>{ };
+			const auto locator = locator_of(aRepository);
+			for (const auto& read : core::discovery_known_pull_requests(CycleRetainedReads)) {
+				if (locator && read.Repository == *locator) {
+					known.push_back({ .Repository = read.Repository, .Number = read.Number });
+				}
+			}
+			return known;
+		}
+
 		void enqueue_searches()
 		{
 			Searching = true;
 			for (const auto& repository : Searched) {
 				for (const auto reason : { personal_discovery_reason::requested, personal_discovery_reason::authored }) {
-					enqueue(repository, reason);
+					enqueue(repository, reason, std::nullopt, known_in(repository));
 				}
 			}
+		}
+
+		/// [[BPR-1680]]. A search row the adapter did not read again, with
+		/// the detail this refresh's retained read established, or none when
+		/// the core says the row is not the viewer's or nothing stands for it.
+		[[nodiscard]] auto reused_row(const job& aJob, const personal_discovery_row& aRow) const -> std::optional<queue_discovered_pull_request>
+		{
+			const auto ref      = queue_ref(aJob.Repository, aRow.Number);
+			const auto retained = CycleRetainedRows.find(ref);
+			const auto read     = std::ranges::find_if(CycleRetainedReads, [&](const core::discovery_retained_read& aRead) {
+				return aRead.Repository == aJob.Request.Context.Repository && aRead.Number == aRow.Number;
+			});
+			const auto known    = std::ranges::binary_search(aJob.Request.Known, personal_discovery_known{ .Repository = aJob.Request.Context.Repository, .Number = aRow.Number });
+			const auto reason   = aJob.Request.Reason == personal_discovery_reason::requested ? core::discovery_search_reason::requested : core::discovery_search_reason::authored;
+			if (!known || retained == CycleRetainedRows.end() || read == CycleRetainedReads.end() || !core::keeps_reused_row(reason, *read)) {
+				return std::nullopt;
+			}
+			return queue_discovered_pull_request{
+				.Number           = static_cast<std::int64_t>(aRow.Number.value()),
+				.Title            = aRow.Title,
+				.Author           = aRow.Author,
+				.Detailed         = true,
+				.ReviewersAwaited = retained->second.ReviewersAwaited,
+				.Draft            = aRow.Draft,
+				.Waiting          = retained->second.Waiting,
+				.Change           = retained->second.Change,
+			};
 		}
 
 		void start_cycle()
@@ -504,6 +549,8 @@ namespace bpr::application {
 			CycleRequests    = 0U;
 			CycleWait        = 0U;
 			ClosedThisCycle.clear();
+			CycleRetainedRows.clear();
+			CycleRetainedReads.clear();
 			CycleProblem = queue_discovery_problem::none;
 			for (std::size_t index = 0U; index < items.size(); ++index) {
 				MetadataConsidered.insert(items[index].Ref);
@@ -675,6 +722,14 @@ namespace bpr::application {
 							if (ClosedThisCycle.contains(queue_ref(finished.Repository, row.Number))) {
 								continue;
 							}
+							// [[BPR-1680]]. Not read again: the retained read stands for it.
+							if (row.Reused) {
+								if (auto reused = reused_row(finished, row)) {
+									++Statistics.Reused;
+									answer.PullRequests.push_back(std::move(*reused));
+								}
+								continue;
+							}
 							answer.PullRequests.push_back({
 								.Number           = static_cast<std::int64_t>(row.Number.value()),
 								.Title            = std::move(row.Title),
@@ -745,6 +800,10 @@ namespace bpr::application {
 				.Closed   = row.Closed,
 				.Authored = row.AuthorIdentity ? std::optional<bool>{ *row.AuthorIdentity == Session->Viewer.Node } : std::nullopt,
 			});
+			// [[BPR-1680]]. What this read established, for the searches that
+			// follow it in this refresh.
+			CycleRetainedRows.insert_or_assign(ref, row);
+			CycleRetainedReads.push_back({ .Repository = aJob.Request.Context.Repository, .Number = row.Number, .Open = !row.Closed, .Complete = !row.WaitingLimited, .RequestsViewer = row.RequestsViewer });
 		}
 
 		void finish_cycle()
@@ -801,16 +860,20 @@ namespace bpr::application {
 		std::vector<std::string>                  Searched;
 		std::set<core::pull_request_ref>          MetadataConsidered;
 		std::set<core::pull_request_ref>          ClosedThisCycle;
-		std::vector<job>                          Active;
-		std::optional<std::int64_t>               LastSuccess;
-		std::optional<std::int64_t>               LastEnded;
-		std::optional<std::int64_t>               BackoffUntil;
-		queue_discovery_status                    Status;
-		personal_discovery_statistics             Statistics;
-		queue_discovery_problem                   CycleProblem = queue_discovery_problem::none;
-		std::uint64_t                             Generation   = 0U;
-		std::uint64_t                             Cycle        = 0U;
-		std::uint64_t                             NextRequest  = 1U;
+		/// [[BPR-1680]]. What this refresh's retained reads applied, which its
+		/// searches reuse rather than read again.
+		std::map<core::pull_request_ref, personal_discovery_row> CycleRetainedRows;
+		std::vector<core::discovery_retained_read>               CycleRetainedReads;
+		std::vector<job>                                         Active;
+		std::optional<std::int64_t>                              LastSuccess;
+		std::optional<std::int64_t>                              LastEnded;
+		std::optional<std::int64_t>                              BackoffUntil;
+		queue_discovery_status                                   Status;
+		personal_discovery_statistics                            Statistics;
+		queue_discovery_problem                                  CycleProblem = queue_discovery_problem::none;
+		std::uint64_t                                            Generation   = 0U;
+		std::uint64_t                                            Cycle        = 0U;
+		std::uint64_t                                            NextRequest  = 1U;
 		/// [[BPR-1680]]. The running refresh's diagnostic counts.
 		std::int64_t  CycleStarted     = 0;
 		std::uint32_t CycleRetained    = 0U;

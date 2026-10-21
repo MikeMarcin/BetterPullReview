@@ -2134,6 +2134,73 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	/// [[BPR-1680]] option 2. A pull request read in full by the refresh's
+	/// retained read is known to that refresh's searches: a row the provider
+	/// returns for it, not read again, takes the retained read's detail; a
+	/// requested row stays only when that read named the viewer. One the
+	/// retained read found closed, or read only in part, is read again.
+	void test_discovery_searches_reuse_the_refresh_retained_reads()
+	{
+		auto fixture = discovery_fixture{ { { "github.com", "reviewer", "octo/app" } },
+										  {
+											  { .Ref = ref(5), .Membership = { .Requested = true } },
+											  { .Ref = ref(6), .Membership = { .Authored = true } },
+											  { .Ref = ref(7), .Membership = { .Requested = true } },
+											  { .Ref = ref(9), .Membership = { .Requested = true } },
+										  } };
+		fixture.Discovery.adopt(discovery_session());
+		auto& provider = fixture.Provider;
+		while (provider.Answered < provider.Requests.size() && provider.next().Reason == application::personal_discovery_reason::retained) {
+			const auto number     = provider.next().Number->value();
+			auto       read       = metadata_row(number);
+			read.ReviewersAwaited = number == 6U ? 2U : 1U;
+			read.Waiting.Requests = read.ReviewersAwaited;
+			read.Change.Comments  = 40U + number;
+			read.RequestsViewer   = number == 5U;
+			read.WaitingLimited   = number == 9U;
+			provider.answer(provider.rows({ read }));
+			fixture.settle();
+		}
+		expect(provider.Requests.size() >= 5U && provider.next().Reason == application::personal_discovery_reason::requested, "the retained reads come first, then the searches");
+		const auto known = std::vector<application::personal_discovery_known>{
+			{ .Repository = { "octo", "app" }, .Number = core::pull_request_number{ 5U } },
+			{ .Repository = { "octo", "app" }, .Number = core::pull_request_number{ 6U } },
+			{ .Repository = { "octo", "app" }, .Number = core::pull_request_number{ 7U } },
+		};
+		expect(provider.next().Known == known && provider.Requests[provider.Answered + 1U].Known == known,
+			   "both searches know the three pull requests read in full, not the one whose summary hit a bound");
+		const auto reused = [](const std::uint32_t aNumber) {
+			auto result   = row(aNumber, false);
+			result.Reused = true;
+			return result;
+		};
+		provider.answer(provider.rows({ reused(5U), reused(7U), row(8U) }));
+		provider.answer(provider.rows({ reused(6U) }));
+		fixture.settle();
+		expect(fixture.Discovery.statistics().Reused == 2U, "two found rows are answered from the retained reads");
+		expect(fixture.record(5) && fixture.record(5)->Membership.Requested && fixture.item(5)->Facts.Waiting.Requests == std::optional<std::uint32_t>{ 1U },
+			   "a requested pull request that names the viewer stays requested, with the retained read's detail");
+		expect(!fixture.record(7) || !fixture.record(7)->Membership.Requested, "one asked only of a team is not the viewer's, exactly as its own read would decide");
+		expect(fixture.item(6) && fixture.item(6)->Membership.Authored && fixture.item(6)->Facts.Waiting.Requests == std::optional<std::uint32_t>{ 2U }
+				   && fixture.item(6)->Facts.Change.Comments == std::optional<std::uint64_t>{ 46U },
+			   "an authored row takes the retained read's awaited reviewers and change facts");
+		expect(fixture.item(8) && fixture.record(8)->Membership.Requested, "a pull request only the search found is read as before");
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::partial, "the refresh ends, partial for the bounded summary");
+
+		// A reused row the request did not know is not trusted.
+		fixture.Discovery.refresh();
+		while (provider.Answered < provider.Requests.size() && provider.next().Reason == application::personal_discovery_reason::retained) {
+			provider.answer(provider.rows({ metadata_row(provider.next().Number->value()) }));
+			fixture.settle();
+		}
+		provider.answer(provider.rows({ reused(11U) }));
+		provider.answer(provider.rows({ }));
+		fixture.settle();
+		expect(!fixture.item(11), "a row the provider calls reused for an unknown pull request is dropped");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_discovery_membership_is_honest_about_absence()
 	{
 		auto fixture = discovery_fixture{ { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" } } };
@@ -2895,6 +2962,7 @@ auto main() -> int
 	test_ignores_survive_restart_and_closed_ones_are_pruned();
 	test_one_scheduler_discovers_the_saved_repositories_of_its_account();
 	test_discovery_records_each_refresh_and_read();
+	test_discovery_searches_reuse_the_refresh_retained_reads();
 	test_discovery_membership_is_honest_about_absence();
 	test_discovery_failures_keep_rows_and_back_off();
 	test_discovery_refuses_stale_and_foreign_answers();

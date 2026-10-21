@@ -33,6 +33,16 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_personal_discovery_retained = 30U;
 	inline constexpr std::size_t maximum_personal_discovery_reviews  = 400U;
 
+	/// \brief [[BPR-1680]]. A pull request this refresh's retained read
+	/// already read in full, which a search need not read again.
+	struct personal_discovery_known
+	{
+		core::repository_locator  Repository;
+		core::pull_request_number Number;
+
+		auto operator<=>(const personal_discovery_known&) const = default;
+	};
+
 	/// \brief One bounded personal search or retained pull request metadata read.
 	///
 	/// \details The exact accepted authority a pull request read carries, the
@@ -51,6 +61,10 @@ namespace bpr::application {
 		/// Present only for a retained read; never a discovery search qualifier.
 		std::optional<core::pull_request_number> Number;
 		std::uint64_t                            FactRevision = 0;
+		/// [[BPR-1680]]. A search only: the pull requests, in repository and
+		/// number order, this refresh already read in full. A found row for
+		/// one of them comes back `Reused`, without its own detail reads.
+		std::vector<personal_discovery_known> Known;
 
 		auto operator<=>(const personal_discovery_request&) const = default;
 	};
@@ -71,7 +85,11 @@ namespace bpr::application {
 	/// \details `Detailed` says the pull request's requested reviewers were
 	/// read. For an authored row it gives `ReviewersAwaited`; a requested row is
 	/// returned only when that read named the viewer as a user, so a team-only
-	/// request never appears and `Detailed` is always true for it.
+	/// request never appears and `Detailed` is always true for it. The one
+	/// exception is a `Reused` row ([[BPR-1680]]): one of the request's
+	/// `Known` pull requests, returned as the search found it with no detail
+	/// read; the host takes its detail from the refresh's retained read, which
+	/// also decides whether a requested row is the viewer's.
 	struct personal_discovery_row
 	{
 		core::pull_request_number Number;
@@ -90,6 +108,11 @@ namespace bpr::application {
 		bool WaitingLimited = false;
 		/// [[BPR-1407]]. Age, size and comment count from the pull request read.
 		core::queue_change_facts Change;
+		/// [[BPR-1680]]. A search row for a `Known` pull request, not read again.
+		bool Reused = false;
+		/// [[BPR-1680]]. A retained read: its requested reviewers name the
+		/// viewer as a user, not only through a team.
+		bool RequestsViewer = false;
 
 		auto operator<=>(const personal_discovery_row&) const = default;
 	};

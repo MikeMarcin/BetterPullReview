@@ -78,6 +78,9 @@ namespace bpr::application {
 		/// [[BPR-1680]]. The wire requests the answered, failed and cancelled
 		/// reads say they sent.
 		std::uint64_t Requests = 0U;
+		/// [[BPR-1680]]. Search rows answered from the refresh's retained
+		/// read instead of reads of their own.
+		std::uint64_t Reused = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};
@@ -88,7 +91,9 @@ namespace bpr::application {
 	/// profile's queue host, so there is one scheduler however many windows
 	/// are open. Each cycle first refreshes bounded metadata and submitted
 	/// reviews for retained PRs, then searches the saved repositories of the
-	/// adopted account's server and account, both reasons for each, at most
+	/// adopted account's server and account, both reasons for each (a pull
+	/// request its retained read already read in full is not read again by a
+	/// search, [[BPR-1680]]), at most
 	/// `maximum_personal_discovery_in_flight` reads at a time, and tags every
 	/// read with its session generation and refresh: a completion from an
 	/// earlier session or refresh is refused. It runs when a session is

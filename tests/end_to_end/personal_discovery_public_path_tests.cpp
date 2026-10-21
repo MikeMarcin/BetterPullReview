@@ -902,10 +902,13 @@ try {
 	windowB->queue_refresh_action()->trigger();
 	wait_for([&] { return discovery().Statistics.Refreshes == 3U && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 			 "Refresh runs one more refresh", diagnose);
-	std::cerr << "refresh searches=" << evidence().DiscoverySearches << " details=" << evidence().DiscoveryDetailReads << " reads=" << reads_since(evidence(), beforeRefresh, cliCourse).size() << "\n";
+	std::cerr << "refresh searches=" << evidence().DiscoverySearches << " details=" << evidence().DiscoveryDetailReads << " reads=" << reads_since(evidence(), beforeRefresh, cliCourse).size() << " reused=" << discovery().Statistics.Reused << "\n";
 	expect(evidence().DiscoverySearches == 10U && evidence().DiscoveryDetailReads <= 12U && reads_since(evidence(), beforeRefresh, cliCourse).size() <= 32U
 			   && only_discovery(reads_since(evidence(), beforeRefresh, cliCourse)),
 		   "Refresh reads retained PR metadata and review summaries before the bounded personal searches");
+	// [[BPR-1680]]. #4001, #4002 and #4003 were read as retained pull
+	// requests, so the searches that find them read none of them again.
+	expect(discovery().Statistics.Reused == 3U && evidence().DiscoveryDetailReads == 8U, "the searches reuse the refresh's three retained reads");
 	wait_for([&] { const auto item = queue_item(*windowA, 4001); return item && item->Bucket == core::attention_bucket::quiet
 		&& contains(state_rows(*windowA, qt::home_group::my_pull_requests), "octo-org/review-repository#4001"); }, "accepted authored refresh moves waiting-only into My pull requests", diagnose);
 	expect(windowA->selected_queue_item() && windowA->selected_queue_item()->Ref == authoredRef
