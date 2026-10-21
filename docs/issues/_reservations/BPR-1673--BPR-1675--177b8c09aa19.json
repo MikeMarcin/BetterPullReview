@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1673",
+    "BPR-1674",
+    "BPR-1675"
+  ],
+  "reserve_for": "release-portfolio",
+  "purpose": "Implement Astra release architecture toward thirty-minute releases: case consolidation, scoped qualification and measured producer rehearsal",
+  "created": "2026-10-21T01:23:07.455152+00:00",
+  "base": "65cc41b7bed622bc61b2ade866d476c3f52af039"
+}
