@@ -122,7 +122,7 @@ label is. It changes no state the core keeps, and no intent or selection.
 The offscreen renders are Fusion. The native macOS look is the owner's,
 below.
 
-## Owner look (pending)
+## Owner look
 
 Two Accept or Reject questions on the frozen build are pending in their own
 short attended session. They are recorded below and are not acceptance
@@ -147,4 +147,4 @@ criteria, because they wait on the owner.
   `f9760d4654ab…9e9353`. The launcher's own check printed
   `CHECK_OK (first head): ATTENDED_FILE_SHOWN:src/ui/conversation_cards_view.cpp`.
   Launch with `python3 /Users/jaeger/.mask/attended-review/bpr-pending-g-tray-tabs-v001.feygvcwt/launch.py`.
-- Verdicts: none yet.
+- Verdicts, handed back 2026-10-21 at event 11: `BPR-1684-compact-v001` **Accept** (event 8) and `BPR-1684-widths-v001` **Accept** (event 10), both without a note. The session is closed, its host stopped and the frozen root removed.
