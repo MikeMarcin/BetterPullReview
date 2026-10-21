@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1674"
 title: "Select qualification from complete inputs and reuse equivalent builds"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1673"]
 priority: "P1"
