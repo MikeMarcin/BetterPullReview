@@ -17,11 +17,13 @@
 #include <QCheckBox>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QPointer>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -114,9 +116,11 @@ namespace {
 		/// reopen on a new runtime with the reset's notice.
 		void reset_from_settings(const reset aReset, const QString& aNotice)
 		{
-			auto* const before = runtime();
-			auto* const shown  = window();
+			const auto  beforeAddress = reinterpret_cast<std::uintptr_t>(runtime());
+			const auto  beforeContext = runtime()->windows().front();
+			auto* const shown         = window();
 			expect(shown != nullptr, "the profile has a window");
+			const auto retiredWindow = QPointer<qt::workbench_window>{ shown };
 			shown->open_settings(qt::settings_page::storage_and_privacy);
 			auto* const panel = shown->profile_reset_panel_widget();
 			expect(panel != nullptr && panel->isVisibleTo(shown->settings()), "Troubleshooting is on Storage & privacy in the real Settings");
@@ -142,9 +146,14 @@ namespace {
 			until([&] {
 				auto* const now      = runtime();
 				auto* const reopened = window();
-				return now != nullptr && now != before && reopened != nullptr && reopened->statusBar()->currentMessage().startsWith(aNotice);
+				// An allocator may reuse the destroyed runtime's address. Its
+				// retired QObject and public window authority identify lifetimes.
+				return retiredWindow.isNull() && now != nullptr && !now->windows().empty() && now->windows().front() != beforeContext
+					&& reopened != nullptr && reopened->statusBar()->currentMessage().startsWith(aNotice);
 			},
 				  "the profile reopens on a new runtime and says what was reset", 60000);
+			std::cout << "PROFILE_RESET_LIFETIME:retired-window;fresh-context;runtime-address-reused="
+					  << (reinterpret_cast<std::uintptr_t>(runtime()) == beforeAddress) << '\n';
 		}
 	};
 }
