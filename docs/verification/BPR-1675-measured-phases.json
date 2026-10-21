@@ -1,0 +1,3280 @@
+{
+  "schema": "bpr.m3.measured-phases.v1",
+  "request_start_utc": "2026-10-21T01:20:09Z",
+  "m3_first_observed_utc": "2026-10-21T03:26:45Z",
+  "recorded_utc": "2026-10-21T06:08:08.668140+00:00",
+  "scope": "Workflow engineering and unsigned mechanical rehearsal; no publication request or verified-publication result",
+  "unmeasured": "M1/M2 engineering intervals remain in original handoffs; request elapsed includes them. Transfer/setup phases lacking subprocess clocks are explicitly unmeasured, never zero.",
+  "warning": "Nested phases and Mac/PC overlap are not additive critical-path wall; summed CTest durations are work seconds, not CPU seconds.",
+  "origins": [
+    {
+      "path": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "records": 106
+    },
+    {
+      "path": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "records": 126
+    }
+  ],
+  "phases": [
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "02820568fc164fedb8ba38270da76738",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "configure",
+      "started_utc": "2026-10-21T03:35:13.478023+00:00",
+      "wrapper_pid": 33493,
+      "child_pid": 33501,
+      "command": [
+        "cmake",
+        "--preset",
+        "m3-warm-qualification"
+      ],
+      "context": {
+        "allowed_dirty_mask": {
+          ".mask.json": "9bfe9d13e027604dc6366becd3f50b41caac2ba587aa78bbc245329eb11293a0",
+          ".mask.lock.json": "d58fdabec3c4f155e91632e7278fda4c19b92ab3fc73e9f6604989ba82ce972d"
+        },
+        "cache": "existing tests-on arm64 Release benchmark/dependencies warm; full test graph not built",
+        "configuration": "Release",
+        "engineering_source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "lease": "M3 transferred primary dev/qt612-release-qualification only; published producers protected",
+        "source": "adf4afc26994fce76d567b2ead8508e082467355",
+        "tools": {
+          "cmake": "/opt/homebrew/bin/cmake",
+          "ctest": "/opt/homebrew/bin/ctest",
+          "ninja": "/opt/homebrew/bin/ninja",
+          "python3": "/opt/homebrew/bin/python3"
+        },
+        "tree": "48c1e1eaabb323a7e96f16f14b5c7fbcc7f2d80b",
+        "user_preset_sha": "1c262c72ab5d681044b57b50b9cb233255e0ac2daf7a4f1592e9b1979b5d0f79"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:35:22.115541+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "02820568fc164fedb8ba38270da76738",
+        "recorded_utc": "2026-10-21T03:35:22.115915+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 8.63655724999262,
+        "sequence": 3
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "b236907cd5034c09b98cb89d07cac2b8",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "bootstrap",
+      "started_utc": "2026-10-21T03:35:22.116304+00:00",
+      "wrapper_pid": 33493,
+      "child_pid": 33645,
+      "command": [
+        "ctest",
+        "--preset",
+        "m3-warm-qualification",
+        "--parallel",
+        "3",
+        "--tests-regex",
+        "^(documentation_structure|documentation_issue_graph_contract|issue_id_allocation_contract)$",
+        "--output-on-failure"
+      ],
+      "context": {
+        "allowed_dirty_mask": {
+          ".mask.json": "9bfe9d13e027604dc6366becd3f50b41caac2ba587aa78bbc245329eb11293a0",
+          ".mask.lock.json": "d58fdabec3c4f155e91632e7278fda4c19b92ab3fc73e9f6604989ba82ce972d"
+        },
+        "cache": "existing tests-on arm64 Release benchmark/dependencies warm; full test graph not built",
+        "configuration": "Release",
+        "engineering_source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "lease": "M3 transferred primary dev/qt612-release-qualification only; published producers protected",
+        "source": "adf4afc26994fce76d567b2ead8508e082467355",
+        "tools": {
+          "cmake": "/opt/homebrew/bin/cmake",
+          "ctest": "/opt/homebrew/bin/ctest",
+          "ninja": "/opt/homebrew/bin/ninja",
+          "python3": "/opt/homebrew/bin/python3"
+        },
+        "tree": "48c1e1eaabb323a7e96f16f14b5c7fbcc7f2d80b",
+        "user_preset_sha": "1c262c72ab5d681044b57b50b9cb233255e0ac2daf7a4f1592e9b1979b5d0f79"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:35:24.958470+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "b236907cd5034c09b98cb89d07cac2b8",
+        "recorded_utc": "2026-10-21T03:35:24.958590+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 2.8417935419711284,
+        "sequence": 6
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "5ce98b499f2e4afab9ff13b263d03e44",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "full-Release-build",
+      "started_utc": "2026-10-21T03:35:24.958988+00:00",
+      "wrapper_pid": 33493,
+      "child_pid": 33874,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "m3-warm-qualification",
+        "--parallel",
+        "4"
+      ],
+      "context": {
+        "allowed_dirty_mask": {
+          ".mask.json": "9bfe9d13e027604dc6366becd3f50b41caac2ba587aa78bbc245329eb11293a0",
+          ".mask.lock.json": "d58fdabec3c4f155e91632e7278fda4c19b92ab3fc73e9f6604989ba82ce972d"
+        },
+        "cache": "existing tests-on arm64 Release benchmark/dependencies warm; full test graph not built",
+        "configuration": "Release",
+        "engineering_source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "lease": "M3 transferred primary dev/qt612-release-qualification only; published producers protected",
+        "source": "adf4afc26994fce76d567b2ead8508e082467355",
+        "tools": {
+          "cmake": "/opt/homebrew/bin/cmake",
+          "ctest": "/opt/homebrew/bin/ctest",
+          "ninja": "/opt/homebrew/bin/ninja",
+          "python3": "/opt/homebrew/bin/python3"
+        },
+        "tree": "48c1e1eaabb323a7e96f16f14b5c7fbcc7f2d80b",
+        "user_preset_sha": "1c262c72ab5d681044b57b50b9cb233255e0ac2daf7a4f1592e9b1979b5d0f79"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:41:42.452239+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "5ce98b499f2e4afab9ff13b263d03e44",
+        "recorded_utc": "2026-10-21T03:41:42.452569+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 377.48964779195376,
+        "sequence": 9
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "7942ce46e2174fb4a1efd190c4a0b7f0",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "complete-Release-suite",
+      "started_utc": "2026-10-21T03:42:46.887242+00:00",
+      "wrapper_pid": 38464,
+      "child_pid": 38467,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview/scripts/run_test_suite.py",
+        "--preset",
+        "m3-warm-qualification",
+        "--jobs",
+        "4",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/full-suite"
+      ],
+      "context": {
+        "allowed_dirty_mask": {
+          ".mask.json": "9bfe9d13e027604dc6366becd3f50b41caac2ba587aa78bbc245329eb11293a0",
+          ".mask.lock.json": "d58fdabec3c4f155e91632e7278fda4c19b92ab3fc73e9f6604989ba82ce972d"
+        },
+        "cache": "existing tests-on arm64 Release benchmark/dependencies warm; full test graph not built",
+        "configuration": "Release",
+        "engineering_source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "lease": "M3 transferred primary dev/qt612-release-qualification only; published producers protected",
+        "source": "adf4afc26994fce76d567b2ead8508e082467355",
+        "tools": {
+          "cmake": "/opt/homebrew/bin/cmake",
+          "ctest": "/opt/homebrew/bin/ctest",
+          "ninja": "/opt/homebrew/bin/ninja",
+          "python3": "/opt/homebrew/bin/python3"
+        },
+        "tree": "48c1e1eaabb323a7e96f16f14b5c7fbcc7f2d80b",
+        "user_preset_sha": "1c262c72ab5d681044b57b50b9cb233255e0ac2daf7a4f1592e9b1979b5d0f79"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:41:58.886596+00:00",
+        "event": "end",
+        "exit_code": 8,
+        "outcome": "failed",
+        "phase_id": "7942ce46e2174fb4a1efd190c4a0b7f0",
+        "recorded_utc": "2026-10-21T04:41:58.886937+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 3552.008372084005,
+        "sequence": 12
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "c013bc4d0a0f4a06895b05688faaa024",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "configure",
+      "started_utc": "2026-10-21T04:50:01.963882+00:00",
+      "wrapper_pid": 66541,
+      "child_pid": 66543,
+      "command": [
+        "cmake",
+        "--preset",
+        "m3-warm-qualification"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "lease": "M3 sole Mac execution owner",
+        "source": "642d5b2f156ef6f7a788f30f425026c0f4dbc17d"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:50:06.693128+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "c013bc4d0a0f4a06895b05688faaa024",
+        "recorded_utc": "2026-10-21T04:50:06.693387+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 4.727975375019014,
+        "sequence": 15
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "c7460c94e9d94e6e8cb65b6f535068e4",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "reset-fixture-build",
+      "started_utc": "2026-10-21T04:50:06.693791+00:00",
+      "wrapper_pid": 66541,
+      "child_pid": 66617,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "m3-warm-qualification",
+        "--parallel",
+        "4",
+        "--target",
+        "test_profile_data_reset_public_path"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "lease": "M3 sole Mac execution owner",
+        "source": "642d5b2f156ef6f7a788f30f425026c0f4dbc17d"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:50:13.254640+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "c7460c94e9d94e6e8cb65b6f535068e4",
+        "recorded_utc": "2026-10-21T04:50:13.254814+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 6.56039466598304,
+        "sequence": 18
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "da7366177a874ac78a43221ae703d4d6",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "portable",
+      "started_utc": "2026-10-21T04:50:13.255101+00:00",
+      "wrapper_pid": 66541,
+      "child_pid": 66639,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/tmp/bpr-release-portfolio/m3-focused.py",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+        "/tmp/bpr-release-portfolio/m3-mac/final/portable",
+        "m3-warm-qualification",
+        "portable",
+        "Darwin",
+        "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+        "642d5b2f156ef6f7a788f30f425026c0f4dbc17d"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "lease": "M3 sole Mac execution owner",
+        "source": "642d5b2f156ef6f7a788f30f425026c0f4dbc17d"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:51:18.563916+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "da7366177a874ac78a43221ae703d4d6",
+        "recorded_utc": "2026-10-21T04:51:18.564142+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 65.30809154198505,
+        "sequence": 24
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "6ce96c0505b94ae98dbd3debe08a0453",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "portable-suite",
+      "started_utc": "2026-10-21T04:50:13.555913+00:00",
+      "wrapper_pid": 66639,
+      "child_pid": 66643,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "m3-warm-qualification",
+        "--jobs",
+        "4",
+        "--tests-regex",
+        "^(qt_dif_workshop_placement|qt_center_ribbon_width_scale_1\\.0|qt_center_ribbon_width_scale_1\\.25|qt_center_ribbon_width_scale_2\\.0|qt_shared_snapshot_navigation|qt_change_end_keys|qt_keyboard_shortcuts_scale_100|qt_keyboard_shortcuts_scale_125|qt_keyboard_shortcuts_scale_200|qt_review_state_icon|qt_option_keys_typing|qt_document_tabs_scale_100|qt_document_tabs_scale_125|qt_document_tabs_scale_200|qt_workbench_focus_order_scale_100|qt_workbench_focus_order_scale_125|qt_workbench_focus_order_scale_200|qt_workbench_title_row_scale_100|qt_workbench_title_row_scale_125|qt_workbench_title_row_scale_200|qt_workbench_home_discovery_scale_100|qt_workbench_home_discovery_scale_125|qt_workbench_home_discovery_scale_200|qt_workbench_open_on_github_scale_100|qt_workbench_open_on_github_scale_125|qt_workbench_open_on_github_scale_200|qt_workbench_open_review_from_home_scale_100|qt_workbench_open_review_from_home_scale_125|qt_workbench_open_review_from_home_scale_200|qt_workbench_line_draft|qt_workbench_overview|qt_workbench_window_scale_100|qt_workbench_window_scale_125|qt_workbench_window_scale_200|qt_diff_workbench_scale_100|qt_diff_workbench_scale_125|qt_diff_workbench_scale_200|application_overview_summary_1|application_overview_summary_1_25|application_overview_summary_2|application_source_find|application_source_find_scale_1_25|application_source_find_scale_2_0|application_review_submission_composition_public_path|application_review_submission_composition_scale_125|application_review_submission_composition_scale_200)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/final/portable/suite"
+      ],
+      "context": {
+        "cache": "same native qualification tree; no product source changes after full gate",
+        "configuration": "Release",
+        "lease": "M3 owned native qualification; timed rows exclusive; physical PC serialized",
+        "mode": "portable",
+        "platform": "Darwin",
+        "source": "642d5b2f156ef6f7a788f30f425026c0f4dbc17d",
+        "tree": "1a268c4b52483c1925c041c04e50c1c79f34b96c"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:51:18.477294+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "6ce96c0505b94ae98dbd3debe08a0453",
+        "recorded_utc": "2026-10-21T04:51:18.477627+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 64.9198868329986,
+        "sequence": 23
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "74d726ea8e9c42ac8d274aae2ba8bc3a",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "normal-incremental-suite",
+      "started_utc": "2026-10-21T04:51:18.565118+00:00",
+      "wrapper_pid": 66541,
+      "child_pid": 69445,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "m3-warm-qualification",
+        "--jobs",
+        "4",
+        "--profile",
+        "normal",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(release_update_.*|native_https_.*|qt_release_maintenance_scale_.*|application_release_maintenance_public_path|application_profile_data_reset_public_path|test_suite_runner_contract|command_correctness_registry_contract|application_composition_source_contract)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/final/normal-suite"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "lease": "M3 sole Mac execution owner",
+        "source": "642d5b2f156ef6f7a788f30f425026c0f4dbc17d"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:57:57.265722+00:00",
+        "event": "end",
+        "exit_code": 8,
+        "outcome": "failed",
+        "phase_id": "74d726ea8e9c42ac8d274aae2ba8bc3a",
+        "recorded_utc": "2026-10-21T04:57:57.266054+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 398.68402679200517,
+        "sequence": 27
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "2e1355a11cb24c5fa18708e9e798c2d7",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "configure",
+      "started_utc": "2026-10-21T05:05:30.409529+00:00",
+      "wrapper_pid": 8561,
+      "child_pid": 8564,
+      "command": [
+        "cmake",
+        "--preset",
+        "m3-warm-qualification"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:05:35.115180+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "2e1355a11cb24c5fa18708e9e798c2d7",
+        "recorded_utc": "2026-10-21T05:05:35.115386+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 4.704549541987944,
+        "sequence": 30
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "0802d62ae9424d0a812bfe89cb7465ff",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "normal-correction-focus",
+      "started_utc": "2026-10-21T05:05:35.115811+00:00",
+      "wrapper_pid": 8561,
+      "child_pid": 8634,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "m3-warm-qualification",
+        "--jobs",
+        "1",
+        "--tests-regex",
+        "^(test_network_isolation_manifest|application_composition_source_contract)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/recovery-final/correction-suite"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:26.392898+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "0802d62ae9424d0a812bfe89cb7465ff",
+        "recorded_utc": "2026-10-21T05:06:26.393117+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 51.27597845898708,
+        "sequence": 33
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "612fa303b53d4d3d9eb9d9b3330c5c2f",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Release-case-occurrences",
+      "started_utc": "2026-10-21T05:06:26.393851+00:00",
+      "wrapper_pid": 8561,
+      "child_pid": 9100,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/tmp/bpr-release-portfolio/m3-case-extract.py",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+        "/tmp/bpr-release-portfolio/m3-mac/final/normal-suite/manifest.json",
+        "/tmp/bpr-release-portfolio/m3-mac/final/normal-LastTest.log",
+        "Release",
+        "Darwin",
+        "/tmp/bpr-release-portfolio/m3-mac/recovery-final/Release-occurrences"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:26.454862+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "612fa303b53d4d3d9eb9d9b3330c5c2f",
+        "recorded_utc": "2026-10-21T05:06:26.455061+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.06044304196257144,
+        "sequence": 36
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "c50f56ed687d4fbda76629ea4239ccd1",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Release-workbench-lists",
+      "started_utc": "2026-10-21T05:06:26.455328+00:00",
+      "wrapper_pid": 8561,
+      "child_pid": 9101,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/workbench_case_inventory.py",
+        "--manifest",
+        "/tmp/bpr-release-portfolio/m3-mac/final/normal-suite/manifest.json",
+        "--platform",
+        "Darwin",
+        "--execute-lists",
+        "--output",
+        "/tmp/bpr-release-portfolio/m3-mac/recovery-final/Release-lists.json"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:30.382835+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "c50f56ed687d4fbda76629ea4239ccd1",
+        "recorded_utc": "2026-10-21T05:06:30.383041+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 3.927023915981408,
+        "sequence": 39
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "f43858303ba74c3589a5429da2815806",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Release-assertion-controls",
+      "started_utc": "2026-10-21T05:06:30.383418+00:00",
+      "wrapper_pid": 8561,
+      "child_pid": 9214,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/qualification_assertion_controls.py",
+        "--manifest",
+        "/tmp/bpr-release-portfolio/m3-mac/final/normal-suite/manifest.json",
+        "--probe",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview/build/qt612-release-qualification/tests/core/qualification_assertion_probe",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/recovery-final/Release-controls"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:33.232227+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "f43858303ba74c3589a5429da2815806",
+        "recorded_utc": "2026-10-21T05:06:33.232457+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 2.848212583048735,
+        "sequence": 42
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "d043e6bad0e24d49a404646be11cdee5",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "affected-Debug-build",
+      "started_utc": "2026-10-21T05:06:33.232924+00:00",
+      "wrapper_pid": 8561,
+      "child_pid": 9253,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--parallel",
+        "4",
+        "--target",
+        "test_better_pull_review_qt_workbench_window_tests",
+        "test_better_pull_review_qt_github_tests",
+        "test_better_pull_review_diff_compute_core_tests",
+        "test_better_pull_review_application_diff_host_tests",
+        "test_better_pull_review_application_github_host_tests",
+        "test_qualification_assertion_probe",
+        "app_better_pull_review",
+        "test_release_update_transport",
+        "test_release_update_host",
+        "test_release_maintenance_panel",
+        "test_release_update_public_path",
+        "test_profile_data_reset_public_path"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:35.772314+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "d043e6bad0e24d49a404646be11cdee5",
+        "recorded_utc": "2026-10-21T05:06:35.772533+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 2.5387207500170916,
+        "sequence": 45
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "7b90e39ad4e145418e0d72a2a116e8d1",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "repair-missing-Debug-dependency",
+      "started_utc": "2026-10-21T05:07:20.787642+00:00",
+      "wrapper_pid": 9438,
+      "child_pid": 9441,
+      "command": [
+        "cmake",
+        "--preset",
+        "dev"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:07:39.626052+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "7b90e39ad4e145418e0d72a2a116e8d1",
+        "recorded_utc": "2026-10-21T05:07:39.626352+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 18.837014832999557,
+        "sequence": 48
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "e379b4b7225b4931a4f718d813a48439",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "affected-Debug-build",
+      "started_utc": "2026-10-21T05:07:39.626821+00:00",
+      "wrapper_pid": 9438,
+      "child_pid": 10641,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--parallel",
+        "4",
+        "--target",
+        "test_better_pull_review_qt_workbench_window_tests",
+        "test_better_pull_review_qt_github_tests",
+        "test_better_pull_review_diff_compute_core_tests",
+        "test_better_pull_review_application_diff_host_tests",
+        "test_better_pull_review_application_github_host_tests",
+        "test_qualification_assertion_probe",
+        "app_better_pull_review",
+        "test_release_update_transport",
+        "test_release_update_host",
+        "test_release_maintenance_panel",
+        "test_release_update_public_path",
+        "test_profile_data_reset_public_path"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:11:40.802340+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "e379b4b7225b4931a4f718d813a48439",
+        "recorded_utc": "2026-10-21T05:11:40.802756+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 241.16881666699192,
+        "sequence": 51
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "6e9550ac9eb6460b99c36f00b99e8543",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-residual",
+      "started_utc": "2026-10-21T05:11:40.804193+00:00",
+      "wrapper_pid": 9438,
+      "child_pid": 15547,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/tmp/bpr-release-portfolio/m3-focused.py",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-final/debug",
+        "dev",
+        "debug",
+        "Darwin",
+        "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+        "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "lease": "M3 sole Mac execution owner",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:11:41.418111+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "6e9550ac9eb6460b99c36f00b99e8543",
+        "recorded_utc": "2026-10-21T05:11:41.418348+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.6133442079881206,
+        "sequence": 57
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "b81700ac248b422d9afc7999f30fc990",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "debug-suite",
+      "started_utc": "2026-10-21T05:11:41.254297+00:00",
+      "wrapper_pid": 15547,
+      "child_pid": 15551,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "dev",
+        "--jobs",
+        "1",
+        "--profile",
+        "debug-residual",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(application_diff_host|application_github_host|application_profile_data_reset_public_path|application_release_update|application_release_update_public_path|core_diff_compute|qt_composed_inline_drawer_scale_100|qt_release_maintenance_scale_100|qt_workbench_window_scale_100|release_update_transport_contract)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-final/debug/suite"
+      ],
+      "context": {
+        "cache": "same native qualification tree; no product source changes after full gate",
+        "configuration": "Debug",
+        "lease": "M3 owned native qualification; timed rows exclusive; physical PC serialized",
+        "mode": "debug",
+        "platform": "Darwin",
+        "source": "8aac6e3b46e63a305c75d03263cfe450a8ba7bda",
+        "tree": "9656c50936d78229db1fecff03de7118b8414da4"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:11:41.392582+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "b81700ac248b422d9afc7999f30fc990",
+        "recorded_utc": "2026-10-21T05:11:41.392824+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.13737729197600856,
+        "sequence": 56
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "03aed2847c3942f488bba02853c685af",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-residual",
+      "started_utc": "2026-10-21T05:14:22.471034+00:00",
+      "wrapper_pid": 18655,
+      "child_pid": 18670,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/tmp/bpr-release-portfolio/m3-focused.py",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-recovery2/debug",
+        "dev",
+        "debug",
+        "Darwin",
+        "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+        "9a7504d0759e03cd962b3140b5704d5adc55c829"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c987df8b696b7ef715c0b34f030e19e27ef3bd77",
+        "lease": "M3 sole Mac execution owner",
+        "source": "9a7504d0759e03cd962b3140b5704d5adc55c829"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:15:23.036123+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "03aed2847c3942f488bba02853c685af",
+        "recorded_utc": "2026-10-21T05:15:23.036478+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 60.56323379202513,
+        "sequence": 63
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "95927b8a05944438861d83f89ee51a0d",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "debug-suite",
+      "started_utc": "2026-10-21T05:14:22.893873+00:00",
+      "wrapper_pid": 18670,
+      "child_pid": 18676,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "dev",
+        "--jobs",
+        "1",
+        "--profile",
+        "debug-residual",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(application_diff_host|application_github_host|application_profile_data_reset_public_path|application_release_update|application_release_update_public_path|core_diff_compute|qt_composed_inline_drawer_scale_100|qt_release_maintenance_scale_100|qt_workbench_window_scale_100|release_update_transport_contract|test_suite_runner_contract)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-recovery2/debug/suite"
+      ],
+      "context": {
+        "cache": "same native qualification tree; no product source changes after full gate",
+        "configuration": "Debug",
+        "lease": "M3 owned native qualification; timed rows exclusive; physical PC serialized",
+        "mode": "debug",
+        "platform": "Darwin",
+        "source": "9a7504d0759e03cd962b3140b5704d5adc55c829",
+        "tree": "dafc32d724c2ca3825b86dc0873bd15b5a2ff7b0"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:15:22.996837+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "95927b8a05944438861d83f89ee51a0d",
+        "recorded_utc": "2026-10-21T05:15:22.997269+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 60.10110170900589,
+        "sequence": 62
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "1b6d292099694c57ab2d17c02cd5a92c",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-case-occurrences",
+      "started_utc": "2026-10-21T05:16:53.711098+00:00",
+      "wrapper_pid": 22168,
+      "child_pid": 22170,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "/tmp/bpr-release-portfolio/m3-case-extract.py",
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-recovery2/debug/manifest.json",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-completion/Debug-LastTest.log",
+        "Debug",
+        "Darwin",
+        "/tmp/bpr-release-portfolio/m3-mac/debug-completion/Debug-occurrences"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c987df8b696b7ef715c0b34f030e19e27ef3bd77",
+        "lease": "M3 sole Mac execution owner",
+        "source": "9a7504d0759e03cd962b3140b5704d5adc55c829"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:16:53.754949+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "1b6d292099694c57ab2d17c02cd5a92c",
+        "recorded_utc": "2026-10-21T05:16:53.755232+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.04275158402742818,
+        "sequence": 66
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "0dce0a44c6d74f5c976cffc5e36f3615",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-expect-pass",
+      "started_utc": "2026-10-21T05:16:53.755514+00:00",
+      "wrapper_pid": 22168,
+      "child_pid": 22171,
+      "command": [
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview/build/dev/tests/core/qualification_assertion_probe",
+        "pass"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c987df8b696b7ef715c0b34f030e19e27ef3bd77",
+        "lease": "M3 sole Mac execution owner",
+        "source": "9a7504d0759e03cd962b3140b5704d5adc55c829"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:16:54.051459+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "0dce0a44c6d74f5c976cffc5e36f3615",
+        "recorded_utc": "2026-10-21T05:16:54.052162+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.2949275840073824,
+        "sequence": 69
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "d4a1276622654413841e08bb5f4de994",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-expect-fail",
+      "started_utc": "2026-10-21T05:16:54.052696+00:00",
+      "wrapper_pid": 22168,
+      "child_pid": 22180,
+      "command": [
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview/build/dev/tests/core/qualification_assertion_probe",
+        "fail"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c987df8b696b7ef715c0b34f030e19e27ef3bd77",
+        "lease": "M3 sole Mac execution owner",
+        "source": "9a7504d0759e03cd962b3140b5704d5adc55c829"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:16:54.060801+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "d4a1276622654413841e08bb5f4de994",
+        "recorded_utc": "2026-10-21T05:16:54.061278+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.00726537499576807,
+        "sequence": 72
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "39cff55d5b104ff8b52e18ec50020477",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-expect-caught",
+      "started_utc": "2026-10-21T05:16:54.061752+00:00",
+      "wrapper_pid": 22168,
+      "child_pid": 22181,
+      "command": [
+        "/Users/jaeger/.codex/worktrees/7226/BetterPullReview/build/dev/tests/core/qualification_assertion_probe",
+        "caught"
+      ],
+      "context": {
+        "cache": "full first-pass Release graph; retained warm Debug graph",
+        "configuration": "Release plus five-command Debug residual",
+        "engineering": "c987df8b696b7ef715c0b34f030e19e27ef3bd77",
+        "lease": "M3 sole Mac execution owner",
+        "source": "9a7504d0759e03cd962b3140b5704d5adc55c829"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:16:54.069256+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "39cff55d5b104ff8b52e18ec50020477",
+        "recorded_utc": "2026-10-21T05:16:54.069672+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.006722083024214953,
+        "sequence": 75
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "4a7bbf55e41d4828b33b36eef1d32a81",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "macOS-unsigned-producer",
+      "started_utc": "2026-10-21T05:16:54.195106+00:00",
+      "wrapper_pid": 22166,
+      "child_pid": 22184,
+      "command": [
+        "bash",
+        "tools/release.sh",
+        "--version",
+        "0.3.1",
+        "--prepare-only",
+        "--skip-tests",
+        "--output-dir",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos"
+      ],
+      "context": {
+        "authorization": "internal prepare-only; ad-hoc seal only, no DeveloperID/notary/Gatekeeper/publication",
+        "cache": "new separate distribution tree; retained shared dependency cache",
+        "configuration": "universal tests-off distribution Release",
+        "lease": "M3 sole Mac native execution owner",
+        "source": "c987df8b696b7ef715c0b34f030e19e27ef3bd77"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:28:16.668334+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "4a7bbf55e41d4828b33b36eef1d32a81",
+        "recorded_utc": "2026-10-21T05:28:16.668888+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 682.4548415000318,
+        "sequence": 80
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "d55191e9df4646158a647551fa0101fd",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "preserved-public-upstream-source-cache-copy",
+      "started_utc": "2026-10-21T05:17:39.784278+00:00",
+      "wrapper_pid": 36968,
+      "child_pid": null,
+      "command": [
+        "python3",
+        "copy raw upstream archives"
+      ],
+      "context": {
+        "cache": "copy raw public upstream archives only from retained immutable published producer; package tool rehashes every required input; no binary/source-asset/verdict reuse",
+        "destination_cache": "/Users/jaeger/.codex/worktrees/release-qualification/BetterPullReview/build/macos-release/release-sources",
+        "source": "c987df8b696b7ef715c0b34f030e19e27ef3bd77",
+        "source_cache": "/Users/jaeger/.codex/worktrees/7226/BetterPullReview/build/macos-release/release-sources"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:17:39.958224+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "d55191e9df4646158a647551fa0101fd",
+        "recorded_utc": "2026-10-21T05:17:39.958607+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 0.17195091705070809,
+        "sequence": 79
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "e2d9c81bab1c4b2d82cff0f7f7c60e94",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Release-affected-app-build",
+      "started_utc": "2026-10-21T05:32:40.276020+00:00",
+      "wrapper_pid": 94296,
+      "child_pid": 94301,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "m3-warm-qualification",
+        "--target",
+        "app_better_pull_review",
+        "--parallel",
+        "4"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Release",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Darwin",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "305b107b76ba5f49951122042c871f7aa912beb9"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:33:02.681163+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "e2d9c81bab1c4b2d82cff0f7f7c60e94",
+        "recorded_utc": "2026-10-21T05:33:02.681731+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 22.39321354200365,
+        "sequence": 83
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "86761e319c7c423cb9e1b303da5775da",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Release-focused-correction",
+      "started_utc": "2026-10-21T05:33:02.682325+00:00",
+      "wrapper_pid": 94296,
+      "child_pid": 94861,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "m3-warm-qualification",
+        "--jobs",
+        "1",
+        "--profile",
+        "normal",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/normal-corrections/Release"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Release",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Darwin",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "305b107b76ba5f49951122042c871f7aa912beb9"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:33:37.121931+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "86761e319c7c423cb9e1b303da5775da",
+        "recorded_utc": "2026-10-21T05:33:37.122570+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 34.4372833329835,
+        "sequence": 86
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "fde60ccf94154d8b8756d5eeaf28ab9c",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-affected-app-build",
+      "started_utc": "2026-10-21T05:33:37.124301+00:00",
+      "wrapper_pid": 94296,
+      "child_pid": 96725,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "dev",
+        "--target",
+        "app_better_pull_review",
+        "--parallel",
+        "4"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Debug",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Darwin",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "305b107b76ba5f49951122042c871f7aa912beb9"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:33:57.157518+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "fde60ccf94154d8b8756d5eeaf28ab9c",
+        "recorded_utc": "2026-10-21T05:33:57.157855+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 20.031848290993366,
+        "sequence": 89
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "b73b3204b2a84a18b393320de9c93498",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "Debug-focused-correction",
+      "started_utc": "2026-10-21T05:33:57.158305+00:00",
+      "wrapper_pid": 94296,
+      "child_pid": 97145,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "dev",
+        "--jobs",
+        "1",
+        "--profile",
+        "debug-residual",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--output-dir",
+        "/tmp/bpr-release-portfolio/m3-mac/normal-corrections/Debug"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Debug",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Darwin",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "305b107b76ba5f49951122042c871f7aa912beb9"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:34:37.466781+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "b73b3204b2a84a18b393320de9c93498",
+        "recorded_utc": "2026-10-21T05:34:37.467378+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 40.305380666977726,
+        "sequence": 92
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "f16c35be307349e2b7f06acf01bc3d68",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "macOS-unsigned-producer",
+      "started_utc": "2026-10-21T05:34:37.810710+00:00",
+      "wrapper_pid": 94295,
+      "child_pid": 99476,
+      "command": [
+        "bash",
+        "tools/release.sh",
+        "--version",
+        "0.3.1",
+        "--prepare-only",
+        "--skip-tests",
+        "--output-dir",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r2"
+      ],
+      "context": {
+        "authorization": "internal prepare-only; ad-hoc seal only, no DeveloperID/notary/Gatekeeper/publication",
+        "cache": "retained separate universal distribution tree from first682.531s producer; main observation owner only changed; raw upstream source archives warm",
+        "configuration": "universal tests-off distribution Release",
+        "lease": "M3 sole Mac native execution owner",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:36:24.456713+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "f16c35be307349e2b7f06acf01bc3d68",
+        "recorded_utc": "2026-10-21T05:36:24.457271+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 106.63832112500677,
+        "sequence": 95
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "706bfa888cb341e4bca93e827eb82161",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "macOS-unsigned-producer",
+      "started_utc": "2026-10-21T05:37:45.498556+00:00",
+      "wrapper_pid": 7791,
+      "child_pid": 7798,
+      "command": [
+        "bash",
+        "tools/release.sh",
+        "--version",
+        "0.3.1",
+        "--prepare-only",
+        "--skip-tests",
+        "--output-dir",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r3"
+      ],
+      "context": {
+        "authorization": "internal prepare-only; ad-hoc seal only, no DeveloperID/notary/Gatekeeper/publication",
+        "cache": "retained separate universal distribution tree from first682.531s producer; main observation owner only changed; raw upstream source archives warm",
+        "configuration": "universal tests-off distribution Release",
+        "lease": "M3 sole Mac native execution owner",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:38:17.901317+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "706bfa888cb341e4bca93e827eb82161",
+        "recorded_utc": "2026-10-21T05:38:17.901848+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 32.40060612501111,
+        "sequence": 98
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "c24ed7cb3c9b48619a48145a0328376d",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "macOS-unsigned-producer",
+      "started_utc": "2026-10-21T05:43:03.707647+00:00",
+      "wrapper_pid": 19496,
+      "child_pid": 19517,
+      "command": [
+        "bash",
+        "tools/release.sh",
+        "--version",
+        "0.3.1",
+        "--prepare-only",
+        "--skip-tests",
+        "--output-dir",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r4"
+      ],
+      "context": {
+        "authorization": "internal prepare-only; ad-hoc seal only, no DeveloperID/notary/Gatekeeper/publication",
+        "cache": "retained separate universal distribution tree from first682.531s producer; main observation owner only changed; raw upstream source archives warm",
+        "configuration": "universal tests-off distribution Release",
+        "lease": "M3 sole Mac native execution owner",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:43:42.127133+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "c24ed7cb3c9b48619a48145a0328376d",
+        "recorded_utc": "2026-10-21T05:43:42.128196+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 38.417019916989375,
+        "sequence": 102
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-mac/request.jsonl",
+      "origin_sha256": "ca99e261d7e0d822bb28ebc7e7609c8da3a59174a6b75e5139981990db5a8772",
+      "phase_id": "d7f0fc07a1ec453badc8a398f3e61a71",
+      "request_id": "358558241013491fa7c2cc710eab0e83",
+      "phase": "macOS-mechanical-security-source-audit",
+      "started_utc": "2026-10-21T05:45:18.699018+00:00",
+      "wrapper_pid": 24603,
+      "child_pid": 24617,
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "scripts/verify_release_security.py",
+        "--build",
+        "/Users/jaeger/.codex/worktrees/release-qualification/BetterPullReview/build/macos-release",
+        "--root",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r4/BetterPullReview.app",
+        "--sbom",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r4/BetterPullReview-0.3.1-macos-universal-local.spdx.json",
+        "--source-revision",
+        "f25a65274763066ed4519aa6aec6283ae1c0a4cb",
+        "--source-archive",
+        "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r4/Source-BetterPullReview-0.3.1-macos-universal-corresponding-source.zip"
+      ],
+      "context": {
+        "artifact_root": "/Users/jaeger/Documents/Codex/releases/release-30min-m3-20261021/macos-r4",
+        "authorization": "mechanics only; trust/legal/vulnerability/native acceptance separate",
+        "configuration": "universal tests-off distribution Release",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:45:24.759192+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "d7f0fc07a1ec453badc8a398f3e61a71",
+        "recorded_utc": "2026-10-21T05:45:24.760110+00:00",
+        "request_id": "358558241013491fa7c2cc710eab0e83",
+        "seconds": 6.057672708004247,
+        "sequence": 105
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "68ddd80409234f838ec5272cb35af90d",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "build-pressure",
+      "started_utc": "2026-10-21T03:32:44.058893+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 110048,
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-File",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-observe.ps1"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:32:45.412094+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "68ddd80409234f838ec5272cb35af90d",
+        "recorded_utc": "2026-10-21T03:32:45.412536+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 1.3392410000087693,
+        "sequence": 3
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "865d56e5f23746d8a0ad08c7e7628090",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "bootstrap",
+      "started_utc": "2026-10-21T03:32:45.414975+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 6988,
+      "command": [
+        "C:/Program Files/CMake/bin/ctest.exe",
+        "--preset",
+        "windows-qualification-release",
+        "--parallel",
+        "3",
+        "--output-on-failure",
+        "--tests-regex",
+        "^(documentation_structure|documentation_issue_graph_contract|issue_id_allocation_contract)$"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:32:51.195983+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "865d56e5f23746d8a0ad08c7e7628090",
+        "recorded_utc": "2026-10-21T03:32:51.196436+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 5.765786099946126,
+        "sequence": 6
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "528071484f3f468db1c8c7ca4693399e",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "configure",
+      "started_utc": "2026-10-21T03:32:51.201315+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 118380,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--preset",
+        "windows-qualification-release"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:33:26.901533+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "528071484f3f468db1c8c7ca4693399e",
+        "recorded_utc": "2026-10-21T03:33:26.902006+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 35.68595970002934,
+        "sequence": 9
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "8bcc89ea534d496e8bbba108d93d3051",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "full-Release-build",
+      "started_utc": "2026-10-21T03:33:26.905436+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 112456,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--build",
+        "--preset",
+        "windows-qualification-release",
+        "--parallel",
+        "4"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:47:07.532493+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "8bcc89ea534d496e8bbba108d93d3051",
+        "recorded_utc": "2026-10-21T03:47:07.533042+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 820.6138767999364,
+        "sequence": 12
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "be188942b20841598924980078e9e96c",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "runner-controls",
+      "started_utc": "2026-10-21T03:47:07.535371+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 25320,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "tests/scripts/test_suite_runner_tests.py"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:47:11.119547+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "be188942b20841598924980078e9e96c",
+        "recorded_utc": "2026-10-21T03:47:11.120070+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 3.568122199969366,
+        "sequence": 15
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "5c81fe53c3ae4c34942a8bacb3da0e1b",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "registry-controls",
+      "started_utc": "2026-10-21T03:47:11.126077+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 119584,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "tests/scripts/command_correctness_registry_tests.py"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:47:12.857200+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "5c81fe53c3ae4c34942a8bacb3da0e1b",
+        "recorded_utc": "2026-10-21T03:47:12.857702+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 1.7158428999828175,
+        "sequence": 18
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "c27bad2f8d8c4794b2b9ee45bf22b078",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "all-workbench-lists",
+      "started_utc": "2026-10-21T03:47:13.332520+00:00",
+      "wrapper_pid": 121248,
+      "child_pid": 117532,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/workbench_case_inventory.py",
+        "--manifest",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build\\manifest.json",
+        "--platform",
+        "Windows",
+        "--execute-lists",
+        "--output",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build\\workbench-lists.json"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-build",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "build",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:47:15.738639+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "c27bad2f8d8c4794b2b9ee45bf22b078",
+        "recorded_utc": "2026-10-21T03:47:15.739172+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 2.3905886999564245,
+        "sequence": 21
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "2494cf0a40da4aa9859c9f761952aa1d",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "serial-pilot",
+      "started_utc": "2026-10-21T03:48:33.400659+00:00",
+      "wrapper_pid": 117880,
+      "child_pid": 108536,
+      "command": [
+        "C:/Program Files/CMake/bin/ctest.exe",
+        "--preset",
+        "windows-qualification-release",
+        "--parallel",
+        "1",
+        "--no-tests=error",
+        "--output-on-failure",
+        "-R",
+        "^(qt_workbench_window_scale_100|qt_workbench_window_scale_125|qt_workbench_window_scale_200|qt_diff_workbench_scale_200)$",
+        "--output-junit",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-contrast\\serial-pilot.xml"
+      ],
+      "context": {
+        "cache": "same full native Release graph built immediately before contrast",
+        "configuration": "Release",
+        "lease": "M3 Windows/WSL physical host; quiet guard before interval",
+        "scope": "bounded matched four-command scheduling contrast",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:50:32.344241+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "2494cf0a40da4aa9859c9f761952aa1d",
+        "recorded_utc": "2026-10-21T03:50:32.344835+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 118.92839219991583,
+        "sequence": 24
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "b5110ce0720f4195800c1df007c43d5b",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "parallel-pilot",
+      "started_utc": "2026-10-21T03:50:32.582400+00:00",
+      "wrapper_pid": 117880,
+      "child_pid": 107020,
+      "command": [
+        "C:/Program Files/CMake/bin/ctest.exe",
+        "--preset",
+        "windows-qualification-release",
+        "--parallel",
+        "4",
+        "--no-tests=error",
+        "--output-on-failure",
+        "-R",
+        "^(qt_workbench_window_scale_100|qt_workbench_window_scale_125|qt_workbench_window_scale_200|qt_diff_workbench_scale_200)$",
+        "--output-junit",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-contrast\\parallel-pilot.xml"
+      ],
+      "context": {
+        "cache": "same full native Release graph built immediately before contrast",
+        "configuration": "Release",
+        "lease": "M3 Windows/WSL physical host; quiet guard before interval",
+        "scope": "bounded matched four-command scheduling contrast",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:51:12.272697+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "b5110ce0720f4195800c1df007c43d5b",
+        "recorded_utc": "2026-10-21T03:51:12.273263+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 39.67308380000759,
+        "sequence": 27
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "09a7b50a7c284960be86a8e9e2421ba2",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "quiet-host",
+      "started_utc": "2026-10-21T03:53:07.684873+00:00",
+      "wrapper_pid": 118528,
+      "child_pid": 113248,
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-File",
+        "C:\\Users\\mikem\\bpr1670-suite\\m2-quiet.ps1"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-full",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "full",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T03:53:08.314107+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "09a7b50a7c284960be86a8e9e2421ba2",
+        "recorded_utc": "2026-10-21T03:53:08.314683+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.6125924000516534,
+        "sequence": 30
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "73e613a1e35d4d5696bdddffdf1885c9",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "complete-Release-suite",
+      "started_utc": "2026-10-21T03:53:08.317722+00:00",
+      "wrapper_pid": 118528,
+      "child_pid": 120728,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-qualification-release",
+        "--jobs",
+        "4",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-full\\suite"
+      ],
+      "context": {
+        "cache": "M2 partially warm five-target Release; other targets not current; Debug warm old tree",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-full",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "full",
+        "source": "da579f2dc397af87c3cf478e6e4184f49c4a3931",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:46:33.754788+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "73e613a1e35d4d5696bdddffdf1885c9",
+        "recorded_utc": "2026-10-21T04:46:33.755485+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 3205.421886300086,
+        "sequence": 33
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "07979eb1bdc34141a1ebbba0e275102e",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "configure",
+      "started_utc": "2026-10-21T04:51:40.493523+00:00",
+      "wrapper_pid": 114328,
+      "child_pid": 117792,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--preset",
+        "windows-qualification-release"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:52:24.363615+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "07979eb1bdc34141a1ebbba0e275102e",
+        "recorded_utc": "2026-10-21T04:52:24.364241+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 43.85277529992163,
+        "sequence": 36
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "1783e527f2a845a6bc4fc9dc9b4c88f2",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "reset-fixture-build",
+      "started_utc": "2026-10-21T04:52:24.367127+00:00",
+      "wrapper_pid": 114328,
+      "child_pid": 42584,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--build",
+        "--preset",
+        "windows-qualification-release",
+        "--parallel",
+        "8",
+        "--target",
+        "test_profile_data_reset_public_path"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:52:48.579141+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "1783e527f2a845a6bc4fc9dc9b4c88f2",
+        "recorded_utc": "2026-10-21T04:52:48.579743+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 24.19623879995197,
+        "sequence": 39
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "91ab9d58aa584f90be054b53a893b6d9",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-quiet",
+      "started_utc": "2026-10-21T04:52:48.582278+00:00",
+      "wrapper_pid": 114328,
+      "child_pid": 118840,
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-File",
+        "C:\\Users\\mikem\\bpr1670-suite\\m2-quiet.ps1"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:52:49.230899+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "91ab9d58aa584f90be054b53a893b6d9",
+        "recorded_utc": "2026-10-21T04:52:49.231500+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.6339271999895573,
+        "sequence": 42
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "faf52f0214af4a4a8d0931497d6f6075",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-lifecycle-scheduling-proof",
+      "started_utc": "2026-10-21T04:52:49.234415+00:00",
+      "wrapper_pid": 114328,
+      "child_pid": 120448,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-focused.py",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final\\lifecycle",
+        "windows-qualification-release",
+        "lifecycle",
+        "Windows",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-request.jsonl",
+        "e5622b37299b582677354f3e3a25759e5fec0216"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:58:01.300423+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "faf52f0214af4a4a8d0931497d6f6075",
+        "recorded_utc": "2026-10-21T04:58:01.301041+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 312.0500858000014,
+        "sequence": 48
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "c73191238bea433cafcc1b426ea73b2f",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "lifecycle-suite",
+      "started_utc": "2026-10-21T04:52:50.389179+00:00",
+      "wrapper_pid": 120448,
+      "child_pid": 117496,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-qualification-release",
+        "--jobs",
+        "4",
+        "--tests-regex",
+        "^(application_overview_summary_1|application_overview_summary_1_25|application_overview_summary_2|application_source_find|application_source_find_scale_1_25|application_source_find_scale_2_0|application_review_submission_composition_public_path|application_review_submission_composition_scale_125|application_review_submission_composition_scale_200|application_device_binding_launch_renewal|application_pending_states_public_path|application_profile_window_review_restoration_public_path)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final\\lifecycle\\suite"
+      ],
+      "context": {
+        "cache": "same native qualification tree; no product source changes after full gate",
+        "configuration": "Release",
+        "lease": "M3 owned native qualification; timed rows exclusive; physical PC serialized",
+        "mode": "lifecycle",
+        "platform": "Windows",
+        "source": "e5622b37299b582677354f3e3a25759e5fec0216",
+        "tree": "1a268c4b52483c1925c041c04e50c1c79f34b96c"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T04:58:01.253171+00:00",
+        "event": "end",
+        "exit_code": 8,
+        "outcome": "failed",
+        "phase_id": "c73191238bea433cafcc1b426ea73b2f",
+        "recorded_utc": "2026-10-21T04:58:01.253837+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 310.8482898999937,
+        "sequence": 47
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "2b378fb593164d7683b5ba8e3f8009a4",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "configure",
+      "started_utc": "2026-10-21T05:05:20.362433+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 109356,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--preset",
+        "windows-qualification-release"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:05:59.542588+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "2b378fb593164d7683b5ba8e3f8009a4",
+        "recorded_utc": "2026-10-21T05:05:59.543268+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 39.16333400004078,
+        "sequence": 51
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "0fd51a9763364e1485a084b91a2fbbb8",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "reset-fixture-build",
+      "started_utc": "2026-10-21T05:05:59.546665+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 117344,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--build",
+        "--preset",
+        "windows-qualification-release",
+        "--parallel",
+        "8",
+        "--target",
+        "test_profile_data_reset_public_path"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:04.441296+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "0fd51a9763364e1485a084b91a2fbbb8",
+        "recorded_utc": "2026-10-21T05:06:04.442037+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 4.879147500032559,
+        "sequence": 54
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "5cd63392d8904492a6d796b08f4bf8d0",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-quiet",
+      "started_utc": "2026-10-21T05:06:04.444837+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 18132,
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-File",
+        "C:\\Users\\mikem\\bpr1670-suite\\m2-quiet.ps1"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:05.060545+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "5cd63392d8904492a6d796b08f4bf8d0",
+        "recorded_utc": "2026-10-21T05:06:05.061250+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.5995899999979883,
+        "sequence": 57
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "cd394bdd6271429db08ebc7a6fee9287",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "overview-exclusive-recovery",
+      "started_utc": "2026-10-21T05:06:05.063513+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 58040,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-qualification-release",
+        "--jobs",
+        "1",
+        "--tests-regex",
+        "^application_overview_summary_1$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\overview-exclusive"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:06:40.556324+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "cd394bdd6271429db08ebc7a6fee9287",
+        "recorded_utc": "2026-10-21T05:06:40.557022+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 35.476369100040756,
+        "sequence": 60
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "549d6a6ba2004a3ab04ed93803313015",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "normal-incremental-suite",
+      "started_utc": "2026-10-21T05:06:40.560713+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 52736,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-qualification-release",
+        "--jobs",
+        "4",
+        "--profile",
+        "normal",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(release_update_.*|native_https_.*|qt_release_maintenance_scale_.*|application_release_maintenance_public_path|application_profile_data_reset_public_path|test_suite_runner_contract|command_correctness_registry_contract|application_composition_source_contract)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\normal-suite"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:17:06.879537+00:00",
+        "event": "end",
+        "exit_code": 8,
+        "outcome": "failed",
+        "phase_id": "549d6a6ba2004a3ab04ed93803313015",
+        "recorded_utc": "2026-10-21T05:17:06.880244+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 626.3025789000094,
+        "sequence": 63
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "37386a7ec1d34e4190d759a880e30715",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-case-occurrences",
+      "started_utc": "2026-10-21T05:17:06.884801+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 119440,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-case-extract.py",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\normal-suite\\manifest.json",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\normal-LastTest.log",
+        "Release",
+        "Windows",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\Release-occurrences"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:17:07.031944+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "37386a7ec1d34e4190d759a880e30715",
+        "recorded_utc": "2026-10-21T05:17:07.032651+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.13137439999263734,
+        "sequence": 66
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "49772f1d40644d47936422beaa7297e4",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-assertion-controls",
+      "started_utc": "2026-10-21T05:17:07.035377+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 42268,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/qualification_assertion_controls.py",
+        "--manifest",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\normal-suite\\manifest.json",
+        "--probe",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-dev\\tests\\core\\Release\\qualification_assertion_probe.exe",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\Release-controls"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Release",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:17:09.730913+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "49772f1d40644d47936422beaa7297e4",
+        "recorded_utc": "2026-10-21T05:17:09.731676+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 2.6776058999821544,
+        "sequence": 69
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "4fa089b2f5d843338e67a0ac482a94e8",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "affected-Debug-build",
+      "started_utc": "2026-10-21T05:17:09.734554+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 109112,
+      "command": [
+        "C:/Program Files/CMake/bin/cmake.exe",
+        "--build",
+        "--preset",
+        "windows-dev",
+        "--parallel",
+        "8",
+        "--target",
+        "test_better_pull_review_qt_workbench_window_tests",
+        "test_better_pull_review_qt_github_tests",
+        "test_better_pull_review_diff_compute_core_tests",
+        "test_better_pull_review_application_diff_host_tests",
+        "test_better_pull_review_application_github_host_tests",
+        "test_qualification_assertion_probe",
+        "tool_better_pull_review_network_sandbox",
+        "app_better_pull_review",
+        "test_release_update_transport",
+        "test_release_update_host",
+        "test_release_maintenance_panel",
+        "test_release_update_public_path",
+        "test_profile_data_reset_public_path"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:19:54.579799+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "4fa089b2f5d843338e67a0ac482a94e8",
+        "recorded_utc": "2026-10-21T05:19:54.580550+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 164.82920710009057,
+        "sequence": 72
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "3374539117c340b5b622f5068706c441",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-quiet",
+      "started_utc": "2026-10-21T05:19:54.583562+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 118412,
+      "command": [
+        "powershell.exe",
+        "-NoProfile",
+        "-File",
+        "C:\\Users\\mikem\\bpr1670-suite\\m2-quiet.ps1"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:19:55.222397+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "3374539117c340b5b622f5068706c441",
+        "recorded_utc": "2026-10-21T05:19:55.223152+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.6238646999699995,
+        "sequence": 75
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "8d31fc25c16e4bb9acd4c8b6ad161da2",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-residual-and-patch",
+      "started_utc": "2026-10-21T05:19:55.226106+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 110068,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-focused.py",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\debug",
+        "windows-dev",
+        "debug",
+        "Windows",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-request.jsonl",
+        "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:24:12.450383+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "8d31fc25c16e4bb9acd4c8b6ad161da2",
+        "recorded_utc": "2026-10-21T05:24:12.451161+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 257.208367299987,
+        "sequence": 81
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "d352bada969441aa8444e125250713a5",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "debug-suite",
+      "started_utc": "2026-10-21T05:19:56.820655+00:00",
+      "wrapper_pid": 110068,
+      "child_pid": 113616,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-dev",
+        "--jobs",
+        "1",
+        "--profile",
+        "debug-residual",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(application_diff_host|application_github_host|application_profile_data_reset_public_path|application_release_update|application_release_update_public_path|core_diff_compute|qt_composed_inline_drawer_scale_100|qt_release_maintenance_scale_100|qt_workbench_window_scale_100|release_update_transport_contract)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\debug\\suite"
+      ],
+      "context": {
+        "cache": "same native qualification tree; no product source changes after full gate",
+        "configuration": "Debug",
+        "lease": "M3 owned native qualification; timed rows exclusive; physical PC serialized",
+        "mode": "debug",
+        "platform": "Windows",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tree": "9656c50936d78229db1fecff03de7118b8414da4"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:24:11.977164+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "d352bada969441aa8444e125250713a5",
+        "recorded_utc": "2026-10-21T05:24:11.978008+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 255.08254670002498,
+        "sequence": 80
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "08d04f262d594133bc82904b61b9262d",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-case-occurrences",
+      "started_utc": "2026-10-21T05:24:12.455539+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 112760,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-case-extract.py",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\debug\\manifest.json",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\Debug-LastTest.log",
+        "Debug",
+        "Windows",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2\\Debug-occurrences"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:24:12.581223+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "08d04f262d594133bc82904b61b9262d",
+        "recorded_utc": "2026-10-21T05:24:12.582020+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.10911580000538379,
+        "sequence": 84
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "6f936358280046a0aa0f87cb584c0824",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-expect-pass",
+      "started_utc": "2026-10-21T05:24:12.585024+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 119964,
+      "command": [
+        "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-dev\\tests\\core\\Debug\\qualification_assertion_probe.exe",
+        "pass"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:24:12.615952+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "6f936358280046a0aa0f87cb584c0824",
+        "recorded_utc": "2026-10-21T05:24:12.616739+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.014647000003606081,
+        "sequence": 87
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "058ff78781ce492dabdf2525cf0b46d2",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-expect-fail",
+      "started_utc": "2026-10-21T05:24:12.624050+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 110388,
+      "command": [
+        "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-dev\\tests\\core\\Debug\\qualification_assertion_probe.exe",
+        "fail"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:24:12.652955+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "058ff78781ce492dabdf2525cf0b46d2",
+        "recorded_utc": "2026-10-21T05:24:12.653748+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.012762299971655011,
+        "sequence": 90
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "b40051f806e4403592d877af80ac6008",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-expect-caught",
+      "started_utc": "2026-10-21T05:24:12.663617+00:00",
+      "wrapper_pid": 119932,
+      "child_pid": 110364,
+      "command": [
+        "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-dev\\tests\\core\\Debug\\qualification_assertion_probe.exe",
+        "caught"
+      ],
+      "context": {
+        "cache": "complete Release graph warm after retained partial comprehensive baseline; oldDebug selected targets",
+        "configuration": "Debug",
+        "evidence": "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-final2",
+        "lease": "M3 exclusive Windows/WSL physical JAEGAW; tests InteractiveLimited Session3",
+        "mode": "final2",
+        "scope": "normal incremental updater/HTTP/UI and focused qualification changes",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "tools": {
+          "cmake": "C:/Program Files/CMake/bin/cmake.exe",
+          "ctest": "C:/Program Files/CMake/bin/ctest.exe",
+          "python": "C:\\Program Files\\Python314\\python.exe"
+        }
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:24:12.692404+00:00",
+        "event": "end",
+        "exit_code": 1,
+        "outcome": "failed",
+        "phase_id": "b40051f806e4403592d877af80ac6008",
+        "recorded_utc": "2026-10-21T05:24:12.693203+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.01301140000578016,
+        "sequence": 93
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "7d6bda82dbdf4410a3a176d07f6f8d07",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "normal-failure-diagnosis-Release",
+      "started_utc": "2026-10-21T05:25:25.438850+00:00",
+      "wrapper_pid": 111280,
+      "child_pid": 113756,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-qualification-release",
+        "--jobs",
+        "1",
+        "--tests-regex",
+        "^(composed_application_hosts|application_anonymous_public_preview_unavailable)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-normal-diagnosis\\Release"
+      ],
+      "context": {
+        "configuration": "Release",
+        "lease": "M3 quiet sharedphysicalPC; exact unchanged binaries; no source edits",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:25:52.869741+00:00",
+        "event": "end",
+        "exit_code": 8,
+        "outcome": "failed",
+        "phase_id": "7d6bda82dbdf4410a3a176d07f6f8d07",
+        "recorded_utc": "2026-10-21T05:25:52.870700+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 27.412925399956293,
+        "sequence": 96
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "8771f14d892f4763b6e8f219c110cf7c",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "normal-failure-diagnosis-Debug",
+      "started_utc": "2026-10-21T05:25:53.111504+00:00",
+      "wrapper_pid": 111280,
+      "child_pid": 25320,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-dev",
+        "--jobs",
+        "1",
+        "--tests-regex",
+        "^(composed_application_hosts|application_anonymous_public_preview_unavailable)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-normal-diagnosis\\Debug"
+      ],
+      "context": {
+        "configuration": "Debug",
+        "lease": "M3 quiet sharedphysicalPC; exact unchanged binaries; no source edits",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:26:38.829457+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "8771f14d892f4763b6e8f219c110cf7c",
+        "recorded_utc": "2026-10-21T05:26:38.830385+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 45.6995247999439,
+        "sequence": 99
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "17f31fd596904dedabacf2a26b14b46f",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "preserved-public-upstream-source-cache-copy",
+      "started_utc": "2026-10-21T05:27:56.692462+00:00",
+      "wrapper_pid": 113812,
+      "child_pid": null,
+      "command": [
+        "C:/Users/mikem/bpr1670-suite/m3-preseed-windows-sources.py"
+      ],
+      "context": {
+        "cache": "raw public upstream archives only; existing package tool rehashes required inputs; no binary/source-asset/verdict reuse",
+        "destination_cache": "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-app-release\\release-sources",
+        "source": "c94601c9b2509b6d1ad9fa6f6c82a57081ae2d12",
+        "source_cache": "C:\\Users\\mikem\\bpr-v030\\build\\windows-app-release\\release-sources"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:27:57.948724+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "17f31fd596904dedabacf2a26b14b46f",
+        "recorded_utc": "2026-10-21T05:27:57.949716+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 1.2387493998976424,
+        "sequence": 101
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "6b497f45b20447ccbb41643f824dc66e",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-affected-app-build",
+      "started_utc": "2026-10-21T05:32:25.522484+00:00",
+      "wrapper_pid": 113072,
+      "child_pid": 112740,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "windows-qualification-release",
+        "--target",
+        "app_better_pull_review",
+        "--parallel",
+        "8"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Release",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Windows",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:33:44.091642+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "6b497f45b20447ccbb41643f824dc66e",
+        "recorded_utc": "2026-10-21T05:33:44.093139+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 78.5497567000566,
+        "sequence": 104
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "c97dd1a450d4406786d164bef145177d",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Release-focused-correction",
+      "started_utc": "2026-10-21T05:33:44.096722+00:00",
+      "wrapper_pid": 113072,
+      "child_pid": 30352,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-qualification-release",
+        "--jobs",
+        "1",
+        "--profile",
+        "normal",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-normal-corrections\\Release"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Release",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Windows",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:34:25.069450+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "c97dd1a450d4406786d164bef145177d",
+        "recorded_utc": "2026-10-21T05:34:25.070416+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 40.95601760002319,
+        "sequence": 107
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "692fa974651b4391ba00d7a1f14d685f",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-affected-app-build",
+      "started_utc": "2026-10-21T05:34:25.073262+00:00",
+      "wrapper_pid": 113072,
+      "child_pid": 118332,
+      "command": [
+        "cmake",
+        "--build",
+        "--preset",
+        "windows-dev",
+        "--target",
+        "app_better_pull_review",
+        "--parallel",
+        "8"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Debug",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Windows",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:34:59.327283+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "692fa974651b4391ba00d7a1f14d685f",
+        "recorded_utc": "2026-10-21T05:34:59.328237+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 34.237918900093064,
+        "sequence": 110
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "e6d6c25b463c4718a8b73c0a0dacf2a0",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "Debug-focused-correction",
+      "started_utc": "2026-10-21T05:34:59.334201+00:00",
+      "wrapper_pid": 113072,
+      "child_pid": 121316,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/run_test_suite.py",
+        "--preset",
+        "windows-dev",
+        "--jobs",
+        "1",
+        "--profile",
+        "debug-residual",
+        "--change-scope",
+        "incremental",
+        "--include-tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--tests-regex",
+        "^(test_suite_runner_contract|composed_host_verifier_contract|composed_application_hosts|application_anonymous_public_preview_(unavailable|release_contract|enabled_probe|ghes_refusal)|application_release_update_public_path|application_profile_data_reset_public_path)$",
+        "--output-dir",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-normal-corrections\\Debug"
+      ],
+      "context": {
+        "cache": "existing complete Release and bounded Debug graphs; rebuild only main observation owner",
+        "configuration": "Debug",
+        "driver_sha256": "6090899704d6ad2ef2f0707d0fd2c6a6e938fde2a651300434e2b862fb35e7f2",
+        "lease": "M3 exclusive native host; shared Windows/WSL PC serialized",
+        "platform": "Windows",
+        "scope": "focused normal failure correction and exact input bridge; original normal failures retained",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:36:32.257283+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "e6d6c25b463c4718a8b73c0a0dacf2a0",
+        "recorded_utc": "2026-10-21T05:36:32.258282+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 92.90605869994033,
+        "sequence": 113
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "f81960e22b3148b4867e4df9d3dad938",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "distribution-configure",
+      "started_utc": "2026-10-21T05:38:13.695144+00:00",
+      "wrapper_pid": 110616,
+      "child_pid": 115432,
+      "command": [
+        "cmake",
+        "--preset",
+        "windows-app-release"
+      ],
+      "context": {
+        "authorization": "unsigned internal mechanical rehearsal only; no signing/publication/trust",
+        "cache": "new independent tests-disabled distribution tree; existing dependency cache",
+        "configuration": "Release tests-off distribution",
+        "lease": "M3 shared Windows/WSL physical PC, outside performance intervals",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:39:19.481763+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "f81960e22b3148b4867e4df9d3dad938",
+        "recorded_utc": "2026-10-21T05:39:19.482841+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 65.7690543999197,
+        "sequence": 116
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "f07a1f10b5154cb9b4b93a173c2ae4a1",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "unsigned-package",
+      "started_utc": "2026-10-21T05:39:19.484972+00:00",
+      "wrapper_pid": 110616,
+      "child_pid": 115928,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "packaging/package.py",
+        "--build",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-app-release",
+        "--generator",
+        "WIX",
+        "--output",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-unsigned-products"
+      ],
+      "context": {
+        "authorization": "unsigned internal mechanical rehearsal only; no signing/publication/trust",
+        "cache": "new independent tests-disabled distribution tree; existing dependency cache",
+        "configuration": "Release tests-off distribution",
+        "lease": "M3 shared Windows/WSL physical PC, outside performance intervals",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:46:20.692411+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "f07a1f10b5154cb9b4b93a173c2ae4a1",
+        "recorded_utc": "2026-10-21T05:46:20.693447+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 421.19125289993826,
+        "sequence": 119
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "a0c9bd1a362c4776b2b4a731e201edfb",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "administrative-extraction",
+      "started_utc": "2026-10-21T05:46:20.993546+00:00",
+      "wrapper_pid": 110616,
+      "child_pid": 41024,
+      "command": [
+        "msiexec.exe",
+        "/a",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-unsigned-products\\BetterPullReview-0.3.1-windows-x64.msi",
+        "/qn",
+        "TARGETDIR=C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-package\\extracted",
+        "/L*v",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-package\\extraction-msi.log"
+      ],
+      "context": {
+        "authorization": "unsigned internal mechanical rehearsal only; no signing/publication/trust",
+        "cache": "new independent tests-disabled distribution tree; existing dependency cache",
+        "configuration": "Release tests-off distribution",
+        "lease": "M3 shared Windows/WSL physical PC, outside performance intervals",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:46:21.710911+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "a0c9bd1a362c4776b2b4a731e201edfb",
+        "recorded_utc": "2026-10-21T05:46:21.711923+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 0.701163399964571,
+        "sequence": 122
+      }
+    },
+    {
+      "origin": "/tmp/bpr-release-portfolio/m3-windows-retained/m3-request.jsonl",
+      "origin_sha256": "fb9ef9b123a33c7f66581b9de0fd82602e414e74a137ad2ca0182a5adaa1a22e",
+      "phase_id": "cecd91ecf12c45ce92bd02de0c68bf52",
+      "request_id": "a9d07d186deb484fab77598b93e3eda4",
+      "phase": "mechanical-security-audit",
+      "started_utc": "2026-10-21T05:46:22.477224+00:00",
+      "wrapper_pid": 110616,
+      "child_pid": 112472,
+      "command": [
+        "C:\\Program Files\\Python314\\python.exe",
+        "scripts/verify_release_security.py",
+        "--build",
+        "C:\\Users\\mikem\\bpr1670-suite\\repo\\build\\windows-app-release",
+        "--root",
+        "C:\\Users\\mikem\\bpr1670-suite\\evidence\\m3-package\\extracted\\LocalApp\\Programs\\BetterPullReview",
+        "--sbom",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-unsigned-products\\BetterPullReview-0.3.1-windows-x64.msi.spdx.json",
+        "--source-revision",
+        "f25a65274763066ed4519aa6aec6283ae1c0a4cb",
+        "--windows-redist-root",
+        "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Redist\\MSVC\\14.51.36231\\",
+        "--source-archive",
+        "C:\\Users\\mikem\\bpr1670-suite\\m3-unsigned-products\\Source-BetterPullReview-0.3.1-windows-x64-corresponding-source.zip",
+        "--windows-import-library",
+        "C:/Program Files (x86)/Windows Kits/10/Lib/10.0.26100.0/um/x64/bcrypt.lib"
+      ],
+      "context": {
+        "authorization": "unsigned internal mechanical rehearsal only; no signing/publication/trust",
+        "cache": "new independent tests-disabled distribution tree; existing dependency cache",
+        "configuration": "Release tests-off distribution",
+        "lease": "M3 shared Windows/WSL physical PC, outside performance intervals",
+        "source": "f25a65274763066ed4519aa6aec6283ae1c0a4cb"
+      },
+      "result": {
+        "detail": "",
+        "ended_utc": "2026-10-21T05:46:41.816488+00:00",
+        "event": "end",
+        "exit_code": 0,
+        "outcome": "passed",
+        "phase_id": "cecd91ecf12c45ce92bd02de0c68bf52",
+        "recorded_utc": "2026-10-21T05:46:41.817586+00:00",
+        "request_id": "a9d07d186deb484fab77598b93e3eda4",
+        "seconds": 19.320065600099042,
+        "sequence": 125
+      }
+    }
+  ]
+}

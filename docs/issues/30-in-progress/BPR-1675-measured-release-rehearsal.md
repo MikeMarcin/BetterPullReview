@@ -22,19 +22,31 @@ metadata: {"milestone_plan": {"id": "release-qualification-portfolio", "path": "
 
 Implements the owner’s thirty-minute release mandate `release-30min-portfolio-r1`, grounded in the retained Astra design (SHA-256 `ad0157d3693bf0ffda63d71504e7ee76c59a90c4fcb9185cfbff6ee0764812d1`). The [portfolio design](../../development/release-qualification-portfolio.md) and [milestone plan](../../rfcs/plans/release-qualification-portfolio/milestone-plan.json) retain boundaries and open choices. RFC-BPR-0038 remains open.
 
-## Fresh M3 frontier after M2
+## M3 checkpoint
 
-The [M2 result](../../verification/BPR-1674-input-scoped-qualification.md) qualifies
-only the bounded native candidate `f230a8e5f` and its five commands in both
-configurations. Use the maintained `windows-qualification-release` and portable
-`qualification-release` presets and publish-release pilot procedure. The complete
-Release target graph has not been built or run. Release scheduling remains
-exclusive; independently review its actual configuration before admitting any
-correctness rows. Normal complete native Debug still applies until a sound
-residual policy and full optimized results support promotion. The canonical main
-also contains separate promo edits outside the native M2 candidate; reconcile
-that changed source first. Bootstrap proof can be reused only within its original
-sealed invocation. Strict Ubuntu RSS remains failed and is not waived. The
-coordinator returns exact caches, source/receipt identities and command quiescence
-in `/tmp/bpr-release-portfolio/m2-handoff.md`; start no duplicate native course
-merely to recover a transcript.
+The owner amended the mandate to use a normal incremental baseline plus explicit
+patch regressions, a native five-command Debug residual and affected patch rows;
+long/exhaustive courses remain in named heavy/comprehensive modes. The
+[operational contract](../../development/release-test-profiles.md) records exact
+scope, omissions and heavy triggers. Broad/unknown/Qt/toolchain/platform changes
+request comprehensive native qualification. Release entrypoints refuse missing
+scope/regressions before work starts.
+
+The [measured result](../../verification/BPR-1675-measured-release-rehearsal.md)
+and [native phase ledger](../../verification/BPR-1675-measured-phases.json)
+retain actual failures, focused recovery and source/configuration/cache identities.
+First Mac/Windows products are bound to `f25a65274`. Current recovery source
+`7d1371d0a` addresses the newly observed GCC complete-storage erasure failure
+without weakening its assertion and renews the explicitly reviewed f25 preview
+observation manifest. Ubuntu normal491selected/488pass/3fail took327.120s;
+focused failed rows plus affected baseline/Debug proof and refreshed products
+are pending. Old comprehensive failures/partial retirement remain failures.
+
+BPR-1653 is Done under the separately authorized Linux RSS240MiB/heap216MiB
+criterion: complete20selection/32epoch course passes, lifetime peak228.223MiB;
+original216MiB failure remains. No old v0.3.1 exception is extended. Normal PASS
+supplies only selected qualification; omitted heavy claims get no credit.
+No publication/signing/version change is selected. The thirty-minute end-to-end
+goal remains unproved. RFC-BPR-0038 and its independent native, vault,
+crash/privacy, vulnerability and legal gaps stay open. Durable ownership and
+continuation: `/tmp/bpr-release-portfolio/m3-handoff.md`.
