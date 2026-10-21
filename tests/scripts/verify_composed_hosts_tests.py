@@ -358,7 +358,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
                 )
                 self.assertTrue(any(missing in failure for failure in failures))
 
-    def test_every_fixture_anchor_is_required_by_development_profile(self) -> None:
+    def test_called_fixture_anchors_are_required_and_unused_factory_can_be_stripped(self) -> None:
         for missing in FIXTURE_LINES:
             remaining = {
                 name: line
@@ -370,7 +370,10 @@ class ComposedHostVerifierTests(unittest.TestCase):
                     rendered(SHARED_LINES | remaining),
                     VERIFIER.DEVELOPMENT_FIXTURE_PROFILE,
                 )
-                self.assertTrue(any(missing in failure for failure in failures))
+                if missing == "fixture one-shot review mutation execution grant factory":
+                    self.assertEqual(failures, [])
+                else:
+                    self.assertTrue(any(missing in failure for failure in failures))
 
     def test_production_profile_forbids_each_fixture_authority(self) -> None:
         expected_forbidden_names = {

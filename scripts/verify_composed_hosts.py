@@ -251,10 +251,10 @@ FIXTURE_REQUIRED = (
         "fixture review mutation execution grant factory",
         "bpr::application::make_review_mutation_testing_grant",
     ),
-    function_anchor(
-        "fixture one-shot review mutation execution grant factory",
-        "bpr::application::make_review_mutation_one_shot_testing_grant",
-    ),
+    # The one-shot testing factory has no application call site. MSVC's
+    # /OPT:REF removes it from the optimized fixture image, so it cannot
+    # establish composition. Its language seal and unit behavior stay tested;
+    # its presence remains forbidden in production below.
 )
 
 PRODUCTION_REQUIRED = (

@@ -6779,13 +6779,12 @@ namespace {
 					// recorded this could not tell an enabled selection from
 					// an unavailable one. [[BPR-0316]].
 					//
-					// Recorded only once the typed answer has been published
-					// and only when that answer was not a refusal. Activation
-					// names the mode before the core has answered, so a poll
-					// that read the mode alone would see the enterprise
-					// course's refused activation as a signed-out session for
-					// the tick between the two.
-					if (aApplication.status().PublicPreviewPublications > 0U
+					// Activation can publish the mode before its typed policy
+					// refusal arrives. An enterprise activation must never latch
+					// that transient mode as an accepted signed-out observation;
+					// its terminal refusal and zero effects decide the verdict.
+					if (!aRun->PublicPreview.Enterprise
+						&& aApplication.status().PublicPreviewPublications > 0U
 						&& aApplication.status().PublicPreviewSignedOut
 						&& !aApplication.status().PublicPreviewPolicyRefused
 						&& !aApplication.status().PublicPreviewUnavailable) {

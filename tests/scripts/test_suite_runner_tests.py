@@ -149,7 +149,14 @@ class SuiteRunnerTests(unittest.TestCase):
         self.inputs.stop()
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
-            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            # Exercise Git's real read inventory without asking AppContainer
+            # to initialize HEAD (a separately measured Windows refusal).
+            # This empty version-0 repository has the same absent index and
+            # untracked inputs as git init; its directories inherit the root.
+            (root / ".git/objects").mkdir(parents=True)
+            (root / ".git/refs").mkdir()
+            (root / ".git/HEAD").write_text("ref: refs/heads/main\n")
+            (root / ".git/config").write_text("[core]\nrepositoryformatversion=0\nbare=false\n")
             helper = root / ".agents/skills/implement-rfc/scripts"
             helper.mkdir(parents=True)
             (helper / "gate.py").write_text("gate-one")
