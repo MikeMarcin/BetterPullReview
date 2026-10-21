@@ -554,5 +554,17 @@ class NotaryCommandTests(unittest.TestCase):
         self.assertEqual(argv, self.expected()[:6])
 
 
+class ReleaseProfileAdmissionTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
+    def test_missing_scope_or_patch_regressions_refuses_before_work(self):
+        for arguments in ([], ["--test-scope", "incremental"], ["--test-scope", "qt"]):
+            with self.subTest(arguments=arguments):
+                result = subprocess.run(["bash", str(ROOT / "tools/release.sh"), "--version", "0.3.1", "--prepare-only", *arguments], capture_output=True, text=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("comprehensive", result.stderr)
+                self.assertNotIn("Building", result.stdout)
+                self.assertNotIn("Codesigning identity", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main(testRunner=SkipReportingTestRunner)

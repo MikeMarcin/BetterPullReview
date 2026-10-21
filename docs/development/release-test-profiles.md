@@ -52,7 +52,7 @@ A major release uses comprehensive Release and Debug on the affected native
 platforms. The generic runner defaults to comprehensive for existing callers.
 `tools/release.sh` explicitly defaults its qualification to normal and accepts
 `--test-scope`, `--test-regressions`, `--test-heavy-group` and
-`--test-profile comprehensive`; missing scope escalates to comprehensive.
+`--test-profile comprehensive`; missing scope refuses before builds or credential lookup and prints exact normal/comprehensive invocations.
 Windows/Linux operators use the same runner before the existing package paths.
 An unsigned mechanical rehearsal can use already recorded qualification and the
 existing skip-tests/prepare-only producer path; it supplies no publication approval.

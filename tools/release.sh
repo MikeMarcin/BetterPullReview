@@ -40,7 +40,7 @@ Options:
   --skip-tests           Skip the dev build and test preset.
   --test-profile NAME    normal (default) or comprehensive qualification.
   --test-scope NAME      Declared owning change scope; repeat as needed.
-                        Missing/unknown scope requires comprehensive checks.
+                        Missing scope refuses; broad/unknown needs explicit comprehensive.
   --test-heavy-group ID  Add one named heavy obligation to normal checks.
   --test-regressions RE  Add focused patch regressions without dropping baseline.
   --skip-notarize        Build signed artifacts without submitting them to Apple.
@@ -531,6 +531,20 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS release packaging requires macOS"
+if [[ "${SKIP_TESTS}" == "0" ]]; then
+    [[ "${TEST_PROFILE}" == normal || "${TEST_PROFILE}" == comprehensive ]] || fail "--test-profile must be normal or comprehensive"
+    if [[ "${TEST_PROFILE}" == normal ]]; then
+        [[ ${#TEST_SCOPES[@]} -gt 0 ]] || fail "Declare normal patch scope: --test-scope incremental --test-regressions REGEX; or request --test-profile comprehensive"
+        for scope in "${TEST_SCOPES[@]}"; do
+            case "${scope}" in
+                incremental) [[ -n "${TEST_REGRESSIONS}" ]] || fail "Incremental normal checks require --test-regressions REGEX; or request --test-profile comprehensive" ;;
+                routine|qualification|device|diagnostics|ui|storage|providers|tooling|process) ;;
+                qt|toolchain|platform|ownership|broad|unknown) fail "Scope ${scope} requires explicit --test-profile comprehensive" ;;
+                *) fail "Unknown --test-scope: ${scope}" ;;
+            esac
+        done
+    fi
+fi
 case "${VARIANT}" in
     "" | agent-free | agent-free-automation-off) ;;
     *) fail "--variant must be agent-free or agent-free-automation-off" ;;
@@ -577,9 +591,10 @@ fi
 
 if [[ "${SKIP_TESTS}" == "0" ]]; then
     [[ "${TEST_PROFILE}" == normal || "${TEST_PROFILE}" == comprehensive ]] || fail "--test-profile must be normal or comprehensive"
-    [[ ${#TEST_SCOPES[@]} -gt 0 ]] || TEST_SCOPES=(unknown)
-    TEST_ARGUMENTS=()
-    for scope in "${TEST_SCOPES[@]}"; do TEST_ARGUMENTS+=(--change-scope "${scope}"); done
+    TEST_ARGUMENTS=(--jobs 4)
+    if [[ ${#TEST_SCOPES[@]} -gt 0 ]]; then
+        for scope in "${TEST_SCOPES[@]}"; do TEST_ARGUMENTS+=(--change-scope "${scope}"); done
+    fi
     if [[ ${#TEST_HEAVY_GROUPS[@]} -gt 0 ]]; then
         for group in "${TEST_HEAVY_GROUPS[@]}"; do TEST_ARGUMENTS+=(--heavy-group "${group}"); done
     fi

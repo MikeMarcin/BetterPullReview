@@ -16,7 +16,7 @@ The normal test gate uses tests-on Release plus the native Debug residual. Pass
 `--test-scope incremental --test-regressions REGEX` for a bounded patch; the
 baseline remains selected. Named heavy owners are added with `--test-heavy-group`.
 `--test-profile comprehensive`, major/Qt/toolchain/platform/broad/unknown scope,
-or an omitted scope requests comprehensive qualification. See the
+requires an explicit comprehensive request; omitted scope/regressions refuse before builds or credential lookup. See the
 [profile contract](../../../../docs/development/release-test-profiles.md).
 Every run retains configured/selected/omitted rows and actual child results.
 Normal PASS does not clear an omitted heavy obligation or the known Ubuntu RSS
