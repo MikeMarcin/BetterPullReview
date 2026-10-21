@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-L5"
+id: "BPR-1707"
 title: "A reread after publishing keeps the reviewer's chosen file, and a filter gesture during a refresh is kept"
 status: "Backlog"
 rfcs: ["RFC-BPR-0089"]
 depends_on: []
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"Observed while building RFC-BPR-0089 M4's composed and live courses (2026-10-21)","related_cards":["BPR-PENDING-L3"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1703--BPR-1708--2cc864d62b8c.json","origin":"Observed while building RFC-BPR-0089 M4's composed and live courses (2026-10-21)","related_cards":["BPR-1705"]}
 ---
 
-# BPR-PENDING-L5: A reread after publishing keeps the reviewer's chosen file, and a filter gesture during a refresh is kept
+# BPR-1707: A reread after publishing keeps the reviewer's chosen file, and a filter gesture during a refresh is kept
 
 Two observations from RFC-BPR-0089 M4's courses. Neither changes where a
 comment goes; both make the reviewer repeat a gesture.

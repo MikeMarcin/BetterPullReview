@@ -6,7 +6,7 @@ then the RFC's closeout, from the RFC implementation coordinator, over main
 `ab1698599`. Code candidate `c44429b78` (one commit: M4, [[BPR-1688]], a
 pre-existing course expectation and tidy finding, the pins). The commit after
 it changes only documentation. New issue IDs are provisional
-(`BPR-PENDING-L1` to `L6`); the coordinator allocates them on main. No card's
+(`BPR-1703` to `L6`); the coordinator allocates them on main. No card's
 metadata carries a `provisional_id` key.
 
 `frontend-design:frontend-design` was loaded before the editor's target
@@ -19,12 +19,12 @@ attended session was opened.
 | RFC criterion | Status | Where |
 |---|---|---|
 | Measurement before M4 | done: BPR-Test #116, recorded in the RFC; #117 added the head's hunk rule | RFC engineering questions |
-| AC07 | pass, fixture and live (#118) | [[BPR-PENDING-L2]], [[BPR-PENDING-L3]] |
-| Thread markers under a filter | pass, fixture and live | [[BPR-PENDING-L1]], [[BPR-PENDING-L3]] |
-| Split per-commit diffs | same placement (each is a filtered key) | [[BPR-PENDING-L3]] |
-| AC08 (M4 decisions) | pass under `core-only` | [[BPR-PENDING-L1]] |
+| AC07 | pass, fixture and live (#118) | [[BPR-1704]], [[BPR-1705]] |
+| Thread markers under a filter | pass, fixture and live | [[BPR-1703]], [[BPR-1705]] |
+| Split per-commit diffs | same placement (each is a filtered key) | [[BPR-1705]] |
+| AC08 (M4 decisions) | pass under `core-only` | [[BPR-1703]] |
 | [[BPR-1688]] AC1, AC2 | pass, fixture through the shipped (and desktop) composition | [[BPR-1688]] |
-| RFC closeout | AC01 to AC08 pass; status Auto-Verified | [[BPR-PENDING-L6]] |
+| RFC closeout | AC01 to AC08 pass; status Auto-Verified | [[BPR-1708]] |
 
 ## Decisions recorded
 
@@ -34,7 +34,7 @@ attended session was opened.
   It is not sent on the diff's commit instead: #116 did not measure how GitHub
   shows that.
 - **The left side's file-comment fallback** is not delivered; such a line is
-  refused with the reason ([[BPR-PENDING-L4]]).
+  refused with the reason ([[BPR-1706]]).
 - **A placed line in a pending review** is refused ("published on its own"):
   the review's comments all name the head.
 - **Find in files' core scope** carries the filtered count only; the list
@@ -50,9 +50,9 @@ MikeMarcin/BPR-Test, signed in through gh as MikeMarcin:
 - #117 (`--comment --prefix rfc0089-m4-comment1`): GitHub refused `RIGHT` 12
   and `LEFT` 10 at the head with 422, which drove the head's hunk rule; the
   course then timed out after Refresh (a filter gesture lost while the refresh
-  landed, [[BPR-PENDING-L5]]).
+  landed, [[BPR-1707]]).
 - #118 (`--comment --prefix rfc0089-m4-comment2`): every placement matched
-  Git and GitHub (see [[BPR-PENDING-L3]] AC2); markers after Refresh matched;
+  Git and GitHub (see [[BPR-1705]] AC2); markers after Refresh matched;
   Viewed unchanged for 326 files. 4,823 then 4,671.
 
 All three pull requests are closed, every thread resolved and every branch
@@ -94,9 +94,9 @@ deleted.
 
 ## Open obligations and next action
 
-- Allocate `BPR-PENDING-L1` to `L6` on main.
-- [[BPR-PENDING-L4]]: the file-comment fallback for lines GitHub cannot
-  resolve. [[BPR-PENDING-L5]]: the reread and refresh gestures.
+- Allocate `BPR-1703` to `L6` on main.
+- [[BPR-1706]]: the file-comment fallback for lines GitHub cannot
+  resolve. [[BPR-1707]]: the reread and refresh gestures.
 - Windows and Linux are unmeasured.
 
 ## Command state

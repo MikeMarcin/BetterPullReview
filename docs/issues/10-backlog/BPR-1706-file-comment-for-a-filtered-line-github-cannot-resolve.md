@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-L4"
+id: "BPR-1706"
 title: "Offer RFC-BPR-0022's file comment with a permalink for a filtered diff's line GitHub cannot resolve"
 status: "Backlog"
 rfcs: ["RFC-BPR-0089","RFC-BPR-0022"]
-depends_on: ["BPR-PENDING-L2"]
+depends_on: ["BPR-1704"]
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"RFC-BPR-0089 'Comments and line anchoring': a left-side line that does not map to the merge base 'takes RFC-BPR-0022's file comment with a permalink'. M4 refuses it before Publish instead.","related_cards":["BPR-PENDING-L1","BPR-PENDING-L3"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1703--BPR-1708--2cc864d62b8c.json","origin":"RFC-BPR-0089 'Comments and line anchoring': a left-side line that does not map to the merge base 'takes RFC-BPR-0022's file comment with a permalink'. M4 refuses it before Publish instead.","related_cards":["BPR-1703","BPR-1705"]}
 ---
 
-# BPR-PENDING-L4: Offer RFC-BPR-0022's file comment with a permalink for a filtered diff's line GitHub cannot resolve
+# BPR-1706: Offer RFC-BPR-0022's file comment with a permalink for a filtered diff's line GitHub cannot resolve
 
 RFC-BPR-0089 says a left-side line of a filtered diff that the merge base
 does not have unchanged "takes RFC-BPR-0022's file comment with a permalink".
