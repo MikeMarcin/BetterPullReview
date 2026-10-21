@@ -1149,18 +1149,31 @@ exact whitespace, reduced to the runs of lines it leaves unchanged.
   head's line, as any other comment is, when that line lies within three
   lines of a change of the merge base to the head: GitHub resolves a line at
   the head only there (BPR-Test #117 refused head line 12 of a moved line with
-  422). Otherwise it is refused before Publish.
+  422). Otherwise it is a file comment (below).
 - Otherwise it is published on the diff's right commit at its own line, when
   that line lies within three lines of a change of the merge base to that
   commit: GitHub resolves a commit's line only there and refuses others with
   422 (measured on BPR-Test #116). GitHub keeps such a comment on that commit,
   outdated, from the moment it is written, which the editor says before
-  Publish.
+  Publish. Otherwise it is a file comment (below).
 - A left-side line is GitHub's `LEFT` line at the head when the merge base
   has it unchanged and it lies inside a hunk of the merge base to the head on
-  that side; otherwise it is refused. RFC-BPR-0022's file comment with
-  a permalink is not offered for it: its codec names the head, and its
-  fallback is admitted only under the recorded off-hunk contract.
+  that side. Otherwise it is a file comment.
+- [[BPR-1706]]. A line GitHub resolves nowhere as a line comment
+  (`filtered_comment_placement::file_comment`, with the reason in `Refusal`)
+  is published as RFC-BPR-0022's file comment with a permalink, after the
+  editor says why and that Publish adds a comment on the file. The comment is
+  written at the head (`commit_id` the head, the head's path, `subject_type:
+  file`), and its permalink names the line at the diff's own commit on its
+  side: the right document's commit for a right-side line, the left
+  document's for a left-side one. BPR-Test #119 measured that GitHub takes a
+  file comment at the head for a path the pull request changes, shows it on
+  Files changed and current, and renders a permalink to any of the
+  repository's commits as that line's code. A file comment on an earlier
+  commit is moved to the head by GitHub (`original_commit_id` kept), and one
+  on a commit that did not change the path, or on the base, is refused with
+  422 (`pull_request_review_thread.path` "could not be resolved"), so the head
+  is the only `commit_id` used.
 - A range is published only where no line moves (a right side that is the
   head, or a left side that is the merge base). A reply keeps RFC-BPR-0089
   M1's rule: the diff's right side must be the head.
@@ -1176,6 +1189,31 @@ that commit, natively, with no range, no reply and no file-comment fallback
 (`legacy_line` placement). The recovery journal writes record version 3 for a
 child with a remote line; every other record keeps its bytes, and the
 side-less legacy table refuses one.
+
+A file-comment placement binds the anchor at the head with no remote line
+and marks its source `unresolvable_line`, the one `review_placement` that is
+not provider evidence: the core decided it from the correspondences against
+the hunk rule GitHub was measured to apply. A left-side one also carries the
+left document (`review_mutation_source_binding::LeftEndpoint`) for its
+permalink. `core::plan_review_publication` admits such a line straight to the
+file comment, from the initial state only and never with a native child
+(`admit_unresolvable_line`, journal state `unresolvable_line_admitted`, the
+last of each enumeration so stored values keep their meaning). The admission
+is RFC-BPR-0022's third first-attempt authorization, beside the native
+rejection and scoped evidence: `review_fallback_authorization_source::
+unresolvable_line`, binding the exact file-comment wire request and the
+authority, with no freshness window. From it the existing fallback child,
+witness, GET-only reconciliation and duplicate replay apply unchanged; a
+suggestion is refused before any write, as a fallback always refuses it. The
+provider reads no merge base for a left line published this way, since it
+names no `LEFT` line. Start a review refuses such a line: a review's comments
+are line comments, and it is published on its own.
+
+The permalink codec names a filtered diff's line at the filter's commit on
+the endpoint's side (before, it named the head with the filtered line). The
+window projects permalinks only for an unfiltered diff, so such a file
+comment is a file-level conversation, on Whole PR too, where its permalink is
+not the head's line.
 
 GitHub's answer for an earlier commit reports no `line`. Such a comment is
 ours by `original_commit_id` and `original_line`; anyone's outdated comment in

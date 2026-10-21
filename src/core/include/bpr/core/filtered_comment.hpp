@@ -135,6 +135,14 @@ namespace bpr::core {
 		earlier_commit,
 		/// Not published; `Refusal` says why.
 		refused,
+		/// [[BPR-1706]]. GitHub resolves the line nowhere as a line comment,
+		/// so it is published as RFC-BPR-0022's file comment at the head, its
+		/// permalink naming `Line` of `Commit`, the diff's own commit on
+		/// `Side`. `Refusal` says why no line comment can go there. No line
+		/// comment is attempted first (BPR-Test #119: GitHub takes a file
+		/// comment at the head for a path the pull request changes and shows
+		/// a permalink to any of its commits as that line's code).
+		file_comment,
 	};
 
 	enum class filtered_comment_refusal : std::uint8_t {
@@ -159,6 +167,11 @@ namespace bpr::core {
 	};
 
 	/// \brief Where a comment on a filtered diff goes (owner decision Q1).
+	///
+	/// \details For `file_comment`, `Refusal` is the reason a line comment
+	/// cannot go there (`not_on_commit`, `base_line_changed` or
+	/// `outside_github_diff`) and `Commit`, `Side` and `Line` are what the
+	/// permalink names.
 	struct filtered_comment_target
 	{
 		filtered_comment_placement Placement = filtered_comment_placement::refused;
@@ -178,14 +191,18 @@ namespace bpr::core {
 	/// same line, when the line lies inside a hunk of the merge base to that
 	/// commit; GitHub shows it outdated. A left-side line is counted in the
 	/// merge base's file (`LEFT` at the head) when the merge base has it
-	/// unchanged; otherwise it is refused. A line moved to the head must lie
+	/// unchanged. A line moved to the head must lie
 	/// inside a hunk of the merge base to the head, on its side, where GitHub
 	/// resolves it; a line of a side that is GitHub's own is published as
-	/// today. A range is published only where no
-	/// line moves: a right side that is the head, or a left side that is the
-	/// merge base. Both commits must be of the chain (or its fork or the merge
-	/// base on the left), so a commit outside the pull request is refused
-	/// before anything is written.
+	/// today. A line GitHub resolves nowhere as a line comment ([[BPR-1706]]:
+	/// a right-side line outside those hunks at the head and on the diff's
+	/// commit, a left-side line the merge base does not have unchanged or
+	/// that lies outside them at the head) is a `file_comment` naming the
+	/// line at the diff's commit on its side. A range is published only where
+	/// no line moves: a right side that is the head, or a left side that is
+	/// the merge base. Both commits must be of the chain (or its fork or the
+	/// merge base on the left), so a commit outside the pull request is
+	/// refused before anything is written.
 	[[nodiscard]] auto place_filtered_comment(const filtered_comment_source& aSource, diff_side aSide, std::uint32_t aLine,
 											  std::optional<std::uint32_t> aStartLine) -> filtered_comment_target;
 

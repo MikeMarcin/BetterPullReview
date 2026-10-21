@@ -3,6 +3,10 @@
 // (AC08). The lines are BPR-Test #116's, where GitHub itself was measured: a
 // 30-line file; C1 changes lines 5, 15 and 25; C2, the head, inserts two
 // lines at the top and changes C1's line 5 again.
+//
+// [[BPR-1706]]. A line GitHub resolves nowhere as a line comment is placed as
+// RFC-BPR-0022's file comment, its permalink naming the line at the diff's own
+// commit on its side, as measured on BPR-Test #119.
 #include "bpr/core/filtered_comment.hpp"
 
 #include <array>
@@ -133,8 +137,11 @@ namespace {
 			   "a line unchanged at the head goes to the head at the head's line");
 		// GitHub refused head line 12 of this shape with 422 (BPR-Test #117):
 		// unchanged, but outside every hunk of the merge base to the head.
-		expect(core::place_filtered_comment(hidden, diff_side::right, 9U, std::nullopt).Refusal == refusal::outside_github_diff,
-			   "a line no change shows at the head is refused before Publish");
+		// [[BPR-1706]]. It goes as a file comment whose permalink names C1's line.
+		const auto outside = core::place_filtered_comment(hidden, diff_side::right, 9U, std::nullopt);
+		expect(outside.Placement == placement::file_comment && outside.Refusal == refusal::outside_github_diff && outside.Commit == c1
+				   && outside.Side == diff_side::right && outside.Line == 9U,
+			   "a line no change shows at the head goes as a file comment linking to C1's line, saying why");
 
 		const auto changed = core::place_filtered_comment(hidden, diff_side::right, 4U, std::nullopt);
 		expect(changed.Placement == placement::earlier_commit && changed.Commit == c1 && changed.Side == diff_side::right && changed.Line == 4U,
@@ -142,13 +149,19 @@ namespace {
 
 		// A line the head changed that no hunk of the merge base to C1 shows.
 		hidden.Lines->RightToHead = core::line_correspondence{ .LeftLines = 30U, .RightLines = 30U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 20U } } };
-		expect(core::place_filtered_comment(hidden, diff_side::right, 9U, std::nullopt).Refusal == refusal::not_on_commit,
-			   "a changed line GitHub cannot resolve on C1 is refused before Publish");
+		const auto nowhere        = core::place_filtered_comment(hidden, diff_side::right, 9U, std::nullopt);
+		expect(nowhere.Placement == placement::file_comment && nowhere.Refusal == refusal::not_on_commit && nowhere.Commit == c1
+				   && nowhere.Side == diff_side::right && nowhere.Line == 9U,
+			   "a changed line GitHub cannot resolve on C1 goes as a file comment linking to C1's line");
 		expect(core::place_filtered_comment(hidden, diff_side::right, 8U, std::nullopt).Placement == placement::head, "its unchanged neighbour still goes to the head");
 		hidden.Lines->BaseToRight.reset();
-		expect(core::place_filtered_comment(hidden, diff_side::right, 9U, std::nullopt).Refusal == refusal::lines_unavailable, "without the commit's hunks nothing goes to C1");
+		const auto unread = core::place_filtered_comment(hidden, diff_side::right, 9U, std::nullopt);
+		expect(unread.Placement == placement::refused && unread.Refusal == refusal::lines_unavailable, "without the commit's hunks nothing goes to C1, not even a file comment");
 
 		expect(core::place_filtered_comment(hidden, diff_side::right, 14U, 12U).Refusal == refusal::range, "a range moves nowhere off the head");
+		hidden.Lines->BaseToRight = base_to_c1();
+		const auto range          = core::place_filtered_comment(hidden, diff_side::right, 9U, 8U);
+		expect(range.Placement == placement::refused && range.Refusal == refusal::range, "nor does a range become a file comment");
 		expect(core::place_filtered_comment(hidden, diff_side::right, 12U, 14U).Refusal == refusal::outside_pull_request, "a range ending before it starts is refused");
 
 		// A diff whose right side is the head is the head's own document.
@@ -171,9 +184,18 @@ namespace {
 		onlyHead.Lines  = core::filtered_comment_lines{ .RightToHead = std::nullopt, .BaseToRight = std::nullopt, .LeftToBase = core::line_correspondence{ .LeftLines = 30U, .RightLines = 30U, .Unchanged = base_to_c1().Unchanged }, .BaseToHead = base_to_head() };
 		const auto kept = core::place_filtered_comment(onlyHead, diff_side::left, 6U, std::nullopt);
 		expect(kept.Placement == placement::head && kept.Side == diff_side::left && kept.Line == 6U, "a C1 line the merge base has unchanged is LEFT at its base line");
-		expect(core::place_filtered_comment(onlyHead, diff_side::left, 4U, std::nullopt).Refusal == refusal::base_line_changed, "a line C1 changed has no LEFT line");
-		expect(core::place_filtered_comment(onlyHead, diff_side::left, 9U, std::nullopt).Refusal == refusal::outside_github_diff,
-			   "a base line no change shows at the head has no LEFT line GitHub resolves (BPR-Test #117)");
+		// [[BPR-1706]]. AC1: a line C1 changed has no LEFT line, so it goes as a
+		// file comment whose permalink names it at the diff's left commit.
+		const auto changed = core::place_filtered_comment(onlyHead, diff_side::left, 4U, std::nullopt);
+		expect(changed.Placement == placement::file_comment && changed.Refusal == refusal::base_line_changed && changed.Commit == c1
+				   && changed.Side == diff_side::left && changed.Line == 4U,
+			   "a line C1 changed has no LEFT line and goes as a file comment linking to C1's line");
+		const auto far = core::place_filtered_comment(onlyHead, diff_side::left, 9U, std::nullopt);
+		expect(far.Placement == placement::file_comment && far.Refusal == refusal::outside_github_diff && far.Commit == c1 && far.Side == diff_side::left
+				   && far.Line == 9U,
+			   "a base line no change shows at the head has no LEFT line GitHub resolves (BPR-Test #117): a file comment");
+		onlyHead.Lines->LeftToBase.reset();
+		expect(core::place_filtered_comment(onlyHead, diff_side::left, 4U, std::nullopt).Placement == placement::refused, "unread lines place no file comment");
 		expect(core::place_filtered_comment(onlyHead, diff_side::left, 6U, 5U).Refusal == refusal::range, "nor does a range on it");
 	}
 

@@ -241,12 +241,19 @@ namespace bpr::application {
 		const review_mutation_live_binding& aBinding) noexcept -> bool;
 
 	/// \brief Exact retained material accepted by the host before publication.
+	///
+	/// \details [[BPR-1706]]. For a commit-filtered diff's line the core placed
+	/// as a file comment (`Placement` `unresolvable_line`), the permalink names
+	/// the line at the diff's own commit on the anchor's side: `Endpoint` (the
+	/// right document) for a right-side line, `LeftEndpoint` for a left-side
+	/// one. `LineCount` is that side's.
 	struct review_mutation_source_binding
 	{
 		std::optional<workbench_selected_diff_endpoint> Endpoint;
 		core::file_comparison_key                       Comparison;
-		std::uint32_t                                   LineCount                                                = 0U;
-		core::review_placement                          Placement                                                = core::review_placement::unknown;
+		std::uint32_t                                   LineCount = 0U;
+		core::review_placement                          Placement = core::review_placement::unknown;
+		std::optional<workbench_selected_diff_endpoint> LeftEndpoint;
 		auto                                            operator<=>(const review_mutation_source_binding&) const = default;
 	};
 

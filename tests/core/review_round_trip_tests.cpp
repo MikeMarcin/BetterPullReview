@@ -450,6 +450,54 @@ namespace {
 			   "a later unavailable credential cannot erase a confirmed receipt");
 	}
 
+	/// [[BPR-1706]]. A commit-filtered diff's line the core placed where
+	/// GitHub resolves no line comment goes straight to RFC-BPR-0022's file
+	/// comment: no native attempt, its own durable admission, the same
+	/// fallback child and reconciliation after it.
+	void test_unresolvable_line_policy()
+	{
+		using namespace core;
+		using action = review_publication_action;
+		using state  = review_publication_state;
+		using event  = review_publication_event;
+		for (const auto capability : { off_hunk_creation_capability::supported, off_hunk_creation_capability::unsupported, off_hunk_creation_capability::unknown }) {
+			for (const auto current : { true, false }) {
+				const auto value = review_publication_observation{ .Placement = review_placement::unresolvable_line, .Capability = capability, .Eligible = true, .CapabilityCurrent = current };
+				const auto plan  = plan_review_publication(value);
+				expect(plan.Action == action::admit_unresolvable_line && plan.Representation == review_publication_representation::file_comment_with_permalink,
+					   "an unresolvable line is admitted straight to the file comment, whatever the capability cache says");
+				expect(!advance_review_publication(value, event::prepare_native), "no native attempt is prepared for it");
+				expect(!advance_review_publication(value, event::admit_unsupported_evidence), "nor is capability evidence admitted for it");
+				expect(!advance_review_publication(value, event::prepare_fallback), "its file comment needs the durable admission first");
+				expect(advance_review_publication(value, event::admit_unresolvable_line) == std::optional{ state::unresolvable_line_admitted }, "the admission is durable");
+			}
+		}
+		const auto suggestion = review_publication_observation{ .Placement = review_placement::unresolvable_line, .Body = review_body_compatibility::requires_line_subject, .Eligible = true };
+		expect(plan_review_publication(suggestion).Diagnostic == review_publication_diagnostic::incompatible_body && !advance_review_publication(suggestion, event::admit_unresolvable_line),
+			   "a suggestion needs a line, so an unresolvable line refuses it before any write");
+		const auto prepared = plan_review_publication({ .Placement = review_placement::unresolvable_line, .State = state::native_prepared, .Eligible = true });
+		expect(prepared.Action == action::refuse && prepared.Diagnostic == review_publication_diagnostic::invalid_observation, "a prepared native child never posts for an unresolvable line");
+		expect(!advance_review_publication({ .Placement = review_placement::legacy_line, .Eligible = true }, event::admit_unresolvable_line)
+				   && !advance_review_publication({ .Placement = review_placement::off_hunk, .Capability = off_hunk_creation_capability::unsupported, .Eligible = true, .CapabilityCurrent = true }, event::admit_unresolvable_line),
+			   "no other placement is admitted as unresolvable");
+
+		review_publication_observation value{ .Placement = review_placement::unresolvable_line, .Eligible = true };
+		const auto                     step = [&value](event aEvent) { auto next=advance_review_publication(value,aEvent); expect(next.has_value(), "legal durable transition"); value.State=*next; };
+		step(event::admit_unresolvable_line);
+		// The parent's admission, not the placement, carries it on: a resumed
+		// publication reloads only the state.
+		expect(plan_review_publication({ .State = state::unresolvable_line_admitted, .Eligible = true }).Action == action::fallback_attempt, "the admitted parent prepares its file comment");
+		expect(!advance_review_publication(value, event::native_transmission_witness) && !advance_review_publication(value, event::native_created)
+				   && !advance_review_publication(value, event::native_definitively_unsupported),
+			   "an admitted unresolvable line has no native child to witness");
+		step(event::prepare_fallback);
+		step(event::fallback_transmission_witness);
+		expect(plan_review_publication(value).Action == action::reconcile_fallback, "a transmitted file comment only reconciles");
+		step(event::fallback_created);
+		expect(plan_review_publication(value).Action == action::already_succeeded && plan_review_publication(value).Representation == review_publication_representation::file_comment_with_permalink,
+			   "a replay returns the file comment's receipt");
+	}
+
 	void test_publication_policy()
 	{
 		using namespace core;
@@ -483,7 +531,7 @@ namespace {
 		step(event::fallback_transmission_witness);
 		expect(plan_review_publication(value).Action == action::reconcile_fallback, "fallback witness only reconciles");
 		step(event::fallback_created);
-		for (unsigned i = 0; i <= static_cast<unsigned>(event::definitively_rejected); ++i) {
+		for (unsigned i = 0; i <= static_cast<unsigned>(event::admit_unresolvable_line); ++i) {
 			expect(!advance_review_publication(value, static_cast<event>(i)), "success has no further write transition");
 		}
 		expect(plan_review_publication(value).Action == action::already_succeeded, "duplicate replays receipt");
@@ -498,17 +546,17 @@ namespace {
 		value.Eligible  = true;
 		value.Placement = static_cast<review_placement>(255);
 		expect(plan_review_publication(value).Diagnostic == review_publication_diagnostic::invalid_observation, "hostile enum fails closed");
-		for (unsigned stateIndex = 0U; stateIndex <= static_cast<unsigned>(state::rejected); ++stateIndex) {
+		for (unsigned stateIndex = 0U; stateIndex <= static_cast<unsigned>(state::unresolvable_line_admitted); ++stateIndex) {
 			const auto stateValue    = static_cast<state>(stateIndex);
 			const auto assertRefused = [&](const review_publication_observation& aObservation, const review_publication_diagnostic aDiagnostic) {
 				const auto decision = plan_review_publication(aObservation);
 				expect(decision.Action == action::refuse && decision.Diagnostic == aDiagnostic && !decision.Representation, "illegal observation has no representation or action at any durable state");
-				for (unsigned eventIndex = 0U; eventIndex <= static_cast<unsigned>(event::definitively_rejected); ++eventIndex) {
+				for (unsigned eventIndex = 0U; eventIndex <= static_cast<unsigned>(event::admit_unresolvable_line); ++eventIndex) {
 					expect(!advance_review_publication(aObservation, static_cast<event>(eventIndex)), "illegal observation authorizes no durable transition");
 				}
 			};
 			assertRefused({ .State = stateValue }, review_publication_diagnostic::ineligible_anchor);
-			for (const unsigned invalid : { 10U, 255U }) {
+			for (const unsigned invalid : { 11U, 255U }) {
 				assertRefused({ .Placement = static_cast<review_placement>(invalid), .State = stateValue, .Eligible = true }, review_publication_diagnostic::invalid_observation);
 				assertRefused({ .Capability = static_cast<off_hunk_creation_capability>(invalid), .State = stateValue, .Eligible = true }, review_publication_diagnostic::invalid_observation);
 				assertRefused({ .Body = static_cast<review_body_compatibility>(invalid), .State = stateValue, .Eligible = true }, review_publication_diagnostic::invalid_observation);
@@ -516,6 +564,7 @@ namespace {
 				expect(!advance_review_publication({ .State = stateValue, .Eligible = true }, static_cast<event>(invalid)), "unknown event cannot advance any durable state");
 			}
 		}
+		test_unresolvable_line_policy();
 		expect(classify_review_body("text\n```suggestion:-1+2\nx\n```") == review_body_compatibility::requires_line_subject, "suggestion ranges keep line semantics");
 		expect(classify_review_body("~~~  suggestion\ncode") == review_body_compatibility::requires_line_subject, "whitespace in a suggestion info string cannot degrade");
 		expect(classify_review_body("ordinary prose") == review_body_compatibility::portable, "plain prose is portable");

@@ -8247,6 +8247,15 @@ namespace bpr::qt {
 			return { tr("Goes on commit %1, where this line was written. A later commit changed it, so GitHub shows this comment as outdated: in the conversation, not in Files changed.")
 						 .arg(FilteredPlacement->Commit),
 					 false };
+		case placement::file_comment: {
+			// [[BPR-1706]]. Why GitHub takes no line comment here, then what
+			// Publish does instead.
+			const auto why = target.Refusal == refusal::base_line_changed ? tr("This line changed after the merge base, where GitHub counts base lines, so GitHub can't attach a comment to it.")
+				: target.Refusal == refusal::not_on_commit
+				? tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so GitHub can't attach a comment to it.").arg(FilteredPlacement->Commit)
+				: tr("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it.");
+			return { tr("%1 Publish adds a comment on the file instead, linking to line %2 of commit %3.").arg(why).arg(line).arg(FilteredPlacement->Commit), false };
+		}
 		case placement::refused:
 			break;
 		}

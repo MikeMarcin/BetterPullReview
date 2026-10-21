@@ -49,10 +49,13 @@ namespace bpr::application {
 				|| !child_valid(aRecord, aRecord.Fallback, core::review_publication_representation::file_comment_with_permalink)) {
 				return false;
 			}
-			const auto& auth       = aRecord.Authorization;
-			const bool  authorized = auth.Source != source::none && auth.Source <= source::scoped_evidence
+			const auto& auth = aRecord.Authorization;
+			// [[BPR-1706]]. An unresolvable line's admission is first-attempt
+			// like scoped evidence and unbounded in time like a native rejection.
+			const bool firstAttempt = auth.Source == source::scoped_evidence || auth.Source == source::unresolvable_line;
+			const bool authorized   = auth.Source != source::none && auth.Source <= source::unresolvable_line
 				&& digest_present(auth.ContractDigest) && digest_present(auth.ScopeDigest)
-				&& (auth.Source == source::native_rejection
+				&& (auth.Source != source::scoped_evidence
 						? auth.Generation == 0U && auth.ObservedAt == 0U && auth.ExpiresAt == 0U
 						: auth.Generation != 0U && auth.ExpiresAt > auth.ObservedAt && auth.ExpiresAt - auth.ObservedAt <= 300U);
 			if (auth.Source == source::none && auth != review_fallback_authorization{ }) {
@@ -67,10 +70,11 @@ namespace bpr::application {
 			case state::succeeded_native:                return !authorized && auth.Source == source::none && !aRecord.Fallback && child_at(aRecord.Native, transmission::possibly_transmitted, true);
 			case state::native_definitively_unsupported: return authorized && auth.Source == source::native_rejection && !aRecord.Fallback && child_at(aRecord.Native, transmission::possibly_transmitted);
 			case state::unsupported_evidence_admitted:   return authorized && auth.Source == source::scoped_evidence && !aRecord.Native && !aRecord.Fallback;
+			case state::unresolvable_line_admitted:      return authorized && auth.Source == source::unresolvable_line && !aRecord.Native && !aRecord.Fallback;
 			case state::fallback_prepared:
 			case state::fallback_possibly_transmitted:
 			case state::succeeded_fallback:
-				return authorized && (auth.Source == source::scoped_evidence ? !aRecord.Native : child_at(aRecord.Native, transmission::possibly_transmitted))
+				return authorized && (firstAttempt ? !aRecord.Native : child_at(aRecord.Native, transmission::possibly_transmitted))
 					&& child_at(aRecord.Fallback, aRecord.State == state::fallback_prepared ? transmission::prepared : transmission::possibly_transmitted, aRecord.State == state::succeeded_fallback);
 			default: return false;
 			}
@@ -84,7 +88,7 @@ namespace bpr::application {
 			return false;
 		}
 		if (!aExpected) {
-			return aNext.State == state::native_prepared || aNext.State == state::unsupported_evidence_admitted;
+			return aNext.State == state::native_prepared || aNext.State == state::unsupported_evidence_admitted || aNext.State == state::unresolvable_line_admitted;
 		}
 		if (!valid(*aExpected)) {
 			return false;

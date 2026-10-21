@@ -12226,15 +12226,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				editor->present(application::review_mutation_failure::undesignated_target);
 				return false;
 			}
-			auto proposal          = core::review_publication_proposal{ };
-			proposal.Draft         = ReviewDraft->Id;
-			proposal.Anchor        = ReviewDraft->Anchor;
-			proposal.Body          = editor->body_text();
-			proposal.StartLine     = ReviewDraft->StartLine;
-			auto request           = application::review_mutation_publication_request{ };
-			request.Proposal       = std::move(proposal);
-			request.Selection      = *SelectedSemanticSelection;
-			request.SelectedDiff   = *SelectedDiffPublication;
+			auto proposal        = core::review_publication_proposal{ };
+			proposal.Draft       = ReviewDraft->Id;
+			proposal.Anchor      = ReviewDraft->Anchor;
+			proposal.Body        = editor->body_text();
+			proposal.StartLine   = ReviewDraft->StartLine;
+			auto request         = application::review_mutation_publication_request{ };
+			request.Proposal     = std::move(proposal);
+			request.Selection    = *SelectedSemanticSelection;
+			request.SelectedDiff = *SelectedDiffPublication;
+			// [[BPR-1706]]. A review's comments are line comments; the host
+			// refuses a filtered line GitHub cannot take as one, and this says why.
+			if (const auto& filtered = Window->filtered_comment_placement();
+				filtered && filtered->Selection == request.Selection.PreferredLine && filtered->Target.Placement == core::filtered_comment_placement::file_comment) {
+				editor->present_publication_refusal(QStringLiteral("GitHub can't attach a comment to this line, so it goes on the file and is published on its own, not in a review. Use Publish."));
+				return false;
+			}
 			const auto destination = ReviewMutationHost->comment_destination(request);
 			if (!destination) {
 				editor->present(destination.error());
@@ -14663,11 +14670,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto placement = std::optional<qt::filtered_comment_presentation>{ };
 			if (SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine.Comparison == core::comparison_digest(SelectedDiffPublication->Key)) {
 				if (const auto source = filtered_comment_source()) {
-					const auto& line = SelectedSemanticSelection->PreferredLine;
-					const auto  hex  = core::canonical_hex(source->Diff.Right);
-					placement        = qt::filtered_comment_presentation{
+					const auto& line   = SelectedSemanticSelection->PreferredLine;
+					const auto  target = core::place_filtered_comment(*source, line.Side, line.Line, std::nullopt);
+					// [[BPR-1706]]. A file comment's permalink names its own
+					// side's commit, which on the left is not the diff's right.
+					const auto hex = core::canonical_hex(target.Placement == core::filtered_comment_placement::file_comment ? target.Commit : source->Diff.Right);
+					placement      = qt::filtered_comment_presentation{
 						.Selection = line,
-						.Target    = core::place_filtered_comment(*source, line.Side, line.Line, std::nullopt),
+						.Target    = target,
 						.Commit    = QString::fromUtf8(hex.view().substr(0U, 7U)),
 					};
 				}

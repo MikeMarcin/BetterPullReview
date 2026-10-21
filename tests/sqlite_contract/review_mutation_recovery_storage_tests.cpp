@@ -426,6 +426,47 @@ namespace {
 		value.Native->IdempotencyKey = application::review_publication_child_key(value.Key, core::review_publication_representation::native_line);
 		expect(!(*store)->advance_publication(std::nullopt, value), "old unresolved native row bars a new parent");
 	}
+	/// [[BPR-1706]]. An unresolvable filtered line's admission is the parent's
+	/// own first-attempt authorization: no native child before or after, no
+	/// freshness window, and it survives a restart, left side and all.
+	void test_an_unresolvable_line_admission_survives_a_restart()
+	{
+		using state  = core::review_publication_state;
+		using source = application::review_fallback_authorization_source;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		auto                value = publication();
+		value.Native.reset();
+		value.State                       = state::unresolvable_line_admitted;
+		value.Authorization               = { .Source = source::unresolvable_line, .ContractDigest = { 3 }, .ScopeDigest = { 4 } };
+		auto windowed                     = value;
+		windowed.Authorization.Generation = 1U;
+		windowed.Authorization.ObservedAt = 100U;
+		windowed.Authorization.ExpiresAt  = 400U;
+		expect(!application::valid(windowed), "an unresolvable line's admission carries no freshness window");
+		auto withNative                   = value;
+		withNative.Native                 = record();
+		withNative.Native->IdempotencyKey = application::review_publication_child_key(value.Key, core::review_publication_representation::native_line);
+		expect(!application::valid(withNative), "it never has a native child");
+		auto mislabelled                 = value;
+		mislabelled.Authorization.Source = source::scoped_evidence;
+		expect(!application::valid(mislabelled), "nor is it scoped evidence");
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "the admission is a first attempt");
+		auto next                           = value;
+		next.State                          = state::fallback_prepared;
+		next.Fallback                       = fallback_child(value);
+		next.Fallback->Anchor.Semantic.Side = core::diff_side::left;
+		expect((*store)->advance_publication(value, next).has_value(), "it permits exactly its file comment, here on a left line");
+		auto native          = value;
+		native.State         = state::native_prepared;
+		native.Native        = withNative.Native;
+		native.Authorization = { };
+		expect(!(*store)->advance_publication(next, native), "a prepared file comment never turns native");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(value.Key).value() == next, "after a restart the file comment and its admission are loaded exactly");
+	}
+
 	void test_logical_capacity_and_stale_compare_exchange()
 	{
 		temporary_directory directory;
@@ -758,6 +799,7 @@ try {
 	test_a_base_side_publication_keeps_its_side();
 	test_a_placed_publication_keeps_its_remote_line();
 	test_evidence_admission_and_legacy_conflicts();
+	test_an_unresolvable_line_admission_survives_a_restart();
 	test_version_three_keeps_both_journals();
 	test_logical_capacity_and_stale_compare_exchange();
 	test_durable_unresolved_and_success_reopen();

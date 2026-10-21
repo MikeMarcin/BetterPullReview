@@ -16,9 +16,15 @@ namespace bpr::core {
 	[[nodiscard]] auto retain_review_publication_outcome(review_publication_outcome aPrior, review_publication_outcome aCurrent) noexcept -> review_publication_outcome;
 
 	/// \brief Provider evidence about the selected anchor, never painted diff geometry.
+	/// \details [[BPR-1706]]. `unresolvable_line` is the one exception RFC-BPR-0089
+	/// makes: the core placed a commit-filtered diff's line where GitHub resolves
+	/// no line comment (`filtered_comment_placement::file_comment`, decided from
+	/// the line correspondences against the hunk rule measured on BPR-Test #116
+	/// and #117). It is published as the file comment with no native attempt.
 	enum class review_placement : std::uint8_t { unknown,
 												 legacy_line,
-												 off_hunk };
+												 off_hunk,
+												 unresolvable_line };
 	/// \brief Fresh evidence for one exact repository, actor and mutation operation.
 	enum class off_hunk_creation_capability : std::uint8_t { unknown,
 															 supported,
@@ -42,6 +48,10 @@ namespace bpr::core {
 		succeeded_native,
 		succeeded_fallback,
 		rejected,
+		/// [[BPR-1706]]. First-attempt admission of an unresolvable line: the
+		/// parent's own durable authorization for its file comment, with no
+		/// native child. Last, so every earlier state keeps its stored value.
+		unresolvable_line_admitted,
 	};
 
 	/// \brief Bounded semantic inputs whose authority is validated by the host.
@@ -64,6 +74,9 @@ namespace bpr::core {
 		reconcile_native,
 		reconcile_fallback,
 		already_succeeded,
+		/// [[BPR-1706]]. Record the unresolvable line's admission before its
+		/// file comment is prepared.
+		admit_unresolvable_line,
 	};
 	enum class review_publication_diagnostic : std::uint8_t {
 		none,
@@ -94,6 +107,8 @@ namespace bpr::core {
 		fallback_transmission_witness,
 		fallback_created,
 		definitively_rejected,
+		/// [[BPR-1706]]. Only from `initial`, only for an unresolvable line.
+		admit_unresolvable_line,
 	};
 	/// \brief Checks a proposed durable transition; rejection leaves the old state intact.
 	/// \details Exact non-creation evidence may resolve a witness. Timeout, cancellation,

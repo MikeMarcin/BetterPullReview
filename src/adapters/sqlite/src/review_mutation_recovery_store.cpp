@@ -1102,12 +1102,14 @@ namespace bpr::adapters::sqlite {
 			const auto                                      remote = version == publication_record_version_3;
 			const auto                                      sided  = remote || version == publication_record_version_2;
 			application::review_publication_recovery_record result;
-			result.Key          = in.text(64U);
-			result.LegacyKey    = in.text(64U);
-			result.Fingerprint  = in.digest();
-			result.State        = static_cast<core::review_publication_state>(in.bounded(9U));
+			result.Key         = in.text(64U);
+			result.LegacyKey   = in.text(64U);
+			result.Fingerprint = in.digest();
+			// [[BPR-1706]]. The unresolvable line's state and admission are the
+			// last of each; an earlier reader refuses them, so no version moves.
+			result.State        = static_cast<core::review_publication_state>(in.bounded(static_cast<std::uint64_t>(core::review_publication_state::unresolvable_line_admitted)));
 			auto& auth          = result.Authorization;
-			auth.Source         = static_cast<application::review_fallback_authorization_source>(in.bounded(2U));
+			auth.Source         = static_cast<application::review_fallback_authorization_source>(in.bounded(static_cast<std::uint64_t>(application::review_fallback_authorization_source::unresolvable_line)));
 			auth.ContractDigest = in.digest();
 			auth.ScopeDigest    = in.digest();
 			auth.Generation     = in.integer();

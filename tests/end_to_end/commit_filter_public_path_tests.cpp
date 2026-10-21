@@ -45,9 +45,12 @@
 // warning, and GitHub (the fixture, as measured) keeps it there, outdated.
 // Both reconcile through the real provider session. With only C3 shown the
 // left side is C2: a base line the merge base has unchanged is published as
-// GitHub's LEFT line, and one C1 changed is refused before Publish (AC07). A
-// line moved to the head outside every hunk of GitHub's diff there is refused
-// before Publish on either side, as GitHub refused it on BPR-Test #117.
+// GitHub's LEFT line (AC07). [[BPR-1706]]. A line GitHub resolves nowhere as a
+// line comment (one C1 changed on that left side, or one outside every hunk of
+// GitHub's diff at the head, which GitHub refused on BPR-Test #117) is
+// published, after the editor says so, as a file comment at the head whose
+// permalink names the line at the diff's own commit on its side, with no line
+// comment attempted; each reconciles once.
 //
 // [[BPR-1688]]. A seventh course, on the same fixture: with C3 hidden Find in
 // files searches only the filtered files, each at its filtered diff's commits
@@ -829,6 +832,13 @@ namespace {
 		return *editor;
 	}
 
+	/// Every comment written so far, line or file.
+	[[nodiscard]] auto posts(const course& aRun) -> std::size_t
+	{
+		const auto evidence = access::review_mutation_evidence(*aRun.Application);
+		return evidence.NativePosts + evidence.FilePosts;
+	}
+
 	void publish_and_wait(course& aRun, qt::review_draft_editor& aEditor, const std::size_t aPosts)
 	{
 		const auto before = access::window_read_progress(*aRun.Application).Snapshot;
@@ -836,17 +846,17 @@ namespace {
 		aEditor.publish_action()->trigger();
 		auto elapsed = QElapsedTimer{ };
 		elapsed.start();
-		while (access::review_mutation_evidence(*aRun.Application).NativePosts != aPosts && elapsed.elapsed() < 20000) {
+		while (posts(aRun) != aPosts && elapsed.elapsed() < 20000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
-		if (access::review_mutation_evidence(*aRun.Application).NativePosts != aPosts) {
+		if (posts(aRun) != aPosts) {
 			const auto evidence = access::review_mutation_evidence(*aRun.Application);
 			std::cout << "commit-filter-comment:unsent status=\"" << aEditor.publication_status().toStdString() << "\" mutation=\"" << aEditor.mutation_status_text().toStdString()
 					  << "\" submissions=" << evidence.Submissions << " observations=" << evidence.TargetObservations << " posts=" << evidence.NativePosts
 					  << " state=" << (aEditor.shown_draft() ? static_cast<int>(aEditor.shown_draft()->State) : -1) << '\n';
 		}
-		wait_for([&] { return access::review_mutation_evidence(*aRun.Application).NativePosts == aPosts; }, "the comment is written once");
+		wait_for([&] { return posts(aRun) == aPosts; }, "the comment is written once");
 		wait_for([&] { return aEditor.publication_status().startsWith(QStringLiteral("Published")) || !aEditor.shown_draft() || aEditor.shown_draft()->shared(); },
 				 "the publication reconciles as published");
 		// The window then reads the pull request again, as GitHub has it now.
@@ -925,20 +935,32 @@ namespace {
 			   "it is published with commit_id = head at line 17");
 
 		// C1's line 10 is unchanged at the head (line 12), but no hunk of
-		// GitHub's diff shows it there: refused, as GitHub refused it live.
-		auto& outside = write_on(window, core::diff_side::right, 9U, "M4 course: unchanged and outside GitHub's diff.");
-		expect(outside.target_notice_blocks() && outside.target_notice_text().contains(QStringLiteral("GitHub shows no change near it")) && !outside.publish_action()->isEnabled(),
-			   "a line outside every hunk of GitHub's diff at the head is refused before Publish");
+		// GitHub's diff shows it there, and GitHub refused that line live.
+		// [[BPR-1706]] AC2: it goes as a file comment linking to C1's line 10.
+		auto& outside = write_on(window, core::diff_side::right, 9U, "BPR-1706 course: unchanged and outside GitHub's diff.");
+		expect(outside.target_notice_text()
+					   == QStringLiteral("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it. Publish adds a comment on the file instead, linking to line 10 of commit 4613350.")
+				   && !outside.target_notice_blocks(),
+			   "before Publish the editor says the line goes as a file comment linking to C1's line 10");
+		publish_and_wait(run, outside, 2U);
+		const auto fileOnC1 = access::review_mutation_evidence(*run.Application);
+		const auto link     = [](const std::string_view aCommit, const unsigned aLine) {
+			return "https://github.com/bpr-fixtures/commit-filter-comment/blob/" + std::string{ aCommit } + "/src/notes.txt#L" + std::to_string(aLine) + "\n\n";
+		};
+		std::cout << "commit-filter-comment:file commit=" << fileOnC1.LastCommit << " body=" << fileOnC1.LastBody.substr(0U, fileOnC1.LastBody.find('\n')) << '\n';
+		expect(fileOnC1.LastFile && fileOnC1.FilePosts == 1U && fileOnC1.NativePosts == 1U && fileOnC1.LastCommit == comment_c3 && !fileOnC1.LastLine && fileOnC1.LastSide.empty()
+				   && fileOnC1.LastPath == "src/notes.txt" && fileOnC1.LastBody == link(comment_c1, 10U) + "BPR-1706 course: unchanged and outside GitHub's diff." && fileOnC1.StoredComments == 2U,
+			   "it is one file comment at the head whose permalink names C1's line 10, with no line comment tried first (AC2, AC3)");
 
 		// C1's line 5 is changed by C3: it goes on C1, after the warning.
 		auto& changed = write_on(window, core::diff_side::right, 4U, "M4 course: changed at the head.");
 		expect(changed.target_notice_text().startsWith(QStringLiteral("Goes on commit 4613350, where this line was written."))
 				   && changed.target_notice_text().contains(QStringLiteral("outdated")) && !changed.target_notice_blocks(),
 			   "before Publish the editor warns that the comment goes on C1 and GitHub shows it outdated");
-		publish_and_wait(run, changed, 2U);
+		publish_and_wait(run, changed, 3U);
 		const auto onC1 = access::review_mutation_evidence(*run.Application);
 		std::cout << "commit-filter-comment:earlier commit=" << onC1.LastCommit << " line=" << (onC1.LastLine ? *onC1.LastLine : 0U) << " earlier=" << onC1.EarlierCommitPosts << '\n';
-		expect(onC1.LastCommit == comment_c1 && onC1.LastLine == std::optional<std::uint32_t>{ 5U } && onC1.EarlierCommitPosts == 1U && onC1.StoredComments == 2U,
+		expect(onC1.LastCommit == comment_c1 && onC1.LastLine == std::optional<std::uint32_t>{ 5U } && onC1.EarlierCommitPosts == 1U && onC1.StoredComments == 3U,
 			   "it is published with commit_id = C1 at line 5, and each comment was written once");
 		// The window reads the pull request again: the comment GitHub keeps on
 		// C1, outdated, is marked on C1's diff where it was written.
@@ -952,16 +974,25 @@ namespace {
 		select(window, "src/notes.txt");
 		expect(window.comparison_surface()->current_context()->Key.Filter == std::optional{ core::filtered_diff_endpoints{ .Left = commit(comment_c2), .Right = commit(comment_c3) } },
 			   "with only C3 shown src/notes.txt's diff is C2 to C3");
-		auto& based = write_on(window, core::diff_side::left, 14U, "M4 course: a base line C1 changed.");
-		expect(based.target_notice_blocks() && based.target_notice_text().contains(QStringLiteral("changed after the merge base")) && !based.publish_action()->isEnabled()
-				   && !window.comment_action()->isEnabled(),
-			   "a base line C1 changed is refused before Publish, and says why");
+		// [[BPR-1706]] AC1: a base line C1 changed has no LEFT line; it goes as
+		// a file comment whose permalink names it at the diff's left commit, C2.
+		auto& based = write_on(window, core::diff_side::left, 14U, "BPR-1706 course: a base line C1 changed.");
+		expect(based.target_notice_text()
+					   == QStringLiteral("This line changed after the merge base, where GitHub counts base lines, so GitHub can't attach a comment to it. Publish adds a comment on the file instead, linking to line 15 of commit 3a82b6d.")
+				   && !based.target_notice_blocks(),
+			   "before Publish the editor says the base line goes as a file comment linking to C2's line 15");
+		publish_and_wait(run, based, 4U);
+		const auto fileOnC2 = access::review_mutation_evidence(*run.Application);
+		expect(fileOnC2.LastFile && fileOnC2.FilePosts == 2U && fileOnC2.NativePosts == 2U && fileOnC2.LastCommit == comment_c3 && !fileOnC2.LastLine
+				   && fileOnC2.LastBody == link(comment_c2, 15U) + "BPR-1706 course: a base line C1 changed." && fileOnC2.StoredComments == 4U,
+			   "it is one file comment at the head whose permalink names C2's line 15, with no line comment tried first (AC1, AC3)");
 		auto& far = write_on(window, core::diff_side::left, 9U, "M4 course: a base line no change shows.");
-		expect(far.target_notice_blocks() && far.target_notice_text().contains(QStringLiteral("GitHub shows no change near it")),
-			   "a base line outside every hunk of GitHub's diff is refused before Publish");
+		expect(!far.target_notice_blocks() && far.target_notice_text().startsWith(QStringLiteral("GitHub shows no change near this line at the head"))
+				   && far.target_notice_text().endsWith(QStringLiteral("linking to line 10 of commit 3a82b6d.")),
+			   "a base line outside every hunk of GitHub's diff would go as a file comment too");
 		auto& kept = write_on(window, core::diff_side::left, 12U, "M4 course: a base line the merge base has.");
 		expect(kept.target_notice_text().isEmpty(), "a base line the merge base has unchanged, near a change, needs no notice");
-		publish_and_wait(run, kept, 3U);
+		publish_and_wait(run, kept, 5U);
 		const auto onBase = access::review_mutation_evidence(*run.Application);
 		expect(onBase.LastCommit == comment_c3 && onBase.LastLine == std::optional<std::uint32_t>{ 13U } && onBase.LastSide == "LEFT",
 			   "it is published as GitHub's LEFT line 13 at the head");
@@ -974,7 +1005,7 @@ namespace {
 		wait_for([&] { return marked(window, core::diff_side::right, 16U); }, "Whole PR marks the head's thread at line 17");
 		expect(!marked(window, core::diff_side::right, 24U) && !marked(window, core::diff_side::right, 26U), "and not the thread GitHub shows outdated on C1");
 		const auto final = access::review_mutation_evidence(*run.Application);
-		expect(final.NativePosts == 3U && final.FilePosts == 0U, "three native comments, no file comment, and nothing written twice");
+		expect(final.NativePosts == 3U && final.FilePosts == 2U && final.StoredComments == 5U, "three line comments, two file comments, and nothing written twice");
 		finish(run);
 		std::cout << "commit-filter-comment:pass\n";
 	}

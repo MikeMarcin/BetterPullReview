@@ -66,12 +66,15 @@ C1's lines 15, 5 and 10, and with only C3 shown the left side's lines 15, 10
 and 13, writing where the composition's core places a comment on each and what
 the editor says before Publish. This script checks each placement against Git
 (a line unchanged at the head goes there at the head's line when it lies inside
-a hunk of the merge base to the head, and is refused before Publish otherwise,
-as GitHub refused BPR-Test #117's with 422; a line C3 changed goes on C1, with
-the warning; a base line C1 changed is refused before Publish), then publishes exactly those placements through gh, because a
+a hunk of the merge base to the head; a line C3 changed goes on C1, with
+the warning; BPR-1706: a line GitHub resolves nowhere as a line comment, as
+GitHub refused BPR-Test #117's with 422, and a base line C1 changed, go as a
+file comment at the head whose permalink names the line at the diff's commit),
+then publishes exactly those placements through gh, because a
 tests-enabled composition holds no publication grant, and checks what GitHub
-answered: `commit_id` = head at the mapped line, and `commit_id` = C1 kept,
-outdated, for the changed line. After the refresh the course writes the
+answered: `commit_id` = head at the mapped line, `commit_id` = C1 kept,
+outdated, for the changed line, and a current file subject at the head for a
+file comment. After the refresh the course writes the
 markers: the C1 thread on C1's diff and not the head's, and on Whole PR the
 head's threads and not C1's. `--cleanup` resolves every thread it made.
 
@@ -109,6 +112,11 @@ def run(*command: str, cwd: Path | None = None, check: bool = True, env: dict | 
     if check and result.returncode != 0:
         raise RuntimeError(f"{' '.join(command[:4])} failed: {result.stderr.strip()[:400]}")
     return result.stdout
+
+
+def line_of(entry: dict) -> int:
+    """The one-based line a placement names."""
+    return entry["target_line"] + 1
 
 
 def remaining() -> int:
@@ -463,7 +471,10 @@ class Course:
         return False
 
     def expected_placement(self, entry: dict) -> tuple[int, int, str | None, int]:
-        """(placement, refusal, commit, target line) the core must decide: owner decision Q1."""
+        """(placement, refusal, commit, target line) the core must decide: owner decision Q1.
+        BPR-1706: a line GitHub resolves nowhere is a file comment (3) whose
+        permalink names the line at the diff's own commit on its side, with
+        the reason as its refusal."""
         path = f"{self.prefix}/src/notes.txt"
         head, fork = self.commits["C3"], self.commits["M0"]
         left, right, line = entry["left"], entry["right"], entry["line"]
@@ -476,18 +487,18 @@ class Course:
                 # merge base to the head (BPR-Test #117 refused one outside).
                 if self.changed_near(self.text_at(fork, path), self.text_at(head, path), at_head[line]):
                     return 0, 0, head, at_head[line]
-                return 2, 7, None, line
+                return 3, 7, right, line
             if self.changed_near(self.text_at(fork, path), self.text_at(right, path), line):
                 return 1, 0, right, line
-            return 2, 5, None, line
+            return 3, 5, right, line
         if left == fork:
             return 0, 0, head, line
         at_base = self.unchanged(self.text_at(left, path), self.text_at(fork, path))
         if line not in at_base:
-            return 2, 6, None, line
+            return 3, 6, left, line
         if self.changed_near(self.text_at(fork, path), self.text_at(head, path), at_base[line], "LEFT"):
             return 0, 0, head, at_base[line]
-        return 2, 7, None, line
+        return 3, 7, left, line
 
     def post(self, course: subprocess.Popen) -> None:
         """Waits at the course's `at-post`, checks each placement against Git,
@@ -518,14 +529,22 @@ class Course:
                 facts.append(f"the warning before Publish reads {entry['notice']!r}")
             if want[0] == 2 and not entry["blocks"]:
                 facts.append(f"a refused line does not block Publish: {entry['notice']!r}")
+            if want[0] == 3 and (entry["blocks"] or not entry["notice"].endswith(f"Publish adds a comment on the file instead, linking to line {line_of(entry)} of commit {want[2][:7]}.")):
+                facts.append(f"the note before Publish reads {entry['notice']!r}")
             if want[0] == 0 and want[3] != entry["line"] and f"line {want[3] + 1}" not in entry["notice"]:
                 facts.append(f"the note before Publish reads {entry['notice']!r}")
-            print(f"  {'MATCH' if not facts else 'DIFFERS'} placement {name}: {('head', 'earlier commit', 'refused')[got[0]]} line {got[3] + 1}; notice {entry['notice']!r}")
+            print(f"  {'MATCH' if not facts else 'DIFFERS'} placement {name}: {('head', 'earlier commit', 'refused', 'file comment')[got[0]]} line {got[3] + 1}; notice {entry['notice']!r}")
             self.failures.extend(f"placement {name}: {fact}" for fact in facts)
             if facts or want[0] == 2:
                 continue
             body = f"RFC-BPR-0089 M4 live course ({self.prefix}): {name}."
-            payload = json.dumps({"body": body, "commit_id": entry["commit"], "path": path, "line": entry["target_line"] + 1, "side": entry["target_side"]})
+            if want[0] == 3:
+                # BPR-1706, as the provider writes it: a file comment at the
+                # head whose permalink names the line at the diff's commit.
+                body = f"https://github.com/{REPOSITORY}/blob/{entry['commit']}/{path}#L{line_of(entry)}\n\n{body}"
+                payload = json.dumps({"body": body, "commit_id": head, "path": path, "subject_type": "file"})
+            else:
+                payload = json.dumps({"body": body, "commit_id": entry["commit"], "path": path, "line": entry["target_line"] + 1, "side": entry["target_side"]})
             answer = subprocess.run(["gh", "api", "-X", "POST", f"repos/{REPOSITORY}/pulls/{self.pull}/comments", "--input", "-"], input=payload, capture_output=True, text=True)
             if answer.returncode != 0:
                 self.failures.append(f"GitHub refused {name}: {(answer.stdout + answer.stderr)[:300]}")
@@ -537,6 +556,8 @@ class Course:
                 facts.append(f"GitHub answered commit {comment['commit_id'][:12]} line {comment['line']} side {comment['side']}")
             if want[0] == 1 and (comment["commit_id"] != c1 or comment["line"] is not None or comment["original_line"] != entry["target_line"] + 1 or comment["original_commit_id"] != c1):
                 facts.append(f"GitHub answered commit {comment['commit_id'][:12]} line {comment['line']} original {comment['original_commit_id'][:12]}/{comment['original_line']}")
+            if want[0] == 3 and (comment.get("subject_type") != "file" or comment["commit_id"] != head or comment["original_commit_id"] != head or comment["body"] != body):
+                facts.append(f"GitHub answered subject {comment.get('subject_type')} commit {comment['commit_id'][:12]} original {comment['original_commit_id'][:12]}")
             print(f"  {'MATCH' if not facts else 'DIFFERS'} published {name}: commit_id {comment['commit_id'][:12]} line {comment['line']} "
                   f"original {comment['original_commit_id'][:12]}/{comment['original_line']} side {comment['side']}")
             self.failures.extend(f"published {name}: {fact}" for fact in facts)
@@ -569,7 +590,8 @@ class Course:
                 facts.append(f"C1's diff marks right {hidden['right']}: want C1's {on_c1}, none of the head's {on_head}")
             if not set(on_head) <= set(whole["right"]) or set(on_c1) & set(whole["right"]):
                 facts.append(f"Whole PR marks right {whole['right']}: want the head's {on_head}, none of C1's {on_c1}")
-            based = sorted(posted["line"] for posted in self.posted if "LEFT" in posted["name"])
+            # A file comment (BPR-1706) is a file thread: it marks no line.
+            based = sorted(posted["line"] for posted in self.posted if "LEFT" in posted["name"] and posted["placement"] == 0)
             if not set(based) <= set(whole["left"]):
                 facts.append(f"Whole PR marks left {whole['left']}: want {based}")
         print(f"  {'MATCH' if not facts else 'DIFFERS'} markers: C1's diff {hidden and hidden['right']}, Whole PR right {whole and whole['right']} left {whole and whole['left']}")

@@ -1,3 +1,15 @@
+# [[BPR-1706]] reseal (2026-10-21) over last matching main 7435c6901, linear.
+# Pinned-scope change: a commit-filtered diff's line GitHub resolves nowhere
+# as a line comment is published as RFC-BPR-0022's file comment, on this
+# card's own commit. Inside the manifest only github_application.cpp changed:
+# the editor's filtered placement names a file comment's own commit (the
+# diff's left commit for a left line), and Start a review refuses such a line
+# before asking the mutation host, which refuses it too. The publication path
+# is the existing one: the mutation host re-decides the placement before any
+# effect, and the provider admits the file comment through the core's
+# admit_unresolvable_line with no native attempt. No credential, grant,
+# provider selection or source-inventory change. Full and manifest pins bind
+# these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1712 note below
 # is renaming its [[BPR-PENDING-T]] comment tags to [[BPR-1712]]; no code change.
 # [[BPR-1712]] reseal (2026-10-21) over last matching main 6e8d0834f,
@@ -1881,7 +1893,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"b367347a663cffaa786dae084e51673dd47a7045ba39f832e224244d32b367b3"
+		"5b3411fa16d669f5aecc436c4501b2a950892784cda70c8f355b5e4f204f719b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2101,7 +2113,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "88fe5cb431799d87b15583d4136b79c114678ef1c325dc061207b0e1467b682a"
+        "b8031b08f442922ab2d5d5c67c3764d889fada3362be4b58001f73e7a40c3519"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -365,8 +365,20 @@ listed commits, and filtering by the base branch's commits.
   base to the head, on its side. With C3 hidden, C1's line 10 is the head's
   line 12, which no change near it shows; `commit_id` head, `RIGHT` 12 was
   refused with the same 422, as was `LEFT` 10 of a C2-to-C3 diff. The core
-  refuses both before Publish (`outside_github_diff`); on #118 every
+  refuses both as line comments (`outside_github_diff`); on #118 every
   placement then matched what GitHub did.
+  **And for the file comment ([[BPR-1706]], BPR-Test #119, closed, its
+  threads resolved, both branches deleted):** with the same shape as #116, a
+  `subject_type: file` comment with `commit_id` the head was accepted, current
+  and shown on Files changed (GitHub reports `line` and `original_line` 1 on
+  `RIGHT`), and a permalink in its body to a line of C1 or of the base branch's
+  commit rendered as that line's code. With `commit_id` C1 it was accepted and
+  moved to the head (`original_commit_id` C1). With `commit_id` C1 on a path C1
+  did not change, and with `commit_id` the base, it was refused with 422,
+  `pull_request_review_thread.path` "could not be resolved". So a line GitHub
+  resolves nowhere is published as a file comment at the head whose permalink
+  names the line at the diff's own commit. The measurement spent fourteen REST
+  and GraphQL calls; `X-RateLimit-Remaining` stayed above 4,980.
 - Which revision's `.gitattributes` GitHub's Files changed uses. Measure on
   BPR-Test before M2 claims parity. GitHub may also collapse files by
   Linguist's built-in rules, which this application does not apply (Q4), so
@@ -412,14 +424,15 @@ the closeout card [[BPR-1708]] holds the per-criterion evidence.
 - **[[BPR-1688]]**: Find in files searches the filtered set and says so; the
   window keeps its commit and file filters with its review (restoration store
   version 7) and Resume brings them back.
+- **[[BPR-1706]]**: the rest of "Comments and line anchoring". A left-side
+  line the merge base does not have unchanged, and a line GitHub resolves
+  nowhere on either side, are published, after the editor says why, as
+  RFC-BPR-0022's file comment at the head, its permalink naming the line at
+  the diff's own commit on its side, as measured on #119. RFC-BPR-0022's
+  policy gains a third first-attempt authorization for it, with no native
+  attempt; its fallback child and reconciliation are unchanged.
 
-One part of "Comments and line anchoring" is not delivered: a left-side line
-the merge base does not have unchanged, and a right-side line GitHub resolves
-nowhere, are refused before Publish with the reason, not published as
-RFC-BPR-0022's file comment with a permalink. That policy reaches the file
-comment only after a native attempt is definitively unsupported, and its
-permalink names the head. [[BPR-1706]] tracks it. No acceptance
-criterion names it. AC07's live course publishes the composition's decided
+AC07's live course publishes the composition's decided
 placements through `gh`, because a tests-enabled build holds no publication
 grant; the same placements reconcile through the real provider session in the
 fixture course.

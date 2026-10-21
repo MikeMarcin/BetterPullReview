@@ -37,6 +37,14 @@ namespace bpr::core {
 		{
 			return { .Placement = aPlacement, .Refusal = filtered_comment_refusal::none, .Commit = aCommit, .Side = aSide, .Line = aLine };
 		}
+
+		/// [[BPR-1706]]. GitHub resolves the line nowhere as a line comment:
+		/// a file comment whose permalink names it at the diff's own commit.
+		[[nodiscard]] auto file_comment(const filtered_comment_refusal aReason, const git_commit_oid& aCommit, const diff_side aSide,
+										const std::uint32_t aLine) noexcept -> filtered_comment_target
+		{
+			return { .Placement = filtered_comment_placement::file_comment, .Refusal = aReason, .Commit = aCommit, .Side = aSide, .Line = aLine };
+		}
 	} // namespace
 
 	auto valid(const line_correspondence& aLines) noexcept -> bool
@@ -164,14 +172,14 @@ namespace bpr::core {
 				}
 				return line_in_change_context(*aSource.Lines->BaseToHead, diff_side::right, *head)
 					? placed(filtered_comment_placement::head, aSource.Head, diff_side::right, *head)
-					: refused(filtered_comment_refusal::outside_github_diff);
+					: file_comment(filtered_comment_refusal::outside_github_diff, diff.Right, diff_side::right, aLine);
 			}
 			if (!aSource.Lines->BaseToRight) {
 				return refused(filtered_comment_refusal::lines_unavailable);
 			}
 			return line_in_change_context(*aSource.Lines->BaseToRight, diff_side::right, aLine)
 				? placed(filtered_comment_placement::earlier_commit, diff.Right, diff_side::right, aLine)
-				: refused(filtered_comment_refusal::not_on_commit);
+				: file_comment(filtered_comment_refusal::not_on_commit, diff.Right, diff_side::right, aLine);
 		}
 		if (aSide != diff_side::left) {
 			return refused(filtered_comment_refusal::outside_pull_request);
@@ -191,14 +199,14 @@ namespace bpr::core {
 		}
 		const auto base = corresponding_right_line(*aSource.Lines->LeftToBase, aLine);
 		if (!base) {
-			return refused(filtered_comment_refusal::base_line_changed);
+			return file_comment(filtered_comment_refusal::base_line_changed, diff.Left, diff_side::left, aLine);
 		}
 		if (!aSource.Lines->BaseToHead) {
 			return refused(filtered_comment_refusal::lines_unavailable);
 		}
 		return line_in_change_context(*aSource.Lines->BaseToHead, diff_side::left, *base)
 			? placed(filtered_comment_placement::head, aSource.Head, diff_side::left, *base)
-			: refused(filtered_comment_refusal::outside_github_diff);
+			: file_comment(filtered_comment_refusal::outside_github_diff, diff.Left, diff_side::left, aLine);
 	}
 
 	auto filtered_thread_line(const filtered_thread_anchor& aAnchor, const filtered_diff_endpoints& aDiff, const git_commit_oid& aMergeBase) noexcept

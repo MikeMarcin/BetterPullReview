@@ -1454,6 +1454,128 @@ namespace {
 			expect(reopened->read_revision_body({ ref, 0 })->Bytes == note.Revision.Body, "publication preserves private source bytes");
 		}
 	}
+
+	/// [[BPR-1706]]. On a commit-filtered diff the permalink names the line at
+	/// the filter's commit on its side, not at the comparison's right anchor
+	/// (the head); only a filtered diff's left side has one.
+	void test_a_filtered_diff_permalink_names_its_own_commit()
+	{
+		const auto c1           = commit(0x25U);
+		auto       right        = permalink_source();
+		right.Comparison.Filter = core::filtered_diff_endpoints{ .Left = commit(0x10U), .Right = c1 };
+		const auto onC1         = compile_review_permalink_body(right, permalink_anchor(right), "On C1.");
+		expect(onC1 && *onC1 == "https://github.com/MikeMarcin/BPR-Test/blob/" + std::string{ core::canonical_hex(c1).view() } + "/dir/review.cpp#L13\n\nOn C1.",
+			   "a filtered right side's permalink names the diff's right commit, not the head");
+		const auto back = parse_review_permalink_body(right, *onC1);
+		expect(back && back->Anchor == permalink_anchor(right) && back->Prose == "On C1.", "and rehydrates on that diff");
+		const auto plain = permalink_source();
+		expect(!parse_review_permalink_body(plain, *onC1), "a C1 permalink is not a line of Whole PR's head");
+		expect(!parse_review_permalink_body(right, *compile_review_permalink_body(plain, permalink_anchor(plain), "At head.")),
+			   "nor is a head permalink a line of C1's diff");
+
+		auto left              = permalink_source();
+		left.Comparison.Filter = core::filtered_diff_endpoints{ .Left = c1, .Right = commit(0x11U) };
+		left.Endpoint          = application::make_workbench_selected_diff_endpoint_for_testing(left.Endpoint->request(), core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+		auto leftAnchor        = permalink_anchor(left);
+		leftAnchor.Side        = core::diff_side::left;
+		const auto onLeft      = compile_review_permalink_body(left, leftAnchor, "Base side.");
+		expect(onLeft && onLeft->starts_with("https://github.com/MikeMarcin/BPR-Test/blob/" + std::string{ core::canonical_hex(c1).view() } + "/dir/review.cpp#L13\n\n"),
+			   "a filtered left side's permalink names the diff's left commit");
+		const auto leftBack = parse_review_permalink_body(left, *onLeft);
+		expect(leftBack && leftBack->Anchor == leftAnchor, "and parses back to the left line");
+		expect(!compile_review_permalink_body(left, permalink_anchor(left), "Wrong side."), "an anchor on the other side than its endpoint is refused");
+		auto unfiltered              = left;
+		unfiltered.Comparison.Filter = std::nullopt;
+		expect(!compile_review_permalink_body(unfiltered, { .Comparison = core::comparison_digest(unfiltered.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base."),
+			   "an unfiltered left side has no permalink");
+		auto otherBlob                = left;
+		otherBlob.Comparison.LeftBlob = oid<core::git_blob_oid>(41U);
+		expect(!compile_review_permalink_body(otherBlob, { .Comparison = core::comparison_digest(otherBlob.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base."),
+			   "the left endpoint's blob must be the key's left blob");
+	}
+
+	/// [[BPR-1706]]. AC1 to AC3 at the provider: a commit-filtered diff's line
+	/// the core placed where GitHub resolves no line comment is admitted
+	/// durably and published as one file comment at the head (BPR-Test #119),
+	/// its permalink naming the line at the diff's commit on its side. No
+	/// native attempt is made; it reconciles once and replays as a duplicate.
+	void test_an_unresolvable_filtered_line_is_a_file_comment_at_once()
+	{
+		const auto c1   = commit(0x25U);
+		const auto head = std::string(40U, '1');
+		for (const auto side : { core::diff_side::right, core::diff_side::left }) {
+			auto source               = permalink_source();
+			source.Comparison.Filter  = side == core::diff_side::right ? core::filtered_diff_endpoints{ .Left = commit(0x10U), .Right = c1 }
+																	   : core::filtered_diff_endpoints{ .Left = c1, .Right = commit(0x11U) };
+			auto request              = publication_request(source);
+			request.Source->Placement = core::review_placement::unresolvable_line;
+			if (side == core::diff_side::left) {
+				request.Source->LeftEndpoint         = application::make_workbench_selected_diff_endpoint_for_testing(source.Endpoint->request(), core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+				request.Proposal.Anchor.Side         = core::diff_side::left;
+				request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
+				request.IdempotencyKey               = application::idempotency_key_for(request.Proposal, request.Target);
+			}
+			auto        scratch   = tests::sqlite_contract::scratch_root{ side == core::diff_side::right ? "unresolvable-right" : "unresolvable-left" };
+			auto        journal   = open_journal(scratch.path());
+			const auto* observed  = journal.get();
+			auto        transport = publication_transport{ };
+			{
+				auto       session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal), fixture_contract(application::github_server_contract::github_com_2022_11_28) };
+				const auto first   = session.submit_and_reconcile(request);
+				expect(first.Result && first.Result->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 1U,
+					   "an unresolvable filtered line is published as one file comment");
+				const auto& sent = transport.Posts.front();
+				expect(std::get<application::review_mutation_request>(sent.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink,
+					   "no native attempt is made first (AC3)");
+				expect(sent.Body.find("\"subject_type\":\"file\"") != std::string::npos && sent.Body.find("\"commit_id\":\"" + head + "\"") != std::string::npos
+						   && sent.Body.find("\"line\"") == std::string::npos && sent.Body.find("\"side\"") == std::string::npos
+						   && sent.Body.find("blob/" + std::string{ core::canonical_hex(c1).view() } + "/dir/review.cpp#L13\\n\\nLiteral review prose.") != std::string::npos,
+					   "it is written at the head with a permalink naming the line at the diff's commit (AC1, AC2)");
+				expect(std::ranges::none_of(transport.Operations, [](const review_mutation_operation aOperation) { return aOperation == review_mutation_operation::observe_merge_base; }),
+					   "a left line's file comment reads no merge base: it names no LEFT line");
+				expect(observed->Saved.front().State == journal_state::unresolvable_line_admitted && !observed->Saved.front().Native && !observed->Saved.front().Fallback
+						   && observed->Saved.front().Authorization.Source == application::review_fallback_authorization_source::unresolvable_line,
+					   "the admission is durable before the file comment exists");
+				expect(observed->Saved.back().State == journal_state::succeeded_fallback && !observed->Saved.back().Native && observed->Saved.back().Fallback,
+					   "the file comment succeeds with no native child");
+				expect(first.Reconciliation && first.Reconciliation->size() == 1U, "it reconciles once");
+				const auto again = session.submit(request);
+				expect(again && again->Duplicate && transport.Posts.size() == 1U, "the same gesture replays its receipt without a POST");
+			}
+			auto       reopened = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(application::github_server_contract::github_com_2022_11_28) };
+			const auto resumed  = reopened.submit(request);
+			expect(resumed && resumed->Duplicate && transport.Posts.size() == 1U, "after a restart the journal returns the receipt without a POST");
+		}
+
+		// Refused before any write.
+		auto source              = permalink_source();
+		source.Comparison.Filter = core::filtered_diff_endpoints{ .Left = commit(0x10U), .Right = c1 };
+		const auto base          = [&source] {
+			auto request              = publication_request(source);
+			request.Source->Placement = core::review_placement::unresolvable_line;
+			return request;
+		};
+		auto suggestion                       = base();
+		suggestion.Proposal.Body              = "```suggestion\nx\n```";
+		suggestion.IdempotencyKey             = application::idempotency_key_for(suggestion.Proposal, suggestion.Target);
+		auto unfiltered                       = base();
+		unfiltered.Source->Comparison.Filter  = std::nullopt;
+		auto moved                            = base();
+		moved.LiveBinding->Anchor.RemoteLine  = 20U;
+		auto leftless                         = base();
+		leftless.Proposal.Anchor.Side         = core::diff_side::left;
+		leftless.LiveBinding->Anchor.Semantic = leftless.Proposal.Anchor;
+		leftless.IdempotencyKey               = application::idempotency_key_for(leftless.Proposal, leftless.Target);
+		auto range                            = base();
+		range.Proposal.StartLine              = 10U;
+		range.IdempotencyKey                  = application::idempotency_key_for(range.Proposal, range.Target);
+		for (const auto& refused : { suggestion, unfiltered, moved, leftless, range }) {
+			auto scratch   = tests::sqlite_contract::scratch_root{ "unresolvable-refused" };
+			auto transport = publication_transport{ };
+			auto session   = review_mutation_session{ transport, session_configuration(refused), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(application::github_server_contract::github_com_2022_11_28) };
+			expect(!session.submit(refused) && transport.Posts.empty(), "a suggestion, an unfiltered or moved source, a left line without its document and a range write nothing");
+		}
+	}
 }
 
 auto main() -> int
@@ -1473,6 +1595,8 @@ auto main() -> int
 	test_canonical_permalink_round_trip_and_bounds();
 	test_wire_representations_and_classifier();
 	test_permalink_rejects_foreign_noncanonical_and_unavailable_sources();
+	test_a_filtered_diff_permalink_names_its_own_commit();
+	test_an_unresolvable_filtered_line_is_a_file_comment_at_once();
 	std::cout << "review-comment-permalink-tests:pass\n";
 	return EXIT_SUCCESS;
 }

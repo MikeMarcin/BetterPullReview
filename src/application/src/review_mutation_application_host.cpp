@@ -548,8 +548,19 @@ namespace bpr::application {
 				.Path     = std::move(*path),
 				.Commit   = comparison.Right.Commit,
 			};
+			// [[BPR-1706]]. A line GitHub resolves nowhere is published as a
+			// file comment at the head, at the head's path; its permalink names
+			// the line at the diff's own commit on its side, from that side's
+			// endpoint. Nothing about it moves the anchor.
+			const auto fileComment = placement && placement->Placement == core::filtered_comment_placement::file_comment;
+			if (fileComment
+				&& (placement->Side != selected.PreferredLine.Side || placement->Line != selected.PreferredLine.Line
+					|| placement->Commit != (placement->Side == core::diff_side::left ? key.Filter->Left : key.Filter->Right)
+					|| (newOnBase && !publication.LeftEndpoint.has_value()))) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
 			// A placement that moves nothing is published exactly as today.
-			const auto remapped = placement && (placement->Commit != comparison.Right.Commit || placement->Line != selected.PreferredLine.Line);
+			const auto remapped = placement && !fileComment && (placement->Commit != comparison.Right.Commit || placement->Line != selected.PreferredLine.Line);
 			if (remapped) {
 				anchor.Commit     = placement->Commit;
 				anchor.RemoteLine = placement->Line;
@@ -573,9 +584,15 @@ namespace bpr::application {
 				.Scope  = scope,
 				// The line count is the anchor's side's: a base line is counted
 				// in the base document.
-				// A moved line has no file-comment fallback: its permalink would
-				// name the head with the filtered diff's line.
-				.Source = review_mutation_source_binding{ .Endpoint = publication.RightEndpoint, .Comparison = key, .LineCount = newOnBase ? *lines : *source->Material.RightLines, .Placement = remapped ? core::review_placement::legacy_line : source->Placement },
+				// A moved line has no file-comment fallback: GitHub took it as a
+				// line comment where it was placed.
+				.Source = review_mutation_source_binding{ .Endpoint     = publication.RightEndpoint,
+														  .Comparison   = key,
+														  .LineCount    = newOnBase ? *lines : *source->Material.RightLines,
+														  .Placement    = fileComment ? core::review_placement::unresolvable_line
+															  : remapped              ? core::review_placement::legacy_line
+																					  : source->Placement,
+														  .LeftEndpoint = fileComment && newOnBase ? publication.LeftEndpoint : std::nullopt },
 			};
 		}
 
@@ -1063,6 +1080,11 @@ namespace bpr::application {
 		auto validated = Implementation->validate(aRequest);
 		if (!validated) {
 			return std::unexpected(validated.error());
+		}
+		// [[BPR-1706]]. A review's comments are line comments; a filtered
+		// diff's line GitHub resolves nowhere is a file comment published alone.
+		if (validated->Source && validated->Source->Placement == core::review_placement::unresolvable_line) {
+			return std::unexpected(review_mutation_failure::unsupported);
 		}
 		return std::move(validated->Anchor);
 	}
