@@ -343,10 +343,28 @@ owner's choice of 2026-10-17 after two rounds of designs): Seen, Read and
 last cell, on one accent rail parted from the Changes rail by a gap. The step
 the file has reached is solid in the accent, or in the acceptance green once
 accepted, when Accept reads **Accepted**; steps still to come are in full ink,
-and the step still to take shows the acceptance green's tick. A step only
-moves the file forward: Seen marks an unread file seen and Read marks it read;
-a step already reached does nothing, so the track never un-reads a file (Mark
-unread stays in the menu). An excluded file rests the track, its chevron cell
+and the step still to take shows the acceptance green's tick. Every step is a
+toggle, as Accept always was ([[BPR-PENDING-P]], the owner, 2026-10-21: "In
+the toolbar I can uncheck accepted by clicking the accepted button. I should
+be able to do the same for read and seen"; this replaces BPR-1578's rule that
+a step already reached does nothing). Seen and Read are checked buttons, and
+a screen reader hears them as checked. Seen marks an unread file seen. On a
+seen file it marks the file unseen, which clears Read too, because Read
+implies Seen. Read marks a file read, which marks it seen as well, and on a read file takes
+Read off and leaves the file seen. Neither touches acceptance: an accepted
+file stays accepted and done when Seen or Read comes off, as revoking
+acceptance leaves how far the file was read. Each step's tooltip and
+accessible description say what a click does ("This file is read. Click to
+mark it unread; it stays seen."). A step waits for the saved receipt before
+it changes, as Accept does. The menu offers the same two inverses by name:
+its Seen item reads **Mark unseen** on a seen file and its Read item **Mark
+unread** on a read file. Seen still comes back by itself: a file marked
+unseen stays unseen while it is shown, and the next time it is opened
+(another file and back, a tab, or a return from Overview or Discuss) it is
+marked seen again, as opening an unread file always is. With "when fully
+seen", a window marks a file read at the end once for its material, so Read
+taken off is not put back. There is no key for unchecking, as Option-A never revokes.
+An excluded file rests the track, its chevron cell
 carrying the excluded mark. The track's last width yield shows Seen and Read
 as marks alone; their names stay in their tooltips and accessible names.
 Accept is the named one-click file action, and the menu button's tooltip names

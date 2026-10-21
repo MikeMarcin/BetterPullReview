@@ -683,11 +683,11 @@ try {
 		action(*windowB, "toggleSelectedFileReadAction")->trigger();
 		const auto release = app::detail::github_application_fixture_access::hold_review_ledger_effects(*owner);
 		wait_for([&] {
-			return windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread
+			return windowB->review_editor()->shown_receipt()->Read == core::file_read_state::seen
 				&& app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC).Ledger.ReceiptLoads > beforeFailedReload.Ledger.ReceiptLoads;
 		},
 				 "writer commits and the sibling's reload is queued behind the held ledger lane");
-		expect(windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread, "writer commits before the sibling read fault");
+		expect(windowB->review_editor()->shown_receipt()->Read == core::file_read_state::seen, "writer commits before the sibling read fault");
 		expect(sqlite3_exec(ledgerRaw, "ALTER TABLE file_receipt RENAME TO fixture_hidden_receipt", nullptr, nullptr, nullptr) == SQLITE_OK, "fixture hides only its own receipt table");
 		release();
 		wait_for([&] { return app::detail::github_application_fixture_access::scaling_evidence(*owner, receiptContextC).Ledger.StoreFailures > beforeFailedReload.Ledger.StoreFailures; }, "queued sibling refresh observes the actual SQLite read failure");
@@ -901,7 +901,7 @@ try {
 	capture(*windowB, QStringLiteral("defect-writer.png"));
 	capture(*windowC, QStringLiteral("defect-sibling-different-file.png"));
 	select_file(*owner, *windowC);
-	wait_for([&] { return windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::unread; }, "returning to the first file loads its accepted shared receipt");
+	wait_for([&] { return windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::seen; }, "returning to the first file loads its accepted shared receipt");
 	action(*windowB, "toggleSelectedFileReadAction")->trigger();
 	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()
 					   && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::read
@@ -913,7 +913,7 @@ try {
 	submit(*windowC, 17);
 	wait_for([&] { return windowC->session_panel()->status() == core::github_status::pull_request_ready; }, "replacement review opens with a sibling receipt notification pending");
 	select_file(*owner, *windowC);
-	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::unread; }, "surviving PR18 accepts its receipt toggle");
+	wait_for([&] { return windowB->review_editor()->shown_receipt() && windowB->review_editor()->shown_receipt()->Read == core::file_read_state::seen; }, "surviving PR18 accepts its receipt toggle");
 	expect(windowC->comparison_surface()->current_result()->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest
 			   && windowC->review_editor()->shown_receipt() && windowC->review_editor()->shown_receipt()->Read == core::file_read_state::read
 			   && windowC->overview_page()->projection() && windowC->overview_page()->projection()->Progress.PrivateNotes == 2U,

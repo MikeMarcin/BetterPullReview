@@ -61,14 +61,19 @@ namespace bpr::application {
 			};
 		};
 
+		// [[BPR-PENDING-P]]. Seen and Read carry their inverse once reached, as
+		// Accept and Exclude do: Seen's is Mark unseen, which clears Read
+		// with it; Read's is Mark unread, which leaves the file seen.
 		return file_receipt_action_projection{
 			.Receipt = aReceipt,
 			.Actions = {
 				command(file_receipt_action_id::seen,
-						core::file_receipt_command_kind::mark_seen),
+						aReceipt.Read == core::file_read_state::unread
+							? core::file_receipt_command_kind::mark_seen
+							: core::file_receipt_command_kind::mark_unread),
 				command(file_receipt_action_id::read,
 						aReceipt.Read == core::file_read_state::read
-							? core::file_receipt_command_kind::mark_unread
+							? core::file_receipt_command_kind::unmark_read
 							: core::file_receipt_command_kind::mark_read),
 				command(file_receipt_action_id::accepted,
 						aReceipt.Accepted

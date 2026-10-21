@@ -319,14 +319,21 @@ try {
 			// existing one-receipt Seen gesture; it stays unread until reopened.
 			expect(window->review_editor()->shown_receipt()
 					   && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen
-					   && !window->seen_action()->isEnabled() && window->read_action()->isEnabled(),
+					   && window->seen_action()->isChecked() && window->read_action()->isEnabled(),
 				   "opening the selected material automatically made Seen durable");
 			window->read_action()->trigger();
 			wait_for([&] { return window->review_editor()->shown_receipt()
 							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::read && quiet(); },
 					 "Read exposes the existing Mark unread command");
 			expect(window->read_action()->text().contains(QStringLiteral("unread")) && window->read_action()->isEnabled(), "Mark unread is the projected command");
+			// [[BPR-PENDING-P]]. Mark unread takes Read off and leaves the file
+			// seen; Mark unseen, Seen's inverse, makes it unread.
 			window->read_action()->trigger();
+			wait_for([&] { return window->review_editor()->shown_receipt()
+							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen && quiet(); },
+					 "Mark unread leaves the file seen");
+			expect(window->seen_action()->text() == QStringLiteral("Mark u&nseen") && window->seen_action()->isEnabled(), "Mark unseen is the projected command");
+			window->seen_action()->trigger();
 			wait_for([&] { return window->review_editor()->shown_receipt()
 							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::unread && quiet(); },
 					 "explicit Unread remains until another open");
@@ -444,7 +451,7 @@ try {
 				   "the held gesture is decided and queued, and nothing is written or published before the store answers");
 			releaseLedger();
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.Completions > heldBefore.Ledger.Completions
-							   && window->review_editor()->shown_receipt() && window->review_editor()->shown_receipt()->Read == core::file_read_state::unread
+							   && window->review_editor()->shown_receipt() && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen
 							   && quiet(); },
 					 "the held gesture is durable, then published, once the store answers");
 			settle([&] { return access::scaling_evidence(*owner); });

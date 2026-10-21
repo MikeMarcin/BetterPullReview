@@ -100,6 +100,16 @@ it counts. The receipts it changes are committed in one transaction through
 `store_conversation_receipts`: all or none. It is a one-shot mark of the posts
 observed; no author identity is stored and nothing is muted.
 
+Amended 2026-10-21 by the owner's request on [[BPR-PENDING-P]], verbatim: "In
+the toolbar I can uncheck accepted by clicking the accepted button. I should
+be able to do the same for read and seen." Seen and Read are toggles, as
+acceptance is. Read implies Seen, so taking Read off (`unmark_read`) leaves a
+read file seen, and taking Seen off (`mark_unread`) leaves it unread. Neither
+changes acceptance or exclusion, just as revoking acceptance leaves the read
+progression where it was. An accepted file stays accepted and done. Opening a
+file still records Seen: a file marked unseen stays unseen while it is shown
+and is seen again the next time it is opened.
+
 Where review state targets a diff location, it uses RFC-BPR-0004's stable file,
 epoch, source-line/boundary, change-group, or move-relation identity. The ledger
 never persists Qt indexes, visual row numbers, ribbon paths, measured

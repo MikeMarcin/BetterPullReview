@@ -11,7 +11,8 @@ namespace bpr::core {
 		///
 		/// \details `seen` after `read` is not a regression to report; it is a
 		/// weaker statement about a file already known to be read, so it is
-		/// absorbed. Only an explicit `mark_unread` moves the progression back.
+		/// absorbed. Only an explicit `mark_unread` or `unmark_read` moves the
+		/// progression back.
 		[[nodiscard]] constexpr auto advanced(
 			const file_read_state aCurrent,
 			const file_read_state aOffered) noexcept -> file_read_state
@@ -128,6 +129,8 @@ namespace bpr::core {
 			return "mark_read";
 		case file_receipt_command_kind::mark_unread:
 			return "mark_unread";
+		case file_receipt_command_kind::unmark_read:
+			return "unmark_read";
 		case file_receipt_command_kind::accept:
 			return "accept";
 		case file_receipt_command_kind::revoke_acceptance:
@@ -189,6 +192,13 @@ namespace bpr::core {
 			break;
 		case file_receipt_command_kind::mark_unread:
 			next.Read = file_read_state::unread;
+			break;
+		case file_receipt_command_kind::unmark_read:
+			// Only Read comes off: the file was still seen. On a file not
+			// read it is legal and changes nothing.
+			if (next.Read == file_read_state::read) {
+				next.Read = file_read_state::seen;
+			}
 			break;
 		case file_receipt_command_kind::accept:
 			if (aReceipt.Excluded) {

@@ -840,6 +840,71 @@ namespace {
 		expect(step(kind::accept) && step(kind::mark_unread), "an accepted file stays done when marked unread");
 		expect(!step(kind::revoke_acceptance), "and is not done once acceptance is revoked");
 	}
+
+	/// [[BPR-PENDING-P]]. The owner, 2026-10-21: "In the toolbar I can uncheck
+	/// accepted by clicking the accepted button. I should be able to do the
+	/// same for read and seen." Read implies Seen, so taking Read off leaves
+	/// the file seen (`unmark_read`), and taking Seen off leaves it neither
+	/// seen nor read (`mark_unread`). Acceptance is its own fact, as revoking
+	/// it leaves the read progression where it was, so neither touches it.
+	void test_read_and_seen_can_each_be_taken_off()
+	{
+		using mark       = core::file_progress_mark;
+		const auto start = receipt_for(5U, 6U);
+		const auto apply = [](const core::file_receipt& aReceipt, const kind aKind) {
+			return core::apply(aReceipt, command_for(aReceipt, aKind));
+		};
+
+		auto read      = start;
+		read.Read      = core::file_read_state::read;
+		const auto off = apply(read, kind::unmark_read);
+		expect(off.Rejection == core::file_receipt_rejection::none && off.Changed && off.Receipt.Read == core::file_read_state::seen,
+			   "taking Read off a read file leaves it seen");
+		expect(core::progress_mark(off.Receipt) == mark::seen && !core::progress_done(off.Receipt),
+			   "a file taken back to seen shows seen and is no longer done");
+		expect(core::name(kind::unmark_read) == "unmark_read", "the new command names itself");
+
+		auto seen = start;
+		seen.Read = core::file_read_state::seen;
+		for (const auto& unchanged : { seen, start }) {
+			const auto outcome = apply(unchanged, kind::unmark_read);
+			expect(outcome.Rejection == core::file_receipt_rejection::none && !outcome.Changed && outcome.Receipt == unchanged,
+				   "taking Read off a file that is not read is legal and changes nothing");
+		}
+
+		const auto unseen = apply(read, kind::mark_unread);
+		expect(unseen.Changed && unseen.Receipt.Read == core::file_read_state::unread,
+			   "taking Seen off a read file clears Read with it, because Read implies Seen");
+		const auto unseenFromSeen = apply(seen, kind::mark_unread);
+		expect(unseenFromSeen.Changed && unseenFromSeen.Receipt.Read == core::file_read_state::unread && core::progress_mark(unseenFromSeen.Receipt) == mark::unread,
+			   "taking Seen off a seen file makes it unread");
+
+		auto accepted     = read;
+		accepted.Accepted = true;
+		const auto keeps  = apply(accepted, kind::unmark_read);
+		expect(keeps.Changed && keeps.Receipt.Accepted && keeps.Receipt.Read == core::file_read_state::seen
+				   && core::progress_mark(keeps.Receipt) == mark::accepted && core::progress_done(keeps.Receipt),
+			   "taking Read off an accepted file keeps it accepted, shown accepted and done");
+		const auto keepsUnseen = apply(keeps.Receipt, kind::mark_unread);
+		expect(keepsUnseen.Changed && keepsUnseen.Receipt.Accepted && keepsUnseen.Receipt.Read == core::file_read_state::unread
+				   && core::progress_mark(keepsUnseen.Receipt) == mark::accepted && core::progress_done(keepsUnseen.Receipt),
+			   "taking Seen off an accepted file keeps it accepted and done");
+		const auto revoked = apply(keepsUnseen.Receipt, kind::revoke_acceptance);
+		expect(revoked.Receipt.Read == core::file_read_state::unread && core::progress_mark(revoked.Receipt) == mark::unread,
+			   "revoking acceptance afterwards shows the read progression the reader left");
+
+		auto excluded     = read;
+		excluded.Excluded = true;
+		const auto stays  = apply(excluded, kind::unmark_read);
+		expect(stays.Changed && stays.Receipt.Excluded && stays.Receipt.Read == core::file_read_state::seen,
+			   "taking Read off an excluded file keeps it excluded");
+
+		const auto again = apply(off.Receipt, kind::mark_read);
+		expect(again.Changed && again.Receipt.Read == core::file_read_state::read, "a file taken back to seen can be read again");
+		const auto mismatched = core::apply(read, core::file_receipt_command{ .File = read.File, .Material = material(99U), .Kind = kind::unmark_read });
+		expect(mismatched.Rejection == core::file_receipt_rejection::material_mismatch && !mismatched.Changed && mismatched.Receipt == read,
+			   "taking Read off is refused against replaced material");
+	}
 } // namespace
 
 auto main() -> int
@@ -866,6 +931,7 @@ auto main() -> int
 	test_every_enumerator_names_itself();
 	test_one_progress_mark_sums_up_a_receipt();
 	test_an_accepted_file_is_done_without_being_read();
+	test_read_and_seen_can_each_be_taken_off();
 
 	std::cout << "review-ledger-core-tests:pass\n";
 	return EXIT_SUCCESS;

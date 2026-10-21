@@ -80,10 +80,17 @@ namespace bpr::core {
 	};
 
 	/// \brief Names one command a reader can issue against a file receipt.
+	///
+	/// \details [[BPR-PENDING-P]]. Seen and Read are both toggles. Because a
+	/// file cannot be read without having been seen, taking Seen off
+	/// (`mark_unread`) clears the whole progression, and taking Read off
+	/// (`unmark_read`) leaves a read file seen. Neither touches acceptance or
+	/// exclusion, as revoking acceptance does not touch the progression.
 	enum class file_receipt_command_kind : std::uint8_t {
 		mark_seen,
 		mark_read,
 		mark_unread,
+		unmark_read,
 		accept,
 		revoke_acceptance,
 		exclude,

@@ -7877,8 +7877,10 @@ namespace {
 		advanced.Accepted = true;
 		window.publish(application::project_file_receipt_actions(advanced));
 		process_events();
+		// [[BPR-PENDING-P]]. Seen reached offers its inverse, as Accept does.
 		expect(window.seen_action()->isChecked()
-				   && !window.seen_action()->isEnabled()
+				   && window.seen_action()->isEnabled()
+				   && window.seen_action()->text() == QStringLiteral("Mark u&nseen")
 				   && window.accept_action()->text().contains(
 					   QStringLiteral("Revoke"))
 				   && !window.exclude_action()->isEnabled()
@@ -8456,10 +8458,11 @@ namespace {
 	/// Progress track, refined"): Seen, Read and Accept as steps of one
 	/// control with the menu's chevron as its last cell. The reached step is
 	/// solid (the accent, or the acceptance green once accepted), steps still
-	/// to come are available, and a click only moves the file forward: Seen
-	/// marks an unread file seen, Read marks it read, a step already reached
-	/// does nothing (Mark unread stays in the menu), and Accept toggles to
-	/// Revoke as before. Names, tooltips, keyboard and palette follow.
+	/// to come are available. [[BPR-PENDING-P]]: every step toggles, as
+	/// Accept always has: Seen marks an unread file seen and a seen one
+	/// unseen, Read marks a file read and a read one unread but still seen,
+	/// and Accept toggles to Revoke. Checked state, names, tooltips,
+	/// keyboard and palette follow.
 	void test_progress_track_shows_and_takes_each_step()
 	{
 		qt::workbench_window window;
@@ -8514,52 +8517,93 @@ namespace {
 			   "Seen on an unread file marks it seen");
 
 		// Seen: the Seen step is solid in the accent; Read moves it on.
+		const auto checked = [](QToolButton* const aStep) {
+			auto* const accessible = QAccessible::queryAccessibleInterface(aStep);
+			return aStep->isCheckable() && aStep->isChecked() && accessible != nullptr && accessible->state().checkable && accessible->state().checked;
+		};
+		expect(!checked(seen) && !checked(read), "an unread file's steps are unchecked, to a screen reader too");
 		receipt.Read = core::file_read_state::seen;
 		publish(receipt);
 		expect(track->current_step() == std::optional{ qt::progress_track::seen_step } && interior(qt::progress_track::seen_step) == highlight
-				   && interior(qt::progress_track::read_step) == button && !seen->isEnabled() && read->isEnabled()
-				   && seen->toolTip() == QStringLiteral("This file is seen."),
-			   "a seen file's Seen step is solid in the accent, and Read is still available");
+				   && interior(qt::progress_track::read_step) == button && seen->isEnabled() && read->isEnabled() && checked(seen) && !checked(read)
+				   && seen->toolTip() == QStringLiteral("This file is seen. Click to mark it unseen."),
+			   "a seen file's Seen step is solid, checked and offers Mark unseen, and Read is still available");
 		read->setFocus(Qt::TabFocusReason);
 		process_events();
-		for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
-			QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), type, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
-			process_events();
-		}
+		const auto space = [&window] {
+			for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+				QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), type, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+				process_events();
+			}
+		};
+		space();
 		expect(dispatched.size() == 2U && dispatched.back().Kind == core::file_receipt_command_kind::mark_read,
 			   "Space on the focused Read step marks the file read");
-		read->clearFocus();
+		expect(!read->isChecked(), "the Read step waits for the saved receipt before it shows checked");
 
-		// Read: a step already reached does nothing, even forced enabled.
+		// [[BPR-PENDING-P]]. Read: a step already reached unchecks it, as the
+		// Accepted step does. The owner, 2026-10-21: "In the toolbar I can
+		// uncheck accepted by clicking the accepted button. I should be able
+		// to do the same for read and seen."
 		receipt.Read = core::file_read_state::read;
 		publish(receipt);
 		expect(track->current_step() == std::optional{ qt::progress_track::read_step } && interior(qt::progress_track::read_step) == highlight
-				   && !seen->isEnabled() && !read->isEnabled() && read->toolTip().contains(QStringLiteral("Mark unread is in Private progress")),
-			   "a read file's Read step is solid and says where Mark unread is");
-		for (auto* const passed : { seen, read }) {
-			passed->setEnabled(true);
-			passed->click();
-		}
-		expect(dispatched.size() == 2U, "clicking a step already reached dispatches nothing, so the track never un-reads a file");
-		// Negative control: the menu's own Read item, which the track does not
-		// use for a reached step, would have marked the file unread.
+				   && seen->isEnabled() && read->isEnabled() && checked(seen) && checked(read)
+				   && read->toolTip() == QStringLiteral("This file is read. Click to mark it unread; it stays seen.")
+				   && seen->toolTip() == QStringLiteral("This file is seen. Click to mark it unseen, which clears Read too.")
+				   && read->accessibleName() == QStringLiteral("Read") && read->accessibleDescription() == read->toolTip(),
+			   "a read file's Read step is solid and checked, and each step says what unchecking it does");
+		space();
+		expect(dispatched.size() == 3U && dispatched.back().Kind == core::file_receipt_command_kind::unmark_read && dispatched.back().Material == receipt.Material,
+			   "Space on the checked Read step takes Read off the exact material");
+		expect(checked(read), "the Read step stays checked until the saved receipt arrives");
+		read->clearFocus();
+		seen->click();
+		expect(dispatched.size() == 4U && dispatched.back().Kind == core::file_receipt_command_kind::mark_unread,
+			   "clicking the checked Seen step marks the file unseen");
+		expect(window.read_action()->text() == QStringLiteral("Mark &unread") && window.seen_action()->text() == QStringLiteral("Mark u&nseen")
+				   && window.read_action()->isChecked() && window.seen_action()->isChecked(),
+			   "the menu's Read and Seen items offer the same two inverses by name");
 		window.read_action()->trigger();
-		expect(dispatched.size() == 3U && dispatched.back().Kind == core::file_receipt_command_kind::mark_unread,
-			   "negative control: the menu's Read item on a read file marks it unread, which the step must not");
+		expect(dispatched.size() == 5U && dispatched.back().Kind == core::file_receipt_command_kind::unmark_read, "the menu's Mark unread is the step's command");
+		window.seen_action()->trigger();
+		expect(dispatched.size() == 6U && dispatched.back().Kind == core::file_receipt_command_kind::mark_unread, "the menu's Mark unseen is the step's command");
+
+		// The saved receipt moves the track back: Read off leaves Seen solid.
+		receipt.Read = core::file_read_state::seen;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::seen_step } && interior(qt::progress_track::seen_step) == highlight
+				   && interior(qt::progress_track::read_step) == button && checked(seen) && !checked(read)
+				   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: seen"),
+			   "Read taken off, the track and the progress button show a seen file");
+		receipt.Read = core::file_read_state::unread;
+		publish(receipt);
+		expect(!track->current_step().has_value() && interior(qt::progress_track::seen_step) == button && !checked(seen) && !checked(read)
+				   && seen->toolTip() == QStringLiteral("Mark this file seen.") && window.seen_action()->text() == QStringLiteral("&Seen")
+				   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: unread"),
+			   "Seen taken off, nothing is reached and Seen offers itself again");
+		receipt.Read = core::file_read_state::read;
 		publish(receipt);
 
 		// Accept takes the last step and becomes Revoke.
 		accept->click();
-		expect(dispatched.size() == 4U && dispatched.back().Kind == core::file_receipt_command_kind::accept, "Accept on the track accepts the exact file");
+		expect(dispatched.size() == 7U && dispatched.back().Kind == core::file_receipt_command_kind::accept, "Accept on the track accepts the exact file");
 		receipt.Accepted = true;
 		publish(receipt);
 		expect(track->current_step() == std::optional{ qt::progress_track::accept_step } && interior(qt::progress_track::accept_step) == colours.Accepted
 				   && interior(qt::progress_track::read_step) == button && track->word(qt::progress_track::accept_step) == QStringLiteral("Accepted")
 				   && accept->text().contains(QStringLiteral("Revoke")) && accept->accessibleName() == QStringLiteral("Revoke file acceptance")
-				   && accept->isEnabled(),
-			   "accepted, the Accept step is solid green and says Accepted, and its button revokes");
+				   && accept->isEnabled() && checked(read) && read->isEnabled(),
+			   "accepted, the Accept step is solid green and says Accepted, its button revokes, and Read is still checked and clickable");
+		read->click();
+		expect(dispatched.size() == 8U && dispatched.back().Kind == core::file_receipt_command_kind::unmark_read, "an accepted file's Read step takes Read off");
+		receipt.Read = core::file_read_state::seen;
+		publish(receipt);
+		expect(track->current_step() == std::optional{ qt::progress_track::accept_step } && accept->isChecked() && checked(seen) && !checked(read)
+				   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: accepted"),
+			   "taking Read off an accepted file keeps it accepted");
 		accept->click();
-		expect(dispatched.size() == 5U && dispatched.back().Kind == core::file_receipt_command_kind::revoke_acceptance, "the Accepted step revokes acceptance");
+		expect(dispatched.size() == 9U && dispatched.back().Kind == core::file_receipt_command_kind::revoke_acceptance, "the Accepted step revokes acceptance");
 
 		// Excluded and no file: the track rests; the menu keeps Include.
 		receipt.Accepted = false;
@@ -14280,6 +14324,21 @@ namespace {
 		shared->setValue(shared->maximum());
 		process_events();
 		expect(log.Receipt.size() == 1U, "the same file and material is marked once");
+		// [[BPR-PENDING-P]]. The reader takes Read off the file again: it stays
+		// seen and is not marked read behind their back at the end.
+		auto read = receipt;
+		read.Read = core::file_read_state::read;
+		window.publish(application::project_file_receipt_actions(read));
+		process_events();
+		window.read_action()->trigger();
+		expect(log.Receipt.size() == 2U && log.Receipt.back().Kind == core::file_receipt_command_kind::unmark_read, "the reader takes Read off");
+		auto seen = receipt;
+		seen.Read = core::file_read_state::seen;
+		window.publish(application::project_file_receipt_actions(seen));
+		shared->setValue(0);
+		shared->setValue(shared->maximum());
+		process_events();
+		expect(log.Receipt.size() == 2U, "Read taken off holds at the end of the same file and material");
 		behaviour.Behaviour = application::review_behaviour_settings{ };
 		window.publish(behaviour);
 		auto another     = receipt;
@@ -14288,7 +14347,7 @@ namespace {
 		shared->setValue(0);
 		shared->setValue(shared->maximum());
 		process_events();
-		expect(log.Receipt.size() == 1U, "by hand, reaching the end marks nothing");
+		expect(log.Receipt.size() == 2U, "by hand, reaching the end marks nothing");
 		window.hide();
 	}
 

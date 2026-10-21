@@ -1946,6 +1946,9 @@ namespace bpr::qt {
 			step->setObjectName(aName);
 			step->setText(aAccessible);
 			step->setAccessibleName(aAccessible);
+			// [[BPR-PENDING-P]]. Seen and Read are checked buttons, as Accept's
+			// retained action is.
+			step->setCheckable(true);
 			step->setEnabled(false);
 			connect(step, &QToolButton::clicked, this, [this, aIndex] { take_progress_step(aIndex); });
 			return step;
@@ -18722,7 +18725,11 @@ namespace bpr::qt {
 					return QStringLiteral("&Seen");
 				case core::file_receipt_command_kind::mark_read:
 					return QStringLiteral("&Read");
+				// [[BPR-PENDING-P]]. Seen's inverse, which takes Read off too,
+				// and Read's, which leaves the file seen.
 				case core::file_receipt_command_kind::mark_unread:
+					return QStringLiteral("Mark u&nseen");
+				case core::file_receipt_command_kind::unmark_read:
 					return QStringLiteral("Mark &unread");
 				case core::file_receipt_command_kind::accept:
 					return QStringLiteral("&Accept");
@@ -18745,14 +18752,30 @@ namespace bpr::qt {
 						: index == 2U ? Receipt->Receipt.Accepted
 									  : Receipt->Receipt.Excluded);
 			action->setChecked(checked);
+			const auto purpose = [&] {
+				switch (kind) {
+				case core::file_receipt_command_kind::mark_seen:
+					return QStringLiteral("Mark this file seen.");
+				case core::file_receipt_command_kind::mark_unread:
+					return QStringLiteral("Mark this file unseen. Read comes off with it.");
+				case core::file_receipt_command_kind::mark_read:
+					return QStringLiteral("Mark this file read.");
+				case core::file_receipt_command_kind::unmark_read:
+					return QStringLiteral("Mark this file unread. It stays seen.");
+				case core::file_receipt_command_kind::accept:
+					return QStringLiteral("Accept this file privately.");
+				case core::file_receipt_command_kind::revoke_acceptance:
+					return QStringLiteral("Revoke private acceptance for this file.");
+				case core::file_receipt_command_kind::exclude:
+				case core::file_receipt_command_kind::include:
+					break;
+				}
+				return QStringLiteral("Update private progress for the selected exact file material.");
+			}();
 			describe_action(
 				action,
 				projected != nullptr && projected->Enabled && !LedgerUnavailable,
-				index == 2U
-					? kind == core::file_receipt_command_kind::revoke_acceptance
-						? QStringLiteral("Revoke private acceptance for this file.")
-						: QStringLiteral("Accept this file privately.")
-					: QStringLiteral("Update private progress for the selected exact file material."),
+				purpose,
 				index == 2U && Receipt.has_value() && Receipt->Receipt.Excluded && !LedgerUnavailable
 					? QStringLiteral("Include this file from Private progress before accepting it.")
 					: disabled);
@@ -18824,28 +18847,33 @@ namespace bpr::qt {
 
 	auto workbench_window::progress_step_offered(const std::size_t aIndex) const -> bool
 	{
-		// [[BPR-1578]]. A step only moves the file forward: Seen marks an
-		// unread file seen and Read marks a file read. A step already reached
-		// does nothing, so the track never un-reads a file; Mark unread stays
-		// in the private-progress menu. The command is the one the core
-		// projected for that action, never one the track makes up.
+		// [[BPR-1578]]. The command is the one the core projected for that
+		// action, never one the track makes up. [[BPR-PENDING-P]]. The owner,
+		// 2026-10-21: "In the toolbar I can uncheck accepted by clicking the
+		// accepted button. I should be able to do the same for read and
+		// seen." A step not reached checks it (Mark seen, Mark read); a step
+		// reached unchecks it (Mark unseen, Mark unread), as Accept toggles to
+		// Revoke. An excluded file still rests the track.
 		if (LedgerUnavailable || !Receipt.has_value() || Receipt->Receipt.Excluded || aIndex >= Receipt->Actions.size()) {
 			return false;
 		}
-		const auto& action = Receipt->Actions[aIndex];
-		const auto  wanted = aIndex == progress_track::seen_step ? core::file_receipt_command_kind::mark_seen : core::file_receipt_command_kind::mark_read;
-		const auto  passed = aIndex == progress_track::seen_step ? Receipt->Receipt.Read != core::file_read_state::unread
-																 : Receipt->Receipt.Read == core::file_read_state::read;
-		return action.Enabled && action.Command.Kind == wanted && !passed;
+		const auto& action  = Receipt->Actions[aIndex];
+		const auto  kind    = action.Command.Kind;
+		const auto  stepped = aIndex == progress_track::seen_step
+			? kind == core::file_receipt_command_kind::mark_seen || kind == core::file_receipt_command_kind::mark_unread
+			: kind == core::file_receipt_command_kind::mark_read || kind == core::file_receipt_command_kind::unmark_read;
+		return action.Enabled && stepped;
 	}
 
 	void workbench_window::take_progress_step(const std::size_t aIndex)
 	{
-		if (aIndex == progress_track::seen_step || aIndex == progress_track::read_step) {
-			if (progress_step_offered(aIndex)) {
-				dispatch_receipt(aIndex);
-			}
+		if ((aIndex == progress_track::seen_step || aIndex == progress_track::read_step) && progress_step_offered(aIndex)) {
+			dispatch_receipt(aIndex);
+			return;
 		}
+		// A checkable step toggles itself on a click. The receipt decides its
+		// checked state, so a click that dispatched nothing puts it back.
+		update_progress_track();
 	}
 
 	void workbench_window::update_progress_track()
@@ -18873,14 +18901,21 @@ namespace bpr::qt {
 			const auto offered = progress_step_offered(aIndex);
 			const auto reached = aIndex == progress_track::seen_step ? shown.Seen : shown.Read;
 			aStep->setEnabled(offered);
+			// [[BPR-PENDING-P]]. Checked is the saved receipt's fact, so a
+			// screen reader hears it too, and a click waits for persistence.
+			aStep->setChecked(reached);
 			const auto tip = !shown.Live ? unavailable : reached ? aDone
 																 : aOffer;
 			aStep->setToolTip(tip);
 			aStep->setStatusTip(tip);
 			aStep->setAccessibleDescription(tip);
 		};
-		describe(SeenStepButton, progress_track::seen_step, QStringLiteral("This file is seen."), QStringLiteral("Mark this file seen."));
-		describe(ReadStepButton, progress_track::read_step, QStringLiteral("This file is read. Mark unread is in Private progress."), QStringLiteral("Mark this file read."));
+		describe(SeenStepButton,
+				 progress_track::seen_step,
+				 shown.Read ? QStringLiteral("This file is seen. Click to mark it unseen, which clears Read too.")
+							: QStringLiteral("This file is seen. Click to mark it unseen."),
+				 QStringLiteral("Mark this file seen."));
+		describe(ReadStepButton, progress_track::read_step, QStringLiteral("This file is read. Click to mark it unread; it stays seen."), QStringLiteral("Mark this file read."));
 	}
 
 	void workbench_window::update_drawer_action(

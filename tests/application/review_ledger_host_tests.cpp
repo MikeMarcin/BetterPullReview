@@ -1459,8 +1459,12 @@ namespace {
 		receipt.Accepted   = true;
 		const auto actions = application::project_file_receipt_actions(receipt);
 
+		// [[BPR-PENDING-P]]. Seen is reached, so its slot carries the inverse
+		// gesture, as Accept's does: Mark unseen.
 		expect(actions.Receipt == receipt
-				   && !actions.Actions[0].Enabled
+				   && actions.Actions[0].Enabled
+				   && actions.Actions[0].Command.Kind
+					   == core::file_receipt_command_kind::mark_unread
 				   && actions.Actions[1].Enabled
 				   && actions.Actions[1].Command.Kind
 					   == core::file_receipt_command_kind::mark_read
@@ -1469,6 +1473,58 @@ namespace {
 					   == core::file_receipt_command_kind::revoke_acceptance
 				   && !actions.Actions[3].Enabled,
 			   "the four compact slots carry the inverse gestures and core legality");
+	}
+
+	/// [[BPR-PENDING-P]]. Seen and Read each toggle, as Accept does, and what
+	/// they leave is what a later host reads back from the store: taking Read
+	/// off leaves the file seen, taking Seen off leaves it unread, and
+	/// acceptance stays through both.
+	void test_seen_and_read_toggle_and_round_trip_through_the_store()
+	{
+		using kind  = core::file_receipt_command_kind;
+		auto log    = event_log{ };
+		auto store  = recording_store{ log };
+		auto writer = std::make_unique<rig>(store, log);
+		writer->Host.retain(seeded_receipt());
+
+		const auto take = [&writer](const std::size_t aSlot, const kind aExpected) {
+			const auto  projected = application::project_file_receipt_actions(writer->Host.retained());
+			const auto& action    = projected.Actions[aSlot];
+			expect(action.Enabled && action.Command.Kind == aExpected, "the slot offers the expected toggle");
+			const auto outcome = writer->submit(action.Command);
+			expect(outcome.Rejection == core::file_receipt_rejection::none && outcome.Changed, "the toggle is a durable change");
+			return outcome.Receipt;
+		};
+		const auto reread = [&store, &log](const core::file_receipt& aExpected) {
+			auto       reader = rig{ store, log };
+			const auto loaded = reader.load_receipt(aExpected.File);
+			return loaded.has_value() && loaded->has_value() && **loaded == aExpected;
+		};
+
+		static_cast<void>(take(1U, kind::mark_read));
+		const auto accepted = take(2U, kind::accept);
+		expect(accepted.Read == core::file_read_state::read && accepted.Accepted && reread(accepted), "a read, accepted file is durable");
+
+		const auto notRead = take(1U, kind::unmark_read);
+		expect(notRead.Read == core::file_read_state::seen && notRead.Accepted && store.Committed == notRead,
+			   "taking Read off commits a seen file that is still accepted");
+		expect(reread(notRead), "another host reads the file back as seen and accepted");
+
+		const auto unseen = take(0U, kind::mark_unread);
+		expect(unseen.Read == core::file_read_state::unread && unseen.Accepted && reread(unseen),
+			   "taking Seen off commits an unread file that is still accepted, and it reads back so");
+
+		static_cast<void>(take(2U, kind::revoke_acceptance));
+		const auto seenAgain = take(0U, kind::mark_seen);
+		expect(seenAgain.Read == core::file_read_state::seen && !seenAgain.Accepted, "Seen checks again");
+		const auto readAgain = take(1U, kind::mark_read);
+		const auto seenOnly  = take(1U, kind::unmark_read);
+		expect(readAgain.Read == core::file_read_state::read && seenOnly.Read == core::file_read_state::seen && reread(seenOnly),
+			   "Read checks and unchecks again, and the store holds the last one");
+		const auto cleared = take(0U, kind::mark_unread);
+		expect(cleared == core::file_receipt{ .File = seenOnly.File, .Material = seenOnly.Material } && reread(cleared),
+			   "Seen unchecked on an unaccepted file leaves a receipt with nothing on it");
+		writer.reset();
 	}
 
 	void test_hostile_note_competitors_are_bounded_before_projection()
@@ -2144,6 +2200,7 @@ auto main() -> int
 	test_material_load_failure_is_typed_and_changes_nothing();
 	test_agent_sessions_validate_admit_and_load_through_the_host();
 	test_receipt_action_projection_contains_only_core_legal_changes();
+	test_seen_and_read_toggle_and_round_trip_through_the_store();
 	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
 	test_conversation_marks_unread_through_the_store();
 	test_bulk_mark_read_is_one_atomic_commit();

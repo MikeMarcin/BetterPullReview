@@ -10,6 +10,10 @@
 // looks at Overview: each accepted row says accepted, the read row says read,
 // and the summary counts the accepted files as done. Revoking one acceptance
 // returns that row to its read state and the count with it.
+//
+// [[BPR-PENDING-P]]. The review bar's checked Read and Seen steps uncheck as
+// its Accepted step does: Read off leaves a file seen and Overview counts it
+// not read; Seen off an accepted file leaves it accepted and done.
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
@@ -204,9 +208,27 @@ try {
 	expect(!read->isChecked(), "the first file is not read");
 	read->trigger();
 	wait_for([&] { return read->isChecked() && access::review_ledger_settled(*application); }, "the reader explicitly marks the file Read");
-	read->trigger();
-	wait_for([&] { return access::review_ledger_settled(*application) && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: unread"); },
-			 "explicit Mark unread is retained while the file stays open");
+	// [[BPR-PENDING-P]]. The track's checked Read and Seen steps uncheck, as
+	// its Accepted step does: Read off leaves the file seen, Seen off leaves
+	// it unread.
+	auto* const readStep = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep"));
+	auto* const seenStep = window.findChild<QToolButton*>(QStringLiteral("workbenchProgressSeenStep"));
+	expect(readStep != nullptr && seenStep != nullptr && readStep->isChecked() && seenStep->isChecked() && readStep->isEnabled(),
+		   "the read file's Read and Seen steps are checked and clickable");
+	readStep->click();
+	wait_for([&] { return access::review_ledger_settled(*application) && !readStep->isChecked() && seenStep->isChecked()
+					   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: seen"); },
+			 "clicking the checked Read step leaves the file seen");
+	seenStep->click();
+	wait_for([&] { return access::review_ledger_settled(*application) && !seenStep->isChecked()
+					   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: unread"); },
+			 "clicking the checked Seen step marks the file unseen");
+	for (auto turns = 0; turns < 50; ++turns) {
+		QApplication::processEvents();
+		QThread::msleep(2);
+	}
+	expect(access::review_ledger_settled(*application) && !seenStep->isChecked() && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: unread"),
+		   "explicit Mark unseen is retained while the file stays open");
 	window.choose_modality(qt::review_modality::overview);
 	wait_for([&] { return window.showing_overview(); }, "the reader leaves the comparison");
 	window.choose_modality(qt::review_modality::review);
@@ -283,6 +305,53 @@ try {
 	expect(overview_says(window, second) == QStringLiteral("unread") || overview_says(window, second) == QStringLiteral("seen"),
 		   "the revoked file shows its read state again");
 	expect(filesRead() == doneOf(2U) && page->files_heading()->text().endsWith(notRead(2U)), "the summary counts one fewer done");
+
+	// [[BPR-PENDING-P]]. The track's Read step checks the revoked second file
+	// read, and unchecking it leaves the file seen; Overview counts each.
+	// Enter on a file's Overview row opens it in Review.
+	const auto openFile = [&](const QString& aPath) {
+		const auto row = overview_row(*page->file_model(), aPath);
+		page->files_view()->scrollTo(row);
+		page->files_view()->setCurrentIndex(row);
+		page->files_view()->setFocus(Qt::OtherFocusReason);
+		tests::window_system_key(*page->files_view(), Qt::Key_Return, Qt::NoModifier, QStringLiteral("\r"));
+	};
+	const auto reviewSettled = [&](const QString& aPath) {
+		return !window.showing_overview() && current_path(window) == aPath && access::review_ledger_settled(*application) && readStep->isEnabled();
+	};
+	openFile(second);
+	wait_for([&] { return reviewSettled(second) && !readStep->isChecked(); }, "the second file opens in Review, not read");
+	readStep->click();
+	wait_for([&] { return access::review_ledger_settled(*application) && readStep->isChecked() && seenStep->isChecked(); }, "the Read step checks the second file read");
+	window.choose_modality(qt::review_modality::overview);
+	wait_for([&] { return window.showing_overview() && overview_says(window, second) == QStringLiteral("read"); }, "Overview says read for the file the step checked");
+	expect(filesRead() == doneOf(3U) && page->files_heading()->text().endsWith(notRead(3U)), "the summary counts the checked file as done");
+	window.choose_modality(qt::review_modality::review);
+	wait_for([&] { return reviewSettled(second) && readStep->isChecked(); }, "Review returns to the read second file");
+	readStep->click();
+	wait_for([&] { return access::review_ledger_settled(*application) && !readStep->isChecked() && seenStep->isChecked()
+					   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: seen"); },
+			 "the checked Read step unchecks the second file and leaves it seen");
+	window.choose_modality(qt::review_modality::overview);
+	wait_for([&] { return window.showing_overview() && overview_says(window, second) == QStringLiteral("seen"); }, "Overview says seen for the file taken back from read");
+	expect(overview_mark(window, second) == static_cast<int>(core::file_progress_mark::seen) && filesRead() == doneOf(2U)
+			   && page->files_heading()->text().endsWith(notRead(2U)),
+		   "the summary counts the unchecked file as not read");
+
+	// Unchecking the accepted first file's Seen step keeps it accepted and done.
+	openFile(first);
+	wait_for([&] { return reviewSettled(first) && accept->isChecked() && seenStep->isChecked(); },
+			 "the accepted first file opens in Review, seen");
+	seenStep->click();
+	wait_for([&] { return access::review_ledger_settled(*application) && !seenStep->isChecked() && accept->isChecked()
+					   && window.review_controls_button()->accessibleName() == QStringLiteral("Private progress: accepted"); },
+			 "the Seen step unchecks the accepted file and it stays accepted");
+	window.choose_modality(qt::review_modality::overview);
+	wait_for([&] { return window.showing_overview(); }, "Overview shows after Seen is unchecked");
+	expect(overview_says(window, first) == QStringLiteral("accepted") && drawn(first) == static_cast<int>(core::file_progress_mark::accepted)
+			   && filesRead() == doneOf(2U) && page->files_heading()->text().endsWith(notRead(2U)),
+		   "an accepted file unchecked from Seen still shows accepted and counts as done");
+	render(window, QStringLiteral("overview-unchecked"));
 
 	application->begin_shutdown();
 	wait_for([&] { return application->status().ShutdownComplete; }, "composed course shuts down and drains");

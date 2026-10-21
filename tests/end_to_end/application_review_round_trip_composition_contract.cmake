@@ -1,3 +1,12 @@
+# [[BPR-PENDING-P]] reseal (2026-10-21) over last matching main 0b10fa71a,
+# linear. Pinned-scope change: Seen and Read uncheck from the review bar, on
+# this card's own commit. Inside the manifest only github_application.cpp
+# changed, in one condition of the --review-ledger-composition-probe
+# automation course: an automatically seen file's Seen action is now checked and offers
+# Mark unseen, so the probe requires it checked rather than disabled. No
+# product composition, credential, grant, provider selection, publication,
+# mutation or source-inventory change. Full and manifest pins bind these
+# bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1699 note below
 # is renaming its [[BPR-PENDING-M]] comment tags to [[BPR-1699]]; no code change.
 # [[BPR-1699]] reseal (2026-10-21) over last matching main d8a3f6b97,
@@ -1825,7 +1834,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
+		"894053c121e81ff00dd71e26fd31f33f1cee52416b98d1f84da3e279d7c4a2e8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2045,7 +2054,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "12a3782447474113167dd7553d55275fd2eef2d9cbbc54dd4eb878607bb878d7"
+        "0e773b9c7ea8fca4dad5e805da38d2f875500bd32c073738d088555090f0ef8b"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
