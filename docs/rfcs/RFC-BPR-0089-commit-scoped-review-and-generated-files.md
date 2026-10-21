@@ -1,19 +1,20 @@
 ---
 id: "RFC-BPR-0089"
 title: "Filter a pull request's review by its commits and set generated files aside"
-status: "Proposed"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0003", "RFC-BPR-0004", "RFC-BPR-0007", "RFC-BPR-0022", "RFC-BPR-0029"]
-metadata: {"origin": {"date": "2026-10-20", "channel": "owner chat, relayed by the coordinator"}, "revision": "r3 2026-10-21, owner answers Q1-Q4 recorded", "authoring": "author-rfc, design only; no source changed", "owner_questions": "Q1-Q4 answered 2026-10-21 in attended session 63349fbf25e4b1e85a29c8dca65ef80a (closed); r1 session eeb8d789ecf1824d5a6f7ec7779284c7 superseded"}
+metadata: {"origin": {"date": "2026-10-20", "channel": "owner chat, relayed by the coordinator"}, "revision": "r3 2026-10-21, owner answers Q1-Q4 recorded", "authoring": "author-rfc; implemented in M1 to M4 and BPR-1688", "closeout": "BPR-PENDING-L6 (2026-10-21)", "owner_questions": "Q1-Q4 answered 2026-10-21 in attended session 63349fbf25e4b1e85a29c8dca65ef80a (closed); r1 session eeb8d789ecf1824d5a6f7ec7779284c7 superseded"}
 ---
 
 # Filter a pull request's review by its commits and set generated files aside
 
-Proposed, revision r3. This document changes no code. Revision r1 proposed a
-separate "commit scope" comparison; the owner's direction below replaced it
-with commit filters (r2). The owner answered r2's four questions on
-2026-10-21 (Owner questions), and r3 records those answers in the design. No
-owner question remains open.
+Auto-Verified, revision r3, implemented in milestones M1 to M4 and
+[[BPR-1688]] and closed by [[BPR-PENDING-L6]] (Implementation, below).
+Revision r1 proposed a separate "commit scope" comparison; the owner's
+direction below replaced it with commit filters (r2). The owner answered r2's
+four questions on 2026-10-21 (Owner questions), and r3 records those answers
+in the design. No owner question remains open.
 
 ## Problem and grounded current behavior
 
@@ -359,6 +360,13 @@ listed commits, and filtering by the base branch's commits.
   inside a hunk of the merge base to that commit, because GitHub resolves its
   line there. The measurement spent eleven REST and GraphQL calls;
   `X-RateLimit-Remaining` stayed above 4,980.
+  **And at the head (M4's first live course, BPR-Test #117, closed, resolved):**
+  a line moved to the head is resolved there only inside a hunk of the merge
+  base to the head, on its side. With C3 hidden, C1's line 10 is the head's
+  line 12, which no change near it shows; `commit_id` head, `RIGHT` 12 was
+  refused with the same 422, as was `LEFT` 10 of a C2-to-C3 diff. The core
+  refuses both before Publish (`outside_github_diff`); on #118 every
+  placement then matched what GitHub did.
 - Which revision's `.gitattributes` GitHub's Files changed uses. Measure on
   BPR-Test before M2 claims parity. GitHub may also collapse files by
   Linguist's built-in rules, which this application does not apply (Q4), so
@@ -384,6 +392,37 @@ listed commits, and filtering by the base branch's commits.
   six REST calls; `X-RateLimit-Remaining` stayed above 4,990.
 - The cost of acquiring trees for long chains in large repositories, within the
   existing quarantine and 96 MiB/128-entry thresholds.
+
+## Implementation
+
+Milestones M1 to M4 and [[BPR-1688]] implement this design. Their
+checkpoints are under `docs/issues/_checkpoints/RFC-BPR-0089-M1` to `-M4`, and
+the closeout card [[BPR-PENDING-L6]] holds the per-criterion evidence.
+
+- **M1** ([[BPR-1685]] to [[BPR-1687]]): parents, the Commits tab and its
+  menu, the chain's trees, contiguous filters, the chip, receipts by
+  material.
+- **M2** ([[BPR-1689]] to [[BPR-1693]]): generated files, file filters, the
+  bulk label, `linguist-generated` at the head and opening a set-aside file.
+- **M3** ([[BPR-1695]] to [[BPR-1697]]): split per-commit diffs and the
+  rematch offers.
+- **M4** ([[BPR-PENDING-L1]] to [[BPR-PENDING-L3]]): owner decision Q1 and
+  thread markers under a filter, as measured on #116 and #117. A comment on a
+  split file's per-commit diff takes the same placement.
+- **[[BPR-1688]]**: Find in files searches the filtered set and says so; the
+  window keeps its commit and file filters with its review (restoration store
+  version 7) and Resume brings them back.
+
+One part of "Comments and line anchoring" is not delivered: a left-side line
+the merge base does not have unchanged, and a right-side line GitHub resolves
+nowhere, are refused before Publish with the reason, not published as
+RFC-BPR-0022's file comment with a permalink. That policy reaches the file
+comment only after a native attempt is definitively unsupported, and its
+permalink names the head. [[BPR-PENDING-L4]] tracks it. No acceptance
+criterion names it. AC07's live course publishes the composition's decided
+placements through `gh`, because a tests-enabled build holds no publication
+grant; the same placements reconcile through the real provider session in the
+fixture course.
 
 ## Milestones
 

@@ -650,11 +650,13 @@ qualification remains a separate obligation.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0089](RFC-BPR-0089-commit-scoped-review-and-generated-files.md) | Filter a pull request's review by its commits and set generated files aside | Proposed | RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0007, RFC-BPR-0022, RFC-BPR-0029 |
+| [RFC-BPR-0089](RFC-BPR-0089-commit-scoped-review-and-generated-files.md) | Filter a pull request's review by its commits and set generated files aside | Auto-Verified | Closed 2026-10-21 by [BPR-PENDING-L6](../issues/60-done/BPR-PENDING-L6-close-rfc-0089.md): fixture courses through the shipped composition and live courses and measurements on MikeMarcin/BPR-Test #109 to #118. Depends on RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0007, RFC-BPR-0022, RFC-BPR-0029 |
 
 Drafted 2026-10-20 from the owner's report of a change, its regeneration and
 follow-ups in separate commits. Revision r2 (2026-10-21) follows the owner's
 direction: a Commits tab beside Status whose multi-select context-menu filters
 drive the file tree and navigation. Revision r3 records the owner's answers to
 Q1 to Q4 (2026-10-21, session recorded on the RFC); no owner question remains
-open. Design only; nothing is implemented.
+open. Implemented in M1 to M4 and BPR-1688. A filtered line GitHub cannot
+resolve is refused before Publish rather than offered RFC-BPR-0022's file
+comment (BPR-PENDING-L4); Windows and Linux are unmeasured.
