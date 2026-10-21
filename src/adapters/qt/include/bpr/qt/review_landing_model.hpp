@@ -107,11 +107,11 @@ namespace bpr::qt {
 	/// "Opened 6 days ago; 1,204 lines added and 318 removed; 14 comments."
 	[[nodiscard]] auto home_change_sentence(const core::queue_change_facts& aChange, std::optional<std::int64_t> aNow) -> QString;
 
-	/// \brief [[BPR-PENDING-X]]. The verdict chip's words: "Approved",
+	/// \brief [[BPR-1718]]. The verdict chip's words: "Approved",
 	/// "Changes requested", "Commented" or "Review dismissed", and " · new
 	/// commits" after a verdict commits followed; empty with no verdict.
 	[[nodiscard]] auto home_verdict_text(const core::queue_my_review& aReview) -> QString;
-	/// \brief [[BPR-PENDING-X]]. The same in a sentence, for the chip's tooltip
+	/// \brief [[BPR-1718]]. The same in a sentence, for the chip's tooltip
 	/// and the row's accessible name: "You approved this on 14 Oct 2026.", with
 	/// "New commits were pushed after it." when they were; the date is left out
 	/// when it was not read. Empty with no verdict.

@@ -523,7 +523,7 @@ namespace bpr::qt {
 			return reason_for(*item);
 		case Qt::AccessibleTextRole: {
 			auto label = item->Facts.Title.empty() ? home_identity(*item) : QStringLiteral("%1 %2").arg(home_identity(*item), text(item->Facts.Title));
-			// [[BPR-PENDING-X]]. My verdict, as its chip's tooltip says it.
+			// [[BPR-1718]]. My verdict, as its chip's tooltip says it.
 			if (const auto verdict = home_verdict_sentence(item->Facts.MyReview); !verdict.isEmpty()) {
 				label = QStringLiteral("%1. %2").arg(label, verdict);
 			}

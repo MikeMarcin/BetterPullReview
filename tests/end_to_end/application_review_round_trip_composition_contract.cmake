@@ -1,4 +1,4 @@
-# [[BPR-PENDING-X]] note (2026-10-21) over last matching main ad6908848: no
+# [[BPR-1718]] note (2026-10-21) over last matching main ad6908848: no
 # reseal. The only src/app change is the BUILD_TESTING fixture server
 # (github_public_path_fixture.cpp, outside the manifest): its batched Home
 # review nodes answer submittedAt and its REST review submitted_at, for Home's

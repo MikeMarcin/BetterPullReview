@@ -58,7 +58,7 @@ namespace bpr::qt {
 		constexpr auto tag_pad_x  = 6;
 		constexpr auto tag_pad_y  = 1;
 		constexpr auto tag_radius = 3.0;
-		/// [[BPR-PENDING-X]]. Between the verdict chip's mark and its word.
+		/// [[BPR-1718]]. Between the verdict chip's mark and its word.
 		constexpr auto verdict_mark_gap = 4;
 		/// The least room, in average characters, the second line keeps beside
 		/// the verdict chip before the chip takes a line of its own.
@@ -154,7 +154,7 @@ namespace bpr::qt {
 			return { };
 		}
 
-		/// [[BPR-PENDING-X]]. The verdict chip's mark: a check for an approval,
+		/// [[BPR-1718]]. The verdict chip's mark: a check for an approval,
 		/// a plus over a minus for a change request, the comment bubble for
 		/// comments only.
 		void draw_verdict_mark(QPainter& aPainter, const QRect& aRect, const core::my_review_verdict aVerdict, const QColor& aInk)
@@ -192,7 +192,7 @@ namespace bpr::qt {
 
 		/// \brief Lays a text out at a width. `aLead` is room kept at the start
 		/// of the first line only, for a chip the line begins with
-		/// ([[BPR-PENDING-X]]); `aLeadHeight` is that chip's height, which the
+		/// ([[BPR-1718]]); `aLeadHeight` is that chip's height, which the
 		/// first line is centred on and the second starts below.
 		[[nodiscard]] auto lay_out(
 			QTextLayout&                           aLayout,
@@ -253,7 +253,7 @@ namespace bpr::qt {
 				// [[BPR-1365]]. The review this window has open says so in a word.
 				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
-				// [[BPR-PENDING-X]]. My verdict leads the second line in a chip.
+				// [[BPR-1718]]. My verdict leads the second line in a chip.
 				Verdict      = aIndex.data(home_row_role::verdict).toString();
 				VerdictState = static_cast<core::my_review_verdict>(aIndex.data(home_row_role::verdict_state).toInt());
 				VerdictStale = aIndex.data(home_row_role::verdict_stale).toBool();
@@ -378,7 +378,7 @@ namespace bpr::qt {
 				// mark as tall as that line: it is what the reviewer is waiting on.
 				const auto& secondFont = Opening ? aOption.font : SideFont;
 				MarkExtent             = Opening ? QFontMetrics{ aOption.font }.height() : 0;
-				// [[BPR-PENDING-X]]. The verdict chip begins the line, and the
+				// [[BPR-1718]]. The verdict chip begins the line, and the
 				// line wraps back under it to the row's left edge, so a narrow row
 				// keeps its width for the text; the opening row's line replaces
 				// the whole second line.
@@ -408,7 +408,7 @@ namespace bpr::qt {
 				TotalHeight = RowHeight + (has_hairline(aIndex) ? home_row_delegate::hairline : 0);
 				ContentTop  = ((RowHeight - content) / 2) + home_row_delegate::vertical_padding;
 				SecondTop   = ContentTop + FirstHeight + home_row_delegate::line_gap;
-				// [[BPR-PENDING-X]]. Below the verdict chip when it has a line of its own.
+				// [[BPR-1718]]. Below the verdict chip when it has a line of its own.
 				SecondTextTop = SecondTop + SecondTextOffset;
 				// Each fact shares a baseline with the line it is about.
 				const auto baseline = [this](const QTextLayout& aLayout, const int aTop) {
@@ -517,7 +517,7 @@ namespace bpr::qt {
 			int         ContentTop     = 0;
 			int         SecondTop      = 0;
 
-			// [[BPR-PENDING-X]]. My verdict's chip and where the second line's
+			// [[BPR-1718]]. My verdict's chip and where the second line's
 			// text starts below it when the chip takes a line of its own.
 			QString                 Verdict;
 			core::my_review_verdict VerdictState     = core::my_review_verdict::none;
@@ -814,7 +814,7 @@ namespace bpr::qt {
 			layout.SecondLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft + layout.SecondIndent), static_cast<qreal>(layout.SecondTop) });
 		} else {
 			if (!layout.Verdict.isEmpty()) {
-				// [[BPR-PENDING-X]]. My verdict: a thin neutral outline, as the
+				// [[BPR-1718]]. My verdict: a thin neutral outline, as the
 				// Draft chip's; the mark in the accepted or defect ink while the
 				// verdict is on the current head, else quiet. A selected row
 				// keeps the style's selected ink.
@@ -984,7 +984,7 @@ namespace bpr::qt {
 	auto home_row_delegate::helpEvent(QHelpEvent* const aEvent, QAbstractItemView* const aView, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex)
 		-> bool
 	{
-		// [[BPR-PENDING-X]]. The verdict's sentence right under its chip, and
+		// [[BPR-1718]]. The verdict's sentence right under its chip, and
 		// nowhere else on the row ([[BPR-1354]]: every tooltip sits next to
 		// what it names).
 		if (aEvent != nullptr && aView != nullptr && aEvent->type() == QEvent::ToolTip && aIndex.isValid()) {

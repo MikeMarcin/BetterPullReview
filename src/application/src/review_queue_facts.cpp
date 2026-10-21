@@ -109,7 +109,7 @@ namespace bpr::application {
 	}
 	// Length framing keeps remote names literal, including delimiters and newlines.
 	// [[BPR-1407]]. Version 2 appends the change facts; version 1 still reads.
-	// [[BPR-PENDING-X]]. Version 3 appends my verdict, its time and whether
+	// [[BPR-1718]]. Version 3 appends my verdict, its time and whether
 	// commits followed it; a row with no verdict keeps its version 2 bytes.
 	auto encode_queue_facts(const core::queue_item_facts& aFacts) -> std::optional<std::string>
 	{

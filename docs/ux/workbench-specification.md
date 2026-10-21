@@ -2832,7 +2832,7 @@ contract is admitted; the UI does not infer support from host name or version.
 
 ## My review on Home rows
 
-[[BPR-PENDING-X]] (the owner, 2026-10-21: "On the home page I would like to
+[[BPR-1718]] (the owner, 2026-10-21: "On the home page I would like to
 know if I have approved a PR. Right now they go to following and I don't
 really know that I took action."). A queue row whose pull request I have
 reviewed leads its second line with a **verdict chip**: my latest review's

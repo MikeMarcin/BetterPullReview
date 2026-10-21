@@ -85,7 +85,7 @@ namespace bpr::application {
 		std::optional<github_actor_id> Author;
 		github_review_state            State = github_review_state::uninitialized;
 		std::optional<commit_oid>      Commit;
-		/// [[BPR-PENDING-X]]. When it was submitted, in seconds since the epoch
+		/// [[BPR-1718]]. When it was submitted, in seconds since the epoch
 		/// (UTC); none for a pending review or one whose time was not read.
 		std::optional<std::int64_t> SubmittedAt;
 

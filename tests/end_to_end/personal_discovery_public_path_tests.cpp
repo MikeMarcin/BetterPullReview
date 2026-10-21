@@ -951,7 +951,7 @@ try {
 	expect(queue_item(*windowA, 4003)->Bucket == core::attention_bucket::quiet && queue_item(*windowB, 4003)->Bucket == core::attention_bucket::quiet
 			   && contains(state_rows(*windowA, qt::home_group::following), "octo-org/review-repository#4003"),
 		   "Home Refresh moves an approved unopened PR to Following in both windows");
-	// [[BPR-PENDING-X]]. And says that I approved it: the chip, its tooltip and
+	// [[BPR-1718]]. And says that I approved it: the chip, its tooltip and
 	// the row's accessible name, from the same batched read.
 	const auto approvedChip = [&](qt::workbench_window& aWindow) {
 		auto* const view = aWindow.home_list()->state_view(qt::home_group::following);
@@ -1151,7 +1151,7 @@ try {
 				restored = model->index(row, 0).data(qt::home_row_role::verdict).toString();
 			}
 		}
-		expect(restored == QStringLiteral("Approved"), "[[BPR-PENDING-X]] and still says I approved it");
+		expect(restored == QStringLiteral("Approved"), "[[BPR-1718]] and still says I approved it");
 	}
 	expect(std::ranges::none_of(reads_since(evidence(), beforeReconnect), [](const std::string& aOperation) {
 			   return aOperation == "GetRepository" || aOperation == "ListPullRequestFiles" || aOperation == "ListPullRequestCommits"

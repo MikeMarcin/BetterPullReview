@@ -1796,7 +1796,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-X]]. The reviewer's own last verdict on a row.
+	/// [[BPR-1718]]. The reviewer's own last verdict on a row.
 	void test_my_review_verdict_on_rows(const QString& aRenderPath)
 	{
 		using verdict        = core::my_review_verdict;

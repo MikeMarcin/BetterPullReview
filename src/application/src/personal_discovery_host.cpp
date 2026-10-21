@@ -39,7 +39,7 @@ namespace bpr::application {
 			return queue_discovery_problem::failed;
 		}
 
-		/// [[BPR-PENDING-X]]. A submitted review's state as the core's verdict.
+		/// [[BPR-1718]]. A submitted review's state as the core's verdict.
 		[[nodiscard]] auto my_review_verdict_of(const github_review_state aState) noexcept -> core::my_review_verdict
 		{
 			switch (aState) {
@@ -1003,7 +1003,7 @@ namespace bpr::application {
 				ClosedThisCycle.insert(ref);
 			}
 			auto reviewedHead = std::optional<core::git_commit_oid>{ };
-			// [[BPR-PENDING-X]]. The same submitted reviews, for the core to say
+			// [[BPR-1718]]. The same submitted reviews, for the core to say
 			// which verdict of mine stands.
 			auto mine = std::vector<core::my_submitted_review>{ };
 			for (const auto& review : row.Reviews) {

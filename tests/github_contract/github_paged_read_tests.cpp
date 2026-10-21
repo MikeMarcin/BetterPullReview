@@ -4179,7 +4179,7 @@ namespace {
 	/// [[BPR-1680]]. One alias of Home's batched query, as GitHub answers it:
 	/// two reviews (one pending), a code-owner team and the viewer asked, a
 	/// failed and a running check run and an erroring commit status.
-	/// [[BPR-PENDING-X]]. `aSubmittedAt` is the approval's `submittedAt`; empty
+	/// [[BPR-1718]]. `aSubmittedAt` is the approval's `submittedAt`; empty
 	/// leaves the key out, as no server answering the query does.
 	[[nodiscard]] auto home_pull(const std::uint32_t aNumber, const std::uint64_t aReviewTotal = 2U, const std::string_view aSubmittedAt = "2026-10-14T16:20:00Z") -> fixture_object
 	{
@@ -4296,7 +4296,7 @@ namespace {
 					   && row.Reviews[0].State == application::github_review_state::approved && row.Reviews[0].Commit == application::commit_oid{ std::string{ head_oid } }
 					   && row.Reviews[1].State == application::github_review_state::pending && !row.Reviews[1].Commit,
 				   "submitted-review evidence is the reviews' own");
-			// [[BPR-PENDING-X]]. 2026-10-14T16:20:00Z, in seconds; a pending review has none.
+			// [[BPR-1718]]. 2026-10-14T16:20:00Z, in seconds; a pending review has none.
 			expect(row.Reviews[0].SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !row.Reviews[1].SubmittedAt,
 				   "each review says when it was submitted, from the same query");
 			expect(transport.Requests.front().Wire.Body.contains("nodes{databaseId state submittedAt author"), "the query asks for when each review was submitted");
@@ -4491,7 +4491,7 @@ namespace {
 					}
 					return success_response(fixture_json(reviews), "<" + std::string{ root } + "/repos/octo-org/review-repository/pulls/17/reviews?page=2&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
 				}
-				// [[BPR-PENDING-X]]. A submitted review says when, as GitHub's REST does.
+				// [[BPR-1718]]. A submitted review says when, as GitHub's REST does.
 				auto approved = retained_review(101U);
 				approved.insert_or_assign("submitted_at", "2026-10-14T16:20:00Z");
 				return success_response(fixture_json(fixture_array{ approved }));
@@ -4506,7 +4506,7 @@ namespace {
 					   && result->Rows.front().Reviews.back().State == application::github_review_state::approved,
 				   "retained Home read carries title, current head and complete ordered review evidence");
 			expect(result->Rows.front().Reviews.back().SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !result->Rows.front().Reviews.front().SubmittedAt,
-				   "[[BPR-PENDING-X]] a REST review's submitted_at is when it was submitted; a review without one has none");
+				   "[[BPR-1718]] a REST review's submitted_at is when it was submitted; a review without one has none");
 			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
 					   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
 				   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");

@@ -1790,7 +1790,7 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
-	/// [[BPR-PENDING-X]]. My standing verdict comes from a retained read's
+	/// [[BPR-1718]]. My standing verdict comes from a retained read's
 	/// submitted reviews, notices new commits and a dismissal, outlives an
 	/// open and survives the store.
 	void test_my_review_verdict_from_retained_reads()

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1718"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "My review verdict on Home rows",
+  "created": "2026-10-21T22:19:03.057314+00:00",
+  "base": "e9cf4918b5207193073eaaebef816efb3b537ea4"
+}

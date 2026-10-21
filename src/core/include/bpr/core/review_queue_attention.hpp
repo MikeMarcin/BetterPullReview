@@ -164,7 +164,7 @@ namespace bpr::core {
 		auto operator<=>(const queue_change_facts&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-X]]. The verdict of the reviewer's own latest
+	/// \brief [[BPR-1718]]. The verdict of the reviewer's own latest
 	/// submitted review of a pull request, as Home says it.
 	///
 	/// \details Stored by value: append only, so every stored value keeps its
@@ -183,7 +183,7 @@ namespace bpr::core {
 	/// \brief Returns the stable name for the supplied value.
 	[[nodiscard]] auto name(my_review_verdict aVerdict) noexcept -> std::string_view;
 
-	/// \brief [[BPR-PENDING-X]]. One review this reviewer submitted, as the
+	/// \brief [[BPR-1718]]. One review this reviewer submitted, as the
 	/// host read it, in the order the provider returned them.
 	struct my_submitted_review
 	{
@@ -199,7 +199,7 @@ namespace bpr::core {
 		auto operator<=>(const my_submitted_review&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-X]]. The reviewer's standing verdict on a pull
+	/// \brief [[BPR-1718]]. The reviewer's standing verdict on a pull
 	/// request, carried on its item.
 	struct queue_my_review
 	{
@@ -212,7 +212,7 @@ namespace bpr::core {
 		auto operator<=>(const queue_my_review&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-X]]. Decides the reviewer's standing verdict from
+	/// \brief [[BPR-1718]]. Decides the reviewer's standing verdict from
 	/// their submitted reviews, oldest first.
 	///
 	/// \details As GitHub keeps it: approved, changes requested and dismissed
@@ -239,7 +239,7 @@ namespace bpr::core {
 		queue_waiting_facts Waiting;
 		std::optional<bool> Authored;
 		queue_change_facts  Change;
-		/// [[BPR-PENDING-X]]. My standing verdict, from the last retained read.
+		/// [[BPR-1718]]. My standing verdict, from the last retained read.
 		queue_my_review MyReview;
 
 		auto operator<=>(const queue_item_facts&) const = default;

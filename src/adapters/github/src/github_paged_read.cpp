@@ -4730,7 +4730,7 @@ namespace bpr::adapters::github::detail {
 																	|| application::detail::validate_review(*review, budget, limits.Records) != application::github_read_validation_error::none) {
 																	return failed(application::github_provider_failure::malformed_response);
 																}
-																// [[BPR-PENDING-X]]. `submitted_at`, when it was read and parses.
+																// [[BPR-1718]]. `submitted_at`, when it was read and parses.
 																const auto& submitted = review->Observation.CreatedAt;
 																const auto  at        = submitted.empty() ? std::nullopt : parse_timeline_timestamp(submitted);
 																return application::personal_discovery_review{
@@ -4932,7 +4932,7 @@ namespace bpr::adapters::github::detail {
 				const auto commit    = json_member(object, "commit");
 				const auto actor     = optional_graphql_actor(json_member(object, "author"));
 				const auto submitted = json_member(object, "submittedAt");
-				// [[BPR-PENDING-X]]. When it was submitted: null only while pending.
+				// [[BPR-1718]]. When it was submitted: null only while pending.
 				const auto at = json_is_string(submitted) ? parse_timeline_timestamp(text(submitted)) : std::nullopt;
 				if (!has_exact_keys(object, { "author", "comments", "commit", "databaseId", "state", "submittedAt" }) || (!json_is_null(submitted) && !at)
 					|| !exact_integer(json_member(object, "databaseId"), true)

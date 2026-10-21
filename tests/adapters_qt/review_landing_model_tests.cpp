@@ -877,7 +877,7 @@ namespace {
 		expect(model.data(model.index(1, 0), qt::home_row_role::age).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::comments).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::size).toString() == QStringLiteral("+9 / \u22120"), "zero removed is a known count");
 	}
 
-	/// [[BPR-PENDING-X]]. My verdict's words on the chip, in a sentence for its
+	/// [[BPR-1718]]. My verdict's words on the chip, in a sentence for its
 	/// tooltip and the row's accessible name, and nothing without one.
 	void test_my_review_verdict_text()
 	{

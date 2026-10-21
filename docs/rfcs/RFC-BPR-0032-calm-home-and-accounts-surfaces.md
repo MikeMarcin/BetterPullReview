@@ -445,7 +445,7 @@ Nothing changes on GitHub.
 
 The owner asked on 2026-10-21: "On the home page I would like to know if I
 have approved a PR. Right now they go to following and I don't really know
-that I took action." [[BPR-PENDING-X]] builds it.
+that I took action." [[BPR-1718]] builds it.
 
 A queue row whose pull request I have reviewed leads its second line with a
 verdict chip: "Approved", "Changes requested", "Commented" or "Review

@@ -380,7 +380,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-X]]. The reviewer's standing verdict, its staleness and
+	/// [[BPR-1718]]. The reviewer's standing verdict, its staleness and
 	/// its dismissal, from their submitted reviews oldest first.
 	void test_my_standing_review_verdict()
 	{
