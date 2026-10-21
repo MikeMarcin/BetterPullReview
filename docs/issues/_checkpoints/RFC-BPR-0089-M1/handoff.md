@@ -2,8 +2,10 @@
 
 Assignment: milestone M1 of RFC-BPR-0089 (revision r3, main at `0a10d0b9f`),
 from the RFC implementation coordinator. Branch
-`worktree-agent-a66bfc62123613c66`, rebased onto local main `1ce075976`.
-Tested code candidate: `30ba92de078777cd811748dc6bf654a74d0f4060`. The commit
+`worktree-agent-a66bfc62123613c66`, rebased by the coordinator onto main
+`02ffdd9e5` (after BPR-1682, BPR-1683 and BPR-1684). Tested code candidate:
+`07920aeb4473341ec22c435eb76896ce08f3e7b5`, which reseals the
+command-correctness pins that the composition changes move. The commit
 that adds this checkpoint and the cards changes only documentation. Issue IDs
 are provisional (`BPR-PENDING-F1` to `F4`); the coordinator allocates them on
 main when the work lands.
@@ -29,17 +31,23 @@ one, so nothing is parked on the owner and no attended session was opened.
 
 `tests/end_to_end/rfc0089_commit_filter_live_course.py` built the owner's
 shape on MikeMarcin/BPR-Test: C1 source (4 files), C2 regenerating 321 files,
-C3 mixed (8 files), 325 files in all. On the candidate, pull request #111
+C3 mixed (8 files), 325 files in all. On `30ba92de0` (the same filter-path code
+before the coordinator's rebase, whose new main commits do not touch it), pull
+request #111
 passed: every row, file set and the 34 diffs checked matched Git path by
 path; Viewed state was unchanged for all 325 files. #109 (the first run)
 failed on the split file, which kept the previous file's diff on screen; the
-fix is in `1c37280ff`. #110 passed before the rebase. All three are closed and
+fix is the surface clear for `selected_file_split_by_commit_filter` in
+`workbench_window.cpp`. #110 passed before the rebase. All three are closed and
 their branches deleted. Each run spent under 100 REST calls; the account's
 `X-RateLimit-Remaining` stayed above 4,700.
 
 ## Verification on the candidate
 
-- Focused dev tests, 33 rows, all pass: the commit filter core, model, view,
+- Focused dev tests, 37 rows, all pass on the candidate, including
+  `qt_current_file_unread_badge`, `qt_home_list_scale_100`,
+  `sqlite_queue_enrollment_storage` and `command_correctness_registry_contract`
+  for the merged work: the commit filter core, model, view,
   fixture contract and public path; the epoch, workbench, review mutation,
   snapshot observation and window read hosts; GitHub paged read and contract;
   gh CLI transport and smart transport; the Overview page, drawer parts and
