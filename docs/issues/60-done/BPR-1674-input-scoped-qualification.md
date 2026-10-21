@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1674"
 title: "Select qualification from complete inputs and reuse equivalent builds"
-status: "Ready"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1673"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"milestone_plan": {"id": "release-qualification-portfolio", "path": "docs/rfcs/plans/release-qualification-portfolio/milestone-plan.json"}, "mandate_revision": "release-30min-portfolio-r1", "RFC_BASE_SHA": "a1a91fa68"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f230a8e5f4fcc3a97985c72726a0069595b6617c","evidence":{"kind":"observation","detail":"The existing runner seals explicit same-invocation bootstrap inputs, preserves fresh candidate/native obligations and refuses stale/failed/changed/unknown scope; real native bootstrap-only receipt validates all three rows once with scoped reuse. Cross-request hostile-tool/native reuse is explicitly unready.","reference":"docs/verification/BPR-1674-input-scoped-qualification.md"}},{"criterion":"AC2","outcome":"pass","revision":"f230a8e5f4fcc3a97985c72726a0069595b6617c","evidence":{"kind":"observation","detail":"Eight actual composition methods mapped to source/header/compiler/parser/generic tests-off images. No duplicate application build proved interchangeable or removed. Ordinary tests-enabled Release presets and 237 case/configuration/workload/assertion occurrences pass both native configurations; Debug and distribution remain distinct.","reference":"docs/verification/BPR-1674-input-scoped-qualification.md"}},{"criterion":"AC3","outcome":"pass","revision":"f230a8e5f4fcc3a97985c72726a0069595b6617c","evidence":{"kind":"observation","detail":"17 runner controls,7 registry controls, inventory refusal controls, source/bootstrap/format/documentation checks and actual native expectation/backstop/four latency negatives pass. Existing native runner rejects early-pass-regex failures. Full optimized promotion and narrow Debug reuse remain unready, normal complete Debug persists.","reference":"docs/verification/BPR-1674-input-scoped-qualification.md"}}]
 ---
 
 # BPR-1674: Select qualification from complete inputs and reuse equivalent builds

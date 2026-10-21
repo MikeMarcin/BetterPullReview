@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1675"
 title: "Measure the complete release rehearsal and remaining budget gap"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1674"]
 priority: "P1"
@@ -21,3 +21,20 @@ metadata: {"milestone_plan": {"id": "release-qualification-portfolio", "path": "
 ## Scope and provenance
 
 Implements the owner’s thirty-minute release mandate `release-30min-portfolio-r1`, grounded in the retained Astra design (SHA-256 `ad0157d3693bf0ffda63d71504e7ee76c59a90c4fcb9185cfbff6ee0764812d1`). The [portfolio design](../../development/release-qualification-portfolio.md) and [milestone plan](../../rfcs/plans/release-qualification-portfolio/milestone-plan.json) retain boundaries and open choices. RFC-BPR-0038 remains open.
+
+## Fresh M3 frontier after M2
+
+The [M2 result](../../verification/BPR-1674-input-scoped-qualification.md) qualifies
+only the bounded native candidate `f230a8e5f` and its five commands in both
+configurations. Use the maintained `windows-qualification-release` and portable
+`qualification-release` presets and publish-release pilot procedure. The complete
+Release target graph has not been built or run. Release scheduling remains
+exclusive; independently review its actual configuration before admitting any
+correctness rows. Normal complete native Debug still applies until a sound
+residual policy and full optimized results support promotion. The canonical main
+also contains separate promo edits outside the native M2 candidate; reconcile
+that changed source first. Bootstrap proof can be reused only within its original
+sealed invocation. Strict Ubuntu RSS remains failed and is not waived. The
+coordinator returns exact caches, source/receipt identities and command quiescence
+in `/tmp/bpr-release-portfolio/m2-handoff.md`; start no duplicate native course
+merely to recover a transcript.

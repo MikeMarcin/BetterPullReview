@@ -20,6 +20,80 @@ import run_test_suite as suite
 from skip_report import SkipReportingTestRunner
 
 class SuiteRunnerTests(unittest.TestCase):
+    def setUp(self):
+        # Mocked CTest tests exercise admission independently of filesystem sealing.
+        self.inputs = patch.object(suite, "bootstrap_inputs", return_value="fixture-identity")
+        self.inputs.start()
+        self.addCleanup(self.inputs.stop)
+
+    def test_bootstrap_reuse_rejects_stale_missing_failed_and_interrupted_proof(self):
+        names = sorted(suite.TOOLING_PREFLIGHT)
+        valid = dict(invocation_id="live", input_identity="same", expected=names,
+                     passed=True, complete=True, ctest_exit_code=0,
+                     results={"counts": {"passed": len(names)}, "tests": [{"name": n, "status": "passed"} for n in names]})
+        self.assertEqual(suite.reusable_bootstrap(valid, "live", "same"), names)
+        for changed in ({"invocation_id": "previous"}, {"input_identity": "changed"},
+                        {"passed": False}, {"complete": False}, {"ctest_exit_code": 8},
+                        {"expected": names + ["unknown"]}, {"expected": names + names},
+                        {"results": {"counts": {"skipped": 3}, "tests": []}}):
+            with self.subTest(changed=changed):
+                self.assertEqual(suite.reusable_bootstrap({**valid, **changed}, "live", "same"), [])
+        self.assertEqual(suite.reusable_bootstrap(None, "live", "same"), [])
+        self.assertEqual(suite.reusable_bootstrap(valid, "live", None), [])
+
+    def test_bounded_selection_keeps_preflight_fresh_and_never_credits_other_rows(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            calls = []
+            names = sorted(suite.TOOLING_PREFLIGHT)
+            def run(command, **kwargs):
+                calls.append(command)
+                if "--show-only=json-v1" in command:
+                    return subprocess.CompletedProcess(command, 0, json.dumps({"tests": [{"name": n} for n in names + ["selected", "omitted"]]}))
+                output = root / "results"
+                preflight = "preflight-junit.xml" in str(command)
+                actual = names if preflight else ["selected"]
+                (output / ("preflight-junit.xml" if preflight else "junit.xml")).write_text(
+                    '<testsuite>' + ''.join(f'<testcase name="{n}"/>' for n in actual) + '</testsuite>')
+                return subprocess.CompletedProcess(command, 0)
+            with patch.object(suite, "committed_tooling_pin", return_value={"fixture": "pin"}), patch.object(suite.subprocess, "run", side_effect=run), redirect_stdout(io.StringIO()):
+                self.assertEqual(suite.run_suite("fixture", 1, root / "results", root=root, tests_regex="^selected$"), 0)
+            report = json.loads((root / "results/timings.json").read_text())
+            self.assertFalse(report["full_graph_selected"])
+            self.assertEqual([row["name"] for row in report["tests"]], ["selected"])
+            self.assertEqual(report["qualification_scope"]["fresh"], ["selected"])
+            self.assertEqual(len(calls), 3)
+
+    def test_actual_source_helper_tool_environment_and_manifest_identity_changes(self):
+        # Exercise the real seal; no prior whole-source receipt is promoted.
+        self.inputs.stop()
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            helper = root / ".agents/skills/implement-rfc/scripts"
+            helper.mkdir(parents=True)
+            (helper / "gate.py").write_text("gate-one")
+            source = root / "source.py"
+            source.write_text("source-one")
+            tool = root / "tool"
+            tool.write_text("tool-one")
+            with patch.object(suite.shutil, "which", return_value=str(tool)):
+                initial = suite.bootstrap_inputs(root, {"tests": []}, "ctest")
+                for path in (source, helper / "gate.py", tool):
+                    original = path.read_text()
+                    path.write_text(original + "changed")
+                    self.assertNotEqual(suite.bootstrap_inputs(root, {"tests": []}, "ctest"), initial)
+                    path.write_text(original)
+                self.assertNotEqual(suite.bootstrap_inputs(root, {"tests": [{"name": "changed"}]}, "ctest"), initial)
+                with patch.dict(os.environ, {"BPR_QUALIFICATION_TEST_TRIGGER": "changed"}):
+                    self.assertNotEqual(suite.bootstrap_inputs(root, {"tests": []}, "ctest"), initial)
+                self.assertEqual(suite.bootstrap_inputs(root, {"tests": []}, "ctest"), initial)
+        self.inputs.start()
+
+    def test_python_optimization_is_refused_before_selection(self):
+        with patch.dict(os.environ, {"PYTHONOPTIMIZE": "1"}), self.assertRaisesRegex(ValueError, "Python assertions"):
+            suite.run_suite("fixture", 1, Path("unused"))
+
     def test_real_preflight_stops_failed_candidate_and_retains_accepted_full_inventory(self):
         for failed in (True, False):
             with self.subTest(failed=failed), ContainedTemporaryDirectory() as temporary:
@@ -58,7 +132,7 @@ if name == "documentation_structure" and (root / "fail").exists():
                 self.assertEqual(result == 0, not failed)
                 self.assertEqual((root / "expensive_sentinel.runs").exists(), not failed)
                 for name in names:
-                    self.assertEqual((root / (name + ".runs")).read_text().splitlines(), ["run"] if failed else ["run", "run"])
+                    self.assertEqual((root / (name + ".runs")).read_text().splitlines(), ["run"])
                 if failed:
                     self.assertFalse(report["complete"])
                     self.assertEqual(report["counts"], {})
@@ -67,6 +141,7 @@ if name == "documentation_structure" and (root / "fail").exists():
                 else:
                     self.assertTrue(report["complete"])
                     self.assertEqual(report["counts"], {"passed": 4})
+                    self.assertEqual(set(report["qualification_scope"]["reused"]), set(names))
                     self.assertEqual({row["name"] for row in report["tests"]}, set(names + ["expensive_sentinel"]))
                     self.assertGreaterEqual(report["total_runner_wall_seconds"], report["wall_seconds"] + preflight["wall_seconds"])
 

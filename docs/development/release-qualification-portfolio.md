@@ -29,3 +29,16 @@ BPR-1673 retains all 44 Windows workbench invocations (481 ordered case and rend
 M2 also receives the retained Astra addendum `optimized-qualification-option.md`, SHA-256 `21a1411607a60cba4cda622fe70c8af769ca2652670b790b34ead3d187e18557`, beside the original report. Its bounded tests-on Release discriminator and explicit Debug residual policy are proposals for M2. Neither configuration is a semantic superset; the smaller seeded fixtures, checked MSVC iterators, Qt diagnostics, optimized timing/workloads and two allocation-failure sweeps keep distinct scope.
 
 The [M1 runtime ledger](../verification/BPR-1673-command-owned-correctness.md) records the exact candidate, source/case preservation, negative controls, measured course and remaining acceptance.
+
+
+## M2 optimized qualification boundary
+
+The [M2 result](../verification/BPR-1674-input-scoped-qualification.md) and
+[publish-release pilot procedure](../../.codex/skills/publish-release/references/optimized-qualification.md)
+make a bounded tests-enabled Release discriminator operational. Five passing
+commands do not replace a complete native gate. The release-candidate integration
+boundary still requires complete native Debug; full optimized promotion awaits M3.
+Source/manifest/artifact/security/legal/native obligations stay fresh. Only duplicate
+bootstrap rows within one sealed live runner invocation may reuse their new scoped
+proof; cross-request hostile-tool and native reuse remain unready. The eight-method
+composition matrix establishes no interchangeable application build to remove.
