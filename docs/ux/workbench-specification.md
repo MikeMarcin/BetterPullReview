@@ -514,7 +514,8 @@ not a computed merge base; which base Whole PR should compare from is
 its status row. Each tab keeps an exact file, comparison and semantic reading
 position. Clicking a file or using previous/next file changes the active tab;
 Cmd-click (Ctrl-click elsewhere) and **Open in New Tab** open a background tab
-on the window's comparison. **Duplicate Tab** and the strip's **+** copy and
+on the window's comparison; from Find in files the new tab becomes active,
+so its result shows. **Duplicate Tab** and the strip's **+** copy and
 activate the exact view. Names elide from the left, retain enough path to tell
 same-named files apart, and expose the full path in the tooltip. A tab with its
 own comparison carries a date pill and names the pair accessibly. When the
@@ -1704,6 +1705,25 @@ query or file filter. Escape returns source focus while retaining PR results;
 Close cancels pending query/filter work and restores the prior drawer tab and
 collapse state. Counts, scope, invalid input and coverage share accessible
 wording. See the [source search contract](../architecture/source-search.md).
+
+The results take an extended selection ([[BPR-PENDING-T]]). Shift or Cmd (Ctrl
+elsewhere) with a click, and Shift with an arrow, select more results and open
+none; Cmd+A (Ctrl+A) selects every row. Unlike Files, Cmd-click here selects
+rather than opening a tab. A plain click, an arrow, Return and F4 still act on
+the one current result. Cmd+C (Ctrl+C) copies the selected results as plain
+text, one line each in the list's order: `path:line: text`, with the path and
+one-based line of the side the row shows (Right when both carry the match) and
+the snippet as the row draws it. A selected file row stands for all of its
+shown results, once each. A right-click, the menu key or Shift+F10 opens a
+result's menu: **Open**, **Open in New Tab**, **Copy** and **Copy Path**
+(**Copy Paths** across several files). A right-click inside the selection keeps
+it; outside, it selects that row. Open in New Tab puts the result's file in a
+tab of its own after the active one, makes that tab active and selects the
+result's span once the file has loaded, as every result's reveal does. The tab
+it came from keeps its file, and the results stay without another search. On a
+file row, Open and Open in New Tab go to the file's first shown result. The
+list reads Cmd+C and Cmd+A itself, ahead of any window shortcut, and its
+accessible description names these keys.
 
 The command opens the unique closest same-basename opposite-family file through
 ordinary exact file selection, replacing the active tab's file and retaining its

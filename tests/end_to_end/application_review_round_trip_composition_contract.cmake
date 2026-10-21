@@ -1,3 +1,15 @@
+# [[BPR-PENDING-T]] reseal (2026-10-21) over last matching main 6e8d0834f,
+# linear. Pinned-scope change: Find in files' result menu opens a result in a
+# new tab, on this card's own commit. Inside the manifest github_application.cpp
+# and pr_search_controller.cpp/.hpp changed: the controller's file opener takes
+# a result_tab (the active tab or a new one); the composition's opener applies
+# the core's open_in_new_tab_intent and then activate_tab_intent on the tab it
+# added (open_search_result_in_new_tab), and a tab a result opened keeps the
+# search bound to the tab it was bound to (SearchOpening, SearchOpeningBinding
+# and SearchCreatedBinding generalize SearchOpeningNoTab), so the results and
+# the existing reveal stay. No credential, grant, provider selection,
+# publication, mutation, ledger write or source-inventory change. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # RFC-BPR-0089 M4 and [[BPR-1688]] reseal (2026-10-21) over last matching main
 # ab1698599, linear. Pinned-scope change: comments from commit-filtered diffs,
 # filtered Find in files and the window's kept filters, on this milestone's
@@ -1867,7 +1879,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"711801d15243340c694aaccb3729a40db0facb4d4a6050d11e254d72ee32642e"
+		"c5667c728ac9f2bdfff3de1ee52ae0a15b3ff2a770f4b0eb3fbbd6505324e353"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2087,7 +2099,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "5297f2c3deb1d6cc4aac946671a4e9394b49190a42aae21c17dee07529fd5e93"
+        "8e86a920fb5c780a9e3dffdcf4768842035a3aa38aeca2988a1b9f06b0f25d1e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

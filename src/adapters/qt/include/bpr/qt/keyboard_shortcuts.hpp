@@ -89,6 +89,10 @@ namespace bpr::qt {
 		query_previous,
 		query_whole_word,
 		query_in_selection,
+		/// [[BPR-PENDING-T]]. Find in files' results: copy the selected ones.
+		copy_results,
+		/// [[BPR-PENDING-T]]. Find in files' results: select every row.
+		select_results,
 
 		files_drawer,
 		comments_drawer,

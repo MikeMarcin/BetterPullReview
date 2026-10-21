@@ -1,13 +1,19 @@
 /// \file
 /// \brief [[BPR-1504]]. Find in Files' result view: side filter, file and match
 /// rows, the painted match wash, the details toggle and collapse-all.
+/// [[BPR-PENDING-T]]: multi-select, Copy and the result menu.
 
+#include "../support/window_system_keys.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/source_search_panel.hpp"
 
 #include <QAbstractButton>
 #include <QAccessible>
+#include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QDir>
 #include <QFontDatabase>
 #include <QImage>
@@ -15,7 +21,9 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -118,6 +126,77 @@ namespace {
 		QApplication::sendEvent(&aWidget, &press);
 		QApplication::sendEvent(&aWidget, &release);
 		QApplication::processEvents();
+	}
+
+	/// [[BPR-PENDING-T]]. A click as the window system reports it, with the
+	/// button and modifiers a hand holds, so QtGui and the widget window
+	/// decide the selection and the context menu as they do for a hand. Each
+	/// click is two seconds after the last, so none makes a double click.
+	void hand_click(QWidget& aWidget, const QPoint& aPoint, Qt::KeyboardModifiers aModifiers = Qt::NoModifier, Qt::MouseButton aButton = Qt::LeftButton)
+	{
+		static auto clock  = 500000;
+		auto* const window = aWidget.window()->windowHandle();
+		const auto  local  = QPointF{ aWidget.mapTo(aWidget.window(), aPoint) };
+		clock += 2000;
+		qt_handleMouseEvent(window, local, window->mapToGlobal(local), aButton, aButton, QEvent::MouseButtonPress, aModifiers, clock);
+		clock += 40;
+		qt_handleMouseEvent(window, local, window->mapToGlobal(local), Qt::NoButton, aButton, QEvent::MouseButtonRelease, aModifiers, clock);
+		QApplication::processEvents();
+	}
+
+	/// The platform's key for `aKey` (Command-C, Ctrl+C), through the window.
+	void hand_key(QWidget& aWidget, QKeySequence::StandardKey aKey)
+	{
+		const auto combination = QKeySequence{ aKey }[0];
+		tests::window_system_key(aWidget, static_cast<int>(combination.key()), combination.keyboardModifiers());
+	}
+
+	/// The result menu showing over `aTree`, if one is.
+	auto shown_menu(QTreeView& aTree) -> QMenu*
+	{
+		for (auto* menu : aTree.findChildren<QMenu*>(QStringLiteral("sourceSearchResultMenu"))) {
+			if (menu->isVisible()) {
+				return menu;
+			}
+		}
+		return nullptr;
+	}
+
+	/// The result menu a right-click on `aIndex` opens.
+	auto right_click_menu(QTreeView& aTree, const QModelIndex& aIndex) -> QMenu*
+	{
+		hand_click(*aTree.viewport(), aTree.visualRect(aIndex).center(), Qt::NoModifier, Qt::RightButton);
+		return shown_menu(aTree);
+	}
+
+	auto menu_action(QMenu& aMenu, const char* aName) -> QAction*
+	{
+		for (auto* action : aMenu.actions()) {
+			if (action->objectName() == QString::fromUtf8(aName)) {
+				return action;
+			}
+		}
+		return nullptr;
+	}
+
+	/// Chooses the item named `aName` with a click on it; the menu closes.
+	void choose(QMenu* aMenu, const char* aName)
+	{
+		auto* action = aMenu ? menu_action(*aMenu, aName) : nullptr;
+		expect(action != nullptr && action->isEnabled(), std::string{ "the menu offers " } + aName);
+		// The menu deletes itself once closed, so it is watched rather than read.
+		const auto watched = QPointer<QMenu>{ aMenu };
+		hand_click(*aMenu, aMenu->actionGeometry(action).center());
+		expect(!watched || !watched->isVisible(), std::string{ "choosing closes the menu: " } + aName);
+	}
+
+	/// Closes the menu with Escape, choosing nothing.
+	void dismiss(QMenu* aMenu)
+	{
+		expect(aMenu != nullptr, "a menu to dismiss");
+		const auto watched = QPointer<QMenu>{ aMenu };
+		tests::window_system_key(*aMenu, Qt::Key_Escape);
+		expect(!watched || !watched->isVisible(), "Escape closes the menu");
 	}
 
 	auto painted_left_edge(QTreeView& aTree, const QModelIndex& aIndex, const QColor& aFill) -> int
@@ -298,6 +377,146 @@ int main(int aArgc, char** aArgv)
 	render(panel, QStringLiteral("panel-light-left-only"));
 	rightChip->click();
 	expect(panel.side_filter() == core::source_side_filter{ } && leaves(*model).size() == 5U && panel.summary_text() == QStringLiteral("5 matches in 3 files"), "both on restores every record");
+
+	// [[BPR-PENDING-T]]. Shift and Command (Ctrl) select more results; Copy
+	// writes them one per line in the list's order; the row menu opens one
+	// result in the active tab or a new one and copies. Clicks and keys come
+	// through the window system, as a hand's do.
+	{
+		const auto rows   = leaves(*model);
+		const auto lines  = QStringList{ QStringLiteral("src/search/find_controller.cpp:12: const auto needle = locate(scope);"), QStringLiteral("src/search/find_controller.cpp:14: return needle_for(scope, options);"), QStringLiteral("src/search/find_controller.cpp:1204: // unchanged: the needle is shared"), QStringLiteral("src/search/added_view.cpp:1: auto view = make_needle_view(model);"), QStringLiteral("src/renamed.cpp:1: static int needle = 1;") };
+		const auto copied = [&](std::initializer_list<int> aLines) {
+			auto words = QStringList{ };
+			for (const auto line : aLines) {
+				words << lines[line];
+			}
+			return words.join(QLatin1Char('\n'));
+		};
+		const auto centre    = [&](const QModelIndex& aIndex) { return tree->visualRect(aIndex).center(); };
+		auto*      clipboard = QApplication::clipboard();
+		// What Copy (Command-C, Ctrl+C) puts on the clipboard now.
+		const auto copyText = [&] {
+			clipboard->setText(QStringLiteral("before"));
+			hand_key(*tree, QKeySequence::Copy);
+			return clipboard->text();
+		};
+		panel.activateWindow();
+		tree->setFocus();
+		QApplication::processEvents();
+		expect(panel.isActiveWindow() && tree->hasFocus(), "the list holds the keyboard");
+		expect(rows.size() == 5U && tree->selectionMode() == QAbstractItemView::ExtendedSelection && tree->selectionBehavior() == QAbstractItemView::SelectRows, "the results take an extended selection of rows");
+		expect(tree->accessibleDescription().contains(QStringLiteral("Shift+F10")) && tree->accessibleDescription().contains(qt::spoken_key(qt::shortcut_key(qt::shortcut_command::copy_results))) && tree->accessibleDescription().contains(qt::spoken_key(qt::shortcut_key(qt::shortcut_command::select_results))), "the list says how to select, copy and reach the menu");
+
+		// Without a new-tab handler the menu offers the item disabled.
+		panel.ActivateInNewTab = { };
+		auto* menu             = right_click_menu(*tree, rows[0]);
+		expect(menu && menu->isVisible() && menu_action(*menu, "sourceSearchOpenInNewTab") && !menu_action(*menu, "sourceSearchOpenInNewTab")->isEnabled(), "Open in New Tab waits for a handler");
+		dismiss(menu);
+		auto newTab            = std::vector<std::uint32_t>{ };
+		panel.ActivateInNewTab = [&](auto aIndex) { newTab.push_back(aIndex); };
+
+		// A plain click selects and opens one result.
+		hand_click(*tree->viewport(), centre(rows[3]));
+		const auto opened = activated.size();
+		expect(activated.back() == 3U && tree->selectionModel()->selectedRows().size() == 1, "a plain click selects one result and opens it");
+		// Shift-click selects the range up to the first result and opens nothing.
+		hand_click(*tree->viewport(), centre(rows[0]), Qt::ShiftModifier);
+		expect(activated.size() == opened && tree->currentIndex() == rows[0], "Shift-click moves the cursor and opens nothing");
+		expect(copyText() == copied({ 0, 1, 2, 3 }), "a range over a file row copies its results once, in the list's order");
+		// Command (Ctrl) toggles single rows.
+		hand_click(*tree->viewport(), centre(rows[4]), Qt::ControlModifier);
+		hand_click(*tree->viewport(), centre(rows[1]), Qt::ControlModifier);
+		expect(activated.size() == opened, "Command-click selects and opens nothing");
+		expect(copyText() == copied({ 0, 2, 3, 4 }), "Command-click adds and removes single results");
+		{
+			QKeyEvent override{ QEvent::ShortcutOverride, static_cast<int>(QKeySequence{ QKeySequence::Copy }[0].key()), QKeySequence{ QKeySequence::Copy }[0].keyboardModifiers() };
+			override.ignore();
+			QApplication::sendEvent(tree, &override);
+			expect(override.isAccepted(), "the list claims Copy ahead of any window shortcut");
+		}
+		expect(copyText() == copied({ 0, 2, 3, 4 }), "Copy puts the selected results on the clipboard, one per line, in the list's order");
+		// Return still opens the current result alone.
+		tests::window_system_key(*tree, Qt::Key_Return);
+		expect(activated.size() == opened + 1U && activated.back() == 1U, "Return opens the current result, not the selection");
+
+		// Select All takes every row; a selected file stands for its results.
+		hand_key(*tree, QKeySequence::SelectAll);
+		expect(tree->selectionModel()->selectedRows().size() == 8, "Select All selects every file and result row");
+		hand_key(*tree, QKeySequence::Copy);
+		expect(clipboard->text() == copied({ 0, 1, 2, 3, 4 }), "Select All then Copy writes every result once");
+		// A plain arrow goes back to one selected result.
+		tests::window_system_key(*tree, Qt::Key_Down);
+		expect(tree->selectionModel()->selectedRows().size() == 1 && tree->currentIndex() == rows[2] && selected.back() == 2U, "a plain arrow moves the cursor and selects one result");
+		tests::window_system_key(*tree, Qt::Key_Up, Qt::ShiftModifier);
+		expect(copyText() == copied({ 1, 2 }) && activated.size() == opened + 1U, "Shift+Up extends the selection and opens nothing");
+		{
+			auto* spoken = QAccessible::queryAccessibleInterface(tree);
+			auto* table  = spoken ? spoken->tableInterface() : nullptr;
+			expect(table && table->selectedCellCount() == 2, "screen readers hear both selected results");
+		}
+
+		// The row menu: Open, Open in New Tab, Copy, Copy Path.
+		menu = right_click_menu(*tree, rows[2]);
+		expect(menu && menu->isVisible(), "right-click opens the result menu");
+		auto names = QStringList{ };
+		for (const auto* action : menu->actions()) {
+			names << (action->isSeparator() ? QStringLiteral("|") : action->text());
+		}
+		std::cout << "RESULT_DESCRIPTION " << tree->accessibleDescription().toStdString() << '\n';
+		std::cout << "RESULT_MENU " << names.join(QLatin1Char(',')).toStdString() << '\n';
+		expect(names == QStringList{ QStringLiteral("Open"), QStringLiteral("Open in New Tab"), QStringLiteral("|"), QStringLiteral("Copy"), QStringLiteral("Copy Path") }, "the menu's items, in order");
+		expect(menu_action(*menu, "sourceSearchCopy")->shortcut() == QKeySequence{ QKeySequence::Copy } && qt::shortcut_key(qt::shortcut_command::copy_results) == QKeySequence{ QKeySequence::Copy }, "Copy shows the catalogue's key, the platform's Copy");
+		expect(tree->selectionModel()->selectedRows() == QModelIndexList{ rows[1], rows[2] }, "right-click inside the selection keeps it");
+		choose(menu, "sourceSearchOpenInNewTab");
+		expect(newTab.size() == 1U && newTab.back() == 2U && activated.size() == opened + 1U, "Open in New Tab asks for the clicked result in a new tab");
+		menu = right_click_menu(*tree, rows[2]);
+		choose(menu, "sourceSearchOpen");
+		expect(activated.back() == 2U && newTab.size() == 1U, "Open opens the clicked result in the active tab");
+		menu = right_click_menu(*tree, rows[2]);
+		clipboard->setText(QStringLiteral("before"));
+		choose(menu, "sourceSearchCopy");
+		expect(clipboard->text() == copied({ 1, 2 }), "the menu's Copy writes the selected results");
+		menu = right_click_menu(*tree, rows[2]);
+		choose(menu, "sourceSearchCopyPath");
+		expect(clipboard->text() == QStringLiteral("src/search/find_controller.cpp"), "Copy Path writes the file's path once");
+		// Right-click outside the selection selects that row alone.
+		menu = right_click_menu(*tree, rows[4]);
+		expect(menu_action(*menu, "sourceSearchCopyPath")->text() == QStringLiteral("Copy Path"), "one file's path");
+		dismiss(menu);
+		expect(copyText() == copied({ 4 }), "right-click outside the selection chooses that result");
+		// A file row's menu opens the file at its first result.
+		menu = right_click_menu(*tree, added);
+		choose(menu, "sourceSearchOpenInNewTab");
+		expect(newTab.back() == 3U, "a file row opens at its first result");
+		tree->selectionModel()->select(QItemSelection{ rows[0], rows[0] }, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+		tree->selectionModel()->select(QItemSelection{ rows[3], rows[3] }, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+		menu = right_click_menu(*tree, rows[3]);
+		expect(menu_action(*menu, "sourceSearchCopyPath")->text() == QStringLiteral("Copy Paths"), "results in several files copy their paths");
+		choose(menu, "sourceSearchCopyPath");
+		expect(clipboard->text() == QStringLiteral("src/search/find_controller.cpp\nsrc/search/added_view.cpp"), "Copy Paths writes each file once, in the list's order");
+
+		// The menu key and Shift+F10 open the current result's menu; F10 alone does not.
+		tree->setFocus();
+		tree->setCurrentIndex(rows[4]);
+		for (const auto& [key, modifiers] : { std::pair{ Qt::Key_Menu, Qt::KeyboardModifiers{ Qt::NoModifier } }, std::pair{ Qt::Key_F10, Qt::KeyboardModifiers{ Qt::ShiftModifier } } }) {
+			tests::window_system_key(*tree, key, modifiers);
+			menu = shown_menu(*tree);
+			expect(menu != nullptr, "the menu key and Shift+F10 open the current result's menu");
+			expect(menu->geometry().top() >= tree->viewport()->mapToGlobal(tree->visualRect(rows[4]).topLeft()).y(), "the keyboard's menu opens at the current row");
+			choose(menu, "sourceSearchOpenInNewTab");
+			expect(newTab.back() == 4U, "the keyboard's menu acts on the current result");
+		}
+		tests::window_system_key(*tree, Qt::Key_F10);
+		expect(shown_menu(*tree) == nullptr, "F10 alone opens no result menu");
+
+		// A move from outside the list (F4) selects the one current result.
+		tree->selectionModel()->select(QItemSelection{ rows[0], rows[1] }, QItemSelectionModel::Select | QItemSelectionModel::Rows);
+		auto moved         = fixture();
+		moved.CurrentMatch = 2U;
+		panel.present(moved);
+		expect(tree->currentIndex() == rows[2] && tree->selectionModel()->selectedRows().size() == 1 && copyText() == copied({ 2 }), "F4's current result replaces the selection");
+		tree->clearSelection();
+	}
 
 	// AC3: the details toggle and collapse-all.
 	auto* include = panel.findChild<QLineEdit*>(QStringLiteral("sourceFilesInclude"));

@@ -7248,7 +7248,16 @@ namespace bpr::app {
 				SearchCreatedTab.reset();
 				SearchCreatedComparison.reset();
 			}
-			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, (SearchOpeningNoTab || SearchCreatedTab) ? std::nullopt : tabs.Active,
+			// [[BPR-PENDING-T]]. While a result opens, and while the tab it
+			// opened is active, the search keeps the tab it was bound to, so
+			// the results and the result's reveal stay.
+			auto bound = tabs.Active;
+			if (SearchOpening) {
+				bound = SearchOpeningBinding;
+			} else if (SearchCreatedTab) {
+				bound = SearchCreatedBinding;
+			}
+			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, bound,
 												 pair == *EpochHost->state().AcceptedComparison ? filtered_search_files() : std::nullopt);
 		}
 		/// \brief RFC-BPR-0089 ([[BPR-1688]]). While a filter leaves files out of
@@ -7273,6 +7282,28 @@ namespace bpr::app {
 			std::ranges::sort(result, { }, &core::source_search_filtered_file::Path);
 			result.erase(std::ranges::unique(result, { }, &core::source_search_filtered_file::Path).begin(), result.end());
 			return result;
+		}
+		/// \brief [[BPR-PENDING-T]]. Find in files' Open in New Tab: the
+		/// result's file in a tab of its own after the active one, which it
+		/// then makes active so the result's line can be shown. The core's
+		/// Open in New Tab and tab activation decide both; at the tab limit
+		/// nothing opens.
+		void open_search_result_in_new_tab(const core::file_identity& aFile)
+		{
+			auto before = std::vector<core::document_tab_id>{ };
+			for (const auto& tab : TabHost->state().Tabs) {
+				before.push_back(tab.Id);
+			}
+			const auto active = TabHost->state().Active;
+			TabHost->apply(core::open_in_new_tab_intent{ .File = aFile });
+			if (!active) {
+				return;
+			}
+			const auto& tabs  = TabHost->state().Tabs;
+			const auto  added = std::ranges::find_if(tabs, [&](const core::document_tab& aTab) { return std::ranges::find(before, aTab.Id) == before.end(); });
+			if (added != tabs.end()) {
+				TabHost->apply(core::activate_tab_intent{ .Tab = added->Id });
+			}
 		}
 		auto register_search_open() -> bool
 		{
@@ -9231,12 +9262,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TabHost  = std::make_unique<application::document_tab_host>(
 				DecisionLane, *TabPorts, *TabPorts,
 				[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
-			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry) -> std::optional<core::document_tab_id> {
+			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry, const pr_search_controller::result_tab aTab) -> std::optional<core::document_tab_id> {
                 if(pr_search_scope()!=std::optional{aScope}){return {};}
                 cancel_review_navigation();cancel_restoration(false);abandon_tab_load();
                 SearchOpenFile=std::pair{aScope,aEntry};static_cast<void>(register_search_open());
-                observe_tab_reading();SearchOpeningNoTab=!TabHost->state().Active;TabHost->apply(core::open_in_active_tab_intent{.File=aEntry.File});
-                if(SearchOpeningNoTab){SearchCreatedTab=TabHost->state().Active;SearchCreatedComparison=aScope.Comparison;}SearchOpeningNoTab=false;return TabHost->state().Active; }, [this](const core::source_search_scope& aScope, core::file_identity aFile, const std::string& aPath, const core::source_match_location& aLocation) {
+                observe_tab_reading();
+                const auto before=TabHost->state().Active;
+                SearchOpening=true;SearchOpeningBinding=aScope.Tab;
+                if(aTab==pr_search_controller::result_tab::new_tab){open_search_result_in_new_tab(aEntry.File);}else{TabHost->apply(core::open_in_active_tab_intent{.File=aEntry.File});}
+                if(TabHost->state().Active && TabHost->state().Active!=before){SearchCreatedTab=TabHost->state().Active;SearchCreatedComparison=aScope.Comparison;SearchCreatedBinding=aScope.Tab;}
+                SearchOpening=false;return TabHost->state().Active; }, [this](const core::source_search_scope& aScope, core::file_identity aFile, const std::string& aPath, const core::source_match_location& aLocation) {
                 if(!SelectedDiffPublication || SelectedDiffPublication->Request.Diff.Authority!=aScope.Authority || SelectedDiffPublication->Request.Diff.Comparison!=aScope.Comparison || SelectedDiffPublication->Key.File!=aFile){return false;}
                 const auto& endpoint=aLocation.Side==core::diff_side::left?SelectedDiffPublication->LeftEndpoint:SelectedDiffPublication->RightEndpoint;
                 if(!endpoint || endpoint->blob()!=aLocation.Blob || endpoint->side()!=aLocation.Side){return false;}
@@ -20911,7 +20946,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;
 		/// [[BPR-1693]]. A set-aside file asked for, until a comparison context retains it.
 		std::optional<application::workbench_file_observation_entry> SetAsideOpenFile;
-		bool                                                         SearchOpeningNoTab      = false;
+		bool                                                         SearchOpening = false;
+		std::optional<core::document_tab_id>                         SearchOpeningBinding;
+		std::optional<core::document_tab_id>                         SearchCreatedBinding;
 		bool                                                         SearchComparisonGesture = false;
 		std::optional<core::document_tab_id>                         SearchCreatedTab;
 		std::optional<core::comparison_pair>                         SearchCreatedComparison;

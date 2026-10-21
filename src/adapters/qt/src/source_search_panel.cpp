@@ -1,16 +1,21 @@
 #include "bpr/qt/source_search_panel.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "painted_glyph_icon.hpp"
 #include <QAbstractButton>
 #include <QAbstractItemModel>
 #include <QAccessible>
 #include <QApplication>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
@@ -71,14 +76,25 @@ namespace bpr::qt {
 				}
 				return area;
 			}
+			/// [[BPR-PENDING-T]]. The last click held Shift or Command (Ctrl):
+			/// it changed the selection and opens nothing.
+			[[nodiscard]] auto selecting_click() const -> bool { return SelectingClick; }
 
 		protected:
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				SelectingClick = (aEvent->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier)) != 0;
+				QTreeView::mouseReleaseEvent(aEvent);
+			}
 			void drawBranches(QPainter* aPainter, const QRect& aArea, const QModelIndex& aIndex) const override
 			{
 				if (aIndex.data(source_search_file_role).toBool()) {
 					QTreeView::drawBranches(aPainter, aArea, aIndex);
 				}
 			}
+
+		private:
+			bool SelectingClick = false;
 		};
 	}
 	/// Immutable host records are shared; only numeric file groups are retained.
@@ -274,6 +290,7 @@ namespace bpr::qt {
 			case source_search_folder_role: return folder(oldPath) == folder(newPath) ? folder(newPath) : folder(oldPath) + QStringLiteral(" → ") + folder(newPath);
 			case source_search_count_role:  return static_cast<qulonglong>(aGroup.Rows.size());
 			case source_search_change_role: return QVariant{ change };
+			case source_search_path_role:   return QVariant{ path };
 			case Qt::ToolTipRole:
 			case Qt::DisplayRole:
 			case Qt::AccessibleTextRole:    {
@@ -305,9 +322,17 @@ namespace bpr::qt {
 			case source_search_highlight_start_role:  return snippet_of(hit).Start;
 			case source_search_highlight_length_role: return snippet_of(hit).Length;
 			case Qt::FontRole:                        return SnippetFont;
+			case source_search_path_role:             return QString::fromStdString(std::string{ Corpus->Entries[aGroup.Entry].path() });
+			case source_search_copy_role:             {
+				// The side the row's number is from: Right when both carry the match.
+				const auto& entry = Corpus->Entries[aGroup.Entry];
+				const auto& shown = right ? entry.Right : entry.Left;
+				const auto  path  = shown ? QString::fromStdString(shown->Path) : QString::fromStdString(std::string{ entry.path() });
+				return path + QLatin1Char(':') + line() + QStringLiteral(": ") + snippet_of(hit).Text;
+			}
 			case Qt::ToolTipRole:
 			case Qt::DisplayRole:
-			case Qt::AccessibleTextRole:              {
+			case Qt::AccessibleTextRole: {
 				auto where = QString{ };
 				if (left && right) {
 					where = left->Line == right->Line ? tr("Left and Right line %1").arg(right->Line + 1U) : tr("Left %1, Right %2").arg(left->Line + 1U).arg(right->Line + 1U);
@@ -703,6 +728,17 @@ namespace bpr::qt {
 		Tree->setIndentation(14);
 		Tree->setFrameShape(QFrame::NoFrame);
 		Tree->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		// [[BPR-PENDING-T]]. Shift and Command (Ctrl) select more results to copy.
+		Tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+		Tree->setSelectionBehavior(QAbstractItemView::SelectRows);
+		Tree->setContextMenuPolicy(Qt::CustomContextMenu);
+#if defined(Q_OS_MACOS)
+		const auto command = tr("Command");
+#else
+		const auto command = tr("Ctrl");
+#endif
+		Tree->setAccessibleDescription(tr("Return opens the current result. Shift or %1 with a click, or Shift with an arrow, selects more; %2 selects every result and %3 copies the selected ones. Shift+F10 or the menu key shows the result's actions.")
+										   .arg(command, spoken_key(shortcut_key(shortcut_command::select_results)), spoken_key(shortcut_key(shortcut_command::copy_results))));
 		Tree->installEventFilter(this);
 		Model = new source_search_result_model{ Tree };
 		Tree->setModel(Model);
@@ -711,7 +747,13 @@ namespace bpr::qt {
 		adopt_appearance(appearance_profile{ });
 		connect(Tree->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex& aIndex, const QModelIndex&) {const auto index=aIndex.data(source_search_match_role).toUInt();if(index && Select){Select(index-1U);} });
 		column->addWidget(Tree, 1);
-		connect(Tree, &QTreeView::clicked, this, [this](const QModelIndex& aIndex) {const auto index=aIndex.data(source_search_match_role).toUInt();if(index && Activate){Activate(index-1U);} });
+		connect(Tree, &QTreeView::clicked, this, [this](const QModelIndex& aIndex) {
+			const auto index = aIndex.data(source_search_match_role).toUInt();
+			if (index && Activate && !static_cast<source_search_result_tree*>(Tree)->selecting_click()) {
+				Activate(index - 1U);
+			}
+		});
+		connect(Tree, &QWidget::customContextMenuRequested, this, [this](const QPoint& aPoint) { popup_result_menu(Tree->indexAt(aPoint), Tree->viewport()->mapToGlobal(aPoint)); });
 		connect(CollapseAll, &QToolButton::clicked, Tree, &QTreeView::collapseAll);
 		Debounce = new QTimer{ this };
 		Debounce->setSingleShot(true);
@@ -726,6 +768,30 @@ namespace bpr::qt {
 	}
 	auto source_search_panel::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
+		// [[BPR-PENDING-T]]. The results read Copy and Select All themselves,
+		// ahead of any window shortcut.
+		if (aWatched == Tree && aEvent->type() == QEvent::ShortcutOverride) {
+			auto* key = static_cast<QKeyEvent*>(aEvent);
+			if (key->matches(QKeySequence::Copy) || key->matches(QKeySequence::SelectAll)) {
+				key->accept();
+				return true;
+			}
+		}
+		if (aWatched == Tree && aEvent->type() == QEvent::KeyPress) {
+			auto* key = static_cast<QKeyEvent*>(aEvent);
+			if (key->matches(QKeySequence::Copy)) {
+				copy_selected();
+				return true;
+			}
+			// The menu key and Shift+F10 open the current row's menu below it.
+			if ((key->key() == Qt::Key_Menu && key->modifiers() == Qt::NoModifier) || (key->key() == Qt::Key_F10 && key->modifiers() == Qt::ShiftModifier)) {
+				const auto current = Tree->currentIndex();
+				Tree->scrollTo(current);
+				const auto area = Tree->visualRect(current);
+				popup_result_menu(current, Tree->viewport()->mapToGlobal(QPoint{ area.left() + 8, area.bottom() }));
+				return true;
+			}
+		}
 		if (aEvent->type() == QEvent::KeyPress) {
 			auto* key = static_cast<QKeyEvent*>(aEvent);
 			if (key->key() == Qt::Key_Escape) {
@@ -898,9 +964,13 @@ namespace bpr::qt {
 			return;
 		}
 		const auto index = Model->match_index(*Projection.CurrentMatch);
-		if (index.isValid()) {
+		// [[BPR-PENDING-T]]. The reviewer's own move already made it current;
+		// keep the rows they selected with it. A move from elsewhere (F4,
+		// Shift+F4) selects the one result, whatever modifier is held.
+		if (index.isValid() && index != Tree->currentIndex()) {
 			const auto blocked = QSignalBlocker{ Tree->selectionModel() };
-			Tree->setCurrentIndex(index);
+			Tree->selectionModel()->setCurrentIndex(index, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+			Tree->viewport()->update();
 		}
 	}
 	void source_search_panel::set_side_filter(core::source_side_filter aFilter)
@@ -966,5 +1036,94 @@ namespace bpr::qt {
 			return { };
 		}
 		return Delegate->columns(Tree->visualRect(aIndex), Tree->font());
+	}
+	auto source_search_panel::chosen_rows() const -> QModelIndexList
+	{
+		auto rows = Tree->selectionModel()->selectedRows();
+		if (rows.isEmpty() && Tree->currentIndex().isValid()) {
+			rows.push_back(Tree->currentIndex());
+		}
+		// The list's order: a file's place, then the result's place in it.
+		const auto place = [](const QModelIndex& aRow) { return aRow.parent().isValid() ? std::pair{ aRow.parent().row(), aRow.row() } : std::pair{ aRow.row(), -1 }; };
+		std::ranges::sort(rows, { }, place);
+		return rows;
+	}
+	auto source_search_panel::selected_text() const -> QString
+	{
+		auto lines = QStringList{ };
+		auto files = std::vector<int>{ };
+		for (const auto& row : chosen_rows()) {
+			if (!row.parent().isValid()) {
+				// A file row stands for every result it shows.
+				files.push_back(row.row());
+				for (int child = 0; child < Model->rowCount(row); ++child) {
+					lines << Model->index(child, 0, row).data(source_search_copy_role).toString();
+				}
+			} else if (std::ranges::find(files, row.parent().row()) == files.end()) {
+				lines << row.data(source_search_copy_role).toString();
+			}
+		}
+		lines.removeAll(QString{ });
+		return lines.join(QLatin1Char('\n'));
+	}
+	void source_search_panel::copy_selected() const
+	{
+		const auto text = selected_text();
+		if (auto* clipboard = QGuiApplication::clipboard(); clipboard && !text.isEmpty()) {
+			clipboard->setText(text);
+		}
+	}
+	auto source_search_panel::make_result_menu(const QModelIndex& aIndex, QWidget* aParent) -> QMenu*
+	{
+		if (!aIndex.isValid()) {
+			return nullptr;
+		}
+		// A file row opens at its first shown result.
+		const auto target = aIndex.parent().isValid() ? aIndex : Model->index(0, 0, aIndex);
+		const auto match  = target.data(source_search_match_role).toUInt();
+		auto*      menu   = new QMenu{ aParent };
+		menu->setObjectName(QStringLiteral("sourceSearchResultMenu"));
+		const auto add = [&](const QString& aText, const QString& aName, bool aEnabled, auto aDo) {
+			auto* action = menu->addAction(aText);
+			action->setObjectName(aName);
+			action->setEnabled(aEnabled);
+			connect(action, &QAction::triggered, this, aDo);
+			return action;
+		};
+		add(tr("Open"), QStringLiteral("sourceSearchOpen"), match != 0U && static_cast<bool>(Activate), [this, match] {
+			if (Activate) {
+				Activate(match - 1U);
+			}
+		});
+		add(tr("Open in New Tab"), QStringLiteral("sourceSearchOpenInNewTab"), match != 0U && static_cast<bool>(ActivateInNewTab), [this, match] {
+			if (ActivateInNewTab) {
+				ActivateInNewTab(match - 1U);
+			}
+		});
+		menu->addSeparator();
+		add(tr("Copy"), QStringLiteral("sourceSearchCopy"), !selected_text().isEmpty(), [this] { copy_selected(); })->setShortcut(shortcut_key(shortcut_command::copy_results));
+		auto paths = QStringList{ };
+		for (const auto& row : chosen_rows()) {
+			if (const auto path = row.data(source_search_path_role).toString(); !path.isEmpty() && !paths.contains(path)) {
+				paths << path;
+			}
+		}
+		add(paths.size() > 1 ? tr("Copy Paths") : tr("Copy Path"), QStringLiteral("sourceSearchCopyPath"), !paths.isEmpty(), [paths] {
+			if (auto* clipboard = QGuiApplication::clipboard()) {
+				clipboard->setText(paths.join(QLatin1Char('\n')));
+			}
+		});
+		return menu;
+	}
+	void source_search_panel::popup_result_menu(const QModelIndex& aIndex, const QPoint& aGlobal)
+	{
+		// A heap menu that deletes itself on close, opened with popup(), so
+		// the panel can go while it is open.
+		auto* menu = make_result_menu(aIndex, Tree);
+		if (!menu) {
+			return;
+		}
+		menu->setAttribute(Qt::WA_DeleteOnClose);
+		menu->popup(aGlobal);
 	}
 }
