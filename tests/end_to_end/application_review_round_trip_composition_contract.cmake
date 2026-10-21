@@ -1,3 +1,11 @@
+# Upkeep reseal (2026-10-21) over last matching 1204a7194..7babe3593, linear.
+# Pinned-scope commits: RFC-BPR-0089 M2 8e296033d ([[BPR-1689]]..[[BPR-1691]]).
+# Only github_application.cpp changed inside the manifest: it wires the window's
+# file-filter and generated-file gestures to the core commit filter, persists a
+# generated mark through the review ledger host before adopting it, and
+# publishes filtered and set-aside counts to the Overview. No credential, grant,
+# provider selection, publication, mutation or source-inventory change. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-21) over last matching 1ce075976..57cae1ba7, linear.
 # Pinned-scope commits: RFC-BPR-0089 M1 95aa8a5b5, 50eb0cdfc and 1b0f28183
 # ([[BPR-1685]]..[[BPR-1687]]), and [[BPR-1680]] 87d04edf2 and c229ebd9d.
@@ -1764,7 +1772,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"95c28c3d8e27c61b4921bc77ee6dad5329f975bc56e50119f82289fa7de5ed30"
+		"dac00e7954f8ff92cc14b0f03032a85008f41ea88a330921afc1e089136c42c8"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1984,7 +1992,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "580a134095b97a3c96d9271d03c7a60791ebfe453b275db2d5f142f00c7e454b"
+        "181292021d3a98e14204d0d1a8501dabaf939174d1a0e331b06bbef5907f9a8d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
