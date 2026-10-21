@@ -476,7 +476,7 @@ namespace bpr::qt {
 		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.txt)"));
 		chooser->setDefaultSuffix(QStringLiteral("txt"));
 		chooser->setDirectory(QString::fromStdString(*aDirectory));
-		// [[BPR-PENDING-AD]]. Named for when it was taken and by which
+		// [[BPR-1722]]. Named for when it was taken and by which
 		// version, so saved exports need no renaming and sort by time.
 		const auto now = QDateTime::currentDateTime();
 		chooser->selectFile(QString::fromStdString(core::diagnostic_export_file_name(

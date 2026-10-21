@@ -13,7 +13,7 @@
 
 namespace bpr::core {
 
-	/// \brief [[BPR-PENDING-AD]]. An export's output bounds: a heavy day's
+	/// \brief [[BPR-1722]]. An export's output bounds: a heavy day's
 	/// records with room to spare.
 	/// \details A record is 706 to 867 bytes (783 to 795 on average in the
 	/// fixture courses), and heavy use writes about 1,000 an hour: a pull
@@ -100,7 +100,7 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto valid_diagnostic_export_options(diagnostic_export_options aOptions) noexcept -> bool;
 
-	/// \brief [[BPR-PENDING-AD]]. A local date and time to the minute, as the
+	/// \brief [[BPR-1722]]. A local date and time to the minute, as the
 	/// presenter's clock reads it.
 	struct diagnostic_export_local_time
 	{
@@ -110,7 +110,7 @@ namespace bpr::core {
 		unsigned Hour   = 0U;
 		unsigned Minute = 0U;
 	};
-	/// \brief [[BPR-PENDING-AD]]. The name a save suggests for an export:
+	/// \brief [[BPR-1722]]. The name a save suggests for an export:
 	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt`.
 	/// \details The local date and time come first, so saved exports sort by
 	/// when they were taken, and the name holds no colon or other character a

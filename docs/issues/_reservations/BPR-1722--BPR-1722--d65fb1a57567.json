@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1722"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A diagnostics export holds a day of heavy use",
+  "created": "2026-10-21T23:19:08.708831+00:00",
+  "base": "881c5495e6c9b7d28fc2f186d9afd8c730c222e2"
+}

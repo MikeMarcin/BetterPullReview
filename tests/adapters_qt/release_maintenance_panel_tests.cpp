@@ -358,7 +358,7 @@ namespace {
 		QPointer<QFileDialog> chooser = test.Panel->findChild<QFileDialog*>();
 		QCoreApplication::setApplicationVersion(version);
 		expect(chooser && chooser->isVisible() && chooser->directory().absolutePath() == QDir::tempPath(), "retry supplies the admitted explicit directory");
-		// [[BPR-PENDING-AD]]. The suggestion is named for the local minute it
+		// [[BPR-1722]]. The suggestion is named for the local minute it
 		// was offered and the version, and has no colon.
 		const auto suggested = QFileInfo{ chooser->selectedFiles().front() }.fileName();
 		const auto named     = [](const QDateTime& aAt) { return QStringLiteral("BetterPullReview-diagnostics-") + aAt.toString(QStringLiteral("yyyy-MM-dd-HHmm")) + QStringLiteral("-9.8.7.txt"); };

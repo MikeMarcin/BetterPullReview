@@ -347,7 +347,7 @@ namespace bpr::application {
 			if (aDetail.starts_with("actor_conflict=")) {
 				return safe_actor_conflict_detail(aDetail);
 			}
-			// [[BPR-PENDING-AD]]. Exactly a known submission ending's line.
+			// [[BPR-1722]]. Exactly a known submission ending's line.
 			if (aDetail.starts_with("review_submission_ending=")) {
 				return core::parse_review_submission_ending(aDetail).has_value();
 			}
@@ -658,7 +658,7 @@ namespace bpr::application {
 		auto& document = builder.Document;
 		document.Descriptor.Fields |= core::release_diagnostic_classified_fields | (aOptions.Policy == export_policy::identifying ? static_cast<std::uint32_t>(core::release_diagnostic_field::captured_identity) : 0U);
 		document.Descriptor.Sessions = static_cast<std::uint32_t>(builder.Sessions.size());
-		// [[BPR-PENDING-AD]]. When it was taken and by which build, so a saved
+		// [[BPR-1722]]. When it was taken and by which build, so a saved
 		// export says so without being renamed.
 		const bool  built  = build_identity(aCapture.Build);
 		std::string header = "{\"format\":\"bpr-diagnostics-v2\",\"exported_at\":\"" + format_diagnostic_export_time(aStamp) + "\",\"app_version\":\"";

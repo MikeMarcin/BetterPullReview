@@ -273,7 +273,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AD]]. A record of `aOp`.`aOutcome` at `aUtc`, with the
+	/// [[BPR-1722]]. A record of `aOp`.`aOutcome` at `aUtc`, with the
 	/// given status, failure and detail, as the logger writes it.
 	auto event_line(unsigned aSequence, std::uint64_t aUtc, std::string_view aOp, std::string_view aOutcome, unsigned aHttp, std::string_view aDomain, std::string_view aFailure, std::string_view aDetail)
 		-> std::string
@@ -297,7 +297,7 @@ namespace {
 		return line;
 	}
 
-	/// [[BPR-PENDING-AD]]. A review's known ending exports as exactly its
+	/// [[BPR-1722]]. A review's known ending exports as exactly its
 	/// line of enums and counts; one with anything else in it is omitted.
 	void test_review_submission_ending_export()
 	{
@@ -321,7 +321,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AD]]. An eight-hour session at the measured heavy rate
+	/// [[BPR-1722]]. An eight-hour session at the measured heavy rate
 	/// of about 1,000 records an hour, with Home refreshes and review
 	/// submissions among them, exports whole. Before, the 256 KiB output held
 	/// about 300 such records and left out the rest.
@@ -359,7 +359,7 @@ namespace {
 		expect(!document->Bytes.contains(session), "and anonymized");
 	}
 
-	/// [[BPR-PENDING-AD]]. The raised limits still hold: past the record limit
+	/// [[BPR-1722]]. The raised limits still hold: past the record limit
 	/// the oldest are left out, wide records stop at the byte limit, and input
 	/// past its bounds is refused.
 	void test_export_bounds()
@@ -396,7 +396,7 @@ namespace {
 					  "an export stays something a person attaches to a report");
 	}
 
-	/// [[BPR-PENDING-AD]]. The header names when the export was taken, in
+	/// [[BPR-1722]]. The header names when the export was taken, in
 	/// local time with its offset, and the build that took it.
 	void test_export_stamp()
 	{

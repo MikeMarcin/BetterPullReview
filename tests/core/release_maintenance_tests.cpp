@@ -427,7 +427,7 @@ namespace {
 }
 
 namespace {
-	/// [[BPR-PENDING-AD]]. A saved export is named for its local date and
+	/// [[BPR-1722]]. A saved export is named for its local date and
 	/// time, to the minute, and the version: sortable, with no character a
 	/// file system refuses and nothing that could name a host, account or
 	/// repository.

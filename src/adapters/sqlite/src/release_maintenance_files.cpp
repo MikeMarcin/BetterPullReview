@@ -1439,7 +1439,7 @@ namespace bpr::adapters::sqlite {
 			}
 			return result;
 		}
-		/// \brief [[BPR-PENDING-AD]]. Now, with the local offset from UTC, for the
+		/// \brief [[BPR-1722]]. Now, with the local offset from UTC, for the
 		/// export's header; a time zone the C library cannot convert gives
 		/// offset zero.
 		auto export_stamp() -> application::diagnostic_export_stamp

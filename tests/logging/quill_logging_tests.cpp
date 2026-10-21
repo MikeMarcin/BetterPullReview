@@ -184,7 +184,7 @@ namespace {
 		event.Summary.State    = application::diagnostic_summary_state::sanitized;
 		event.ReviewSubmission = diagnosis;
 		expect(live->record(event) == status::available, "the live session's review submission is admitted");
-		// [[BPR-PENDING-AD]]. A later Check status found it refused.
+		// [[BPR-1722]]. A later Check status found it refused.
 		const auto ending    = core::review_submission_ending_diagnosis{ .Ending = core::review_submission_ending::refused, .Run = core::review_submission_run::check, .PostAnswer = core::review_submission_post_answer::error_status, .PostStatusClass = 4U, .Refusal = core::review_submission_ending_refusal::unplaceable_line, .Comments = 2U };
 		auto       ended     = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::failed };
 		const auto endedText = core::describe(ending);
@@ -222,7 +222,7 @@ namespace {
 		expect(preview.contains("\"detail\":\"" + endedText + "\"") && preview.contains("\"failure_domain\":\"review_submission\",\"failure\":\"none\""),
 			   "and its ending, as exactly its counts-only line");
 		expect(!preview.contains(liveSession), "and no session identity survives anonymization");
-		// [[BPR-PENDING-AD]]. Under the raised limits both sessions fit whole;
+		// [[BPR-1722]]. Under the raised limits both sessions fit whole;
 		// over them the oldest are left out (application_release_maintenance).
 		expect(descriptor.LimitOmittedRecords == 0U && descriptor.OmittedRecords == 0U && descriptor.Sessions == 2U && preview.contains("\"limit_keeps\":\"newest\""), "both sessions fit the export whole");
 		expect(preview.contains("\"sequence\":700,") && preview.contains("\"sequence\":1,") && preview.contains("\"sequence\":100,"), "the older session's oldest records are kept too");
@@ -358,7 +358,7 @@ try {
 			auto misplaced      = event;
 			misplaced.Operation = application::diagnostic_operation::pull_request;
 			expect(log.record(misplaced) == status::dropped, "a reason rides only its own operation");
-			// [[BPR-PENDING-AD]]. A known ending: exactly its own line, on its own operation, never with a reason.
+			// [[BPR-1722]]. A known ending: exactly its own line, on its own operation, never with a reason.
 			const auto ending = core::review_submission_ending_diagnosis{ .Ending = core::review_submission_ending::published, .PostAnswer = core::review_submission_post_answer::success, .PostStatusClass = 2U, .Comments = 3U };
 			auto       ended  = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::succeeded, .HttpStatus = 200U };
 			const auto line   = core::describe(ending);

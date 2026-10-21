@@ -529,7 +529,7 @@ namespace bpr::adapters::logging {
 				State->drop();
 				return status_type::dropped;
 			}
-			// [[BPR-PENDING-AD]]. A known ending is exactly its line too, and a
+			// [[BPR-1722]]. A known ending is exactly its line too, and a
 			// record carries an ending or an unknown reason, never both.
 			if (aEvent.ReviewEnding
 				&& (aEvent.ReviewSubmission || !core::valid(*aEvent.ReviewEnding) || aEvent.Operation != application::diagnostic_operation::review_submission || aEvent.GithubFailure.index() != 0U || aEvent.EpochFailure.index() != 0U

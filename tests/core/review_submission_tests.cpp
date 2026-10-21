@@ -309,7 +309,7 @@ namespace {
 			expect(!parse_review_submission_unknown(text), "anything but the exact line is not read");
 		}
 	}
-	/// [[BPR-PENDING-AD]]. A known ending is one line of fixed keys, enums
+	/// [[BPR-1722]]. A known ending is one line of fixed keys, enums
 	/// and counts that reads back exactly; nothing else is read.
 	void test_ending_lines()
 	{

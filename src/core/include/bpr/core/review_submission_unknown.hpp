@@ -183,7 +183,7 @@ namespace bpr::core {
 	/// \brief Reads exactly what `describe` writes; anything else is none.
 	[[nodiscard]] auto parse_review_submission_unknown(std::string_view aText) -> std::optional<review_submission_unknown_diagnosis>;
 
-	/// \brief [[BPR-PENDING-AD]]. How a submission run ended when its outcome
+	/// \brief [[BPR-1722]]. How a submission run ended when its outcome
 	/// is known. An unknown outcome is a `review_submission_unknown_diagnosis`.
 	enum class review_submission_ending : std::uint8_t {
 		/// GitHub lists the review: this run published it or found it.
@@ -197,20 +197,20 @@ namespace bpr::core {
 		/// It stopped before its POST could leave; it was not published.
 		not_sent,
 	};
-	/// \brief [[BPR-PENDING-AD]]. Which run ended it: Submit, or a later
+	/// \brief [[BPR-1722]]. Which run ended it: Submit, or a later
 	/// Check status or restart.
 	enum class review_submission_run : std::uint8_t {
 		submit,
 		check,
 	};
-	/// \brief [[BPR-PENDING-AD]]. What a refusal said, as far as it is read
+	/// \brief [[BPR-1722]]. What a refusal said, as far as it is read
 	/// ([[BPR-1715]]); GitHub names no comment.
 	enum class review_submission_ending_refusal : std::uint8_t {
 		none,
 		review,
 		unplaceable_line,
 	};
-	/// \brief [[BPR-PENDING-AD]]. Why a run that sent nothing stopped.
+	/// \brief [[BPR-1722]]. Why a run that sent nothing stopped.
 	enum class review_submission_stop : std::uint8_t {
 		none,
 		/// The pull request's head moved on before the POST.
@@ -224,7 +224,7 @@ namespace bpr::core {
 		unavailable,
 		other,
 	};
-	/// \brief [[BPR-PENDING-AD]]. A known ending with counts only: no
+	/// \brief [[BPR-1722]]. A known ending with counts only: no
 	/// host, repository, account, URL or review text.
 	/// \details `PostStatusClass` is the hundreds digit of GitHub's answer to
 	/// this run's POST, or 0 with none; `Comments` is how many line comments

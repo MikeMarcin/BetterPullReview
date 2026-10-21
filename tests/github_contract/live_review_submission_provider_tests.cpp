@@ -1681,7 +1681,7 @@ namespace {
 					auto       check = busy_storage(selected, root.Path);
 					const auto kept  = check->load(server->Request.IdempotencyKey);
 					if (!cause) {
-						// [[BPR-PENDING-AD]]. A confirmed review is logged as one
+						// [[BPR-1722]]. A confirmed review is logged as one
 						// counts-only ending, Submit's or Check status's.
 						expect(result.Publication == publication::published && !result.Unknown && log->Events.size() == 1U, label + "without its cause the review is confirmed and nothing is named, and one ending is logged");
 						const auto& ending = log->Events.front();
@@ -2191,7 +2191,7 @@ namespace {
 			const auto                result = session.submit_and_reconcile(wire.Request);
 			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::refused_by_server && wire.Posts == 1U,
 				   "the GitHub CLI's 422, with no new review of mine after it, is a definite refusal by the server");
-			// [[BPR-PENDING-AD]]. The refusal is logged: its status and what it said.
+			// [[BPR-1722]]. The refusal is logged: its status and what it said.
 			expect(log->Events.size() == 1U && log->Events.front().ReviewEnding && log->Events.front().HttpStatus == 422U && log->Events.front().Outcome == application::diagnostic_outcome::failed
 					   && log->Events.front().Summary.text() == "review_submission_ending=refused run=submit post=error_status post_class=4 refusal=unplaceable_line stop=none comments=2 duplicate=0",
 				   "and logged as refused with GitHub's 422, the unplaceable line and the comments it carried");
@@ -2255,7 +2255,7 @@ namespace {
 			const auto                result = session.reconcile(wire.Request);
 			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::unavailable && wire.Posts == 1U,
 				   "Check status settles a record that keeps no answer when no review GitHub lists can be it");
-			// [[BPR-PENDING-AD]]. Settling is logged as Check status's ending.
+			// [[BPR-1722]]. Settling is logged as Check status's ending.
 			expect(log->Events.size() == 1U && log->Events.front().ReviewEnding && log->Events.front().HttpStatus == 0U
 					   && log->Events.front().Summary.text() == "review_submission_ending=settled run=check post=no_answer post_class=0 refusal=none stop=none comments=2 duplicate=0",
 				   "and logged as settled by Check status, with the no answer its migration kept");
@@ -2279,7 +2279,7 @@ namespace {
 			const auto                result = session.reconcile(wire.Request);
 			expect((result.Publication == publication::definitely_not_published) == settles && (result.Publication == publication::indeterminate) == !settles && wire.Posts == 1U,
 				   "the kept answer and the time since it decide whether Check status settles it");
-			// [[BPR-PENDING-AD]]. A settled one is logged with the kept answer; an unknown one as its reason.
+			// [[BPR-1722]]. A settled one is logged with the kept answer; an unknown one as its reason.
 			expect(log->Events.size() == 1U && (log->Events.front().ReviewEnding.has_value() == settles) && (log->Events.front().ReviewSubmission.has_value() == !settles)
 					   && (!settles || log->Events.front().Summary.text() == "review_submission_ending=settled run=check post=no_answer post_class=0 refusal=none stop=none comments=2 duplicate=0"),
 				   "and logged as settled with the answer it kept, or as unknown");

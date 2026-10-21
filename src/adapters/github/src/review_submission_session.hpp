@@ -43,7 +43,7 @@ namespace bpr::adapters::github::detail {
 		/// \brief [[BPR-1540]]. Notes why a read's answer could not be used.
 		void note_completion(const github_mutation_wire_completion& aCompletion);
 		/// \brief [[BPR-1540]]. Fills, keeps with the attempt and logs why an
-		/// indeterminate result is unknown; [[BPR-PENDING-AD]] logs any other
+		/// indeterminate result is unknown; [[BPR-1722]] logs any other
 		/// result's ending.
 		void               explain(application::review_submission_result& aResult);
 		[[nodiscard]] auto perform(review_mutation_wire_request aWire, std::stop_token aStop, github_mutation_transmission_witness aWitness = { }) -> github_mutation_wire_completion;
@@ -79,14 +79,14 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1715]]. Whether this run's refused POST said a comment's
 		/// line cannot be placed in the diff.
 		bool UnplaceableLine = false;
-		/// [[BPR-PENDING-AD]]. Whether this run is a Submit (not a Check
+		/// [[BPR-1722]]. Whether this run is a Submit (not a Check
 		/// status or restart), the status GitHub answered its POST, and the
 		/// kept answer that settled the attempt, if one did.
 		bool                                               Submitting = false;
 		std::uint16_t                                      PostStatus = 0U;
 		bool                                               Settled    = false;
 		std::optional<core::review_submission_post_record> SettledPost;
-		/// \brief [[BPR-PENDING-AD]]. Logs how a run whose outcome is known ended.
+		/// \brief [[BPR-1722]]. Logs how a run whose outcome is known ended.
 		void log_ending(const application::review_submission_result& aResult);
 		/// \brief [[BPR-1367]]. Every page of the pull request's review comment
 		/// collection, at most `maximum_review_comment_collection_pages`.

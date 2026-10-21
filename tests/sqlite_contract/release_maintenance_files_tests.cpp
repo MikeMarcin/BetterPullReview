@@ -281,7 +281,7 @@ namespace {
 			return bytes;
 		};
 		const auto older = root.Path / "logs/session-11111111111111111111111111111111-00000001.jsonl";
-		// [[BPR-PENDING-AD]]. Sized from the input limit, so the two files
+		// [[BPR-1722]]. Sized from the input limit, so the two files
 		// overrun it together and the newer one alone fits.
 		constexpr auto half = application::release_diagnostic_input_limit / 2U;
 		write(older, lines(1U, half + (1024U * 1024U)));

@@ -129,7 +129,7 @@ namespace bpr::application {
 		/// [[BPR-1540]]. Why a submitted review is still unknown: enums and
 		/// counts only, logged as the `review_submission` failure domain.
 		std::optional<core::review_submission_unknown_diagnosis> ReviewSubmission;
-		/// [[BPR-PENDING-AD]]. How a submitted review ended when that is known
+		/// [[BPR-1722]]. How a submitted review ended when that is known
 		/// (published, refused, settled or not sent): enums and counts only,
 		/// logged as the `review_submission` failure domain.
 		std::optional<core::review_submission_ending_diagnosis> ReviewEnding;
@@ -169,7 +169,7 @@ namespace bpr::application {
 		std::string              Session;
 		std::uint64_t            Sequence = 0;
 		std::vector<std::string> Recent;
-		/// [[BPR-PENDING-AD]]. The running build, as its records name it
+		/// [[BPR-1722]]. The running build, as its records name it
 		/// (`VERSION-DIGEST-CONFIGURATION`); empty when not known.
 		std::string Build;
 	};

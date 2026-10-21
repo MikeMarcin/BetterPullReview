@@ -89,7 +89,7 @@ are excluded even if a producer labels a summary sanitized. This deliberately
 does not copy the existing readable local log into a support bundle.
 
 The host prepares at most 16,384 records and 16 MiB of immutable serialized
-metadata ([[BPR-PENDING-AD]]; 1,024 records and 256 KiB before it). The snapshot carries a nonzero revision, a nonzero 32-byte digest,
+metadata ([[BPR-1722]]; 1,024 records and 256 KiB before it). The snapshot carries a nonzero revision, a nonzero 32-byte digest,
 allowed field mask, exact record/byte counts and omitted-record count. An empty
 record set can still have a nonempty format header. A malformed identity, unknown
 field, zero byte representation or exceeded limit fails before preview/export.
@@ -201,7 +201,7 @@ subset of M3's allowed fields, not a claim that arbitrary local prose is safe.
 Unknown, malformed and incomplete records are omitted and counted.
 
 Input is bounded to 32 MiB and 131,072 records (16 MiB and 65,536 before
-[[BPR-PENDING-AD]]). The v1 line bound is 8,192
+[[BPR-1722]]). The v1 line bound is 8,192
 bytes; v2/v3 are at most 16 KiB including the newline. The JSONL reader requires the
 writer's exact field order, bounded ASCII strings with quote/backslash escapes,
 and unsigned decimal integers. Unknown keys, duplicate keys, unsupported
@@ -466,7 +466,7 @@ file selection filters the native inventory before reads. A later same-session
 append beyond the cutoff is excluded. Other retained sessions are read into bounded
 immutable input; files are never appended to, rewritten or attached to exports.
 Malformed/partial records have counts. The 32 MiB/131,072 input and
-16,384-record/16 MiB output ceilings apply (raised by [[BPR-PENDING-AD]]); the optional ring has its independent
+16,384-record/16 MiB output ceilings apply (raised by [[BPR-1722]]); the optional ring has its independent
 512-event/2 MiB ceiling. Duplicate session/sequence pairs are counted once.
 
 The application classifier rechecks the canonical schema, fixed field vocabularies,
@@ -499,7 +499,7 @@ says how many older records and files were left out. A record is about 800
 bytes, so under the limits of that change a retained-sessions export held
 roughly the newest 300.
 
-### Limits sized for a day of heavy use ([[BPR-PENDING-AD]])
+### Limits sized for a day of heavy use ([[BPR-1722]])
 
 The owner asked for limits that make an export useful for diagnosis. They are
 sized from the fixture courses' own diagnostics files:
