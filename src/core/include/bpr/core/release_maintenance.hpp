@@ -100,13 +100,20 @@ namespace bpr::core {
 		std::uint64_t                Bytes          = 0U;
 		std::uint32_t                OmittedRecords = 0U;
 		diagnostic_export_options    Options{ };
-		std::uint64_t                FirstUtcMs                                                   = 0U;
-		std::uint64_t                LastUtcMs                                                    = 0U;
-		std::uint32_t                Sessions                                                     = 0U;
-		std::uint32_t                Categories                                                   = 0U;
-		std::uint32_t                RecentRecords                                                = 0U;
-		std::uint32_t                CaptureRedactedRecords                                       = 0U;
-		auto                         operator==(const release_diagnostic_snapshot&) const -> bool = default;
+		std::uint64_t                FirstUtcMs             = 0U;
+		std::uint64_t                LastUtcMs              = 0U;
+		std::uint32_t                Sessions               = 0U;
+		std::uint32_t                Categories             = 0U;
+		std::uint32_t                RecentRecords          = 0U;
+		std::uint32_t                CaptureRedactedRecords = 0U;
+		/// [[BPR-PENDING-Z]]. Of `OmittedRecords`, the classified records left
+		/// out to stay within the record and byte limits. They are always the
+		/// oldest: an export keeps the newest records and drops from the start.
+		std::uint32_t LimitOmittedRecords = 0U;
+		/// [[BPR-PENDING-Z]]. Whole log files left unread, oldest first, to stay
+		/// within the input limit; their records are not counted anywhere else.
+		std::uint32_t UnreadFiles                                                  = 0U;
+		auto          operator==(const release_diagnostic_snapshot&) const -> bool = default;
 	};
 
 	/// \brief Digest-bound complete inventory retained and revalidated by the host.

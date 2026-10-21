@@ -2,6 +2,8 @@
 #include "../support/diagnostic_files.hpp"
 #include "../support/diagnostic_json.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
+#include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
@@ -19,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -139,6 +142,80 @@ namespace {
 		expect(bytes.find("canary") == std::string::npos && bytes.find("xxxxxxxx") == std::string::npos, "malformed and oversized source is absent from retained diagnostics");
 	}
 
+	/// [[BPR-PENDING-Z]]. An export taken while a session runs holds that
+	/// session's records up to the moment of export, behind older sessions
+	/// that fill the export's limits. Before, the exporter read files in name
+	/// order and kept the first records, so a running session whose random
+	/// identity sorted later was left out entirely.
+	void live_session_export(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		using status = application::diagnostic_log_status;
+		{
+			adapters::logging::quill_log older{ aRoot };
+			for (unsigned index = 1U; index <= 700U; ++index) {
+				expect(older.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::response_received, .Request = index, .HttpStatus = 200U }) == status::available, "an older session's record is admitted");
+				if (index % 40U == 0U) {
+					expect(older.flush_for_export(false).has_value(), "the older session drains as it goes");
+				}
+			}
+			older.close();
+		}
+		const auto olderFiles = tests::diagnostic_files(aRoot);
+		expect(olderFiles.size() == 1U, "the older session wrote one file");
+		// The lowest possible name, an hour old: read first by name, never by age.
+		const auto renamed = aRoot / "logs/session-00000000000000000000000000000000-00000001.jsonl";
+		std::filesystem::rename(olderFiles.front(), renamed);
+		std::filesystem::last_write_time(renamed, std::filesystem::last_write_time(renamed) - std::chrono::hours{ 1 });
+
+		auto live = std::make_shared<adapters::logging::quill_log>(aRoot);
+		for (unsigned index = 1U; index <= 30U; ++index) {
+			expect(live->record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::response_received, .Request = index, .HttpStatus = 418U }) == status::available, "a live session's record is admitted");
+		}
+		auto diagnosis             = core::review_submission_unknown_diagnosis{ };
+		diagnosis.Reason           = core::review_submission_unknown_reason::review_not_listed;
+		diagnosis.PostAnswer       = core::review_submission_post_answer::no_answer;
+		diagnosis.CommentsExpected = 2U;
+		diagnosis.PagesRead        = 1U;
+		auto       event           = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::failed };
+		const auto text            = core::describe(diagnosis);
+		std::ranges::copy(text, event.Summary.Text.begin());
+		event.Summary.Size     = static_cast<std::uint16_t>(text.size());
+		event.Summary.State    = application::diagnostic_summary_state::sanitized;
+		event.ReviewSubmission = diagnosis;
+		expect(live->record(event) == status::available, "the live session's review submission is admitted");
+		std::string liveSession;
+		for (const auto& path : tests::diagnostic_files(aRoot)) {
+			if (path != renamed) {
+				liveSession = path.filename().string().substr(8U, 32U);
+			}
+		}
+		expect(liveSession.size() == 32U, "the live session has its own file");
+
+		auto lease = adapters::sqlite::acquire_profile_runtime_lease(aRoot);
+		expect(lease.has_value(), "the profile lease is admitted beside the live logger");
+		adapters::sqlite::release_maintenance_files files{ aRoot, *lease, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U }, nullptr, live };
+		core::release_maintenance_context           context{ files.authority(), core::request_id{ 1U }, core::release_maintenance_generation{ 1U }, core::release_maintenance_command::preview_diagnostics, { } };
+		context.ExportOptions.Policy = core::diagnostic_export_policy::anonymized;
+		// No close and no explicit flush: preparation drains the live session itself.
+		const auto prepared = files.prepare(context, { });
+		expect(prepared.has_value(), "a live export prepares");
+		const auto  preview     = std::string{ (*prepared)->preview() };
+		const auto  descriptor  = std::get<core::release_diagnostic_snapshot>((*prepared)->selection());
+		std::size_t liveRecords = 0U;
+		for (auto found = preview.find("\"http_status\":418,"); found != std::string::npos; found = preview.find("\"http_status\":418,", found + 1U)) {
+			++liveRecords;
+		}
+		expect(liveRecords == 30U, "every live record is in the export");
+		expect(preview.contains("\"op\":\"github.review_submission\"") && preview.contains("\"detail\":\"" + text + "\"")
+				   && preview.contains("\"failure_domain\":\"review_submission\",\"failure\":\"review_not_listed\""),
+			   "with its review submission's reason and counts");
+		expect(!preview.contains(liveSession), "and no session identity survives anonymization");
+		expect(descriptor.LimitOmittedRecords > 0U && descriptor.Sessions == 2U && preview.contains("\"limit_keeps\":\"newest\""), "the older session's oldest records are the ones left out, and counted");
+		expect(preview.contains("\"sequence\":700,") && !preview.contains("\"sequence\":100,"), "and its newest records are kept");
+		live->close();
+	}
+
 	void stress_loss_reporting(const std::filesystem::path& aRoot)
 	{
 		using namespace bpr;
@@ -215,6 +292,7 @@ try {
 	structured_record_contract(private_root(root / "structured"));
 	hostile_summary_limits(private_root(root / "limits"));
 	stress_loss_reporting(private_root(root / "stress"));
+	live_session_export(private_root(root / "live-export"));
 	{
 		adapters::logging::quill_log log{ root, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(log.status() == status::available, "available local sink");

@@ -479,6 +479,24 @@ The header and projection report scope, range, categories, bytes/counts and loss
 A prepared recent-context snapshot is deliberate preview state until consumed or
 cancelled; no new events enter it. Scope changes and hiding the panel cancel it.
 
+[[BPR-PENDING-Z]] makes both ceilings keep the newest records. Session files are
+named for a random session identity, so name order is not age order. Until this
+change, files were read in name order and the first records read were kept. An
+hours-long running session whose identity sorted after older sessions' was then
+left out of the export. The reader now takes files newest first by modification
+time while they fit the 16 MiB input. Once one does not fit, it and every older
+file are left unread and counted as `unread_files`, rather than refusing the
+export. The files are then joined oldest first. The rich classifier orders every
+admitted record by time, then session and sequence, and treats version-one lines
+as the oldest. It keeps the newest run that fits 1,024 records and 256 KiB less
+a 4 KiB reserve for the header and the Insights section, and writes that run
+oldest first. The metadata classifier keeps its newest 1,024 records the same
+way. The header separates `unclassified_records` from `limit_omitted_records`,
+states `limit_keeps: newest`, and `omitted_records` stays their sum. The
+snapshot carries the over-limit count and the unread-file count, and the panel
+says how many older records and files were left out. A record is about 800
+bytes, so a retained-sessions export holds roughly the newest 300.
+
 The native output admission and exclusive atomic publication above are unchanged.
 Public tests traverse the actual profile Settings, native logs and save chooser,
 compare preview/output bytes after later appends, confirm/cancel identifying saves,

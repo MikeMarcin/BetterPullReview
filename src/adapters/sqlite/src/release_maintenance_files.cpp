@@ -16,6 +16,8 @@
 #include <limits>
 #include <memory>
 #include <random>
+#include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #if !defined(_WIN32)
@@ -1377,7 +1379,17 @@ namespace bpr::adapters::sqlite {
 			}
 		};
 #endif
-		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop, std::string_view aSession = { }) -> std::string
+		struct diagnostic_input
+		{
+			std::string   Bytes;
+			std::uint32_t UnreadFiles = 0U;
+		};
+		/// \brief [[BPR-PENDING-Z]]. Reads the newest log files that fit the input limit, oldest first.
+		/// \details A session file is named for a random session identity, so name order is no
+		/// order at all. Files are taken newest first by modification time, and once one does not
+		/// fit every older file is left unread and counted, rather than failing the export or
+		/// losing the running session's file.
+		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop, std::string_view aSession = { }) -> diagnostic_input
 		{
 			if (!inspect(aRoot, "logs")) {
 				return { };
@@ -1385,14 +1397,27 @@ namespace bpr::adapters::sqlite {
 			auto               logs = open_directory(aRoot, "logs");
 			std::vector<entry> entries;
 			scan(logs.Value, "logs", scope::clear, entries, aStop);
-			std::ranges::sort(entries, { }, &entry::Path);
-			std::string bytes;
-			std::size_t inputBytes = 0U;
+			if (!aSession.empty()) {
+				std::erase_if(entries, [prefix = std::string{ "session-" } + std::string{ aSession } + "-"](const entry& aItem) { return !leaf(aItem.Path).starts_with(prefix); });
+			}
+			std::ranges::sort(entries, [](const entry& aLeft, const entry& aRight) {
+				return std::tie(aRight.Modified, aRight.ModifiedNano, aLeft.Path) < std::tie(aLeft.Modified, aLeft.ModifiedNano, aRight.Path);
+			});
+			diagnostic_input result;
+			std::size_t      admitted = 0U;
+			std::size_t      planned  = 0U;
+			while (admitted < entries.size() && entries[admitted].Size <= application::release_diagnostic_input_limit - planned) {
+				planned += static_cast<std::size_t>(entries[admitted].Size);
+				++admitted;
+			}
+			result.UnreadFiles = static_cast<std::uint32_t>(entries.size() - admitted);
+			entries.resize(admitted);
+			// Read newest first, so a running session's file is never refused for
+			// having grown since the scan; joined oldest first.
+			std::vector<std::string> parts;
+			std::size_t              inputBytes = 0U;
 			for (const auto& item : entries) {
 				cancelled(aStop);
-				if (!aSession.empty() && !leaf(item.Path).starts_with(std::string{ "session-" } + std::string{ aSession } + "-")) {
-					continue;
-				}
 				auto part = read_file(logs.Value, leaf(item.Path), application::release_diagnostic_input_limit - inputBytes);
 				inputBytes += part.size();
 				// Count original input even when discarding a tail. One empty line is
@@ -1401,9 +1426,13 @@ namespace bpr::adapters::sqlite {
 					part.resize(part.rfind('\n') + 1U);
 					part.push_back('\n');
 				}
-				bytes += part;
+				parts.push_back(std::move(part));
 			}
-			return bytes;
+			result.Bytes.reserve(inputBytes + parts.size());
+			for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
+				result.Bytes += *part;
+			}
+			return result;
 		}
 		auto export_namespace() -> std::string
 		{
@@ -1668,14 +1697,15 @@ namespace bpr::adapters::sqlite {
 				} else if (aContext.ExportOptions.IncludeRecent || aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session) {
 					fail(reason::unavailable);
 				}
-				const auto bytes    = read_diagnostic_files(self.RootHandle.Value, aStop,
+				const auto input    = read_diagnostic_files(self.RootHandle.Value, aStop,
 															aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session ? std::string_view{ capture.Session } : std::string_view{ });
 				auto       document = aContext.ExportOptions.Policy == core::diagnostic_export_policy::metadata
-					? application::prepare_release_diagnostics(bytes, revision)
-					: application::prepare_diagnostic_export(bytes, revision, aContext.ExportOptions, capture, export_namespace());
+					? application::prepare_release_diagnostics(input.Bytes, revision)
+					: application::prepare_diagnostic_export(input.Bytes, revision, aContext.ExportOptions, capture, export_namespace(), input.UnreadFiles);
 				if (!document) {
 					fail(document.error());
 				}
+				document->Descriptor.UnreadFiles = input.UnreadFiles;
 				if (aContext.ExportOptions.Policy == core::diagnostic_export_policy::anonymized) {
 					document->Bytes += insights_storage_export(self.Root);
 					if (document->Bytes.size() > core::release_diagnostic_byte_limit) {

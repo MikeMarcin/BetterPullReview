@@ -3,6 +3,7 @@
 
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/core/release_maintenance.hpp"
+#include <cstdint>
 #include <expected>
 #include <string>
 #include <string_view>
@@ -26,8 +27,13 @@ namespace bpr::application {
 	/// \brief Rebuilds a frozen bounded JSONL export, with a fresh host-generated mapping namespace.
 	/// \details Legacy input retains metadata only. Every current field is classified again;
 	/// unknown prose/records are omitted, never copied. Capture supplies this session's flush cutoff.
+	/// [[BPR-PENDING-Z]]. Records are written oldest first by time; over the record or byte
+	/// limit the oldest are left out, so the newest (the session being exported) are kept.
+	/// The header counts unclassified and over-limit omissions apart, with the `aUnreadFiles`
+	/// the reader left out to stay within the input limit.
 	[[nodiscard]] auto prepare_diagnostic_export(std::string_view aLog, core::release_maintenance_revision aRevision,
-												 core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace)
+												 core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace,
+												 std::uint32_t aUnreadFiles = 0U)
 		-> std::expected<release_diagnostic_document, core::release_maintenance_reason>;
 }
 #endif

@@ -264,6 +264,33 @@ namespace {
 		expect(read(destination.Path / "diagnostics.txt") == expected && !fs::exists(root.Path / ".bpr-maintenance-v1"), "export survives and completed journal removed");
 		host.shutdown();
 	}
+	/// [[BPR-PENDING-Z]]. Retained logs larger than the export's input limit
+	/// leave the oldest files unread and counted. Before, files were read in
+	/// name order and the first that overran the limit refused the export.
+	void test_export_reads_newest_files()
+	{
+		scratch    root;
+		const auto lines = [](unsigned aDropped, std::size_t aBytes) {
+			const auto  line = "2026-09-20T01:00:00Z v=1 op=application outcome=started request=1 http_status=0 summary=absent dropped=" + std::to_string(aDropped) + " detail=" + std::string(4000U, 'x') + "\n";
+			std::string bytes;
+			while (bytes.size() + line.size() <= aBytes) {
+				bytes += line;
+			}
+			return bytes;
+		};
+		const auto older = root.Path / "logs/session-11111111111111111111111111111111-00000001.jsonl";
+		write(older, lines(1U, 9U * 1024U * 1024U));
+		fs::last_write_time(older, fs::last_write_time(older) - std::chrono::hours{ 1 });
+		write(root.Path / "logs/session-00000000000000000000000000000000-00000001.jsonl", lines(2U, 8U * 1024U * 1024U));
+		auto                                        owner = lease(root.Path);
+		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
+		const auto                                  prepared = files.prepare(context(files, command::preview_diagnostics), { });
+		expect(prepared.has_value(), "logs over the input limit still export");
+		const auto snapshot = std::get<core::release_diagnostic_snapshot>((*prepared)->selection());
+		const auto preview  = (*prepared)->preview();
+		expect(snapshot.UnreadFiles == 1U && snapshot.Records == core::release_diagnostic_record_limit && preview.find("dropped=2\n") != std::string_view::npos && preview.find("dropped=1\n") == std::string_view::npos,
+			   "the newest file is read and the older one is left unread and counted");
+	}
 	void test_inventory_refusals()
 	{
 		scratch root;
@@ -553,6 +580,7 @@ try {
 		interrupt_journal(fs::path{ aArgv[2] });
 	}
 	test_host_native_public_path();
+	test_export_reads_newest_files();
 	test_inventory_refusals();
 	test_durable_recovery();
 	test_credential_cleanup_and_recovery();

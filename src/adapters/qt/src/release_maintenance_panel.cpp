@@ -114,6 +114,19 @@ namespace bpr::qt {
 			return { };
 		}
 
+		/// [[BPR-PENDING-Z]]. Says what the export limits left out; empty when nothing was.
+		auto limited(const core::release_diagnostic_snapshot& aSnapshot) -> QString
+		{
+			if (aSnapshot.LimitOmittedRecords == 0U && aSnapshot.UnreadFiles == 0U) {
+				return { };
+			}
+			if (aSnapshot.UnreadFiles == 0U) {
+				return QStringLiteral("\nKept the newest records. %1 older records were left out to fit the export size limit.").arg(aSnapshot.LimitOmittedRecords);
+			}
+			return QStringLiteral("\nKept the newest records. %1 older records and %2 older log files were left out to fit the export size limit.")
+				.arg(aSnapshot.LimitOmittedRecords)
+				.arg(aSnapshot.UnreadFiles);
+		}
 		auto selection_text(const application::release_maintenance_projection& aProjection) -> QString
 		{
 			if (!aProjection.State.Prepared) {
@@ -134,20 +147,22 @@ namespace bpr::qt {
 					}
 					const auto range = snapshot->Sessions == 0U ? QStringLiteral("No dated records") : QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->FirstUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs) + QStringLiteral(" to ") + QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->LastUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs);
 					return QStringLiteral("%1 · %2 · %3 sessions · %4 records · %5 bytes\n%8\nCategories: %9\n%6 records omitted · %7 recent-context records · %10 records with capture-time identity omissions.")
-						.arg(snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Identifying details") : QStringLiteral("Anonymized"))
-						.arg(snapshot->Options.Scope == core::diagnostic_export_scope::current_session ? QStringLiteral("current session") : QStringLiteral("retained sessions"))
-						.arg(snapshot->Sessions)
-						.arg(snapshot->Records)
-						.arg(snapshot->Bytes)
-						.arg(snapshot->OmittedRecords)
-						.arg(snapshot->RecentRecords)
-						.arg(range, categories.isEmpty() ? QStringLiteral("none") : categories.join(QStringLiteral(", ")))
-						.arg(snapshot->CaptureRedactedRecords);
+							   .arg(snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Identifying details") : QStringLiteral("Anonymized"))
+							   .arg(snapshot->Options.Scope == core::diagnostic_export_scope::current_session ? QStringLiteral("current session") : QStringLiteral("retained sessions"))
+							   .arg(snapshot->Sessions)
+							   .arg(snapshot->Records)
+							   .arg(snapshot->Bytes)
+							   .arg(snapshot->OmittedRecords)
+							   .arg(snapshot->RecentRecords)
+							   .arg(range, categories.isEmpty() ? QStringLiteral("none") : categories.join(QStringLiteral(", ")))
+							   .arg(snapshot->CaptureRedactedRecords)
+						+ limited(*snapshot);
 				}
 				return QStringLiteral("%1 metadata records · %2 bytes · %3 records omitted. Free text, paths, identities, source, comments, credentials and crash memory are excluded.")
-					.arg(snapshot->Records)
-					.arg(snapshot->Bytes)
-					.arg(snapshot->OmittedRecords);
+						   .arg(snapshot->Records)
+						   .arg(snapshot->Bytes)
+						   .arg(snapshot->OmittedRecords)
+					+ limited(*snapshot);
 			}
 			if (const auto* inventory = std::get_if<core::release_maintenance_inventory>(&selection)) {
 				return QStringLiteral("Prepared inventory: %1 exact local entries, including any credential bindings and database sidecars. Confirmation applies only to this inventory.").arg(inventory->Entries);

@@ -3,6 +3,7 @@
 #include "bpr/application/release_maintenance_application_host.hpp"
 #include "bpr/application/release_profile_cleanup.hpp"
 
+#include <charconv>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -365,6 +366,84 @@ namespace {
 		expect(tail && tail->Descriptor.Records == 0U && tail->Descriptor.OmittedRecords == 1U, "partial tail is never exported");
 	}
 
+	/// [[BPR-PENDING-Z]]. An export over its limits keeps the newest records,
+	/// whatever order its input comes in, and says how many older ones it left
+	/// out. Before, it kept the first records it read: files came in name
+	/// order, which is a random session identity, so a running session's
+	/// records could all be dropped behind older sessions'.
+	void test_export_keeps_newest()
+	{
+		using policy                   = core::diagnostic_export_policy;
+		constexpr std::string_view old = "1111222233334444aaaabbbbccccdddd";
+		const auto                 at  = [](unsigned aSequence, std::string_view aSession, std::uint64_t aUtc) {
+			auto       line    = structured_line(aSequence);
+			const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+				for (auto found = line.find(aFrom); found != std::string::npos; found = line.find(aFrom, found + aTo.size())) {
+					line.replace(found, aFrom.size(), aTo);
+				}
+			};
+			replace(session, aSession);
+			replace("1780000000000", std::to_string(aUtc));
+			return line;
+		};
+		// The current session's review submission left unknown, as BPR-1540 logs it.
+		auto submission = at(3U, session, 1780000600000ULL);
+		{
+			const auto replace = [&submission](std::string_view aFrom, std::string_view aTo) {
+				const auto found = submission.find(aFrom);
+				expect(found != std::string::npos, "review submission fixture field exists");
+				submission.replace(found, aFrom.size(), aTo);
+			};
+			replace(R"("event":"github.capability.failed")", R"("event":"github.review_submission.failed")");
+			replace(R"("op":"github.capability")", R"("op":"github.review_submission")");
+			replace(R"("http_status":403)", R"("http_status":0)");
+			replace(R"("failure_domain":"none","failure":"none")", R"("failure_domain":"review_submission","failure":"comment_page_too_large")");
+			const auto start = submission.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+			submission.replace(start, submission.find("\",\"epoch_stage\"", start) - start, "review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1");
+		}
+		// Older sessions come first in input, as a lower-sorting file name puts them.
+		std::string input;
+		for (unsigned sequence = 1U; sequence <= 1200U; ++sequence) {
+			input += at(sequence, old, 1770000000000ULL + sequence);
+		}
+		input += at(1U, session, 1780000500000ULL) + at(2U, session, 1780000550000ULL) + submission;
+		const application::diagnostic_export_capture capture{ std::string{ session }, 3U, { } };
+		const auto                                   document = application::prepare_diagnostic_export(input, core::release_maintenance_revision{ 1U }, { policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document.has_value(), "an export over its limits still prepares");
+		const auto& bytes      = document->Bytes;
+		const auto& descriptor = document->Descriptor;
+		expect(descriptor.LastUtcMs == 1780000600000ULL && descriptor.Sessions == 2U, "the current session's records are in the export");
+		expect(bytes.contains(R"("op":"github.review_submission")") && bytes.contains("review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1")
+				   && bytes.contains(R"("failure_domain":"review_submission","failure":"comment_page_too_large")"),
+			   "its review submission keeps its domain, reason and counts-only line");
+		expect(!bytes.contains(session) && !bytes.contains(old), "and no session identity survives anonymization");
+		expect(descriptor.LimitOmittedRecords > 0U && descriptor.OmittedRecords == descriptor.LimitOmittedRecords && descriptor.Records + descriptor.LimitOmittedRecords == 1203U,
+			   "every record left out is counted, and all of them for the limit");
+		expect(bytes.contains("\"unclassified_records\":0,\"limit_omitted_records\":" + std::to_string(descriptor.LimitOmittedRecords) + ",\"limit_keeps\":\"newest\",\"unread_files\":0,"),
+			   "the header says what the limit left out and that the newest are kept");
+		const auto oldest = 1200U - (descriptor.Records - 3U) + 1U;
+		expect(bytes.contains("\"utc_ms\":" + std::to_string(1770000000000ULL + oldest) + ",") && !bytes.contains("\"utc_ms\":" + std::to_string(1770000000000ULL + oldest - 1U) + ","),
+			   "the older session's newest records are the ones kept");
+		std::uint64_t previous = 0U;
+		bool          ordered  = true;
+		for (auto found = bytes.find("\"utc_ms\":"); found != std::string::npos; found = bytes.find("\"utc_ms\":", found + 1U)) {
+			std::uint64_t utc = 0U;
+			std::from_chars(bytes.data() + found + 9U, bytes.data() + bytes.size(), utc);
+			ordered  = ordered && utc >= previous;
+			previous = utc;
+		}
+		expect(ordered && bytes.size() <= core::release_diagnostic_byte_limit, "records are written oldest first within the byte limit");
+		// Version-one lines carry no time, so they are the oldest and go first.
+		std::string metadata;
+		for (unsigned index = 0U; index < 1027U; ++index) {
+			metadata += "2026-09-20T00:00:00Z v=1 op=github.pull_request outcome=failed request=1 http_status=403 summary=sanitized dropped=" + std::to_string(index) + " detail=\n";
+		}
+		const auto newest = application::prepare_release_diagnostics(metadata, core::release_maintenance_revision{ 1U });
+		expect(newest && newest->Descriptor.Records == 1024U && newest->Descriptor.LimitOmittedRecords == 3U && !newest->Bytes.contains("dropped=2\n")
+				   && newest->Bytes.contains("dropped=3\n") && newest->Bytes.ends_with("dropped=1026\n"),
+			   "the metadata export keeps the newest records too");
+	}
+
 	void test_preview_export()
 	{
 		fixture test;
@@ -489,6 +568,7 @@ auto main() -> int
 	test_git_capability_step_export();
 	test_git_tool_failure_export();
 	test_rich_export();
+	test_export_keeps_newest();
 	test_preview_export();
 	test_cancel_invalidate_and_shutdown();
 	test_lifecycle_failure_and_reentrancy();

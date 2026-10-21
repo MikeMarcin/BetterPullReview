@@ -38,7 +38,7 @@ namespace bpr::core {
 
 		auto validate_snapshot(const release_diagnostic_snapshot& aSnapshot) noexcept -> reason
 		{
-			if (!valid_diagnostic_export_options(aSnapshot.Options) || aSnapshot.FirstUtcMs > aSnapshot.LastUtcMs || aSnapshot.RecentRecords > aSnapshot.Records || aSnapshot.CaptureRedactedRecords > aSnapshot.Records || aSnapshot.Categories > 7U || aSnapshot.Sessions > aSnapshot.Records) {
+			if (!valid_diagnostic_export_options(aSnapshot.Options) || aSnapshot.FirstUtcMs > aSnapshot.LastUtcMs || aSnapshot.RecentRecords > aSnapshot.Records || aSnapshot.CaptureRedactedRecords > aSnapshot.Records || aSnapshot.LimitOmittedRecords > aSnapshot.OmittedRecords || aSnapshot.Categories > 7U || aSnapshot.Sessions > aSnapshot.Records) {
 				return reason::invalid_selection;
 			}
 			if (aSnapshot.Revision.value() == 0U || !valid_digest(aSnapshot.Digest)) {

@@ -9,6 +9,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <tuple>
 #include <vector>
 
 namespace bpr::application {
@@ -184,7 +185,8 @@ namespace bpr::application {
 		}
 		auto collect(std::string_view aLog, release_diagnostic_document& aDocument) -> bool
 		{
-			std::size_t inputRecords = 0U;
+			std::size_t           inputRecords = 0U;
+			std::vector<metadata> records;
 			while (!aLog.empty()) {
 				if (++inputRecords > release_diagnostic_input_records) {
 					return false;
@@ -193,21 +195,26 @@ namespace bpr::application {
 				const auto line = aLog.substr(0U, end);
 				// An incomplete tail may be a concurrent append; do not classify it.
 				auto record = end == std::string_view::npos ? std::nullopt : classify(line);
-				if (!record || aDocument.Descriptor.Records == core::release_diagnostic_record_limit) {
-					++aDocument.Descriptor.OmittedRecords;
+				if (record) {
+					records.push_back(*record);
 				} else {
-					append_record(aDocument.Bytes, *record);
-					++aDocument.Descriptor.Records;
-				}
-				if (aDocument.Bytes.size() > core::release_diagnostic_byte_limit) {
-					return false;
+					++aDocument.Descriptor.OmittedRecords;
 				}
 				if (end == std::string_view::npos) {
 					break;
 				}
 				aLog.remove_prefix(end + 1U);
 			}
-			return true;
+			// [[BPR-PENDING-Z]]. Input runs oldest to newest; over the limit the
+			// oldest are left out, so the session being exported is never lost.
+			const auto kept                          = std::min<std::size_t>(records.size(), core::release_diagnostic_record_limit);
+			aDocument.Descriptor.LimitOmittedRecords = static_cast<std::uint32_t>(records.size() - kept);
+			aDocument.Descriptor.OmittedRecords += aDocument.Descriptor.LimitOmittedRecords;
+			for (auto record = records.end() - static_cast<std::ptrdiff_t>(kept); record != records.end(); ++record) {
+				append_record(aDocument.Bytes, *record);
+				++aDocument.Descriptor.Records;
+			}
+			return aDocument.Bytes.size() <= core::release_diagnostic_byte_limit;
 		}
 		using export_policy = core::diagnostic_export_policy;
 		using export_scope  = core::diagnostic_export_scope;
@@ -372,6 +379,20 @@ namespace bpr::application {
 			return true;
 		}
 
+		// [[BPR-PENDING-Z]]. One admitted record, kept as a view until the
+		// newest records that fit are chosen.
+		struct export_candidate
+		{
+			std::string_view Line;
+			std::string_view Session;
+			std::uint64_t    UtcMs    = 0U;
+			std::uint64_t    Sequence = 0U;
+			bool             Recent   = false;
+			bool             Legacy   = false;
+		};
+		// Room left for the header and the Insights section that follow the records.
+		constexpr std::size_t export_reserve = 4096U;
+
 		struct export_builder
 		{
 			release_diagnostic_document                     Document;
@@ -379,15 +400,22 @@ namespace bpr::application {
 			std::map<std::string, std::string>              Labels;
 			std::set<std::pair<std::string, std::uint64_t>> Seen;
 			std::set<std::string>                           Sessions;
+			std::vector<export_candidate>                   Candidates;
 			std::uint32_t                                   DuplicateRecords = 0U;
 			std::uint32_t                                   DetailOmissions  = 0U;
 			std::uint32_t                                   LegacyRecords    = 0U;
+			std::uint32_t                                   Unclassified     = 0U;
 			std::size_t                                     InputRecords     = 0U;
+			bool                                            Dated            = false;
 
-			auto label(std::string_view aKind, std::string_view aSession, std::string_view aIdentity) -> std::string
+			auto label(std::string_view aKind, std::string_view aSession, std::string_view aIdentity, bool aMeasure) -> std::string
 			{
 				if (aIdentity == "none" || aIdentity == "0" || aIdentity == "omitted_limit") {
 					return std::string{ aIdentity };
+				}
+				if (aMeasure) {
+					// Wider than any real ordinal: at most three labels per kept record.
+					return std::string{ aKind } + "-" + Namespace + "-99999";
 				}
 				const auto key            = std::string{ aKind } + ":" + std::string{ aSession } + ":" + std::string{ aIdentity };
 				auto [position, inserted] = Labels.try_emplace(key);
@@ -396,7 +424,8 @@ namespace bpr::application {
 				}
 				return position->second;
 			}
-			auto render(const json_values& aValues, bool aRecent) -> std::string
+			/// \brief The exported line; with `aMeasure`, an upper bound on its size that assigns no label.
+			auto render(const json_values& aValues, bool aRecent, bool aMeasure) -> std::string
 			{
 				const bool  identifying = Document.Descriptor.Options.Policy == export_policy::identifying;
 				std::string bytes       = "{\"record\":\"event\"";
@@ -407,7 +436,7 @@ namespace bpr::application {
 				text("severity", aValues[3]);
 				numeric("utc_ms", aValues[4]);
 				numeric("elapsed_us", aValues[5]);
-				text("session", identifying ? std::string{ aValues[6] } : label("session", "", aValues[6]));
+				text("session", identifying ? std::string{ aValues[6] } : label("session", "", aValues[6], aMeasure));
 				numeric("sequence", aValues[7]);
 				text("build", aValues[8]);
 				text("op", aValues[9]);
@@ -417,7 +446,7 @@ namespace bpr::application {
 				numeric("dropped", aValues[14]);
 				const bool safe = (aValues[15].empty() || aValues[13] == "sanitized") && safe_detail(aValues[15]);
 				text("detail", safe ? aValues[15] : "[omitted:unclassified-content]");
-				if (!safe) {
+				if (!safe && !aMeasure) {
 					++DetailOmissions;
 				}
 				constexpr std::array<std::string_view, 9> keys{ "epoch_stage", "failure_domain", "failure", "pack_failure", "page_operation", "window_session", "relationship_detail", "transport_source", "git_step" };
@@ -428,8 +457,8 @@ namespace bpr::application {
 				}
 				const auto request = aValues[0] == "3" ? aValues[25] : aValues[11];
 				const auto window  = aValues[0] == "3" ? aValues[26] : aValues[21];
-				text("request_label", label("request", aValues[6], request));
-				text("window_label", label("window", aValues[6], window));
+				text("request_label", label("request", aValues[6], request, aMeasure));
+				text("window_label", label("window", aValues[6], window, aMeasure));
 				if (identifying) {
 					numeric("request", aValues[11]);
 					numeric("window_session", aValues[21]);
@@ -440,57 +469,39 @@ namespace bpr::application {
 				text("source", aRecent ? "recent_context" : "file");
 				return bytes + "}\n";
 			}
+			static auto legacy_line(const metadata& aRecord) -> std::string
+			{
+				return "{\"record\":\"legacy_metadata\",\"operation\":" + std::to_string(aRecord.Operation) + ",\"outcome\":" + std::to_string(aRecord.Outcome) + ",\"http_status\":" + std::to_string(aRecord.HttpStatus) + ",\"dropped\":" + std::to_string(aRecord.Dropped) + "}\n";
+			}
+			/// \brief Classifies one record and admits it as a candidate; nothing is rendered yet.
 			auto add(std::string_view aLine, bool aRecent, const diagnostic_export_capture& aCapture) -> bool
 			{
 				if (++InputRecords > release_diagnostic_input_records) {
 					return false;
 				}
-				auto&      descriptor = Document.Descriptor;
-				const auto record     = classify(aLine);
-				const auto values     = json_fields(aLine);
+				const auto record = classify(aLine);
+				const auto values = json_fields(aLine);
 				if (!record || (aLine.starts_with('{') && (!values || !classified_values(*values)))) {
-					++descriptor.OmittedRecords;
+					++Unclassified;
 					return true;
 				}
 				if (!values) {
-					if (descriptor.Options.Scope == export_scope::current_session || aRecent) {
-						return true;
+					if (Document.Descriptor.Options.Scope != export_scope::current_session && !aRecent) {
+						Candidates.push_back({ .Line = aLine, .Legacy = true });
 					}
-					if (descriptor.Records == core::release_diagnostic_record_limit || Document.Bytes.size() + 256U > core::release_diagnostic_byte_limit) {
-						++descriptor.OmittedRecords;
-						return true;
-					}
-					Document.Bytes += "{\"record\":\"legacy_metadata\",\"operation\":" + std::to_string(record->Operation) + ",\"outcome\":" + std::to_string(record->Outcome) + ",\"http_status\":" + std::to_string(record->HttpStatus) + ",\"dropped\":" + std::to_string(record->Dropped) + "}\n";
-					++descriptor.Records;
-					descriptor.Categories |= record->Operation == 0U ? 1U : record->Operation == 4U ? 4U
-																									: 2U;
-					++LegacyRecords;
 					return true;
 				}
 				const auto& fields   = *values;
 				const auto  sequence = *number(fields[7]);
-				if ((descriptor.Options.Scope == export_scope::current_session && fields[6] != aCapture.Session)
+				if ((Document.Descriptor.Options.Scope == export_scope::current_session && fields[6] != aCapture.Session)
 					|| (fields[6] == aCapture.Session && sequence > aCapture.Sequence)) {
-					return true;
-				}
-				if (descriptor.Records == core::release_diagnostic_record_limit || Document.Bytes.size() + 8192U > core::release_diagnostic_byte_limit - 2048U) {
-					++descriptor.OmittedRecords;
 					return true;
 				}
 				if (!Seen.emplace(std::string{ fields[6] }, sequence).second) {
 					++DuplicateRecords;
 					return true;
 				}
-				Document.Bytes += render(fields, aRecent);
-				++descriptor.Records;
-				descriptor.RecentRecords += aRecent ? 1U : 0U;
-				descriptor.CaptureRedactedRecords += fields[27] == "anonymized" ? 1U : 0U;
-				descriptor.Categories |= fields[2] == "application" ? 1U : fields[2] == "github" ? 2U
-																								 : 4U;
-				Sessions.emplace(fields[6]);
-				const auto utc        = *number(fields[4]);
-				descriptor.FirstUtcMs = Seen.size() == 1U ? utc : std::min(descriptor.FirstUtcMs, utc);
-				descriptor.LastUtcMs  = std::max(descriptor.LastUtcMs, utc);
+				Candidates.push_back({ .Line = aLine, .Session = fields[6], .UtcMs = *number(fields[4]), .Sequence = sequence, .Recent = aRecent });
 				return true;
 			}
 			auto collect(std::string_view aLog, bool aRecent, const diagnostic_export_capture& aCapture) -> bool
@@ -498,7 +509,7 @@ namespace bpr::application {
 				while (!aLog.empty()) {
 					const auto end = aLog.find('\n');
 					if (end == std::string_view::npos) {
-						++Document.Descriptor.OmittedRecords;
+						++Unclassified;
 						return ++InputRecords <= release_diagnostic_input_records;
 					}
 					if (!add(aLog.substr(0U, end), aRecent, aCapture)) {
@@ -507,6 +518,62 @@ namespace bpr::application {
 					aLog.remove_prefix(end + 1U);
 				}
 				return true;
+			}
+			/// \brief [[BPR-PENDING-Z]]. Orders every candidate oldest first and
+			/// keeps the newest run that fits the record and byte limits.
+			/// \details Input order says nothing about age: files arrive in the
+			/// reader's order and recent context after them. Version-one lines
+			/// carry no time and count as the oldest. Events order by time, then
+			/// session and sequence, which the duplicate check makes unique.
+			auto select() -> std::size_t
+			{
+				std::ranges::stable_sort(Candidates, [](const export_candidate& aLeft, const export_candidate& aRight) {
+					if (aLeft.Legacy || aRight.Legacy) {
+						return aLeft.Legacy && !aRight.Legacy;
+					}
+					return std::tie(aLeft.UtcMs, aLeft.Session, aLeft.Sequence) < std::tie(aRight.UtcMs, aRight.Session, aRight.Sequence);
+				});
+				constexpr auto budget = static_cast<std::size_t>(core::release_diagnostic_byte_limit) - export_reserve;
+				std::size_t    used   = 0U;
+				auto           first  = Candidates.size();
+				while (first != 0U && Candidates.size() - first < core::release_diagnostic_record_limit) {
+					const auto& candidate = Candidates[first - 1U];
+					const auto  size      = candidate.Legacy ? legacy_line(*classify(candidate.Line)).size() : render(*json_fields(candidate.Line), candidate.Recent, true).size();
+					if (size > budget - used) {
+						break;
+					}
+					used += size;
+					--first;
+				}
+				return first;
+			}
+			void emit(std::size_t aFirst)
+			{
+				auto& descriptor               = Document.Descriptor;
+				descriptor.LimitOmittedRecords = static_cast<std::uint32_t>(aFirst);
+				descriptor.OmittedRecords      = Unclassified + descriptor.LimitOmittedRecords;
+				for (auto index = aFirst; index < Candidates.size(); ++index) {
+					const auto& candidate = Candidates[index];
+					++descriptor.Records;
+					if (candidate.Legacy) {
+						const auto record = *classify(candidate.Line);
+						Document.Bytes += legacy_line(record);
+						descriptor.Categories |= record.Operation == 0U ? 1U : record.Operation == 4U ? 4U
+																									  : 2U;
+						++LegacyRecords;
+						continue;
+					}
+					const auto fields = *json_fields(candidate.Line);
+					Document.Bytes += render(fields, candidate.Recent, false);
+					descriptor.RecentRecords += candidate.Recent ? 1U : 0U;
+					descriptor.CaptureRedactedRecords += fields[27] == "anonymized" ? 1U : 0U;
+					descriptor.Categories |= fields[2] == "application" ? 1U : fields[2] == "github" ? 2U
+																									 : 4U;
+					Sessions.emplace(fields[6]);
+					descriptor.FirstUtcMs = Dated ? std::min(descriptor.FirstUtcMs, candidate.UtcMs) : candidate.UtcMs;
+					descriptor.LastUtcMs  = std::max(descriptor.LastUtcMs, candidate.UtcMs);
+					Dated                 = true;
+				}
 			}
 		};
 
@@ -529,7 +596,7 @@ namespace bpr::application {
 		return document;
 	}
 	auto prepare_diagnostic_export(std::string_view aLog, core::release_maintenance_revision aRevision,
-								   core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace)
+								   core::diagnostic_export_options aOptions, const diagnostic_export_capture& aCapture, std::string_view aNamespace, std::uint32_t aUnreadFiles)
 		-> std::expected<release_diagnostic_document, core::release_maintenance_reason>
 	{
 		using reason = core::release_maintenance_reason;
@@ -543,9 +610,10 @@ namespace bpr::application {
 		// Filled member by member: GCC 15 at -O3 reads the nested designated
 		// aggregate as leaving the document's strings uninitialized.
 		export_builder builder{ };
-		builder.Document.Descriptor.Revision = aRevision;
-		builder.Document.Descriptor.Options  = aOptions;
-		builder.Namespace                    = std::string{ aNamespace };
+		builder.Document.Descriptor.Revision    = aRevision;
+		builder.Document.Descriptor.Options     = aOptions;
+		builder.Document.Descriptor.UnreadFiles = aUnreadFiles;
+		builder.Namespace                       = std::string{ aNamespace };
 		if (!builder.collect(aLog, false, aCapture)) {
 			return std::unexpected(reason::limit_exceeded);
 		}
@@ -561,6 +629,7 @@ namespace bpr::application {
 				}
 			}
 		}
+		builder.emit(builder.select());
 		auto& document = builder.Document;
 		document.Descriptor.Fields |= core::release_diagnostic_classified_fields | (aOptions.Policy == export_policy::identifying ? static_cast<std::uint32_t>(core::release_diagnostic_field::captured_identity) : 0U);
 		document.Descriptor.Sessions = static_cast<std::uint32_t>(builder.Sessions.size());
@@ -571,13 +640,15 @@ namespace bpr::application {
 		header += "\",\"include_recent\":";
 		header += aOptions.IncludeRecent ? "true" : "false";
 		header += ",\"records\":" + std::to_string(document.Descriptor.Records) + ",\"omitted_records\":" + std::to_string(document.Descriptor.OmittedRecords)
+			+ ",\"unclassified_records\":" + std::to_string(builder.Unclassified) + ",\"limit_omitted_records\":" + std::to_string(document.Descriptor.LimitOmittedRecords)
+			+ ",\"limit_keeps\":\"newest\",\"unread_files\":" + std::to_string(aUnreadFiles)
 			+ ",\"duplicate_records\":" + std::to_string(builder.DuplicateRecords) + ",\"detail_omissions\":" + std::to_string(builder.DetailOmissions)
 			+ ",\"legacy_metadata_records\":" + std::to_string(builder.LegacyRecords)
 			+ ",\"capture_redacted_records\":" + std::to_string(document.Descriptor.CaptureRedactedRecords)
 			+ ",\"sessions\":" + std::to_string(document.Descriptor.Sessions) + ",\"categories\":" + std::to_string(document.Descriptor.Categories)
 			+ ",\"first_utc_ms\":" + std::to_string(document.Descriptor.FirstUtcMs) + ",\"last_utc_ms\":" + std::to_string(document.Descriptor.LastUtcMs)
 			+ ",\"recent_records\":" + std::to_string(document.Descriptor.RecentRecords)
-			+ ",\"notice\":\"Capture-time omissions cannot be recovered. Sanitized explanations and operational facts may still reveal context. Local file only; nothing is uploaded.\"}\n";
+			+ ",\"notice\":\"Capture-time omissions cannot be recovered. Over the record or byte limit the oldest records are left out and the newest kept. Sanitized explanations and operational facts may still reveal context. Local file only; nothing is uploaded.\"}\n";
 		document.Bytes.insert(0U, header);
 		if (document.Bytes.size() > core::release_diagnostic_byte_limit) {
 			return std::unexpected(reason::limit_exceeded);
