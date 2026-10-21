@@ -7510,7 +7510,7 @@ namespace bpr::app {
 				return;
 			}
 			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
-			TabHost->complete(request->Request, aOutcome);
+			TabHost->complete_on_lane(request->Request, aOutcome);
 			// A failed reading restoration refuses entry navigation. An ordinary
 			// file press can still use the now-settled exact file order below.
 			if (aOutcome == core::document_tab_view_outcome::unavailable
@@ -7743,7 +7743,7 @@ namespace bpr::app {
 				&& SelectedDiffPublication->Request.Diff.Comparison == active->View.Comparison
 				&& surface->current_context() && surface->current_context()->Key == SelectedDiffPublication->Key
 				&& surface->selection() != active->View.Selection) {
-				TabHost->observe_reading_position(TabPresented->Request, surface->selection());
+				TabHost->observe_reading_position_on_lane(TabPresented->Request, surface->selection());
 			}
 		}
 		/// \brief Keeps the tabs with the window's accepted destination.
@@ -8312,6 +8312,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			Window->comparison_surface()->set_reading_gesture_sink([this] {
 				cancel_restoration(false, true);
+				// A line can be chosen on the exact displayed diff before
+				// its tab driver finishes. That newer gesture owns the reading;
+				// completing the load must not restore an older selection.
+				if (!Closing && TabLoad && SelectedDiffPublication && SelectedDiffRequest == std::optional{ SelectedDiffPublication->Request }
+					&& SelectedDiffPublication->Request.Context.Generation == WorkbenchHost->generation()) {
+					auto shown      = TabLoad->View;
+					shown.Selection = Window->comparison_surface()->selection();
+					if (tab_view_presented(shown)) {
+						finish_tab_load(core::document_tab_view_outcome::ready);
+					}
+				}
 				retain_reading_position();
 				observe_tab_reading();
 				schedule_tab_presentation();

@@ -214,6 +214,22 @@ namespace {
 		expect(f.Host.last_reason() == core::document_tab_reason::unknown_tab && f.Views.Loads.empty(), "an unknown tab is refused");
 	}
 
+	void test_lane_reading_is_persisted_before_immediate_shutdown()
+	{
+		fixture f;
+		f.open_window(pair(1, 2));
+		f.Host.apply(core::open_in_active_tab_intent{ file(1) });
+		const auto request = f.Views.Loads.back().Request;
+		f.Host.complete_on_lane(request, core::document_tab_view_outcome::ready);
+		f.Host.observe_reading_position_on_lane(request, line(1, 9));
+		f.Host.shutdown();
+		expect(f.Host.is_quiescent() && f.Persisted.back().Tabs[0].Selection == line(1, 9),
+			   "a lane's accepted line is durable before Quit without another event turn");
+		f.Host.observe_reading_position_on_lane(request, line(1, 10));
+		f.Lane.drain();
+		expect(f.Persisted.back().Tabs[0].Selection == line(1, 9), "shutdown refuses later lane readings");
+	}
+
 	void test_leaving_the_pull_request_retires_its_work()
 	{
 		fixture f;
@@ -244,6 +260,7 @@ auto main() -> int
 	test_a_closed_loading_tab_publishes_nothing();
 	test_two_views_of_one_file_through_refresh_and_restart();
 	test_refusals_are_published_and_change_nothing();
+	test_lane_reading_is_persisted_before_immediate_shutdown();
 	test_leaving_the_pull_request_retires_its_work();
 	std::cout << "All document tab host tests passed\n";
 	return 0;

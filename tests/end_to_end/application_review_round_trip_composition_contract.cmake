@@ -1,3 +1,14 @@
+# BPR-1694 scoped reseal (2026-10-21), over matching a023d1d81 / 3a1ee98c0.
+# Retained initial refusals precede this renewal. The composition's tab
+# completion and line observation use explicit on-lane host entry points, so
+# Quit cannot overtake their queued persistence. An accepted interactive line
+# on a pending tab's exact displayed material completes that load before its
+# driver can restore an older selection; request, generation, accepted pair,
+# file and displayed publication remain checked. The controlled public course
+# fails before this repair and keeps its immediate Quit / exact durable checks.
+# Arbitrary-thread entry points still post; the core validates request identity.
+# No provider, credential, grant, mutation, publication or source-inventory
+# change. Full/manifest pins bind these bytes; mutation 16d135419 stays exact.
 # RFC-BPR-0089 M3 reseal (2026-10-21) over last matching 8e73e5cb3 ([[BPR-1693]],
 # on main ef5939561), linear. Pinned-scope change: M3's split per-commit diffs
 # and force-push rematch, on this milestone's own commit. Inside the manifest
@@ -1811,7 +1822,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+		"94f887d46b9a87a3fcd16e59101713efdc0816e4dd27ec35ef798b510bb24bf3"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2031,7 +2042,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "387de8dad55a498cf8269419b12dbf6d520f865c26ca61cb791f8c0dd34a8f80"
+        "219d7de0a2a9aa61abc33d837119df197a46182bceef805764533c1b726bce79"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

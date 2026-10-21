@@ -154,6 +154,22 @@ namespace bpr::application {
 		});
 	}
 
+	void document_tab_host::complete_on_lane(const core::request_id aRequest, const core::document_tab_view_outcome aOutcome)
+	{
+		auto& host = *Implementation;
+		if (!host.Closed) {
+			host.perform(core::complete_view(host.State, aRequest, aOutcome));
+		}
+	}
+
+	void document_tab_host::observe_reading_position_on_lane(const core::request_id aRequest, const std::optional<core::semantic_selection>& aSelection)
+	{
+		auto& host = *Implementation;
+		if (!host.Closed) {
+			host.perform(core::observe_reading_position(host.State, aRequest, aSelection));
+		}
+	}
+
 	void document_tab_host::shutdown()
 	{
 		Implementation->Closed = true;

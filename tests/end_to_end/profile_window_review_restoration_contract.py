@@ -74,6 +74,9 @@ def main():
         # the stores define there.
         os.chmod(root, 0o700)
         make_root_private(root)
+        early = root / "early-tab-reading"
+        make_root_private(early)
+        run(arguments.application, "auth-tab-gesture-seed", early)
         auth = root / "auth"
         make_root_private(auth)
         vault = seed_auth(arguments.application, auth)

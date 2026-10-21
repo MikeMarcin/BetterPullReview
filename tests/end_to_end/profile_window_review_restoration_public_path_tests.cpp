@@ -218,7 +218,7 @@ namespace {
 				 key.File,
 				 surface->selection() };
 	}
-	void select_reading(app::github_application& aOwner, core::bpr_window_context aContext, int aRow, bool aCrossUpload = false)
+	void select_reading(app::github_application& aOwner, core::bpr_window_context aContext, int aRow, bool aCrossUpload = false, bool aEarlyGesture = false)
 	{
 		auto&                                           window = *aOwner.window(aContext);
 		std::optional<core::comparison_anchor_identity> expectedLeft;
@@ -271,8 +271,25 @@ namespace {
 			const auto index = files->model()->index(row, 0);
 			if (index.data(Qt::DisplayRole).toString() == path) { selected = index; return true; }
 		} return false; }, "exact independent file path available");
+		auto*                                       surface     = window.comparison_surface();
+		bool                                        earlyQueued = false;
+		std::optional<core::window_review_position> earlyReading;
+		auto                                        earlyConnection = QMetaObject::Connection{ };
+		if (aEarlyGesture) {
+			earlyConnection = QObject::connect(surface->right_pane()->document(), &QTextDocument::contentsChanged, &window, [&] {
+				if (!aEarlyGesture || earlyQueued || !surface->current_result() || !surface->current_semantic_index() || !surface->current_context()
+					|| surface->current_context()->Key.File != core::file_identity_of(path.toStdString())) {
+					return;
+				}
+				earlyQueued = true;
+				QMetaObject::invokeMethod(&window, [&] {
+                const auto evidence = github_application_fixture_access::epoch_refresh_identity(aOwner);
+                expect(evidence.TabPending, "early reading gesture precedes tab completion");
+                expect(surface->select_conversation_line(core::diff_side::right, 3U), "early public line gesture accepted");
+                earlyReading = reading(window); }, Qt::QueuedConnection);
+			});
+		}
 		files->selectionModel()->setCurrentIndex(selected, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
-		auto* surface = window.comparison_surface();
 		wait_for([&] { return surface->current_result() && surface->current_semantic_index() && surface->current_context()
 						   && surface->current_context()->Key.File == core::file_identity_of(path.toStdString())
 						   && (!expectedLeft || surface->current_context()->Key.LeftAnchor == expectedLeft)
@@ -292,7 +309,14 @@ namespace {
 				std::cerr << "tab=" << tab.Id.value() << " active=" << tab.Active << " state=" << static_cast<int>(tab.State)
 					<< " own=" << tab.OwnComparison << " path=" << tab.Path.toStdString() << '\n';
 			} }, 60000);
-		expect(surface->select_conversation_line(core::diff_side::right, aRow == 0 ? 3U : 1U), "public line gesture selects exact semantic location");
+		if (aEarlyGesture) {
+			wait_for([&] { return earlyReading.has_value(); }, "queued early gesture delivered");
+			QObject::disconnect(earlyConnection);
+			expect(reading(window) == *earlyReading, "deferred tab presentation preserves the newer line gesture");
+		} else {
+			QObject::disconnect(earlyConnection);
+			expect(surface->select_conversation_line(core::diff_side::right, aRow == 0 ? 3U : 1U), "public line gesture selects exact semantic location");
+		}
 	}
 	void restored_reading(qt::workbench_window& aWindow, const core::window_review_position& aExpected, const std::function<void()>& aDiagnostic = { })
 	{
@@ -365,7 +389,7 @@ namespace {
 		expect((!aRead || status.PublicPreviewRequests > 0U) && status.PublicPreviewVaultEffects == 0U && status.PublicPreviewHeaderEffects == 0U, "anonymous path has zero vault/header effects");
 		expect(!evidence.AccountTransportSelected && !evidence.BootstrapTransportSelected && evidence.VaultStores == 0U && evidence.DeviceTransportSubmissions == 0U, "anonymous path selects no account/bootstrap/enrollment transport");
 	}
-	auto seed_auth(app::github_application& aOwner, core::bpr_window_context aFirst) -> std::vector<core::window_review_position>
+	auto seed_auth(app::github_application& aOwner, core::bpr_window_context aFirst, bool aEarlyGesture = false) -> std::vector<core::window_review_position>
 	{
 		auto* first = aOwner.window(aFirst);
 		// [[BPR-0732]]. A pasted public link no longer stops at sign-in where
@@ -379,7 +403,7 @@ namespace {
 		expect(first->findChild<QPushButton*>(QStringLiteral("homeSetupContinue"))->isHidden(), "an account opens the destination without a stop");
 		accepted(aOwner, aFirst, 17);
 		wait_for([&] { return github_application_fixture_access::device_binding_durable(aOwner); }, "remembered grant settles before Quit");
-		select_reading(aOwner, aFirst, 0);
+		select_reading(aOwner, aFirst, 0, false, aEarlyGesture);
 		const auto firstReading = reading(*first);
 		trigger(*first, "newBprWindowAction");
 		wait_for([&] { return aOwner.windows().size() == 2U; }, "second stable window created");
@@ -552,7 +576,7 @@ auto main(int aArgc, char** aArgv) -> int
 			first->home_open_action()->trigger();
 			accepted(*owner, firstContext, 17);
 		} else {
-			seededReadings = seed_auth(*owner, firstContext);
+			seededReadings = seed_auth(*owner, firstContext, phase == "auth-tab-gesture-seed");
 		}
 	} else if (phase == "auth-advance") {
 		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
@@ -623,8 +647,16 @@ auto main(int aArgc, char** aArgv) -> int
 			auto*      files    = first->files_tree();
 			const auto index    = files->tree_model()->index_for_file(*original.File);
 			auto       menu     = std::unique_ptr<QMenu>{ files->make_file_menu(index, first) };
-			expect(menu && menu->actions().size() == 1, "file menu offers Open in New Tab");
-			menu->actions().front()->trigger();
+			expect(menu != nullptr, "file menu is available");
+			QAction* openInNewTab = nullptr;
+			for (auto* action : menu->actions()) {
+				if (action->objectName() == QStringLiteral("filesTreeOpenInNewTab")) {
+					expect(openInNewTab == nullptr, "file menu has one Open in New Tab action");
+					openInNewTab = action;
+				}
+			}
+			expect(openInNewTab != nullptr && openInNewTab->text() == QStringLiteral("Open in New Tab") && openInNewTab->isEnabled(), "file menu offers enabled Open in New Tab");
+			openInNewTab->trigger();
 			wait_for([&] { return strip->tabs().size() == 2U; }, "Open in New Tab adds one background view");
 			expect(strip->tabs()[0].Active && reading(*first) == original, "background open preserves active reading");
 			first->next_tab_action()->trigger();

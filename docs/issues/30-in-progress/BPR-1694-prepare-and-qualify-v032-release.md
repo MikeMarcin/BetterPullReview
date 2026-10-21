@@ -154,3 +154,25 @@ The two existing uncontained registrations now name these measured causes:
 ACL, registration, timeout or assertion changes. Temporary diagnostic source
 and binaries are restored and rebuilt afterward. Final committed-source
 manifest and comprehensive native qualification remain required.
+
+## Reading restoration ordering repair
+
+Windows exposed two ordering failures: immediate Quit could overtake posted tab
+completion and reading observation, and a pending tab driver could restore an
+older selection after an accepted line gesture on its exact displayed diff.
+The host now exposes explicit decision-lane entry points through the unchanged
+core transitions. The composed gesture completes only the pending load whose
+request, generation, pair, file and displayed publication are current, before
+recording the newer reading. Arbitrary-thread entry points retain posting.
+
+The host regression requires persistence before immediate shutdown and refusal
+after shutdown; substituting the posted entry points makes it fail. A composed
+course queues an actual line gesture while the tab is pending: it reproduces
+the durable-reading failure before the pending-load repair and passes afterward.
+Exact reading, immediate Quit and durable equality assertions remain. Final
+reading-restoration courses pass on Mac and Windows. Their tab-menu course
+exposed a separate stale fixture assumption: M3 adds generated-file actions.
+The fixture now requires one enabled, correctly labelled action with the
+existing Open in New Tab identity and triggers that action. It retains all
+background-tab, comparison, modality, reading and restart checks. Final common
+committed-source comprehensive qualification remains pending.

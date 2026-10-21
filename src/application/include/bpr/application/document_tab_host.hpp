@@ -71,6 +71,10 @@ namespace bpr::application {
 		void reset();
 		void complete(core::request_id aRequest, core::document_tab_view_outcome aOutcome);
 		void observe_reading_position(core::request_id aRequest, std::optional<core::semantic_selection> aSelection);
+		/// \brief Accepts an already-presented view on the decision lane.
+		void complete_on_lane(core::request_id aRequest, core::document_tab_view_outcome aOutcome);
+		/// \brief Records a gesture already on the decision lane before Home or Quit.
+		void observe_reading_position_on_lane(core::request_id aRequest, const std::optional<core::semantic_selection>& aSelection);
 		/// \brief Refuses later terminals; posted ones already queued become no-ops.
 		void shutdown();
 
