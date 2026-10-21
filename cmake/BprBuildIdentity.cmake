@@ -1,4 +1,4 @@
-# [[BPR-PENDING-AA]]. The commit a build was made from, for Help › About.
+# [[BPR-1720]]. The commit a build was made from, for Help › About.
 #
 # Included, this file defines bpr_add_build_identity(). Run as a script, it
 # writes the header that function names. Every build runs the script, which

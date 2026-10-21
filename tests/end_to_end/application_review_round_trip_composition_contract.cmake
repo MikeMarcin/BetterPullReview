@@ -1,4 +1,6 @@
-# [[BPR-PENDING-AA]] reseal (2026-10-21) over last matching main ae867c2db,
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1720 note below
+# is renaming its [[BPR-PENDING-AA]] comment tags to [[BPR-1720]]; no code change.
+# [[BPR-1720]] reseal (2026-10-21) over last matching main ae867c2db,
 # linear. Pinned-scope change: Help > About BetterPullReview, on this card's
 # own commit. The source inventory gains src/about_desktop.cpp and .hpp, in
 # both lists: make_about_menu builds the page's facts (compiled version and
@@ -2176,7 +2178,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "409766a3dd6a29009e53e181c1f37f99d5bd592728af76e9c17317f60dec32fe"
+        "cec87dd74c99ebecaf5c17f451e8749a14c5c09f30d19ccf1ad23738e2f2d33e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -197,7 +197,7 @@ bpr_add_qt_resources(better_pull_review_adapter_qt bpr_code_font
     ALWAYS_COMPRESS
     FILES ${bpr_code_font_files}
 )
-# [[BPR-PENDING-AA]]. Help › About's Game Core Tech logo: the owner's own
+# [[BPR-1720]]. Help › About's Game Core Tech logo: the owner's own
 # mark, copied from their AllTheThings project and downscaled once to 640
 # pixels square (assets/about/README.md). First-party, under this project's
 # licence; no third-party notice.

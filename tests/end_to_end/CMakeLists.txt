@@ -950,7 +950,7 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_queue_composition_public_path)
 bpr_enable_warnings(test_better_pull_review_queue_composition_public_path)
 
-# [[BPR-PENDING-AA]]. Help › About as composed: this build's facts, the
+# [[BPR-1720]]. Help › About as composed: this build's facts, the
 # installed legal folder and its regular-file rule, and the links reaching the
 # tests-only browser launch with exactly their admitted addresses.
 bpr_add_executable(test_better_pull_review_about_composition about_composition_tests.cpp)

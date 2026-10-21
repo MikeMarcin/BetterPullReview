@@ -158,7 +158,7 @@ int main()
 	expect(reference && reference->Hostname == "conventionalcomments.org" && reference->Path == "/", "Conventional Comments is its site's root");
 	expect(admit_reference_page(reference_page::conventional_comments, false).error() == markdown_link_result::unavailable, "no browser, no page");
 	expect(admit_reference_page(static_cast<reference_page>(7), true).error() == markdown_link_result::refused, "a value that names no page is refused");
-	// [[BPR-PENDING-AA]]. Help › About's two pages, each one exact host and path.
+	// [[BPR-1720]]. Help › About's two pages, each one exact host and path.
 	const auto maker = admit_reference_page(reference_page::game_core_tech, true);
 	expect(maker && maker->Hostname == "gamecoretech.com" && maker->Path == "/", "Game Core Tech is its site's root");
 	const auto source = admit_reference_page(reference_page::source_repository, true);

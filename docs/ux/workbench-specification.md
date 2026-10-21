@@ -2199,7 +2199,7 @@ launched window sees the entry greyed.
 
 ### About BetterPullReview
 
-**Help > About BetterPullReview** ([[BPR-PENDING-AA]]; owner, 2026-10-21:
+**Help > About BetterPullReview** ([[BPR-1720]]; owner, 2026-10-21:
 "We need an about page. We can take inspiration fom the AllTheThings about
 page and copy it's GCT logo") is Help's last item. Its About role puts it first
 in the macOS application menu, above Check for Updates…; on Windows and Linux

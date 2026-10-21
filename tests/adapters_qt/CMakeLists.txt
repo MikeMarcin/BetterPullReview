@@ -2334,7 +2334,7 @@ set_tests_properties(qt_refresh_feedback_window PROPERTIES
     PASS_REGULAR_EXPRESSION "refresh-feedback-window-tests:pass"
     TIMEOUT 120)
 
-# [[BPR-PENDING-AA]]. Help › About: content, Copy version info, links and
+# [[BPR-1720]]. Help › About: content, Copy version info, links and
 # documents through the host's actions, the menu item, keyboard access, the
 # logo at the device's own pixel size and contrast in the built-in themes, at
 # 1x and 2x, each saving its Light and Dark renders.

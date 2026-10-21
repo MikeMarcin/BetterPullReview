@@ -1,7 +1,7 @@
 # About page assets
 
 `game-core-tech-logo.png` is the Game Core Tech mark Help › About shows
-([[BPR-PENDING-AA]]). Game Core Tech is the owner's own name, and the mark is
+([[BPR-1720]]). Game Core Tech is the owner's own name, and the mark is
 the owner's. It is this project's asset, under this project's licence and
 copyright, and needs no attribution or third-party notice (owner, 2026-10-21).
 

@@ -108,7 +108,7 @@ if(BPR_BUILD_QT)
             src/terminal_diagnostics.cpp
             src/about_desktop.cpp
     )
-    # [[BPR-PENDING-AA]]. Help › About's facts: the version and configuration
+    # [[BPR-1720]]. Help › About's facts: the version and configuration
     # here, and the commit from a header every build brings up to date.
     include("${PROJECT_SOURCE_DIR}/cmake/BprBuildIdentity.cmake")
     bpr_add_build_identity(better_pull_review_composition)

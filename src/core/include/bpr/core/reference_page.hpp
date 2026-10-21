@@ -16,7 +16,7 @@ namespace bpr::core {
 	/// label chip's menu and Settings › Comments › Labels both
 	/// name `conventional_comments`, for reviewers who do not know where the
 	/// twelve labels and their decorations come from (owner, 2026-10-16).
-	/// [[BPR-PENDING-AA]] adds the two pages Help › About links to: the
+	/// [[BPR-1720]] adds the two pages Help › About links to: the
 	/// maker's site and the application's own source repository.
 	enum class reference_page : std::uint8_t {
 		conventional_comments,

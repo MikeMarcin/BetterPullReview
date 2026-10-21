@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AA]]. Help › About as the composition builds it: the facts it
+// [[BPR-1720]]. Help › About as the composition builds it: the facts it
 // reads for this build (version, configuration, the recorded commit, the
 // running Qt), the installed legal folder and which of its documents count as
 // installed (regular files only, never a link or a folder), and the menu item

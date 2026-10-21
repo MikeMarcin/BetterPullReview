@@ -58,7 +58,7 @@ namespace bpr::qt {
 					if (application != nil && Item.menu != application) {
 						[Item.menu removeItem:Item];
 						// Under Qt's About slot, its menu loader's first item, so About
-						// BetterPullReview ([[BPR-PENDING-AA]]) leads the application
+						// BetterPullReview ([[BPR-1720]]) leads the application
 						// menu and Check for Updates… follows it, as on macOS generally.
 						[application insertItem:Item atIndex:(application.numberOfItems > 0 ? 1 : 0)];
 					}

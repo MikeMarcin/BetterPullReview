@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1720"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Help About BetterPullReview",
+  "created": "2026-10-21T22:28:56.137722+00:00",
+  "base": "b976abd4b34664a617329ea19273644e512aa191"
+}

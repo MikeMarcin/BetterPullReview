@@ -766,7 +766,7 @@ namespace bpr::app {
 				if (Updater) {
 					Updater->attach(*DesktopMenu);
 				}
-				// [[BPR-PENDING-AA]]. After the updater, so About ends Help.
+				// [[BPR-1720]]. After the updater, so About ends Help.
 				if (About) {
 					About->attach(*DesktopMenu);
 				}

@@ -22,7 +22,7 @@ class QTimer;
 class QVBoxLayout;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AA]]. A legal document a release installs beside
+	/// \brief [[BPR-1720]]. A legal document a release installs beside
 	/// the application, which Help › About opens.
 	enum class about_document : std::uint8_t {
 		/// `THIRD-PARTY-NOTICES.txt`: the MIT grant, every component's licence
@@ -33,7 +33,7 @@ namespace bpr::qt {
 		source_offer,
 	};
 
-	/// \brief [[BPR-PENDING-AA]]. What Help › About says about this build.
+	/// \brief [[BPR-1720]]. What Help › About says about this build.
 	///
 	/// \details Facts the composition reads once: the build identity compiled
 	/// in, the runtime Qt and system, and whether the installed legal
@@ -85,7 +85,7 @@ namespace bpr::qt {
 	/// 2026-10-21", with ", with local changes" when there were.
 	[[nodiscard]] auto about_build_line(const about_facts& aFacts) -> QString;
 
-	/// \brief [[BPR-PENDING-AA]]. Help › About BetterPullReview.
+	/// \brief [[BPR-1720]]. Help › About BetterPullReview.
 	///
 	/// \details Game Core Tech's logo, the application's name, version and
 	/// build, the maker and source links, Copy version info, and the
@@ -150,7 +150,7 @@ namespace bpr::qt {
 		qreal                LogoScale       = 0.0;
 	};
 
-	/// \brief [[BPR-PENDING-AA]]. Puts About BetterPullReview on every menu
+	/// \brief [[BPR-1720]]. Puts About BetterPullReview on every menu
 	/// bar it is attached to and presents the page for the window that owns
 	/// the bar.
 	///

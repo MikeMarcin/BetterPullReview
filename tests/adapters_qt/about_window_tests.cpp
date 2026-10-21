@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AA]]. Help › About BetterPullReview: the Game Core Tech logo
+// [[BPR-1720]]. Help › About BetterPullReview: the Game Core Tech logo
 // drawn at the device's own pixel size, the name, version and build line,
 // Copy version info and what it copies, the maker and source links and the
 // installed legal documents through the host's actions (and what the page
