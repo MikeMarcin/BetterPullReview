@@ -1133,7 +1133,7 @@ namespace bpr::application {
 		const core::conversation_read_scope             aScope,
 		ledger_completion<core::conversation_bulk_read> aDone)
 	{
-		// [[BPR-PENDING-M]]. One decision over the held receipts and one
+		// [[BPR-1699]]. One decision over the held receipts and one
 		// commit of every receipt it changes: either all are read or none.
 		using impl       = implementation;
 		using answered   = std::expected<core::conversation_bulk_read, ledger_store_failure>;

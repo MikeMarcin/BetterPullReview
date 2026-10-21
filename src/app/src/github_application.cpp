@@ -14134,7 +14134,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Edit    = core::comment_edit_version{ durable_identity_half(core::sha256(body), 8U) },
 				.Mine    = aComment.Author.has_value() && !aViewer.empty()
 					&& aComment.Author->Login == aViewer,
-				// [[BPR-PENDING-M]]. Who wrote it, for Mark all from them as read.
+				// [[BPR-1699]]. Who wrote it, for Mark all from them as read.
 				.Author = aComment.Author.has_value() ? core::review_author_of(aComment.Author->Login) : core::review_author_id{ },
 			};
 		}
@@ -14798,7 +14798,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}));
 		}
 
-		/// \brief [[BPR-PENDING-M]]. Every conversation of the accepted
+		/// \brief [[BPR-1699]]. Every conversation of the accepted
 		/// snapshot, as the read state observes them.
 		[[nodiscard]] auto accepted_read_conversations() const
 			-> std::optional<std::vector<application::conversation_thread_observation>>
@@ -14836,7 +14836,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return threads;
 		}
 
-		/// \brief [[BPR-PENDING-M]]. Mark all comments as read, or all from
+		/// \brief [[BPR-1699]]. Mark all comments as read, or all from
 		/// one author: the core decides over every conversation of the pull
 		/// request, the ledger host commits the receipts it changes as one
 		/// durable change, and the read state is presented once that is

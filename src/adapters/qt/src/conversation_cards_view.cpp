@@ -618,7 +618,7 @@ namespace bpr::qt {
 				}
 			});
 		}
-		// [[BPR-PENDING-M]]. Mark all from the thread's author as read, for a
+		// [[BPR-1699]]. Mark all from the thread's author as read, for a
 		// thread someone else started (a spammy bot's, typically). It reaches
 		// past this thread, so it stands apart from the thread's own items.
 		if (!card.Posts.empty() && !card.Posts.front().Mine && !card.Posts.front().Author.isEmpty()) {
@@ -2180,7 +2180,7 @@ namespace bpr::qt {
 				dispatch(card_action::show_in_threads, aPost);
 			}
 		};
-		// [[BPR-PENDING-M]]. A post's Mark all from its author as read.
+		// [[BPR-1699]]. A post's Mark all from its author as read.
 		OpenCard->AuthorUnread = [this](const QString& aLogin) -> std::optional<std::size_t> {
 			return ReadStateKnown ? std::optional{ unread_post_count_from(aLogin) } : std::nullopt;
 		};

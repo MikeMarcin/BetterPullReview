@@ -221,7 +221,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1582]]. Where the row menu's Mark as read and Mark as
 		/// unread go.
 		void set_read_dispatch(finder_read_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-M]]. Where the row menu's Mark All from an
+		/// \brief [[BPR-1699]]. Where the row menu's Mark All from an
 		/// author as Read goes, with the GitHub login, and how many of that
 		/// author's posts on the pull request are new; without a count the
 		/// rows' own posts are counted.
@@ -269,7 +269,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1582]]. Mark as read or Mark as unread, as the
 		/// thread's read state decides, while the menu is open.
 		[[nodiscard]] auto read_action() const noexcept -> QAction*;
-		/// \brief [[BPR-PENDING-M]]. Mark All from the row's or the picked
+		/// \brief [[BPR-1699]]. Mark All from the row's or the picked
 		/// post's author as Read, while the menu is open; none for my post.
 		[[nodiscard]] auto author_read_action() const noexcept -> QAction*;
 		/// \brief Opens the row menu for one row at a point of the list's

@@ -106,7 +106,7 @@ namespace bpr::application {
 	/// edit is a different version without the provider naming a time.
 	/// [[BPR-1601]]. A PR comment or review summary is a one-post conversation;
 	/// the existing receipt keeps its read cursor without a storage migration.
-	/// [[BPR-PENDING-M]]. The core's own shape, since the bulk read decides
+	/// [[BPR-1699]]. The core's own shape, since the bulk read decides
 	/// over the pull request's conversations together.
 	using conversation_thread_observation = core::conversation_thread_observation;
 
@@ -309,7 +309,7 @@ namespace bpr::application {
 		/// \details Answers `invalid_record` without writing when every post
 		/// is mine, since nothing could become new.
 		void mark_conversation_unread(const conversation_thread_observation& aThread, ledger_completion<void> aDone);
-		/// \brief [[BPR-PENDING-M]]. Marks the observed conversations read in
+		/// \brief [[BPR-1699]]. Marks the observed conversations read in
 		/// one durable change: every post, or one author's.
 		///
 		/// \details `core::mark_conversations_read` decides against the

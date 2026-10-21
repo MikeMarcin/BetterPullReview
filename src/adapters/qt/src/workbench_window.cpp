@@ -2403,7 +2403,7 @@ namespace bpr::qt {
 			connect(scrollbar, &QScrollBar::valueChanged, this, [this](int) { consider_mark_read_when_fully_seen(); });
 			connect(scrollbar, &QScrollBar::rangeChanged, this, [this](int, int) { consider_mark_read_when_fully_seen(); });
 		}
-		// [[BPR-PENDING-M]]. A thread's or a post's Mark all from its author
+		// [[BPR-1699]]. A thread's or a post's Mark all from its author
 		// as read goes where Mark All Comments as Read does, with the login.
 		ConversationPanel->cards()->set_author_read_dispatch([this](const std::string& aLogin) {
 			const auto dispatch = ConversationsReadDispatch;
@@ -2867,7 +2867,7 @@ namespace bpr::qt {
 				ConversationUnreadDispatch(aThread);
 			}
 		});
-		// [[BPR-PENDING-M]]. Mark All from an author as Read, from a row.
+		// [[BPR-1699]]. Mark All from an author as Read, from a row.
 		Finder->set_author_read_dispatch(
 			[this](const std::string& aLogin) {
 				const auto dispatch = ConversationsReadDispatch;
@@ -8628,7 +8628,7 @@ namespace bpr::qt {
 
 	void workbench_window::present_conversations_read(const std::optional<conversations_read_result> aResult, const std::optional<std::string>& aAuthor)
 	{
-		// [[BPR-PENDING-M]]. The counts and badges have already moved with
+		// [[BPR-1699]]. The counts and badges have already moved with
 		// the read state; this says what the gesture did, once it is durable.
 		const auto who = aAuthor.has_value() ? QString::fromStdString(*aAuthor) : QString{ };
 		if (!aResult.has_value()) {
@@ -9114,7 +9114,7 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
-		// [[BPR-PENDING-M]]. Offered while anything on the pull request is new.
+		// [[BPR-1699]]. Offered while anything on the pull request is new.
 		if (MarkAllCommentsRead != nullptr) {
 			MarkAllCommentsRead->setEnabled(!unread.empty() && static_cast<bool>(ConversationsReadDispatch));
 		}
@@ -17219,7 +17219,7 @@ namespace bpr::qt {
 			RepositoryDisplayedDestination = QueueProjection.Session;
 			RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = ref->Repository });
 		});
-		// [[BPR-PENDING-M]]. Mark All Comments as Read: my read state for
+		// [[BPR-1699]]. Mark All Comments as Read: my read state for
 		// every comment on the open pull request, in one durable change.
 		// Like Follow it is local; GitHub is not told.
 		PullRequestMenu->addSeparator();

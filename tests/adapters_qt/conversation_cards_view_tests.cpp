@@ -338,7 +338,7 @@ namespace {
 	// the dot and count, the open thread offers Mark read, the first post
 	// unread makes the thread new for the gutter, and the strip walks the
 	// unread threads of the whole pull request in file order.
-	// [[BPR-PENDING-M]]. A thread someone else started offers Mark all from
+	// [[BPR-1699]]. A thread someone else started offers Mark all from
 	// its author as read, and a post's body menu Mark all from that post's
 	// author; each counts that author's new posts over the pull request,
 	// names the login as written, an app's [bot] included, and goes out with

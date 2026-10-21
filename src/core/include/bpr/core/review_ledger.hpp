@@ -25,14 +25,14 @@ namespace bpr::core {
 	/// is what makes that decidable.
 	using comment_edit_version = strong_id<struct comment_edit_version_tag>;
 
-	/// \brief [[BPR-PENDING-M]]. Names the person who wrote a post.
+	/// \brief [[BPR-1699]]. Names the person who wrote a post.
 	///
 	/// \details Derived from the GitHub login, which the read already holds
 	/// in REST form (`<name>[bot]` for an app, [[BPR-1321]]). Never stored:
 	/// it scopes one bulk Mark read and nothing else.
 	using review_author_id = strong_id<struct review_author_id_tag>;
 
-	/// \brief [[BPR-PENDING-M]]. The author identity of one GitHub login.
+	/// \brief [[BPR-1699]]. The author identity of one GitHub login.
 	///
 	/// \details GitHub logins compare without ASCII case, so `Dependabot[bot]`
 	/// and `dependabot[bot]` are one author, while `name` and `name[bot]` are
@@ -253,14 +253,14 @@ namespace bpr::core {
 		review_comment_id    Comment;
 		comment_edit_version Edit;
 		bool                 Mine = false;
-		/// [[BPR-PENDING-M]]. Who wrote it, for Mark all from a person as
+		/// [[BPR-1699]]. Who wrote it, for Mark all from a person as
 		/// read; zero when GitHub names no author (a deleted account).
 		review_author_id Author;
 
 		auto operator<=>(const conversation_post_observation&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-M]]. One conversation's posts, as the host observed them.
+	/// \brief [[BPR-1699]]. One conversation's posts, as the host observed them.
 	///
 	/// \details The posts in thread order, root first. The bulk read decides
 	/// over a pull request's conversations at once, so the core holds the
@@ -273,7 +273,7 @@ namespace bpr::core {
 		auto operator<=>(const conversation_thread_observation&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-M]]. Which posts a bulk Mark read covers.
+	/// \brief [[BPR-1699]]. Which posts a bulk Mark read covers.
 	///
 	/// \details No author is every post: Mark all comments as read. An
 	/// author is that person's posts alone: Mark all comments from them as
@@ -286,7 +286,7 @@ namespace bpr::core {
 		auto operator<=>(const conversation_read_scope&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-M]]. What one bulk Mark read decides.
+	/// \brief [[BPR-1699]]. What one bulk Mark read decides.
 	///
 	/// \details `Receipts` are the receipts that change, one per
 	/// conversation, ordered by conversation; a conversation with nothing new
@@ -304,7 +304,7 @@ namespace bpr::core {
 		auto operator<=>(const conversation_bulk_read&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-M]]. Marks a pull request's conversations read
+	/// \brief [[BPR-1699]]. Marks a pull request's conversations read
 	/// in one decision.
 	///
 	/// \details `aReceipts` are the review's receipts, ordered by

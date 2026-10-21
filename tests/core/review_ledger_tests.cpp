@@ -532,7 +532,7 @@ namespace {
 		return core::unread_posts(stored != aBefore.end() ? *stored : core::conversation_receipt{ .Conversation = aThread.Conversation }, aThread.Posts);
 	}
 
-	// [[BPR-PENDING-M]]. A bot's login is one author whatever its case, and
+	// [[BPR-1699]]. A bot's login is one author whatever its case, and
 	// is not the same-named person; an empty login is nobody.
 	void test_an_author_is_the_login_without_case()
 	{
@@ -543,7 +543,7 @@ namespace {
 		expect(core::review_author_of("octocat") == core::review_author_of("octocat"), "the identity is a pure function of the login");
 	}
 
-	// [[BPR-PENDING-M]]. Mark all comments as read: one decision over every
+	// [[BPR-1699]]. Mark all comments as read: one decision over every
 	// conversation; only the receipts that move are written, acceptance
 	// stays, and a second mark changes nothing.
 	void test_mark_all_read_reads_every_conversation_once()
@@ -590,7 +590,7 @@ namespace {
 		expect(unread_after(again, after, later[1]) == std::vector<std::size_t>{ 0U }, "a post edited after the mark is new");
 	}
 
-	// [[BPR-PENDING-M]]. Mark all from one author: their new posts are read,
+	// [[BPR-1699]]. Mark all from one author: their new posts are read,
 	// nobody else's are, and the cursor never passes someone else's new post.
 	void test_mark_author_read_reads_only_that_author()
 	{

@@ -1787,7 +1787,7 @@ namespace {
 			   "the port refuses a nameless conversation before the database");
 	}
 
-	// [[BPR-PENDING-M]]. A bulk Mark read commits its receipts in one
+	// [[BPR-1699]]. A bulk Mark read commits its receipts in one
 	// transaction: a receipt the database refuses part way rolls back the
 	// ones before it, and a committed batch survives a restart.
 	void test_conversation_receipt_batches_commit_together_or_not_at_all()

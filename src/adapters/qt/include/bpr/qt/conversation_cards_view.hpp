@@ -431,11 +431,11 @@ namespace bpr::qt {
 		using defect_badges = std::map<std::string, std::pair<QString, QString>>;
 		void set_defect_badges(defect_badges aBadges);
 		void set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
-		/// \brief [[BPR-PENDING-M]]. Where "Mark all from <login> as read"
+		/// \brief [[BPR-1699]]. Where "Mark all from <login> as read"
 		/// goes, from a thread's menu (its first post's author) and from a
 		/// post's body menu (that post's author), with the GitHub login.
 		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch);
-		/// \brief [[BPR-PENDING-M]]. How many posts this login wrote that are
+		/// \brief [[BPR-1699]]. How many posts this login wrote that are
 		/// new, over every card; what the author's Mark all is offered for.
 		[[nodiscard]] auto unread_post_count_from(const QString& aLogin) const -> std::size_t;
 		[[nodiscard]] auto thread_menu(const std::string& aIdentity) -> QMenu*;

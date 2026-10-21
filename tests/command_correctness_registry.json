@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "517b169f0210c05254cfce3eca5bf58b05c2adc21ad614020e7df8357c197027",
+      "sha256": "adba37ae1430b3756985ea132ce76d564a5c995e2a2188c9d55d3cf79d8a3d09",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -1120,7 +1120,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+          "sha256": "85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1225,7 +1225,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+          "sha256": "85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1337,7 +1337,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+          "sha256": "85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1389,7 +1389,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+          "sha256": "85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
@@ -1437,7 +1437,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+          "sha256": "85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
@@ -1490,7 +1490,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+          "sha256": "85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",

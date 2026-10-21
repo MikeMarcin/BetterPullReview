@@ -88,7 +88,7 @@ it is read or accepted (`core::progress_done`). Overview's read column and the
 Files drawer show the mark; "Files read", the "not read" count and Continue
 review's next file count done files.
 
-Amended 2026-10-21 by the owner's request on [[BPR-PENDING-M]], verbatim: "We
+Amended 2026-10-21 by the owner's request on [[BPR-1699]], verbatim: "We
 have some automated review bots that are very spammy on reviews. I think I
 want the ability to Mark all comments as read and Mark all comments from a
 particular user as read." `core::mark_conversations_read` decides a bulk read

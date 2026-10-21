@@ -103,7 +103,7 @@ namespace {
 			return { };
 		}
 
-		/// [[BPR-PENDING-M]]. All of them or none, as one transaction is.
+		/// [[BPR-1699]]. All of them or none, as one transaction is.
 		auto store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts)
 			-> std::expected<void, application::ledger_store_failure> override
 		{
@@ -1393,7 +1393,7 @@ namespace {
 			   "Mark read reads it again");
 	}
 
-	/// [[BPR-PENDING-M]]. A bulk Mark read is one batch through the store:
+	/// [[BPR-1699]]. A bulk Mark read is one batch through the store:
 	/// a refused batch keeps nothing, a committed one survives a new host,
 	/// a repeat writes nothing, and one author's mark leaves the rest new.
 	void test_bulk_mark_read_is_one_atomic_commit()

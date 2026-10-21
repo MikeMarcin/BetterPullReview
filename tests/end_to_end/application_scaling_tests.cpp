@@ -396,7 +396,7 @@ try {
 					   && access::scaling_evidence(*owner).OverviewBuilds == before.OverviewBuilds,
 				   "one conversation command observes exactly its thread and post without overview work");
 
-			// [[BPR-PENDING-M]]. Mark All Comments as Read through the real
+			// [[BPR-1699]]. Mark All Comments as Read through the real
 			// composition: one ledger write for every conversation, and the
 			// counts and the action itself follow once it is durable.
 			settle([&] { return access::scaling_evidence(*owner); });

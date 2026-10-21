@@ -44,7 +44,7 @@ namespace bpr::qt {
 	[[nodiscard]] auto make_thread_row_menu(QWidget* aParent, const QString& aObjectName, const QString& aAccessibleName, const QString& aReviewTip,
 											const QString& aDiscussTip, bool aShowThreads) -> thread_row_menu;
 
-	/// \brief [[BPR-PENDING-M]]. Adds "Mark all from <login> as read" to a
+	/// \brief [[BPR-1699]]. Adds "Mark all from <login> as read" to a
 	/// thread's or a post's menu, in the menu's own case.
 	///
 	/// \details One menu item per author, the GitHub login as written (an

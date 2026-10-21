@@ -12929,7 +12929,7 @@ namespace {
 		window.hide();
 	}
 
-	/// \brief [[BPR-PENDING-M]]. Mark All Comments as Read is on the Pull
+	/// \brief [[BPR-1699]]. Mark All Comments as Read is on the Pull
 	/// Request menu while anything is new; it and a thread's Mark all from its
 	/// author go out through one dispatch, and the read state the composition
 	/// then presents moves every count and badge at once.
@@ -15854,7 +15854,7 @@ namespace {
 		auto* review  = finder->open_in_review_action();
 		auto* discuss = finder->open_in_discuss_action();
 		// [[BPR-1582]]. Then a separator and Mark as Read or Mark as Unread;
-		// [[BPR-PENDING-M]] then Mark All from the thread's author as Read.
+		// [[BPR-1699]] then Mark All from the thread's author as Read.
 		expect(menu != nullptr && menu->isVisible() && menu->objectName() == QStringLiteral("threadFinderRowMenu") && menu->actions().size() == 5
 				   && menu->actions().mid(0, 2) == QList<QAction*>{ review, discuss } && menu->actions()[2]->isSeparator() && menu->actions()[3] == finder->read_action()
 				   && menu->actions()[4] == finder->author_read_action() && finder->author_read_action()->text().startsWith(QStringLiteral("Mark All from ")),

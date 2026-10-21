@@ -1,4 +1,4 @@
-# [[BPR-PENDING-M]] reseal (2026-10-21) over last matching main d8a3f6b97,
+# [[BPR-1699]] reseal (2026-10-21) over last matching main d8a3f6b97,
 # linear. Pinned-scope change: Mark all comments as read, and all from one
 # author, on this card's own commit. Inside the manifest only
 # github_application.cpp changed: a post's read observation carries its
@@ -1823,7 +1823,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"f11c7848a63efbf90891422ad423ab75aa4fab6ffa4a956a966f78ac0e671d1c"
+		"85d73dabefc25f894511d932dc204366e6ef70ae4c7dd1da0f6bdc752c05c117"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2043,7 +2043,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "aead8260aa05c852f0f27f26b5f993a1f7d03546d4eefa1f521bbf3455ac743e"
+        "12a3782447474113167dd7553d55275fd2eef2d9cbbc54dd4eb878607bb878d7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

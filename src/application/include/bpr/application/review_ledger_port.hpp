@@ -259,7 +259,7 @@ namespace bpr::application {
 			const core::conversation_receipt& aReceipt)
 			-> std::expected<void, ledger_store_failure> = 0;
 
-		/// \brief [[BPR-PENDING-M]]. Commits these conversation receipts
+		/// \brief [[BPR-1699]]. Commits these conversation receipts
 		/// together, each replacing the one it names, or none of them.
 		///
 		/// \details One bulk Mark read is one durable change: a failure part

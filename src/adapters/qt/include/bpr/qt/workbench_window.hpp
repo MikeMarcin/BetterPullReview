@@ -196,10 +196,10 @@ namespace bpr::qt {
 	using workbench_queue_preferences_dispatch = std::function<void(application::queue_preferences_intent)>;
 	/// \brief Mark read for the thread whose root projection identity is given ([[BPR-0656]]).
 	using conversation_read_dispatch = std::function<void(const std::string&)>;
-	/// \brief [[BPR-PENDING-M]]. Mark all comments as read: every post of the
+	/// \brief [[BPR-1699]]. Mark all comments as read: every post of the
 	/// pull request without an author, or only the posts of the GitHub login given.
 	using conversations_read_dispatch = std::function<void(const std::optional<std::string>&)>;
-	/// \brief [[BPR-PENDING-M]]. What one bulk Mark read did: the posts it
+	/// \brief [[BPR-1699]]. What one bulk Mark read did: the posts it
 	/// made read, and the author's posts it left new behind a newer post by
 	/// someone else.
 	struct conversations_read_result
@@ -739,15 +739,15 @@ namespace bpr::qt {
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-1582]]. Where Threads' Mark as unread goes.
 		void set_conversation_unread_dispatch(conversation_read_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-M]]. Where Mark All Comments as Read and
+		/// \brief [[BPR-1699]]. Where Mark All Comments as Read and
 		/// Mark all from an author as read go: the composition, then the
 		/// ledger host. Nothing reaches GitHub.
 		void set_conversations_read_dispatch(conversations_read_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-M]]. Says in the status bar what a bulk mark
+		/// \brief [[BPR-1699]]. Says in the status bar what a bulk mark
 		/// did, once it is durable; none when the ledger refused it, and then
 		/// nothing changed.
 		void present_conversations_read(std::optional<conversations_read_result> aResult, const std::optional<std::string>& aAuthor);
-		/// \brief [[BPR-PENDING-M]]. The Pull Request menu's Mark All Comments as Read.
+		/// \brief [[BPR-1699]]. The Pull Request menu's Mark All Comments as Read.
 		[[nodiscard]] auto mark_all_comments_read_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0661]]. Adopts the sink the Review and Comments preference rows dispatch to.
 		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);

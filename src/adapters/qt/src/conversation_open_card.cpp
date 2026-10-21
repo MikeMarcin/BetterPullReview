@@ -1299,7 +1299,7 @@ namespace bpr::qt {
 			excerpt->setContentsMargins(text_left, 8, text_right, 0);
 			column->addWidget(excerpt);
 		}
-		// [[BPR-PENDING-M]]. A post someone else wrote offers Mark all from
+		// [[BPR-1699]]. A post someone else wrote offers Mark all from
 		// them as read in its body menu, after the menu's own items.
 		const auto addAuthorRead = [this](QMenu& aMenu, const QString& aLogin) {
 			if (aLogin.isEmpty()) {

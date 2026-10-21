@@ -208,7 +208,7 @@ same path. The badge clears when the existing ledger reports a durable read;
 selection alone, passive refresh and unrelated cards do not advance a read
 cursor. The private result survives restart.
 
-**Mark all as read** ([[BPR-PENDING-M]], the owner, 2026-10-21: "We have
+**Mark all as read** ([[BPR-1699]], the owner, 2026-10-21: "We have
 some automated review bots that are very spammy on reviews. I think I want
 the ability to Mark all comments as read and Mark all comments from a
 particular user as read."). The Pull Request menu's **Mark All Comments as
@@ -2053,7 +2053,7 @@ keeps it because it is followed, and **Save Repository**, offered while its
 repository is not saved for the account. Neither reaches GitHub; a pull
 request opened by link is only Recently viewed until one of them is used,
 and one read signed out offers neither. After a separator it holds **Mark
-All Comments as Read** ([[BPR-PENDING-M]]), offered while anything on the
+All Comments as Read** ([[BPR-1699]]), offered while anything on the
 pull request is new; it too changes only my private read state. **View** holds the line-number toggle, the
 one-pane toggle, Line Details ([[BPR-1334]]), Hide Drawers ([[BPR-1295]]) and, after a separator, Settings…. The bar was added by
 BPR-0457 because the owner asked for a "view menu option" and, offered the

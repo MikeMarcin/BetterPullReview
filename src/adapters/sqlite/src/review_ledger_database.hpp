@@ -123,7 +123,7 @@ namespace bpr::adapters::sqlite::detail {
 			const core::conversation_receipt& aReceipt)
 			-> std::expected<void, failure>;
 
-		/// \brief [[BPR-PENDING-M]]. Upserts these conversation receipts in one
+		/// \brief [[BPR-1699]]. Upserts these conversation receipts in one
 		/// transaction: a refused receipt rolls back every one before it.
 		[[nodiscard]] auto store_conversation_receipts(
 			std::int64_t                                aScope,

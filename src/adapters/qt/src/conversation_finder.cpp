@@ -2087,7 +2087,7 @@ namespace bpr::qt {
 					ReadDispatch(thread, read);
 				}
 			});
-			// [[BPR-PENDING-M]]. Mark All from the author of the post under the
+			// [[BPR-1699]]. Mark All from the author of the post under the
 			// pointer, or of the thread's first post, as read.
 			auto posted = std::size_t{ 0U };
 			if (aBead.has_value()) {
