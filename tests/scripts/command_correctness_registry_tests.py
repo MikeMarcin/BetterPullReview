@@ -34,6 +34,8 @@ class RegistryTests(unittest.TestCase):
                 actual.setdefault(selected or "<default>", []).append(case[1])
             if line == '\t}':
                 selected = None
+        for name, called in re.findall(r'runCase\("([^\"]+)", &([A-Za-z0-9_]+)\)', main):
+            self.assertEqual(name, called, "an inventory label must name the function actually called")
         self.assertEqual(actual, data["selector_cases"])
         self.assertEqual(len(actual["<default>"]), 115)
         for platform, count in (("Windows", 44), ("Darwin", 43), ("Linux", 43)):
@@ -50,6 +52,9 @@ class RegistryTests(unittest.TestCase):
 
     def test_registry_command_scale_output_source_and_unset_mutations_fail_closed(self):
         registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text())
+        for current in registry["families"]:
+            for row in current["rows"]:
+                self.assertRegex(row["resource"], r"^[a-z0-9_]+$")
         family = registry["families"][0]
         candidate = next(row for row in family["rows"] if row["name"] == "qt_workbench_window_scale_100")
         directory = Path("/build/tests/adapters_qt")
@@ -77,7 +82,7 @@ class RegistryTests(unittest.TestCase):
             source = directory / "case.cpp"
             source.write_text("original\n")
             family = {"source": "tests/adapters_qt/case.cpp", "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-                      "directory": "tests/adapters_qt", "unset_environment": ["BPR_OPTIONAL_RENDER_ROOT"], "rows": [
+                      "directory": "tests/adapters_qt", "inputs": [], "unset_environment": ["BPR_OPTIONAL_RENDER_ROOT"], "rows": [
                           {"name": "one", "command": "worker;--correctness", "scheduling": "correctness", "resource": "one",
                            "platforms": ["Darwin", "Linux", "Windows"], "environment": ["QT_SCALE_FACTOR=1.0"]}]}
             if mutation:

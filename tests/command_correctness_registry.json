@@ -52,7 +52,7 @@
             "Linux"
           ],
           "scheduling": "correctness",
-          "resource": "qt_center_ribbon_width_scale_1.0",
+          "resource": "qt_center_ribbon_width_scale_1_0",
           "selector": "--center-ribbon-width",
           "environment": [
             "QT_SCALE_FACTOR=1.0"
@@ -71,7 +71,7 @@
             "Linux"
           ],
           "scheduling": "correctness",
-          "resource": "qt_center_ribbon_width_scale_1.25",
+          "resource": "qt_center_ribbon_width_scale_1_25",
           "selector": "--center-ribbon-width",
           "environment": [
             "QT_SCALE_FACTOR=1.25"
@@ -90,7 +90,7 @@
             "Linux"
           ],
           "scheduling": "correctness",
-          "resource": "qt_center_ribbon_width_scale_2.0",
+          "resource": "qt_center_ribbon_width_scale_2_0",
           "selector": "--center-ribbon-width",
           "environment": [
             "QT_SCALE_FACTOR=2.0"
@@ -904,6 +904,20 @@
             "BPR_QT_RENDER_PATH={binary_dir}/current-file-unread-badge.png"
           ]
         }
+      ],
+      "inputs": [
+        {
+          "path": "tests/support/resize_cursor_hold_check.hpp",
+          "sha256": "ff697e52c14f482c630b1a0c03d660e8b93006c1f082e13e5fb42731576891d9"
+        },
+        {
+          "path": "tests/support/review_tour_fixture.hpp",
+          "sha256": "68242c62fe745b28ddd041de56d336d9ba5d82b3314eba38c3ddc564a40e24c1"
+        },
+        {
+          "path": "tests/adapters_qt/diff_publication_fixture.hpp",
+          "sha256": "a673c9bd1dd2c80075222f3352b6d7f5e310fc75bb10230220f467a76820e80e"
+        }
       ]
     },
     {
@@ -978,6 +992,16 @@
             "BPR_QT_DIFF_WORKBENCH_RENDER_PATH={binary_dir}/diff-workbench-200.png"
           ]
         }
+      ],
+      "inputs": [
+        {
+          "path": "tests/support/resize_cursor_hold_check.hpp",
+          "sha256": "ff697e52c14f482c630b1a0c03d660e8b93006c1f082e13e5fb42731576891d9"
+        },
+        {
+          "path": "tests/adapters_qt/diff_publication_fixture.hpp",
+          "sha256": "a673c9bd1dd2c80075222f3352b6d7f5e310fc75bb10230220f467a76820e80e"
+        }
       ]
     },
     {
@@ -1044,6 +1068,28 @@
             "BPR_OVERVIEW_RENDER_ROOT={build_dir}/overview-renders/2"
           ]
         }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+        },
+        {
+          "path": "src/app/src/review_submission_fixture.hpp",
+          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+        }
       ]
     },
     {
@@ -1109,6 +1155,28 @@
             "QT_SCALE_FACTOR=2.0",
             "BPR_FIND_RENDER_ROOT={build_dir}/source-find-renders-2_0"
           ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/support/window_system_keys.hpp",
+          "sha256": "a7254ed6c4fa2ec61ce170af0f1c07d9d56ff272951cbd48381e7e55da32c1ac"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
         }
       ]
     },
@@ -1178,6 +1246,32 @@
           "environment": [
             "QT_SCALE_FACTOR=2"
           ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+        },
+        {
+          "path": "src/app/src/review_submission_fixture.hpp",
+          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+        },
+        {
+          "path": "tests/end_to_end/cli_publication_course.hpp",
+          "sha256": "f19cacec878d3b88eea7a6b58038c16a8523d526cb88c9d5707f62067d59cb18"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "tests/end_to_end/public_path_poll.hpp",
+          "sha256": "a7edccb5310d3b844ff33549113e0244c7ee9c67121ae5243dc60f1746c11509"
+        },
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
         }
       ]
     }

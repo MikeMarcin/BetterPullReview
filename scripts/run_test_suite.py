@@ -101,7 +101,9 @@ def validate_command_owned_row(row: dict, props: dict, root: Path = ROOT) -> Non
     valid_unsets = all(modifications.count(f"{variable}=unset:") == 1
                        and sum(item.split("=", 1)[0].upper() == variable.upper() for item in modifications) == 1
                        for variable in family["unset_environment"])
-    if (candidate["scheduling"] != "correctness" or not valid_command or not valid_unsets or not valid_environment
+    valid_inputs = all(hashlib.sha256((root / item["path"]).read_bytes()).hexdigest() == item["sha256"]
+                       for item in family["inputs"])
+    if (candidate["scheduling"] != "correctness" or not valid_command or not valid_unsets or not valid_environment or not valid_inputs
             or hashlib.sha256(source.read_bytes()).hexdigest() != family["sha256"]):
         raise ValueError(f"Invalid command ownership declaration: {row['name']}")
 
@@ -117,7 +119,7 @@ def validate_schedule(manifest: dict) -> None:
         declared = "bpr_isolated_correctness" in labels
         config_labels = [label for label in labels if label.startswith("bpr_correctness_config_")]
         mode_labels = [label for label in labels if label.startswith("bpr_correctness_") and label not in config_labels]
-        if mode_labels and not declared:
+        if (mode_labels or config_labels) and not declared:
             raise ValueError(f"Invalid isolated correctness scheduling declaration: {row['name']}")
         if declared:
             locks = props.get("RESOURCE_LOCK", [])
