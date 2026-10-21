@@ -645,3 +645,13 @@ implementation in an isolated worktree; no merge, push or release.
 Owner mandate `qt-6-12-r2`. [Plan](plans/qt-6-12-v1/milestone-plan.json);
 [verification](../verification/RFC-BPR-0088.md). Native/package release
 qualification remains a separate obligation.
+
+## Commit-scoped review and generated files
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0089](RFC-BPR-0089-commit-scoped-review-and-generated-files.md) | Review chosen commits of a pull request and set generated files aside | Proposed | RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0007, RFC-BPR-0022, RFC-BPR-0029 |
+
+Drafted 2026-10-20 from the owner's report of a change, its regeneration and
+follow-ups in separate commits. Design only; Q1 to Q8 are open owner questions
+in a fresh attended-review session recorded on the RFC.
