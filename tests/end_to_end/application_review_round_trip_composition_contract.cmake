@@ -1,3 +1,10 @@
+# [[BPR-1675]] merged BPR-1676 promo9b9a4acc6 over native f230a8e5f:
+# scoped source review finds only a BUILD_TESTING fixture enum/host label,
+# fixture metadata and main fixture/attended-read-state selection. No new
+# source inventory, credential, provider, grant or publication admission.
+# Full/production-manifest seals bind this exact merged source; mutation
+# production digest16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1
+# remains unchanged. Initial drift failure and review are retained on BPR-1675.
 # [[BPR-1652]] scoped reseal2026-10-19 over last matching76974f7d0..1cdaf43b3.
 # Sole pinned-scope commit1cdaf43b3 corrects the Windows BUILD_TESTING
 # UIforETW capture's stale caption index from lead+18 to its already asserted
@@ -1709,7 +1716,7 @@ function(bpr_verify_full_application_digest source_variable)
         bpr_full_application_digest
     )
 	set(bpr_expected_full_application_digest
-		"c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+		"255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1929,7 +1936,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6b06b77edfb18a31fd641994e977510b3338d0b7350679ecc578378bdc5766e1"
+        "edf39abdc741e7e680cf0417c127a940af5cdd951b6aa83ea84699a3937f0ce3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1470,10 +1470,11 @@ bpr_schedule_test_directory("${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Bind the audited feature and diagnostic mode. A custom macro override is an
 # unknown configuration even when its preset happens to be named Debug.
+string(REGEX REPLACE "(^| )[-/]DNDEBUG( |$)" " " bpr_release_diagnostic_flags "${CMAKE_CXX_FLAGS_RELEASE}")
 set(bpr_standard_correctness_inputs TRUE)
 if(NOT BPR_BUILD_QT OR NOT BUILD_TESTING OR NOT BPR_BUILD_AGENT_INTEGRATIONS
    OR BPR_BUILD_TOUR_CLI OR BPR_DISTRIBUTION_BUILD
-   OR "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}" MATCHES "NDEBUG|QT_NO_DEBUG|_ITERATOR_DEBUG_LEVEL")
+   OR "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG} ${bpr_release_diagnostic_flags}" MATCHES "NDEBUG|QT_NO_DEBUG|_ITERATOR_DEBUG_LEVEL")
     set(bpr_standard_correctness_inputs FALSE)
 endif()
 
@@ -1548,7 +1549,8 @@ if(WIN32 AND bpr_standard_correctness_inputs)
 endif()
 
 # Source and exact argv are checked before widening the default serial policy.
-# Optimized and unknown configurations retain whole-host exclusivity.
+# BPR-1675 also audits these exact commands in Release; other configurations
+# and the older fixed Debug declarations retain whole-host exclusivity.
 if(WIN32 AND bpr_standard_correctness_inputs)
     bpr_apply_command_correctness_registry("${CMAKE_CURRENT_SOURCE_DIR}/command_correctness_registry.json")
 endif()

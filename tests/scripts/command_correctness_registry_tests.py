@@ -88,7 +88,7 @@ class RegistryTests(unittest.TestCase):
             with self.subTest(kind=kind), self.assertRaises(ValueError):
                 suite.validate_command_owned_row(bad_row, bad_props)
 
-    def configure_registry(self, mutation=None, features=None):
+    def configure_registry(self, mutation=None, features=None, configuration="Debug"):
         with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
             directory = root / "tests/adapters_qt"
@@ -96,7 +96,7 @@ class RegistryTests(unittest.TestCase):
             source = directory / "case.cpp"
             source.write_text("original\n")
             family = {"source": "tests/adapters_qt/case.cpp", "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-                      "directory": "tests/adapters_qt", "inputs": [], "unset_environment": ["BPR_OPTIONAL_RENDER_ROOT"], "rows": [
+                      "directory": "tests/adapters_qt", "configurations": ["Debug"], "inputs": [], "unset_environment": ["BPR_OPTIONAL_RENDER_ROOT"], "rows": [
                           {"name": "one", "command": "worker;--correctness", "scheduling": "correctness", "resource": "one",
                            "platforms": ["Darwin", "Linux", "Windows"], "environment": ["QT_SCALE_FACTOR=1.0"]}]}
             if mutation:
@@ -117,7 +117,7 @@ set_tests_properties(one PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
 ''')
             build = root / "build"
-            configured = subprocess.run(["cmake", "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Debug", "-S", str(root), "-B", str(build)], capture_output=True, text=True)
+            configured = subprocess.run(["cmake", "-G", "Ninja", f"-DCMAKE_BUILD_TYPE={configuration}", "-S", str(root), "-B", str(build)], capture_output=True, text=True)
             if configured.returncode:
                 return configured, None
             manifest = subprocess.run(["ctest", "--test-dir", str(build), "--show-only=json-v1"], capture_output=True, text=True, check=True)
@@ -138,6 +138,13 @@ set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
             props = {prop["name"]: prop["value"] for prop in row["properties"]}
             self.assertTrue(props["RUN_SERIAL"])
             self.assertNotIn("bpr_command_owned", props["LABELS"])
+
+    def test_release_requires_explicit_audited_configuration(self):
+        for configuration, audited, serial in (("Release", ["Debug"], True), ("Release", ["Debug", "Release"], False), ("RelWithDebInfo", ["Debug", "Release"], True)):
+            result, row = self.configure_registry(lambda family, source: family.update(configurations=audited), configuration=configuration)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            props = {prop["name"]: prop["value"] for prop in row["properties"]}
+            self.assertEqual(props.get("RUN_SERIAL", False), serial)
 
     def test_unknown_feature_inputs_keep_the_command_exclusive(self):
         result, row = self.configure_registry(features={"UNKNOWN_FEATURE": "ON"})

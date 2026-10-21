@@ -80,7 +80,7 @@ def validate_command_owned_row(row: dict, props: dict, root: Path = ROOT) -> Non
     if len(matches) != 1:
         raise ValueError(f"Unknown or duplicate command ownership: {row['name']}")
     family, candidate = matches[0]
-    if family["configurations"] != ["Debug"]:
+    if family["configurations"] not in (["Debug"], ["Debug", "Release"]) or row.get("config", "Debug") not in family["configurations"]:
         raise ValueError("Unaudited command correctness configuration")
     source = root / family["source"]
     directory = Path(props["WORKING_DIRECTORY"])
@@ -132,8 +132,10 @@ def validate_schedule(manifest: dict) -> None:
                 mode_labels == ["bpr_correctness_headless"] and not platforms
                 or mode_labels == ["bpr_correctness_offscreen"] and platforms == ["QT_QPA_PLATFORM=offscreen"]
             )
-            valid_configuration = (config_labels == ["bpr_correctness_config_Debug"]
-                                   and row.get("config", "Debug") == "Debug")
+            configuration = row.get("config", "Debug")
+            valid_configuration = (configuration in {"Debug", "Release"}
+                                   and config_labels == [f"bpr_correctness_config_{configuration}"]
+                                   and (configuration == "Debug" or "bpr_command_owned" in labels))
             valid_lock = any(re.fullmatch(r"bpr_isolated_correctness_[a-z0-9_]+", lock) for lock in locks)
             platform_override = any(item.upper().startswith("QT_QPA_PLATFORM=") for item in props.get("ENVIRONMENT_MODIFICATION", []))
             platform_argument = any(
@@ -377,6 +379,8 @@ def main() -> int:
     parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; exclusive courses stay serial; only audited correctness may overlap")
     parser.add_argument("--output-dir", type=Path, help="New directory for this run's log, JUnit and timing report")
     parser.add_argument("--tests-regex", help="Bounded selection from the validated preset; the existing tooling preflight still runs")
+    parser.add_argument("--phase-ledger", type=Path, help="Append this attempt to an existing request ledger, including refusal/failure")
+    parser.add_argument("--phase-context", type=Path, help="Nonsecret JSON source/config/tools/cache/lease facts for --phase-ledger")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
     parser.add_argument("--json", action="store_true", help="Print a JSON report when reading --report-log")
     args = parser.parse_args()
@@ -388,7 +392,22 @@ def main() -> int:
         return 0
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output = args.output_dir or ROOT / "build/test-results" / args.preset / stamp
-    return run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex)
+    if bool(args.phase_ledger) != bool(args.phase_context):
+        parser.error("--phase-ledger and --phase-context are required together")
+    if not args.phase_ledger:
+        return run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex)
+    import release_phase_ledger as ledger
+    context = json.loads(args.phase_context.read_text(encoding="utf-8"))
+    context.update(preset=args.preset, jobs=args.jobs, output=str(output.resolve()), selection_regex=args.tests_regex)
+    identity = ledger.begin(args.phase_ledger, "qualification", context, sys.argv)
+    started = time.monotonic()
+    try:
+        code = run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex)
+    except Exception as error:
+        ledger.finish(args.phase_ledger, identity, outcome="refused", seconds=time.monotonic() - started, exit_code=None, detail=str(error))
+        raise
+    ledger.finish(args.phase_ledger, identity, outcome="passed" if code == 0 else "failed", seconds=time.monotonic() - started, exit_code=code)
+    return code
 
 
 if __name__ == "__main__":

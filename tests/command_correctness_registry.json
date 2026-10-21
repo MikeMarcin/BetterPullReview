@@ -7,7 +7,8 @@
       "sha256": "847568e14fa32317a44db497c101aca75b3db6cdaff5f1023f8e571ba53ecb53",
       "directory": "tests/adapters_qt",
       "configurations": [
-        "Debug"
+        "Debug",
+        "Release"
       ],
       "unset_environment": [
         "BPR_SHEET_RENDER_ROOT",
@@ -925,7 +926,8 @@
       "sha256": "b2e16ad40957f696c6dd3b7f4ba05d8f361f7a62daf2732e2372e8574153f3cb",
       "directory": "tests/adapters_qt",
       "configurations": [
-        "Debug"
+        "Debug",
+        "Release"
       ],
       "unset_environment": [
         "BPR_1335_RENDER_DIR",
@@ -1009,7 +1011,8 @@
       "sha256": "579efb98a1f19155a17c4b5594db467fb31710771c6633db48680dcbfddb596c",
       "directory": "tests/end_to_end",
       "configurations": [
-        "Debug"
+        "Debug",
+        "Release"
       ],
       "unset_environment": [],
       "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
@@ -1097,7 +1100,8 @@
       "sha256": "ae5b31393c5a9f05b3abd7244a31c1b8ee6d31f98a7065f899ae4ad42ecb6856",
       "directory": "tests/end_to_end",
       "configurations": [
-        "Debug"
+        "Debug",
+        "Release"
       ],
       "unset_environment": [],
       "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",
@@ -1185,7 +1189,8 @@
       "sha256": "bea8b8bff9d099300d29873cbfc36195aeae64cc5f1719bc839726fa4402f042",
       "directory": "tests/end_to_end",
       "configurations": [
-        "Debug"
+        "Debug",
+        "Release"
       ],
       "unset_environment": [],
       "ownership": "Fresh stack-owned widgets and process-local offscreen Qt state; composed courses own a fresh QTemporaryDir/private data root and finish lifecycle groups before returning. Existing deadlines and work counts are unchanged. Declared output roots/argv are per row; optional inherited render roots are unset.",

@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from contained_temporary_support import ContainedTemporaryDirectory
 import run_test_suite as suite
+import release_phase_ledger as ledger
 from skip_report import SkipReportingTestRunner
 
 class SuiteRunnerTests(unittest.TestCase):
@@ -422,6 +423,31 @@ bpr_schedule_test_directory("${{CMAKE_CURRENT_SOURCE_DIR}}")
             with suite.suite_lock(path):
                 pass
 
+
+
+class PhaseLedgerTests(unittest.TestCase):
+    def test_first_request_failures_and_interrupted_phases_survive_resume(self):
+        with ContainedTemporaryDirectory() as temporary:
+            path = Path(temporary) / "ledger.jsonl"
+            start = "2026-01-01T00:00:00Z"
+            ledger.initialize(path, start, {"scope": "control"})
+            with self.assertRaises(FileExistsError):
+                ledger.initialize(path, start, {})
+            for code in (0, 7):
+                self.assertEqual(ledger.run(path, "control", {}, [sys.executable, "-c", f"import sys; print('stdout'); print('stderr',file=sys.stderr); sys.exit({code})"]), code)
+            self.assertNotEqual(ledger.run(path, "launch", {}, [str(Path(temporary) / "missing")]), 0)
+            interrupted = ledger.begin(path, "interrupted", {}, [])
+            result = ledger.summary(path)
+            self.assertEqual(result["request"]["request_start_utc"], start)
+            self.assertEqual(result["pending"], [interrupted])
+            self.assertEqual([p["terminal"]["outcome"] for p in result["phases"][:-1]], ["passed", "failed", "launch-failed"])
+            done = result["phases"][0]["phase_id"]
+            with self.assertRaisesRegex(ValueError, "cannot be rewritten"):
+                ledger.finish(path, done, outcome="passed", seconds=0, exit_code=0)
+            with path.open("a") as output:
+                output.write('{"sequence":999,"request_id":"wrong"}\n')
+            with self.assertRaisesRegex(ValueError, "sequence/request"):
+                ledger.summary(path)
 
 if __name__ == "__main__":
     unittest.main(testRunner=SkipReportingTestRunner)

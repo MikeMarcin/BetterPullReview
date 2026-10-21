@@ -133,3 +133,35 @@ Once accepted, keep signed assets and source fixed through publication and
 download verification. Make latest-link, ledger and retrospective edits afterward
 in a separate administrative commit. Report measured savings only after a later
 comparable run; instruction changes alone establish no speedup.
+
+## Request phase ledger
+
+BPR-1675 adds `scripts/release_phase_ledger.py` as an append-only observation
+helper around these existing commands. It does not select tests, schedule hosts,
+reuse verdicts, sign or publish. Initialize one new external ledger at the actual
+request start, with a nonsecret JSON context naming source/configuration, resolved
+tools, cache condition, physical-host lease and evidence roots:
+
+```sh
+python3 scripts/release_phase_ledger.py --ledger /absolute/request.jsonl init \
+  --request-start ACTUAL_UTC_INSTANT --context /absolute/context.json
+python3 scripts/release_phase_ledger.py --ledger /absolute/request.jsonl run \
+  --phase build --context /absolute/context.json -- cmake --build --preset PRESET
+python3 scripts/run_test_suite.py --preset PRESET --jobs 4 \
+  --output-dir /absolute/new-results --phase-ledger /absolute/request.jsonl \
+  --phase-context /absolute/context.json
+python3 scripts/release_phase_ledger.py --ledger /absolute/request.jsonl summary
+```
+
+Initialization refuses an existing ledger. Failed and launch-failed children keep
+their true status; interrupted phases stay pending until the existing native
+receipt/process is reconciled. Never restart the request clock after setup,
+repair, build, cache warming, transfer or review. Record external native receipts
+with their original UTC interval, monotonic duration, exact child PID/exit,
+source and configuration; retain the raw receipt. A resumed wrapper is not a
+new request. Source/config/tool/cache/lease facts belong to each phase; changed
+facts never rewrite prior phases. Do not put credentials or authenticated review
+URLs in contexts. Include explicit not-run reasons for signing, publication,
+trust, human review or a gate blocked by failed prerequisites. Summed overlapping
+phase work is distinct from elapsed request time. One-time workflow engineering
+and a later reproducible release request remain separate reported clocks.
