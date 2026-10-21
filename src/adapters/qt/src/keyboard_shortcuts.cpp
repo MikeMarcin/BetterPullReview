@@ -1,6 +1,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 
 #include <QKeyCombination>
+#include <QKeyEvent>
 #include <QStringList>
 
 #include <algorithm>
@@ -18,6 +19,7 @@ namespace bpr::qt {
 		/// binds them with widget-with-children scope.
 		constexpr auto in_updates   = std::string_view{ "In the Updates control" };
 		constexpr auto in_code      = std::string_view{ "In a code pane" };
+		constexpr auto in_files     = std::string_view{ "In Overview's files" };
 		constexpr auto in_draft     = std::string_view{ "In a comment draft" };
 		constexpr auto in_query     = std::string_view{ "In the Find query" };
 		constexpr auto in_outline   = std::string_view{ "In the tour outline" };
@@ -51,8 +53,10 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::extend_selection, .Group = navigation, .Binding = read, .Title = "Extend the selected lines", .Place = in_code, .Keys = "Shift+Up;Shift+Down" },
 #if defined(Q_OS_MACOS)
 			shortcut_entry{ .Command = command::comparison_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the comparison", .Place = in_code, .Keys = "Ctrl+Up;Ctrl+Down" },
+			shortcut_entry{ .Command = command::files_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the files", .Place = in_files, .Keys = "Ctrl+Up;Ctrl+Down" },
 #else
 			shortcut_entry{ .Command = command::comparison_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the comparison", .Place = in_code, .Keys = "Ctrl+Home;Ctrl+End" },
+			shortcut_entry{ .Command = command::files_ends, .Group = navigation, .Binding = read, .Title = "Top or bottom of the files", .Place = in_files, .Keys = "Ctrl+Home;Ctrl+End" },
 #endif
 
 			// Review and files.
@@ -360,5 +364,27 @@ namespace bpr::qt {
 #else
 		return aKey.toString(QKeySequence::NativeText);
 #endif
+	}
+
+	auto document_edge_for(const QKeyEvent& aEvent) -> std::optional<document_edge>
+	{
+		if (aEvent.matches(QKeySequence::MoveToStartOfDocument)) {
+			return document_edge::start;
+		}
+		if (aEvent.matches(QKeySequence::MoveToEndOfDocument)) {
+			return document_edge::end;
+		}
+#if defined(Q_OS_MACOS)
+		// macOS marks the arrow keys as keypad keys.
+		if ((aEvent.modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier) {
+			if (aEvent.key() == Qt::Key_Up) {
+				return document_edge::start;
+			}
+			if (aEvent.key() == Qt::Key_Down) {
+				return document_edge::end;
+			}
+		}
+#endif
+		return std::nullopt;
 	}
 }

@@ -3,6 +3,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/identity_avatar.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
@@ -380,6 +381,137 @@ namespace {
 		for (const auto& folder : folders()) {
 			expect(view->isExpanded(folder), "a replaced authority starts every folder expanded");
 		}
+	}
+
+	/// \brief [[BPR-1677]]. Sends one press and release of `aKey`, the
+	/// modifiers included, to the files.
+	void key(QTreeView& aView, const QKeyCombination aKey)
+	{
+		QKeyEvent press{ QEvent::KeyPress, aKey.key(), aKey.keyboardModifiers() };
+		QKeyEvent release{ QEvent::KeyRelease, aKey.key(), aKey.keyboardModifiers() };
+		QApplication::sendEvent(&aView, &press);
+		QApplication::sendEvent(&aView, &release);
+		settle();
+	}
+
+	/// \brief The rows the tree shows, top to bottom.
+	[[nodiscard]] auto rows_shown(const QTreeView& aView) -> std::vector<QModelIndex>
+	{
+		auto rows = std::vector<QModelIndex>{ };
+		for (auto at = aView.model()->index(0, 0); at.isValid(); at = aView.indexBelow(at)) {
+			rows.push_back(at);
+		}
+		return rows;
+	}
+
+	/// \brief [[BPR-1677]]. The owner, 2026-10-20: "in the overview page on
+	/// the file listing i want cmd+up and down to go to the top and bottom of
+	/// the files list". The document start and end (Command-Up and
+	/// Command-Down on macOS, Ctrl+Home and Ctrl+End elsewhere) make the top
+	/// or bottom shown row current, selected and in view, keep the keyboard on
+	/// the files, tell accessibility which row it is, and open nothing.
+	void test_document_keys_go_to_the_top_and_bottom_of_the_files()
+	{
+		const auto keys = qt::shortcut_keys(qt::shortcut_command::files_ends);
+#if defined(Q_OS_MACOS)
+		expect(keys == QList{ QKeySequence{ Qt::CTRL | Qt::Key_Up }, QKeySequence{ Qt::CTRL | Qt::Key_Down } }, "the catalogue names Command-Up and Command-Down");
+#else
+		expect(keys == QList{ QKeySequence{ Qt::CTRL | Qt::Key_Home }, QKeySequence{ Qt::CTRL | Qt::Key_End } }, "the catalogue names Ctrl+Home and Ctrl+End");
+#endif
+		expect(qt::shortcut(qt::shortcut_command::files_ends).Binding == qt::shortcut_binding::read
+				   && qt::shortcut(qt::shortcut_command::files_ends).Place == std::string_view{ "In Overview's files" },
+			   "the files read the keys themselves, and the page says where");
+		const auto top    = keys.at(0)[0];
+		const auto bottom = keys.at(1)[0];
+		const auto edge   = [](const QKeyCombination aKey) {
+			return qt::document_edge_for(QKeyEvent{ QEvent::KeyPress, aKey.key(), aKey.keyboardModifiers() });
+		};
+		expect(edge(top) == qt::document_edge::start && edge(bottom) == qt::document_edge::end
+				   && !edge(QKeyCombination{ Qt::Key_Down }).has_value() && !edge(QKeyCombination{ Qt::AltModifier, Qt::Key_Down }).has_value()
+				   && !edge(QKeyCombination{ Qt::ControlModifier | Qt::AltModifier, Qt::Key_Down }).has_value(),
+			   "the catalogue's keys are the document ends, and Down, Next change and Next file are not");
+#if defined(Q_OS_MACOS)
+		// macOS marks the arrow keys as keypad keys.
+		expect(edge(QKeyCombination{ Qt::ControlModifier | Qt::KeypadModifier, Qt::Key_Up }) == qt::document_edge::start
+				   && edge(QKeyCombination{ Qt::ControlModifier | Qt::KeypadModifier, Qt::Key_Down }) == qt::document_edge::end,
+			   "Command-Up and Command-Down as macOS delivers them");
+#endif
+
+		qt::pull_request_overview_page page;
+		page.resize(1100, 520);
+		auto projected = projection();
+		// Enough files that the list scrolls, and a file at the root, which
+		// the last folder row, /, holds.
+		for (auto file = 0; file < 40; ++file) {
+			projected.Files.push_back(row("Engine/Plugins/Plugin" + std::to_string(file) + ".cpp", application::overview_file_operation::modified,
+										  application::overview_change_since_review::unchanged, std::nullopt));
+		}
+		projected.Files.push_back(row("README.md", application::overview_file_operation::modified,
+									  application::overview_change_since_review::unchanged, std::nullopt));
+		page.present(projected);
+		page.show();
+		settle();
+		auto* const view       = page.files_view();
+		auto* const model      = page.file_model();
+		auto* const scroll     = view->verticalScrollBar();
+		auto        dispatches = 0;
+		page.set_file_dispatch([&](const QString&) { ++dispatches; });
+		expect(scroll->maximum() > scroll->minimum(), "the files scroll");
+		auto* const accessible = QAccessible::queryAccessibleInterface(view);
+		auto* const table      = accessible == nullptr ? nullptr : accessible->tableInterface();
+		expect(table != nullptr, "the files are an accessible table");
+		expect(view->accessibleDescription().contains(QStringLiteral("%1 and %2 go to the top and bottom row").arg(qt::spoken_key(keys.at(0)), qt::spoken_key(keys.at(1)))),
+			   "the table's description names both keys as a screen reader speaks them");
+		const auto told = [table](const int aShownRow) {
+			auto* const cell = table->cellAt(aShownRow, qt::overview_file_model::file_column);
+			return cell != nullptr && cell->state().selected && cell->state().focused;
+		};
+
+		const auto middle = model->index_for_path(QStringLiteral("Engine/Plugins/Plugin20.cpp"));
+		view->setFocus();
+		view->setCurrentIndex(middle.siblingAtColumn(qt::overview_file_model::file_column));
+		view->scrollTo(middle);
+		settle();
+		expect(scroll->value() > scroll->minimum() && scroll->value() < scroll->maximum(), "the course starts in the middle of the files");
+
+		key(*view, bottom);
+		auto shown = rows_shown(*view);
+		expect(view->currentIndex().siblingAtColumn(0) == shown.back() && view->currentIndex().data(qt::overview_file_model::path_role).toString() == QStringLiteral("README.md")
+				   && view->currentIndex().column() == qt::overview_file_model::file_column,
+			   "the end makes the last file current, in the same column");
+		expect(view->selectionModel()->isRowSelected(shown.back().row(), shown.back().parent()) && view->selectionModel()->selectedRows().size() == 1,
+			   "and selects that one row");
+		expect(scroll->value() == scroll->maximum() && view->viewport()->rect().contains(view->visualRect(view->currentIndex())),
+			   "and scrolls the list to its bottom, the row in view");
+		expect(view->hasFocus() && told(static_cast<int>(shown.size()) - 1) && dispatches == 0,
+			   "the keyboard stays on the files, accessibility hears the row, and nothing opens");
+
+		key(*view, top);
+		expect(view->currentIndex().siblingAtColumn(0) == model->index(0, 0) && view->currentIndex().column() == qt::overview_file_model::file_column
+				   && view->selectionModel()->isRowSelected(0, { }) && view->selectionModel()->selectedRows().size() == 1,
+			   "the start makes the top row current and selected");
+		expect(scroll->value() == scroll->minimum() && view->hasFocus() && told(0) && dispatches == 0,
+			   "and scrolls the list to its top, the keyboard and accessibility with it, opening nothing");
+		key(*view, top);
+		expect(view->currentIndex().siblingAtColumn(0) == model->index(0, 0) && scroll->value() == scroll->minimum(), "at the top the start stays there");
+
+		// A closed last folder's files are not shown: its row is the bottom.
+		const auto root = QPersistentModelIndex{ model->index_for_path(QStringLiteral("README.md")).parent() };
+		view->setExpanded(root, false);
+		settle();
+		key(*view, bottom);
+		shown = rows_shown(*view);
+		expect(view->currentIndex().siblingAtColumn(0) == QModelIndex{ root } && shown.back() == QModelIndex{ root } && scroll->value() == scroll->maximum()
+				   && dispatches == 0,
+			   "with the last folder closed the end goes to its row");
+		key(*view, Qt::Key_Up);
+		expect(view->currentIndex().siblingAtColumn(0) == shown.at(shown.size() - 2U), "Up still steps one row");
+
+		page.clear();
+		settle();
+		key(*view, top);
+		key(*view, bottom);
+		expect(!view->currentIndex().isValid() && dispatches == 0, "with no files the keys do nothing");
 	}
 
 	/// \brief [[BPR-1213]]. The owner's flat folders: a folder row only where
@@ -3467,6 +3599,7 @@ auto main(int argc, char** argv) -> int
 	test_role_line_is_one_short_label();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();
+	test_document_keys_go_to_the_top_and_bottom_of_the_files();
 	test_compact_descriptions();
 	test_resizable_summary();
 	test_summary_seam_holds_its_cursor();

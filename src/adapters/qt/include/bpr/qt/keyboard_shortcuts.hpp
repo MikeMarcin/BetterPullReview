@@ -6,8 +6,11 @@
 #include <QString>
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string_view>
+
+class QKeyEvent;
 
 namespace bpr::qt {
 	/// \brief [[BPR-1567]]. The area of the application a shortcut belongs to,
@@ -54,6 +57,8 @@ namespace bpr::qt {
 		line_cursor,
 		extend_selection,
 		comparison_ends,
+		/// [[BPR-1677]]. The top or bottom row of Overview's files.
+		files_ends,
 
 		accept_file,
 		private_progress,
@@ -229,5 +234,24 @@ namespace bpr::qt {
 	/// \brief A key in words a screen reader speaks: "Option-Shift-Up Arrow"
 	/// on macOS, the native text elsewhere.
 	[[nodiscard]] auto spoken_key(const QKeySequence& aKey) -> QString;
+
+	/// \brief [[BPR-1328]] [[BPR-1677]]. The start or end of a document or
+	/// list a key press goes to.
+	enum class document_edge : std::uint8_t {
+		start,
+		end,
+	};
+
+	/// \brief [[BPR-1328]] [[BPR-1677]]. The end a key press goes to, if it is
+	/// the platform's document start or end.
+	///
+	/// \details `QKeySequence::MoveToStartOfDocument` and
+	/// `MoveToEndOfDocument` (Ctrl+Home and Ctrl+End on Windows and Linux), and
+	/// on macOS Command-Up and Command-Down under every platform plugin, the
+	/// offscreen one too, whose key scheme is not macOS's. The code panes
+	/// scroll the comparison to it and Overview's files move to their top or
+	/// bottom row; the catalogue's `comparison_ends` and `files_ends` name
+	/// the same keys.
+	[[nodiscard]] auto document_edge_for(const QKeyEvent& aEvent) -> std::optional<document_edge>;
 }
 #endif

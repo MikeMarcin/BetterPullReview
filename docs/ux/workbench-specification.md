@@ -680,6 +680,15 @@ restores the same file identities and order. These gestures never open a
 comparison. If the focused file becomes hidden, focus moves to its folder
 without changing the active source selection.
 
+The platform's document start and end go to the top and bottom of the list
+([[BPR-1677]], the owner, 2026-10-20): Command-Up and Command-Down on macOS,
+Ctrl+Home and Ctrl+End on Windows and Linux. The top row, a folder row, or the
+last row shown (the last file of the last open folder, or that folder's row
+when it is closed) becomes current and selected, keeping its column, and the
+list scrolls to that end. The keyboard stays on the list, accessibility is told
+of the new row as for any row change, and nothing opens until Enter. Like Up
+and Down, the move is the list's own and is not a review navigation command.
+
 Beside the Files heading, two glyph buttons fold every folder row at once
 ([[BPR-1269]]). Collapse all shows two chevrons closing upward, and expand all
 two chevrons opening downward. Each is named in its tooltip and to
@@ -1498,6 +1507,7 @@ never invents enabled state.
 | View > First change in the file ([[BPR-1532]]) | `Alt+Shift+Up` (⌥⇧↑) |
 | View > Last change in the file ([[BPR-1532]]) | `Alt+Shift+Down` (⌥⇧↓) |
 | Scroll the comparison to its top or bottom, in the code ([[BPR-1328]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
+| Top or bottom row of the files, in Overview's files ([[BPR-1677]]) | `Ctrl+Home` / `Ctrl+End` (⌘↑ / ⌘↓) |
 | Load earlier epochs / Return to newest epochs, in the Updates control ([[BPR-1328]]) | `Ctrl+Alt+PgDown` / `Ctrl+Alt+PgUp` (⌥⌘PgDn / ⌥⌘PgUp) |
 | Toggle files drawer | `Alt+Shift+1` |
 | Toggle comments drawer | `Alt+Shift+2` |
