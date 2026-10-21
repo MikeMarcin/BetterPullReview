@@ -82,6 +82,7 @@
 
 #include <QHelpEvent>
 #include <QKeyEvent>
+#include <QLibraryInfo>
 #include <QMouseEvent>
 #include <QWheelEvent>
 
@@ -104,6 +105,16 @@
 #include "../support/qualification_build.hpp"
 
 namespace {
+#if defined(NDEBUG)
+	// [[BPR-1674]] A negative control may tighten one limit, never relax it.
+	[[nodiscard]] auto inline_latency_limit(const char* aName) -> qint64
+	{
+		const auto limit = qEnvironmentVariable("BPR_QUALIFICATION_LATENCY_CONTROL") == QLatin1String{ aName } ? 0 : 100;
+		std::cout << "INLINE_LATENCY_ASSERTION:" << aName << ";limit-ms=" << limit << '\n';
+		return limit;
+	}
+#endif
+
 	using namespace bpr;
 
 	auto expect(const bool aCondition, const std::string_view aMessage) -> void
@@ -3457,7 +3468,7 @@ namespace {
 			   "opening a thread reveals its exact line in the code");
 		std::cout << "inline-drawer:open-ms=" << openMs << '\n';
 #if defined(NDEBUG)
-		expect(openMs < 100, "opening a thread in place answers within 100 ms in an optimized build");
+		expect(openMs < inline_latency_limit("open"), "opening a thread in place answers within 100 ms in an optimized build");
 #endif
 		capture_layout_state(window, QStringLiteral("inline-open"));
 
@@ -3470,7 +3481,7 @@ namespace {
 		expect(cards->open_card() != nullptr && cards->open_card()->geometry().top() == lineY(60U) - 4, "scrolling the code carries the open thread with its line");
 		std::cout << "inline-drawer:scroll-ms=" << scrollMs << '\n';
 #if defined(NDEBUG)
-		expect(scrollMs < 100, "a scroll frame relays the notes within 100 ms in an optimized build");
+		expect(scrollMs < inline_latency_limit("scroll"), "a scroll frame relays the notes within 100 ms in an optimized build");
 #endif
 
 		// A wheel over the notes scrolls the code.
@@ -3557,7 +3568,7 @@ namespace {
 			   "Shift-click on a tick brings its exact line into view, though the thread was already current");
 		std::cout << "inline-drawer:tick-go-to-ms=" << goToMs << '\n';
 #if defined(NDEBUG)
-		expect(goToMs < 100, "Shift-click on a tick answers within 100 ms in an optimized build");
+		expect(goToMs < inline_latency_limit("tick-go-to"), "Shift-click on a tick answers within 100 ms in an optimized build");
 #endif
 		capture_layout_state(window, QStringLiteral("inline-tick-go-to"));
 
@@ -3831,7 +3842,7 @@ namespace {
 			settleOpen();
 			std::cout << "inline-drawer:markdown-open-ms=" << markdownOpenMs << '\n';
 #if defined(NDEBUG)
-			expect(markdownOpenMs < 100, "opening a thread with a Markdown post answers within 100 ms in an optimized build");
+			expect(markdownOpenMs < inline_latency_limit("markdown-open"), "opening a thread with a Markdown post answers within 100 ms in an optimized build");
 #endif
 			auto* const root  = readerOf("review-comment:c16");
 			auto* const reply = readerOf("review-comment:c17");
@@ -9369,6 +9380,7 @@ namespace {
 auto main(int argc, char** argv) -> int
 {
 	bpr::tests::report_qualification_build();
+	std::cout << "QUALIFICATION_QT_RUNTIME:version=" << qVersion() << ";debug=" << QLibraryInfo::isDebugBuild() << '\n';
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewGitHubQtTests"));

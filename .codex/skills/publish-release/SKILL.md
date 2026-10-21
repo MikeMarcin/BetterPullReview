@@ -16,8 +16,11 @@ tools; GitHub Actions stays disabled and has no role in the release workflow.
 
 For a coordinated release or a resumed run, read
 [execution and recovery](references/execution.md) before dispatching native work.
-Use one durable phase record to reconcile existing jobs, schedule the shared
-Windows/WSL host and reuse evidence with unchanged inputs.
+Use one durable phase record to reconcile existing jobs and schedule the shared
+Windows/WSL host. The [optimized qualification pilot](references/optimized-qualification.md)
+is an additional, bounded option; it has not replaced the normal Debug gate.
+Cross-request hostile-tool or native verdict reuse is unready. Only the existing
+suite runner's exact same-invocation bootstrap receipts may avoid duplicate rows.
 
 1. Inspect the working tree, branch, recent tags, `CMakeLists.txt`, release notes
    and available native hosts. Preserve unrelated changes. Choose the SemVer,

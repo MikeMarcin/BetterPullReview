@@ -12,9 +12,11 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import time
+import uuid
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -227,7 +229,58 @@ def tooling_preflight(expected: list[str], preset: str, jobs: int, output: Path,
     return report
 
 
+def bootstrap_inputs(root: Path, manifest: dict, ctest: str) -> str:
+    """Seal same-invocation source/bootstrap inputs; never authorize native reuse."""
+    names = subprocess.check_output(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"], cwd=root).decode().split("\0")
+    files = {root / name for name in names if name}
+    # The three source gates import the actual pinned deployment, outside Git.
+    helper = root / ".agents/skills/implement-rfc"
+    if not helper.is_dir():
+        raise ValueError("Pinned bootstrap deployment is unavailable")
+    files.update(path for path in helper.resolve().rglob("*")
+                 if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc")
+    for tool in (ctest, "cmake", "git", sys.executable):
+        found = shutil.which(tool)
+        if found is None:
+            raise ValueError(f"Unknown bootstrap tool: {tool}")
+        files.add(Path(found).resolve())
+    digest = hashlib.sha256()
+    for path in sorted(files, key=str):
+        if not path.is_file():
+            raise ValueError("Unknown bootstrap input type")
+        digest.update(str(path).encode())
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    digest.update(json.dumps(manifest, sort_keys=True).encode())
+    # Values stay private; their digest detects changed tool/native path options.
+    digest.update(json.dumps(dict(os.environ), sort_keys=True).encode())
+    digest.update(repr((sys.version, sys.flags, sys.platform, os.name)).encode())
+    return digest.hexdigest()
+
+
+def reusable_bootstrap(report: dict | None, invocation: str, identity: str | None) -> list[str]:
+    """Only complete passing proof produced by this live invocation can be reused."""
+    if not isinstance(report, dict) or identity is None:
+        return []
+    names = report.get("expected", [])
+    results = report.get("results", {})
+    if not isinstance(names, list) or not all(isinstance(name, str) for name in names) or not isinstance(results, dict):
+        return []
+    rows = results.get("tests", [])
+    if not isinstance(rows, list) or not all(isinstance(row, dict) and isinstance(row.get("name"), str) and row.get("status") == "passed" for row in rows):
+        return []
+    if (report.get("invocation_id") != invocation or report.get("input_identity") != identity
+            or not report.get("passed") or not report.get("complete")
+            or report.get("ctest_exit_code") != 0 or set(names) - TOOLING_PREFLIGHT
+            or len(names) != len(set(names)) or not names
+            or results.get("counts") != {"passed": len(names)}
+            or Counter(row["name"] for row in rows) != Counter(names)):
+        return []
+    return names
+
+
 def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path, tests_regex: str | None = None) -> int:
+    if sys.flags.optimize or os.environ.get("PYTHONOPTIMIZE"):
+        raise ValueError("Qualification requires Python assertions enabled (no -O/PYTHONOPTIMIZE)")
     runner_started = time.monotonic()
     output.mkdir(parents=True, exist_ok=False)
     manifest = subprocess.run([ctest, "--preset", preset, "--show-only=json-v1"], cwd=root,
@@ -239,7 +292,19 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     if not expected:
         raise ValueError("The selected CTest preset contains no tests")
     (output / "manifest.json").write_text(manifest.stdout, encoding="utf-8")
+    invocation = uuid.uuid4().hex
+    identity = None
+    identity_error = None
+    if TOOLING_PREFLIGHT.intersection(all_names):
+        try:
+            identity = bootstrap_inputs(root, selected, ctest)
+        except (OSError, ValueError, subprocess.CalledProcessError) as error:
+            identity_error = str(error)
     preflight = tooling_preflight(all_names, preset, jobs, output, ctest, root)
+    if preflight is not None:
+        preflight.update(invocation_id=invocation, input_identity=identity, input_error=identity_error,
+                         scope="same-invocation-bootstrap; no cross-request or native qualification reuse")
+        (output / "preflight.json").write_text(json.dumps(preflight, indent=2) + "\n", encoding="utf-8")
     if preflight is not None and not preflight["passed"]:
         report = summarize([], 0.0)
         report.update(preset=preset, jobs=jobs, full_graph_started=False, complete=False,
@@ -251,18 +316,46 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
         print(f"Full graph not started: tooling prerequisite preflight failed; {len(expected)} tests not run", file=sys.stderr)
         print(f"Preflight report: {output / 'preflight.json'}", file=sys.stderr)
         return preflight.get("ctest_exit_code", 1) or 1
+    current_identity = None
+    if identity is not None:
+        try:
+            current_identity = bootstrap_inputs(root, selected, ctest)
+        except (OSError, ValueError, subprocess.CalledProcessError):
+            pass
+    reused = sorted(set(reusable_bootstrap(preflight, invocation, current_identity)).intersection(expected))
+    fresh = [name for name in expected if name not in reused]
     command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure",
                "--no-tests=error", "--output-log", str(output / "ctest.log"),
                "--output-junit", str(output / "junit.xml")]
     if tests_regex is not None:
         command.extend(["--tests-regex", tests_regex])
+    if reused:
+        command.extend(["--exclude-regex", "^(" + "|".join(re.escape(name) for name in reused) + ")$"])
     started = time.monotonic()
-    completed = subprocess.run(command, cwd=root, check=False)
+    if fresh:
+        completed = subprocess.run(command, cwd=root, check=False)
+        report = read_junit(output / "junit.xml", time.monotonic() - started)
+    else:
+        completed = subprocess.CompletedProcess(command, 0)
+        report = summarize([], 0.0)
     elapsed = time.monotonic() - started
-    report = read_junit(output / "junit.xml", elapsed)
+    if reused:
+        proof_rows = [row for row in preflight["results"]["tests"] if row["name"] in reused]
+        report = summarize(report["tests"] + [{**row, "evidence": "same-invocation-preflight"} for row in proof_rows], elapsed)
     actual = [row["name"] for row in report["tests"]]
     complete = Counter(actual) == Counter(expected)
+    final_identity = None
+    if identity is not None:
+        try:
+            final_identity = bootstrap_inputs(root, selected, ctest)
+        except (OSError, ValueError, subprocess.CalledProcessError):
+            pass
+        complete = complete and identity == current_identity == final_identity
     report.update(preset=preset, jobs=jobs, ctest_exit_code=completed.returncode,
+                  qualification_scope={"fresh": fresh, "reused": reused,
+                      "reuse_scope": "same-invocation-bootstrap", "cross_request_reuse": "unready", "native_reuse": False,
+                      "input_identity": identity, "input_identity_after_preflight": current_identity, "input_identity_after_execution": final_identity,
+                      "release_gate_substitution": False, "required_debug": "complete affected-native Debug at every release candidate"},
                   complete=complete, full_graph_started=True, full_graph_selected=tests_regex is None, selection_regex=tests_regex,
                   preflight_wall_seconds=preflight["wall_seconds"] if preflight else 0.0,
                   total_runner_wall_seconds=time.monotonic() - runner_started,

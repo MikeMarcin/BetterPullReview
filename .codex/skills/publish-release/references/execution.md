@@ -18,8 +18,11 @@ A new producer checkout also needs the repository's ignored portable test
 tooling. Use the normal MASK register/repair procedure at the committed lock,
 inspect its owned-checkout plan and readiness receipt, then run the actual
 [three cheap tooling checks](../../../../docs/development/build-and-test-reference.md#complete-suite-timing-and-focused-work)
-before expensive configuration/builds. The complete-suite runner repeats these
-configured checks as a prerequisite preflight and again inside the full graph.
+before expensive configuration/builds. The complete-suite runner runs these
+configured checks as a fresh prerequisite preflight. Its second occurrence in the
+selected graph may reuse only the same invocation's complete passing proof with
+an unchanged input seal; the report marks those rows separately. A stale or
+changed receipt runs fresh. No cross-request native/tool verdict reuse is active.
 A failed preflight means the full graph was not started; preserve that result
 and repair the prerequisite before dispatch. Neither an early check nor the
 recorded lock declaration is complete qualification or host-loading evidence.
