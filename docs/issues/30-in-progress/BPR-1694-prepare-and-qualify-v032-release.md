@@ -195,3 +195,24 @@ Its commands, configuration set, environment, private output and resource locks
 remain unchanged. All nine registry tests pass, including the driver, binary,
 configuration, output and capture refusal controls. Other stale families retain
 their conservative serial scheduling. Full native qualification remains due.
+
+## Complete Home fixture index lifetimes
+
+The committed-source Windows early course again fails Home's return-to-queue
+selection assertion. Its full failure is retained; passing later diagnostic
+attempts are not a release verdict. Review finds more ordinary proxy indexes
+held across event processing outside the earlier Recently viewed repair: the
+opening row and the row used by Return. The fixture now resolves the stable row
+identity again before each gesture and assertion, and releases the Return
+index before focus and key delivery. The window-system click also requires its
+point to be inside the visible viewport before dispatch. All four themes,
+selection/colour/accessibility, slow-network, retry and preemption checks remain.
+
+The full repaired Home course passes on Mac in 64.66 s and native Windows in
+64.49 s. The Windows run rebuilds the normal application, checks its exact
+UTF-8 normalized source digest, and refuses images containing the temporary
+reading-reset diagnostic. It substitutes only the explicitly recorded fixtures
+for this engineering proof. Focused clang-format 22, clang-tidy 22 with warnings
+as errors and whitespace checks pass. Final common-source comprehensive gates
+remain pending; the separate Windows durable-reading and epoch-readiness
+failures still require causal diagnosis.

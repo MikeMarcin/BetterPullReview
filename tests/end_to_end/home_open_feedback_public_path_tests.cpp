@@ -177,6 +177,7 @@ namespace {
 			expect(row.View != nullptr && row.Index.isValid(), "the mouse target still names a Home row");
 			view  = row.View;
 			point = view->visualRect(row.Index).center();
+			expect(view->viewport()->visibleRegion().contains(point), "the Home mouse target is inside the visible viewport");
 		}
 		tests::window_system_clicks(*view->viewport(), QPointF{ point }, 1);
 	}
@@ -379,25 +380,28 @@ try {
 		renders(QStringLiteral("row-idle"));
 
 		// ---- a single click only selects ([[BPR-1364]]) -------------------
-		const auto row          = row_of(*window, served_name);
+		const auto servedRow    = [&] { return row_of(*window, served_name); };
 		const auto delayedFirst = delay->Delayed.load();
-		click(row);
+		click(servedRow());
 		QApplication::processEvents();
 		expect(!phase(*window).has_value() && window->showing_home() && delay->Delayed.load() == delayedFirst,
 			   "a single click on a row asks GitHub for nothing and stays on Home");
-		expect(row.View->currentIndex() == row.Index && row.View->selectionModel()->isSelected(row.Index),
-			   "a single click makes the row current and highlighted");
-		expect(!row_lines(*window, row).contains(QStringLiteral("Opening")), "a selected row does not say it is opening");
+		{
+			const auto current = servedRow();
+			expect(current.View->currentIndex() == current.Index && current.View->selectionModel()->isSelected(current.Index),
+				   "a single click makes the row current and highlighted");
+		}
+		expect(!row_lines(*window, servedRow()).contains(QStringLiteral("Opening")), "a selected row does not say it is opening");
 
 		// ---- the same turn as the double-click -----------------------------
-		double_click(row);
+		double_click(servedRow());
 		// No event loop turn has run since the release.
 		expect(phase(*window) == core::home_open_phase::opening, "in the same turn as the double-click, the core's opening reaches the window");
 		expect(window->home_list()->row_delegate()->open().Identity == QString::fromUtf8(served_name)
 				   && window->home_list()->row_delegate()->open().Phase == qt::home_row_open_phase::opening,
 			   "in the same turn as the double-click, the double-clicked row is the open row");
-		expect(row_lines(*window, row).contains(QStringLiteral("Opening #17…")), "in the same turn as the double-click, the row says Opening #17…");
-		expect(window->home_list()->open_view() == row.View, "the double-clicked row's own list carries it");
+		expect(row_lines(*window, servedRow()).contains(QStringLiteral("Opening #17…")), "in the same turn as the double-click, the row says Opening #17…");
+		expect(window->home_list()->open_view() == servedRow().View, "the double-clicked row's own list carries it");
 		expect(window->showing_home() && window->home_status_line()->isHidden(), "the row says it, so the band adds nothing");
 		wait_for([&] { return delay->Delayed.load() > delayedFirst; }, "the read reaches the slow transport");
 		QApplication::processEvents();
@@ -433,10 +437,9 @@ try {
 		expect(!row_lines(*window, row_of(*window, served_name)).contains(QStringLiteral("Opening")), "the row says why it is listed again");
 
 		// ---- a failure on its row, and Retry -------------------------------
-		const auto failingRow   = row_of(*window, failing_name);
 		const auto failingFacts = rowFacts(failing_name);
-		double_click(failingRow);
-		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->open_view() == failingRow.View, "the failing row is opening at once");
+		double_click(row_of(*window, failing_name));
+		expect(phase(*window) == core::home_open_phase::opening && window->home_list()->open_view() == row_of(*window, failing_name).View, "the failing row is opening at once");
 		wait_for([&] { return phase(*window) == core::home_open_phase::failed; }, "the failing read fails after its wait", { }, 15000);
 		QApplication::processEvents();
 		expect(window->showing_home() && action->isVisible() && action->text() == QStringLiteral("Retry"), "the failed row offers Retry");
@@ -500,14 +503,18 @@ try {
 		renders(QStringLiteral("idle"));
 
 		// ---- Return opens in the same turn, and the pull request opens -----
-		const auto keyed = row_of(*window, served_name);
-		keyed.View->setCurrentIndex(keyed.Index);
-		keyed.View->setFocus(Qt::OtherFocusReason);
+		QListView* keyedView = nullptr;
+		{
+			const auto keyed = servedRow();
+			keyedView        = keyed.View;
+			keyedView->setCurrentIndex(keyed.Index);
+		}
+		keyedView->setFocus(Qt::OtherFocusReason);
 		{
 			auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-			QApplication::sendEvent(keyed.View, &key);
+			QApplication::sendEvent(keyedView, &key);
 		}
-		expect(phase(*window) == core::home_open_phase::opening && row_lines(*window, keyed).contains(QStringLiteral("Opening #17…")),
+		expect(phase(*window) == core::home_open_phase::opening && row_lines(*window, servedRow()).contains(QStringLiteral("Opening #17…")),
 			   "in the same turn as Return, the row says Opening #17…");
 		wait_for([&] { return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; }, "the slow read opens the pull request", { }, 20000);
 		expect(!window->home_open().has_value(), "a loaded read leaves nothing for Home to say");
