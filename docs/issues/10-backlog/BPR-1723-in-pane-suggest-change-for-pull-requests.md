@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AF"
+id: "BPR-1723"
 title: "Suggest change edits the head file in place in pull request review"
 status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"kind":"ux","origin":"owner report 2026-10-21 (relayed by the coordinator)","owner_note":"It seems like the suggest change logic from the local project where we can type our change into the main code pain doesnt exist for the pr review ux","draft_rfc":"docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md","design_frames":"docs/design/BPR-PENDING-AF-in-pane-suggest-v1/index.html","frontend_design":"frontend-design:frontend-design loaded before the design frames","related_cards":["BPR-1156","BPR-1212","BPR-1721","BPR-1084","BPR-1716","BPR-1706"],"related_rfcs":["RFC-BPR-0055","RFC-BPR-0022","RFC-BPR-0048","RFC-BPR-0089"],"phase":"1 (design); no product code changed"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1723--BPR-1723--40864f3da1f3.json","kind":"ux","origin":"owner report 2026-10-21 (relayed by the coordinator)","owner_note":"It seems like the suggest change logic from the local project where we can type our change into the main code pain doesnt exist for the pr review ux","draft_rfc":"docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md","design_frames":"docs/design/BPR-1723-in-pane-suggest-v1/index.html","frontend_design":"frontend-design:frontend-design loaded before the design frames","related_cards":["BPR-1156","BPR-1212","BPR-1721","BPR-1084","BPR-1716","BPR-1706"],"related_rfcs":["RFC-BPR-0055","RFC-BPR-0022","RFC-BPR-0048","RFC-BPR-0089"],"phase":"1 (design); no product code changed"}
 ---
 
-# BPR-PENDING-AF: Suggest change edits the head file in place in pull request review
+# BPR-1723: Suggest change edits the head file in place in pull request review
 
 ## Owner report
 
@@ -27,7 +27,7 @@ gave pull requests a ```` ```suggestion ```` block in the drawer
 ([[BPR-1212]], [[BPR-1721]]). The two sides, the GitHub constraints and the
 proposed design are in the draft RFC
 [RFC-DRAFT-0025](../../rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md).
-The [design frames](../../design/BPR-PENDING-AF-in-pane-suggest-v1/index.html)
+The [design frames](../../design/BPR-1723-in-pane-suggest-v1/index.html)
 show the current state and each open question. They are design evidence, not
 the product.
 
@@ -48,11 +48,11 @@ per decision. Its URL is kept in the external session state.
   It opened 2026-10-21, and all five candidates were ready at event cursor 15.
   Its loopback host was started for the owner.
 - **Candidates**, all at revision `653e2ff2d`, each showing its design frame:
-  - `BPR-PENDING-AF-q1-extent-v001`: Accept or Reject.
-  - `BPR-PENDING-AF-q2-words-v001`: A or B.
-  - `BPR-PENDING-AF-q3-unplaceable-v001`: A or B.
-  - `BPR-PENDING-AF-q4-one-pane-v001`: A or B.
-  - `BPR-PENDING-AF-q5-drawer-block-v001`: Accept or Reject.
+  - `BPR-1723-q1-extent-v001`: Accept or Reject.
+  - `BPR-1723-q2-words-v001`: A or B.
+  - `BPR-1723-q3-unplaceable-v001`: A or B.
+  - `BPR-1723-q4-one-pane-v001`: A or B.
+  - `BPR-1723-q5-drawer-block-v001`: Accept or Reject.
 - **Status.** No answer has been recorded. The next engineering round reads
   `status --after 15`, records the answers here and in the RFC, and revises
   the RFC to match.

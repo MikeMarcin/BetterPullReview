@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1723"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "In-pane suggest change for pull requests",
+  "created": "2026-10-21T23:32:11.653745+00:00",
+  "base": "60853756346f135dbcdc4046fa71dcc2d311b7f6"
+}

@@ -2,7 +2,7 @@
 id: "RFC-DRAFT-0025"
 title: "Suggest change edits the head file in place in pull request review"
 status: "Proposed"
-metadata: {"origin": {"date": "2026-10-21", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-PENDING-AF", "revision": "r1 2026-10-21", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-PENDING-AF-in-pane-suggest-v1/index.html", "owner_questions": "Q1-Q5 open; asked as a fresh attended-review session (see the card)"}
+metadata: {"origin": {"date": "2026-10-21", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1723", "revision": "r1 2026-10-21", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-1723-in-pane-suggest-v1/index.html", "owner_questions": "Q1-Q5 open; asked as a fresh attended-review session (see the card)"}
 ---
 
 # Suggest change edits the head file in place in pull request review
