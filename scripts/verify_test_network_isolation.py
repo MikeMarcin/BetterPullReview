@@ -191,7 +191,15 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_merge_base_public_path": "owner-private-acl-denied",
     # RFC-BPR-0089. The commit-filter course, registered uncontained like the
     # merge-base course; the Windows station has not measured it yet.
-    "application_commit_filter_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1694]]. Measured on native Windows, Interactive Limited, 2026-10-21,
+    # expanded RFC0089 M3 source a023d1d81. The exact registered application
+    # command fails at its private course root; a scoped QTemporaryDir probe
+    # confirms CreateFileW(WRITE_DAC) refuses that parent with Win32 5.
+    # All three fixture builder variants fail Git init at "cannot lock ref
+    # 'HEAD': unable to create directory for .../.git/HEAD". Direct courses
+    # pass, including all M3 split/rematch assertions. No capability or ACL
+    # is widened. See BPR-1694's native containment measurement record.
+    "application_commit_filter_public_path": "owner-private-acl-denied",
     # [[BPR-1576]]. Panes waiting on a slow fixture network.
     "application_pending_states_public_path": "owner-private-acl-denied",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
@@ -203,7 +211,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "merge_base_fixture_contract": "git-reference-parent-denied",
     # RFC-BPR-0089. Builds its fixture with the same tool chain as the
     # merge-base contract; the Windows station has not measured it yet.
-    "commit_filter_fixture_contract": "unmeasured (registered on macOS)",
+    "commit_filter_fixture_contract": "git-reference-parent-denied",
     "sqlite_markdown_image_disk_cache": "ancestor-control-denied",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now

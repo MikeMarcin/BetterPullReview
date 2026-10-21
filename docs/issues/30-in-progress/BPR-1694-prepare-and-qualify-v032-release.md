@@ -137,3 +137,20 @@ fixture, pass on Mac and native Windows Release. Controls reject a truncated
 pack and a valid pack containing different objects. This follows the existing
 recorded-pack builder's cross-Git-version contract; no fixture data or product
 assertion is weakened. Expanded-source comprehensive qualification remains due.
+
+## Measured Windows containment boundaries
+
+Native Interactive Limited measurements on expanded source `a023d1d81` retain
+both streams, exact registered argv/environment, child exit and source restoration
+receipts outside source. All three commit-filter fixture builders fail contained
+at Git init: `cannot lock ref 'HEAD': unable to create directory for .../.git/HEAD`.
+The application fails at its private course root; a temporary, scoped probe of
+that same QTemporaryDir confirms `CreateFileW(WRITE_DAC)` returns Win32 5.
+The direct expanded application course passes all five scenarios in 23.26 s;
+the repaired fixture-object contract passes all four tests in 7.83 s.
+
+The two existing uncontained registrations now name these measured causes:
+`git-reference-parent-denied` and `owner-private-acl-denied`. No capability,
+ACL, registration, timeout or assertion changes. Temporary diagnostic source
+and binaries are restored and rebuilt afterward. Final committed-source
+manifest and comprehensive native qualification remain required.
