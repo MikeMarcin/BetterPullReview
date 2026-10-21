@@ -14,6 +14,16 @@ actual native state before dispatch. An existing running stage is something to
 wait for; a completed stage is something to validate. A handoff alone invalidates
 neither. Do not create a second suite or signing job to obtain a new transcript.
 
+A new producer checkout also needs the repository's ignored portable test
+tooling. Use the normal MASK register/repair procedure at the committed lock,
+inspect its owned-checkout plan and readiness receipt, then run the actual
+[three cheap tooling checks](../../../../docs/development/build-and-test.md#complete-suite-timing-and-focused-work)
+before expensive configuration/builds. The complete-suite runner repeats these
+configured checks as a prerequisite preflight and again inside the full graph.
+A failed preflight means the full graph was not started; preserve that result
+and repair the prerequisite before dispatch. Neither an early check nor the
+recorded lock declaration is complete qualification or host-loading evidence.
+
 Before long work, check the actual producer's tool PATH, canonical dependency
 cache paths, free space, native signing configuration and result locations.
 Exercise the same dispatch/collection route with harmless stderr plus exit 0

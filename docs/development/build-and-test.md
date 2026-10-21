@@ -257,10 +257,24 @@ processes. The runner refuses a second complete-suite runner in this checkout
 while the first holds `build/.test-suite.lock`. Direct `ctest` invocations do
 not participate in that lock; do not overlap them with a complete gate.
 
+Before starting a complete graph, the runner preflights the configured subset
+of `documentation_structure`, `documentation_issue_graph_contract` and
+`issue_id_allocation_contract`. These are the existing checks, including their
+real imports and fixture/schema copies. The runner records the committed
+implement-rfc lock declaration and keeps `preflight.log`, `preflight-junit.xml`
+and `preflight.json` separately. Deployment verification belongs to the normal
+MASK bootstrap/readiness receipt; the lock record alone does not prove a loaded
+skill or matching deployment. A failed, skipped or incomplete preflight returns
+failure, records `full_graph_started: false`, and lists the entire full graph as
+not run. It does not synthesize skips or a successful complete gate. A successful
+preflight still runs every full-graph row, including these checks again. Presets
+without these rows and historical report-only mode require no extra tooling.
+
 Each invocation saves `manifest.json`, `ctest.log`, `junit.xml` and
 `timings.json` in a new directory under `build/test-results/dev/`. The report
-distinguishes elapsed wall time from summed test durations, lists the slowest
-rows, and names failures and skips. A failed CTest run, missing result or
+distinguishes full CTest wall time from summed test durations, preflight wall
+time and total runner wall time, lists the slowest rows, and names failures and
+skips. A failed CTest run, missing result or
 duplicate result fails the runner and stops release preparation. A skip remains
 a skip, not passing evidence for that criterion. Summarize an older console log
 without running tests with
@@ -276,6 +290,23 @@ The nested build honors the producer's `CMAKE_BUILD_PARALLEL_LEVEL`, capped at
 eight compiler jobs; unset/empty retains two, and invalid/nonpositive settings
 fail. Its row remains exclusive, and compilation finishes before binary/runtime
 checks begin. This changes build scheduling, not graph inputs or acceptance.
+
+A fresh Git checkout does not contain the ignored MASK-deployed test tooling.
+Register that owned checkout with its existing locked versions through the normal
+MASK procedure, then run the actual cheap checks before expensive configuration
+or compilation:
+
+```sh
+python3 scripts/verify_documentation.py --root .
+python3 tests/scripts/verify_documentation_tests.py
+python3 tests/scripts/allocate_issue_id_tests.py
+```
+
+Require each command's actual zero exit before continuing. After configuration,
+the equivalent maintained CTest selection is
+`ctest --preset dev --output-on-failure -R '^(documentation_structure|documentation_issue_graph_contract|issue_id_allocation_contract)$'`
+(use the native preset). These checks provide early feedback; they do not replace
+the complete qualification graph.
 
 Before an expensive build/full gate, select its actual cheap source tripwire:
 

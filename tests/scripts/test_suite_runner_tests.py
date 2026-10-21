@@ -20,6 +20,106 @@ import run_test_suite as suite
 from skip_report import SkipReportingTestRunner
 
 class SuiteRunnerTests(unittest.TestCase):
+    def test_real_preflight_stops_failed_candidate_and_retains_accepted_full_inventory(self):
+        for failed in (True, False):
+            with self.subTest(failed=failed), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                names = sorted(suite.TOOLING_PREFLIGHT)
+                worker = root / "worker.py"
+                worker.write_text('''from pathlib import Path
+import sys
+root = Path(__file__).parent
+name = sys.argv[1]
+with (root / (name + ".runs")).open("a") as output:
+    output.write("run\\n")
+if name == "documentation_structure" and (root / "fail").exists():
+    sys.exit(3)
+''')
+                cmake = ['cmake_minimum_required(VERSION 3.24)', 'project(Readiness NONE)', 'enable_testing()']
+                for name in names + ["expensive_sentinel"]:
+                    cmake.append(f'add_test(NAME {name} COMMAND "{Path(sys.executable).as_posix()}" "{worker.as_posix()}" {name})')
+                (root / "CMakeLists.txt").write_text("\n".join(cmake) + "\n")
+                (root / "CMakePresets.json").write_text(json.dumps({
+                    "version": 3,
+                    "configurePresets": [{"name": "fixture", "generator": "Ninja", "binaryDir": "${sourceDir}/build"}],
+                    "testPresets": [{"name": "fixture", "configurePreset": "fixture"}],
+                }))
+                subprocess.run(["cmake", "--preset", "fixture"], cwd=root, check=True, capture_output=True)
+                if failed:
+                    (root / "fail").touch()
+                output = root / "results"
+                with patch.object(suite, "committed_tooling_pin", return_value={"fixture": "declared-pin"}), redirect_stdout(io.StringIO()):
+                    result = suite.run_suite("fixture", 4, output, root=root)
+                preflight = json.loads((output / "preflight.json").read_text())
+                report = json.loads((output / "timings.json").read_text())
+                self.assertEqual(preflight["passed"], not failed)
+                self.assertEqual(preflight["results"]["counts"], {"failed": 1, "passed": 2} if failed else {"passed": 3})
+                self.assertEqual(report["full_graph_started"], not failed)
+                self.assertEqual(result == 0, not failed)
+                self.assertEqual((root / "expensive_sentinel.runs").exists(), not failed)
+                for name in names:
+                    self.assertEqual((root / (name + ".runs")).read_text().splitlines(), ["run"] if failed else ["run", "run"])
+                if failed:
+                    self.assertFalse(report["complete"])
+                    self.assertEqual(report["counts"], {})
+                    self.assertEqual(set(report["not_run"]), set(names + ["expensive_sentinel"]))
+                    self.assertFalse((output / "junit.xml").exists())
+                else:
+                    self.assertTrue(report["complete"])
+                    self.assertEqual(report["counts"], {"passed": 4})
+                    self.assertEqual({row["name"] for row in report["tests"]}, set(names + ["expensive_sentinel"]))
+                    self.assertGreaterEqual(report["total_runner_wall_seconds"], report["wall_seconds"] + preflight["wall_seconds"])
+
+    def test_missing_or_invalid_committed_tooling_pin_stops_before_ctest(self):
+        valid = {"source": "agentskills", "id": "implement-rfc", "commit": "a" * 40,
+                 "payload_digest": "sha256:" + "b" * 64}
+        for locked in ({"packages": []}, {"packages": [valid, valid]}, {"packages": [{}]},
+                       {"packages": [{**valid, "payload_digest": "invalid"}]}, {"packages": "invalid"}):
+            with self.subTest(locked=locked), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                output = root / "results"
+                calls = []
+                def run(command, **kwargs):
+                    calls.append(command)
+                    if "--show-only=json-v1" in command:
+                        return subprocess.CompletedProcess(command, 0, json.dumps({"tests": [{"name": "documentation_structure"}, {"name": "expensive"}]}))
+                    self.assertEqual(command, ["git", "show", "HEAD:.mask.lock.json"])
+                    return subprocess.CompletedProcess(command, 0, json.dumps(locked).encode())
+                with patch.object(suite.subprocess, "run", side_effect=run), redirect_stdout(io.StringIO()):
+                    self.assertNotEqual(suite.run_suite("fixture", 4, output, root=root), 0)
+                self.assertEqual(len(calls), 2)
+                self.assertFalse(json.loads((output / "timings.json").read_text())["full_graph_started"])
+                self.assertIn("error", json.loads((output / "preflight.json").read_text()))
+        with patch.object(suite.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps({"packages": [valid]}).encode())):
+            declared = suite.committed_tooling_pin(ROOT)
+        self.assertEqual(declared["commit"], valid["commit"])
+        self.assertEqual(declared["payload_digest"], valid["payload_digest"])
+        self.assertEqual(len(declared["lock_sha256"]), 64)
+
+    def test_failed_skipped_or_incomplete_preflight_cannot_start_full_graph(self):
+        names = sorted(suite.TOOLING_PREFLIGHT)
+        passing = ''.join(f'<testcase name="{name}"/>' for name in names)
+        cases = ((passing, 8), (passing.replace('/>', '><failure/></testcase>', 1), 0),
+                 (passing.replace('/>', '><skipped/></testcase>', 1), 0),
+                 (f'<testcase name="{names[0]}"/>', 0), (passing + '<testcase name="unexpected"/>', 0))
+        for xml, code in cases:
+            with self.subTest(xml=xml, code=code), ContainedTemporaryDirectory() as temporary:
+                root = Path(temporary)
+                output = root / "results"
+                calls = []
+                def ctest(command, **kwargs):
+                    calls.append(command)
+                    if "--show-only=json-v1" in command:
+                        return subprocess.CompletedProcess(command, 0, json.dumps({"tests": [{"name": name} for name in names + ["expensive"]]}))
+                    self.assertIn("--tests-regex", command)
+                    (output / "preflight-junit.xml").write_text('<testsuite>' + xml + '</testsuite>')
+                    return subprocess.CompletedProcess(command, code)
+                with patch.object(suite, "committed_tooling_pin", return_value={"fixture": "pin"}), \
+                        patch.object(suite.subprocess, "run", side_effect=ctest), redirect_stdout(io.StringIO()):
+                    self.assertNotEqual(suite.run_suite("fixture", 4, output, root=root), 0)
+                self.assertEqual(len(calls), 2)
+                self.assertFalse(json.loads((output / "timings.json").read_text())["full_graph_started"])
+
     def test_composition_build_uses_bounded_producer_parallelism(self):
         script = ROOT / "tests/end_to_end/composition_contract_tests.py"
         with patch.object(sys, "argv", [str(script)]):
@@ -47,6 +147,10 @@ class SuiteRunnerTests(unittest.TestCase):
             self.assertAlmostEqual(report["summed_test_seconds"], 503.52)
             self.assertEqual(report["wall_seconds"], 504.12)
             self.assertEqual(report["tests"][0]["name"], "slow")
+            with patch.object(sys, "argv", ["run_test_suite.py", "--report-log", str(path)]), \
+                    patch.object(suite.subprocess, "run", side_effect=AssertionError("report-only invoked prerequisites")), \
+                    redirect_stdout(io.StringIO()):
+                self.assertEqual(suite.main(), 0)
 
     def verdict(self, xml: str, code: int = 0):
         calls = []
