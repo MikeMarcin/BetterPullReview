@@ -227,7 +227,10 @@ namespace {
 		// the window's. Enter the reading surface before changing its pair.
 		window.modality()->action(qt::review_modality::review)->trigger();
 		QApplication::processEvents();
-		wait_for([&] { const auto status = aOwner.status(aContext); return status && status->EpochStatus == core::epoch_status::ready; }, "reading epoch ready");
+		wait_for([&] { const auto status = aOwner.status(aContext); return status && status->EpochStatus == core::epoch_status::ready; }, "reading epoch ready", [&] {
+            const auto status = aOwner.status(aContext);
+            std::cerr << "reading-epoch-failure row=" << aRow << " status=" << (status ? static_cast<int>(status->EpochStatus) : -1)
+                      << " window-status=" << window.status_text().toStdString() << '\n'; });
 		if (aRow == 1 || aCrossUpload) {
 			auto&      controls         = *window.epoch_selectors();
 			auto*      model            = controls.history_model();
@@ -948,6 +951,25 @@ auto main(int aArgc, char** aArgv) -> int
 		const auto retained = restoration_store(root)->load({ });
 		expect(retained && retained->Records.size() == seededReadings.size(), "Quit drains both reading writes");
 		for (std::size_t index = 0; index < seededReadings.size(); ++index) {
+			if (retained->Records[index].Position != seededReadings[index]) {
+				const auto& storedTabs = retained->Records[index].Tabs;
+				if (storedTabs && storedTabs->Active && *storedTabs->Active < storedTabs->Tabs.size()) {
+					const auto& storedView = storedTabs->Tabs[*storedTabs->Active];
+					std::cerr << "durable-tab-at-position-failure window-index=" << index << " count=" << storedTabs->Tabs.size()
+							  << " active=" << *storedTabs->Active << " line=" << (storedView.Selection ? storedView.Selection->PreferredLine.Line : 99999U)
+							  << " equals-wanted=" << (storedView == seededReadings[index]) << '\n';
+				}
+				const auto& actual = retained->Records[index].Position;
+				const auto& wanted = seededReadings[index];
+				std::cerr << "durable-position window-index=" << index << " exists=" << bool(actual)
+						  << " left=" << (actual && actual->Comparison.Left == wanted.Comparison.Left)
+						  << " right=" << (actual && actual->Comparison.Right == wanted.Comparison.Right)
+						  << " file=" << (actual && actual->File == wanted.File)
+						  << " selection=" << (actual && actual->Selection == wanted.Selection)
+						  << " actual-line=" << (actual && actual->Selection ? actual->Selection->PreferredLine.Line : 99999U)
+						  << " wanted-line=" << (wanted.Selection ? wanted.Selection->PreferredLine.Line : 99999U)
+						  << '\n';
+			}
 			expect(retained->Records[index].Position == seededReadings[index], "durable record equals actual accepted public reading");
 			// [[BPR-1236]]. The active tab carries the same reading, even when
 			// Home followed the selection at once.

@@ -1455,7 +1455,7 @@
     },
     {
       "source": "tests/end_to_end/profile_window_review_restoration_public_path_tests.cpp",
-      "sha256": "da2e83ae0210918de9c84873cba5f2716d12feba93ddb2e87a5ae1f5cb4a525c",
+      "sha256": "db5c56b0aa9f1ce1071fdf967ae45f36a71dfb455b524137d2a51002a7d06ac3",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",
@@ -1464,7 +1464,7 @@
       "unset_environment": [
         "BPR_KEPT_GRANT_CAPTURE_DIR"
       ],
-      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged.",
+      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged. BPR-1694 failure diagnostics print only after an existing deadline or durable-position mismatch; they add no process, output artifact, successful-path observation, gesture or timing change. The normal native Windows composed course passes with these diagnostics and both production repairs.",
       "rows": [
         {
           "name": "application_profile_window_review_restoration_public_path",

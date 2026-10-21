@@ -268,3 +268,18 @@ passed; the outer wrapper's wrong stdout-marker guard is retained separately
 and reconciled read-only against the marker in stderr, without rerunning it.
 The reentrant host defect is proven, but linkage to the original composed
 failure and final native qualification remain to be established.
+
+## Normal composed integration after both repairs
+
+The original Windows restoration course passes in 291.322 seconds with both
+production repairs and failure-only fixture diagnostics. The executable excludes
+the temporary admission, selection, store, factory and Quit-barrier probes.
+Original gestures, immediate public Quit, deadlines and exact durable position
+and active-tab equalities remain intact. Both production files match the common
+committed candidate. All temporary native source substitutions were restored.
+
+The deterministic host counterfactual proves the same line-reset symptom, but
+the exact callback sequence from the earlier composed failure was not captured.
+Those failures remain retained. This composed pass supplies integration evidence;
+full native Release and Debug qualification, artifact audits, signing and
+publication remain pending.
