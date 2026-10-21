@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-J2"
+id: "BPR-1690"
 title: "Keep generated-file marks in the review ledger"
 status: "Done"
 rfcs: ["RFC-BPR-0089"]
-depends_on: ["BPR-PENDING-J1"]
+depends_on: ["BPR-1689"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"milestone":"RFC-BPR-0089 M2","related_cards":["BPR-PENDING-J1","BPR-PENDING-J3"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1689--BPR-1693--627bb0b13945.json","milestone":"RFC-BPR-0089 M2","related_cards":["BPR-1689","BPR-1691"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8e296033dd8586fa127a1994f3f03e1ca8fe2697","evidence":{"kind":"command","command":"ctest --preset dev -R '^(sqlite_review_ledger_storage|sqlite_private_review_storage|sqlite_private_store_open|application_review_ledger_host|application_agent_invocation_host)$'","detail":"Schema 11 adds generated_mark (STRICT, scope foreign key, a row that says nothing refused by the table); a schema 10 ledger migrates with an empty table; marks round-trip by scope in identity order, replace, erase idempotently and survive restart; a mark that says nothing or an invalid file is refused. The ledger host persists one mark through the private write lane, keeps it in place in the private observation, erases a mark that says nothing, and a refused or invalid write changes nothing; the observing store signals each accepted mark write once. macOS."}}]
 ---
 
-# BPR-PENDING-J2: Keep generated-file marks in the review ledger
+# BPR-1690: Keep generated-file marks in the review ledger
 
 RFC-BPR-0089 M2: "The reviewer's per-review overrides, kept in the ledger".
 

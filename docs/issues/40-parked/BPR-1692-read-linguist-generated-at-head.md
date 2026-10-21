@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-J4"
+id: "BPR-1692"
 title: "Read linguist-generated from the head's .gitattributes"
 status: "Parked"
 rfcs: ["RFC-BPR-0089"]
-depends_on: ["BPR-PENDING-J1", "BPR-PENDING-J3"]
+depends_on: ["BPR-1689", "BPR-1691"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"milestone":"RFC-BPR-0089 M2","owner_question":"attended session e081a94ec80b52c1ecb067710c8983cc, candidate RFC-BPR-0089-M2-attribute-matcher revision rfc-bpr-0089-m2-matcher-q1, external state /Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0089-m2-matcher-v001","related_cards":["BPR-PENDING-J1","BPR-PENDING-J3"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1689--BPR-1693--627bb0b13945.json","milestone":"RFC-BPR-0089 M2","owner_question":"attended session e081a94ec80b52c1ecb067710c8983cc, candidate RFC-BPR-0089-M2-attribute-matcher revision rfc-bpr-0089-m2-matcher-q1, external state /Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0089-m2-matcher-v001","related_cards":["BPR-1689","BPR-1691"]}
 parked_on: "human-review"
 ---
 
-# BPR-PENDING-J4: Read linguist-generated from the head's .gitattributes
+# BPR-1692: Read linguist-generated from the head's .gitattributes
 
 RFC-BPR-0089 M2, rule 2 of "Generated files are set aside": `linguist-generated`
 at the pull request's head decides a file the reviewer has not marked.

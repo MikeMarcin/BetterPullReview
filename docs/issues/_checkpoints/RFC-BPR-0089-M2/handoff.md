@@ -6,7 +6,7 @@ implementation coordinator, after M1 landed on main at `26ea30e7b`. Branch
 BPR-1680). Tested code candidate:
 `8e296033dd8586fa127a1994f3f03e1ca8fe2697`. The commit that adds this
 checkpoint and the cards changes only documentation. Issue IDs are
-provisional (`BPR-PENDING-J1` to `J5`); the coordinator allocates them on main.
+provisional (`BPR-1689` to `J5`); the coordinator allocates them on main.
 
 `frontend-design:frontend-design` was loaded before the generated row, the
 bulk label, the file-menu gestures and the chip's file-filter text were drawn.
@@ -47,14 +47,14 @@ fnmatch(3), Qt wildcards or gix-glob.
 
 | RFC criterion | M2 status | Where |
 |---|---|---|
-| AC04, marks and gestures | pass, fixture through the shipped composition: Review anyway, Show as normal and Treat as generated work and persist across restart; Clear all filters leaves generated files behind their row; nothing is hidden before a rule or gesture | [[BPR-PENDING-J3]] AC1 |
-| AC04, Hide files these commits changed | pass, fixture: C2's 96 paths hidden in C3 as well | [[BPR-PENDING-J3]] AC2 |
-| AC04, `linguist-generated` and `-linguist-generated` | not delivered; parked on the owner's matcher answer; decision and boundary ready | [[BPR-PENDING-J4]] |
-| AC04, live on BPR-Test | not run: the attribute half needs J4; the no-attribute gestures are covered by the fixture course | [[BPR-PENDING-J4]] |
-| AC05 (M2 gestures) | pass: no review mutation terminal after file-filter and generated gestures | [[BPR-PENDING-J3]] AC4 |
-| AC08 (M2 decisions) | pass under `core-only` | [[BPR-PENDING-J1]] |
-| Bulk label (RFC Commits tab) | pass, model and Qt; the fixture's 96-file C2 is correctly unlabelled | [[BPR-PENDING-J3]] AC3 |
-| Generated row "opening one shows its diff on request" | not delivered; Review anyway reads it today | [[BPR-PENDING-J5]] |
+| AC04, marks and gestures | pass, fixture through the shipped composition: Review anyway, Show as normal and Treat as generated work and persist across restart; Clear all filters leaves generated files behind their row; nothing is hidden before a rule or gesture | [[BPR-1691]] AC1 |
+| AC04, Hide files these commits changed | pass, fixture: C2's 96 paths hidden in C3 as well | [[BPR-1691]] AC2 |
+| AC04, `linguist-generated` and `-linguist-generated` | not delivered; parked on the owner's matcher answer; decision and boundary ready | [[BPR-1692]] |
+| AC04, live on BPR-Test | not run: the attribute half needs J4; the no-attribute gestures are covered by the fixture course | [[BPR-1692]] |
+| AC05 (M2 gestures) | pass: no review mutation terminal after file-filter and generated gestures | [[BPR-1691]] AC4 |
+| AC08 (M2 decisions) | pass under `core-only` | [[BPR-1689]] |
+| Bulk label (RFC Commits tab) | pass, model and Qt; the fixture's 96-file C2 is correctly unlabelled | [[BPR-1691]] AC3 |
+| Generated row "opening one shows its diff on request" | not delivered; Review anyway reads it today | [[BPR-1693]] |
 
 ## Verification on the candidate
 
@@ -99,10 +99,10 @@ process_support lane) is edited.
 
 ## Open obligations and next action
 
-- On the owner's answer: carry [[BPR-PENDING-J4]] with the chosen matcher, then
+- On the owner's answer: carry [[BPR-1692]] with the chosen matcher, then
   the fixture with attributes and the live BPR-Test course of the owner's
   shape.
-- [[BPR-PENDING-J5]]: open a set-aside file's diff on request.
+- [[BPR-1693]]: open a set-aside file's diff on request.
 - [[BPR-1688]] also covers restoring file filters with the window.
 - Windows and Linux are unmeasured.
 

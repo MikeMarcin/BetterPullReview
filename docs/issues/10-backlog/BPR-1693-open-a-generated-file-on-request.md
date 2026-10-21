@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-J5"
+id: "BPR-1693"
 title: "Open a generated file's diff from the generated row on request"
 status: "Backlog"
 rfcs: ["RFC-BPR-0089"]
-depends_on: ["BPR-PENDING-J3"]
+depends_on: ["BPR-1691"]
 priority: "P2"
 platforms: ["mac", "win", "linux"]
-metadata: {"milestone":"RFC-BPR-0089 M2","origin":"RFC-BPR-0089 'Generated files are set aside': 'Expanding it lists them, and opening one shows its diff on request.'","related_cards":["BPR-PENDING-J3"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1689--BPR-1693--627bb0b13945.json","milestone":"RFC-BPR-0089 M2","origin":"RFC-BPR-0089 'Generated files are set aside': 'Expanding it lists them, and opening one shows its diff on request.'","related_cards":["BPR-1691"]}
 ---
 
-# BPR-PENDING-J5: Open a generated file's diff from the generated row on request
+# BPR-1693: Open a generated file's diff from the generated row on request
 
 RFC-BPR-0089 says the generated row lists the files set aside, "and opening one
 shows its diff on request", while they stay out of Next file, the counts and
@@ -18,7 +18,7 @@ preparation.
 
 ## Today
 
-The generated row ([[BPR-PENDING-J3]]) lists each file set aside and why, and
+The generated row ([[BPR-1691]]) lists each file set aside and why, and
 its context menu offers Review anyway, Show as normal and Follow
 .gitattributes. Activating a listed file opens nothing: the workbench reads
 only files in its actionable order, and a set-aside file is not in it. Review
