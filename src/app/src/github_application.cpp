@@ -20554,7 +20554,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_keyboard_range,
 				awaiting_range_prefilled,
 				awaiting_range_published,
-				// [[BPR-PENDING-AB]]. A dragged selection, a right-click inside
+				// [[BPR-1721]]. A dragged selection, a right-click inside
 				// it and Add comment, as a mouse delivers them to the window.
 				awaiting_mouse_range,
 				awaiting_mouse_range_opened,
@@ -20576,7 +20576,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			/// line-draft phases (`--line-draft-course`).
 			std::optional<std::uint32_t> RangeStart;
 			std::string                  Prefill;
-			/// [[BPR-PENDING-AB]]. The dragged range's first line, and whether
+			/// [[BPR-1721]]. The dragged range's first line, and whether
 			/// the drag has been made and the menu's item chosen.
 			std::optional<std::uint32_t> MouseRangeStart;
 			bool                         MouseDragged  = false;
@@ -31074,7 +31074,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			probe.Phase = state_type::phase::awaiting_mouse_range;
 			return result::pending;
 		}
-		// [[BPR-PENDING-AB]]. The owner's course: several right lines selected
+		// [[BPR-1721]]. The owner's course: several right lines selected
 		// by a drag, a right-click inside the selection, and Add comment on
 		// the menu the window opens, each delivered to the window as the
 		// platform delivers it, with the event loop turning between them.

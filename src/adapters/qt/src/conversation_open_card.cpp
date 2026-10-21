@@ -1107,7 +1107,7 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("openThreadCard"));
 		// [[BPR-1212]]. A draft on the base side says so.
 		const auto base = aCard.Side == core::diff_side::left ? QStringLiteral("base ") : QString{ };
-		// [[BPR-PENDING-AB]]. A published thread on several lines names them.
+		// [[BPR-1721]]. A published thread on several lines names them.
 		const auto spanned = thread_first_line(aCard);
 		setAccessibleName(Writing                     ? (aCard.Line && aCard.FirstLine ? QStringLiteral("Your draft on %1lines %2–%3").arg(base).arg(*aCard.FirstLine).arg(*aCard.Line)
 															 : aCard.Line              ? QStringLiteral("Your draft on %1line %2").arg(base).arg(*aCard.Line)
@@ -1165,7 +1165,7 @@ namespace bpr::qt {
 			if (!Style.Feed) {
 				where->setFont(mono);
 			}
-			// [[BPR-PENDING-AB]]. A thread on several lines shows them all.
+			// [[BPR-1721]]. A thread on several lines shows them all.
 			const auto spanned = aCard.Writing ? std::optional<std::uint32_t>{ } : thread_first_line(aCard);
 			const auto lines   = spanned ? QStringLiteral("lines %1–%2").arg(*spanned).arg(*aCard.Line) : QStringLiteral("line %1").arg(*aCard.Line);
 			where->setText(Style.Feed ? QStringLiteral("Open in Review") : spanned ? QStringLiteral("%1–%2").arg(*spanned).arg(*aCard.Line)

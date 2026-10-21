@@ -1340,7 +1340,7 @@ namespace bpr::qt {
 				}
 				const auto posts = card.Posts.size();
 				// [[BPR-1212]] slice 1. A draft on several lines names them.
-				// [[BPR-PENDING-AB]]. So does a published thread on several,
+				// [[BPR-1721]]. So does a published thread on several,
 				// from GitHub's `start_line`: it read as one line before.
 				const auto first = thread_first_line(card);
 				const auto lines = first.has_value() ? QStringLiteral("Lines %1–%2").arg(*first).arg(*card.Line)

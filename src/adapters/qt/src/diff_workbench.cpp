@@ -1094,7 +1094,7 @@ namespace bpr::qt {
 				// with the gutter showing threads, its tinted number says so
 				// instead, and the open thread's line is washed amber (the note
 				// under the pointer, lightly).
-				// [[BPR-PENDING-AB]]. A thread on several lines washes them all
+				// [[BPR-1721]]. A thread on several lines washes them all
 				// when open, as my draft on several does; its edge mark stays
 				// on its last line, where GitHub anchors it.
 				for (const auto& mark : Marks) {
@@ -1386,7 +1386,7 @@ namespace bpr::qt {
 				Pane->leave_add_hover();
 				QWidget::leaveEvent(aEvent);
 			}
-			/// [[BPR-PENDING-AB]]. A right-click on a line's number asks for
+			/// [[BPR-1721]]. A right-click on a line's number asks for
 			/// the pane's menu at that line, as one on its code does. The
 			/// scroll area drops a pointer's menu request that is not its
 			/// viewport's, so the numbers opened no menu.
@@ -2112,7 +2112,7 @@ namespace bpr::qt {
 				if (!mark.Open) {
 					continue;
 				}
-				// [[BPR-PENDING-AB]]. All the lines of a thread on several.
+				// [[BPR-1721]]. All the lines of a thread on several.
 				const auto row = mark_span_rect(mark);
 				if (row.isEmpty() || row.bottom() + header < 0 || row.top() + header > Gutter->height()) {
 					continue;

@@ -10236,7 +10236,7 @@ namespace bpr::qt {
 								   : several                    ? tr("Suggest new text for these lines: a suggestion block GitHub can apply")
 																: tr("Suggest new text for this line: a suggestion block GitHub can apply"));
 			action->setStatusTip(action->toolTip());
-			// [[BPR-PENDING-AB]]. An item that takes several lines names them,
+			// [[BPR-1721]]. An item that takes several lines names them,
 			// as the core decided them, so a range is seen before it is chosen.
 			auto text = action->text();
 			if (several && why.isEmpty()) {

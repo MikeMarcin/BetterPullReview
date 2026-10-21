@@ -247,7 +247,7 @@ namespace bpr::qt {
 		std::vector<card_post> Posts;
 	};
 
-	/// \brief [[BPR-PENDING-AB]]. The one-based first line of a card on
+	/// \brief [[BPR-1721]]. The one-based first line of a card on
 	/// several lines, or none for one line: my draft's `FirstLine`, or a
 	/// published thread's `StartLine`, when it is above the card's `Line`.
 	[[nodiscard]] inline auto thread_first_line(const thread_card& aCard) noexcept -> std::optional<std::uint32_t>
@@ -295,7 +295,7 @@ namespace bpr::qt {
 		/// bracket in place of the amber wash.
 		bool Writing = false;
 		/// [[BPR-1212]] slice 1. My draft on several lines: its zero-based
-		/// first line, where the bracket starts. [[BPR-PENDING-AB]]: or a
+		/// first line, where the bracket starts. [[BPR-1721]]: or a
 		/// published thread's, from GitHub's `start_line`.
 		std::optional<std::uint32_t> FirstLine;
 		/// The note under the pointer: its line is washed lightly.

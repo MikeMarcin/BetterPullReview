@@ -1937,7 +1937,7 @@ namespace {
 		QApplication::processEvents();
 		expect(asked.size() == 1U && std::get<0>(asked[0]) == "src/engine/renderer.cpp" && std::get<1>(asked[0]) == 12U && std::get<2>(asked[0]) == 13U,
 			   "the commented lines are asked for from the start line to the line");
-		// [[BPR-PENDING-AB]]. The thread is on lines 12 to 13, and says so: its
+		// [[BPR-1721]]. The thread is on lines 12 to 13, and says so: its
 		// card, its header's line button, and its mark, whose open wash spans
 		// both lines. It read as a thread on line 13 alone.
 		const auto* const shown = view.open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));

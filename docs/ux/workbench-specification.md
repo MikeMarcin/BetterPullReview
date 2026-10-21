@@ -1945,7 +1945,7 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   selection, which it keeps, with its selected line. The menu is headed "Line
   N", "Lines a–b" or "Base line N" and offers Add comment (Return) and Suggest
   change (Shift+Return). On several lines the items name them, "Add comment
-  on lines a–b" or "on base lines a–b" ([[BPR-PENDING-AB]]). A right-click on
+  on lines a–b" or "on base lines a–b" ([[BPR-1721]]). A right-click on
   a line number opens the same menu for that line. A line selected by the
   right-click is not refused for a draft still on its way. An item that cannot apply is unavailable, and a
   row under the items says why in a few words ("This file's base is not
@@ -2594,7 +2594,7 @@ named for the lines when there are several ("Add comment on lines a–b").
 A published thread on several lines, GitHub's `start_line` to `line`, says
 "a–b" in its header and "Lines a–b" in its mark's description, and its open
 wash and bar span all of them, its edge mark on the last
-([[BPR-PENDING-AB]]). Suggest change starts the draft as a
+([[BPR-1721]]). Suggest change starts the draft as a
 ```` ```suggestion ```` block holding the selected lines exactly, the caret
 at the end of its last line, set monospaced and unwrapped, and shows what the
 block changes as it is edited. Neither key nor item acts on lines the core

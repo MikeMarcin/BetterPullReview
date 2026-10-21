@@ -11,7 +11,7 @@ cmake_minimum_required(VERSION 4.4.2)
 # suggestion block with the caret at its last line; Publish sends GitHub's
 # start_line, line, start_side and side to the fixture server; with no line
 # selected, Return opens nothing and the status line says how to select one.
-# [[BPR-PENDING-AB]]: three right lines dragged with the mouse, a right-click
+# [[BPR-1721]]: three right lines dragged with the mouse, a right-click
 # inside them and the menu's "Add comment on lines a–b", each delivered to the
 # window as the platform delivers it, open the drawer draft on all three; its
 # Publish sends start_line and line, and the thread the conversations then

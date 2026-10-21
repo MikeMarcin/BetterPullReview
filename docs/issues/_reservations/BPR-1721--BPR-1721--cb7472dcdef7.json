@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1721"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A comment on a selection shows its lines",
+  "created": "2026-10-21T22:41:08.917902+00:00",
+  "base": "9cdea79288f80c9e76be89fcb73ac168c33ad215"
+}

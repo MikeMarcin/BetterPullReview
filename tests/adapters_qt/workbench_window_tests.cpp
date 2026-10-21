@@ -11436,7 +11436,7 @@ namespace {
 		window.hide();
 	}
 
-	// [[BPR-PENDING-AB]]. The owner: "Am I supposed to be able to leave
+	// [[BPR-1721]]. The owner: "Am I supposed to be able to leave
 	// comments on a line range? Seems like I can only do it on a single line",
 	// "I would expect to be able to do it from the right click context menu",
 	// "On a selection". Every gesture goes to the window as the platform

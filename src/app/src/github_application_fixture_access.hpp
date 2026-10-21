@@ -891,7 +891,7 @@ namespace bpr::app::detail {
 		/// the block, `line` the last line, `start_line` the first, and both
 		/// sides RIGHT.
 		bool RangePublishedExact = false;
-		/// [[BPR-PENDING-AB]]. Three right lines selected by a drag, a
+		/// [[BPR-1721]]. Three right lines selected by a drag, a
 		/// right-click inside them and the menu's "Add comment on lines a–b",
 		/// delivered to the window as a mouse delivers them, opened the drawer
 		/// draft on all three: anchored to the last, starting at the first.
