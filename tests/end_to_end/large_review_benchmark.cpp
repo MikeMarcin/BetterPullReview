@@ -83,7 +83,7 @@ namespace bpr::e2e::large_review {
 	/// The 100 ms input target is the same everywhere. A phase measured at or
 	/// above 90 ms of it on a platform is named in KnownInputMisses: reported
 	/// in every report and in InputBudgetFailures when over, not enforced,
-	/// and owned by a follow-up card. No limit is raised to absorb a miss.
+	/// and owned by a follow-up card. No input limit is raised to absorb a miss.
 	///
 	/// A Debug build enforces nothing it lacks a Debug justification for:
 	/// on macOS the historical Debug limits ([[BPR-1247]]), elsewhere none.
@@ -98,6 +98,7 @@ namespace bpr::e2e::large_review {
 	inline constexpr std::string_view PlatformLimitBasis                         = "macOS arm64 M4 Pro 48 GiB, Qt 6.11.2, Apple clang 21 Release at 5a26d6b1";
 	inline constexpr std::uint64_t    PlatformFootprintGrowthLimitBytes          = 160U * MiB;
 	inline constexpr std::uint64_t    PlatformCacheByteFootprintGrowthLimitBytes = 184U * MiB;
+	inline constexpr std::uint64_t    PlatformCacheByteHeapGrowthLimitBytes      = PlatformCacheByteFootprintGrowthLimitBytes;
 	inline constexpr double           PlatformActiveCloseQuiescenceLimitMs       = 100.0;
 	// [[BPR-1264]]. approximate_file_selection (96.3-111.1, the work-limited
 	// approximate alignment course) was the publication that replaced both
@@ -112,6 +113,7 @@ namespace bpr::e2e::large_review {
 	// loaded-close keeps 160; the byte course's 185.43 MiB peak gives 208.
 	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 160U * MiB;
 	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 208U * MiB;
+	inline constexpr std::uint64_t PlatformCacheByteHeapGrowthLimitBytes      = PlatformCacheByteFootprintGrowthLimitBytes;
 	// Public close reached quiescence in 98.854 ms: 150.
 	inline constexpr double PlatformActiveCloseQuiescenceLimitMs = 150.0;
 	// [[BPR-1264]]. large_file_selection, large_source_revisit_render,
@@ -129,11 +131,13 @@ namespace bpr::e2e::large_review {
 	inline constexpr int RunBudgetScale = OptimizedBuild ? 1 : 3;
 #else
 	inline constexpr bool             PlatformBudgetsEnforced = OptimizedBuild;
-	inline constexpr std::string_view PlatformLimitBasis      = "Linux x64 (WSL2) i9-10900KF, Qt 6.11.2, GCC 15.2 -O3 Release at e257b236a";
-	// Resident-set growth: 147.04 MiB in loaded-close gives 168; the byte
-	// course's 196.01 MiB high-water mark gives 216.
+	inline constexpr std::string_view PlatformLimitBasis      = "Linux x64 (WSL2) i9-10900KF, Qt 6.11.2, GCC 15.2 -O3 Release at e257b236a; cache-byte RSS: Qt 6.12 Release at f25a65274, BPR-1653 owner amendment";
+	// Resident-set growth: 147.04 MiB in loaded-close gives 168.
+	// [[BPR-1653]]. The owner authorizes a 240 MiB cache-byte RSS budget;
+	// its independent sampled live-heap ceiling retains the original 216 MiB.
 	inline constexpr std::uint64_t PlatformFootprintGrowthLimitBytes          = 168U * MiB;
-	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 216U * MiB;
+	inline constexpr std::uint64_t PlatformCacheByteFootprintGrowthLimitBytes = 240U * MiB;
+	inline constexpr std::uint64_t PlatformCacheByteHeapGrowthLimitBytes      = 216U * MiB;
 	inline constexpr double        PlatformActiveCloseQuiescenceLimitMs       = 100.0;
 	// [[BPR-1264]]. The four named phases (large_file_selection 94.4-108.0,
 	// large_source_revisit_render 90.4-115.3, approximate_file_selection
@@ -3018,7 +3022,7 @@ namespace bpr::e2e::large_review {
 			report.Extended.Heap = heapSampler.finish();
 			if (observeResources) {
 				report.Extended.SampledPeakHeapGrowthLimitBytes = report.CacheByteCourse
-					? report.CacheByteFootprintGrowthLimitBytes
+					? PlatformCacheByteHeapGrowthLimitBytes
 					: report.SampledFootprintGrowthLimitBytes;
 				require(report.Extended.Heap.Samples > 1U, "live-heap sampler took no samples");
 				require_limit(report, report.Extended.AllocationProfile || report.Extended.Heap.PeakBytes <= report.Extended.Heap.BaselineBytes + report.Extended.SampledPeakHeapGrowthLimitBytes,

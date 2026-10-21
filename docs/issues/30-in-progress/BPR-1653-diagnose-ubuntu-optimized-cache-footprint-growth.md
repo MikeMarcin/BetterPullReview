@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
-metadata: {"assigned_implementer":"/root/release_repairs_recovered","mandate":"release-v030-coordinated-r1","baseline":"f164d6214664111c27eb4e89a33d68fce293925e","reservation":"docs/issues/_reservations/BPR-1653--BPR-1653--c646fbf2f786.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["tests/end_to_end/large_review_benchmark.cpp","tests/end_to_end/large_review_native_memory.cpp","tests/end_to_end/large_review_observers.hpp","src/app/src/large_review_fixture.hpp","tests/end_to_end/application_review_round_trip_composition_contract.cmake"],"boundary":"Named memory-course diagnosis and subsequently grounded bounded repair; report product-input impact before candidate mutation, no budget/predicate relaxation or platform skip"}
+metadata: {"assigned_implementer":"/root/ubuntu_rss_fix","mandate":"bpr1653-measured-ubuntu-rss-budget-r1","baseline":"f25a65274763066ed4519aa6aec6283ae1c0a4cb","reservation":"docs/issues/_reservations/BPR-1653--BPR-1653--c646fbf2f786.json","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"owned_paths":["tests/end_to_end/large_review_benchmark.cpp"],"boundary":"Owner-authorized measured Ubuntu RSS-growth budget adjustment only; retain independent live-heap216MiB, workload/cache/accounting/lifecycle/registration and all other limits; no causal memory-reduction claim","checkpoint":"docs/issues/_checkpoints/BPR-1653/rss-budget.md"}
 ---
 
 # BPR-1653: Diagnose Ubuntu optimized cache footprint growth
@@ -264,3 +264,34 @@ Ubuntu process RSS-growth exception to v0.3.1. The observation remains failed,
 the separate 64 MiB cache bound remains required, and AC1–AC4 are unchanged.
 After publication a dedicated implementer owns causal diagnosis and a justified
 repair with the unchanged original course. No other qualification is waived.
+
+## Owner amendment 2026-10-20 — measured Ubuntu RSS budget
+
+The owner directed: “regarding ubuntu rss: if we're close just call it good
+enough and raise the limit to pass.” The coordinator authorizes a modest
+Ubuntu-only RSS-growth limit of 240 MiB if one current authoritative normal
+course is comparably close, followed by one complete adjusted-course check.
+This supersedes AC1/AC2/AC4's unchanged-216-MiB/no-limit-change requirement only
+for this measured RSS adjustment. It resolves the budget requirement without
+asserting a causal memory reduction. Original failures, rejected controls,
+R18's ownership falsification and all remaining observations stay preserved.
+AC3's actual optimized native course remains required. All workload, cache
+capacity/admission/accounting, heap, input, lifecycle, registration, timeout
+and other-platform requirements remain unchanged.
+
+The clean authoritative M3 source
+`f25a65274763066ed4519aa6aec6283ae1c0a4cb` fails the original registered Ubuntu
+Release course in 48.8543 seconds (CTest exit 8, no acceptance marker). Its
+before-application VmRSS is 29585408 bytes; selection 18 has absolute VmRSS
+and VmHWM 256098304 bytes, giving sampled and lifetime growth 226512896 bytes
+(216.01953125 MiB) against 226492416 (216 MiB): 20480 bytes, or 0.00904%, over.
+These are growth figures above the original VmRSS baseline, not absolute RSS
+peaks. The failure prevents later assertions from completing.
+
+The candidate changes the Linux cache-byte RSS/VmHWM-growth scalar to
+251658240 bytes (240 MiB), a 24 MiB/11.11% increase. The independent sampled
+live-heap ceiling remains 226492416 bytes (216 MiB); it is separated from the
+previously shared RSS scalar. The historical normal v0.3.1 growth observation
+was 219.5859375 MiB, so the proposed margin also covers that retained evidence.
+Instrumented/latched R6/R6g and supplemental measurements do not calibrate this
+limit. Full adjusted-course acceptance is pending in the checkpoint.
