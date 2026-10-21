@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-demo/lantern",
+	"id": 2,
+	"name": "lantern",
+	"node_id": "R_lantern",
+	"owner": {
+		"login": "bpr-demo"
+	},
+	"private": false
+}

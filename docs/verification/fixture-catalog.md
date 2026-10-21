@@ -182,6 +182,25 @@ seen in each; `--attended-open-file … --attended-read-state` records that
 through the review ledger before a person looks. Constructed, not recorded; its
 fixture test regenerates the construction and the served tree byte for byte.
 
+### `promo-v1`, the pull request promotional captures show
+
+Added for [[BPR-1676]], so the website, README and store pages show the
+application on a pull request someone might really review.
+`scripts/build_promo_fixture.py` writes six files of a made-up game engine
+(`bpr-demo/lantern#512`, "Pace frames to the display's vblank instead of
+sleeping") into
+`tests/fixtures/github/pull-requests/promo-v1/construction.json`. Unlike
+`conversations-v1`, whose changes are all added lines, its code changes in
+place, so the link map, intraline emphasis and Line details have rewritten
+lines to show. The same pack and contract builders serve it; the script's
+`--threads` step gives the served tree eight Conventional Comments threads
+(19 posts, two resolved) on changed lines and makes `sam` the viewer, reviewing
+`mira`'s pull request. `read_state.json` leaves six posts unread for
+`--attended-read-state`. Constructed, not recorded; its fixture test
+regenerates the construction and the served tree byte for byte.
+`scripts/capture_promo_assets.py` captures it; see
+`.codex/skills/update-promo-assets`.
+
 ### `line-details-v1`, long changed lines
 
 Added for [[BPR-1334]], so Line details can be judged on the lines it is for.

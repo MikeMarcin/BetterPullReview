@@ -9744,6 +9744,21 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 21,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "promo-v1") {
+				// [[BPR-1676]]. The promotional captures' pull request; see
+				// `scripts/build_promo_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::promo_v1;
+				fixtureName            = "promo-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-demo",
+					.Repository               = "lantern",
+					.Number                   = 512,
+					.ExpectedTitle            = "Pace frames to the display's vblank instead of sleeping",
+					.ExpectedAccountText      = "sam (@sam)",
+					.ExpectedConversationRows = 8,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else {
 				QTextStream{ stdout } << "PUBLIC_PATH_FAILED\n";
 				return EXIT_FAILURE;
@@ -10240,7 +10255,8 @@ auto main(int argc, char** argv) -> int
 			fixtureOptions.ReviewSubmissionServer->ConversationComments  = R"json([{"id":5001,"node_id":"pr-chip-author","created_at":"2026-10-17T01:00:00Z","body":"Added a test that runs the budget out. On the early return: I would rather not record a frame that never submitted. OK to leave Stats_ untouched there?","user":{"node_id":"U_jiayin","login":"jiayin","type":"User"}},{"id":5002,"node_id":"pr-chip-perf","created_at":"2026-10-17T02:00:00Z","body":"Perf run on the 5K panel: frame time unchanged within noise. Fine by me.","user":{"node_id":"U_tbutler","login":"tbutler","type":"User"}},{"id":5003,"node_id":"pr-chip-reply","created_at":"2026-10-18T01:00:00Z","body":"Agreed on not recording it. Please count the skipped frames instead, so the soak run shows how often the budget runs out.","user":{"node_id":"U_reviewer_one","login":"reviewer-one","type":"User"}}])json";
 		}
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || attendedUnknownReviewLook || attendedFinishReviewLook;
-		// [[BPR-1293]]. On conversations-v1 after the file, its read state.
+		// [[BPR-1293]]. On conversations-v1 after the file, its read state;
+		// [[BPR-1676]] on promo-v1 too.
 		const auto attendedReadState = launch.has("--attended-read-state");
 		// [[BPR-1086]]. On conventional-comments-v1 after the file, renderer.cpp's
 		// line 12 thread as a published tour stop whose narrative is labelled.
@@ -10348,7 +10364,7 @@ auto main(int argc, char** argv) -> int
 			|| (attendedPreflightLook.has_value()
 				&& (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1"
 					|| (*attendedPreflightLook != "native" && *attendedPreflightLook != "text-only" && *attendedPreflightLook != "review")))
-			|| (attendedReadState && (!attendedOpenFile.has_value() || fixtureName != "conversations-v1"))
+			|| (attendedReadState && (!attendedOpenFile.has_value() || (fixtureName != "conversations-v1" && fixtureName != "promo-v1")))
 			|| (attendedUnknownReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop))
 			|| (attendedFinishReviewLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook))
 			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))

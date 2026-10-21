@@ -83,6 +83,11 @@ network, or process effects.
 - Implementers never drive or capture the owner's live macOS desktop
   (`screencapture`, `cliclick`, foreground windows): it may be screen-shared.
   Use offscreen renders and the frozen build; the owner looks themselves.
+  The one exception is promotional capture ([[BPR-1676]]): when the owner
+  asks for promo assets in the session, `.codex/skills/update-promo-assets`
+  may run `scripts/capture_promo_assets.py --confirm-desktop`, after saying so,
+  for about a minute. It captures only the application's own window, never a
+  screen region (owner, 2026-10-20).
 - Never read the owner's browser profiles, history, cookies, open-tab files,
   keychains or other personal application data to confirm a result. Verify
   through the product's own output or a stub, and ask the owner to confirm what

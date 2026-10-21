@@ -86,6 +86,10 @@ namespace bpr::app::detail {
 		/// in ten files, one of them branching, for judging Threads
 		/// against its prototype.
 		conversations_v1,
+		/// [[BPR-1676]]. A made-up game engine pull request whose code changes
+		/// in place, with eight labelled threads on the changed lines, for the
+		/// promotional captures.
+		promo_v1,
 		/// [[BPR-1334]]. Four files whose changed lines are long: minified
 		/// JSON, unwrapped Markdown, a long SQL literal and call, and a
 		/// twelve-thousand-character minified line, for judging Line details.

@@ -301,6 +301,14 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListReviewThreads": "synthetic"},
     },
+    # [[BPR-1676]]. The promotional captures' pull request, written by
+    # scripts/build_promo_fixture.py.
+    "promo-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-demo", "lantern", 512),
+        "mirrors": None,
+        "response_fields": {"ListReviewThreads": "synthetic"},
+    },
 }
 
 # The real commits the recording names. They must appear nowhere in a served

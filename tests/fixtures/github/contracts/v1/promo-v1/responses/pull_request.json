@@ -1,0 +1,32 @@
+{
+	"base": {
+		"ref": "main",
+		"repo": {
+			"full_name": "bpr-demo/lantern",
+			"id": 2
+		},
+		"sha": "1111111111111111111111111111111111111111"
+	},
+	"body": "Frame pacing slept until a deadline and spun for the last 1.5 ms. On high-refresh displays that drifted against vblank, and we dropped a frame every few seconds.\n\nThis paces to the swap chain's vblank instead:\n\n- `frame_pacer` asks the swap chain for the next vblank and waits on it.\n- The target rate is clamped to the display's refresh rate.\n- `renderer::draw` gets a present deadline, so it can skip optional passes when a frame runs late.\n\nOn the 144 Hz test rig, the ten-minute soak test went from 212 dropped frames to 3.\n",
+	"changed_files": 6,
+	"commits": 1,
+	"draft": false,
+	"head": {
+		"ref": "vblank-pacing",
+		"repo": {
+			"full_name": "bpr-demo/lantern",
+			"id": 2
+		},
+		"sha": "2222222222222222222222222222222222222222"
+	},
+	"id": 3,
+	"merged": false,
+	"node_id": "PR_512",
+	"number": 512,
+	"state": "open",
+	"title": "Pace frames to the display's vblank instead of sleeping",
+	"user": {
+		"login": "mira",
+		"node_id": "U_mira"
+	}
+}

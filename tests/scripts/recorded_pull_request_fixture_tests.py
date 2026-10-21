@@ -295,6 +295,15 @@ CONSTRUCTIONS = (
         "Folders": 5,
         "Threads": "scripts/build_conversations_fixture.py",
     },
+    # [[BPR-1676]]. The promotional captures' pull request; its served tree
+    # gains the generator's eight review threads and sam as the viewer.
+    {
+        "Directory": "promo-v1",
+        "Generator": "scripts/build_promo_fixture.py",
+        "Files": 6,
+        "Folders": 4,
+        "Threads": "scripts/build_promo_fixture.py",
+    },
     # [[BPR-1334]]. Four files whose changed lines are long, for Line details.
     {
         "Directory": "line-details-v1",

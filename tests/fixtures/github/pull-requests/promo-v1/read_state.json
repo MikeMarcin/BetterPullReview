@@ -1,0 +1,12 @@
+{
+	"threads": {
+		"review-thread:PRRT_promo_buffers": "review-comment:PRRC_promo_buffers_2",
+		"review-thread:PRRT_promo_clamp": "review-comment:PRRC_promo_clamp_2",
+		"review-thread:PRRT_promo_count": "review-comment:PRRC_promo_count_2",
+		"review-thread:PRRT_promo_deadline": null,
+		"review-thread:PRRT_promo_dt": "review-comment:PRRC_promo_dt_2",
+		"review-thread:PRRT_promo_half": "review-comment:PRRC_promo_half_3",
+		"review-thread:PRRT_promo_tests": "review-comment:PRRC_promo_tests_1",
+		"review-thread:PRRT_promo_wait": "review-comment:PRRC_promo_wait_1"
+	}
+}

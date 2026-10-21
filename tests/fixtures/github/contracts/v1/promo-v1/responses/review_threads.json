@@ -1,0 +1,490 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_lantern",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "docs/rendering.md",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/app/game_loop.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/render/frame_pacer.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/render/frame_pacer.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/render/swap_chain.h",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "tests/render/frame_pacer_tests.cpp",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-demo/lantern:512:files",
+						"hasNextPage": false
+					},
+					"totalCount": 6
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_512",
+				"reviewThreads": {
+					"nodes": [
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_sam",
+											"login": "sam"
+										},
+										"bodyText": "issue (blocking): This waits on the vblank a whole period before the frame is due. On the 144 Hz rig with a 60 Hz target that is two refreshes early, so begin_frame returns before the previous frame has been shown.",
+										"id": "PRRC_promo_wait_1",
+										"line": 36,
+										"originalLine": 36,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "You're right. I was thinking of the period as one refresh. It should wait on the vblank at NextFrame and let wait_until round up to the grid.",
+										"id": "PRRC_promo_wait_2",
+										"line": 36,
+										"originalLine": 36,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_wait_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_promo_devon",
+											"login": "devon"
+										},
+										"bodyText": "+1. The soak test on the 144 Hz rig shows the same thing: frame times alternate 6.9 ms and 9.7 ms.",
+										"id": "PRRC_promo_wait_3",
+										"line": 36,
+										"originalLine": 36,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_wait_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fd2FpdF8z",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_wait",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 36,
+							"originalLine": 36,
+							"path": "src/render/frame_pacer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_devon",
+											"login": "devon"
+										},
+										"bodyText": "question: Why half a period? The old code only counted a drop after a whole period.",
+										"id": "PRRC_promo_half_1",
+										"line": 30,
+										"originalLine": 30,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "The display flips on the vblank either way, so a frame that lands 0.6 of a period late has already missed its refresh. Half a period keeps ordinary jitter from counting.",
+										"id": "PRRC_promo_half_2",
+										"line": 30,
+										"originalLine": 30,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_half_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_promo_sam",
+											"login": "sam"
+										},
+										"bodyText": "praise: That matches what the frame graph shows. Worth a line in the comment above?",
+										"id": "PRRC_promo_half_3",
+										"line": 30,
+										"originalLine": 30,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_half_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "Done in the next push.",
+										"id": "PRRC_promo_half_4",
+										"line": 30,
+										"originalLine": 30,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_half_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9faGFsZl80",
+									"hasNextPage": false
+								},
+								"totalCount": 4
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_half",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 30,
+							"originalLine": 30,
+							"path": "src/render/frame_pacer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_anand",
+											"login": "anand"
+										},
+										"bodyText": "suggestion: Clamp inside period_for, so the constructor and set_target_rate can't drift apart.",
+										"id": "PRRC_promo_clamp_1",
+										"line": 22,
+										"originalLine": 22,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "Good call. Moved.",
+										"id": "PRRC_promo_clamp_2",
+										"line": 22,
+										"originalLine": 22,
+										"outdated": false,
+										"path": "src/render/frame_pacer.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_clamp_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fY2xhbXBfMg==",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_clamp",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 22,
+							"originalLine": 22,
+							"path": "src/render/frame_pacer.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_lucia",
+											"login": "lucia"
+										},
+										"bodyText": "nitpick (non-blocking): Pass the measured frame time rather than the target. With the target, a dropped frame slows the simulation down instead of catching up.",
+										"id": "PRRC_promo_dt_1",
+										"line": 13,
+										"originalLine": 13,
+										"outdated": false,
+										"path": "src/app/game_loop.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "Agreed, but the fixed step is what the physics tests assume. I'd rather change that in its own pull request.",
+										"id": "PRRC_promo_dt_2",
+										"line": 13,
+										"originalLine": 13,
+										"outdated": false,
+										"path": "src/app/game_loop.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_dt_1"
+										}
+									},
+									{
+										"author": {
+											"id": "U_promo_lucia",
+											"login": "lucia"
+										},
+										"bodyText": "Fair. I'll open an issue for it.",
+										"id": "PRRC_promo_dt_3",
+										"line": 13,
+										"originalLine": 13,
+										"outdated": false,
+										"path": "src/app/game_loop.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_dt_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fZHRfMw==",
+									"hasNextPage": false
+								},
+								"totalCount": 3
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_dt",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 13,
+							"originalLine": 13,
+							"path": "src/app/game_loop.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_sam",
+											"login": "sam"
+										},
+										"bodyText": "chore: Nothing in this loop increments FrameCount, so this always logs \"of 0 frames\".",
+										"id": "PRRC_promo_count_1",
+										"line": 17,
+										"originalLine": 17,
+										"outdated": false,
+										"path": "src/app/game_loop.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "Oops. Fixed.",
+										"id": "PRRC_promo_count_2",
+										"line": 17,
+										"originalLine": 17,
+										"outdated": false,
+										"path": "src/app/game_loop.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_count_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fY291bnRfMg==",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_count",
+							"isOutdated": false,
+							"isResolved": true,
+							"line": 17,
+							"originalLine": 17,
+							"path": "src/app/game_loop.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": false,
+							"viewerCanUnresolve": true
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_anand",
+											"login": "anand"
+										},
+										"bodyText": "question (non-blocking): Triple buffering adds a frame of latency. Is it meant to be the default?",
+										"id": "PRRC_promo_buffers_1",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/render/swap_chain.h",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "Yes. With the present deadline the renderer can fall behind by one frame without a stall, and the extra buffer is what absorbs it. The latency setting still drops it to two.",
+										"id": "PRRC_promo_buffers_2",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "src/render/swap_chain.h",
+										"replyTo": {
+											"id": "PRRC_promo_buffers_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fYnVmZmVyc18y",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_buffers",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 12,
+							"originalLine": 12,
+							"path": "src/render/swap_chain.h",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_lucia",
+											"login": "lucia"
+										},
+										"bodyText": "polish: Say what \"optional passes\" are, or link the list in renderer.md.",
+										"id": "PRRC_promo_deadline_1",
+										"line": 12,
+										"originalLine": 12,
+										"outdated": false,
+										"path": "docs/rendering.md",
+										"replyTo": null
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fZGVhZGxpbmVfMQ==",
+									"hasNextPage": false
+								},
+								"totalCount": 1
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_deadline",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 12,
+							"originalLine": 12,
+							"path": "docs/rendering.md",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						},
+						{
+							"comments": {
+								"nodes": [
+									{
+										"author": {
+											"id": "U_promo_devon",
+											"login": "devon"
+										},
+										"bodyText": "praise: The fake swap chain makes these run in a millisecond. Could we add one for a 144 Hz display with a 60 Hz target?",
+										"id": "PRRC_promo_tests_1",
+										"line": 22,
+										"originalLine": 22,
+										"outdated": false,
+										"path": "tests/render/frame_pacer_tests.cpp",
+										"replyTo": null
+									},
+									{
+										"author": {
+											"id": "U_promo_mira",
+											"login": "mira"
+										},
+										"bodyText": "Yes, adding it with the fix for Sam's thread.",
+										"id": "PRRC_promo_tests_2",
+										"line": 22,
+										"originalLine": 22,
+										"outdated": false,
+										"path": "tests/render/frame_pacer_tests.cpp",
+										"replyTo": {
+											"id": "PRRC_promo_tests_1"
+										}
+									}
+								],
+								"pageInfo": {
+									"endCursor": "Y3Vyc29yOlBSUkNfcHJvbW9fdGVzdHNfMg==",
+									"hasNextPage": false
+								},
+								"totalCount": 2
+							},
+							"diffSide": "RIGHT",
+							"id": "PRRT_promo_tests",
+							"isOutdated": false,
+							"isResolved": false,
+							"line": 22,
+							"originalLine": 22,
+							"path": "tests/render/frame_pacer_tests.cpp",
+							"subjectType": "LINE",
+							"viewerCanResolve": true,
+							"viewerCanUnresolve": false
+						}
+					],
+					"pageInfo": {
+						"endCursor": "Y3Vyc29yOlBSUlRfcHJvbW9fdGVzdHM=",
+						"hasNextPage": false
+					},
+					"totalCount": 8
+				}
+			}
+		}
+	}
+}

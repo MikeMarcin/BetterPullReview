@@ -568,6 +568,28 @@ namespace bpr::app::detail {
 					.HeadTwoBlob         = "",
 					.Packs               = { .File = "conversations-v1/objects.pack" },
 				};
+			// [[BPR-1676]]. Constructed by `scripts/build_promo_fixture.py`:
+			// the pull request the promotional captures show, one head.
+			case github_public_path_fixture::promo_v1:
+				return {
+					.ContractDirectory   = "promo-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 512U },
+					.Owner               = "bpr-demo",
+					.Name                = "lantern",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "c8d078714e30667585ceffdf7f4c20d9131cd4a2",
+					.HeadOneOid          = "069cbf66992b253bf0bd73ed3e46e4a8019a0dc8",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "promo-v1/objects.pack" },
+				};
 			case github_public_path_fixture::cpp_identifiers_v1:
 				return {
 					.ContractDirectory   = "cpp-identifiers-v1",

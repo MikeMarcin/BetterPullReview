@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1676"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "promo-v1 constructed fixture and promo capture",
+  "created": "2026-10-21T02:28:26.516041+00:00",
+  "base": "e9023554eb8720e24ed34019158f93d243af99d4"
+}
