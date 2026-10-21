@@ -3002,6 +3002,11 @@ namespace bpr::app::detail {
 						State->RecordingFailure = -5;
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
 					}
+					if (const auto& refused = State->PersonalDiscovery->OtherRepositoriesRefused;
+						aRequest.Wire.Operation == read_operation::search_personal_pull_requests && refused && refused->load()
+						&& (aRequest.Wire.Semantic.Owner != State->Descriptor.Owner || aRequest.Wire.Semantic.Repository != State->Descriptor.Name)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::permission) };
+					}
 					if (aRequest.Wire.Operation == read_operation::search_personal_pull_requests) {
 						++State->DiscoverySearches;
 						State->DiscoverySearchTerms.push_back(aRequest.Wire.Semantic.SearchTerms);

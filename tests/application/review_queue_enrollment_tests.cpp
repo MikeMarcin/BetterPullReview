@@ -2452,6 +2452,52 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	// [[BPR-PENDING-B2]]. A refresh that ran to its end is fresh for activation
+	// even when one repository or pull request failed: coming back to Home (or
+	// to the window after the diagnostic export's dialog) does not run the whole
+	// refresh again. A refresh a session-wide failure stopped is retried.
+	void test_activation_after_a_refresh_that_ended_with_a_failure()
+	{
+		auto fixture = discovery_fixture{ };
+		fixture.Discovery.adopt(discovery_session());
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::permission));
+		fixture.Provider.answer(fixture.Provider.rows({ row(5U) }));
+		fixture.settle();
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.Provider.answer(fixture.Provider.rows({ }));
+		fixture.settle();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::repository_unavailable
+				   && !fixture.Discovery.status().LastSuccess && fixture.item(5),
+			   "a refresh with one unreadable repository ends stale, says why and keeps what it found");
+		const auto ended = fixture.Provider.Requests.size();
+		expect(ended == 4U && fixture.Discovery.statistics().Refreshes == 1U, "the refresh read each repository once");
+		fixture.Clock.Now += 30;
+		fixture.Discovery.activate();
+		fixture.Clock.Now += application::personal_discovery_freshness_seconds - 31;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == ended && fixture.Discovery.statistics().Refreshes == 1U,
+			   "activation inside the freshness window of that ended refresh reads nothing");
+		fixture.Clock.Now += 1;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == ended + 1U && fixture.Provider.next().Reason == application::personal_discovery_reason::retained
+				   && fixture.Discovery.statistics().Refreshes == 2U,
+			   "activation after the freshness window refreshes again, retained metadata first");
+		fixture.Provider.answer(fixture.Provider.failure(application::github_provider_failure::network));
+		fixture.settle();
+		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale
+				   && fixture.Discovery.status().Problem == application::queue_discovery_problem::offline,
+			   "a network failure stops the refresh");
+		const auto stopped = fixture.Provider.Requests.size();
+		fixture.Clock.Now += 30;
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == stopped + 1U && fixture.Discovery.statistics().Refreshes == 3U,
+			   "a refresh a session-wide failure stopped is retried on the next activation");
+		fixture.Discovery.shutdown();
+		fixture.settle();
+		fixture.Queue.shutdown();
+	}
+
 	void test_repository_addition_refuses_unknown_durable_state()
 	{
 		auto store     = memory_queue_store{ };
@@ -2680,6 +2726,7 @@ auto main() -> int
 	test_partial_failed_check_restart_is_last_known();
 	test_discovery_follows_the_saved_repositories();
 	test_discovery_freshness_and_forgotten_repositories();
+	test_activation_after_a_refresh_that_ended_with_a_failure();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;

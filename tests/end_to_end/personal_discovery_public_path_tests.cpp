@@ -202,6 +202,11 @@ try {
 	authoredRow->ReviewerRequestsPresent             = awaiting;
 	const auto draftStatus                           = std::make_shared<std::atomic<bool>>(true);
 	authoredRow->Draft                               = draftStatus;
+
+	// [[BPR-PENDING-B2]]. Set before the restart below.
+	const auto otherRepositoriesRefused                 = std::make_shared<std::atomic<bool>>(false);
+	options.PersonalDiscovery->OtherRepositoriesRefused = otherRepositoriesRefused;
+
 	if (cliCourse) {
 		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
 	}
@@ -952,6 +957,9 @@ try {
 	expect(queue_item(*windowA, 17)->Facts.Draft == true, "queue agrees with accepted Recent draft before restart");
 	windowA->home_group_action(application::home_grouping::repository)->trigger();
 	QApplication::processEvents();
+	// [[BPR-PENDING-B2]]. The restarted session's first refresh finds the
+	// three saved repositories besides the fixture's own unreadable.
+	otherRepositoriesRefused->store(true);
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
 	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
@@ -990,6 +998,46 @@ try {
 	expect(windowA->home_view().Grouping == application::home_grouping::repository && windowA->home_list()->grouping() == application::home_grouping::repository
 			   && windowA->home_list()->group_panel(QStringLiteral("octo-org/review-repository")) != nullptr,
 		   "repository grouping survives restart and rebuilt queue rows");
+	// [[BPR-PENDING-B2]]. The diagnostic export's dialog takes the window's
+	// activation and closing it gives it back. A refresh that has just ended,
+	// though with unreadable repositories, is not run again for that.
+	{
+		const auto ended = [&] {
+			return discovery().Quiescent && discovery().Status.State == application::queue_discovery_state::stale
+				&& discovery().Status.Problem == application::queue_discovery_problem::repository_unavailable;
+		};
+		wait_for(ended, "the restarted refresh ends with the refused repositories unreadable", diagnose);
+		windowA->choose_home(true);
+		windowA->activateWindow();
+		wait_for([&] { return windowA->isActiveWindow() && windowA->showing_home(); }, "the window shows Home and is active");
+		wait_for(ended, "Home is settled before the export");
+		const auto  refreshes    = discovery().Statistics.Refreshes;
+		const auto  submitted    = discovery().Statistics.Submitted;
+		auto* const exportAction = windowA->findChild<QAction*>(QStringLiteral("exportAnonymizedDiagnosticsAction"));
+		expect(exportAction != nullptr, "the window offers the anonymized diagnostic export");
+		exportAction->trigger();
+		auto exportDialog = QPointer<QDialog>{ };
+		wait_for([&] {
+			for (auto* const widget : QApplication::topLevelWidgets()) {
+				if (widget->objectName() == QStringLiteral("diagnosticExportDialog") && widget->isVisible()) {
+					exportDialog = qobject_cast<QDialog*>(widget);
+				}
+			}
+			return exportDialog && !windowA->isActiveWindow();
+		},
+				 "the export dialog opens and takes the window's activation");
+		exportDialog->reject();
+		windowA->activateWindow();
+		wait_for([&] { return windowA->isActiveWindow(); }, "closing the export dialog gives the window its activation back");
+		QApplication::processEvents();
+		if (discovery().Statistics.Refreshes != refreshes) {
+			std::cerr << "export refreshes=" << refreshes << ':' << discovery().Statistics.Refreshes << " submitted=" << submitted << ':' << discovery().Statistics.Submitted << '\n';
+		}
+		expect(discovery().Statistics.Refreshes == refreshes && discovery().Statistics.Submitted == submitted,
+			   "returning from the diagnostic export runs no second refresh");
+		otherRepositoriesRefused->store(false);
+		wait_for([&] { return discovery().Quiescent; }, "discovery is quiet after the export", diagnose);
+	}
 	auto retainedRecentDraft = false;
 	for (auto index = 0; index < windowA->home_recent_list()->count(); ++index) {
 		const auto* recent  = windowA->home_recent_list()->item(index);

@@ -167,6 +167,7 @@ namespace bpr::application {
 			++Generation;
 			Session = std::move(aSession);
 			LastSuccess.reset();
+			LastEnded.reset();
 			BackoffUntil.reset();
 			MetadataConsidered.clear();
 			if (!Session) {
@@ -189,8 +190,14 @@ namespace bpr::application {
 			if (Closing || !Session || CycleRunning) {
 				return;
 			}
+			// [[BPR-PENDING-B2]]. Freshness is measured from the last refresh
+			// that ran to its end, not only the last success: one that ended
+			// with an unreadable repository or pull request would fail the
+			// same way again, so every return to the window (closing the
+			// diagnostic export's dialog, say) re-ran the whole refresh. A
+			// refresh a session-wide failure stopped is still retried.
 			const auto now = Clock.now_seconds();
-			if (backing_off(now) || (LastSuccess.has_value() && now - *LastSuccess < personal_discovery_freshness_seconds)) {
+			if (backing_off(now) || (LastEnded.has_value() && now - *LastEnded < personal_discovery_freshness_seconds)) {
 				return;
 			}
 			start_cycle();
@@ -592,6 +599,11 @@ namespace bpr::application {
 		{
 			CycleRunning   = false;
 			const auto now = Clock.now_seconds();
+			if (CycleStopped) {
+				LastEnded.reset();
+			} else {
+				LastEnded = now;
+			}
 			Status.Host    = Session->Queue.Host;
 			Status.Account = Session->Queue.Account;
 			Status.Problem = CycleProblem;
@@ -637,6 +649,7 @@ namespace bpr::application {
 		std::set<core::pull_request_ref>          ClosedThisCycle;
 		std::vector<job>                          Active;
 		std::optional<std::int64_t>               LastSuccess;
+		std::optional<std::int64_t>               LastEnded;
 		std::optional<std::int64_t>               BackoffUntil;
 		queue_discovery_status                    Status;
 		personal_discovery_statistics             Statistics;
