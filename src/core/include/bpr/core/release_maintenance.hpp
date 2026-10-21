@@ -106,11 +106,11 @@ namespace bpr::core {
 		std::uint32_t                Categories             = 0U;
 		std::uint32_t                RecentRecords          = 0U;
 		std::uint32_t                CaptureRedactedRecords = 0U;
-		/// [[BPR-PENDING-Z]]. Of `OmittedRecords`, the classified records left
+		/// [[BPR-1717]]. Of `OmittedRecords`, the classified records left
 		/// out to stay within the record and byte limits. They are always the
 		/// oldest: an export keeps the newest records and drops from the start.
 		std::uint32_t LimitOmittedRecords = 0U;
-		/// [[BPR-PENDING-Z]]. Whole log files left unread, oldest first, to stay
+		/// [[BPR-1717]]. Whole log files left unread, oldest first, to stay
 		/// within the input limit; their records are not counted anywhere else.
 		std::uint32_t UnreadFiles                                                  = 0U;
 		auto          operator==(const release_diagnostic_snapshot&) const -> bool = default;

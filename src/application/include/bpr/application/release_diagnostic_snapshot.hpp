@@ -27,7 +27,7 @@ namespace bpr::application {
 	/// \brief Rebuilds a frozen bounded JSONL export, with a fresh host-generated mapping namespace.
 	/// \details Legacy input retains metadata only. Every current field is classified again;
 	/// unknown prose/records are omitted, never copied. Capture supplies this session's flush cutoff.
-	/// [[BPR-PENDING-Z]]. Records are written oldest first by time; over the record or byte
+	/// [[BPR-1717]]. Records are written oldest first by time; over the record or byte
 	/// limit the oldest are left out, so the newest (the session being exported) are kept.
 	/// The header counts unclassified and over-limit omissions apart, with the `aUnreadFiles`
 	/// the reader left out to stay within the input limit.

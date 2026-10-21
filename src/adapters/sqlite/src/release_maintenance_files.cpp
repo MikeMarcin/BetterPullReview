@@ -1384,7 +1384,7 @@ namespace bpr::adapters::sqlite {
 			std::string   Bytes;
 			std::uint32_t UnreadFiles = 0U;
 		};
-		/// \brief [[BPR-PENDING-Z]]. Reads the newest log files that fit the input limit, oldest first.
+		/// \brief [[BPR-1717]]. Reads the newest log files that fit the input limit, oldest first.
 		/// \details A session file is named for a random session identity, so name order is no
 		/// order at all. Files are taken newest first by modification time, and once one does not
 		/// fit every older file is left unread and counted, rather than failing the export or

@@ -264,7 +264,7 @@ namespace {
 		expect(read(destination.Path / "diagnostics.txt") == expected && !fs::exists(root.Path / ".bpr-maintenance-v1"), "export survives and completed journal removed");
 		host.shutdown();
 	}
-	/// [[BPR-PENDING-Z]]. Retained logs larger than the export's input limit
+	/// [[BPR-1717]]. Retained logs larger than the export's input limit
 	/// leave the oldest files unread and counted. Before, files were read in
 	/// name order and the first that overran the limit refused the export.
 	void test_export_reads_newest_files()

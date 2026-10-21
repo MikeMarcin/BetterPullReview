@@ -114,7 +114,7 @@ namespace bpr::qt {
 			return { };
 		}
 
-		/// [[BPR-PENDING-Z]]. Says what the export limits left out; empty when nothing was.
+		/// [[BPR-1717]]. Says what the export limits left out; empty when nothing was.
 		auto limited(const core::release_diagnostic_snapshot& aSnapshot) -> QString
 		{
 			if (aSnapshot.LimitOmittedRecords == 0U && aSnapshot.UnreadFiles == 0U) {

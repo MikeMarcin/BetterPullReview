@@ -479,7 +479,7 @@ The header and projection report scope, range, categories, bytes/counts and loss
 A prepared recent-context snapshot is deliberate preview state until consumed or
 cancelled; no new events enter it. Scope changes and hiding the panel cancel it.
 
-[[BPR-PENDING-Z]] makes both ceilings keep the newest records. Session files are
+[[BPR-1717]] makes both ceilings keep the newest records. Session files are
 named for a random session identity, so name order is not age order. Until this
 change, files were read in name order and the first records read were kept. An
 hours-long running session whose identity sorted after older sessions' was then

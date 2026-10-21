@@ -205,7 +205,7 @@ namespace bpr::application {
 				}
 				aLog.remove_prefix(end + 1U);
 			}
-			// [[BPR-PENDING-Z]]. Input runs oldest to newest; over the limit the
+			// [[BPR-1717]]. Input runs oldest to newest; over the limit the
 			// oldest are left out, so the session being exported is never lost.
 			const auto kept                          = std::min<std::size_t>(records.size(), core::release_diagnostic_record_limit);
 			aDocument.Descriptor.LimitOmittedRecords = static_cast<std::uint32_t>(records.size() - kept);
@@ -379,7 +379,7 @@ namespace bpr::application {
 			return true;
 		}
 
-		// [[BPR-PENDING-Z]]. One admitted record, kept as a view until the
+		// [[BPR-1717]]. One admitted record, kept as a view until the
 		// newest records that fit are chosen.
 		struct export_candidate
 		{
@@ -519,7 +519,7 @@ namespace bpr::application {
 				}
 				return true;
 			}
-			/// \brief [[BPR-PENDING-Z]]. Orders every candidate oldest first and
+			/// \brief [[BPR-1717]]. Orders every candidate oldest first and
 			/// keeps the newest run that fits the record and byte limits.
 			/// \details Input order says nothing about age: files arrive in the
 			/// reader's order and recent context after them. Version-one lines

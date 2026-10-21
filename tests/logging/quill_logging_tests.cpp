@@ -142,7 +142,7 @@ namespace {
 		expect(bytes.find("canary") == std::string::npos && bytes.find("xxxxxxxx") == std::string::npos, "malformed and oversized source is absent from retained diagnostics");
 	}
 
-	/// [[BPR-PENDING-Z]]. An export taken while a session runs holds that
+	/// [[BPR-1717]]. An export taken while a session runs holds that
 	/// session's records up to the moment of export, behind older sessions
 	/// that fill the export's limits. Before, the exporter read files in name
 	/// order and kept the first records, so a running session whose random

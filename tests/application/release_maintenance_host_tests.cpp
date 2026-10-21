@@ -366,7 +366,7 @@ namespace {
 		expect(tail && tail->Descriptor.Records == 0U && tail->Descriptor.OmittedRecords == 1U, "partial tail is never exported");
 	}
 
-	/// [[BPR-PENDING-Z]]. An export over its limits keeps the newest records,
+	/// [[BPR-1717]]. An export over its limits keeps the newest records,
 	/// whatever order its input comes in, and says how many older ones it left
 	/// out. Before, it kept the first records it read: files came in name
 	/// order, which is a random session identity, so a running session's

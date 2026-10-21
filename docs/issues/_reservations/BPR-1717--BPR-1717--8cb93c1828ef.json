@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1717"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A diagnostics export keeps the newest records",
+  "created": "2026-10-21T22:06:50.880416+00:00",
+  "base": "07a30f4112a36cb42737a4b84ed1f68629c93f2a"
+}
