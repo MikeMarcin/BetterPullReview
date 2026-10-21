@@ -46,7 +46,7 @@ namespace bpr::core {
 		/// \details [[BPR-1710]]. `std` is the namespace the language itself
 		/// names ([namespace.std]) and a program may not add to it, so this set is
 		/// closed by the standard rather than guessed. They come with `std`
-		/// whenever the known-namespace list declares it ([[BPR-PENDING-W]]),
+		/// whenever the known-namespace list declares it ([[BPR-1714]]),
 		/// predeclared as if the blob declared them, so its own declarations, `::std` and a `struct
 		/// std` resolve by the ordinary lookup; an unlisted scope under `std`
 		/// (`std::string::npos`) is a library class and keeps the grammar's role.
@@ -78,7 +78,7 @@ namespace bpr::core {
 			std::uint32_t Child   = NoIndex;
 			bool          Defined = false;
 			/// A known namespace no declaration in the blob has confirmed
-			/// ([[BPR-PENDING-W]]); the blob's own class or enum replaces it.
+			/// ([[BPR-1714]]); the blob's own class or enum replaces it.
 			bool Predeclared = false;
 		};
 
@@ -306,7 +306,7 @@ namespace bpr::core {
 				auto found = Scopes[aParent].Symbols.find(aName);
 				if (found != Scopes[aParent].Symbols.end()) {
 					auto& existing = found->second;
-					// [[BPR-PENDING-W]]. A known namespace is evidence only where the
+					// [[BPR-1714]]. A known namespace is evidence only where the
 					// blob gives none: its own class or enum of that name wins in the
 					// scope that declares it, enumerators and members included.
 					if (existing.Predeclared && aKind != symbol_kind::name_space) {
@@ -335,7 +335,7 @@ namespace bpr::core {
 				return child;
 			}
 
-			/// \brief Declares the known namespaces before the blob is read ([[BPR-PENDING-W]]).
+			/// \brief Declares the known namespaces before the blob is read ([[BPR-1714]]).
 			/// \details Every segment of a legal entry is a namespace, nested in the one
 			/// before it; a refused entry declares nothing. Declared in the global scope
 			/// as if the blob had, so the blob's own `struct Qt` or `::Qt` resolves by

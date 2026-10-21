@@ -40,7 +40,7 @@ namespace bpr::qt {
 		std::size_t PaletteCancels   = 0U;
 		std::size_t ThemeImports     = 0U;
 		std::size_t SuppressedEchoes = 0U;
-		/// [[BPR-PENDING-W]]. Known-namespace lists offered to the host, and
+		/// [[BPR-1714]]. Known-namespace lists offered to the host, and
 		/// lists refused before or after offering, each naming why.
 		std::size_t NamespaceGestures = 0U;
 		std::size_t NamespaceRefusals = 0U;
@@ -66,7 +66,7 @@ namespace bpr::qt {
 	/// anything is previewed. Dif keeps the mascot's visibility, its motion and the
 	/// explanation of what the system asked for, which RFC-BPR-0031's B3 requires to
 	/// remain applied, migrated, persisted and resettable from real controls.
-	/// Syntax holds the known C++ namespaces ([[BPR-PENDING-W]]): one field of
+	/// Syntax holds the known C++ namespaces ([[BPR-1714]]): one field of
 	/// names separated by commas or spaces, `std` until the reviewer changes it,
 	/// applied when they press Return or leave the field. The core splits and
 	/// judges the text; an entry it refuses is named under the field with the
@@ -192,7 +192,7 @@ namespace bpr::qt {
 		/// \brief Shows the core contrast findings without substituting colours.
 		void report(
 			std::span<const application::appearance_contrast_rejection> aRejections);
-		/// \brief [[BPR-PENDING-W]]. Names each entry the host refused, under the field.
+		/// \brief [[BPR-1714]]. Names each entry the host refused, under the field.
 		///
 		/// \details The indices are the offered list's; the field keeps the text it
 		/// was offered from so the reviewer can correct it.
@@ -236,7 +236,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto ligatures_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_bold_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_italic_switch() const noexcept -> QCheckBox*;
-		/// \brief [[BPR-PENDING-W]]. The Syntax card's known C++ namespaces field.
+		/// \brief [[BPR-1714]]. The Syntax card's known C++ namespaces field.
 		[[nodiscard]] auto known_namespaces_editor() const noexcept -> QLineEdit*;
 		/// \brief The line under the field naming refused entries; hidden when none.
 		[[nodiscard]] auto known_namespaces_problem() const noexcept -> QLabel*;

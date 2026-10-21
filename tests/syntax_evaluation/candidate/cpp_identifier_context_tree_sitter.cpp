@@ -992,7 +992,7 @@ namespace bpr::core {
 		};
 	}
 
-	/// The candidate predates the known-namespace list ([[BPR-PENDING-W]]) and
+	/// The candidate predates the known-namespace list ([[BPR-1714]]) and
 	/// reads none of it; it is accepted so the shipped signature links.
 	auto refine_cpp_identifiers(const std::string_view aText, core::token_span_list& aSpans,
 								const std::size_t aMaximumSpans, const std::stop_token aStop,

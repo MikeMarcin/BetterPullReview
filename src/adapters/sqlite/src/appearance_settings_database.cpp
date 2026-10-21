@@ -119,7 +119,7 @@ namespace bpr::adapters::sqlite::detail {
 		/// so a reviewer who never zoomed sees the code at the size they chose.
 		constexpr auto MigratedCodeZoom = core::code_font_settings{ }.ZoomPercent;
 
-		/// \brief [[BPR-PENDING-W]]. The one column version 10 adds, last: the
+		/// \brief [[BPR-1714]]. The one column version 10 adds, last: the
 		/// known C++ namespaces, as `core::join_known_namespaces` writes them.
 		constexpr std::string_view KnownNamespacesColumn = "known_namespaces";
 
@@ -857,7 +857,7 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
-		/// \brief [[BPR-PENDING-W]]. Adds the known C++ namespaces.
+		/// \brief [[BPR-1714]]. Adds the known C++ namespaces.
 		///
 		/// \details Carried across a fresh table as the earlier steps carry their
 		/// row, so the CHECK constraints are verified on the way through. The new
@@ -1287,7 +1287,7 @@ namespace bpr::adapters::sqlite::detail {
 				return std::unexpected(codeZoom.error());
 			}
 			settings.Typography.Code.ZoomPercent = *codeZoom;
-			// [[BPR-PENDING-W]]. Refused whole, as typography is, when the core
+			// [[BPR-1714]]. Refused whole, as typography is, when the core
 			// refuses any entry: a list repaired here would not be the reviewer's.
 			settings.Namespaces = core::split_known_namespaces(text_of(
 				statement->Value, static_cast<int>(3U + ScalarColumnNames.size() + 2U * core::appearance_variant_count)));

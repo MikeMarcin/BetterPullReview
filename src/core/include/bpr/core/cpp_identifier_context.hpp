@@ -16,7 +16,7 @@ namespace bpr::core {
 	/// grammar spans contained within its lines/bytes before calling this refinement.
 	///
 	/// `aNamespaces` are predeclared as if the blob declared them
-	/// ([[BPR-PENDING-W]]): each legal entry and every segment of a nested one is
+	/// ([[BPR-1714]]): each legal entry and every segment of a nested one is
 	/// a namespace, `std` brings the namespaces the standard nests in it, and a
 	/// refused entry is ignored. The default is the default setting, `std`.
 	[[nodiscard]] auto refine_cpp_identifiers(

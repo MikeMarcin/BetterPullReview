@@ -18,7 +18,7 @@ namespace bpr::application {
 	/// supplied to attach another window without creating another durable store.
 	/// Appearance gestures never enter the classifier or invalidate its token cache.
 	/// The one classification input among the settings, the known C++ namespaces
-	/// ([[BPR-PENDING-W]]), keys classifications rather than invalidating them: a
+	/// ([[BPR-1714]]), keys classifications rather than invalidating them: a
 	/// changed list asks under a new key, and an earlier list's entries age out.
 	///
 	/// Public operations and inspection are confined to the supplied decision
@@ -76,7 +76,7 @@ namespace bpr::application {
 		void apply(core::typography_settings aTypography);
 		/// \brief [[BPR-1336]]. Steps the comparison's zoom; see the preferences host.
 		void step_code_zoom(core::code_zoom_step aStep);
-		/// \brief [[BPR-PENDING-W]]. Applies one known-namespace list; see the preferences host.
+		/// \brief [[BPR-1714]]. Applies one known-namespace list; see the preferences host.
 		void apply(core::known_namespaces aNamespaces);
 		/// \brief Imports one local document into a preview candidate.
 		///
@@ -93,9 +93,9 @@ namespace bpr::application {
 		// Answers from the retained cache when the key is present and runs the
 		// classification port only when it is not. The key is the one
 		// `classification_key` gives for it, so a C++ blob is classified, cached
-		// and published under the known namespaces in effect ([[BPR-PENDING-W]]).
+		// and published under the known namespaces in effect ([[BPR-1714]]).
 		void classify(token_span_cache_key aKey);
-		/// \brief [[BPR-PENDING-W]]. The key `aKey`'s blob is classified under now.
+		/// \brief [[BPR-1714]]. The key `aKey`'s blob is classified under now.
 		///
 		/// \details `aKey` with the canonical known-namespace list in effect when it
 		/// names the C++ definition, and unchanged otherwise. A publication whose key

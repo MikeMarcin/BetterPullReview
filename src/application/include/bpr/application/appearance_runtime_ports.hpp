@@ -161,7 +161,7 @@ namespace bpr::application {
 	///
 	/// \details This is the whole durable appearance state: the selected mode, one
 	/// colour customization per variant, both fonts, Dif preferences, and the C++
-	/// namespaces the reviewer names as known ([[BPR-PENDING-W]]), `std` until
+	/// namespaces the reviewer names as known ([[BPR-1714]]), `std` until
 	/// they change it. A fresh
 	/// installation has no durable record, the mode defaults to `system`, and no
 	/// variant carries a customization. The host chooses no colour and no family:
@@ -309,7 +309,7 @@ namespace bpr::application {
 	/// produce, so a colour that entered this key would force a reparse that no
 	/// rule requires.
 	///
-	/// [[BPR-PENDING-W]]. `Namespaces` does change which spans C++ bytes
+	/// [[BPR-1714]]. `Namespaces` does change which spans C++ bytes
 	/// produce, so it is part of the identity: a changed list keys every C++ blob
 	/// afresh rather than serving the spans of the old list. `classification_key`
 	/// sets it from the setting, canonical, and only for C++, so a list written
@@ -422,7 +422,7 @@ namespace bpr::application {
 		std::optional<appearance_palette_customisations> Palettes;
 		std::optional<core::typography_settings>         Typography;
 		std::optional<core::dif_resolution>              Dif;
-		/// [[BPR-PENDING-W]]. Not a pixel change but a classification input: a
+		/// [[BPR-1714]]. Not a pixel change but a classification input: a
 		/// consumer showing C++ asks again for its spans under the new list.
 		std::optional<core::known_namespaces> Namespaces;
 
@@ -527,7 +527,7 @@ namespace bpr::application {
 		classification_limit,
 		invalid_classification_key,
 		host_failure,
-		/// [[BPR-PENDING-W]]. `NamespaceRejections` names every refused entry.
+		/// [[BPR-1714]]. `NamespaceRejections` names every refused entry.
 		invalid_known_namespaces,
 	};
 
@@ -668,7 +668,7 @@ namespace bpr::application {
 		core::dif_preferences Preferences;
 	};
 
-	/// \brief [[BPR-PENDING-W]]. Offers one whole known-namespace list.
+	/// \brief [[BPR-1714]]. Offers one whole known-namespace list.
 	/// \details Whole, for the reason typography is: the host refuses a list
 	/// with any refused entry rather than keeping part of it.
 	struct apply_known_namespaces_intent

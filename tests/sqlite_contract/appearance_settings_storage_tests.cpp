@@ -183,7 +183,7 @@ namespace {
 		::sqlite3* raw = nullptr;
 		expect(::sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK,
 			   "a legacy fixture opens raw");
-		// [[BPR-PENDING-W]]. Every version before 10 lacks the known namespaces.
+		// [[BPR-1714]]. Every version before 10 lacks the known namespaces.
 		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN known_namespaces", nullptr, nullptr, nullptr) == SQLITE_OK,
 			   "a legacy down-edit drops the version-10 column");
 		if (aVersion == 9) {
@@ -1421,7 +1421,7 @@ namespace {
 		}
 	}
 
-	/// \brief [[BPR-PENDING-W]]. Version 10 keeps the known C++ namespaces as
+	/// \brief [[BPR-1714]]. Version 10 keeps the known C++ namespaces as
 	/// written: every list round-trips, an older file takes std alone, and a
 	/// list the core refuses is refused whole.
 	auto test_known_namespaces_round_trip_migrate_and_refuse() -> void

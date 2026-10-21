@@ -95,7 +95,7 @@ namespace bpr::application {
 			core::code_zoom_step Step = core::code_zoom_step::actual_size;
 		};
 
-		/// [[BPR-PENDING-W]]. One whole known-namespace list.
+		/// [[BPR-1714]]. One whole known-namespace list.
 		struct deferred_known_namespaces
 		{
 			core::known_namespaces Namespaces;
@@ -1001,7 +1001,7 @@ namespace bpr::application {
 			adopt(std::move(next));
 		}
 
-		/// \brief [[BPR-PENDING-W]]. Adopts a legal list and refuses one with any
+		/// \brief [[BPR-1714]]. Adopts a legal list and refuses one with any
 		/// refused entry, naming each.
 		/// \details Kept as written, in the reviewer's order: the list a field shows
 		/// is the list they made. Classification reads its canonical form.

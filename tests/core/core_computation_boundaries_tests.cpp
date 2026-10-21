@@ -101,7 +101,7 @@ namespace {
 		expect(role_at(returned, trailing.find("field")) == appearance_role::syntax_normal, "unqualified member access is unchanged");
 	}
 
-	/// [[BPR-PENDING-W]]: the known-namespace list is an explicit input to the
+	/// [[BPR-1714]]: the known-namespace list is an explicit input to the
 	/// refinement, decided in core without Qt or a grammar.
 	void test_known_namespaces_classify()
 	{
@@ -168,7 +168,7 @@ namespace {
 			   "and the other listed names stay");
 	}
 
-	/// [[BPR-PENDING-W]]: what the settings field and the store accept.
+	/// [[BPR-1714]]: what the settings field and the store accept.
 	void test_known_namespace_rules()
 	{
 		using problem = known_namespace_problem;

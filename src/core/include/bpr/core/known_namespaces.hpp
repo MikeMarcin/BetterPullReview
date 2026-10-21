@@ -10,7 +10,7 @@
 #include <vector>
 
 /// \file
-/// \brief [[BPR-PENDING-W]]. The C++ namespaces a reviewer names as known.
+/// \brief [[BPR-1714]]. The C++ namespaces a reviewer names as known.
 /// \details The owner asked on 2026-10-21 for "a setting for a list of well
 /// known namespaces", pre-populated with `std`, to which users add their own.
 /// A known namespace is predeclared before the C++ refinement reads a blob, as

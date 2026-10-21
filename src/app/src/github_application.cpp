@@ -9380,7 +9380,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AppearanceProjections.set_presentation_sink(
 				[this](const application::appearance_presentation_invalidation& aInvalidation) {
 					adopt_appearance_settings();
-					// [[BPR-PENDING-W]]. The known namespaces are a classification
+					// [[BPR-1714]]. The known namespaces are a classification
 					// input: the C++ on screen asks again under the new list.
 					if (aInvalidation.Namespaces.has_value()) {
 						reclassify_shown_comparison();
@@ -19217,7 +19217,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// \brief [[BPR-PENDING-W]]. Asks again for the C++ spans of the
+		/// \brief [[BPR-1714]]. Asks again for the C++ spans of the
 		/// comparison on screen, under the known namespaces now in effect.
 		///
 		/// \details The panes keep the colours they have until the answer
@@ -19372,7 +19372,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// this adoption's, and a dropped adoption still ends the read.
 			// BPR-0390.
 			//
-			// [[BPR-PENDING-W]]. Except for an answer under a known-namespace
+			// [[BPR-1714]]. Except for an answer under a known-namespace
 			// list no longer in effect: the request for the current list may
 			// still need the same binding, and its own answer releases it.
 			const auto stale = AppearanceHost != nullptr && AppearanceHost->classification_key(aSpans.Key) != aSpans.Key;
@@ -19397,7 +19397,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++DroppedClassifications;
 				return;
 			}
-			// [[BPR-PENDING-W]]. Spans for a known-namespace list no longer in
+			// [[BPR-1714]]. Spans for a known-namespace list no longer in
 			// effect are stale: an answer for the current list replaces them
 			// or already has.
 			if (stale) {

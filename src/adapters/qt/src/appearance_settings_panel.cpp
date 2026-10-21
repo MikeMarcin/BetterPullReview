@@ -288,7 +288,7 @@ namespace bpr::qt {
 			return { };
 		}
 
-		/// \brief [[BPR-PENDING-W]]. Why one entry is not a namespace name, after its quoted text.
+		/// \brief [[BPR-1714]]. Why one entry is not a namespace name, after its quoted text.
 		[[nodiscard]] auto namespace_problem_text(const core::known_namespace_problem aProblem) -> QString
 		{
 			switch (aProblem) {
@@ -793,7 +793,7 @@ namespace bpr::qt {
 		colours.Body->addWidget(Colours);
 		page->addWidget(colours.Frame);
 
-		// ── Syntax. [[BPR-PENDING-W]]: the C++ namespaces a reviewer names as known.
+		// ── Syntax. [[BPR-1714]]: the C++ namespaces a reviewer names as known.
 		// One row and the line that names a refused entry, under the field it
 		// answers, in the page's own text role (BPR-1301: the placeholder role
 		// read below 4.5:1).
@@ -1796,7 +1796,7 @@ namespace bpr::qt {
 		Ligatures->setChecked(record.Typography.Code.Ligatures);
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);
-		// [[BPR-PENDING-W]]. Text the reviewer is still correcting stays until
+		// [[BPR-1714]]. Text the reviewer is still correcting stays until
 		// they correct it or the list in effect moves under it.
 		const auto shown = QString::fromStdString(core::join_known_namespaces(record.Namespaces));
 		if (!NamespacesHeld || ShownNamespaces != record.Namespaces) {

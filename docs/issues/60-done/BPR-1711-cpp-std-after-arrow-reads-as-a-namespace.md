@@ -155,4 +155,4 @@ Implementation `916adaaa3`, on main `c7f499fe1`; macOS (Apple M4 Pro),
 
 ## Owner decision
 
-2026-10-21, in chat after viewing the 2x before and after renders: **Accept** the namespace highlighting, and **Accept** the amended BPR-1559 T21 expectations (`std` a namespace in `std::wstring` and `std::make_unique`, the following name still built-in), per RFC-BPR-0081's contract-change rule. Other libraries go through a user setting (BPR-PENDING-W) rather than a fixed list.
+2026-10-21, in chat after viewing the 2x before and after renders: **Accept** the namespace highlighting, and **Accept** the amended BPR-1559 T21 expectations (`std` a namespace in `std::wstring` and `std::make_unique`, the following name still built-in), per RFC-BPR-0081's contract-change rule. Other libraries go through a user setting (BPR-1714) rather than a fixed list.

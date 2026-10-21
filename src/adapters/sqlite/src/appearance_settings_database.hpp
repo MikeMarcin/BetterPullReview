@@ -40,7 +40,7 @@ namespace bpr::adapters::sqlite::detail {
 	/// Version 9 adds `code_zoom_percent`, the comparison's zoom ([[BPR-1336]]);
 	/// a version-8 record takes Actual Size, 100.
 	/// Version 10 adds `known_namespaces`, the C++ namespaces the reviewer names
-	/// as known, written as the settings field shows them ([[BPR-PENDING-W]]); a
+	/// as known, written as the settings field shows them ([[BPR-1714]]); a
 	/// version-9 record takes the default, `std`.
 	inline constexpr std::int64_t appearance_settings_schema_version = 10;
 

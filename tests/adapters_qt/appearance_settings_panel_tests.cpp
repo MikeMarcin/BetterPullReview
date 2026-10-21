@@ -1437,7 +1437,7 @@ namespace {
 		settle();
 	}
 
-	/// \brief [[BPR-PENDING-W]]. The Syntax card's known-namespace field edits,
+	/// \brief [[BPR-1714]]. The Syntax card's known-namespace field edits,
 	/// judges with the core and names every refused entry under itself.
 	void test_known_namespaces_field_edits_and_validates()
 	{
@@ -1528,7 +1528,7 @@ namespace {
 		panel.hide();
 	}
 
-	/// \brief [[BPR-PENDING-W]]. A widget drawn at twice its logical size, for
+	/// \brief [[BPR-1714]]. A widget drawn at twice its logical size, for
 	/// the owner's 2x captures without scaling the whole course.
 	[[nodiscard]] auto capture_2x(QWidget& aWidget) -> QPixmap
 	{
@@ -1539,7 +1539,7 @@ namespace {
 		return pixmap;
 	}
 
-	/// \brief [[BPR-PENDING-W]]. The Syntax card as the owner sees it, in Light
+	/// \brief [[BPR-1714]]. The Syntax card as the owner sees it, in Light
 	/// and Dark, with a list in effect and with a refused entry named.
 	void test_known_namespaces_design_captures()
 	{

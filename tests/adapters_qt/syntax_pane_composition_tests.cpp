@@ -660,7 +660,7 @@ namespace {
 		std::size_t                                    Failures          = 0U;
 	};
 
-	/// [[BPR-PENDING-W]]: adding Qt in the Settings field recolours an open
+	/// [[BPR-1714]]: adding Qt in the Settings field recolours an open
 	/// C++ pane, through the real classifier, host and panel, without a restart.
 	void test_known_namespace_setting_recolours_an_open_pane()
 	{

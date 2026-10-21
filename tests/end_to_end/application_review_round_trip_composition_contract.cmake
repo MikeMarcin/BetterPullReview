@@ -1,4 +1,6 @@
-# [[BPR-PENDING-W]] reseal (2026-10-21) over the [[BPR-1707]] commit below,
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1714 note below
+# is renaming its [[BPR-PENDING-W]] comment tags to [[BPR-1714]]; no code change.
+# [[BPR-1714]] reseal (2026-10-21) over the [[BPR-1707]] commit below,
 # linear. Pinned-scope change: the known C++ namespaces setting, on this
 # card's own commit. Inside the manifest only github_application.cpp changed:
 # the appearance dispatch routes apply_known_namespaces_intent to the host and
@@ -1915,7 +1917,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"b5f548b7cb56da4f59ead146f7d9620885b55912c17de90e58b7b293c3b9082c"
+		"1847aa30323ab9f369a04939a2e759ca81e25f57c1472420093ae999f6a23c9c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2135,7 +2137,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "2a2276db30fa5a82c0cc600a655d3fd4a9da126e0981f3593c7ea4af4248d0bf"
+        "d0c821d986651f5f110648bf39b4f0ea2fb9a789225fb22762341326396b33f7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

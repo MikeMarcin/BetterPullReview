@@ -1405,7 +1405,7 @@ namespace {
 		const auto again = classifier.classify(request(oid, definition), { });
 		expect(again.Spans == whole.Spans, "an equal blob yields equal spans");
 
-		// [[BPR-PENDING-W]]: the key's known namespaces are what the refinement
+		// [[BPR-1714]]: the key's known namespaces are what the refinement
 		// predeclares, so the list is part of what an answer is cached under.
 		auto listedRequest           = request(oid, definition);
 		listedRequest.Key.Namespaces = core::known_namespaces{ .Names = { "std", "Qt" } };

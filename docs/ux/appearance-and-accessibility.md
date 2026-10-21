@@ -349,7 +349,7 @@ switches — with sizes in
 points rather than hundredths, beside a labelled Preview painted by the review
 window's own code painter from the accepted typography and the theme on
 screen, captioned with the values in effect. **Colours** is the editor above.
-**Syntax** ([[BPR-PENDING-W]]) is one row, **C++ namespaces**: a field of the
+**Syntax** ([[BPR-1714]]) is one row, **C++ namespaces**: a field of the
 names that read as namespaces before `::`, separated by commas or spaces,
 `std` until the reviewer changes it, with its Reset in the card's header.
 Return or leaving the field applies it. The core splits and judges the text: an
@@ -468,7 +468,7 @@ The span cache is keyed by blob identity and definition version with the theme
 deliberately absent from the key, so a theme change *cannot* invalidate it. That
 is a stronger guarantee than remembering not to evict on theme change.
 
-C++ keys carry one more input, the known namespaces ([[BPR-PENDING-W]]),
+C++ keys carry one more input, the known namespaces ([[BPR-1714]]),
 because the list changes which spans the bytes produce. The refinement
 predeclares each listed name, and every segment of a nested one, as if the blob
 declared it, and `std` brings the namespaces ISO C++ nests in it. So a listed

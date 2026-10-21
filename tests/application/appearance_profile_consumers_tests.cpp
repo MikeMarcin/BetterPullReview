@@ -465,7 +465,7 @@ namespace {
 		expect(first.is_quiescent() && second.is_quiescent() && third.is_quiescent(), "all preference consumers quiesce");
 	}
 
-	/// [[BPR-PENDING-W]]. The known namespaces are a profile preference and the
+	/// [[BPR-1714]]. The known namespaces are a profile preference and the
 	/// classification's one reviewer input: a changed list keys C++ afresh,
 	/// leaves every other language's spans alone, and is refused whole when any
 	/// entry is not a namespace name.
