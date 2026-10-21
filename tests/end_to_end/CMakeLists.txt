@@ -4459,7 +4459,21 @@ set_tests_properties(application_merge_base_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_MERGE_BASE_RENDER_ROOT=${PROJECT_BINARY_DIR}/merge-base-renders"
     TIMEOUT 180 PASS_REGULAR_EXPRESSION "MERGE_BASE_PUBLIC_PATH_OK")
 
-# RFC-BPR-0074: real command, window-system keys and Git-backed selected diffs.
+# RFC-BPR-0089 M1: commit filters through the shipped composition on the
+# commit-filter-v1 course (AC01, AC02, AC05).
+bpr_add_executable(test_commit_filter_public_path commit_filter_public_path_tests.cpp)
+target_link_libraries(test_commit_filter_public_path PRIVATE BetterPullReview::Composition)
+target_compile_definitions(test_commit_filter_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_commit_filter_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_commit_filter_public_path)
+bpr_enable_warnings(test_commit_filter_public_path)
+bpr_add_network_isolated_test(NAME application_commit_filter_public_path WINDOWS_UNCONTAINED
+    COMMAND test_commit_filter_public_path)
+set_tests_properties(application_commit_filter_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    TIMEOUT 180 PASS_REGULAR_EXPRESSION "COMMIT_FILTER_PUBLIC_PATH_OK")
+
+# RFC-BPR-0074: real command, window-system keys andGit-backed selected diffs.
 bpr_add_executable(test_header_source_public_path header_source_navigation_public_path_tests.cpp)
 target_link_libraries(test_header_source_public_path PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_header_source_public_path PRIVATE BPR_BUILD_TESTING=1)

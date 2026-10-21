@@ -129,6 +129,10 @@ namespace bpr::app::detail {
 		/// GitHub's Files changed is still the recorded base's comparison; see
 		/// `scripts/build_stacked_merge_base_fixture.py`.
 		stacked_merge_base_v1,
+		/// RFC-BPR-0089. Three commits on one first-parent chain: a source
+		/// change, a regeneration of 300 files and follow-ups to both, with
+		/// GitHub's parents; see `scripts/build_commit_filter_fixture.py`.
+		commit_filter_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.

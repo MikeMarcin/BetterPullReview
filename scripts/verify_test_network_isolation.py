@@ -189,6 +189,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # private-root refusal on the Windows station ([[BPR-1631]]).
     "application_markdown_images_public_path": "owner-private-acl-denied",
     "application_merge_base_public_path": "owner-private-acl-denied",
+    # RFC-BPR-0089. The commit-filter course, registered uncontained like the
+    # merge-base course; the Windows station has not measured it yet.
+    "application_commit_filter_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1576]]. Panes waiting on a slow fixture network.
     "application_pending_states_public_path": "owner-private-acl-denied",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
@@ -198,6 +201,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1601]]. Durable read state for PR comments and review summaries.
     "application_conversation_read_public_path": "owner-private-acl-denied",
     "merge_base_fixture_contract": "git-reference-parent-denied",
+    # RFC-BPR-0089. Builds its fixture with the same tool chain as the
+    # merge-base contract; the Windows station has not measured it yet.
+    "commit_filter_fixture_contract": "unmeasured (registered on macOS)",
     "sqlite_markdown_image_disk_cache": "ancestor-control-denied",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now

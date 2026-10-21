@@ -1092,6 +1092,16 @@ namespace bpr::app {
 					.Hostname = "github.com",
 					.Label    = "GitHub.com — Constructed merge base",
 				};
+			// RFC-BPR-0089. Served like nested-folders: github.com, one head.
+			case detail::github_public_path_fixture::commit_filter_v1:
+				return {
+					.Profile = core::host_profile_id{ 1U },
+					.Host    = core::git_host_id{ 1U },
+					.Server  = application::github_server_contract::
+						github_com_2022_11_28,
+					.Hostname = "github.com",
+					.Label    = "GitHub.com — Constructed commit filter",
+				};
 			case detail::github_public_path_fixture::conventional_comments_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },

@@ -804,6 +804,31 @@ namespace bpr::app::detail {
 					.BranchTipOid        = "513cbb568c543c5fb19465f2bf1f6c0c48d1f9b9",
 					.Commits             = 2U,
 				};
+			// RFC-BPR-0089. Constructed by `scripts/build_commit_filter_fixture.py`:
+			// M, then C1 (source), C2 (96 regenerated files), C3 (follow-ups)
+			// on one first-parent chain; the pack holds every object reachable
+			// from C3, so each commit's tree diff is local.
+			case github_public_path_fixture::commit_filter_v1:
+				return {
+					.ContractDirectory   = "commit-filter-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 89U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "commit-filter",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "bd83187f4e5b01d458e7fa1670d8e5acc1ca10de",
+					.HeadOneOid          = "47d702322daae5b72c9927d6b49c415285aa87d8",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "commit-filter-v1/objects.pack" },
+					.Commits             = 3U,
+				};
 			}
 			return { };
 		}

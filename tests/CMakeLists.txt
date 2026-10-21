@@ -444,6 +444,16 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/merge_base_fixture_tests.py"
 )
 
+# RFC-BPR-0089. commit-filter-v1 regenerates byte for byte and serves its
+# chain's parents.
+bpr_add_network_isolated_test(
+    NAME commit_filter_fixture_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        Python3::Interpreter
+        "${PROJECT_SOURCE_DIR}/tests/scripts/commit_filter_fixture_tests.py"
+)
+
 bpr_add_network_isolated_test(
     NAME github_recorded_fixture_contract
     WINDOWS_UNCONTAINED

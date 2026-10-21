@@ -196,15 +196,28 @@ def main() -> int:
     def served(commit: dict) -> str:
         return commit["sha"] if packed and commit["sha"] != pull["head"]["sha"] else HEAD_OID_PLACEHOLDER
 
-    write(root / "responses/commits.json", [
-        {
+    # RFC-BPR-0089. A construction that asks for them serves GitHub's
+    # `parents`, mapped as the commits are: the base and the head are their
+    # placeholders, every other parent its builder's own commit.
+    def served_parent(sha: str) -> str:
+        if sha == pull["base"]["sha"]:
+            return BASE_OID_PLACEHOLDER
+        if sha == pull["head"]["sha"]:
+            return HEAD_OID_PLACEHOLDER
+        return sha
+
+    def commit_record(commit: dict) -> dict:
+        record = {
             "author": {"login": login, "node_id": f"U_{login}"},
             "commit": {"message": commit["message"]},
             "node_id": f"C_{served(commit)[:8]}",
             "sha": served(commit),
         }
-        for commit in recording["commits"]
-    ])
+        if recording.get("serve_parents") is True:
+            record["parents"] = [{"sha": served_parent(parent)} for parent in commit["parents"]]
+        return record
+
+    write(root / "responses/commits.json", [commit_record(commit) for commit in recording["commits"]])
     write(root / "responses/reviews.json", [])
     write(root / "responses/issue_comments.json", [])
     # The GraphQL response is validated far more strictly than its REST

@@ -1,0 +1,420 @@
+{
+	"data": {
+		"repository": {
+			"id": "R_commit-filter",
+			"pullRequest": {
+				"files": {
+					"nodes": [
+						{
+							"path": "gen/item_000.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_001.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_002.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_003.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_004.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_005.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_006.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_007.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_008.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_009.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_010.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_011.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_012.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_013.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_014.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_015.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_016.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_017.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_018.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_019.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_020.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_021.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_022.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_023.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_024.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_025.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_026.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_027.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_028.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_029.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_030.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_031.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_032.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_033.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_034.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_035.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_036.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_037.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_038.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_039.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_040.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_041.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_042.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_043.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_044.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_045.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_046.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_047.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_048.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_049.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_050.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_051.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_052.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_053.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_054.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_055.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_056.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_057.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_058.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_059.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_060.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_061.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_062.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_063.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_064.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_065.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_066.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_067.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_068.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_069.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_070.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_071.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_072.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_073.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_074.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_075.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_076.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_077.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_078.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_079.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_080.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_081.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_082.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_083.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_084.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_085.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_086.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_087.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_088.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_089.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_090.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_091.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_092.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_093.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_094.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "gen/item_095.txt",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/app.cpp",
+							"viewerViewedState": "UNVIEWED"
+						},
+						{
+							"path": "src/generator.in",
+							"viewerViewedState": "UNVIEWED"
+						}
+					],
+					"pageInfo": {
+						"endCursor": "cursor:bpr-fixtures/commit-filter:89:files",
+						"hasNextPage": false
+					},
+					"totalCount": 98
+				},
+				"headRefOid": "2222222222222222222222222222222222222222",
+				"id": "PR_89",
+				"reviewThreads": {
+					"nodes": [],
+					"pageInfo": {
+						"endCursor": null,
+						"hasNextPage": false
+					},
+					"totalCount": 0
+				}
+			}
+		}
+	}
+}

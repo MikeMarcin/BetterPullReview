@@ -199,6 +199,15 @@ FIXTURES = {
         "identity": Identity("bpr-fixtures", "stacked-merge-base", 1572),
         "mirrors": None,
     },
+    # RFC-BPR-0089. A source change, a regeneration and follow-ups on one
+    # chain, written by scripts/build_commit_filter_fixture.py. Its commits
+    # keep GitHub's parents.
+    "commit-filter-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "commit-filter", 89),
+        "mirrors": None,
+        "response_fields": {"ListPullRequestCommits": "with-parents"},
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {
@@ -1297,6 +1306,9 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                         # first line, as GitHub's GraphQL does.
                         else EXPECTED_RESPONSE_FIELDS[operation] | {"startLine", "originalStartLine"}
                         if shape == "synthetic-ranges"
+                        # RFC-BPR-0089. A commit's parents, each named by `sha`.
+                        else RECORDED_RESPONSE_FIELDS[operation] | {"parents"}
+                        if shape == "with-parents"
                         else RECORDED_RESPONSE_FIELDS[operation]
                     )
                     if fixture_name in {"source-pr-search-v1", "source-pr-search-large-v1", "source-pr-search-later-v1", "source-pr-search-large-later-v1"} and operation == "ListPullRequestFiles":

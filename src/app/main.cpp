@@ -9546,6 +9546,22 @@ auto main(int argc, char** argv) -> int
 					.ExpectedConversationRows = 0,
 					.ExpectedThreadId         = std::nullopt,
 				};
+			} else if (*fixture == "commit-filter-v1") {
+				// RFC-BPR-0089. Constructed: a source change, a regeneration of
+				// 300 files and follow-ups to both, for judging the Commits tab
+				// and its filters; see `scripts/build_commit_filter_fixture.py`.
+				selectedFixture        = bpr::app::detail::github_public_path_fixture::commit_filter_v1;
+				fixtureName            = "commit-filter-v1";
+				expectedActiveHostText = "github.com";
+				fixtureExpectations    = {
+					.Owner                    = "bpr-fixtures",
+					.Repository               = "commit-filter",
+					.Number                   = 89,
+					.ExpectedTitle            = "Change the generator input and regenerate",
+					.ExpectedAccountText      = "fixture-author (@fixture-author)",
+					.ExpectedConversationRows = 0,
+					.ExpectedThreadId         = std::nullopt,
+				};
 			} else if (*fixture == "nested-folders-v1") {
 				// [[BPR-1213]]. Constructed, not recorded: several folders,
 				// nested subfolders and a root file, for judging the Overview's

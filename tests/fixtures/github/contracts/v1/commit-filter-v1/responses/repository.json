@@ -1,0 +1,11 @@
+{
+	"default_branch": "main",
+	"full_name": "bpr-fixtures/commit-filter",
+	"id": 2,
+	"name": "commit-filter",
+	"node_id": "R_commit-filter",
+	"owner": {
+		"login": "bpr-fixtures"
+	},
+	"private": false
+}
