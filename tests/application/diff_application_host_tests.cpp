@@ -1,4 +1,5 @@
 #include "../support/insights_observer.hpp"
+#include "../support/qualification_build.hpp"
 #include "bpr/application/agent_realignment.hpp"
 #include "bpr/application/diff_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
@@ -2080,6 +2081,8 @@ void test_work_observations()
 
 int main()
 {
+	bpr::tests::report_qualification_build();
+	std::cout << "QUALIFICATION_WORKLOAD:cancel-lines=" << large_pair_lines << '\n';
 	test_work_observations();
 	test_pathological_diagnostic_content();
 	test_worker_and_cache_lanes();

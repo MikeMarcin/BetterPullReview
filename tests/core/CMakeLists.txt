@@ -1,3 +1,8 @@
+# [[BPR-1674]] Built with the same configuration and hardening as the tests.
+bpr_add_executable(test_qualification_assertion_probe ../support/qualification_assertion_probe.cpp)
+bpr_enable_hardening(test_qualification_assertion_probe)
+bpr_enable_warnings(test_qualification_assertion_probe)
+
 bpr_add_executable(test_release_maintenance_core release_maintenance_tests.cpp)
 target_link_libraries(test_release_maintenance_core PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_release_maintenance_core)

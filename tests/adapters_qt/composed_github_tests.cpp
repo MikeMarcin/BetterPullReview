@@ -101,6 +101,8 @@
 #include <variant>
 #include <vector>
 
+#include "../support/qualification_build.hpp"
+
 namespace {
 	using namespace bpr;
 
@@ -9366,6 +9368,7 @@ namespace {
 
 auto main(int argc, char** argv) -> int
 {
+	bpr::tests::report_qualification_build();
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewGitHubQtTests"));

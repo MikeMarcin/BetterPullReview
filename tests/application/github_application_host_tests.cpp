@@ -1,3 +1,4 @@
+#include "../support/qualification_build.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
@@ -7479,6 +7480,7 @@ namespace {
 
 auto main() -> int
 {
+	bpr::tests::report_qualification_build();
 	test_accepted_server_snapshots_fan_out_without_window_effects();
 	test_signed_out_explicit_windows_adopt_authentication_at_capacity();
 	test_explicit_first_detach_preserves_existing_legacy_reader();

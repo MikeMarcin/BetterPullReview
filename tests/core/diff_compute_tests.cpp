@@ -1,3 +1,4 @@
+#include "../support/qualification_build.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_compute_components.hpp"
 #include "bpr/core/diff_semantics.hpp"
@@ -1214,6 +1215,7 @@ namespace {
 		// request: within the check interval plus the poll delay, which one
 		// indivisible increment of work bounds. [[BPR-1485]] A stop abandons
 		// the computation.
+		std::cout << "QUALIFICATION_WORKLOAD:stop-lines=" << (optimized_build ? 40'000U : 6'000U) << '\n';
 		const auto large = make_case({ .Lines = optimized_build ? 40'000U : 6'000U, .Seed = 17U, .Edited = 300U, .Deleted = 15U, .Inserted = 15U, .Moved = 3U }, moves_options());
 		auto       timer = poll_timer{ };
 		const auto start = std::chrono::steady_clock::now();
@@ -1301,6 +1303,7 @@ namespace {
 
 int main()
 {
+	bpr::tests::report_qualification_build();
 	test_identical_and_empty();
 	test_insertions_and_deletions();
 	test_replacements_pairing_and_replay();

@@ -52,6 +52,16 @@
       }
     },
     {
+      "name": "qualification-release",
+      "displayName": "Optimized tests-enabled qualification",
+      "description": "Release expectations and optimized workload/budget branches. Additional qualification until the Debug residual and native full result are accepted; distinct from distribution.",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build/qualification-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
       "name": "tour-cli",
       "displayName": "Non-GUI tour terminal (tests disabled)",
       "inherits": "_ninja-common",
@@ -116,7 +126,9 @@
       "description": "[[BPR-1179]]. macos-release without agent integrations; see docs/development/release-packages.md.",
       "inherits": "macos-release",
       "binaryDir": "${sourceDir}/build/macos-release-agent-free",
-      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF"}
+      "cacheVariables": {
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF"
+      }
     },
     {
       "name": "macos-release-agent-free-automation-off",
@@ -124,7 +136,10 @@
       "description": "[[BPR-1179]]. macos-release without agent integrations or local automation; see docs/development/release-packages.md.",
       "inherits": "macos-release",
       "binaryDir": "${sourceDir}/build/macos-release-agent-free-automation-off",
-      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF", "BPR_BUILD_LOCAL_AUTOMATION": "OFF"}
+      "cacheVariables": {
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF",
+        "BPR_BUILD_LOCAL_AUTOMATION": "OFF"
+      }
     },
     {
       "name": "windows-dev",
@@ -169,7 +184,9 @@
       "description": "[[BPR-1179]]. windows-app-release without agent integrations; see docs/development/release-packages.md.",
       "inherits": "windows-app-release",
       "binaryDir": "${sourceDir}/build/windows-app-release-agent-free",
-      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF"}
+      "cacheVariables": {
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF"
+      }
     },
     {
       "name": "windows-app-release-agent-free-automation-off",
@@ -177,15 +194,25 @@
       "description": "[[BPR-1179]]. windows-app-release without agent integrations or local automation; see docs/development/release-packages.md.",
       "inherits": "windows-app-release",
       "binaryDir": "${sourceDir}/build/windows-app-release-agent-free-automation-off",
-      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF", "BPR_BUILD_LOCAL_AUTOMATION": "OFF"}
+      "cacheVariables": {
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF",
+        "BPR_BUILD_LOCAL_AUTOMATION": "OFF"
+      }
     },
     {
       "name": "linux-package",
       "displayName": "Linux baseline tests-disabled package",
       "inherits": "app-release",
       "binaryDir": "${sourceDir}/build/linux-package",
-      "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"},
-      "cacheVariables": {"BPR_DISTRIBUTION_BUILD": "ON", "CMAKE_INSTALL_PREFIX": "/usr"}
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "BPR_DISTRIBUTION_BUILD": "ON",
+        "CMAKE_INSTALL_PREFIX": "/usr"
+      }
     },
     {
       "name": "linux-package-agent-free",
@@ -193,7 +220,9 @@
       "description": "[[BPR-1179]]. linux-package without agent integrations; see docs/development/release-packages.md.",
       "inherits": "linux-package",
       "binaryDir": "${sourceDir}/build/linux-package-agent-free",
-      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF"}
+      "cacheVariables": {
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF"
+      }
     },
     {
       "name": "linux-package-agent-free-automation-off",
@@ -201,7 +230,15 @@
       "description": "[[BPR-1179]]. linux-package without agent integrations or local automation; see docs/development/release-packages.md.",
       "inherits": "linux-package",
       "binaryDir": "${sourceDir}/build/linux-package-agent-free-automation-off",
-      "cacheVariables": {"BPR_BUILD_AGENT_INTEGRATIONS": "OFF", "BPR_BUILD_LOCAL_AUTOMATION": "OFF"}
+      "cacheVariables": {
+        "BPR_BUILD_AGENT_INTEGRATIONS": "OFF",
+        "BPR_BUILD_LOCAL_AUTOMATION": "OFF"
+      }
+    },
+    {
+      "name": "windows-qualification-release",
+      "displayName": "Windows optimized tests-enabled qualification",
+      "inherits": "windows-dev"
     }
   ],
   "buildPresets": [
@@ -209,7 +246,9 @@
       "name": "tour-cli",
       "inherits": "_build-common",
       "configurePreset": "tour-cli",
-      "targets": ["app_bpr"]
+      "targets": [
+        "app_bpr"
+      ]
     },
     {
       "name": "_build-common",
@@ -286,6 +325,17 @@
       "targets": [
         "app_better_pull_review"
       ]
+    },
+    {
+      "name": "qualification-release",
+      "inherits": "_build-common",
+      "configurePreset": "qualification-release"
+    },
+    {
+      "name": "windows-qualification-release",
+      "inherits": "_build-common",
+      "configurePreset": "windows-qualification-release",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -314,6 +364,17 @@
       "inherits": "_test-common",
       "configurePreset": "windows-dev",
       "configuration": "Debug"
+    },
+    {
+      "name": "qualification-release",
+      "inherits": "_test-common",
+      "configurePreset": "qualification-release"
+    },
+    {
+      "name": "windows-qualification-release",
+      "inherits": "_test-common",
+      "configurePreset": "windows-qualification-release",
+      "configuration": "Release"
     }
   ],
   "workflowPresets": [
@@ -321,43 +382,82 @@
       "name": "dev",
       "displayName": "Configure, build, and test developer graph",
       "steps": [
-        { "type": "configure", "name": "dev" },
-        { "type": "build", "name": "dev" },
-        { "type": "test", "name": "dev" }
+        {
+          "type": "configure",
+          "name": "dev"
+        },
+        {
+          "type": "build",
+          "name": "dev"
+        },
+        {
+          "type": "test",
+          "name": "dev"
+        }
       ]
     },
     {
       "name": "core-only",
       "displayName": "Configure, build, and test Qt-free graph",
       "steps": [
-        { "type": "configure", "name": "core-only" },
-        { "type": "build", "name": "core-only" },
-        { "type": "test", "name": "core-only" }
+        {
+          "type": "configure",
+          "name": "core-only"
+        },
+        {
+          "type": "build",
+          "name": "core-only"
+        },
+        {
+          "type": "test",
+          "name": "core-only"
+        }
       ]
     },
     {
       "name": "app-release",
       "displayName": "Configure and build the tests-disabled Release app",
       "steps": [
-        { "type": "configure", "name": "app-release" },
-        { "type": "build", "name": "app-release" }
+        {
+          "type": "configure",
+          "name": "app-release"
+        },
+        {
+          "type": "build",
+          "name": "app-release"
+        }
       ]
     },
     {
       "name": "macos-release",
       "displayName": "Configure and build the universal tests-disabled macOS app",
       "steps": [
-        { "type": "configure", "name": "macos-release" },
-        { "type": "build", "name": "macos-release" }
+        {
+          "type": "configure",
+          "name": "macos-release"
+        },
+        {
+          "type": "build",
+          "name": "macos-release"
+        }
       ]
     },
     {
       "name": "windows-dev",
       "displayName": "Configure, build, and test Windows developer graph",
       "steps": [
-        { "type": "configure", "name": "windows-dev" },
-        { "type": "build", "name": "windows-dev" },
-        { "type": "test", "name": "windows-dev" }
+        {
+          "type": "configure",
+          "name": "windows-dev"
+        },
+        {
+          "type": "build",
+          "name": "windows-dev"
+        },
+        {
+          "type": "test",
+          "name": "windows-dev"
+        }
       ]
     }
   ]
