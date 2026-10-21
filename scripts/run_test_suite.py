@@ -172,9 +172,9 @@ def suite_lock(path: Path):
         yield
 
 
-def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: Path = ROOT) -> int:
+def run_suite(preset: str, jobs: int, output: Path, ctest: str = "ctest", root: Path = ROOT, tests_regex: str | None = None) -> int:
     with suite_lock(root / "build/.test-suite.lock"):
-        return run_locked_suite(preset, jobs, output, ctest, root)
+        return run_locked_suite(preset, jobs, output, ctest, root, tests_regex)
 
 
 def committed_tooling_pin(root: Path) -> dict:
@@ -227,18 +227,19 @@ def tooling_preflight(expected: list[str], preset: str, jobs: int, output: Path,
     return report
 
 
-def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path) -> int:
+def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Path, tests_regex: str | None = None) -> int:
     runner_started = time.monotonic()
     output.mkdir(parents=True, exist_ok=False)
     manifest = subprocess.run([ctest, "--preset", preset, "--show-only=json-v1"], cwd=root,
                               check=True, text=True, capture_output=True)
     selected = json.loads(manifest.stdout)
     validate_schedule(selected)
-    expected = [test["name"] for test in selected["tests"]]
+    all_names = [test["name"] for test in selected["tests"]]
+    expected = [name for name in all_names if tests_regex is None or re.search(tests_regex, name)]
     if not expected:
         raise ValueError("The selected CTest preset contains no tests")
     (output / "manifest.json").write_text(manifest.stdout, encoding="utf-8")
-    preflight = tooling_preflight(expected, preset, jobs, output, ctest, root)
+    preflight = tooling_preflight(all_names, preset, jobs, output, ctest, root)
     if preflight is not None and not preflight["passed"]:
         report = summarize([], 0.0)
         report.update(preset=preset, jobs=jobs, full_graph_started=False, complete=False,
@@ -253,6 +254,8 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     command = [ctest, "--preset", preset, "--parallel", str(jobs), "--output-on-failure",
                "--no-tests=error", "--output-log", str(output / "ctest.log"),
                "--output-junit", str(output / "junit.xml")]
+    if tests_regex is not None:
+        command.extend(["--tests-regex", tests_regex])
     started = time.monotonic()
     completed = subprocess.run(command, cwd=root, check=False)
     elapsed = time.monotonic() - started
@@ -260,7 +263,7 @@ def run_locked_suite(preset: str, jobs: int, output: Path, ctest: str, root: Pat
     actual = [row["name"] for row in report["tests"]]
     complete = Counter(actual) == Counter(expected)
     report.update(preset=preset, jobs=jobs, ctest_exit_code=completed.returncode,
-                  complete=complete, full_graph_started=True,
+                  complete=complete, full_graph_started=True, full_graph_selected=tests_regex is None, selection_regex=tests_regex,
                   preflight_wall_seconds=preflight["wall_seconds"] if preflight else 0.0,
                   total_runner_wall_seconds=time.monotonic() - runner_started,
                   missing=sorted(set(expected) - set(actual)),
@@ -280,6 +283,7 @@ def main() -> int:
     parser.add_argument("--preset", default="dev")
     parser.add_argument("--jobs", type=int, default=4, help="Bounded CTest concurrency; exclusive courses stay serial; only audited correctness may overlap")
     parser.add_argument("--output-dir", type=Path, help="New directory for this run's log, JUnit and timing report")
+    parser.add_argument("--tests-regex", help="Bounded selection from the validated preset; the existing tooling preflight still runs")
     parser.add_argument("--report-log", type=Path, help="Only summarize an existing CTest console log")
     parser.add_argument("--json", action="store_true", help="Print a JSON report when reading --report-log")
     args = parser.parse_args()
@@ -291,7 +295,7 @@ def main() -> int:
         return 0
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
     output = args.output_dir or ROOT / "build/test-results" / args.preset / stamp
-    return run_suite(args.preset, args.jobs, output.resolve())
+    return run_suite(args.preset, args.jobs, output.resolve(), tests_regex=args.tests_regex)
 
 
 if __name__ == "__main__":
