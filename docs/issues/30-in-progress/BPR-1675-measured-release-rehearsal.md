@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1675"
 title: "Measure the complete release rehearsal and remaining budget gap"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1674"]
 priority: "P1"
