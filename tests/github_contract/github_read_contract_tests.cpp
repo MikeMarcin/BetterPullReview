@@ -1850,6 +1850,37 @@ namespace {
 				&& emptyMessage->PullRequest.Commits.front()
 					   .Headline.empty(),
 			"Git commits may have an empty message");
+		expect(emptyMessage.has_value() && !emptyMessage->PullRequest.Commits.front().Parents.has_value(),
+			   "a recorded commit without parents leaves them unknown (RFC-BPR-0089)");
+
+		// RFC-BPR-0089. GitHub's `parents` are kept in order, exactly.
+		const auto withParents = [](const std::string_view aParents) {
+			auto parentsRecording = load_recording("github-com", server_contract::github_com);
+			replace_once(parentsRecording.Responses[4].Response.Body, "\"node_id\": \"C_fixture_head\",",
+						 std::string{ "\"node_id\": \"C_fixture_head\",\n    \"parents\": " } + std::string{ aParents } + ",");
+			return parentsRecording;
+		};
+		const auto parentsRecording = withParents(
+			R"([{ "sha": "1111111111111111111111111111111111111111" }, { "sha": "3333333333333333333333333333333333333333" }])");
+		expect(validate_strict_fixture_response(read_operation::list_pull_request_commits, parentsRecording.Responses[4].Response).has_value(),
+			   "a recorded commit may keep its parents");
+		const auto parents = normalize_github_read(normalization_context(server_contract::github_com), parentsRecording.Responses);
+		expect(parents.has_value()
+				   && parents->PullRequest.Commits.front().Parents
+					   == std::optional{ std::vector{ application::commit_oid{ "1111111111111111111111111111111111111111" },
+													  application::commit_oid{ "3333333333333333333333333333333333333333" } } },
+			   "a commit's parents are normalized in order");
+		const auto emptyParents = withParents("[]");
+		const auto root         = normalize_github_read(normalization_context(server_contract::github_com), emptyParents.Responses);
+		expect(root.has_value() && root->PullRequest.Commits.front().Parents == std::optional{ std::vector<application::commit_oid>{ } },
+			   "an empty parents list is a root commit, not unknown parents");
+		for (const auto parentsText : { std::string_view{ R"([{ "sha": "not-an-object-id" }])" }, std::string_view{ R"("1111111111111111111111111111111111111111")" },
+										std::string_view{ R"([{ "sha": "1111111111111111111111111111111111111111", "url": "https://api.github.com/x" }])" } }) {
+			expect(!validate_strict_fixture_response(read_operation::list_pull_request_commits, withParents(parentsText).Responses[4].Response).has_value(),
+				   "a recorded commit's parents are checked exactly");
+		}
+		expect(!normalize_github_read(normalization_context(server_contract::github_com), withParents(R"([{ "sha": "not-an-object-id" }])").Responses).has_value(),
+			   "a parent that is not an object id is refused");
 
 		auto  fileThreadRecording = load_recording("github-com", server_contract::github_com);
 		auto& fileThread          = fileThreadRecording.Responses[6].Response.Body;

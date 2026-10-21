@@ -339,19 +339,33 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		struct json_commit_parent
+		{
+			std::string Sha;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"sha", &json_commit_parent::Sha);
+			};
+		};
+
 		struct json_commit
 		{
 			std::string                    Sha;
 			std::string                    NodeId;
 			std::optional<json_rest_actor> Author;
 			json_commit_message            Commit;
+			// RFC-BPR-0089. Optional: a recorded response may omit it, and the
+			// parents are then unknown rather than empty.
+			std::optional<std::vector<json_commit_parent>> Parents;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
 					"sha", &json_commit::Sha,
 					"node_id", &json_commit::NodeId,
 					"author", &json_commit::Author,
-					"commit", &json_commit::Commit);
+					"commit", &json_commit::Commit,
+					"parents", &json_commit::Parents);
 			};
 		};
 
@@ -1178,6 +1192,14 @@ namespace bpr::adapters::github::detail {
 					newline != std::string::npos) {
 					headline.resize(newline);
 				}
+				auto parents = std::optional<std::vector<application::commit_oid>>{ };
+				if (object.Parents) {
+					parents.emplace();
+					parents->reserve(object.Parents->size());
+					for (const auto& parent : *object.Parents) {
+						parents->emplace_back(parent.Sha);
+					}
+				}
 				result.PullRequest.Commits.push_back(
 					application::github_commit_record{
 						.Oid = application::commit_oid{
@@ -1185,6 +1207,7 @@ namespace bpr::adapters::github::detail {
 						.Node     = application::github_node_id{ object.NodeId },
 						.Author   = optional_rest_actor(object.Author),
 						.Headline = std::move(headline),
+						.Parents  = std::move(parents),
 					});
 			}
 			if (

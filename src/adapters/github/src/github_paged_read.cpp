@@ -2410,11 +2410,34 @@ namespace bpr::adapters::github::detail {
 			if (const auto newline = headline.find('\n'); newline != std::string::npos) {
 				headline.resize(newline);
 			}
+			// RFC-BPR-0089. `parents` is read when the record carries it, and
+			// then exactly: an array of objects each naming a full `sha`. A
+			// record without the member leaves the parents unknown.
+			auto       parents       = std::optional<std::vector<application::commit_oid>>{ };
+			const auto parentsMember = json_member(object, "parents");
+			if (!json_is_undefined(parentsMember)) {
+				if (!json_is_array(parentsMember)) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				const auto values = json_array(parentsMember);
+				if (values.size() > application::maximum_github_commit_parents) {
+					return failed(application::github_provider_failure::malformed_response);
+				}
+				parents.emplace();
+				parents->reserve(values.size());
+				for (const auto& value : values) {
+					if (!json_is_object(value) || !hexadecimal_oid(json_member(json_object(value), "sha"))) {
+						return failed(application::github_provider_failure::malformed_response);
+					}
+					parents->emplace_back(text(json_member(json_object(value), "sha")));
+				}
+			}
 			return application::github_commit_record{
 				.Oid      = application::commit_oid{ text(json_member(object, "sha")) },
 				.Node     = application::github_node_id{ text(json_member(object, "node_id")) },
 				.Author   = author.Actor,
 				.Headline = std::move(headline),
+				.Parents  = std::move(parents),
 			};
 		}
 

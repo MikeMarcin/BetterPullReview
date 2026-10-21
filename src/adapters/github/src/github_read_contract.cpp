@@ -1183,15 +1183,25 @@ namespace bpr::adapters::github::detail {
 				return false;
 			}
 			return std::ranges::all_of(json_array(aDocument), [](const fixture_json_value& aValue) {
+				// RFC-BPR-0089. A recorded commit may keep GitHub's `parents`,
+				// each exactly `{ "sha": <object id> }`; nothing else is admitted.
 				if (
 					!json_is_object(aValue)
-					|| !has_exact_keys(
-						json_object(aValue),
-						{ "author", "commit", "node_id", "sha" })) {
+					|| (!has_exact_keys(json_object(aValue), { "author", "commit", "node_id", "sha" })
+						&& !has_exact_keys(json_object(aValue), { "author", "commit", "node_id", "parents", "sha" }))) {
 					return false;
 				}
-				const auto object = json_object(aValue);
-				const auto commit = json_member(object, "commit");
+				const auto object  = json_object(aValue);
+				const auto commit  = json_member(object, "commit");
+				const auto parents = json_member(object, "parents");
+				if (!json_is_undefined(parents)
+					&& (!json_is_array(parents) || json_array(parents).size() > application::maximum_github_commit_parents
+						|| !std::ranges::all_of(json_array(parents), [](const fixture_json_value& aParent) {
+							   return json_is_object(aParent) && has_exact_keys(json_object(aParent), { "sha" })
+								   && valid_json_oid(json_member(json_object(aParent), "sha"));
+						   }))) {
+					return false;
+				}
 				return valid_json_oid(json_member(object, "sha"))
 					&& nonempty_string(json_member(object, "node_id"))
 					&& optional_rest_actor(json_member(object, "author"))

@@ -230,6 +230,9 @@ namespace bpr::application {
 		auto operator<=>(const github_file_record&) const = default;
 	};
 
+	/// \brief The most parents one commit record may name (RFC-BPR-0089).
+	inline constexpr std::size_t maximum_github_commit_parents = 16U;
+
 	/// \brief Describes the github commit record record.
 	struct github_commit_record
 	{
@@ -237,6 +240,11 @@ namespace bpr::application {
 		github_node_id                     Node;
 		std::optional<github_actor_record> Author;
 		std::string                        Headline;
+		/// RFC-BPR-0089. The commit's parents in order, as the REST record's
+		/// `parents` names them. Absent when the record named none, which a
+		/// recorded response may; the commit filter is then unavailable rather
+		/// than guessed. An empty list is a root commit.
+		std::optional<std::vector<commit_oid>> Parents;
 
 		auto operator<=>(const github_commit_record&) const = default;
 	};
@@ -1500,6 +1508,20 @@ namespace bpr::application {
 			if (const auto error = validate_author(aRecord.Author, aBudget, aLimits);
 				error != github_read_validation_error::none) {
 				return error;
+			}
+			if (aRecord.Parents) {
+				if (aRecord.Parents->size() > maximum_github_commit_parents) {
+					return github_read_validation_error::invalid_commit_oid;
+				}
+				for (const auto& parent : *aRecord.Parents) {
+					if (!hexadecimal_oid(parent.value())) {
+						return github_read_validation_error::invalid_commit_oid;
+					}
+					if (const auto error = aBudget.consume(parent.value(), 64U, true);
+						error != github_read_validation_error::none) {
+						return error;
+					}
+				}
 			}
 			return aBudget.consume(
 				aRecord.Headline,

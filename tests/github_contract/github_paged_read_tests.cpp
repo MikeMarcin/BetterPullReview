@@ -387,6 +387,8 @@ namespace {
 		file_wrong_required,
 		commit_missing_required,
 		commit_wrong_required,
+		commit_parents,
+		commit_parents_malformed,
 		review_missing_required,
 		review_wrong_required,
 		issue_comment_missing_required,
@@ -939,6 +941,18 @@ namespace {
 				} else if (index == 0U
 						   && Scenario == fixture_scenario::commit_wrong_required) {
 					commit.insert_or_assign("sha", "not-a-commit-oid");
+				} else if (Scenario == fixture_scenario::commit_parents) {
+					// RFC-BPR-0089: the head of a one-commit list merges the base
+					// branch, so its parents are the base and a second commit.
+					auto parents = fixture_array{ };
+					parents.emplace_back(fixture_object{ { "sha", std::string{ base_oid } }, { "url", "https://api.github.com/commit" } });
+					parents.emplace_back(fixture_object{ { "sha", std::string(40U, 'e') }, { "url", "https://api.github.com/commit" } });
+					commit.insert_or_assign("parents", parents);
+				} else if (index == 0U
+						   && Scenario == fixture_scenario::commit_parents_malformed) {
+					auto parents = fixture_array{ };
+					parents.emplace_back(fixture_object{ { "sha", "not-a-commit-oid" } });
+					commit.insert_or_assign("parents", parents);
 				}
 				commits.emplace_back(commit);
 			}
@@ -2069,6 +2083,18 @@ namespace {
 		expect(result->Reviews.front().Observation.CreatedAt == "2026-07-30T13:00:00Z"
 				   && result->IssueComments.front().Observation.CreatedAt == "2026-07-30T13:30:00Z",
 			   "PR comments and review summaries retain server chronology without another read");
+		expect(result->Commits.size() == 1U && !result->Commits.front().Parents.has_value(),
+			   "a commit record without parents leaves them unknown (RFC-BPR-0089)");
+		{
+			auto       parentsTransport = paged_fixture_transport{ fixture_scenario::commit_parents };
+			const auto parentsResult    = perform_paged_github_read(parentsTransport, profile(), provider_request(),
+																	core::provider_snapshot_id{ 59U }, std::stop_token{ });
+			expect(parentsResult.has_value() && parentsResult->Commits.size() == 1U
+					   && parentsResult->Commits.front().Parents
+						   == std::optional{ std::vector{ application::commit_oid{ std::string{ base_oid } },
+														  application::commit_oid{ std::string(40U, 'e') } } },
+				   "a commit record's parents are kept in order (RFC-BPR-0089)");
+		}
 		expect(result->Commits.size() == 1U
 				   && result->Commits.front().Headline == "Paged read"
 				   && result->Reviews.size() == 1U
@@ -2697,6 +2723,7 @@ namespace {
 			fixture_scenario::file_wrong_required,
 			fixture_scenario::commit_missing_required,
 			fixture_scenario::commit_wrong_required,
+			fixture_scenario::commit_parents_malformed,
 			fixture_scenario::review_missing_required,
 			fixture_scenario::review_wrong_required,
 			fixture_scenario::issue_comment_missing_required,
