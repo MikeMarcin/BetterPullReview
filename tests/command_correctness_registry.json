@@ -1075,7 +1075,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+          "sha256": "0ab26ccf436ff857e8e67f98d046bf9d3b2a2ee138fd2a18d0409d1ef6132f9b"
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
@@ -1091,7 +1091,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+          "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
         }
       ]
     },
@@ -1164,7 +1164,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+          "sha256": "0ab26ccf436ff857e8e67f98d046bf9d3b2a2ee138fd2a18d0409d1ef6132f9b"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1180,7 +1180,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+          "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
         }
       ]
     },
@@ -1256,7 +1256,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "84b1a89c3afadb27a0d038be62520fd35c058420010554002eac525c03011a56"
+          "sha256": "0ab26ccf436ff857e8e67f98d046bf9d3b2a2ee138fd2a18d0409d1ef6132f9b"
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
@@ -1276,7 +1276,172 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "c6a28cceec84df80aab180e27ce3015a4ff85edc238728cb18958ee9d6c987f6"
+          "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        }
+      ]
+    },
+    {
+      "source": "tests/end_to_end/device_binding_launch_renewal_tests.cpp",
+      "sha256": "cf3ac846d476da83e01c61b28485c4073c30e86ba494ac584b537e6dd6d77a26",
+      "directory": "tests/end_to_end",
+      "configurations": [
+        "Debug",
+        "Release"
+      ],
+      "unset_environment": [
+        "BPR_KEPT_GRANT_CAPTURE_DIR"
+      ],
+      "ownership": "Each lifetime owns QTemporaryDir/private_data_root, offscreen Qt state and fixture host. Three real offline retries and five-second retry waits remain ordered and unchanged. No NDEBUG, checked-iterator or optimized timing-budget branch. Optional inherited capture root is unset; every child is reaped before return.",
+      "rows": [
+        {
+          "name": "application_device_binding_launch_renewal",
+          "command": "test_device_binding_launch_renewal",
+          "executable": "device_binding_launch_renewal",
+          "arguments": [],
+          "platforms": [
+            "Windows"
+          ],
+          "scheduling": "correctness",
+          "resource": "device_launch_renewal",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        },
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "0ab26ccf436ff857e8e67f98d046bf9d3b2a2ee138fd2a18d0409d1ef6132f9b"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        }
+      ]
+    },
+    {
+      "source": "tests/end_to_end/pending_states_public_path_tests.cpp",
+      "sha256": "b963a3b606c15d38c0aa842b4cc139e2792a5d6ea3d6f58690b9f5415b4bf601",
+      "directory": "tests/end_to_end",
+      "configurations": [
+        "Debug",
+        "Release"
+      ],
+      "unset_environment": [
+        "BPR_KEPT_GRANT_CAPTURE_DIR"
+      ],
+      "ownership": "Fresh QTemporaryDir/private_data_root owns all SQLite files, fixture host and offscreen state. Exact default argv excludes optional --render-directory; event progress waits and failure deadlines are unchanged. No NDEBUG, checked-iterator or optimized timing-budget branch.",
+      "rows": [
+        {
+          "name": "application_pending_states_public_path",
+          "command": "test_pending_states_public_path",
+          "executable": "pending_states_public_path",
+          "arguments": [],
+          "platforms": [
+            "Windows"
+          ],
+          "scheduling": "correctness",
+          "resource": "pending_states",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        },
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "0ab26ccf436ff857e8e67f98d046bf9d3b2a2ee138fd2a18d0409d1ef6132f9b"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        }
+      ]
+    },
+    {
+      "source": "tests/end_to_end/profile_window_review_restoration_public_path_tests.cpp",
+      "sha256": "bf0c67ed669ceacab6abf319d5ff77790015331afd6ae0e4f31cb1009e059918",
+      "directory": "tests/end_to_end",
+      "configurations": [
+        "Debug",
+        "Release"
+      ],
+      "unset_environment": [
+        "BPR_KEPT_GRANT_CAPTURE_DIR"
+      ],
+      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch.",
+      "rows": [
+        {
+          "name": "application_profile_window_review_restoration_public_path",
+          "command": "Python3::Interpreter;{source_dir}/tests/end_to_end/profile_window_review_restoration_contract.py;--application;$<TARGET_FILE:test_profile_window_review_restoration_public_path>",
+          "executable": "python",
+          "arguments": [
+            "{source_dir}/tests/end_to_end/profile_window_review_restoration_contract.py",
+            "--application",
+            "{binary_dir}/{configuration}/profile_window_review_restoration_public_path.exe"
+          ],
+          "platforms": [
+            "Windows"
+          ],
+          "scheduling": "correctness",
+          "resource": "review_restoration",
+          "selector": "<default>",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_REVIEW_RESTORATION_ARTIFACT_ROOT={build_dir}/bpr0710-restoration-artifacts"
+          ]
+        }
+      ],
+      "inputs": [
+        {
+          "path": "src/app/src/github_application.cpp",
+          "sha256": "255dc9ef0e3b48e17fcfba79b517b16758f85dfb83847163454b8d3c9d81dfde"
+        },
+        {
+          "path": "src/app/src/github_application_fixture_access.hpp",
+          "sha256": "0ab26ccf436ff857e8e67f98d046bf9d3b2a2ee138fd2a18d0409d1ef6132f9b"
+        },
+        {
+          "path": "tests/support/test_expectation.hpp",
+          "sha256": "ef4ccf23138b281ab8e5df86ceb840111235cbef3545ff46d1d124b6542b0ce3"
+        },
+        {
+          "path": "tests/end_to_end/private_data_root.hpp",
+          "sha256": "12018bd6613fbd1b9655f542d12f0cb096e4a16780cf6280d1de41261193316d"
+        },
+        {
+          "path": "tests/end_to_end/profile_window_review_restoration_contract.py",
+          "sha256": "39d4de2bc11c0be26923e38ef5168ab71a8b6a07b1c7a91a36354a994ae2bb7f"
+        },
+        {
+          "path": "tests/end_to_end/bpr_narrow_owner_private.py",
+          "sha256": "97a301a3e430700e30f378a4eb3fbe9ed0dbb970d291bb279b38c7ae03764d58"
+        },
+        {
+          "path": "tests/end_to_end/bpr_store_connection.py",
+          "sha256": "bee6bddf85e6473d95d4b1d4f425017bc99a566e5695224cfc3f135bddf6e336"
+        },
+        {
+          "path": "scripts/contained_temporary_support.py",
+          "sha256": "f0b318eb5a8eade93618ad63a8042f2bb1538555215676e23f88103baea4a10c"
         }
       ]
     }

@@ -84,7 +84,13 @@ def validate_command_owned_row(row: dict, props: dict, root: Path = ROOT) -> Non
         raise ValueError("Unaudited command correctness configuration")
     source = root / family["source"]
     directory = Path(props["WORKING_DIRECTORY"])
-    expected_arguments = [arg.replace("{binary_dir}", directory.as_posix()) for arg in candidate["arguments"]]
+    replacements = {"{binary_dir}": directory.as_posix(), "{build_dir}": directory.parents[1].as_posix(),
+                    "{source_dir}": root.as_posix(), "{configuration}": row.get("config", "Debug")}
+    expected_arguments = []
+    for argument in candidate["arguments"]:
+        for token, value in replacements.items():
+            argument = argument.replace(token, value)
+        expected_arguments.append(argument)
     command = row.get("command", [])
     tail = len(expected_arguments) + 1
     actual = command[-tail:]

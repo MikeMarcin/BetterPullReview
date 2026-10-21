@@ -1521,17 +1521,12 @@ if(WIN32 AND bpr_standard_correctness_inputs)
         TESTS
             binary_dependency_surface)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        CONFIGURATIONS Debug MODE offscreen RESOURCE device_launch_renewal
-        TESTS
-            application_device_binding_launch_renewal)
-    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
         CONFIGURATIONS Debug MODE offscreen RESOURCE profile_layout
         TESTS
             application_profile_window_layout_public_path)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
         CONFIGURATIONS Debug MODE offscreen RESOURCE review_restoration
         TESTS
-            application_profile_window_review_restoration_public_path
             application_document_tabs_restoration_public_path)
     bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
         CONFIGURATIONS Debug MODE offscreen RESOURCE offline_inventory
@@ -1542,10 +1537,6 @@ if(WIN32 AND bpr_standard_correctness_inputs)
         CONFIGURATIONS Debug MODE headless RESOURCE diagnostic_contract
         TESTS
             diagnostic_subsystem_contract)
-    bpr_allow_isolated_correctness(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/end_to_end"
-        CONFIGURATIONS Debug MODE offscreen RESOURCE pending_states
-        TESTS
-            application_pending_states_public_path)
 endif()
 
 # Source and exact argv are checked before widening the default serial policy.

@@ -34,7 +34,22 @@ and conversation-reveal selectors stay exclusive, as do all three composed
 inline-drawer rows with optimized 100 ms limits. Defaults retain all 115 cases,
 three scales and render outputs; deadlines, lifecycle order and optional output
 unsets remain intact. Release admits only source/argv/environment/input-bound
-registry correctness rows on Windows; older fixed declarations stay Debug-only.
+registry correctness rows on Windows. A subsequent profile-directed audit moves
+three older fixed Debug declarations into that same source-bound registry:
+device-binding launch renewal, pending-state public paths and profile/window
+review restoration. They own private temporary data and offscreen state, have no
+configuration-specific budget branch, and preserve actual retries and lifecycle
+waits. Restoration retains the shared `review_restoration` output lock; its
+Python driver, helper imports, source path, native binary/configuration and exact
+artifact root are bound. Inherited optional capture roots are unset. The other
+older fixed declarations stay Debug-only.
+
+The merged promo input correctly made nine original composed rows fall back to
+exclusive execution. Their application and fixture-header pins are renewed only
+after the scoped promo review above. Original full-run receipts retain that
+conservative schedule. Focused native evidence must establish the twelve newly
+admitted Release rows before claiming their concurrency benefit; no full-suite
+receipt is silently rewritten as a run with the new schedule.
 Unknown configuration, source, feature and diagnostic-macro overrides remain
 exclusive. macOS/Linux activation is pending native evidence.
 
