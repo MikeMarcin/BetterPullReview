@@ -29,10 +29,12 @@
 //       those lines with GitHub's own Files changed for the same pull request.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/epoch_line.hpp"
 #include "bpr/qt/files_tree.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_landing_model.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -47,6 +49,8 @@
 #include <QComboBox>
 #include <QContextMenuEvent>
 #include <QCoreApplication>
+#include <QItemSelection>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -56,6 +60,7 @@
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QStatusBar>
+#include <QTabBar>
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
@@ -152,9 +157,9 @@ namespace {
 				fail("unknown argument " + key.toStdString());
 			}
 		}
-		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity") || result.Root.empty() || result.Pull <= 0
+		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter") || result.Root.empty() || result.Pull <= 0
 			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))) {
-			fail("usage: --course observer|reader|epoch|parity --root DIR --pull N [--author LOGIN --path PREFIX]");
+			fail("usage: --course observer|reader|epoch|parity|commit-filter --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -543,6 +548,126 @@ namespace {
 		dump(aWindow);
 	}
 
+	/// RFC-BPR-0089. Opens the pull request on Overview, shows the Commits tab
+	/// (which reads the chain's trees, through gh for a sparse review), and
+	/// for each commit chooses Show only selected and then Hide selected on
+	/// the second, through the tab's own context menu. For each it writes the
+	/// filtered file list and, for up to `aLimit` files, the diff the review
+	/// shows: its two endpoint commits, its blobs and its changed lines, into
+	/// DIR/commit-filter.jsonl, which `rfc0089_commit_filter_live_course.py`
+	/// compares with `git diff C^ C`. Nothing here writes to GitHub.
+	void commit_filter_course(const options& aOptions, qt::workbench_window& aWindow, const std::size_t aLimit = 12U)
+	{
+		aWindow.resize(1300, 860);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		require([&] { return aWindow.overview_page()->projection().has_value() && !aWindow.overview_page()->projection()->Files.empty(); }, "the overview lists the files");
+		const auto whole  = aWindow.overview_page()->projection()->Files.size();
+		auto*      drawer = aWindow.overview_page()->status_drawer();
+		drawer->tabs()->setCurrentIndex(1);
+		auto* const tab   = drawer->commits();
+		const auto  ready = [&] {
+			const auto& projection = tab->projection();
+			return projection && !projection->Rows.empty()
+				&& (projection->Trees == application::commit_filter_trees::ready || projection->Trees == application::commit_filter_trees::objects_unavailable
+					|| projection->Trees == application::commit_filter_trees::limit_exceeded || projection->Trees == application::commit_filter_trees::failed);
+		};
+		require(ready, "the Commits tab reads the chain's trees", std::chrono::seconds{ 600 });
+		say("commit-filter:status=" + text(tab->status()->text()));
+		if (tab->projection()->Trees != application::commit_filter_trees::ready) {
+			fail("the chain's trees are not ready: " + text(tab->status()->text()));
+		}
+		std::ofstream out{ aOptions.Root / "commit-filter.jsonl" };
+		auto          rows = std::string{ };
+		for (const auto& row : tab->projection()->Rows) {
+			rows += (rows.empty() ? "" : ",") + std::string{ "{\"commit\":" } + json_text(row.Commit) + ",\"headline\":" + json_text(row.Headline) + ",\"author\":" + json_text(row.Author)
+				+ ",\"files\":" + (row.Files ? std::to_string(*row.Files) : std::string{ "null" }) + ",\"role\":" + std::to_string(static_cast<int>(row.Role)) + "}";
+		}
+		out << "{\"kind\":\"commits\",\"whole\":" << whole << ",\"rows\":[" << rows << "]}\n";
+		auto* const surface  = aWindow.comparison_surface();
+		const auto  hex      = [](const core::git_commit_oid& aOid) { return json_text(core::canonical_hex(aOid).view()); };
+		const auto  blob     = [](const std::optional<core::git_blob_oid>& aBlob) { return aBlob ? json_text(core::canonical_hex(*aBlob).view()) : std::string{ "null" }; };
+		const auto  scenario = [&](const std::string& aName, const QString& aAction, const std::vector<std::string>& aCommits) {
+			auto selection = QItemSelection{ };
+			for (const auto& commit : aCommits) {
+				const auto row = tab->model()->row_of(commit);
+				selection.select(tab->model()->index(row), tab->model()->index(row));
+			}
+			tab->list()->selectionModel()->select(selection, QItemSelectionModel::ClearAndSelect);
+			auto        menu   = std::unique_ptr<QMenu>{ tab->make_menu(nullptr) };
+			auto* const action = menu->findChild<QAction*>(aAction);
+			if (action == nullptr || !action->isEnabled()) {
+				fail(aName + ": the context menu does not offer the action");
+			}
+			action->trigger();
+			const auto filtered = [&] {
+				const auto& projection = tab->projection();
+				return projection && projection->FilteredFiles && aWindow.overview_page()->projection()
+					&& aWindow.overview_page()->projection()->Files.size() == *projection->FilteredFiles;
+			};
+			require(filtered, aName + ": the filtered file set");
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 1 });
+			auto paths = std::vector<std::string>{ };
+			for (const auto& row : aWindow.overview_page()->projection()->Files) {
+				paths.push_back(row.Path);
+			}
+			auto files = std::string{ };
+			for (const auto& path : paths) {
+				files += (files.empty() ? "" : ",") + json_text(path);
+			}
+			const auto chip = text(aWindow.overview_page()->commit_chip()->summary()->text()) + " / " + text(aWindow.overview_page()->commit_chip()->detail()->text());
+			say("commit-filter:" + aName + " files=" + std::to_string(paths.size()) + " chip=" + chip);
+			aWindow.choose_modality(qt::review_modality::review);
+			auto diffs = std::string{ };
+			for (std::size_t index = 0U; index < paths.size() && index < aLimit; ++index) {
+				const auto& path = paths[index];
+				aWindow.files_drawer()->contents_view()->setCurrentIndex(aWindow.files_drawer()->contents()->index_for_file(core::file_identity_of(path)));
+				const auto settled = [&] {
+					const auto& context = surface->current_context();
+					const auto& result  = surface->current_result();
+					return context && result && result->Alignment.Key == context->Key && context->Key.File == core::file_identity_of(path);
+				};
+				const auto split = [&] { return surface->status_text().contains(QStringLiteral("hidden commit changed this file")); };
+				if (!wait_for([&] { return settled() || split(); }, aName + " " + path, std::chrono::seconds{ 120 })) {
+					fail(aName + ": " + path + " never showed");
+				}
+				if (!settled()) {
+					diffs += (diffs.empty() ? "" : ",") + std::string{ "{\"path\":" } + json_text(path) + ",\"split\":true}";
+					continue;
+				}
+				const auto& context = *surface->current_context();
+				const auto& result  = *surface->current_result();
+				diffs += (diffs.empty() ? "" : ",") + std::string{ "{\"path\":" } + json_text(path) + ",\"left\":" + (context.Key.Filter ? hex(context.Key.Filter->Left) : std::string{ "null" })
+					+ ",\"right\":" + (context.Key.Filter ? hex(context.Key.Filter->Right) : std::string{ "null" }) + ",\"left_blob\":" + blob(context.Key.LeftBlob)
+					+ ",\"right_blob\":" + blob(context.Key.RightBlob) + ",\"removed\":" + changed_lines(result, core::diff_side::left)
+					+ ",\"added\":" + changed_lines(result, core::diff_side::right) + "}";
+			}
+			out << "{\"kind\":\"scenario\",\"name\":" << json_text(aName) << ",\"commits\":[";
+			for (std::size_t index = 0U; index < aCommits.size(); ++index) {
+				out << (index == 0U ? "" : ",") << json_text(aCommits[index]);
+			}
+			out << "],\"chip\":" << json_text(chip) << ",\"files\":[" << files << "],\"diffs\":[" << diffs << "]}\n";
+			out.flush();
+			aWindow.show_commits();
+			aWindow.overview_page()->commit_chip()->clear_button()->click();
+			require([&] { return aWindow.overview_page()->projection() && aWindow.overview_page()->projection()->Files.size() == whole; }, aName + ": Clear all filters restores Whole PR");
+		};
+		const auto& listed = tab->projection()->Rows;
+		auto        chain  = std::vector<std::string>{ };
+		for (const auto& row : listed) {
+			if (row.Role != core::filter_commit_role::side) {
+				chain.push_back(row.Commit);
+			}
+		}
+		for (std::size_t index = 0U; index < chain.size(); ++index) {
+			scenario("only-" + std::to_string(index + 1U), QStringLiteral("commitFilterShowOnly"), { chain[index] });
+		}
+		if (chain.size() >= 2U) {
+			scenario("hide-2", QStringLiteral("commitFilterHide"), { chain[1] });
+		}
+		say("commit-filter:scenarios=" + std::to_string(chain.size() + (chain.size() >= 2U ? 1U : 0U)));
+	}
+
 	void observer_course(const options& aOptions, qt::workbench_window& aWindow)
 	{
 		open_pull(aWindow, aOptions.Pull);
@@ -636,6 +761,8 @@ try {
 		epoch_course(chosen, *window);
 	} else if (chosen.Course == "parity") {
 		parity_course(chosen, *window);
+	} else if (chosen.Course == "commit-filter") {
+		commit_filter_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

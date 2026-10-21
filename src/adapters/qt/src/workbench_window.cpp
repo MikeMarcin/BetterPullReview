@@ -7026,7 +7026,10 @@ namespace bpr::qt {
 		Failure = aFailure.Failure;
 		if (aFailure.Failure == application::workbench_host_failure::selected_file_missing_left
 			|| aFailure.Failure == application::workbench_host_failure::selected_file_missing_right
-			|| aFailure.Failure == application::workbench_host_failure::selected_file_missing_both) {
+			|| aFailure.Failure == application::workbench_host_failure::selected_file_missing_both
+			// RFC-BPR-0089: a split file reads nothing, so the previous file's
+			// diff must not stay on screen under its row.
+			|| aFailure.Failure == application::workbench_host_failure::selected_file_split_by_commit_filter) {
 			ComparisonSurface->clear(failure_text(aFailure.Failure));
 		}
 		++Statistics.Failures;
