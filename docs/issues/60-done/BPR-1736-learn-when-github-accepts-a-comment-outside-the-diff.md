@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1736"
 title: "Learn when GitHub accepts a line comment outside the diff, and place it natively there"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-1735"]
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1736--BPR-1736--f61711c4c46d.json","kind":"design","origin":"Owner, 2026-10-22, on BPR-1735's option P: find clear capabilities for comment-anywhere support","phase":"research and design done; awaits the owner's decisions","related_cards":["BPR-1735","BPR-1716","BPR-1715","BPR-1706","BPR-1680"],"related_rfcs":["RFC-BPR-0089"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1736--BPR-1736--f61711c4c46d.json","kind":"design","origin":"Owner, 2026-10-22, on BPR-1735's option P: find clear capabilities for comment-anywhere support","phase":"built under the owner's decisions of 2026-10-22","related_cards":["BPR-1735","BPR-1716","BPR-1715","BPR-1706","BPR-1680"],"related_rfcs":["RFC-BPR-0089"],"frontend_design":"frontend-design:frontend-design loaded before the editor's words; they reuse BPR-1735's notice","follow_up":"BPR-PENDING-AP"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_off_hunk_fact|github_review_comment_permalink|application_review_mutation_application_host|application_review_submission_composition_public_path)$'","detail":"With nothing learned the mutation host binds a Whole PR line outside every hunk off_hunk (CorePlacedOffHunk) and the session makes one native attempt. GitHub.com's measured 422 (pull_request_review_thread.line, custom, 'could not be resolved', any documentation URL, status and headers: the general classifier, D4) records unsupported and the file child follows in the same Publish through native_definitively_unsupported: two POSTs, one comment (test_an_unknown_off_hunk_line_learns_from_one_native_attempt). A refusal naming the line in an unrecorded shape (GitHub Enterprise Server's) records unsupported, rejects the child as off_hunk_refused ('GitHub refused a line comment here. Publish as file comment?'), keeps the draft, and the next Publish posts the file comment with no second native attempt. Composed: the owner's held comment, published on its own, makes one native attempt refused in GitHub.com's shape and its file comment follows (OffHunkNativePosts 1, NativePosts +1, FilePosts +1); the journal's off_hunk_fact is 0,2,2,1,,85. Failing before: no fact, no route, no classifier beyond PR2 and no off_hunk binding exist on main, so the provider and composed courses cannot compile or wait on a native attempt main never makes."}},{"criterion":"AC2","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_off_hunk_fact|github_review_comment_permalink|application_review_mutation_application_host|application_review_submission_composition_public_path|qt_workbench_line_draft)$'","detail":"With the fact unsupported the host binds the line unresolvable_line and the session admits it straight to the file comment (unresolvable_line_admitted, no native child); the composed course's next line outside the diff (head line 96) shows 'GitHub can't place a comment on this line. It will be posted as a file comment that links to the line.' and posts one file comment with the permalink to #L96 and no native attempt. core::holds_review_comment(placement, fact) holds such a line for unknown and unsupported, and comment_destination refuses it from a review."}},{"criterion":"AC3","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_off_hunk_fact|github_review_comment_permalink|application_review_mutation_application_host|application_review_submission_composition_public_path)$'","detail":"Fixture only: no host has accepted such a comment (BPR-Test #125). Supported routes a line and a range outside the diff natively, alone or in a review (D3); a created comment at the line records supported and the next one goes natively; a later refusal demotes at once and its file comment follows (test_a_supported_off_hunk_line_is_native). Composed: with the fact set supported the review carries head line 101 with nothing held; GitHub refuses it for an unplaceable line in the GitHub CLI's shape; BPR-1715 settles it as not published, the fact is unsupported for both operations (0,2,2 and 1,2,2), the comment is held, and GitHub holds no comment of it."}},{"criterion":"AC4","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_off_hunk_fact|sqlite_review_mutation_recovery_storage|sqlite_review_submission_recovery_storage|github_review_comment_permalink|github_mutation_contract|gh_cli_transport|native_https_transport_fixture)$'","detail":"The exact key forgets an entry kept under another server version, profile revision, API version or classifier revision; forget_other_servers deletes them once the new server answers; current_off_hunk_fact keeps a fact 14 days on GitHub.com and 30 on GitHub Enterprise Server and never one observed after now; version 8 migrates to 9 with nothing learned. On GitHub Enterprise Server installed_version is read once per session from GET /meta and the fact is kept under the version the answer names in X-GitHub-Enterprise-Version (kept by both transports on a mutation's answer only; reads, whose metadata parser admits no other header, drop it); 3.20.8 to 3.22.2 makes one native attempt again, and with no readable version nothing is recorded (test_an_enterprise_fact_is_keyed_by_the_server_version). GitHub.com is never keyed by a version. No path sets the fact from a host name, product, version, schema or readable comment: only learn_off_hunk_fact from an answer."}},{"criterion":"AC5","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"ctest --preset dev -R '^(github_review_comment_permalink|sqlite_review_mutation_recovery_storage|live_review_mutation_restart_recovery|application_review_submission_composition_public_path)$'","detail":"The native attempt is RFC-BPR-0022's native child: the file child follows only a fully received refusal (classified) or a rejected record (unclassified), never an outcome in doubt. A lost answer, a 502 and an unrelated 422 teach nothing; the first two only reconcile GET-only and send nothing more; replays and restarts send nothing (a replay of the classified course and the unrecorded course's 'never twice'). learned_file_comment acts only on a fresh or rejected record, so a publication in doubt keeps its own course. The review demotion resends nothing."}},{"criterion":"AC6","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_workbench_line_draft|application_review_submission_composition_public_path)$'","detail":"Narrowed at closeout: the editor says before Publish what was learned in the card's words ('GitHub can't place a comment on this line. It will be posted as a file comment that links to the line.'; 'GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line.'; nothing where GitHub accepted one) and after an unclassified refusal 'GitHub refused a line comment here. Publish as file comment?'. The server card's line and the published thread's Support details line move to BPR-PENDING-AP (Backlog); nothing claims them here. frontend-design:frontend-design was loaded before the words; they reuse BPR-1735's notice with no new visual language."}},{"criterion":"AC7: gates","outcome":"pass","revision":"195a676236366507e28cd5bb69f06e66b51db6e3","evidence":{"kind":"command","command":"_coding-standard/scripts/format.py <changed>; _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <changed units>; cmake --preset core-only && ctest --preset core-only; reseal_round_trip_composition.py --check; reseal_command_correctness.py --check; python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py","detail":"See the card's Gates section for the exact results."}}]
 ---
 
 # BPR-1736: Learn when GitHub accepts a line comment outside the diff, and place it natively there
@@ -353,7 +354,7 @@ Each is one Accept or Reject.
   off-hunk comment on the owner's 3.20.8 host; until then a GHES refusal
   records `unsupported` and asks once.
 
-## Proposed acceptance
+## Acceptance
 
 - AC1: With no learned fact, an off-hunk single Publish makes at most one
   native attempt per key; GitHub's refusal records the fact as unsupported,
@@ -371,7 +372,8 @@ Each is one Accept or Reject.
   comment twice (RFC-BPR-0022's interruption courses, extended with the
   learned path).
 - AC6: Support details and the server card say what was learned, where and
-  when, in the words above.
+  when, in the words above. Narrowed at closeout: the editor's words are
+  built here; the server card and Support details lines are BPR-PENDING-AP (Backlog).
 
 ## Not verified
 
@@ -392,3 +394,130 @@ The owner accepted every recommendation in chat ("I accept all 4 of your recomme
 - D2: **Reject**, as recommended. The first native attempt is not skipped on versions already known to refuse.
 - D3: **Accept.** Single-comment evidence counts for reviews too.
 - D4: **Accept.** The measured GitHub.com refusal shape is the general classifier. The GHES 3.20.8 shape still needs one export from the owner after a single off-hunk Publish.
+
+## Built, 2026-10-22
+
+Under the owner's decisions above (D1 Accept, D2 Reject, D3 Accept, D4
+Accept), recorded as RFC-BPR-0022 owner amendment r6 (the card's r5; BPR-1735
+took r5), in the workbench specification's "Source-line comments outside a
+hunk" and as BPR-1716's AC3 restated again.
+
+### Change
+
+- **Core** (`bpr/core/off_hunk_fact.hpp`). The fact is
+  `off_hunk_creation_capability`. `route_github_comment` places a line by it
+  (native within three lines of a change or once supported; a file comment
+  once unsupported; one native attempt while unknown; a range outside only
+  once supported), and `holds_review_comment(placement, fact)` keeps such a
+  line out of a review unless supported. `learn_off_hunk_fact` (a created
+  comment is supported, a 422 naming the line unsupported, anything else
+  nothing), `current_off_hunk_fact` (14 days on GitHub.com, 30 on GitHub
+  Enterprise Server, never one observed after now), `newer_off_hunk_fact` (a
+  tie is the refusal) and `valid_github_server_version` decide the rest.
+- **Storage.** Recovery schema 9 adds `off_hunk_fact`: one entry per
+  operation per repository per profile, host and account, with the rest of
+  its key (profile revision, product, server version, API version, classifier
+  revision) and the comment that taught it, capped at 1,024. The exact key
+  forgets an entry kept under another; `forget_other_servers` deletes them
+  once the new server answers. Version 8 migrates with nothing learned. The
+  recovery store exposes the facts on its connection
+  (`review_mutation_recovery_port::off_hunk_facts`) and
+  `make_off_hunk_fact_store` opens them on their own.
+- **Host.** The mutation host routes a Whole PR line outside every hunk by
+  the presented fact (`review_mutation_source_observation::OffHunkFact`):
+  unsupported is `unresolvable_line` as before; unknown or supported is bound
+  `off_hunk` with `CorePlacedOffHunk` and, for a base line, the merge base's
+  document for a later file comment; `comment_destination` refuses the
+  unknown case for a review.
+- **Provider.** Before such a line is published the session reads GitHub
+  Enterprise Server's `installed_version` once (`GET /meta`) and looks the
+  fact up by the exact key: unsupported takes the file comment with no native
+  attempt. A fully received 422 naming the line records unsupported under the
+  version the answer names (`X-GitHub-Enterprise-Version`, which both
+  transports now keep on a review mutation's answer and nowhere else, since
+  the read metadata parser admits no other header). GitHub.com's measured
+  tuple is the general classifier (`general_off_hunk_contract`, D4), so the
+  file child follows in the same Publish; any other such refusal rejects the
+  child as `off_hunk_refused`. A created comment records supported.
+- **Composition and Qt.** The composition opens the facts on their own
+  connection and passes the presented fact on; the editor's notice says what
+  was learned (`filtered_comment_presentation::Learned`); the review's holds
+  use the newer of the single comment's and the review's entries (D3); after
+  a review carrying such a line under a supported fact is refused for an
+  unplaceable line (`review_submission_workflow`'s new observer), the fact
+  drops to unsupported for both operations and the comment is held.
+
+frontend-design:frontend-design was loaded before the editor's words; they
+are the card's, in BPR-1735's notice, with no new visual language.
+
+### Tests
+
+Each new or changed test fails before the change: on main the fact, the
+route, the store, the classifier beyond PR2, the `off_hunk` binding and the
+`/meta` operation do not exist, the journal is schema 8, and the composed
+course's held comment is a file comment with no native attempt.
+
+- core_off_hunk_fact: placement with each fact state, equal inputs equal
+  routes, lifetime, newest wins, versions.
+- sqlite_review_mutation_recovery_storage (`test_learned_off_hunk_facts`):
+  round trip on two connections, lifetime, a changed version, revision, API
+  version or classifier forgetting the fact, `forget_other_servers`, refused
+  keys, demotion, migration from version 8; the other storage tests move to
+  schema 9.
+- github_review_comment_permalink: the GitHub.com shape (native then file in
+  one Publish, then a file comment at once), the unrecorded shape (asked
+  once, then the file comment), unclear outcomes (nothing learned, GET-only),
+  the fixture-only supported path and its demotion, GitHub Enterprise
+  Server's version key, and the classifier's shape. github_mutation_contract
+  pins `GET /meta`; gh_cli_transport keeps the version on a mutation's
+  answer; native_https_transport_fixture drops it from a read.
+- application_review_mutation_application_host: routing with each fact.
+- application_review_submission_composition_public_path: unknown, refused,
+  unsupported, a file comment; the next line a file comment with no native
+  attempt; the review demotion. qt_workbench_line_draft: both notices.
+
+### Gates
+
+- Focused selection, offscreen, dev preset `-O0 -g0`: 21 of 21 pass
+  (core_off_hunk_fact, core_filtered_comment, core_review_round_trip,
+  application_review_mutation_application_host,
+  sqlite_review_mutation_recovery_storage,
+  sqlite_review_submission_recovery_storage, github_review_comment_permalink,
+  github_mutation_contract, live_review_mutation_provider,
+  live_review_mutation_restart_recovery, live_review_submission_provider,
+  gh_cli_transport, native_https_transport_contract,
+  native_https_transport_fixture, qt_workbench_line_draft,
+  application_review_submission_composition_public_path,
+  application_inline_publish_cli_consent,
+  application_commit_filter_public_path, application_line_draft_contract,
+  application_review_round_trip_composition_contract,
+  command_correctness_registry_contract); also architecture_boundaries,
+  architecture_boundary_contract, core_dependency_boundary,
+  core_boundary_contract, live_mutation_isolation_contract,
+  application_composition_contract, application_workbench_composition_contract,
+  application_review_ledger_composition_contract and
+  designated_live_mutation_gate.
+- core-only: 311 of 315 pass. documentation_structure,
+  documentation_issue_graph_contract and issue_id_allocation_contract need
+  the ignored `.agents/skills/implement-rfc` link the worktree lacked;
+  coding_format_check named one file clang-format 22 alternated on, fixed in
+  `195a67623` and passing alone after it.
+- clang-format 22 on every changed C++ file; clang-tidy (LLVM 22),
+  warnings as errors, on the 24 changed units: one finding
+  (bugprone-optional-value-conversion), fixed, and both touched units clean.
+- Reseals: full-application and manifest pins with a note,
+  command-correctness pins; mutation 16d135419 exact.
+- Not run in the lean tree: live_mutation_isolation and
+  designated_live_mutation_runner_digest_mismatch need every test binary
+  built. No live BPR-Test run (optional); the BPR-1735 live harness now
+  expects the unknown notice.
+
+## Not verified (after the build)
+
+- A native off-hunk acceptance on any host: the supported path rests on
+  fixtures.
+- GitHub Enterprise Server's single-comment refusal shape and its `GET /meta`
+  answer: until BPR-1737's export, a refusal there records unsupported and
+  asks once, and an unreadable version records nothing.
+- The server card's line and the published thread's Support details line
+  (AC6, narrowed): BPR-PENDING-AP (Backlog).

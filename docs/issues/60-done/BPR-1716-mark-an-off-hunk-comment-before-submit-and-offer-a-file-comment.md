@@ -8,7 +8,7 @@ depends_on: ["BPR-1715"]
 priority: "P2"
 platforms: ["mac","win","linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1715--BPR-1716--d95c8c662f30.json","origin":"Owner report, 2026-10-21: a review on GitHub Enterprise Server 3.20.8 carrying one comment outside every hunk was refused (BPR-1715)","related_cards":["BPR-1715","BPR-1706"],"built_by":"BPR-1735"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_review_submission_editor_scale_(100|125|200)|qt_workbench_line_draft|application_review_submission_composition_public_path)$'","detail":"Built by BPR-1735: a carried comment the core places outside every hunk is marked on Finish your review and on the comment, saying GitHub can't place it in a review, before Submit; a new draft on such a line says before Publish that Publish adds a comment on the file."}},{"criterion":"AC2","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(github_review_comment_permalink|application_review_submission_composition_public_path)$'; python3 tests/end_to_end/bpr1735_whole_pr_live_course.py --cleanup","detail":"Publish as file comment publishes it once as RFC-BPR-0022's file comment with the permalink to the line at the head and its words byte for byte, out of the review; live on BPR-Test #127."}},{"criterion":"AC3","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_filtered_comment|application_review_mutation_application_host)$'","detail":"Restated by the owner's decision: the mark and the offer rest on core::place_on_github_diff over the merge base to the head the epoch host reads, never on the host's name or version; with no merge base or the lines unread nothing is inferred."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_review_submission_editor_scale_(100|125|200)|qt_workbench_line_draft|application_review_submission_composition_public_path)$'","detail":"Built by BPR-1735: a carried comment the core places outside every hunk is marked on Finish your review and on the comment, saying GitHub can't place it in a review, before Submit; a new draft on such a line says before Publish that Publish adds a comment on the file."}},{"criterion":"AC2","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(github_review_comment_permalink|application_review_submission_composition_public_path)$'; python3 tests/end_to_end/bpr1735_whole_pr_live_course.py --cleanup","detail":"Publish as file comment publishes it once as RFC-BPR-0022's file comment with the permalink to the line at the head and its words byte for byte, out of the review; live on BPR-Test #127."}},{"criterion":"AC3","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_filtered_comment|application_review_mutation_application_host)$'","detail":"Restated by the owner's decision: the mark and the offer rest on core::place_on_github_diff over the merge base to the head the epoch host reads, never on the host's name or version; with no merge base or the lines unread nothing is inferred. Restated again by BPR-1736 (RFC-BPR-0022 r6): and on this server's learned off-hunk fact (core::route_github_comment, core::holds_review_comment with the fact), whose evidence is BPR-1736's acceptance."}}]
 ---
 
 # BPR-1716: Mark an off-hunk comment before Submit and offer a file comment
@@ -57,6 +57,17 @@ admitted the core's measured placement instead (RFC-BPR-0022 amendment r5).
 
 - AC1: Before Submit or Publish, a carried comment on a line outside every hunk is marked and says GitHub can't place it there.
 - AC2: The reviewer can turn that comment into RFC-BPR-0022's file comment with a permalink to the line, as BPR-1706 does for filtered lines, keeping its text.
-- AC3: The mark and the offer rest on the core's placement from GitHub's own diff (within three lines of a change of the merge base to the head), never on the host's name or version.
+- AC3: The offer rests on the core's placement and this server's learned off-hunk fact, never on the host's name or version.
 
 Built by [[BPR-1735]]; its evidence is the acceptance above.
+
+## AC3 restated again, 2026-10-22
+
+[[BPR-1736]] (owner decisions D1 to D4, RFC-BPR-0022 amendment r6) lets a
+fact learned from GitHub's own answer place a line beyond three lines of a
+change natively, so AC3 now reads as above. Its former wording ("The mark and
+the offer rest on the core's placement from GitHub's own diff (within three
+lines of a change of the merge base to the head), never on the host's name or
+version.") is superseded. A line GitHub has not accepted such a comment on is
+still marked and offered as before; BPR-1736's acceptance holds the evidence
+for the learned fact.

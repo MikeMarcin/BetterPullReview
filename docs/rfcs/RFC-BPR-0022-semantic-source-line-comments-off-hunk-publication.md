@@ -119,6 +119,68 @@ and no designated target serves: that it accepts `subject_type: file` on
 three-line rule. If it refuses a file comment, that refusal is a fully
 received 4xx: the file child is rejected and the draft kept.
 
+## Owner amendment r6: the learned comment-anywhere fact (2026-10-22)
+
+The owner accepted [[BPR-1736]]'s four recommendations ("I accept all 4 of
+your recommendations"): D1 Accept, D2 Reject, D3 Accept, D4 Accept. The card
+proposed this amendment as r5; r5 was taken by [[BPR-1735]], so it is r6.
+The canonical criterion text below stays intact and is read with it and with
+r5:
+
+- **Generalization contract.** Write capability gains the generalization
+  contract the RFC already anticipates ("A repository-wide capability fact
+  may generalize support only when the evidence contract explicitly permits
+  it"). An observed acceptance or refusal at an anchor the core placed
+  off-hunk under r5 generalizes to that profile, account, host, repository,
+  server version, API version, operation and classifier revision. It is kept
+  in the profile's recovery journal (schema 9, `off_hunk_fact`), one entry
+  per operation per repository, for at most 30 days on GitHub Enterprise
+  Server (ended sooner by a changed `installed_version`) and 14 on GitHub.com.
+  A changed server version, API version, profile revision or classifier
+  revision forgets it. The core decides its lifetime and where a comment goes
+  under it (`core::route_github_comment`); the fact is an explicit input, so
+  equal inputs give equal placements. RFC-BPR-0022's anchor-scoped session
+  cache stays as it is.
+- **Sources.** Only GitHub's answer to a native write at a line the core
+  proved off-hunk sets the fact: a created comment at that line, exactly
+  parsed, is `supported`; a fully received 422 whose error names the line
+  (field `line` or `pull_request_review_thread.line`) is `unsupported`. Every
+  other answer leaves it unchanged. No recorded negative skips the first
+  attempt (D2 rejected). AC8 is read under r6: version is an invalidation key
+  and part of the evidence's scope, never a source of it. On GitHub
+  Enterprise Server the key's version is `installed_version` from `GET
+  /meta`, read once per session, and evidence is recorded under the version
+  the answer that taught it names in `X-GitHub-Enterprise-Version`, which
+  both transports now keep on a review mutation's answer; with neither
+  readable the fact is unknown and nothing is recorded.
+- **Single Publish (amends r5's).** A line within three lines of a change is
+  native as before. Outside them: `supported` is native; `unsupported` is the
+  file comment at once (`admit_unresolvable_line`, invariant 2's
+  first-attempt admission, now backed by the learned refusal); `unknown` makes
+  one native attempt, bound `off_hunk`. Its refusal records `unsupported`; in
+  GitHub.com's measured shape (resource `PullRequestReviewComment`, field
+  `pull_request_review_thread.line`, code `custom`, "could not be resolved",
+  any `documentation_url` and `status`, any header set: the general
+  classifier, D4) the native child is definitively unsupported and the file
+  child follows at once; in any other shape the child is rejected
+  (`off_hunk_refused`), the draft is kept, and the next Publish posts the file
+  comment. A created comment publishes natively and records `supported`. An
+  unclear outcome changes nothing and only reconciles GET-only, so nothing
+  can publish twice.
+- **Reviews never probe.** A review carries an off-hunk line natively only
+  when the fact is `supported`; single-comment evidence counts for reviews
+  (D3). Otherwise the line is held as r5 holds it. A review sent under
+  `supported` and refused for an unplaceable line is settled as not
+  published by [[BPR-1715]], the fact drops to `unsupported` for both
+  operations of its key, and the page holds those comments. The reviewer
+  submits again; nothing is retried automatically.
+
+The non-goal "Inferring GitHub capability from hostname, marketing name, a
+broad GHES version threshold, or the ability to read an existing off-hunk
+comment" stands unchanged. GitHub Enterprise Server's refusal shape is not
+yet recorded ([[BPR-1737]]): until it is, a refusal there records
+`unsupported` and asks once.
+
 ## Product decision
 
 The product contract is:
@@ -362,6 +424,10 @@ contract explicitly permits it.
 admits one geometry rule as evidence: a line more than three lines from every
 change of the merge base to the head on its side is not placeable, and goes to
 the file comment with no native attempt.
+[Owner amendment r6](#owner-amendment-r6-the-learned-comment-anywhere-fact-2026-10-22)
+qualifies it with the learned fact: such a line is native once GitHub
+accepted one for the key, a file comment at once once GitHub refused one, and
+otherwise one native attempt whose answer teaches the fact.
 
 ## Write capability
 
@@ -403,6 +469,9 @@ All other outcomes leave the capability `unknown`. Observed evidence is
 freshness-bounded so a future rollout can be adopted. The durable publication
 record, not the cache, is the authority for whether one in-flight logical
 publication may enter fallback after restart.
+[Owner amendment r6](#owner-amendment-r6-the-learned-comment-anywhere-fact-2026-10-22)
+admits the generalization contract for anchors the core placed off-hunk, with
+its key, its lifetime and its sources.
 
 ## Publication decision table
 

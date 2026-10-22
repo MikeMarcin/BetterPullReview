@@ -1320,3 +1320,56 @@ before answers were, at the migration time;
 `core::publication_definitely_unpublished` settles such a child ten minutes
 later when GitHub's complete list holds none of it, and settles a kept 4xx at
 once. No answer, a success, a redirect and a server error never settle.
+
+## The learned comment-anywhere fact ([[BPR-1736]])
+
+The owner's decisions of 2026-10-22 (RFC-BPR-0022 amendment r6) let GitHub's
+own answer decide whether a line outside every hunk can be a native line
+comment. The fact is `core::off_hunk_creation_capability`, learned per
+profile, host, account, repository, operation, profile revision, product,
+server version, API version and classifier revision
+(`application::off_hunk_fact_key`), and kept in the recovery journal's
+`off_hunk_fact` table (schema 9) with the comment that taught it. The core
+decides everything about it as pure functions of explicit inputs
+(`bpr/core/off_hunk_fact.hpp`): what an answer teaches
+(`learn_off_hunk_fact`: created is supported, a 422 naming the line is
+unsupported, anything else nothing), how long a kept fact holds
+(`current_off_hunk_fact`: 14 days on GitHub.com, 30 on GitHub Enterprise
+Server), which of two is newer (`newer_off_hunk_fact`, a tie the refusal),
+which versions may key it, and where a comment goes under it
+(`route_github_comment`: `native`, `native_off_hunk`, `off_hunk_file`,
+`off_hunk_unknown`, `refused`; `holds_review_comment` with the fact).
+
+The composition opens the facts on their own connection to the journal
+(`adapters::sqlite::make_off_hunk_fact_store`) and presents the scope's fact
+without a server version (`load_scope`): the editor's notice
+(`filtered_comment_presentation::Learned`), the review's holds (the newer of
+the single comment's and the review's entries, D3) and the source
+observation's `OffHunkFact`. The mutation host routes a Whole PR line by it
+before any effect: `off_hunk_file` is `unresolvable_line` as before;
+`native_off_hunk` and `off_hunk_unknown` are bound `off_hunk` with
+`review_mutation_source_binding::CorePlacedOffHunk` (and, for a base line,
+the left document for a later file comment); `comment_destination` keeps
+`off_hunk_unknown` out of a review, and a range outside is refused unless
+supported.
+
+The provider decides by the exact key (`review_mutation_session::
+learned_file_comment`). On GitHub Enterprise Server it reads
+`installed_version` once per session (`review_mutation_operation::
+observe_server_meta`, `GET /meta`); the first key forgets entries kept under
+another server (`forget_other_servers`). A kept unsupported fact sends a fresh
+attempt straight to the file comment. Otherwise the native child is sent. A
+fully received 422 naming the line records unsupported under the version the
+answer names (`X-GitHub-Enterprise-Version`, kept by both transports on a
+review mutation's answer only, since no read metadata parser admits it).
+GitHub.com's measured tuple (`general_off_hunk_contract`, D4) makes the child
+`native_definitively_unsupported`, so the file child follows in the same
+Publish; any other such refusal rejects the child as `off_hunk_refused`, and
+the next Publish takes the file comment. A created comment, exactly parsed,
+records supported. Nothing else records anything.
+
+A review is never a probe. When `review_submission_workflow` reports a review
+refused for an unplaceable line that carried a line outside the diff under a
+supported fact, the composition demotes the fact for both operations
+(`application::demote_off_hunk_fact`) and re-presents the holds. Nothing is
+resent.

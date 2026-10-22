@@ -212,3 +212,21 @@ courses on fixtures, and a live course on BPR-Test.
 Unobserved, as before: native GHES. The two GHES assumptions (a file
 comment is taken; the three-line rule holds) are recorded on
 BPR-1737.
+
+## Owner amendment r6: the learned comment-anywhere fact (BPR-1736, 2026-10-22)
+
+The owner accepted BPR-1736's four recommendations ("I accept all 4 of your
+recommendations"): D1 Accept, D2 Reject, D3 Accept, D4 Accept. The
+[RFC amendment](../rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md#owner-amendment-r6-the-learned-comment-anywhere-fact-2026-10-22)
+records the rules; the canonical criteria above are unchanged and read with
+it and with r5. [[BPR-1736]] holds the evidence.
+
+| Criterion read with r6 | What changes | Evidence |
+|---|---|---|
+| 4, 5 | A Whole PR line outside every hunk is native once supported, a file comment at once once unsupported, and one native attempt while unknown; GitHub.com's measured refusal is the general classifier | core_off_hunk_fact; application_review_mutation_application_host; github_review_comment_permalink (`test_an_unknown_off_hunk_line_learns_from_one_native_attempt`, `test_a_supported_off_hunk_line_is_native`, `test_the_general_classifier_is_github_coms_shape`) |
+| 6, 7 | Only a created comment or a fully received 422 naming the line teaches; an unclear answer only reconciles; nothing publishes twice | github_review_comment_permalink; application_review_submission_composition_public_path |
+| 8 | Version is a cache key and part of the evidence's scope, never its source; a new `installed_version` forgets the fact | core_off_hunk_fact; sqlite_review_mutation_recovery_storage (`test_learned_off_hunk_facts`); github_review_comment_permalink (`test_an_enterprise_fact_is_keyed_by_the_server_version`) |
+| 1, 14 | A review carries such a line only under a supported fact; refused for an unplaceable line it demotes the fact and the comment is held | application_review_submission_composition_public_path |
+
+Unobserved: a native off-hunk acceptance on any host (the supported path rests
+on fixtures), and GitHub Enterprise Server's refusal shape ([[BPR-1737]]).

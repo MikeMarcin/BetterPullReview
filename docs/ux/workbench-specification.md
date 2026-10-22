@@ -2996,16 +2996,33 @@ to a file comment), plus marking a refused single comment rejected. Build it.").
 On the Whole PR diff, and on a filtered diff's sides that are GitHub's own, the
 core places a line as a line comment only within three lines of a change of the
 merge base to the head on its side, the rule measured on BPR-Test #116 to #119
-and #124. Outside it the editor says GitHub can't attach a comment to the line
-and that Publish adds a comment on the file, linking to the line at its side's
-commit; Publish then writes RFC-BPR-0022's file comment with no native attempt,
-and Start a review refuses the line. A comment already pending in a review that
-the core places outside GitHub's diff is held, as a suggestion GitHub cannot
-apply is held (RFC-BPR-0090): its row on Finish your review and the comment
+and #124. A line more than three lines from a change is commented natively only
+when GitHub has accepted such a comment for this profile, repository, server
+version and operation. Without that, a single comment is posted as a file
+comment that links to the line, after at most one native attempt for an unknown
+server, and a review holds it. Support is learned only from GitHub's own answer
+to a comment, never from the host's name, product or version; a new server
+version forgets it ([[BPR-1736]], owner decisions of 2026-10-22). On a
+commit-filtered diff such a line is the file comment as before. On the Whole PR
+diff, before Publish, the editor says "GitHub can't place a comment on this
+line. It will be posted as a file comment that links to the line." once GitHub
+refused such a comment there, and "GitHub may not place a comment on this line.
+If it refuses, the comment is posted as a file comment that links to the line."
+while nothing is learned; a line GitHub accepted carries no mark. GitHub.com's
+refusal posts the file comment at once; a refusal BetterPullReview could not
+classify says "GitHub refused a line comment here. Publish as file comment?",
+keeps the draft, and the next Publish posts the file comment. Start a review
+refuses such a line unless GitHub accepted one. A comment already pending in a
+review that the core places outside GitHub's diff is held, unless GitHub
+accepted such a comment, as a suggestion GitHub cannot apply is held
+(RFC-BPR-0090): its row on Finish your review and the comment
 itself say why in the reading amber and offer **Publish as file comment**,
 which publishes it on its own and takes it out of the review, and Comment,
 Approve, Request changes and Submit wait until none is held. A range outside a
-hunk is held with no action: it is deleted or written on one line. A native
+hunk is held with no action: it is deleted or written on one line. A review
+that carried such a line because GitHub had accepted one, and that GitHub then
+refuses for a line it can't place, is reported not published; the learned fact
+drops to not accepted and the comment is held. A native
 single comment GitHub refuses with a fully received 4xx is reported not
 published with GitHub's reason, and can be published again. With the merge
 base unknown or the file's lines unread nothing is inferred, and Publish is as

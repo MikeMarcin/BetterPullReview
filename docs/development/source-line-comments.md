@@ -17,6 +17,17 @@ is held on Finish your review and on the comment, with Publish as file comment,
 and the review waits for it. With no merge base named, or the file unreadable,
 the line is published natively as before.
 
+Since [[BPR-1736]] (RFC-BPR-0022 amendment r6) the app learns from GitHub's
+answer whether this server takes such a line, per profile, repository, server
+version and operation. With nothing learned, Publish makes one native attempt;
+GitHub.com's refusal posts the file comment at once, and any other refusal
+naming the line says "GitHub refused a line comment here. Publish as file
+comment?" and keeps the draft. Once a refusal is learned, such lines are file
+comments with no native attempt; once an acceptance is, they are native, in a
+review too. The fact lasts 14 days on GitHub.com and 30 on GitHub Enterprise
+Server, and a new server version forgets it. It is never set from the host's
+name or version.
+
 A native comment GitHub refuses with a fully received 4xx, once its complete
 comment list holds none of it, is recorded rejected: the editor says it was not
 published and why, the draft is kept, and Publish sends a new attempt. The

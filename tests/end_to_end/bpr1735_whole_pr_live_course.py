@@ -132,7 +132,9 @@ def main() -> int:
         permalink = f"https://github.com/{REPOSITORY}/blob/{head}/{path}#L"
         for line in (59, 13):
             row = placements[line]
-            if row["placement"] != 3 or row["refusal"] != 7 or row["commit"] != head or row["blocks"] or "Publish adds a comment on the file instead" not in row["notice"]:
+            # [[BPR-1736]]. A fresh profile has learned nothing yet: Publish
+            # asks GitHub once, and the editor says so.
+            if row["placement"] != 3 or row["refusal"] != 7 or row["commit"] != head or row["blocks"] or "If it refuses, the comment is posted as a file comment" not in row["notice"]:
                 raise SystemExit(f"line {line + 1} is not placed as a file comment at the head: {row}")
         if placements[12]["placement"] is not None or placements[12]["notice"]:
             raise SystemExit(f"line 13 is not placed on itself: {placements[12]}")
