@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AP"
+id: "BPR-1739"
 title: "Say on the server card and in Support details what GitHub taught about comments outside the diff"
 status: "Backlog"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-1736"]
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"kind":"feature","origin":"BPR-1736 AC6: the editor's words shipped; the server card's line and the published thread's Support details line did not","related_cards":["BPR-1736","BPR-1735","BPR-1737"],"frontend_design":"load frontend-design:frontend-design before the words and layout"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1739--BPR-1739--23e3961ce427.json","kind":"feature","origin":"BPR-1736 AC6: the editor's words shipped; the server card's line and the published thread's Support details line did not","related_cards":["BPR-1736","BPR-1735","BPR-1737"],"frontend_design":"load frontend-design:frontend-design before the words and layout"}
 ---
 
-# BPR-PENDING-AP: Say on the server card and in Support details what GitHub taught about comments outside the diff
+# BPR-1739: Say on the server card and in Support details what GitHub taught about comments outside the diff
 
 [[BPR-1736]] learns, from GitHub's own answer to a reviewer's comment, whether
 a server takes a line comment outside its diff, and keeps the fact per
