@@ -100,7 +100,17 @@ namespace {
 		auto& window = aApp.window();
 		window.close_review_sheet();
 		window.choose_modality(qt::review_modality::review);
-		wait([&] { return access::reveal_fixture_file(aApp, "review.cpp") == app::detail::fixture_file_reveal_result::shown; }, "review.cpp is shown in Review");
+		// The reveal helper remembers its earlier file gesture. After a push,
+		// that is not evidence that the new head's comparison has arrived.
+		wait([&] {
+			if (access::reveal_fixture_file(aApp, "review.cpp") != app::detail::fixture_file_reveal_result::shown) {
+				return false;
+			}
+			const auto current = access::epoch_refresh_identity(aApp);
+			return current.PublicationDisplayed && current.AcceptedComparison
+				&& current.PublishedComparison == current.AcceptedComparison;
+		},
+			 "review.cpp's current-head comparison is shown in Review");
 		wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, aLine); }, "a head line of review.cpp is selected");
 		wait([&] { return window.comment_action()->isEnabled(); }, "Comment is offered on the current head line");
 		window.comment_action()->trigger();

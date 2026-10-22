@@ -1,7 +1,7 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1694"
-title: "Prepare and qualify the coordinated v0.3.2 release"
+title: "Prepare and qualify the coordinated v0.3.3 full release"
 status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
@@ -10,7 +10,7 @@ platforms: ["mac", "win", "linux"]
 metadata: {"mandate":"release-v032-owner-request-20261021","baseline":"111235987772e808f4fae26383925759985b3041","execution_strategy":"direct","milestone_plan":{"id":"release-v032","path":"docs/rfcs/plans/release-v032/milestone-plan.json"},"external_state":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
 ---
 
-# Prepare and qualify v0.3.2
+# Prepare and qualify v0.3.3
 
 The owner requested `$publish-release v0.3.2 if there are fixes to be made make us an implementer`.
 This card owns source preparation, reproduced blocker repairs and exact-candidate
@@ -21,7 +21,7 @@ security, native installation or trust acceptance.
 
 ## Acceptance
 
-- AC1: Prepare grounded user-facing notes and version 0.3.2; commit one clean common candidate and preserve unrelated work.
+- AC1: Prepare grounded user-facing notes and version 0.3.3; commit one clean common candidate and preserve unrelated work.
 - AC2: Reconcile native jobs before dispatch; qualify the exact committed candidate with comprehensive native Release and Debug, retaining failures and configured skips. Repair reproduced blockers in explicit committed slices without weakening gates.
 - AC3: Prepare and audit complete binary, corresponding-source, SPDX, checksum, provenance and native-signature sets through the existing release tools and approved producer configuration. Keep required human/security/legal decisions explicit and use short attended review or wizard handoffs when needed.
 - AC4: Publish only a qualified, authorized exact candidate through the existing publisher; verify remote state and downloaded bytes/native trust. Preserve unfinished obligations and external continuation state if prerequisites prevent publication.
@@ -523,3 +523,55 @@ the committed draft-repair base also passes the corrected legacy account
 course (42.21 seconds), menu parity (0.68 seconds) and contained About (0.27
 seconds). These focused results prepare the next common candidate, rather
 than qualifying an artifact or closing the retained startup-time failure.
+
+
+## Published prerelease and authorized full-release version
+
+The owner accepted incomplete test qualification for the macOS v0.3.2
+prerelease. It was published at `20ee6d72a8b675a669c34a4705b29efad279b6e2`
+with eight assets after fresh Developer ID, Apple notarization, Gatekeeper,
+package/source/SPDX and anonymous-download/native-trust checks. The stable
+Latest remained v0.3.1. Source, digests, tag and published bytes stay immutable.
+The owner then requested the full coordinated release and explicitly selected
+v0.3.3 for the corrected binaries on 2026-10-22. The existing plan/card identity
+and external phase ledger preserve the original request and its elapsed time.
+The full release still requires its own complete native and artifact results;
+the prerelease test limitation does not supply a full-release PASS.
+
+## Enterprise probe terminal and current-head fixture barrier
+
+The complete Windows Release gate at the prerelease source selected 803 rows:
+801 passed and two failed. The enterprise preview probe stopped at the first
+mode publication: a native diagnostic recorded signed-out mode, no refusal and
+one publication immediately before shutdown; shutdown then closed the mode.
+The queued policy refusal had not yet landed. The self-test now waits for the
+typed enterprise policy refusal or explicit unavailable terminal before ending.
+It preserves the original zero-request/header/vault/sign-in predicates and the
+existing time budget. The native comparison reaches refusal at publication two;
+this corrects the verifier's premature shutdown, with no host-policy change.
+
+The review course's reveal helper caches an earlier file gesture. A buffered
+native observation after a push recorded that it had returned `shown` while
+the displayed comparison did not match the newly accepted head and no current
+publication was displayed. The course now waits for the actual displayed,
+accepted comparison before selecting the head line. It retains every original
+Comment, draft body, refusal, exact submission and scale assertion. This proves
+and repairs a stale fixture barrier; the earlier full-gate failure's exact
+line was not recorded, so the observation is not claimed as its sole cause.
+
+The exact two-file, non-instrumented fix candidate passes seven focused native
+Windows rows: unavailable preview (1.07 s), enabled preview (1.08 s), release
+selection (0.86 s), GHES refusal (0.85 s), and review submission at 100%, 125%
+and 200% (17.76, 17.97 and 18.88 s). Each row requires a selected test. The
+source seal for this corrected review course is renewed; no unrelated stale
+family is admitted. These are focused engineering results, not full native
+qualification of v0.3.3. Original failures and the failed diagnostic compilation
+are retained externally, without converting wrapper success into test success.
+
+The normal-application content seal initially rejects the changed entry point.
+The reviewed delta changes only the automated enterprise probe's terminal wait;
+it introduces no effect, provider routing or mutation bypass. The full
+`github_application.cpp` digest remains `777150d62bc2b381c740dd1ef150be933290577732c54c6693d7778fc5ce7f2c`.
+The existing mutation inventory is unchanged. The application manifest seal is
+renewed for this exact entry-point delta; the cheap direct-bypass counterexample
+method is required again before final native dispatch.

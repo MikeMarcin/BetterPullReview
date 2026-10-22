@@ -7108,8 +7108,12 @@ namespace {
 					// The refusal is posted to the decision lane, and the
 					// presentation it produces is the answer this probe
 					// reports; shutdown closes that lane, so the run waits for
-					// the publication rather than racing it.
-					if (aApplication.status().PublicPreviewPublications == 0U) {
+					// the publication rather than racing it. An enterprise activation
+					// first publishes its mode, before the typed policy answer.
+					const auto preview = aApplication.status();
+					if (preview.PublicPreviewPublications == 0U
+						|| (aRun->PublicPreview.Enterprise && preview.PublicPreviewComposed
+							&& !preview.PublicPreviewPolicyRefused && !preview.PublicPreviewUnavailable)) {
 						break;
 					}
 					aRun->PresentationPassed
