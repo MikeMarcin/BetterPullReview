@@ -496,3 +496,30 @@ input seal is renewed; other stale families remain exclusive.
 This slice does not close Home's separate native selection-colour failure or
 the retained startup timing failure. Complete common-source Release and Debug
 qualification and artifact, trust and publication obligations remain open.
+
+## Home input and capture readiness
+
+The retained native Home failures include a populated row with a zero-height
+viewport, then a later run whose selected-row pixel misses the original native
+highlight comparison. A colour/focus probe subsequently passes all four
+palettes; it does not establish a persistent product paint defect. No Home
+product layout or paint policy is changed.
+
+The fixture now waits, within its existing 20-second helper, for the actual
+mouse target to be visible before sending its original native input. Pixel
+sampling locates the same identity before and after capture and requires the
+view, row geometry, viewport, selection and focus to remain equal across that
+frame. It retains values and a guarded view pointer rather than a proxy index.
+A changed frame is retried; a verified frame is cached across the wait helper's
+rechecks. The condition never tests for the desired colour. Original native
+click, selection, highlight and quiet-tint assertions and tolerances remain.
+A persistent missing target, unstable frame or incorrect paint still fails.
+
+The final single-frame course passes in 64.36 seconds on Mac and 64.40 seconds
+on native Windows. The earlier three-capture attempt and all original failures
+remain external evidence; its repeated captures came from predicate rechecks,
+so its count is not claimed as observed layout changes. Native confirmation on
+the committed draft-repair base also passes the corrected legacy account
+course (42.21 seconds), menu parity (0.68 seconds) and contained About (0.27
+seconds). These focused results prepare the next common candidate, rather
+than qualifying an artifact or closing the retained startup-time failure.

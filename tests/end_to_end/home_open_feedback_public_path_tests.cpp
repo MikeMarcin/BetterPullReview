@@ -35,6 +35,7 @@
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPoint>
+#include <QPointer>
 #include <QPushButton>
 #include <QStatusBar>
 #include <QTemporaryDir>
@@ -160,16 +161,99 @@ namespace {
 	/// left of the row's text where only its ground and any selection are drawn.
 	[[nodiscard]] auto ground(QWidget& aWindow, const std::function<found_row()>& aRow) -> QColor
 	{
-		const auto image = aWindow.grab().toImage();
-		const auto ratio = image.devicePixelRatio();
-		const auto row   = aRow();
-		const auto rect  = row.View->visualRect(row.Index);
-		const auto at    = row.View->viewport()->mapTo(&aWindow, QPoint{ rect.left() + 6, rect.center().y() });
-		return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+		struct row_sample
+		{
+			QPointer<QListView> View;
+			QPoint              At;
+			QRect               Cell;
+			QSize               Viewport;
+			bool                Selected;
+			bool                Focused;
+			bool                Active;
+			auto                operator==(const row_sample&) const -> bool = default;
+		};
+		const auto sample = [&]() -> std::optional<row_sample> {
+			const auto row = aRow();
+			if (row.View == nullptr || !row.Index.isValid()) {
+				return std::nullopt;
+			}
+			const auto view     = QPointer<QListView>{ row.View };
+			const auto selected = view->selectionModel()->isSelected(row.Index);
+			const auto focused  = view->hasFocus();
+			const auto active   = view->window()->isActiveWindow();
+			const auto rect     = view->visualRect(row.Index);
+			if (!view || !rect.isValid()) {
+				return std::nullopt;
+			}
+			const auto local = QPoint{ rect.left() + 6, rect.center().y() };
+			if (!view->viewport()->visibleRegion().contains(local)) {
+				return std::nullopt;
+			}
+			return row_sample{ view, view->viewport()->mapTo(&aWindow, local), rect, view->viewport()->size(), selected, focused, active };
+		};
+		auto colour = QColor{ };
+		auto frames = 0U;
+		auto ready  = false;
+		// The capture can settle layout or a refreshed proxy mapping. Locate
+		// the row on both sides of it, retaining values rather than an index.
+		// A changed position or selection needs a new frame at that position.
+		wait_for([&] {
+			// wait_for rechecks a successful predicate; the captured result
+			// is already a value, so keep the first verified frame.
+			if (ready) {
+				return true;
+			}
+			const auto before = sample();
+			if (!before) {
+				return false;
+			}
+			const auto image = aWindow.grab().toImage();
+			++frames;
+			const auto after = sample();
+			if (!after || !before->View || *before != *after) {
+				return false;
+			}
+			const auto ratio = image.devicePixelRatio();
+			const auto at    = QPoint{ static_cast<int>(after->At.x() * ratio), static_cast<int>(after->At.y() * ratio) };
+			if (!image.rect().contains(at)) {
+				return false;
+			}
+			colour = image.pixelColor(at);
+			ready  = true;
+			return true;
+		},
+				 "the Home row has the same layout and selection across its captured frame");
+		if (frames > 1U) {
+			std::cerr << "HOME_FRAME_RETAKEN frames=" << frames << '\n';
+		}
+		return colour;
 	}
 
 	void window_system_click(const std::function<found_row()>& aRow)
 	{
+		// Queue projections and QListView's row layout settle separately.
+		// A real mouse target must exist before its native event is sent.
+		// Reacquire the identity after every event-loop turn.
+		auto elapsed = QElapsedTimer{ };
+		elapsed.start();
+		auto initialHeight = -1;
+		wait_for([&] {
+			const auto row = aRow();
+			if (row.View == nullptr || !row.Index.isValid()) {
+				return false;
+			}
+			if (initialHeight < 0) {
+				initialHeight = row.View->viewport()->height();
+			}
+			const auto at = row.View->visualRect(row.Index).center();
+			return row.View->viewport()->visibleRegion().contains(at);
+		},
+				 "the Home mouse target settles inside the visible viewport");
+		if (initialHeight == 0) {
+			const auto row = aRow();
+			std::cerr << "HOME_LAYOUT_READY waited_ms=" << elapsed.elapsed() << " initial_viewport_height=" << initialHeight
+					  << " viewport_height=" << row.View->viewport()->height() << '\n';
+		}
 		QListView* view = nullptr;
 		QPoint     point;
 		{
@@ -327,7 +411,12 @@ try {
 			   "the queue's row is Home's one selection; Recently viewed selects nothing");
 		const auto highlight       = recent->palette().color(QPalette::Active, QPalette::Highlight);
 		const auto queuedHighlight = queued().View->palette().color(QPalette::Active, QPalette::Highlight);
-		expect(near_colour(ground(*window, queued), queuedHighlight, 24),
+		const auto selectedGround  = ground(*window, queued);
+		if (!near_colour(selectedGround, queuedHighlight, 24)) {
+			std::cerr << "HOME_SELECTION_COLOUR actual=" << selectedGround.name().toStdString()
+					  << " expected=" << queuedHighlight.name().toStdString() << " tolerance=24 selected=" << queueSelected() << '\n';
+		}
+		expect(near_colour(selectedGround, queuedHighlight, 24),
 			   "the selected row keeps the native selection colour");
 		expect(!near_colour(ground(*window, recentEntry), highlight, 24), "the open review is not painted in the selection colour");
 		expect(near_colour(ground(*window, recentEntry), recent->palette().color(QPalette::Active, QPalette::AlternateBase), 6),
