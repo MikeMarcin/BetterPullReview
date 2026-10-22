@@ -1,5 +1,5 @@
 # [[BPR-PENDING-AR1]] reseal (2026-10-22) over last matching main 3ddfbc5f8,
-# linear. Pinned-scope commits 1e097ce42, 4ff78af59 and 2fcdde895 (the owner's
+# linear. Pinned-scope commits 1e097ce42, 4ff78af59, 2fcdde895 and d8bc00b29 (the owner's
 # request of 2026-10-22 for reactions and Resolve conversation, RFC-DRAFT-0027).
 # github_application.cpp names the core's new not_permitted resolution refusal,
 # takes GitHub's per-thread viewerCanResolve / viewerCanUnresolve into the
@@ -11,7 +11,9 @@
 # new react_to_comment intent) and sends it to the mutation host's new react
 # under a one-shot gesture grant from issue_reaction, the grant a resolution
 # gets. Its BUILD_TESTING threaded-reply course goes on, with reactions served,
-# to Unresolve conversation and the reaction steps. No credential, provider
+# to Unresolve conversation and the reaction steps; main.cpp's --reaction-probe
+# alone serves reactions and resolves threads on the fixture for an attended
+# look (d8bc00b29). No credential, provider
 # selection, publication path, ledger write or source-inventory change; the
 # production make_live_review_mutation_provider call is untouched. Full and
 # manifest pins bind these bytes; mutation 16d135419 stays exact.
@@ -2295,7 +2297,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "1070e2cc94b729967f9606b6b90f005b9e117f0b3f7e9c51cc85efe8e29e0979"
+        "fb2e25f6bc120b4d530849dd9ab80451045bdc755c6dde9b9b99c54385163478"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
