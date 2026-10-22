@@ -48,23 +48,28 @@ namespace {
 		int         Floor = 500;
 	};
 
-	course_configuration Course;
-	int                  Requests = 0;
+	[[nodiscard]] auto course() -> course_configuration&
+	{
+		static auto configuration = course_configuration{ };
+		return configuration;
+	}
+	int Requests = 0;
 
 	[[noreturn]] void fail(const std::string_view aWhy)
 	{
-		std::cout << "REACTION_LIVE:FAILED:" << aWhy << std::endl;
+		std::cout << "REACTION_LIVE:FAILED:" << aWhy << '\n'
+				  << std::flush;
 		std::exit(EXIT_FAILURE);
 	}
 
 	[[nodiscard]] auto text(const char* aKey) -> std::string
 	{
-		return Course.Json.value(QString::fromLatin1(aKey)).toString().toStdString();
+		return course().Json.value(QString::fromLatin1(aKey)).toString().toStdString();
 	}
 
 	[[nodiscard]] auto number(const char* aKey) -> std::uint64_t
 	{
-		return static_cast<std::uint64_t>(Course.Json.value(QString::fromLatin1(aKey)).toInteger());
+		return static_cast<std::uint64_t>(course().Json.value(QString::fromLatin1(aKey)).toInteger());
 	}
 
 	[[nodiscard]] auto oid(const std::string& aHex) -> core::git_commit_oid
@@ -107,20 +112,22 @@ namespace {
 		auto       response = parse_gh_cli_response(output);
 		++Requests;
 		if (!response) {
-			std::cout << "REACTION_LIVE:request:" << aName << ":unparsed" << std::endl;
+			std::cout << "REACTION_LIVE:request:" << aName << ":unparsed" << '\n'
+					  << std::flush;
 			return std::nullopt;
 		}
 		for (const auto& header : response->Headers) {
 			if (header.Name == "x-ratelimit-remaining" || header.Name == "X-RateLimit-Remaining") {
 				const auto remaining = std::stoi(header.Value);
-				std::cout << "REACTION_LIVE:rate-remaining:" << remaining << " (" << aName << ")" << std::endl;
-				if (remaining < Course.Floor) {
+				std::cout << "REACTION_LIVE:rate-remaining:" << remaining << " (" << aName << ")" << '\n'
+						  << std::flush;
+				if (remaining < course().Floor) {
 					fail("rate-limit-below-floor");
 				}
 			}
 		}
-		if (!Course.Output.isEmpty()) {
-			auto file = QFile{ Course.Output + QStringLiteral("/%1-%2.json").arg(Requests, 2, 10, QLatin1Char{ '0' }).arg(QString::fromStdString(aName)) };
+		if (!course().Output.isEmpty()) {
+			auto file = QFile{ course().Output + QStringLiteral("/%1-%2.json").arg(Requests, 2, 10, QLatin1Char{ '0' }).arg(QString::fromStdString(aName)) };
 			if (file.open(QIODevice::WriteOnly)) {
 				file.write(QByteArray::fromStdString(response->Body));
 			}
@@ -309,7 +316,8 @@ namespace {
 			fail(aStep + ":unexpected-receipt");
 		}
 		std::cout << "REACTION_LIVE:" << aStep << ":ok written=" << receipt->Written << " readBack=" << receipt->ConfirmedByReadBack << " reactions=" << describe(receipt->Reactions)
-				  << std::endl;
+				  << '\n'
+				  << std::flush;
 	}
 
 	void resolve(review_mutation_session& aSession, gh_mutation_transport& aWire, const std::string& aStep, const bool aResolve, const bool aExpectWrite)
@@ -326,7 +334,8 @@ namespace {
 		if (receipt->Resolved != aResolve || writes != (aExpectWrite ? 1U : 0U)) {
 			fail(aStep + ":unexpected-receipt");
 		}
-		std::cout << "REACTION_LIVE:" << aStep << ":ok resolved=" << receipt->Resolved << " written=" << writes << std::endl;
+		std::cout << "REACTION_LIVE:" << aStep << ":ok resolved=" << receipt->Resolved << " written=" << writes << '\n'
+				  << std::flush;
 	}
 
 	[[nodiscard]] auto read_profile() -> validated_github_host_profile
@@ -434,7 +443,8 @@ namespace {
 			fail(aStep + ":read-failed:" + (error != nullptr ? std::to_string(static_cast<int>(error->Failure)) : std::string{ "cancelled" }) + ":requests=" + std::to_string(Requests));
 		}
 		for (const auto& record : read->Records) {
-			std::cout << "REACTION_LIVE:" << aStep << ":" << record.Subject << " canReact=" << record.Reactions.ViewerCanReact << " " << describe(record.Reactions) << std::endl;
+			std::cout << "REACTION_LIVE:" << aStep << ":" << record.Subject << " canReact=" << record.Reactions.ViewerCanReact << " " << describe(record.Reactions) << '\n'
+					  << std::flush;
 		}
 		return read->Records;
 	}
@@ -453,7 +463,7 @@ namespace {
 auto main(int aCount, char** aValues) -> int
 {
 	QCoreApplication application{ aCount, aValues };
-	const auto       arguments = application.arguments();
+	const auto       arguments = QCoreApplication::arguments();
 	if (arguments.size() < 4) {
 		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read) CONFIG OUTPUT [FLOOR]\n";
 		return EXIT_FAILURE;
@@ -462,10 +472,10 @@ auto main(int aCount, char** aValues) -> int
 	if (!file.open(QIODevice::ReadOnly)) {
 		fail("config");
 	}
-	Course.Json     = QJsonDocument::fromJson(file.readAll()).object();
-	Course.Output   = arguments[3];
-	Course.Floor    = arguments.size() > 4 ? arguments[4].toInt() : 500;
-	const auto mode = arguments[1];
+	course().Json    = QJsonDocument::fromJson(file.readAll()).object();
+	course().Output  = arguments[3];
+	course().Floor   = arguments.size() > 4 ? arguments[4].toInt() : 500;
+	const auto& mode = arguments[1];
 	if (text("owner") != "MikeMarcin" || text("name") != "BPR-Test") {
 		fail("not-the-designated-repository");
 	}
@@ -478,7 +488,8 @@ auto main(int aCount, char** aValues) -> int
 		if (!observed) {
 			fail("observe-target:" + std::string{ application::name(observed.error()) });
 		}
-		std::cout << "REACTION_LIVE:target:ok" << std::endl;
+		std::cout << "REACTION_LIVE:target:ok" << '\n'
+				  << std::flush;
 	}
 	const auto comment = text("reviewComment");
 	if (mode == QStringLiteral("--second-add")) {
@@ -519,7 +530,9 @@ auto main(int aCount, char** aValues) -> int
 	} else {
 		fail("mode");
 	}
-	std::cout << "REACTION_LIVE:requests:" << Requests << std::endl;
-	std::cout << "REACTION_LIVE:OK" << std::endl;
+	std::cout << "REACTION_LIVE:requests:" << Requests << '\n'
+			  << std::flush;
+	std::cout << "REACTION_LIVE:OK" << '\n'
+			  << std::flush;
 	return EXIT_SUCCESS;
 }

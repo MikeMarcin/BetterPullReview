@@ -9446,9 +9446,11 @@ auto main(int argc, char** argv) -> int
 			|| fixtureOptions.SeedOrphanedRefreshMaterial;
 		// [[BPR-0657]]. The threaded-reply course refreshes the pull request
 		// after publishing, so the fixture replays its read script.
-		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe");
-		// [[BPR-PENDING-AR1]]. The threaded-reply course goes on to reactions.
+		// [[BPR-PENDING-AR1]]. With `--reaction-probe` the fixture serves
+		// reactions and resolves threads; with the threaded-reply course too,
+		// the course goes on to them, and alone it is an attended look.
 		fixtureOptions.ServesReactions = launch.has("--reaction-probe");
+		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.
 		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads

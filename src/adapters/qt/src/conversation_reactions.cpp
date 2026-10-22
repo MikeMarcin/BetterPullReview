@@ -202,7 +202,7 @@ namespace bpr::qt {
 		return Group.Content;
 	}
 
-	auto reaction_chip::group() const noexcept -> const core::reaction_group&
+	auto reaction_chip::reaction() const noexcept -> const core::reaction_group&
 	{
 		return Group;
 	}

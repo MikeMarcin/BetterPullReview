@@ -34,7 +34,7 @@ namespace bpr::qt {
 	public:
 		reaction_chip(const core::reaction_group& aGroup, const note_colours& aColours, bool aCanReact, const QString& aViewer, QWidget* aParent);
 		[[nodiscard]] auto content() const noexcept -> core::reaction_content;
-		[[nodiscard]] auto group() const noexcept -> const core::reaction_group&;
+		[[nodiscard]] auto reaction() const noexcept -> const core::reaction_group&;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 
 	protected:
