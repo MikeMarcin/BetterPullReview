@@ -6152,15 +6152,17 @@ namespace {
 		};
 		window.review_submission_editor_view()->present(qt::review_submission_editor_projection{ .Draft = kept, .Controls = core::controls(kept), .TargetDescription = QStringLiteral("target"), .Status = QStringLiteral("status") });
 		process_events();
-		// [[BPR-1700]]. At 1280 Compose review says "Approve…" beside the
-		// comparison's dates and the position; from 1460 it says "Approve or
-		// comment…".
+		// [[BPR-1700]]. The native font decides whether the whole command
+		// fits at 1280. Its words yield before the comparison's dates and
+		// position; the full wording fits at 1460 on the supported fonts.
 		auto* const composeButton = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.compose_review_action()));
 		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
 				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
-				   && composeButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && composeButton->text() == QStringLiteral("Approve…")
+				   && composeButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
+				   && (composeButton->text() == QStringLiteral("Approve…") || composeButton->text() == QStringLiteral("Approve or comment…"))
+				   && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
 				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
-			   "at 1280 the title row names the pull request whole and the review bar names the comparison's dates, the position and \"Approve…\"");
+			   "at 1280 the title row names the pull request whole and the review bar fits the comparison's dates, the position and the approve command's words");
 		window.resize(1'460, 852);
 		process_events();
 		expect(window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
@@ -12449,9 +12451,29 @@ namespace {
 		convert->click();
 		process_events();
 		course.settle();
+		// Native fonts can put Add single comment in the compact menu. The
+		// conversion must restore that action in either approved layout.
+		auto* const convertedCard = cards->open_card();
+		auto* const single        = convertedCard->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+		auto* const more          = convertedCard->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraftMore"));
+		auto* const start         = convertedCard->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft"));
+		auto* const formerConvert = convertedCard->findChild<QAbstractButton*>(QStringLiteral("threadConvertDraft"));
 		expect(course.Accepted->Draft.Body == "Suggested change to line 6:\n\n```diff\n-changed `line` 5\n+changed `line` 5!\n```" && course.Surface->head_editor() == nullptr
-				   && !window.review_submission_editor_view()->held_comments().contains(id) && publish->isVisible(),
-			   "Convert writes the change as text on the same line, ends the edit and releases the hold");
+				   && !window.review_submission_editor_view()->held_comments().contains(id)
+				   && single != nullptr && more != nullptr && start != nullptr && formerConvert != nullptr
+				   && start->isVisible() && !formerConvert->isVisible() && single->isEnabled()
+				   && (single->isVisible() != more->isVisible()),
+			   "Convert writes the change as text on the same line, ends the edit, releases the hold and restores the sending actions");
+		if (more->isVisible()) {
+			more->click();
+			process_events();
+			auto* const menu       = convertedCard->findChild<QMenu*>(QStringLiteral("threadReviewDraftMenu"));
+			auto* const sendSingle = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadReviewDraftSingle")) : nullptr;
+			expect(menu != nullptr && menu->isVisible() && sendSingle != nullptr && sendSingle->isEnabled() && sendSingle->text() == QStringLiteral("Add single comment"),
+				   "the compact menu restores Add single comment after conversion");
+			menu->hide();
+			process_events();
+		}
 
 		// A line GitHub resolves on no commit converts to a file comment.
 		course.reset();
@@ -21612,12 +21634,14 @@ auto main(int argc, char** argv) -> int
 		}
 		auto timer = QElapsedTimer{ };
 		if (traceCases) {
-			std::cout << "WORKBENCH_CASE_BEGIN:" << aName << std::endl;
+			std::cout << "WORKBENCH_CASE_BEGIN:" << aName << '\n'
+					  << std::flush;
 			timer.start();
 		}
 		aRun();
 		if (traceCases) {
-			std::cout << "WORKBENCH_CASE_END:" << aName << ':' << timer.elapsed() << std::endl;
+			std::cout << "WORKBENCH_CASE_END:" << aName << ':' << timer.elapsed() << '\n'
+					  << std::flush;
 		}
 	};
 	if (QCoreApplication::arguments().contains(QStringLiteral("--thread-scroll-stability"))) {

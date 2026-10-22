@@ -434,3 +434,33 @@ exception changes. The revised normal Mac course passes; the native contained
 Windows course passes in 0.17 seconds. External R41/R42 records retain both
 setup failures, exact substituted source bindings and byte-for-byte restoration.
 These focused observations do not qualify the complete release candidate.
+
+## Native font layout fixture corrections
+
+Failure-only Windows observations show that the whole Approve or comment…
+wording fits at 1280 (bar hint 1258), with the exact PR title, dates and file
+position preserved. The fixture had pinned macOS's shortened wording. It now
+allows either approved wording at 1280 while requiring the whole bar to fit;
+1460 still requires the full wording. The existing narrowing course still
+requires ordered full/brief/icon yields with no overflow or lost commands.
+
+The held suggestion converts to the exact expected text, ends the code edit
+and releases its hold on Windows. Its 311-pixel card correctly restores Start
+a review plus the compact More menu instead of the separate Add single comment
+button. The fixture now checks the actual send action in either approved
+layout, including opening the compact menu and requiring its enabled named
+entry. It also explicitly requires the former Convert control to disappear.
+No command is sent by opening that menu. Production presentation is unchanged.
+
+Applied frontend-design guidance to preserve the existing native vocabulary and
+font-dependent layout. All three complete default Qt courses pass on Windows
+(32.00, 34.89 and 42.26 seconds); the complete line-draft course passes in
+11.27 seconds. Mac's three default courses pass in 76.51 seconds total, and
+line-draft passes in 9.97 seconds. The reviewed family's source seal is renewed;
+occurrence counts, commands and ownership are unchanged. These scoped positives
+do not clear the separate intermittent Home/start-review or startup-time failures.
+
+Focused clang-tidy 22 exposed two pre-existing `std::endl` warnings in this
+fixture's optional case tracing. They now spell the same newline and explicit
+flush separately; trace timing and pipe delivery remain unchanged. Focused tidy
+passes with warnings as errors, and both inventory source seals are renewed.
