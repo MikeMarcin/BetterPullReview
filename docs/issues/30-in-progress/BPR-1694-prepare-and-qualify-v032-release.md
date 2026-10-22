@@ -355,3 +355,21 @@ The prior composed Windows failure's precise callback sequence remains uncapture
 The normal combined-source restoration and Home courses pass, but its Windows
 commit-filter course fails while reading the restoration store. That separate
 failure and final native qualification remain open; no publication is implied.
+
+## Native path in the commit-filter restoration fixture
+
+The normal Windows combined-source commit-filter course fails at its direct
+restoration-store read. Failure-only diagnostics retain its synthetic root and
+show that flushing deferred Qt deletion does not change the refusal. The retained
+database passes SQLite integrity and has the expected owner-private ACLs.
+A fresh-process probe using the same executable and exact database deterministically
+refuses Qt's forward-slash root as `invalid_path`, then accepts the same root
+with native separators and loads the store.
+
+The fixture constructed its recursive iterator from `QTemporaryDir::path()`
+through `toStdString()`. It now uses the existing `native_filesystem_path` Qt
+boundary conversion before deriving the storage root. The production validator
+still refuses non-native paths; no product policy, gesture, deadline or assertion
+changes. The original failed courses and probe-image hash remain retained.
+The repaired atomic-reading source's full Qt-free core-only suite passes all
+314 tests, including both architecture contracts, with no skips (788.57 seconds).

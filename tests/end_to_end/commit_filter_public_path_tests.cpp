@@ -66,6 +66,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/window_review_restoration_store.hpp"
+#include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/git_objects.hpp"
@@ -1150,7 +1151,7 @@ namespace {
 	/// \brief The restoration store of a quit desktop, as the profile has it.
 	[[nodiscard]] auto restoration_store(desktop_course& aCourse) -> std::unique_ptr<application::window_review_restoration_port>
 	{
-		for (const auto& entry : std::filesystem::recursive_directory_iterator(aCourse.Temporary.path().toStdString())) {
+		for (const auto& entry : std::filesystem::recursive_directory_iterator(app::native_filesystem_path(aCourse.Temporary.path()))) {
 			if (entry.path().filename() == "window-restoration.sqlite3") {
 				return adapters::sqlite::make_window_review_restoration_store(entry.path().parent_path().parent_path().parent_path());
 			}
