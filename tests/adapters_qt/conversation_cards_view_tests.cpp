@@ -783,7 +783,7 @@ namespace {
 			   "an unavailable comparison removes the excerpt");
 	}
 
-	/// [[BPR-PENDING-AS]]. The owner, 2026-10-22: "Much like the code window
+	/// [[BPR-1740]]. The owner, 2026-10-22: "Much like the code window
 	/// I want to be able to scroll the comments drawer up until only the last
 	/// line is visible." The drawer's End leaves its last note's last line at
 	/// the top and Home goes back; Discuss's feed still ends at its last note.

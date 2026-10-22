@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1740"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A long thread scrolls to its reply",
+  "created": "2026-10-22T22:01:25.361072+00:00",
+  "base": "4c78343eddf46511cead5dc292cdf9f3e464b517"
+}

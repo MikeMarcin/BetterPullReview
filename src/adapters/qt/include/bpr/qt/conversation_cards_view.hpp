@@ -731,12 +731,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto aligned() const noexcept -> bool;
 		[[nodiscard]] auto closed_measure_of(const thread_card& aCard) const -> const closed_measure*;
 		void               place_cards(bool aForce);
-		/// \brief [[BPR-PENDING-AS]]. Sets the notes' scroll range from the
+		/// \brief [[BPR-1740]]. Sets the notes' scroll range from the
 		/// content's height. The drawer scrolls past its end as the code
 		/// panes do ([[BPR-1291]]), until only its last note's last line is
 		/// at the top; Discuss's feed ends with its last note at the bottom.
 		void set_scroll_range();
-		/// \brief [[BPR-PENDING-AS]]. Whether the open thread hangs from its
+		/// \brief [[BPR-1740]]. Whether the open thread hangs from its
 		/// line, and so moves with the code; true with none open.
 		[[nodiscard]] auto open_thread_hangs() const -> bool;
 		void               place_open_card();

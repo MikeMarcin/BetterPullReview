@@ -7781,7 +7781,7 @@ namespace bpr::qt {
 			ThreadsReturnFocus = Finder != nullptr && Finder->isAncestorOf(QApplication::focusWidget()) ? nullptr : QApplication::focusWidget();
 		}
 		if (Modality != nullptr) {
-			// [[BPR-PENDING-AS]]. A reply refused in one modality says nothing
+			// [[BPR-1740]]. A reply refused in one modality says nothing
 			// about the next.
 			if (Modality->current() != aModality) {
 				clear_reply_refusal();
@@ -11510,7 +11510,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr) {
 			return;
 		}
-		// [[BPR-PENDING-AS]]. The owner, 2026-10-22, of "Open this thread in
+		// [[BPR-1740]]. The owner, 2026-10-22, of "Open this thread in
 		// code before replying": "I also have no idea what that means I'm on
 		// the code". The words say what is true of this thread, and a thread
 		// on a file that is not in the code gets the click that shows it.
@@ -16036,7 +16036,7 @@ namespace bpr::qt {
 		if (shown && std::ranges::any_of(cards->cards(), [this](const thread_card& aCard) { return aCard.Id == PendingPick->Thread; })) {
 			const auto pick = *PendingPick;
 			PendingPick.reset();
-			// [[BPR-PENDING-AS]]. The thread is open beside its code now.
+			// [[BPR-1740]]. The thread is open beside its code now.
 			clear_reply_refusal();
 			cards->open_thread_at(pick.Thread, pick.Post);
 			// The selection authority names the picked post itself, as a

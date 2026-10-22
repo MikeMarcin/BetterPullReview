@@ -2471,7 +2471,7 @@ namespace bpr::qt {
 
 	void conversation_cards_view::set_scroll_range()
 	{
-		// [[BPR-PENDING-AS]]. The owner, 2026-10-22: "Much like the code
+		// [[BPR-1740]]. The owner, 2026-10-22: "Much like the code
 		// window I want to be able to scroll the comments drawer up until only
 		// the last line is visible." The furthest position leaves the last
 		// note's last line, and the inset under it, at the top.
@@ -3026,7 +3026,7 @@ namespace bpr::qt {
 	{
 		QAbstractScrollArea::resizeEvent(aEvent);
 		relayout();
-		// [[BPR-PENDING-AS]]. A notice under the drawer takes its height from
+		// [[BPR-1740]]. A notice under the drawer takes its height from
 		// it: the open thread's focused control stays in view rather than
 		// going under the notice, as the Reply field went under a refusal.
 		if (aEvent->size().height() < aEvent->oldSize().height() && OpenCard != nullptr) {
@@ -3349,7 +3349,7 @@ namespace bpr::qt {
 		const auto before = OpenCard != nullptr ? OpenCard->y() : 0;
 		auto       wheel  = QWheelEvent{ centre, viewport()->mapToGlobal(centre), QPoint{ 0, -move }, QPoint{ 0, -move }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 		wheelEvent(&wheel);
-		// [[BPR-PENDING-AS]]. What the code could not take, near the end of a
+		// [[BPR-1740]]. What the code could not take, near the end of a
 		// short file, the notes' own overflow does: focus on the Reply field
 		// of a thread taller than the drawer left the field out of view.
 		const auto moved = OpenCard != nullptr ? before - OpenCard->y() : 0;
@@ -3459,7 +3459,7 @@ namespace bpr::qt {
 		auto* const bar   = verticalScrollBar();
 		const auto  delta = !aEvent->pixelDelta().isNull() ? aEvent->pixelDelta().y() : aEvent->angleDelta().y() / 8 * 3;
 		if (!open_thread_hangs()) {
-			// [[BPR-PENDING-AS]]. An open thread with no line to hang from (an
+			// [[BPR-1740]]. An open thread with no line to hang from (an
 			// outdated one opens among its file's unplaced threads,
 			// [[BPR-1581]]) does not move with the code, so the notes take the
 			// wheel first and the code only what they cannot. The code took
@@ -3596,7 +3596,7 @@ namespace bpr::qt {
 		default:
 			break;
 		}
-		// [[BPR-PENDING-AS]]. Home and End, and the platform's document start
+		// [[BPR-1740]]. Home and End, and the platform's document start
 		// and end, go to the notes' top and their end, as in the code panes.
 		const auto edge = document_edge_for(*aEvent);
 		const auto home = edge == document_edge::start || (aEvent->key() == Qt::Key_Home && aEvent->modifiers() == Qt::NoModifier);

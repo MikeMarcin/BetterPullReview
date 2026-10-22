@@ -364,7 +364,7 @@ namespace bpr::qt {
 		Cards = new conversation_cards_view{ loaded };
 		Cards->setMinimumHeight(fontMetrics().lineSpacing() * 6);
 		column->addWidget(Cards, 1);
-		// [[BPR-PENDING-AS]]. The notice's words, and the one click a refusal
+		// [[BPR-1740]]. The notice's words, and the one click a refusal
 		// can offer after them.
 		NoticeRow = new QWidget{ loaded };
 		NoticeRow->setObjectName(QStringLiteral("conversationNoticeRow"));

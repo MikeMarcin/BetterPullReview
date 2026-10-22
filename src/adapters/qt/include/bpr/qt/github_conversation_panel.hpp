@@ -170,7 +170,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-0657]]. Says what a thread gesture came to: a refusal
 		/// named before any provider, or the provider's answer. Empty hides it.
 		void present_notice(const QString& aNotice);
-		/// \brief [[BPR-PENDING-AS]]. The same, with a button after the words
+		/// \brief [[BPR-1740]]. The same, with a button after the words
 		/// that does what the refusal needs: one click instead of an
 		/// instruction. Another notice, or an empty one, takes it away.
 		void               present_notice(const QString& aNotice, const QString& aAction, std::function<void()> aDispatch);

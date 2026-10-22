@@ -2014,11 +2014,11 @@ namespace bpr::qt {
 			bool                           Known   = false;
 		};
 		[[nodiscard]] auto thread_reply_anchor_of(const std::string& aIdentity) const -> thread_reply_anchor;
-		/// [[BPR-PENDING-AS]]. Says why a thread's reply cannot start, in
+		/// [[BPR-1740]]. Says why a thread's reply cannot start, in
 		/// words that are true of it, and offers Show in code when its own
 		/// file would let it.
 		void refuse_thread_reply(const std::string& aIdentity);
-		/// [[BPR-PENDING-AS]]. Takes a reply's refusal back once it may no
+		/// [[BPR-1740]]. Takes a reply's refusal back once it may no
 		/// longer be true: a reply starts, a pick opens its thread, Show in
 		/// code is used or the modality changes.
 		void clear_reply_refusal();
@@ -2624,7 +2624,7 @@ namespace bpr::qt {
 		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
 		/// cleared, until the reviewer changes one or picks again.
 		bool ThreadsRevealNotice = false;
-		/// [[BPR-PENDING-AS]]. The notice says why a reply was refused. It
+		/// [[BPR-1740]]. The notice says why a reply was refused. It
 		/// stayed after the thread opened in Review, and said the reviewer
 		/// was not in the code while they were.
 		bool         ReplyRefusalShown  = false;

@@ -17444,7 +17444,7 @@ namespace {
 		window.hide();
 	}
 
-	/// [[BPR-PENDING-AS]]. The owner, 2026-10-22: a thread with a long reply,
+	/// [[BPR-1740]]. The owner, 2026-10-22: a thread with a long reply,
 	/// opened in Review from Discuss, could not be scrolled to its Reply
 	/// field, and the drawer said "Open this thread in code before replying"
 	/// while the thread was open beside its code. Its clicks, wheel and keys
