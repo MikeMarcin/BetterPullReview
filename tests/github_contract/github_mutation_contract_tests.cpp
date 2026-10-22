@@ -548,6 +548,9 @@ namespace {
 								  "/api/v3/repos/MikeMarcin/BPR-Test/compare/1010101010101010101010101010101010101010...2222222222222222222222222222222222222222?page=2&per_page=1", "" };
 		case operation::observe_viewer:
 			return request_shape{ http_method::get, "/user", "/api/v3/user", "" };
+		case operation::observe_server_meta:
+			// [[BPR-1736]]. GitHub Enterprise Server only: GitHub.com has no version.
+			return request_shape{ http_method::get, "", "/api/v3/meta", "" };
 		case operation::observe_review_comments:
 			return request_shape{ http_method::get, "/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100", "/api/v3/repos/MikeMarcin/BPR-Test/pulls/1/comments?per_page=100", "" };
 		case operation::create_review_comment:
@@ -586,7 +589,7 @@ namespace {
 		}
 	}
 
-	void expect_every_shape_exercised(const std::vector<review_mutation_operation>& aExercised)
+	void expect_every_shape_exercised(const std::vector<review_mutation_operation>& aExercised, const application::github_server_contract aServer)
 	{
 		// Enumerate the enum's entire underlying range, including holes. A pin
 		// added to the exhaustive switch must also have a compiled fixture;
@@ -594,7 +597,9 @@ namespace {
 		for (auto value = 0U; value <= std::numeric_limits<std::uint8_t>::max(); ++value) {
 			const auto op    = static_cast<review_mutation_operation>(value);
 			const auto count = std::ranges::count(aExercised, op);
-			expect(count == (expected_request_shape(op).has_value() ? 1 : 0),
+			// [[BPR-1736]]. GitHub.com has no `GET /meta` to compile.
+			const auto pinned = expected_request_shape(op).has_value() && !(op == review_mutation_operation::observe_server_meta && aServer == application::github_server_contract::github_com_2022_11_28);
+			expect(count == (pinned ? 1 : 0),
 				   "operation " + std::to_string(value) + " exercises its request-shape pin exactly once per server");
 		}
 	}
@@ -676,6 +681,7 @@ namespace {
 			compile_merge_base_observation_request(serverTarget, aServer),
 			compile_merge_base_observation_request(serverTarget, aServer, merge_base_observation_basis::recorded_base),
 			compile_merge_base_observation_request(merge_base_ancestry_binding(serverTarget, commit(0x22U)), aServer, merge_base_observation_basis::base_ancestry),
+			compile_server_meta_request(serverTarget, aServer),
 
 		};
 	}
@@ -722,6 +728,7 @@ namespace {
 			row{ operation::observe_merge_base, http_method::get, false, 200, false },
 			row{ operation::observe_recorded_merge_base, http_method::get, false, 200, false },
 			row{ operation::observe_base_ancestry, http_method::get, false, 200, false },
+			row{ operation::observe_server_meta, http_method::get, false, 200, false },
 		};
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
 			expect(review_mutation_exchange_for(op)
@@ -745,6 +752,10 @@ namespace {
 			auto exercised = std::vector<review_mutation_operation>{ };
 			for (std::size_t index = 0U; index < rows.size(); ++index) {
 				const auto& wire = compiled[index];
+				if (rows[index].Operation == operation::observe_server_meta && server == application::github_server_contract::github_com_2022_11_28) {
+					expect(!wire.has_value(), "GitHub.com has no server version to read");
+					continue;
+				}
 				expect(wire.has_value() && wire->Operation == rows[index].Operation
 						   && wire->Method == rows[index].Method
 						   && (wire->Path == "/graphql" || wire->Path == "/api/graphql") == rows[index].Graphql,
@@ -752,7 +763,7 @@ namespace {
 				expect_request_shape(*wire);
 				exercised.push_back(wire->Operation);
 			}
-			expect_every_shape_exercised(exercised);
+			expect_every_shape_exercised(exercised, server);
 		}
 	}
 

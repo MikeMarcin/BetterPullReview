@@ -848,7 +848,9 @@ namespace {
 		// BPR-Test #124's shape: line 10 (zero-based 9) changed.
 		const auto lines             = core::line_correspondence{ .LeftLines = 100U, .RightLines = 100U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 90U } } };
 		projection.Source->WholeDiff = core::whole_diff_comment_source{ .Head = head, .MergeBase = base, .BaseToHead = lines };
-		auto host                    = application::review_mutation_application_host{
+		// [[BPR-1736]]. Where this profile learned GitHub refuses such a line.
+		projection.Source->OffHunkFact = core::off_hunk_creation_capability::unsupported;
+		auto host                      = application::review_mutation_application_host{
 			std::move(provider),
 			live_target(),
 			acting_identity(),
@@ -906,6 +908,86 @@ namespace {
 		expect(unread.Source && unread.Source->Placement == core::review_placement::unknown, "and published natively, as before");
 		projection.Source->WholeDiff = core::whole_diff_comment_source{ .Head = base, .MergeBase = base, .BaseToHead = lines };
 		refused(at(core::diff_side::right, 59U, 70U), application::review_mutation_failure::stale_head, "a placement for another head is refused");
+		host.shutdown();
+	}
+
+	/// [[BPR-1736]] (owner, 2026-10-22, D1, D3). With nothing learned, a line
+	/// outside every hunk is bound `off_hunk` for one native attempt whose
+	/// answer teaches the fact, and no review carries it; once GitHub accepted
+	/// such a comment it is native, alone or in a review, and so is a range.
+	/// The fact is the presented one; the provider checks the exact key.
+	void test_a_whole_pr_line_outside_github_diff_follows_the_learned_fact()
+	{
+		auto request = publication_request();
+		bind_resolved_endpoints(request);
+		const auto head = request.SelectedDiff.Request.Diff.Comparison.Right.Commit;
+		const auto base = request.SelectedDiff.Request.Diff.Comparison.Left.Commit;
+		const auto at   = [&request](const core::diff_side aSide, const std::uint32_t aLine, const std::uint64_t aDraft, const std::optional<std::uint32_t> aStart = std::nullopt) {
+			auto line                         = request;
+			line.Proposal.Draft               = core::review_draft_id{ aDraft };
+			line.Selection.PreferredLine.Side = aSide;
+			line.Selection.PreferredLine.Line = aLine;
+			line.Proposal.Anchor              = line.Selection.PreferredLine;
+			line.Proposal.StartLine           = aStart;
+			return line;
+		};
+		auto  provider                  = std::make_unique<fake_provider>();
+		auto* observed                  = provider.get();
+		auto  effects                   = application::manual_executor{ };
+		auto  decisions                 = application::manual_executor{ };
+		auto  projection                = recording_projection{ };
+		projection.Source->Material.Key = request.SelectedDiff.Key;
+		// BPR-Test #125's shape: line 10 (zero-based 9) changed.
+		const auto lines             = core::line_correspondence{ .LeftLines = 100U, .RightLines = 100U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 90U } } };
+		projection.Source->WholeDiff = core::whole_diff_comment_source{ .Head = head, .MergeBase = base, .BaseToHead = lines };
+		auto host                    = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto sent = [&](application::review_mutation_publication_request aRequest, const std::string_view aWhat) -> const application::review_mutation_request& {
+			static_cast<void>(host.publish(std::move(aRequest)));
+			expect(effects.pending() == 1U, aWhat);
+			effects.run_next();
+			decisions.drain();
+			return observed->Submitted.back();
+		};
+
+		expect(projection.Source->OffHunkFact == core::off_hunk_creation_capability::unknown, "nothing is learned to begin with");
+		const auto& probe = sent(at(core::diff_side::right, 13U, 81U), "unknown: line 14 is admitted");
+		expect(probe.Source && probe.Source->Placement == core::review_placement::off_hunk && probe.Source->CorePlacedOffHunk && !probe.LiveBinding->Anchor.RemoteLine
+				   && probe.LiveBinding->Anchor.Commit == head && probe.Representation == core::review_publication_representation::native_line && !probe.Source->LeftEndpoint,
+			   "for one native attempt at the line itself, whose answer teaches the fact");
+		expect(host.comment_destination(at(core::diff_side::right, 13U, 82U)).error() == application::review_mutation_failure::unsupported, "and no review carries it: a review never probes");
+		expect(host.comment_destination(at(core::diff_side::right, 12U, 83U)).has_value(), "a line in the hunk still joins a review");
+		static_cast<void>(host.publish(at(core::diff_side::right, 13U, 84U, 11U)));
+		decisions.drain();
+		expect(effects.pending() == 0U && !projection.Published.back().Result && projection.Published.back().Result.error() == application::review_mutation_failure::unsupported,
+			   "a range leaving the hunk is refused while nothing is learned");
+		projection.Source->Material.BaseNumberedAsGitHub = true;
+		const auto& baseProbe                            = sent(at(core::diff_side::left, 50U, 85U), "unknown: a base line outside every hunk is admitted");
+		expect(baseProbe.Source && baseProbe.Source->Placement == core::review_placement::off_hunk && baseProbe.Source->CorePlacedOffHunk
+				   && baseProbe.Source->LeftEndpoint == request.SelectedDiff.LeftEndpoint && baseProbe.LiveBinding->Anchor.Semantic.Side == core::diff_side::left,
+			   "natively on GitHub's LEFT line, the merge base's document kept for a file comment after a refusal");
+
+		projection.Source->OffHunkFact = core::off_hunk_creation_capability::supported;
+		const auto& native             = sent(at(core::diff_side::right, 59U, 86U), "supported: line 60 is admitted");
+		expect(native.Source && native.Source->Placement == core::review_placement::off_hunk && native.Source->CorePlacedOffHunk && !native.LiveBinding->Anchor.RemoteLine,
+			   "as a native line comment");
+		expect(host.comment_destination(at(core::diff_side::right, 59U, 87U)).has_value(), "and a review carries it (D3)");
+		const auto& range = sent(at(core::diff_side::right, 20U, 88U, 11U), "supported: a range leaving the hunk is admitted");
+		expect(range.Source && range.Source->Placement == core::review_placement::off_hunk && range.Proposal.StartLine == 11U, "natively");
+
+		projection.Source->OffHunkFact = core::off_hunk_creation_capability::unsupported;
+		const auto& file               = sent(at(core::diff_side::right, 59U, 89U), "unsupported: line 60 is admitted");
+		expect(file.Source && file.Source->Placement == core::review_placement::unresolvable_line && !file.Source->CorePlacedOffHunk, "for the file comment at once");
 		host.shutdown();
 	}
 
@@ -1738,6 +1820,7 @@ auto main() -> int
 	test_filtered_diff_comments_are_placed_by_the_core();
 	test_a_filtered_base_line_the_merge_base_changed_is_a_file_comment();
 	test_a_whole_pr_line_outside_github_diff_is_a_file_comment();
+	test_a_whole_pr_line_outside_github_diff_follows_the_learned_fact();
 	test_a_label_changed_after_preparation_needs_a_new_gesture();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;

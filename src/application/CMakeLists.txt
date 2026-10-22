@@ -98,6 +98,7 @@ add_library(
         src/github_capability_cache.cpp
         src/review_publication_capability_cache.cpp
         src/review_publication_recovery_contract.cpp
+        src/off_hunk_fact.cpp
         src/epoch_application_host.cpp
         src/profile_epoch_actor_registry.cpp
         src/epoch_runtime_ports.cpp

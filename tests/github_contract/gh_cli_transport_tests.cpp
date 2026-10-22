@@ -1810,6 +1810,16 @@ namespace {
 				expect(std::holds_alternative<github_mutation_wire_success>(transport.perform_review_mutation(request, { }, witness)) && witnessed == 1, "canonical mutation launches after witness");
 				const auto args = gh_arguments(*process.LastRequest);
 				expect(args[0] == "api" && args[1].starts_with("repos/") && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == request.Wire.Body, "mutation uses exact host REST endpoint and stdin body");
+				// [[BPR-1736]]. A mutation's answer keeps the server version
+				// GitHub Enterprise Server names, which keys the learned
+				// off-hunk fact; other headers outside the projection go.
+				process.Result   = github_cli_process_success{ .StandardOutput = "HTTP/2.0 201 Created\nContent-Type: application/json\r\nX-GitHub-Enterprise-Version: 3.20.8\r\nX-Request-Id: fixture\r\n\r\n{}" };
+				const auto  kept = transport.perform_review_mutation(request, { }, witness);
+				const auto* won  = std::get_if<github_mutation_wire_success>(&kept);
+				expect(won != nullptr && std::ranges::count_if(won->Response.Headers, [](const http_header& aHeader) { return aHeader.Name == "X-GitHub-Enterprise-Version" && aHeader.Value == "3.20.8"; }) == 1
+						   && std::ranges::none_of(won->Response.Headers, [](const http_header& aHeader) { return aHeader.Name == "X-Request-Id"; }),
+					   "a mutation's answer keeps the server version it names");
+				process.Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 201 Created\nContent-Type: application/json\r\n\r\n{}" };
 				for (const auto& arg : args) {
 					expect(arg.find(request.Wire.Body) == std::string::npos, "body absent from arguments");
 				}

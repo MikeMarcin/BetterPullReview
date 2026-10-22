@@ -48,7 +48,10 @@ namespace bpr::adapters::github::detail {
 
 	// gh 2.96.0 processResponse prints an LF status line, CRLF headers and
 	// a CRLF separator, then copies the uncolored body without HTTP framing.
-	[[nodiscard]] inline auto parse_gh_cli_response(const std::string_view aOutput)
+	/// \details [[BPR-1736]]. With `aServerVersion`, for a review mutation's
+	/// answer only, `X-GitHub-Enterprise-Version` is kept too: it keys the
+	/// learned off-hunk fact, and no read metadata parser admits it.
+	[[nodiscard]] inline auto parse_gh_cli_response(const std::string_view aOutput, const bool aServerVersion = false)
 		-> std::expected<wire_response, application::github_provider_failure>
 	{
 		using failure = application::github_provider_failure;
@@ -132,8 +135,9 @@ namespace bpr::adapters::github::detail {
 		}
 		// Provider metadata accepts only this projection; other validated wire
 		// headers (including Content-Length) remain transport-local.
-		std::erase_if(response.Headers, [](const auto& aHeader) {
-			return !selected_response_header(lowercase_header(aHeader.Name));
+		std::erase_if(response.Headers, [aServerVersion](const auto& aHeader) {
+			const auto name = lowercase_header(aHeader.Name);
+			return !selected_response_header(name) && !(aServerVersion && name == "x-github-enterprise-version");
 		});
 		return response;
 	}

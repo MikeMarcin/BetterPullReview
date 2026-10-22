@@ -50,6 +50,12 @@ namespace bpr::application {
 		/// the file at both, the merge base to the head, which the core places
 		/// a new comment by. Absent on a filtered diff.
 		std::optional<core::whole_diff_comment_source> WholeDiff;
+		/// [[BPR-1736]]. What the profile has learned about a single comment
+		/// outside GitHub's diff on this server and repository, as presented:
+		/// supported places such a line natively, unsupported as a file comment
+		/// at once, unknown makes one native attempt. Publication checks it
+		/// again by the exact key.
+		core::off_hunk_creation_capability OffHunkFact = core::off_hunk_creation_capability::unknown;
 	};
 
 	/// \brief Reads current bounded source facts on the host's decision lane without effects.

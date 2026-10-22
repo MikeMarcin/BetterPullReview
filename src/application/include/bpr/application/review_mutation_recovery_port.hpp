@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_RECOVERY_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_MUTATION_RECOVERY_PORT_HPP
 
+#include "bpr/application/off_hunk_fact_port.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 
 #include <array>
@@ -148,6 +149,10 @@ namespace bpr::application {
 			static_cast<void>(aKey);
 			return std::optional<core::review_publication_post>{ };
 		}
+		/// \brief [[BPR-1736]]. The profile's learned off-hunk facts, kept in
+		/// the same journal; none when this journal keeps none, when nothing is
+		/// learned and every off-hunk line is published as it was before.
+		[[nodiscard]] virtual auto off_hunk_facts() noexcept -> off_hunk_fact_port* { return nullptr; }
 
 		[[nodiscard]] virtual auto load(const std::string& aIdempotencyKey)
 			-> std::expected<

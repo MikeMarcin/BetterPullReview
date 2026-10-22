@@ -1,5 +1,6 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 
+#include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "review_mutation_execution_authority.hpp"
 
@@ -320,6 +321,10 @@ namespace bpr::application {
 			review_mutation_anchor_binding                Anchor;
 			review_mutation_execution_scope               Scope;
 			std::optional<review_mutation_source_binding> Source;
+			/// [[BPR-1736]]. The core placed the line outside the diff and
+			/// nothing says GitHub takes such a line: a single Publish probes,
+			/// a review never carries it.
+			bool ReviewHeld = false;
 		};
 
 		// [[BPR-0657]]. One thread resolution in flight: its own record and
@@ -538,12 +543,27 @@ namespace bpr::application {
 			// file comment with no native attempt. A base line is placed only
 			// when its document is the merge base's; otherwise the refusal below
 			// stands. Unread lines infer nothing.
-			const auto wholeBase = !newOnBase || (source->Material.BaseNumberedAsGitHub && publication.LeftPath.has_value() && key.LeftBlob.has_value());
+			// [[BPR-1736]] (owner, 2026-10-22, D1). Unless GitHub has refused
+			// such a comment for this profile, server and repository: then the
+			// core routes the line to a native attempt, `off_hunk`, whose answer
+			// teaches the learned fact (unknown), or places it natively
+			// (supported). A range outside is refused unless supported.
+			const auto wholeBase  = !newOnBase || (source->Material.BaseNumberedAsGitHub && publication.LeftPath.has_value() && key.LeftBlob.has_value());
+			auto       offHunk    = false;
+			auto       reviewHeld = false;
 			if (!key.Filter.has_value() && !aRequest.Proposal.ReplyToThread.has_value() && source->WholeDiff && wholeBase) {
 				if (source->WholeDiff->Head != Coordinator.designated().ExpectedHead) {
 					return std::unexpected(review_mutation_failure::stale_head);
 				}
-				if (auto whole = core::place_whole_diff_comment(*source->WholeDiff, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine)) {
+				const auto onGitHub = core::place_on_github_diff(source->WholeDiff->BaseToHead, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine);
+				const auto route    = source->WholeDiff->Head.valid() && source->WholeDiff->MergeBase.valid() ? core::route_github_comment(onGitHub, source->OffHunkFact)
+																											  : core::github_comment_route::native;
+				if (route == core::github_comment_route::refused) {
+					return std::unexpected(review_mutation_failure::unsupported);
+				}
+				offHunk    = route == core::github_comment_route::native_off_hunk || route == core::github_comment_route::off_hunk_unknown;
+				reviewHeld = route == core::github_comment_route::off_hunk_unknown;
+				if (auto whole = offHunk ? std::nullopt : core::place_whole_diff_comment(*source->WholeDiff, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine)) {
 					if (whole->Placement == core::filtered_comment_placement::refused) {
 						return std::unexpected(review_mutation_failure::unsupported);
 					}
@@ -554,7 +574,7 @@ namespace bpr::application {
 			// version of the file. Without the evidence that the left document
 			// is that version, a base line could land on another line. A
 			// filtered diff's base line was placed in the merge base above.
-			if (newOnBase && !placement && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
+			if (newOnBase && !placement && !offHunk && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			auto path = portable_path_text(*publication.RightPath);
@@ -608,13 +628,18 @@ namespace bpr::application {
 				// in the base document.
 				// A moved line has no file-comment fallback: GitHub took it as a
 				// line comment where it was placed.
-				.Source = review_mutation_source_binding{ .Endpoint     = publication.RightEndpoint,
-														  .Comparison   = key,
-														  .LineCount    = newOnBase ? *lines : *source->Material.RightLines,
-														  .Placement    = fileComment ? core::review_placement::unresolvable_line
-															  : remapped              ? core::review_placement::legacy_line
-																					  : source->Placement,
-														  .LeftEndpoint = fileComment && newOnBase ? publication.LeftEndpoint : std::nullopt },
+				.Source     = review_mutation_source_binding{ .Endpoint   = publication.RightEndpoint,
+															  .Comparison = key,
+															  .LineCount  = newOnBase ? *lines : *source->Material.RightLines,
+															  .Placement  = fileComment ? core::review_placement::unresolvable_line
+																  : remapped            ? core::review_placement::legacy_line
+																  : offHunk             ? core::review_placement::off_hunk
+																						: source->Placement,
+															  // [[BPR-1736]]. An off-hunk base line's file comment,
+														  // after a refusal, links to it in the merge base.
+														  .LeftEndpoint      = (fileComment || offHunk) && newOnBase ? publication.LeftEndpoint : std::nullopt,
+														  .CorePlacedOffHunk = offHunk },
+				.ReviewHeld = reviewHeld,
 			};
 		}
 
@@ -1105,7 +1130,9 @@ namespace bpr::application {
 		}
 		// [[BPR-1706]]. A review's comments are line comments; a filtered
 		// diff's line GitHub resolves nowhere is a file comment published alone.
-		if (validated->Source && validated->Source->Placement == core::review_placement::unresolvable_line) {
+		// [[BPR-1736]]. And a line outside the diff joins one only once GitHub
+		// accepted such a comment: a review never probes.
+		if (validated->ReviewHeld || (validated->Source && validated->Source->Placement == core::review_placement::unresolvable_line)) {
 			return std::unexpected(review_mutation_failure::unsupported);
 		}
 		return std::move(validated->Anchor);

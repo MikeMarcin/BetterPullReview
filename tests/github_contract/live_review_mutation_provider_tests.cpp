@@ -571,6 +571,7 @@ namespace {
 		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
 		case review_mutation_operation::observe_recorded_merge_base:   return "observe_recorded_merge_base";
 		case review_mutation_operation::observe_base_ancestry:         return "observe_base_ancestry";
+		case review_mutation_operation::observe_server_meta:           return "observe_server_meta";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";

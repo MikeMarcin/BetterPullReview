@@ -84,6 +84,10 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1572]]. REST compare of the recorded base and the base
 		/// branch: whether the branch only moved forward from it.
 		observe_base_ancestry,
+		/// [[BPR-1736]]. REST `GET /meta` on GitHub Enterprise Server: the
+		/// `installed_version` a learned off-hunk fact is keyed by, read once
+		/// per session before an off-hunk line is published.
+		observe_server_meta,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -195,9 +199,29 @@ namespace bpr::adapters::github::detail {
 		std::string                         Field;
 		std::string                         Code;
 		std::string                         Message;
-		bool                                RecordedDesignatedScope                                 = false;
-		auto                                operator<=>(const off_hunk_unsupported_contract&) const = default;
+		bool                                RecordedDesignatedScope = false;
+		/// [[BPR-1736]] (decision D4). GitHub.com's measured refusal, admitted
+		/// for any repository: the exact error tuple, with any
+		/// `documentation_url` and `status` and any header set, only for a line
+		/// the core placed outside the diff.
+		bool General                                                 = false;
+		auto operator<=>(const off_hunk_unsupported_contract&) const = default;
 	};
+
+	/// \brief [[BPR-1736]] (decision D4). GitHub.com's refusal of a single
+	/// comment outside its diff, as measured on BPR-Test PR2, #124 and #125:
+	/// resource `PullRequestReviewComment`, field
+	/// `pull_request_review_thread.line`, code `custom`, "could not be
+	/// resolved". None for GitHub Enterprise Server, whose refusal is not yet
+	/// recorded: it records the fact and asks once.
+	[[nodiscard]] auto general_off_hunk_contract(application::github_server_contract aServer) -> std::optional<off_hunk_unsupported_contract>;
+
+	/// \brief [[BPR-1736]]. Whether a fully received 422 to a single comment
+	/// names the comment's line: an `errors` object whose `field` is `line`
+	/// or `pull_request_review_thread.line`. Bounded; any other answer is
+	/// false. A refusal that names the line teaches that the server refuses
+	/// such a line; anything else teaches nothing.
+	[[nodiscard]] auto refusal_names_comment_line(const review_mutation_wire_response& aResponse) -> bool;
 
 	/// \brief Matches only the fully received exact structured non-creation response.
 	[[nodiscard]] auto definitive_off_hunk_unsupported(
@@ -316,6 +340,21 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief Compiles the bounded ordinary REST review-list observation.
 	[[nodiscard]] auto compile_review_submission_observation_request(const review_submission_request& aRequest, application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28) -> review_mutation_request_result;
+	/// \brief [[BPR-1736]]. GitHub Enterprise Server's `GET /meta`, whose
+	/// `installed_version` keys a learned off-hunk fact; refused for GitHub.com,
+	/// which has no version.
+	[[nodiscard]] auto compile_server_meta_request(const application::review_mutation_target_binding& aTarget, application::github_server_contract aServer)
+		-> review_mutation_request_result;
+
+	/// \brief [[BPR-1736]]. The `installed_version` of a `GET /meta` answer,
+	/// when it is a version a fact may be keyed by; none otherwise.
+	[[nodiscard]] auto parse_server_meta(const review_mutation_wire_response& aResponse) -> std::optional<std::string>;
+
+	/// \brief [[BPR-1736]]. The server version an answer names in its
+	/// `X-GitHub-Enterprise-Version` header, when there is exactly one and it
+	/// is a version a fact may be keyed by; none otherwise.
+	[[nodiscard]] auto enterprise_version_header(const review_mutation_wire_response& aResponse) -> std::optional<std::string>;
+
 	[[nodiscard]] auto compile_target_observation_request(
 		const application::review_mutation_target_binding& aTarget,
 		application::github_server_contract                aServer = application::github_server_contract::github_com_2022_11_28)
@@ -754,6 +793,24 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                      aStop,
 			github_mutation_transmission_witness aWitness = { })
 			-> std::expected<review_mutation_wire_response, application::review_mutation_failure>;
+		/// \brief [[BPR-1736]]. The learned fact's key for a single comment on
+		/// this session's server, `aVersion` its server version; none when the
+		/// key is not one a fact may be kept under.
+		[[nodiscard]] auto off_hunk_key(std::string aVersion) const -> std::optional<application::off_hunk_fact_key>;
+		/// \brief [[BPR-1736]]. The key a publication looks the fact up by: on
+		/// GitHub Enterprise Server its `installed_version`, read once per
+		/// session; none when it could not be read. The first key forgets every
+		/// entry kept under another server.
+		[[nodiscard]] auto lookup_off_hunk_key(std::stop_token aStop) -> std::optional<application::off_hunk_fact_key>;
+		/// \brief [[BPR-1736]]. The same comment bound as a file comment when
+		/// the core placed it outside the diff and the profile has learned that
+		/// this server refuses such a line, for a fresh attempt only; none
+		/// otherwise.
+		[[nodiscard]] auto learned_file_comment(const application::review_mutation_request& aRequest, std::stop_token aStop) -> std::optional<application::review_mutation_request>;
+		/// \brief [[BPR-1736]]. Records what GitHub's answer to a native comment
+		/// the core placed outside the diff taught, under the server version
+		/// that answer names. Best effort: a fact not kept is unknown.
+		void learn_off_hunk(const application::review_mutation_request& aRequest, const review_mutation_wire_response& aResponse, core::off_hunk_answer aAnswer);
 
 		github_mutation_wire_transport*                             Transport = nullptr;
 		live_review_mutation_configuration                          Configuration;
@@ -769,6 +826,12 @@ namespace bpr::adapters::github::detail {
 		std::uint16_t LastErrorStatus = 0U;
 		/// [[BPR-1735]]. UTC milliseconds for the answers a publication keeps.
 		std::function<std::int64_t()> PublicationClock;
+		/// [[BPR-1736]]. GitHub Enterprise Server's `installed_version`, once
+		/// read this session, and whether it was asked; whether entries kept
+		/// under another server were forgotten.
+		std::optional<std::string> ServerVersion;
+		bool                       ServerVersionAsked    = false;
+		bool                       OtherServersForgotten = false;
 
 	public:
 		/// \brief [[BPR-1735]]. Replaces the wall clock the kept answers and

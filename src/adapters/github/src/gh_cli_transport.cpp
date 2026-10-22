@@ -1936,9 +1936,15 @@ namespace bpr::adapters::github::detail {
 		if (!result || !configuration_unchanged()) {
 			return github_mutation_wire_error{ .Transmission = sent };
 		}
-		auto response = parse_gh_cli_response(result->StandardOutput);
+		// [[BPR-1736]]. The answer keeps the server version it names; Insights
+		// reads the rate-limit projection alone.
+		auto response = parse_gh_cli_response(result->StandardOutput, true);
 		if (insights_channel()) {
-			insights_channel()->request(exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core, core::insights_category::publishing, response ? &*response : nullptr, 0);
+			auto metered = response;
+			if (metered) {
+				std::erase_if(metered->Headers, [](const auto& aHeader) { return lowercase_header(aHeader.Name) == "x-github-enterprise-version"; });
+			}
+			insights_channel()->request(exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core, core::insights_category::publishing, metered ? &*metered : nullptr, 0);
 		}
 
 		// [[BPR-1538]]. A page of the review list or comment collection may

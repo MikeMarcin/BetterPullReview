@@ -50,6 +50,12 @@ namespace bpr::application {
 		/// ten minutes after the upgrade kept it. The journal recorded it
 		/// rejected: it was not published.
 		settled_not_published,
+		/// [[BPR-1736]]. GitHub refused a line comment the core placed outside
+		/// the diff with a fully received answer naming its line, in a shape no
+		/// recorded classifier matched. The journal recorded it rejected, and
+		/// the learned fact is now unsupported, so publishing it again posts a
+		/// file comment that links to the line.
+		off_hunk_refused,
 	};
 
 	/// \brief [[BPR-1735]]. Whether the failure is the journal's record of a
@@ -57,7 +63,7 @@ namespace bpr::application {
 	[[nodiscard]] constexpr auto journal_rejection(const review_mutation_failure aFailure) noexcept -> bool
 	{
 		return aFailure == review_mutation_failure::unplaceable_line || aFailure == review_mutation_failure::refused_not_published
-			|| aFailure == review_mutation_failure::settled_not_published;
+			|| aFailure == review_mutation_failure::settled_not_published || aFailure == review_mutation_failure::off_hunk_refused;
 	}
 
 	/// \brief Returns the stable name for the supplied value.
@@ -275,7 +281,13 @@ namespace bpr::application {
 		std::uint32_t                                   LineCount = 0U;
 		core::review_placement                          Placement = core::review_placement::unknown;
 		std::optional<workbench_selected_diff_endpoint> LeftEndpoint;
-		auto                                            operator<=>(const review_mutation_source_binding&) const = default;
+		/// [[BPR-1736]]. The core placed this line outside every hunk of
+		/// GitHub's own diff (BPR-1735's rule) and bound it `off_hunk` for a
+		/// native attempt: GitHub's answer teaches the learned off-hunk fact,
+		/// its refusal in GitHub.com's measured shape is classified (decision
+		/// D4), and a learned refusal publishes it as a file comment.
+		bool CorePlacedOffHunk                                        = false;
+		auto operator<=>(const review_mutation_source_binding&) const = default;
 	};
 
 	enum class review_remote_comment_subject : std::uint8_t { line,

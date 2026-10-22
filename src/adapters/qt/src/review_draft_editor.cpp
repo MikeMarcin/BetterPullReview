@@ -1115,6 +1115,12 @@ namespace bpr::qt {
 		case application::review_mutation_failure::settled_not_published:
 			set_publication_status(QStringLiteral("Not published: GitHub has no comment from that attempt. Your draft is kept; publish it again."));
 			break;
+		case application::review_mutation_failure::off_hunk_refused:
+			// [[BPR-1736]]. A refusal no recorded shape matched, of a line
+			// outside the diff: asked once. The draft is kept, and Publish
+			// now posts it as a file comment that links to the line.
+			set_publication_status(QStringLiteral("GitHub refused a line comment here. Publish as file comment?"));
+			break;
 		case application::review_mutation_failure::undesignated_target:
 			set_publication_status(QStringLiteral(
 				"Publication was refused because the pull request changed."));
