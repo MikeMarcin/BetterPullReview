@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AM"
+id: "BPR-1736"
 title: "Learn when GitHub accepts a line comment outside the diff, and place it natively there"
 status: "Backlog"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-1735"]
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"kind":"design","origin":"Owner, 2026-10-22, on BPR-1735's option P: find clear capabilities for comment-anywhere support","phase":"research and design done; awaits the owner's decisions","related_cards":["BPR-1735","BPR-1716","BPR-1715","BPR-1706","BPR-1680"],"related_rfcs":["RFC-BPR-0089"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1736--BPR-1736--f61711c4c46d.json","kind":"design","origin":"Owner, 2026-10-22, on BPR-1735's option P: find clear capabilities for comment-anywhere support","phase":"research and design done; awaits the owner's decisions","related_cards":["BPR-1735","BPR-1716","BPR-1715","BPR-1706","BPR-1680"],"related_rfcs":["RFC-BPR-0089"]}
 ---
 
-# BPR-PENDING-AM: Learn when GitHub accepts a line comment outside the diff, and place it natively there
+# BPR-1736: Learn when GitHub accepts a line comment outside the diff, and place it natively there
 
 ## Owner request
 
