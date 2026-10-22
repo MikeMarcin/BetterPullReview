@@ -120,6 +120,7 @@ add_library(
         src/feedback_workshop_candidate.cpp
         src/suggestion_applicability.cpp
         src/suggestion_draft.cpp
+        src/pull_request_suggestion.cpp
         src/review_comment_range.cpp
         src/review_tour_reconciliation.cpp
     src/review_tour_revision.cpp

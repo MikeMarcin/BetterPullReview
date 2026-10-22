@@ -12,6 +12,7 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
 #include "bpr/core/feedback_header_edit.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/review_cycle_json.hpp"
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/sha256.hpp"
@@ -153,7 +154,10 @@ namespace {
 	}
 
 	// Subjects and suggested changes, each the first block after a header.
-	constexpr std::array<std::string_view, 9> patches{
+	constexpr std::array<std::string_view, 10> patches{
+		// [[RFC-BPR-0090]]. A body an in-pane edit composed: the prose, a blank
+		// line and the block, with no final newline (compose_suggestion_body).
+		"Clamp the width.\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n\treturn width;\n```",
 		// A multiline replacement.
 		"Clamp the width.\n\n```suggestion\n\tconst auto width = std::max(1, requested);\n\treturn width;\n```\n",
 		// An empty fence deletes the line.
@@ -208,6 +212,12 @@ namespace {
 		const auto composed = decide_feedback_composition_edit(request);
 		expect_only_header(aBody, composed, why + " [composition]");
 		expect(composed.Refusal == header.Refusal && composed.Body == header.Body, why + ": a written body composes as the header decision decides");
+		// [[RFC-BPR-0090]]. A composed body stays one: the header edit changes
+		// its prose only, so it splits back to the same block.
+		if (const auto split = split_suggestion_body(aBody); split.has_value() && header.Changed) {
+			const auto after = split_suggestion_body(header.Body);
+			expect(after.has_value() && after->Block == split->Block, why + ": a composed body splits back to the same block");
+		}
 		++aTally.Paths;
 		++aTally.Paths;
 		if (header.Changed) {
@@ -348,6 +358,8 @@ auto main(int aArgc, char** aArgv) -> int
 	expect(fences("a\n```suggestion\nx\n```\nb\n~~~suggestion\n~~~\n").size() == 2U, "two fences found");
 	expect(fences("```suggestion\r\n\r\n````\r\n") == std::vector<std::string>{ "```suggestion\r\n\r\n````\r\n" }, "a longer closer closes, CRLF kept");
 	expect(fences("````suggestion\n```\n````").size() == 1U && fences("````suggestion\n```\n````").front() == "````suggestion\n```\n````", "a shorter run inside a longer fence is content");
+	expect(patches.front() == compose_suggestion_body("Clamp the width.", std::vector<std::string>{ "\tconst auto width = std::max(1, requested);", "\treturn width;" }),
+		   "the first patch is a composed body");
 	const auto cases = pack_cases(aArgv[1]);
 	independence();
 	const auto counts = matrix();

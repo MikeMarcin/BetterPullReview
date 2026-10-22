@@ -246,6 +246,31 @@ namespace bpr::core {
 		State.TabWidth = aTabWidth == 0U ? default_suggestion_tab_width : aTabWidth;
 	}
 
+	void suggestion_text_editor::set_editable_lines(const std::uint64_t aFirst, const std::uint64_t aLast)
+	{
+		const auto count = static_cast<std::uint64_t>(State.Lines.size());
+		const auto last  = std::min(aLast, count - 1U);
+		const auto first = std::min(aFirst, last);
+		State.Editable   = editable_lines{ .First = first, .After = count - 1U - last };
+		Undo.clear();
+		Redo.clear();
+		Typing  = false;
+		Refusal = suggestion_edit_refusal::none;
+	}
+
+	auto suggestion_text_editor::editable_range() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+	{
+		if (!State.Editable) {
+			return std::nullopt;
+		}
+		return std::pair{ State.Editable->First, static_cast<std::uint64_t>(State.Lines.size()) - 1U - State.Editable->After };
+	}
+
+	auto suggestion_text_editor::last_refusal() const noexcept -> suggestion_edit_refusal
+	{
+		return Refusal;
+	}
+
 	void suggestion_text_editor::set_indentation(text_indentation aIndentation)
 	{
 		Indentation = std::move(aIndentation);
@@ -397,9 +422,33 @@ namespace bpr::core {
 		auto       goals   = std::exchange(State.Goals, { });
 		const auto editing = changes_text(aEdit);
 		const auto before  = editing ? State : suggestion_text_state{ .Lines = { }, .Carets = State.Carets, .Primary = State.Primary, .TabWidth = State.TabWidth, .BoxAnchor = State.BoxAnchor };
-		const auto tab     = State.TabWidth;
-		const auto lines   = [this] { return static_cast<std::uint64_t>(State.Lines.size()); };
-		const auto width   = [this](const std::uint64_t aLine) { return line_width(aLine); };
+		Refusal            = suggestion_edit_refusal::none;
+		// [[RFC-BPR-0090]]. With editable lines, a text edit starts inside them
+		// and must leave every fixed byte as it was; undo and redo only go
+		// back to states that did.
+		const auto guarded   = editing && State.Editable.has_value() && !std::holds_alternative<undo_edit>(aEdit) && !std::holds_alternative<redo_edit>(aEdit);
+		const auto undone    = Undo.size();
+		const auto redone    = guarded ? Redo : std::vector<suggestion_text_state>{ };
+		const auto wasTyping = Typing;
+		if (guarded) {
+			const auto first = State.Editable->First;
+			const auto last  = static_cast<std::uint64_t>(State.Lines.size()) - 1U - State.Editable->After;
+			const auto clip  = [&](const text_point& aPoint) {
+				return aPoint.Line < first ? text_point{ first, 0U } : aPoint.Line > last ? text_point{ last, line_width(last) }
+																						  : aPoint;
+			};
+			for (auto& caret : State.Carets) {
+				if (std::max(caret.Anchor, caret.Head).Line < first || std::min(caret.Anchor, caret.Head).Line > last) {
+					State   = before;
+					Refusal = suggestion_edit_refusal::fixed_text;
+					return false;
+				}
+				caret = { clip(caret.Anchor), clip(caret.Head) };
+			}
+		}
+		const auto tab   = State.TabWidth;
+		const auto lines = [this] { return static_cast<std::uint64_t>(State.Lines.size()); };
+		const auto width = [this](const std::uint64_t aLine) { return line_width(aLine); };
 		// A point on its line's text: past the end is the end, inside a tab
 		// is the tab's start. Only the box gesture reaches virtual space.
 		const auto clamped = [&](const text_point& aPoint) {
@@ -899,8 +948,13 @@ namespace bpr::core {
 				} else if constexpr (std::is_same_v<value_type, select_all>) {
 					Typing          = false;
 					State.BoxAnchor = std::nullopt;
-					State.Carets    = { { { 0U, 0U }, { lines() - 1U, width(lines() - 1U) } } };
-					State.Primary   = 0;
+					if (State.Editable) {
+						const auto last = lines() - 1U - State.Editable->After;
+						State.Carets    = { { { State.Editable->First, 0U }, { last, width(last) } } };
+					} else {
+						State.Carets = { { { 0U, 0U }, { lines() - 1U, width(lines() - 1U) } } };
+					}
+					State.Primary = 0;
 				} else if constexpr (std::is_same_v<value_type, collapse_carets>) {
 					Typing           = false;
 					State.BoxAnchor  = std::nullopt;
@@ -924,6 +978,23 @@ namespace bpr::core {
 				}
 			},
 			aEdit);
+		if (guarded && State.Lines != before.Lines) {
+			const auto& old   = before.Lines;
+			const auto& now   = State.Lines;
+			const auto  first = static_cast<std::ptrdiff_t>(State.Editable->First);
+			const auto  after = static_cast<std::ptrdiff_t>(State.Editable->After);
+			const auto  fits  = now.size() >= static_cast<std::size_t>(first + after) + 1U;
+			const auto  kept  = fits && std::equal(old.begin(), old.begin() + first, now.begin()) && std::equal(old.end() - after, old.end(), now.end() - after)
+				&& now[now.size() - 1U - static_cast<std::size_t>(after)].Ending == old[old.size() - 1U - static_cast<std::size_t>(after)].Ending;
+			if (!kept) {
+				State = before;
+				Undo.resize(std::min(Undo.size(), undone));
+				Redo    = redone;
+				Typing  = wasTyping;
+				Refusal = suggestion_edit_refusal::fixed_text;
+				return false;
+			}
+		}
 		changed = editing ? State != before : State.Carets != before.Carets || State.Primary != before.Primary || State.BoxAnchor != before.BoxAnchor;
 		return changed;
 	}
