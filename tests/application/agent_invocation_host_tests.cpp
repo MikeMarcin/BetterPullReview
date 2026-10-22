@@ -921,7 +921,7 @@ namespace {
 				&& test.Projection.Finished.front().StandardError == diagnostic
 				&& test.Processes.Starts == 0U && test.Host.is_quiescent(),
 			"workspace failure retains identity and diagnostic through its typed terminal");
-		// [[BPR-PENDING-AO]]. The reason reaches the presentation with the
+		// [[BPR-1738]]. The reason reaches the presentation with the
 		// outcome, so it can say what happened instead of the outcome's name.
 		expect(
 			test.Projection.Finished.front().WorkspaceReason

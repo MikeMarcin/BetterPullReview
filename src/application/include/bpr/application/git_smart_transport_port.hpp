@@ -288,7 +288,7 @@ namespace bpr::application {
 			-> git_smart_transport_result<std::optional<core::git_blob_oid>> = 0;
 	};
 
-	/// \brief [[BPR-PENDING-AO]]. Asks for one commit's complete snapshot: the
+	/// \brief [[BPR-1738]]. Asks for one commit's complete snapshot: the
 	/// commit, its tree and every blob it names, and no ancestor.
 	///
 	/// \details A sparse review holds its commits' trees and no blobs, so a
@@ -308,7 +308,7 @@ namespace bpr::application {
 			&& aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees;
 	}
 
-	/// \brief [[BPR-PENDING-AO]]. A transient pack holding one commit's
+	/// \brief [[BPR-1738]]. A transient pack holding one commit's
 	/// snapshot, owned by the host until the workspace is made from it.
 	///
 	/// \details The pack names the commit as a shallow boundary: it carries
@@ -386,7 +386,7 @@ namespace bpr::application {
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}
 
-		/// \brief [[BPR-PENDING-AO]]. Acquires one commit's complete snapshot
+		/// \brief [[BPR-1738]]. Acquires one commit's complete snapshot
 		/// for an agent workspace; transports without this capability refuse.
 		[[nodiscard]] virtual auto acquire_workspace_snapshot(const git_smart_workspace_snapshot_request&, std::stop_token)
 			-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>>

@@ -141,7 +141,7 @@ namespace bpr::application {
 		cleanup_failed,
 	};
 
-	/// \brief [[BPR-PENDING-AO]]. Why an `unavailable` workspace could not be
+	/// \brief [[BPR-1738]]. Why an `unavailable` workspace could not be
 	/// made, in terms a reviewer can act on.
 	///
 	/// \details A closed set, so the presentation can say what happened and

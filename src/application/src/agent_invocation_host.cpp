@@ -738,7 +738,7 @@ namespace bpr::application {
 							.Outcome       = workspace_outcome(materialized.error()),
 							.StandardError = std::move(materialized.error().Detail),
 						};
-						// [[BPR-PENDING-AO]]. The reason travels with the outcome
+						// [[BPR-1738]]. The reason travels with the outcome
 						// so the reviewer is told what happened and what to do;
 						// Git's own text stays in the log.
 						if (failed.Outcome == agent_run_outcome::workspace_unavailable) {

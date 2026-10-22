@@ -405,7 +405,7 @@ namespace bpr::adapters::github::detail {
 			std::mutex                               Mutex;
 		};
 
-		/// \brief [[BPR-PENDING-AO]]. One commit's snapshot pack, kept in the
+		/// \brief [[BPR-1738]]. One commit's snapshot pack, kept in the
 		/// transport's private temporary root until the host lets it go.
 		class gh_cli_workspace_snapshot final : public git_workspace_snapshot
 		{
@@ -765,7 +765,7 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
-			/// \brief [[BPR-PENDING-AO]]. Clones one commit with every blob and no
+			/// \brief [[BPR-1738]]. Clones one commit with every blob and no
 			/// ancestor, under the same qualification, identity observations and
 			/// bounds as an epoch's sparse acquisition, and packs it for an agent
 			/// workspace.
@@ -1013,7 +1013,7 @@ namespace bpr::adapters::github::detail {
 				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Git, std::move(process), aRequest.Commits);
 			}
 
-			/// \brief [[BPR-PENDING-AO]]. A sparse review's cache holds no blobs, so
+			/// \brief [[BPR-1738]]. A sparse review's cache holds no blobs, so
 			/// an agent workspace's files come from this one-generation clone.
 			/// The pack names the commit as a shallow boundary: its parents are
 			/// never sent, and nothing that reads it walks past the commit.

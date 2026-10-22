@@ -424,7 +424,7 @@ namespace {
 		expect(
 			panel.stop_reason_text().startsWith(QStringLiteral("The agent's copy of this pull request could not be made."))
 				&& panel.stop_reason_text().contains(QStringLiteral("ask again")),
-			"a workspace stop with no reason says the copy failed and what to do [[BPR-PENDING-AO]]");
+			"a workspace stop with no reason says the copy failed and what to do [[BPR-1738]]");
 		for (const auto& [reason, phrase] : std::array{
 				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("Downloading the rest failed.") },
 				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then ask again.") },
@@ -445,7 +445,7 @@ namespace {
 			expect(
 				panel.status_text() == "Finished: workspace_unavailable" && panel.output_text() == diagnostic
 					&& panel.stop_reason_text().contains(phrase),
-				"a workspace stop says why in plain words and keeps Git's text in the log [[BPR-PENDING-AO]]");
+				"a workspace stop says why in plain words and keeps Git's text in the log [[BPR-1738]]");
 		}
 
 		const auto active  = identity(5U);

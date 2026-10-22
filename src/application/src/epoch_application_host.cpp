@@ -4381,7 +4381,7 @@ namespace bpr::application {
 				&& !aContext.Handoff.SmartGit->revoked() && aContext.Handoff.SmartGit->supports_sparse_commit_trees();
 		}
 
-		/// \brief [[BPR-PENDING-AO]]. Says, in a reviewer's terms, why the head's
+		/// \brief [[BPR-1738]]. Says, in a reviewer's terms, why the head's
 		/// snapshot could not be fetched, and keeps the transport's own words
 		/// for the log.
 		[[nodiscard]] static auto snapshot_failure(const git_smart_transport_error& aError) -> agent_workspace_error
@@ -4423,7 +4423,7 @@ namespace bpr::application {
 			return agent_workspace_error{ agent_workspace_failure::unavailable, std::move(detail), reason };
 		}
 
-		/// \brief [[BPR-PENDING-AO]]. Fetches a sparse review's head snapshot for
+		/// \brief [[BPR-1738]]. Fetches a sparse review's head snapshot for
 		/// an agent workspace through the review's own lease, or says why not.
 		///
 		/// \details Only a commit this review's cache already holds is fetched,
@@ -7256,7 +7256,7 @@ namespace bpr::application {
 				.Authority          = aRequest.Authority,
 				.ObjectFormat       = aRequest.Session.Binding.HeadOid.algorithm(),
 			};
-			// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's commit
+			// [[BPR-1738]]. A sparse review's cache holds the head's commit
 			// and trees and none of its blobs or parents, so the workspace cannot
 			// be copied out of it. The head's snapshot is fetched first, off the
 			// actor, under the review's own lease; it lives until the workspace

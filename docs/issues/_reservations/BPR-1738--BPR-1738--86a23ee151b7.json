@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1738"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "An agent question on a sparse review stops before its workspace is made",
+  "created": "2026-10-22T20:05:52.451287+00:00",
+  "base": "1cf59fb81ae8000e6cbef87decc3aea67d877a15"
+}

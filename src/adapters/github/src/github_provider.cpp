@@ -967,7 +967,7 @@ namespace bpr::adapters::github::detail {
 				{
 					return perform_guarded<std::shared_ptr<application::git_chain_tree_store>>(aStop, [&] { return Inner->acquire_chain_trees(aRequest, aStop); });
 				}
-				/// [[BPR-PENDING-AO]]. An agent workspace's snapshot, under the same guard.
+				/// [[BPR-1738]]. An agent workspace's snapshot, under the same guard.
 				auto acquire_workspace_snapshot(const application::git_smart_workspace_snapshot_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_snapshot>> override
 				{

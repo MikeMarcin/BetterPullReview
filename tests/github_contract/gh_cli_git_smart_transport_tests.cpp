@@ -537,7 +537,7 @@ namespace {
 			if (aArguments.size() == 21 && ((!chainDepth && aArguments[19] != "--depth=1") || aArguments[20] != "--filter=blob:none")) {
 				return 6;
 			}
-			// [[BPR-PENDING-AO]]. A workspace snapshot asks for one generation
+			// [[BPR-1738]]. A workspace snapshot asks for one generation
 			// with every blob.
 			if (aArguments.size() == 20 && aArguments[19] != "--depth=1") {
 				return 6;
@@ -1567,7 +1567,7 @@ namespace {
 			std::filesystem::remove(root / "chain-omitted");
 		}
 		{
-			// [[BPR-PENDING-AO]]. An agent workspace's snapshot: one generation
+			// [[BPR-1738]]. An agent workspace's snapshot: one generation
 			// with every blob, packed with the head as its shallow boundary.
 			const auto commitOf = [](const QString& aHex) { return *core::parse_git_commit_oid(aHex.toStdString()); };
 			const auto request  = application::git_smart_workspace_snapshot_request{ .Context = sparseContext, .Head = commitOf(head) };

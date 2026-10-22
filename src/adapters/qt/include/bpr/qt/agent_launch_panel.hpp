@@ -124,7 +124,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto existing_checkout_action() const noexcept -> QAction*;
 		[[nodiscard]] auto disclosure_text() const -> QString;
 		[[nodiscard]] auto status_text() const -> QString;
-		/// \brief [[BPR-PENDING-AO]]. Why the last run stopped and what to do,
+		/// \brief [[BPR-1738]]. Why the last run stopped and what to do,
 		/// in a reviewer's words, when there is more to say than its outcome.
 		[[nodiscard]] auto stop_reason_text() const -> QString;
 		[[nodiscard]] auto output_text() const -> QString;

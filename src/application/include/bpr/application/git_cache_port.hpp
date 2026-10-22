@@ -884,7 +884,7 @@ namespace bpr::application {
 		}
 
 		/// \brief Copies one exact accepted head into an isolated owned workspace.
-		/// \details [[BPR-PENDING-AO]]. A sparse review supplies `aSnapshot`,
+		/// \details [[BPR-1738]]. A sparse review supplies `aSnapshot`,
 		/// the head's complete snapshot, because its cache holds no blobs or
 		/// parents to copy; the workspace is then shallow at the head.
 		[[nodiscard]] virtual auto materialize_agent_workspace(

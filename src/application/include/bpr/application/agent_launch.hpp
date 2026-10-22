@@ -521,7 +521,7 @@ namespace bpr::application {
 		std::optional<int>              ExitCode;
 		/// Exact decoder cause when `Outcome` is `protocol_failure`.
 		std::optional<agent_protocol_failure> ProtocolFailure;
-		/// [[BPR-PENDING-AO]]. Why, when `Outcome` is `workspace_unavailable`.
+		/// [[BPR-1738]]. Why, when `Outcome` is `workspace_unavailable`.
 		std::optional<agent_workspace_unavailable_reason> WorkspaceReason;
 		/// The turn's decoded findings, before any verdict. Absent when the
 		/// turn returned none. Unlike `Events` this survives a stale

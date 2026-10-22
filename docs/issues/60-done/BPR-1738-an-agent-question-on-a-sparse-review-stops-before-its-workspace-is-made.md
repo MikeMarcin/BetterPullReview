@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AO"
+id: "BPR-1738"
 title: "An agent question on a sparse review stops at workspace_unavailable: preparing its workspace walks into the head's missing parent"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
-metadata: {"kind":"defect","found_by":"owner report, 2026-10-22: an external terminal harness asked about selected lines of a pull request read over the gh transport","related_cards":["BPR-0341","BPR-0348","BPR-1377","BPR-1687"],"related_rfcs":["RFC-BPR-0011","RFC-BPR-0013","RFC-BPR-0089"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1738--BPR-1738--86a23ee151b7.json","kind":"defect","found_by":"owner report, 2026-10-22: an external terminal harness asked about selected lines of a pull request read over the gh transport","related_cards":["BPR-0341","BPR-0348","BPR-1377","BPR-1687"],"related_rfcs":["RFC-BPR-0011","RFC-BPR-0013","RFC-BPR-0089"]}
 acceptance: [{"criterion":"AC1","outcome":"pass","revision":"77b44c502c4b33d25929c01991a3da99ddab7a6e","evidence":{"kind":"command","detail":"test_better_pull_review_git_process_contract_tests: run_sparse_agent_workspace_contract imports a real sparse pack (head commit and trees, parent absent), shows the old copy fails with Git's 'Failed to traverse parents', and makes a working workspace from a head-only snapshot whose history ends at the head."}},{"criterion":"AC2","outcome":"pass","revision":"77b44c502c4b33d25929c01991a3da99ddab7a6e","evidence":{"kind":"command","detail":"test_better_pull_review_application_epoch_host_tests: sparse_agent_workspace_is_made_from_the_heads_snapshot fails before the fix (the fake sparse cache refuses a copy without a snapshot, as Git does) and passes after: one snapshot request for the session's head through the sparse lease, handed to the cache; complete reviews unchanged; an unheld head is never fetched."}},{"criterion":"AC3","outcome":"pass","revision":"77b44c502c4b33d25929c01991a3da99ddab7a6e","evidence":{"kind":"command","detail":"test_better_pull_review_gh_cli_git_smart_transport_tests: the snapshot clone takes --depth=1 without a blob filter; its owner-private pack holds the head, its trees and blobs and no ancestor; complete reviews are refused; the pack goes with the snapshot."}},{"criterion":"AC4","outcome":"pass","revision":"77b44c502c4b33d25929c01991a3da99ddab7a6e","evidence":{"kind":"command","detail":"Transport failures map to closed reasons (connection, sign-in, too large, download, copy); agent_invocation_host carries the reason with the outcome; qt_agent_launch_panel shows the plain reason and recovery while the log keeps Git's text and the status keeps 'Finished: workspace_unavailable'."}}]
 ---
 
-# BPR-PENDING-AO: An agent question on a sparse review stops at workspace_unavailable: preparing its workspace walks into the head's missing parent
+# BPR-1738: An agent question on a sparse review stops at workspace_unavailable: preparing its workspace walks into the head's missing parent
 
 ## Observed
 

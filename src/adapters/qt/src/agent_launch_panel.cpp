@@ -16,7 +16,7 @@
 
 namespace bpr::qt {
 	namespace {
-		/// \brief [[BPR-PENDING-AO]]. What a reviewer is told when the agent's
+		/// \brief [[BPR-1738]]. What a reviewer is told when the agent's
 		/// workspace could not be made: what happened, then what to do. Git's
 		/// own words stay in the log.
 		[[nodiscard]] auto workspace_stop_reason(const application::agent_workspace_unavailable_reason aReason) -> QString

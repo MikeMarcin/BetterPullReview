@@ -3952,7 +3952,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's commit and
+	/// [[BPR-1738]]. A sparse review's cache holds the head's commit and
 	/// trees and no blob or parent, as the gh transport's sparse acquisition
 	/// installs them. Copying a workspace out of it packed the head's closure
 	/// and stopped at the first missing parent. A snapshot pack of the head

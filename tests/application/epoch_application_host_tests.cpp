@@ -432,7 +432,7 @@ namespace {
 		std::function<void(std::stop_token)>        DuringBlobMaterialization;
 		std::function<void(std::stop_token)>        DuringTreeEntryLookup;
 		std::optional<application::git_cache_error> WorkspaceMaterializationFailure;
-		/// [[BPR-PENDING-AO]]. What the cache was handed for each workspace, the
+		/// [[BPR-1738]]. What the cache was handed for each workspace, the
 		/// workspace it answers, and what the transport's snapshot was asked.
 		std::vector<std::optional<application::git_workspace_snapshot_pack>> WorkspaceSnapshots;
 		std::optional<application::owned_agent_workspace>                    WorkspaceResult;
@@ -1800,7 +1800,7 @@ namespace {
 				State.WorkspaceMaterializationFailure.reset();
 				return std::unexpected{ std::move(failure) };
 			}
-			// [[BPR-PENDING-AO]]. A sparse cache holds no parent and no blob, so
+			// [[BPR-1738]]. A sparse cache holds no parent and no blob, so
 			// copying the head's closure out of it fails as installed Git does.
 			if (State.SparseObjects && !aSnapshot) {
 				return std::unexpected{ application::git_cache_error{
@@ -2069,7 +2069,7 @@ namespace {
 		std::vector<core::git_commit_oid> Held;
 	};
 
-	/// [[BPR-PENDING-AO]]. A snapshot the host holds until the workspace is made.
+	/// [[BPR-1738]]. A snapshot the host holds until the workspace is made.
 	class fake_workspace_snapshot final : public application::git_workspace_snapshot
 	{
 	public:
@@ -7920,7 +7920,7 @@ namespace {
 			"workspace cleanup maps the code and preserves cache detail exactly");
 	}
 
-	/// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's commit and
+	/// [[BPR-1738]]. A sparse review's cache holds the head's commit and
 	/// trees, and no blob or parent. Its agent workspace used to be copied out
 	/// of the cache by walking the head's closure, which stopped at the first
 	/// missing parent ("Failed to traverse parents of commit"). It is now made

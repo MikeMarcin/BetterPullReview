@@ -4364,7 +4364,7 @@ namespace bpr::adapters::git {
 				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
 				auto       arguments     = std::vector<std::string>{ };
 				if (aRequest.Snapshot) {
-					// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's
+					// [[BPR-1738]]. A sparse review's cache holds the head's
 					// commit and trees but no blobs and no parents, so packing the
 					// head's closure out of it walks into the first missing
 					// parent. The snapshot carries exactly the head's commit, tree

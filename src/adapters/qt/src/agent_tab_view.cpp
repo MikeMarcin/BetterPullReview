@@ -502,7 +502,7 @@ namespace bpr::qt {
 			break;
 		case agent_tab_state::stopped:
 			BannerTitle->setText(tr("%1 stopped before answering").arg(Launch.profile_selector()->currentText()));
-			// [[BPR-PENDING-AO]]. A stop with a reason says it and what to do;
+			// [[BPR-1738]]. A stop with a reason says it and what to do;
 			// the log keeps the raw text.
 			BannerText->setText(Launch.stop_reason_text().isEmpty() ? tr("%1. Your question is kept.").arg(Launch.status_text())
 																	: tr("%1 Your question is kept.").arg(Launch.stop_reason_text()));

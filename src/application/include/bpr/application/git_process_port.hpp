@@ -190,7 +190,7 @@ namespace bpr::application {
 		git_commit_id         Commit;
 	};
 
-	/// \brief [[BPR-PENDING-AO]]. A pack holding one commit, its tree and every
+	/// \brief [[BPR-1738]]. A pack holding one commit, its tree and every
 	/// blob it names, with no ancestor.
 	///
 	/// \details A sparse review's cache holds the head's commit and trees and

@@ -135,7 +135,7 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const gh_cli_account_pin&) const -> bool = default;
 	};
 
-	/// \brief Which objects a sparse clone keeps ([[BPR-PENDING-AO]]).
+	/// \brief Which objects a sparse clone keeps ([[BPR-1738]]).
 	enum class gh_cli_clone_content : std::uint8_t {
 		/// Commits and trees, no blobs: an epoch's commit or the chain.
 		trees,
@@ -384,7 +384,7 @@ namespace bpr::adapters::github::detail {
 	/// \details A sparse clone takes \p aDepth generations of trees without
 	/// blobs: one for an epoch's commit, more for RFC-BPR-0089's first-parent
 	/// chain (at most `maximum_gh_cli_clone_depth`). A complete clone takes no
-	/// depth, and any other \p aDepth refuses it. [[BPR-PENDING-AO]]. A sparse
+	/// depth, and any other \p aDepth refuses it. [[BPR-1738]]. A sparse
 	/// review's `snapshot` clone takes one generation with every blob, for an
 	/// agent workspace; any other \p aDepth refuses it.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(
