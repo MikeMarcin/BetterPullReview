@@ -416,3 +416,21 @@ the complete Qt profile-management unit passes in 0.81 seconds. Focused
 clang-format 22 and clang-tidy 22 with warnings as errors pass. App composition
 pins and mutation policy are unchanged. Final combined native qualification
 and the separate Windows failures remain outstanding.
+
+## Contained About fixture setup
+
+The Windows full Release About course cannot write its first scratch document:
+Qt's temporary directory lacks the AppContainer grant. The fixture now uses the
+existing owner-private scratch helper, including the running container's grant.
+This exposes another setup flaw: the original test ignored symlink creation
+failure, so its claimed link rejection could test an absent file instead.
+
+The native configure process now creates a bounded generated legal fixture and
+refuses a missing or unexpected link. The contained course verifies that its
+counterexamples really are a symlink and a directory before requiring both to
+be rejected. The positive scratch documents remain runtime-created inside the
+original network-denial boundary. No product legal-file policy or containment
+exception changes. The revised normal Mac course passes; the native contained
+Windows course passes in 0.17 seconds. External R41/R42 records retain both
+setup failures, exact substituted source bindings and byte-for-byte restoration.
+These focused observations do not qualify the complete release candidate.

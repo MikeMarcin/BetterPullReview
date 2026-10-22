@@ -953,6 +953,26 @@ bpr_enable_warnings(test_better_pull_review_queue_composition_public_path)
 # [[BPR-1720]]. Help › About as composed: this build's facts, the
 # installed legal folder and its regular-file rule, and the links reaching the
 # tests-only browser launch with exactly their admitted addresses.
+# Configure owns the link setup: Windows AppContainers may read links but
+# cannot create them. Refuse missing setup rather than vacuously testing an
+# absent file as a rejected symlink.
+set(bpr_about_legal_fixture "${CMAKE_CURRENT_BINARY_DIR}/about-legal-fixture")
+file(MAKE_DIRECTORY "${bpr_about_legal_fixture}/source" "${bpr_about_legal_fixture}/linked/SOURCE-OFFERS.txt")
+file(WRITE "${bpr_about_legal_fixture}/source/THIRD-PARTY-NOTICES.txt" "notice\n")
+set(bpr_about_notices_link "${bpr_about_legal_fixture}/linked/THIRD-PARTY-NOTICES.txt")
+if(IS_SYMLINK "${bpr_about_notices_link}")
+    file(READ_SYMLINK "${bpr_about_notices_link}" bpr_about_existing_link)
+    if(NOT bpr_about_existing_link STREQUAL "../source/THIRD-PARTY-NOTICES.txt")
+        message(FATAL_ERROR "Unexpected About notices fixture link")
+    endif()
+elseif(EXISTS "${bpr_about_notices_link}")
+    message(FATAL_ERROR "About notices fixture path is occupied by a non-link")
+else()
+    file(CREATE_LINK "../source/THIRD-PARTY-NOTICES.txt" "${bpr_about_notices_link}" SYMBOLIC RESULT bpr_about_link_result)
+    if(NOT bpr_about_link_result STREQUAL "0")
+        message(FATAL_ERROR "About notices fixture symlink creation failed: ${bpr_about_link_result}")
+    endif()
+endif()
 bpr_add_executable(test_better_pull_review_about_composition about_composition_tests.cpp)
 target_link_libraries(test_better_pull_review_about_composition PRIVATE BetterPullReview::Composition)
 target_include_directories(test_better_pull_review_about_composition PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
@@ -960,6 +980,7 @@ target_compile_definitions(
     test_better_pull_review_about_composition
     PRIVATE
         BPR_BUILD_TESTING=1
+        "BPR_TEST_LEGAL_NONREGULAR_ROOT=\"${bpr_about_legal_fixture}/linked\""
         "BPR_TEST_PROJECT_VERSION=\"${PROJECT_VERSION}\""
         "BPR_TEST_CONFIGURATION=\"$<CONFIG>\""
 )

@@ -5,6 +5,7 @@
 // on a window's bar, whose links reach the platform launch through the core's
 // reference pages and the system browser opener with exactly the admitted
 // address. The launch is the tests-only substitute: no browser opens.
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "about_desktop.hpp"
 #include "system_browser_opener.hpp"
@@ -20,7 +21,6 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QRegularExpression>
-#include <QTemporaryDir>
 #include <QUrl>
 #include <QtVersion>
 
@@ -65,10 +65,9 @@ namespace {
 				   || folder.parent_path() == std::filesystem::path{ QCoreApplication::applicationDirPath().toStdU16String() },
 			   "next to the running executable");
 
-		auto scratch = QTemporaryDir{ };
-		expect(scratch.isValid(), "a scratch folder is made");
-		const auto root  = std::filesystem::path{ scratch.path().toStdU16String() };
-		auto       facts = app::about_facts_of_this_build(root);
+		const auto root    = tests::make_scratch_directory("bpr-about-documents");
+		const auto scratch = tests::scratch_guard{ root };
+		auto       facts   = app::about_facts_of_this_build(root);
 		expect(facts.Version == QStringLiteral(BPR_TEST_PROJECT_VERSION), "the version is the project's");
 		expect(facts.Configuration == QStringLiteral(BPR_TEST_CONFIGURATION), "the configuration is the build's");
 		expect(facts.QtVersion == QString::fromLatin1(qVersion()) && !facts.System.isEmpty(), "Qt is the running one and the system is named");
@@ -82,15 +81,14 @@ namespace {
 		touch(root / "THIRD-PARTY-NOTICES.txt");
 		touch(root / "SOURCE-OFFERS.txt");
 		facts = app::about_facts_of_this_build(root);
-		expect(facts.NoticesInstalled && facts.SourceOfferInstalled && facts.LegalFolder == QDir::toNativeSeparators(scratch.path()),
+		expect(facts.NoticesInstalled && facts.SourceOfferInstalled && facts.LegalFolder == QDir::toNativeSeparators(QString::fromStdU16String(root.u16string())),
 			   "both regular files count, and the folder is named as a reader types it");
 
-		auto linked = QTemporaryDir{ };
-		expect(linked.isValid(), "a second scratch folder is made");
-		const auto other = std::filesystem::path{ linked.path().toStdU16String() };
-		auto       error = std::error_code{ };
-		std::filesystem::create_symlink(root / "THIRD-PARTY-NOTICES.txt", other / "THIRD-PARTY-NOTICES.txt", error);
-		std::filesystem::create_directory(other / "SOURCE-OFFERS.txt", error);
+		// The native configure process creates this fixture. An AppContainer
+		// can inspect a link but cannot create one, even with its own directory.
+		const auto other = std::filesystem::path{ QStringLiteral(BPR_TEST_LEGAL_NONREGULAR_ROOT).toStdU16String() };
+		expect(std::filesystem::is_symlink(std::filesystem::symlink_status(other / "THIRD-PARTY-NOTICES.txt")), "the notices counterexample really is a symlink");
+		expect(std::filesystem::is_directory(std::filesystem::symlink_status(other / "SOURCE-OFFERS.txt")), "the source offer counterexample really is a directory");
 		facts = app::about_facts_of_this_build(other);
 		expect(!facts.NoticesInstalled && !facts.SourceOfferInstalled, "a link to the notices and a folder named like the offer count as neither");
 	}
