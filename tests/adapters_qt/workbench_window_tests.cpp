@@ -12516,7 +12516,7 @@ namespace {
 		expect(course.Surface->head_editor() == nullptr && !drawer_writing(window), "Delete ends the edit and the head pane reads its own lines again");
 	}
 
-	/// \brief [[BPR-PENDING-AJ]]. The style macOS uses runs a selection past a
+	/// \brief [[BPR-1734]]. The style macOS uses runs a selection past a
 	/// line's end to the pane's edge (`SH_RichText_FullWidthSelection`).
 	class full_width_selection_style final : public QProxyStyle
 	{
@@ -12528,7 +12528,7 @@ namespace {
 		}
 	};
 
-	/// \brief [[BPR-PENDING-AJ]]. Collects what a widget repaints.
+	/// \brief [[BPR-1734]]. Collects what a widget repaints.
 	class repaint_log final : public QObject
 	{
 	public:
@@ -12549,7 +12549,7 @@ namespace {
 		}
 	};
 
-	/// \brief [[BPR-PENDING-AJ]]. With the macOS style a selection over several
+	/// \brief [[BPR-1734]]. With the macOS style a selection over several
 	/// lines is painted to the pane's edge, past the longest line; when it is
 	/// cleared, or the pane loses focus and it turns the inactive colour, all
 	/// of that is painted again. Qt asked only for the document's own width,

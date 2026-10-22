@@ -6,7 +6,7 @@ the design so only the selected lines are editable, adopt the RFC, split it
 into cards, and implement M1 to M4, from the RFC implementation coordinator.
 Branch `worktree-agent-ab2406ef642d68509`, rebased onto main
 `0986da0ff`. The card IDs are the coordinator's allocation in `0986da0ff`
-(BPR-1726 to BPR-1733). The one new provisional ID is `BPR-PENDING-AJ`, for
+(BPR-1726 to BPR-1733). The one new provisional ID is `BPR-1734`, for
 the coordinator to allocate.
 
 `frontend-design:frontend-design` was loaded before the design frames v2,
@@ -24,7 +24,7 @@ refinement, which all keep the product's own palette.
 | M3 drawer, hold and Convert, lifecycle | done apart from Carry | BPR-1728 |
 | M4 live course, CRLF measurement and the owner's look | done: AC1 `dbc6c0f71`, AC2 `ddc878a47` | BPR-1729 |
 | The read-only code set back (owner's drawer-link note) | done, `d2db849ab` | BPR-1729, RFC "The editable range" |
-| One-pane stray highlight (owner's one-pane note) | done, `ad9dbb5f1`; introduced by `d7d95ed0d` (BPR-1533) | BPR-PENDING-AJ |
+| One-pane stray highlight (owner's one-pane note) | done, `ad9dbb5f1`; introduced by `d7d95ed0d` (BPR-1533) | BPR-1734 |
 | Carry and Copy change at a newer head | built and passing on fixtures, `fc30dfbdb`; AC1's BPR-Test half open (the live harness writes no draft) | BPR-1733 |
 | Closeout | reconciled: AC01 to AC10 pass, AC08 on fixtures; not closed while BPR-1733 is open | BPR-1730 |
 | Follow-ups | stacked two panes (Q4 note), a durable file-comment subject | BPR-1731, BPR-1732 |

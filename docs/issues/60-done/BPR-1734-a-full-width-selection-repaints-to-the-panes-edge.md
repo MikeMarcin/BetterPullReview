@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AJ"
+id: "BPR-1734"
 title: "A full-width text selection repaints to the pane's edge when it clears or loses focus"
 status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"kind":"bug","origin":"owner note on RFC-BPR-0090's one-pane look, 2026-10-22 (session 7dba4a1f1dbf08a0ad93da313b35fbcd, decision b01228b2), relayed by the coordinator","introduced_by":"d7d95ed0d (BPR-1533, 2026-10-15)","related_cards":["BPR-1533","BPR-1729"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1734--BPR-1734--cbbb2c8cced1.json","kind":"bug","origin":"owner note on RFC-BPR-0090's one-pane look, 2026-10-22 (session 7dba4a1f1dbf08a0ad93da313b35fbcd, decision b01228b2), relayed by the coordinator","introduced_by":"d7d95ed0d (BPR-1533, 2026-10-15)","related_cards":["BPR-1533","BPR-1729"]}
 acceptance: [{"criterion": "AC1: With full-width selections, losing focus and clearing a selection over lines 1 to 13 repaint past the longest line to the pane's edge, in one pane and in split view; the course fails without the fix", "outcome": "pass", "revision": "ad9dbb5f1260ef6f3dc2f27f1d42d05128501799", "evidence": {"kind": "command", "command": "QT_QPA_PLATFORM=offscreen ctest -R '^qt_workbench_window_scale_(100|125|200)$'", "detail": "test_a_full_width_selection_repaints_to_the_edge gives the head pane a proxy style with SH_RichText_FullWidthSelection, widens the window to 2400x900, drags over lines 1 to 13, and checks that losing focus to the conversation panel and clearing the selection each repaint a point 8 px from the viewport's right edge on line 4, in one pane and in split view. Before the fix the course failed at 'one pane: losing focus repaints the selection past the longest line, to the pane's edge'; with the fix forced off (negative control) it failed the same way; with the fix it passes at 100, 125 and 200 percent."}}, {"criterion": "AC2: The related suites, format, tidy on the changed files, the reseal and the documentation gate pass", "outcome": "pass", "revision": "ad9dbb5f1260ef6f3dc2f27f1d42d05128501799", "evidence": {"kind": "command", "command": "QT_QPA_PLATFORM=offscreen ctest -R '^qt_(workbench_|diff_workbench_scale_)'; format_check.py; tidy.py --warnings-as-errors; reseal_command_correctness.py; reseal_round_trip_composition.py --check; verify_documentation.py", "detail": "The 24 qt_workbench_* and qt_diff_workbench_scale_* suites pass. clang-format 22.1.8 check passes. clang-tidy passes on diff_workbench.cpp; in workbench_window_tests.cpp it reports only the two std::endl lines in the case tracer from b059676cc7, outside this change. The window tests' pin and the --line-draft inventory were resealed; the round-trip pins are unchanged. The documentation gate fails only on this card's provisional ID."}}]
 ---
 
-# BPR-PENDING-AJ: A full-width text selection repaints to the pane's edge when it clears or loses focus
+# BPR-1734: A full-width text selection repaints to the pane's edge when it clears or loses focus
 
 ## Owner report
 

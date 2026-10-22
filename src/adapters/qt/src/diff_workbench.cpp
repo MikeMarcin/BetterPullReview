@@ -949,7 +949,7 @@ namespace bpr::qt {
 			/// Together they say which line is at the top and how far above the
 			/// viewport edge it starts, which is everything needed to turn a
 			/// per-line document measurement into a scroll origin.
-			/// \brief [[BPR-PENDING-AJ]]. Repaints the rows the last and the
+			/// \brief [[BPR-1734]]. Repaints the rows the last and the
 			/// current text selection cover, across the whole viewport.
 			/// \details With the style macOS uses, a selection that runs past a
 			/// line's end is painted to the pane's edge (`paintEvent`), but Qt
@@ -1104,7 +1104,7 @@ namespace bpr::qt {
 				}
 			}
 
-			// [[BPR-PENDING-AJ]]. Focus changes the selection's colour.
+			// [[BPR-1734]]. Focus changes the selection's colour.
 			void focusInEvent(QFocusEvent* const aEvent) override
 			{
 				QPlainTextEdit::focusInEvent(aEvent);
@@ -1432,7 +1432,7 @@ namespace bpr::qt {
 			add_button*  AddButton = nullptr;
 			QColor       GutterBackground;
 			QColor       GutterText;
-			/// [[BPR-PENDING-AJ]]. The text selection last painted, as positions.
+			/// [[BPR-1734]]. The text selection last painted, as positions.
 			std::optional<std::pair<int, int>>                PaintedSelection;
 			code_gutter_text_cache                            GutterLabels;
 			std::vector<std::uint32_t>                        Boundaries;
@@ -1812,7 +1812,7 @@ namespace bpr::qt {
 		{
 			Gutter    = new gutter_area{ this };
 			AddButton = new add_button{ this };
-			// [[BPR-PENDING-AJ]]. A full-width selection is repainted to the edge.
+			// [[BPR-1734]]. A full-width selection is repainted to the edge.
 			connect(this, &QPlainTextEdit::selectionChanged, this, [this] { repaint_full_width_selection(); });
 			// [[BPR-1335]]. The pointer in the "+" column over the code, not
 			// only over the number's padding, shows the line's "+".
