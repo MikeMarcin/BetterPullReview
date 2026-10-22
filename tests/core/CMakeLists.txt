@@ -914,6 +914,14 @@ bpr_enable_hardening(test_filtered_comment)
 bpr_enable_warnings(test_filtered_comment)
 bpr_add_network_isolated_test(NAME core_filtered_comment COMMAND test_filtered_comment)
 
+# [[BPR-1736]]: the learned comment-anywhere fact, its lifetime and where a
+# comment goes under it.
+bpr_add_executable(test_off_hunk_fact off_hunk_fact_tests.cpp)
+target_link_libraries(test_off_hunk_fact PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_off_hunk_fact)
+bpr_enable_warnings(test_off_hunk_fact)
+bpr_add_network_isolated_test(NAME core_off_hunk_fact COMMAND test_off_hunk_fact)
+
 bpr_add_executable(test_review_preparation review_preparation_tests.cpp)
 target_link_libraries(test_review_preparation PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_preparation)

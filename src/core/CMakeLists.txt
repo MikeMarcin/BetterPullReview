@@ -32,6 +32,7 @@ add_library(
         src/commit_filter.cpp
         src/generated_files.cpp
         src/filtered_comment.cpp
+        src/off_hunk_fact.cpp
         src/header_source_navigation.cpp
         src/diff_transition.cpp
         src/document_tabs.cpp
