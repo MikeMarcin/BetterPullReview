@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>In-pane Suggest change for pull requests: design frames v2</title>
+<!-- Design evidence for RFC-BPR-0090 r2 / BPR-1723, not the product.
+     Only the selected lines are editable (owner, Q1 rejected, 2026-10-21).
+     Drawn with frontend-design:frontend-design. ?frame=N shows one frame. -->
+<style>
+:root{
+  --bg:#F6F7F9; --panel:#FFFFFF; --code:#FFFFFF; --gutter:#FAFBFC; --side:#F0F2F5;
+  --ink:#1F2328; --ink-2:#57606A; --ink-3:#7A838D; --lnum:#8C959F;
+  --rule:#E1E5EB; --rule-2:#C9D0D8;
+  --ins:#E9F8EE; --ins-g:#D9F5E0; --ins-ink:#1A7F37;
+  --del:#FDECEC; --del-ink:#B42318;
+  --write:#2F6FD6; --write-soft:#E3ECFA; --write-line:#9DBDF0;
+  --read:#C98F12; --read-soft:#FDF3DC;
+  --kw:#B51D27; --nm:#0550AE; --fn:#6639BA; --cm:#6E7781; --ty:#7A4B00;
+  --ui:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",system-ui,sans-serif;
+  --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--ui)}
+main{max-width:1240px;margin:0 auto;padding:28px 28px 60px}
+.frame{margin:0 0 44px}
+.frame>h2{font-size:19px;font-weight:600;margin:0 0 4px;letter-spacing:-.005em}
+.frame>p{margin:0 0 14px;color:var(--ink-2);max-width:78ch}
+.pair{display:grid;grid-template-columns:1fr;gap:22px}
+.pair.side{grid-template-columns:1fr 1fr}
+.pair .opt>h3{font-size:14px;font-weight:600;margin:0 0 6px}
+.pair .opt>h3 b{display:inline-block;min-width:1.4em;color:var(--write)}
+.pair .opt>p{margin:0 0 8px;color:var(--ink-2);font-size:13px}
+/* window */
+.win{background:var(--panel);border:1px solid var(--rule-2);border-radius:8px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(31,35,40,.06)}
+.bar{display:flex;align-items:center;gap:10px;height:30px;padding:0 10px;background:var(--side);
+  border-bottom:1px solid var(--rule);font-size:12px;color:var(--ink-2)}
+.bar .path{font-weight:600;color:var(--ink)}
+.bar .state{margin-left:auto;color:var(--write);font-weight:600}
+.body{display:grid;grid-template-columns:1fr 18px 1fr 360px;min-height:300px}
+.body.one{grid-template-columns:1fr 360px}
+.body.nodrawer{grid-template-columns:1fr 18px 1fr}
+.pane{font:12.5px/20px var(--mono);background:var(--code);position:relative;padding:4px 0}
+.pane.editing{box-shadow:inset 0 0 0 2px var(--write)}
+.pane .row{display:grid;grid-template-columns:18px 30px 1fr;white-space:pre;height:20px}
+.pane .row .br{position:relative}
+.pane .row .n{color:var(--lnum);text-align:right;padding-right:10px}
+.row.add{background:var(--ins)} .row.add .hl{background:var(--ins-g)}
+.row.del{background:var(--del)}
+.row.mine{background:var(--write-soft)}
+.row.mine .br::after,.row.mine-x .br::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:var(--write)}
+.row.mine.first .br::after{top:3px;border-top-left-radius:2px}
+.row.mine.last .br::after{bottom:3px}
+.row.warn{background:var(--read-soft)}
+.row.warn .br::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:var(--read)}
+.row.sel{background:#DCE6F7}
+.caret{display:inline-block;width:1.5px;height:15px;background:var(--ink);vertical-align:-3px;margin-left:-1px}
+.tag{display:none}
+.br b{position:absolute;left:8px;top:2px;font:700 10px/16px var(--ui);color:var(--write)}
+.row.warn .br b{color:#8A6100}
+.map{background:var(--gutter);border-left:1px solid var(--rule);border-right:1px solid var(--rule);position:relative}
+.map i{position:absolute;left:2px;right:2px;background:rgba(31,35,40,.13);border-radius:2px}
+.map i.dim{background:rgba(31,35,40,.05)}
+.kw{color:var(--kw)} .nm{color:var(--nm)} .fn{color:var(--fn)} .cm{color:var(--cm)} .ty{color:var(--ty)}
+/* drawer */
+.drawer{min-width:0;overflow:hidden;background:#F7F8FA;border-left:1px solid var(--rule);padding:10px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--panel);border:1px solid var(--rule-2);border-left:3px solid var(--write);border-radius:6px;padding:8px 10px;font-size:12.5px}
+.card.dash{border-style:dashed;border-left-style:solid}
+.card.w{border-left-color:var(--read)}
+.card .hd{display:flex;gap:6px;align-items:baseline;margin-bottom:6px}
+.card .hd b{font-weight:600}
+.card .hd span{color:var(--ink-3)}
+.field{border:1px solid var(--rule-2);border-radius:4px;padding:6px 8px;min-height:44px;color:var(--ink);background:#fff}
+.field.ph{color:var(--ink-3)}
+.field.mono{font:12px/18px var(--mono);white-space:pre;min-height:0}
+.what{margin-top:7px;font:11.5px/17px var(--mono);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.what div{padding:0 6px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.what .d{background:var(--del)} .what .a{background:var(--ins)}
+.what .t{font:600 11px/18px var(--ui);color:var(--ink-2);background:var(--side);padding:0 6px}
+.foot{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+
+.btn{border:1px solid var(--rule-2);border-radius:11px;padding:1px 8px;background:#fff;color:var(--ink);font-size:11px}
+.btn.p{background:var(--write);border-color:var(--write);color:#fff}
+.note{font-size:11.5px;color:var(--ink-2);margin-top:6px}
+.note.w{color:#7A5200}
+.chip{display:inline-block;border:1px solid var(--rule-2);border-radius:9px;padding:0 7px;font-size:11px;color:var(--ink-2);margin-bottom:6px}
+.status{height:24px;border-top:1px solid var(--rule);background:var(--side);font-size:11.5px;color:var(--ink-2);display:flex;align-items:center;padding:0 10px}
+@media (max-width:900px){.pair{grid-template-columns:1fr}}
+body.single main{max-width:none;padding:16px}
+body.single .frame{display:none;margin:0}
+body.single .frame.on{display:block}
+
+/* v2: only the selected range is written; the rest of the pane reads as before */
+.row.mine.flash .br::after{background:#1C55B8;left:2px;width:5px}
+.row .gone{color:var(--ink-3);font:italic 11.5px/20px var(--ui)}
+.row.held{background:var(--read-soft)}
+.row.held .br::after{content:"";position:absolute;left:3px;top:0;bottom:0;width:3px;background:var(--read)}
+.status.w{color:#7A5200;background:var(--read-soft)}
+.status.refuse{color:var(--ink);background:var(--write-soft)}
+.sheet{background:var(--panel);border:1px solid var(--rule-2);border-radius:8px;max-width:520px;padding:14px 16px;font-size:13px}
+.sheet h4{margin:0 0 10px;font-size:15px;font-weight:600}
+.item{display:grid;grid-template-columns:3px 1fr auto;gap:10px;align-items:start;padding:8px 0;border-top:1px solid var(--rule)}
+.item i{align-self:stretch;border-radius:2px;background:var(--write)}
+.item.w i{background:var(--read)}
+.item .loc{color:var(--ink-3);font-size:12px}
+.item .why{color:#7A5200;font-size:12px;margin-top:3px}
+.drawer .foot{flex-wrap:wrap;row-gap:4px}
+.drawer .card{min-width:0}
+.sheet .go{display:flex;gap:8px;align-items:center;margin-top:12px;font-size:12px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<main id="m"></main>
+<script>
+// Base and head of src/render/scale.cpp, lines 10-27 (made-up code for the frames).
+const base = [
+ ["auto <span class=fn>clamp_scale</span>(<span class=kw>double</span> aScale) -> <span class=kw>double</span>",10],
+ ["{",11],
+ ["    <span class=kw>if</span> (aScale &lt; <span class=nm>0.5</span>) {",12],
+ ["        <span class=kw>return</span> <span class=nm>0.5</span>;",13],
+ ["    }",14],
+ ["    <span class=kw>return</span> aScale;",15],
+ ["}",16],
+ ["",17],
+ ["auto <span class=fn>pixel_ratio</span>(<span class=kw>const</span> <span class=ty>QScreen</span>&amp; aScreen) -> <span class=kw>double</span>",18],
+ ["{",19],
+ ["    <span class=kw>return</span> aScreen.logicalDotsPerInch() / <span class=nm>96.0</span>;",20],
+ ["}",21],
+];
+function row(n, html, cls="", tag="", tagcls=""){
+  return `<div class="row ${cls}" title="${tag}"><span class=br>${tag?`<b>${tag.startsWith("Change ")?tag.slice(7):"!"}</b>`:""}</span><span class=n>${n??""}</span><span>${html}${tag?`<span class="tag ${tagcls}">${tag}</span>`:""}</span></div>`;
+}
+const H = { // head lines by number
+ 10:"auto <span class=fn>clamp_scale</span>(<span class=kw>double</span> aScale) -> <span class=kw>double</span>",
+ 11:"{",
+ 12:"    <span class=kw>if</span> (aScale &lt; <span class=nm>0.5</span>) {",
+ 13:"        <span class=kw>return</span> <span class=nm>0.5</span>;",
+ 14:"    }",
+ 15:"    <span class=kw>return</span> <span class=hl>std::<span class=fn>min</span>(aScale, <span class=nm>4.0</span>)</span>;",
+ 16:"}",
+ 17:"",
+ 18:"auto <span class=fn>pixel_ratio</span>(<span class=kw>const</span> <span class=ty>QScreen</span>&amp; aScreen) -> <span class=kw>double</span>",
+ 19:"{",
+ 20:"    <span class=kw>return</span> <span class=hl>aScreen.devicePixelRatio()</span>;",
+ 21:"}",
+};
+const left = () => `<div class=pane>${base.map(([h,n])=>row(n,h,n===15||n===20?"del":"")).join("")}</div>`;
+const map = (dim) => `<div class=map><i class="${dim?"dim":""}" style="top:104px;height:20px"></i><i class="${dim?"dim":""}" style="top:204px;height:20px"></i></div>`;
+function head(edit, opts={}){
+  // edit: map line -> {html, cls, tag}
+  let out = "";
+  for (let n=10;n<=21;n++){
+    const e = edit[n];
+    if (e && e.before) for (const b of e.before) out += row(b.n, b.html, b.cls, b.tag, b.tagcls);
+    if (e && e.skip) continue;
+    out += row(e?.n ?? n, e?.html ?? H[n], e?.cls ?? (n===15||n===20?"add":""), e?.tag, e?.tagcls);
+  }
+  return `<div class="pane ${opts.editing?"editing":""}">${out}</div>`;
+}
+// Change 1 replaces head lines 12-15 with one line; Change 2 rewrites line 20.
+const c1 = {
+  12:{html:"    <span class=kw>return</span> std::<span class=fn>clamp</span>(aScale, <span class=nm>0.5</span>, <span class=nm>4.0</span>);<span class=caret></span>", cls:"mine first last", tag:"Change 1", n:12},
+  13:{skip:true},14:{skip:true},15:{skip:true},
+  20:{html:"    <span class=kw>return</span> std::<span class=fn>max</span>(aScreen.devicePixelRatio(), <span class=nm>1.0</span>);", cls:"mine first last", tag:"Change 2", n:17},
+  16:{n:13},17:{n:14},18:{n:15},19:{n:16},21:{n:18},
+};
+const what1 = `<div class=what><div class=t>What it changes, lines 12–15</div>
+<div class=d>-    if (aScale &lt; 0.5) {</div><div class=d>-        return 0.5;</div><div class=d>-    }</div><div class=d>-    return std::min(aScale, 4.0);</div><div class=a>+    return std::clamp(aScale, 0.5, 4.0);</div></div>`;
+const what2 = `<div class=what><div class=t>What it changes, line 20</div>
+<div class=d>-    return aScreen.devicePixelRatio();</div><div class=a>+    return std::max(aScreen.devicePixelRatio(), 1.0);</div></div>`;
+const foot = `<div class=foot>Private <span class=btn style="margin-left:auto">Delete</span><span class="btn">Add single comment</span><span class="btn p">Start a review</span></div>`;
+const card = (hd, body, extra="", cls="") => `<div class="card ${cls}"><div class=hd><b>${hd}</b><span>Suggested change</span></div>${body}${extra}</div>`;
+const win = (bar, bodyHtml, cls="", status="") => `<div class=win><div class=bar><span class=path>src/render/scale.cpp</span><span>#128 · head 4e1c0a7</span>${bar?`<span class=state>${bar}</span>`:""}</div><div class="body ${cls}">${bodyHtml}</div>${status?`<div class=status>${status}</div>`:""}</div>`;
+const drawer = (inner) => `<div class=drawer>${inner}</div>`;
+
+const frames = [];
+const prose = `<div class="field ph" style="min-height:0">Add your words (optional)</div>`;
+const what0 = `<div class=what><div class=t>What it changes, lines 12–15</div><div style="padding:2px 6px;color:var(--ink-3);font:12px var(--ui)">No change yet. Type it in the code.</div></div>`;
+const fixed = (n) => row(n, H[n], n===15||n===20?"add":"");
+function pane(rows, cls=""){ return `<div class="pane ${cls}">${rows.join("")}</div>`; }
+const R = (n, html, cls) => row(n, html, cls);
+const clampLine = "    <span class=kw>return</span> std::<span class=fn>clamp</span>(aScale, <span class=nm>0.5</span>, <span class=nm>4.0</span>);";
+
+// 0 Entry: the selection becomes the written range; everything else reads as before.
+frames.push(`<section class=frame><h2>1. Suggest change on lines 12–15 opens those lines for writing</h2>
+<p>Shift+Return on the selected lines keeps the pane exactly as it was: the same text, scroll, numbers and colours. Only lines 12–15 take the blue wash and the blue edge in the gutter; they are the suggestion. The caret is at the end of the selection. The drawer holds your words and, under them, what the change does.</p>
+${win("Suggesting lines 12–15", left()+map()+pane([fixed(10),fixed(11),
+  R(12,H[12],"mine first"),R(13,H[13],"mine"),R(14,H[14],"mine"),R(15,H[15]+"<span class=caret></span>","mine last"),
+  fixed(16),fixed(17),fixed(18),fixed(19),fixed(20),fixed(21)])
+  +drawer(card("Lines 12–15", prose, what0+foot)))}
+</section>`);
+
+// 1 Writing inside the range, and Enter growing it.
+frames.push(`<section class=frame><h2>2. Typing replaces the lines, and Enter adds rows to the range</h2>
+<p>Four lines became two: a comment and the clamp. A new row has no number, because the head file has no such line yet; the rows below keep their head numbers and move with the range. The comment still goes on lines 12–15, whatever the block holds. Ribbons that touch or follow the range are dimmed while its length differs from the lines it replaces.</p>
+${win("Suggesting lines 12–15", left()+map(true)+pane([fixed(10),fixed(11),
+  R(12,"    <span class=cm>// Both bounds in one place.</span>","mine first"),R("",clampLine+"<span class=caret></span>","mine last"),
+  fixed(16),fixed(17),fixed(18),fixed(19),fixed(20),fixed(21)])
+  +drawer(card("Lines 12–15", `<div class=field>clamp covers both bounds.</div>`,
+   `<div class=what><div class=t>What it changes, lines 12–15</div><div class=d>-    if (aScale &lt; 0.5) {</div><div class=d>-        return 0.5;</div><div class=d>-    }</div><div class=d>-    return std::min(aScale, 4.0);</div><div class=a>+    // Both bounds in one place.</div><div class=a>+    return std::clamp(aScale, 0.5, 4.0);</div></div>`+foot)))}
+</section>`);
+
+// 2 Typing outside the range is refused.
+frames.push(`<section class=frame><h2>3. Typing outside the range changes nothing</h2>
+<p>The caret may go anywhere to read, select or copy. A key that would change line 20 is refused whole: the text stays, the range's edge flashes once, and the status line says why and how to finish. The caret is not moved into the range for you. Backspace at the start of line 12 and Delete at the end of line 15 are refused the same way, because they would join a fixed line.</p>
+${win("Suggesting lines 12–15", left()+map()+pane([fixed(10),fixed(11),
+  R(12,H[12],"mine first flash"),R(13,H[13],"mine flash"),R(14,H[14],"mine flash"),R(15,H[15],"mine last flash"),
+  fixed(16),fixed(17),fixed(18),fixed(19),R(20,"    <span class=kw>return</span> <span class=hl>aScreen.devicePixelRatio()</span>;<span class=caret></span>","add"),fixed(21)])
+  +drawer(card("Lines 12–15", prose, what0+foot)),"","Only lines 12–15 are in this suggestion. Esc ends the edit.").replace("class=status","class=\"status refuse\"")}
+</section>`);
+
+// 3 Emptying the range is a deletion.
+frames.push(`<section class=frame><h2>4. Emptying the range suggests deleting the lines</h2>
+<p>With every character of lines 12–14 removed, one empty row is left in the range, and it says what the suggestion does. GitHub receives an empty suggestion block, which deletes the lines when it is committed.</p>
+${win("Suggesting lines 12–14", left()+map(true)+pane([fixed(10),fixed(11),
+  R(12,"<span class=caret></span><span class=gone>  Deletes lines 12–14</span>","mine first last"),
+  fixed(15),fixed(16),fixed(17),fixed(18),fixed(19),fixed(20),fixed(21)])
+  +drawer(card("Lines 12–14", `<div class=field>The early return is dead: clamp handles it.</div>`,
+   `<div class=what><div class=t>What it changes, lines 12–14</div><div class=d>-    if (aScale &lt; 0.5) {</div><div class=d>-        return 0.5;</div><div class=d>-    }</div></div>`+foot)))}
+</section>`);
+
+// 4 A suggestion GitHub cannot take: marked, with Convert on the comment.
+frames.push(`<section class=frame><h2>5. A suggestion GitHub cannot apply is marked, and can be converted</h2>
+<p>On a diff filtered to an earlier commit, line 15 changed again later, so GitHub would show the comment outdated, where no suggestion applies. The range and its card take the reading amber and say why. Nothing is sent as a suggestion. Convert rewrites the comment as text, your words first and the change as a diff block, on the same line; the button names where it goes.</p>
+${win("Commit 9b2e41c of 3 · suggesting line 15", left()+map()+pane([fixed(10),fixed(11),fixed(12),fixed(13),fixed(14),
+  R(15,clampLine,"held"),fixed(16),fixed(17),fixed(18),fixed(19),fixed(20),fixed(21)])
+  +drawer(`<div class="card w"><div class=hd><b>Line 15</b><span>Suggested change</span></div><div class=field>clamp covers both bounds.</div>
+   <div class=what><div class=t>What it changes, line 15</div><div class=d>-    return std::min(aScale, 4.0);</div><div class=a>+    return std::clamp(aScale, 0.5, 4.0);</div></div>
+   <div class="note w">Line 15 changed after 9b2e41c. GitHub shows a comment here as outdated, so it cannot apply a suggestion.</div>
+   <div class=foot>Private <span class=btn style="margin-left:auto">Delete</span><span class="btn p">Convert to file comment</span></div></div>`),"","Held: 1 suggestion GitHub cannot apply. Convert it, or delete it.").replace("class=status","class=\"status w\"")}
+</section>`);
+
+// 5 Finish your review: the same choice where the review is sent.
+frames.push(`<section class=frame><h2>6. Finish your review offers the same Convert</h2>
+<p>The held suggestion is listed with the review's other comments, marked amber with its reason, and Convert sits beside it. The review can be submitted once it is converted or deleted; the other comments are not held back by anything else.</p>
+<div class=sheet><h4>Finish your review</h4>
+<div class=item><i></i><div><b>src/render/scale.cpp</b> <span class=loc>lines 12–15 · suggested change</span><div>clamp covers both bounds.</div></div><span class=btn>Open</span></div>
+<div class="item w"><i></i><div><b>src/render/scale.cpp</b> <span class=loc>line 15 · suggested change</span><div>Prefer clamp here too.</div><div class=why>Line 15 changed after 9b2e41c; GitHub cannot apply a suggestion there.</div></div><span class="btn p">Convert to file comment</span></div>
+<div class=item><i></i><div><b>src/render/dpi.cpp</b> <span class=loc>line 40</span><div>Is 96 still right on Windows?</div></div><span class=btn>Open</span></div>
+<div class=go><span>1 suggestion is held until you convert or delete it.</span><span class=btn style="margin-left:auto">Comment</span><span class="btn p" style="opacity:.5">Submit review</span></div>
+</div>
+</section>`);
+
+// 6 One pane: the head file alone while writing.
+frames.push(`<section class=frame><h2>7. In one pane, the head file shows alone while you write</h2>
+<p>The one-pane comparison interleaves removed rows, so the edit shows the head file by itself, with its added rows still green and the range where its rows were. The interleaved comparison returns when the edit ends.</p>
+${win("Suggesting lines 12–15 · head only", pane([fixed(10),fixed(11),
+  R(12,clampLine+"<span class=caret></span>","mine first last"),
+  fixed(16),fixed(17),fixed(18),fixed(19),fixed(20),fixed(21)])
+  +drawer(card("Lines 12–15", prose, what1+foot)),"one")}
+</section>`);
+
+document.getElementById("m").innerHTML = frames.join("");
+const q = new URLSearchParams(location.search).get("frame");
+if (q !== null){ document.body.classList.add("single"); document.querySelectorAll(".frame")[+q]?.classList.add("on"); }
+</script>
+</body>
+</html>

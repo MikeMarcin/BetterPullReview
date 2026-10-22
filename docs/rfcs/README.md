@@ -660,3 +660,19 @@ Q1 to Q4 (2026-10-21, session recorded on the RFC); no owner question remains
 open. Implemented in M1 to M4 and BPR-1688. A filtered line GitHub cannot
 resolve is refused before Publish rather than offered RFC-BPR-0022's file
 comment (BPR-1706); Windows and Linux are unmeasured.
+
+## Suggest change in pull request review
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0090](RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md) | Suggest change edits the selected head lines in place in pull request review | In Progress | RFC-BPR-0022, RFC-BPR-0023, RFC-BPR-0055, RFC-BPR-0089 |
+
+Drafted 2026-10-21 as RFC-DRAFT-0025 from the owner's report that pull
+request review lacked the local project's in-pane Suggest change
+([BPR-1723](../issues/60-done/BPR-1723-in-pane-suggest-change-for-pull-requests.md)).
+Revision r2 records the owner's answers to Q1 to Q5 (session
+`e5387830d18edd8d541b96e47ecbd9cb`, closed): only the selected lines are
+editable, one suggestion per Suggest change, an unplaceable change is marked
+and offered Convert to file comment, one pane shows the head file while
+editing, and the drawer no longer prefills a block.
+[Import](assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md).
