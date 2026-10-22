@@ -415,10 +415,121 @@ namespace {
 		expect(!decide_suggestion_carry(lines, 3U, 4U).has_value(), "lines split apart by an insertion are not carried");
 		expect(!decide_suggestion_carry(lines, 5U, 4U).has_value(), "an inverted range");
 	}
+	/// \brief A JSON string of exact bytes.
+	[[nodiscard]] auto json(const std::string_view aText) -> std::string
+	{
+		auto out = std::string{ "\"" };
+		for (const auto character : aText) {
+			switch (character) {
+			case '"':  out += "\\\""; break;
+			case '\\': out += "\\\\"; break;
+			case '\n': out += "\\n"; break;
+			case '\r': out += "\\r"; break;
+			case '\t': out += "\\t"; break;
+			default:   out += character; break;
+			}
+		}
+		return out + "\"";
+	}
+
+	struct live_suggestion
+	{
+		std::string_view              Name;
+		std::uint32_t                 First = 0U;
+		std::uint32_t                 Last  = 0U;
+		std::vector<std::string_view> Edited;
+		std::string_view              Prose;
+	};
+
+	/// \brief [[RFC-BPR-0090]] M4. The plans the live course on BPR-Test
+	/// publishes, made by the core from a fixed base and head: each file's
+	/// texts, each suggestion's range decision, anchor and body, and the head
+	/// file with every suggestion applied, its new lines ending as the file's
+	/// own do. The course compares GitHub's read-back and its committed
+	/// suggestions with these bytes.
+	void print_live_plans()
+	{
+		const auto file = [](const std::string_view aEnding, const bool aHead, const std::uint32_t aChanged1, const std::uint32_t aChanged2) {
+			auto text = std::string{ };
+			for (std::uint32_t line = 1U; line <= 20U; ++line) {
+				const auto changed = aHead && (line == aChanged1 || line == aChanged2);
+				text += "int value_" + std::to_string(line) + " = " + (changed ? "compute(" + std::to_string(line) + ")" : std::to_string(line)) + ";";
+				text += aEnding;
+			}
+			return text;
+		};
+		struct fixture
+		{
+			std::string_view             Path;
+			std::string_view             Ending;
+			std::uint32_t                Changed1 = 0U;
+			std::uint32_t                Changed2 = 0U;
+			std::vector<live_suggestion> Suggestions;
+		};
+		const auto fixtures = std::vector<fixture>{
+			{ .Path        = "rfc-0090/lf.cpp",
+			  .Ending      = "\n",
+			  .Changed1    = 6U,
+			  .Changed2    = 14U,
+			  .Suggestions = { { .Name = "replace-two-with-one", .First = 3U, .Last = 4U, .Edited = { "int value_4_5 = 4 + 5;" }, .Prose = "issue: fold these two into one." },
+							   { .Name = "delete-one", .First = 6U, .Last = 6U, .Edited = { "" } },
+							   { .Name = "grow-one-to-three", .First = 8U, .Last = 8U, .Edited = { "// nine", "int value_9 = 9;", "// done" } },
+							   { .Name = "backticks", .First = 11U, .Last = 11U, .Edited = { "const char* fence = \"```\";" } } } },
+			{ .Path        = "rfc-0090/crlf.cpp",
+			  .Ending      = "\r\n",
+			  .Changed1    = 10U,
+			  .Changed2    = 10U,
+			  .Suggestions = { { .Name = "crlf-replace", .First = 9U, .Last = 9U, .Edited = { "int value_10 = 10; // crlf" } } } },
+		};
+		std::cout << "{\"files\":[";
+		for (std::size_t index = 0U; index < fixtures.size(); ++index) {
+			const auto& fixture = fixtures[index];
+			const auto  base    = file(fixture.Ending, false, 0U, 0U);
+			const auto  head    = file(fixture.Ending, true, fixture.Changed1, fixture.Changed2);
+			const auto  result  = diff(base, head);
+			auto        lines   = split_text_lines(head);
+			auto        applied = lines;
+			std::cout << (index == 0U ? "" : ",") << "{\"path\":" << json(fixture.Path) << ",\"base\":" << json(base) << ",\"head\":" << json(head) << ",\"suggestions\":[";
+			for (std::size_t at = 0U; at < fixture.Suggestions.size(); ++at) {
+				const auto& suggestion = fixture.Suggestions[at];
+				const auto  range      = decide_suggestion_range(result.Alignment, ::at(result, diff_side::right, suggestion.First), ::at(result, diff_side::right, suggestion.Last), false);
+				expect(range.accepted(), std::string{ "the live suggestion's lines are suggestible: " } + std::string{ suggestion.Name });
+				const auto original = std::vector<text_line>{ lines.begin() + suggestion.First, lines.begin() + suggestion.Last + 1U };
+				auto       edited   = std::vector<text_line>{ };
+				for (const auto line : suggestion.Edited) {
+					edited.push_back({ .Content = std::string{ line }, .Ending = original.back().Ending });
+				}
+				const auto plan = plan_pull_request_suggestion({ .First = suggestion.First, .Last = suggestion.Last, .Original = original, .Edited = edited, .Prose = suggestion.Prose });
+				expect(plan.Changed && plan.placeable(), "the live suggestion is a placeable change");
+				std::cout << (at == 0U ? "" : ",") << "{\"name\":" << json(suggestion.Name) << ",\"start_line\":"
+						  << (plan.StartLine ? std::to_string(*plan.StartLine + 1U) : std::string{ "null" }) << ",\"line\":" << plan.Line + 1U << ",\"side\":\"RIGHT\",\"body\":" << json(plan.Body)
+						  << "}";
+			}
+			// Applied from the bottom up, so earlier ranges keep their lines.
+			for (auto suggestion = fixture.Suggestions.rbegin(); suggestion != fixture.Suggestions.rend(); ++suggestion) {
+				const auto ending = applied[suggestion->First].Ending;
+				auto       with   = std::vector<text_line>{ };
+				const auto empty  = suggestion->Edited.size() == 1U && suggestion->Edited.front().empty();
+				for (const auto line : suggestion->Edited) {
+					if (!empty) {
+						with.push_back({ .Content = std::string{ line }, .Ending = ending });
+					}
+				}
+				applied.erase(applied.begin() + suggestion->First, applied.begin() + suggestion->Last + 1U);
+				applied.insert(applied.begin() + suggestion->First, with.begin(), with.end());
+			}
+			std::cout << "],\"applied\":" << json(join_text_lines(applied)) << "}";
+		}
+		std::cout << "]}\n";
+	}
 } // namespace
 
-auto main() -> int
+auto main(const int aArgc, char** const aArgv) -> int
 {
+	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--live-plans") {
+		print_live_plans();
+		return EXIT_SUCCESS;
+	}
 	test_the_range_must_pass_the_existing_rules();
 	test_only_the_editable_lines_change();
 	test_a_selection_into_fixed_text_is_clipped();
