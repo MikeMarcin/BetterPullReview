@@ -88,3 +88,14 @@ attended-review session on a frozen build of the branch head.
 - **Gates.** clang-format 22 check, clang-tidy on every changed translation
   unit (no finding on a changed line), the documentation gate, the
   round-trip composition and command-registry reseals.
+
+## Owner look (RA08), pending
+
+Fresh short attended-review session `3b59571c0c371e211a07e6a1c88e5711`,
+state `/Users/jaeger/.mask/attended-review/owner-review-20261022-reactions-v001`,
+served over Tailscale (the capability URL stays in the session state). Three
+Accept/Reject questions, one per criterion: `AR1-reaction-chips`,
+`AR1-reaction-picker`, `AR1-resolve-conversation`, revision
+`cdea2e551-frozen-v001`, on the frozen tests-on build
+`/Users/jaeger/bpr-ar1-reactions-v001.m_jymzo2` (source `cdea2e551`, launcher
+check `ATTENDED_FILE_SHOWN:review.cpp`). No answer is recorded yet.
