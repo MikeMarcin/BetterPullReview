@@ -33369,9 +33369,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return ++probe.Waited < 400U ? result::pending : fail("refusal-not-settled");
 			}
 			// [[BPR-1345]] v003. A refusal keeps the page open, with its words.
+			// [[BPR-1715]]. GitHub's refusal of the review is said as one.
 			probe.Evidence.RefusedKept = now.front().Draft.Body == words[0].toStdString() && now.front().Draft.Anchor.Line == probe.Lines.front()
 				&& now.front().Draft.InReview->Submission.empty() && finishPage() != nullptr && summary->confirmed_submissions() == 0U
-				&& summary->status_label()->text().startsWith(QStringLiteral("Review was not published."));
+				&& summary->status_label()->text().startsWith(QStringLiteral("Not published: GitHub refused this review."));
 			if (!probe.Evidence.RefusedKept) {
 				return fail("refusal-lost-the-draft");
 			}

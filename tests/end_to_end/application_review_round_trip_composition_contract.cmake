@@ -1,3 +1,11 @@
+# [[BPR-1715]] follow-up reseal (2026-10-21) over last matching main
+# 683147056, linear. Pinned-scope change: github_application.cpp's
+# BUILD_TESTING --start-review-course probe expects the refusal sentence
+# BPR-1715 gave a review GitHub refused ("Not published: GitHub refused this
+# review.") instead of the older "Review was not published."; one test
+# expectation and its comment. No product path, credential, grant, provider
+# selection, publication, mutation, ledger write or source-inventory change.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-1733]] reseal (2026-10-22) over last matching main 0986da0ff,
 # linear. Pinned-scope change: a kept suggestion from an earlier head is
 # carried to the new head or its change copied, on this card's own commit.
@@ -1982,7 +1990,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"3d5e11041b2ffae08d7983f3c8619ecc2a4889d4d447026c76bf7cb340098512"
+		"fd0bee7b431ffd844ff05bd063870ec485ba80d1abd7f1e7d48c7e32a0a2ce82"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2206,7 +2214,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ca198a9228b5c84919c500f4f866ac78df7e02cc938db359b6c4842f3f5e6466"
+        "04805c0d9d431e50dfd7f763dcb9dc0f65b6a8e8f88644f124b447134087d9d2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

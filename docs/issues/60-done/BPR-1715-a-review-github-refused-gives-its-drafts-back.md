@@ -185,3 +185,26 @@ Why the verification missed it: AC2 and AC4 chose the suites by the feature's
 name and ran `sqlite_review_submission_recovery_storage` only. [[BPR-1540]]'s
 move to version 6 had updated both storage tests. A change to this store's
 schema needs both.
+
+## Follow-up — 2026-10-21: the start-review course's refusal sentence
+
+`application_start_review_contract` failed on main after this card. Its
+`--start-review-course` probe in `github_application.cpp` still expected a
+refused review to say "Review was not published.", the sentence from before
+this card. The fixture's refusal is a 422 for the whole review with no words
+about a line, so the workflow now says "Not published: GitHub refused this
+review. Your summary and comments are kept; check them and submit again.",
+as the Change section above intends ("Any other refusal says the review was
+refused"). The product was right; only the probe was stale. It now expects
+that sentence, and still requires the refusal to keep the page open with the
+comment's text, line and no submission. The full-application and manifest
+pins and the command-correctness pins were resealed; mutation 16d135419
+stays exact. Offscreen, `application_start_review_contract`, the thirteen
+`review_submission` suites, `application_review_round_trip_composition_contract`
+and `command_correctness_registry_contract` pass; so do `coding-format-check`
+(clang-format 22.1.8), clang-tidy on `github_application.cpp` and both
+documentation gates.
+
+Why the verification missed it: AC4 ran the review submission and
+composition suites, but not the start-review course, which drives the same
+refusal through the composed application.
