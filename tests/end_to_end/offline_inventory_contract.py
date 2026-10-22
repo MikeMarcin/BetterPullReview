@@ -152,10 +152,11 @@ def main():
                 if len(databases) != 1:
                     raise SystemExit("expected one profile restoration store")
                 with store_connection(databases[0]) as connection:
-                    # Version four predates both numeric account ownership and Draft.
-                    # Keeping a newer column makes the migration correctly refuse
+                    # Version four predates numeric account ownership, Draft and filters.
+                    # Keeping a newer column or table makes the migration correctly refuse
                     # the fixture's mismatched legacy shape.
-                    connection.executescript("ALTER TABLE recent_reviews DROP COLUMN draft; "
+                    connection.executescript("DROP TABLE review_filters; "
+                                             "ALTER TABLE recent_reviews DROP COLUMN draft; "
                                              "ALTER TABLE restoration_records DROP COLUMN account; "
                                              "ALTER TABLE recent_reviews DROP COLUMN account; "
                                              "PRAGMA user_version=4;")

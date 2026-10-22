@@ -373,3 +373,28 @@ still refuses non-native paths; no product policy, gesture, deadline or assertio
 changes. The original failed courses and probe-image hash remain retained.
 The repaired atomic-reading source's full Qt-free core-only suite passes all
 314 tests, including both architecture contracts, with no skips (788.57 seconds).
+
+## R40 rejection and genuine legacy fixture
+
+The combined candidate `7d4db926a` fails full native Release qualification.
+macOS completes with three failures: Qt and native empty-desktop menu parity,
+and authenticated Recent legacy migration. Windows also reports Qt review-bar,
+suggestion-conversion, legacy fixture, start-review and startup-timing failures.
+These are retained; no Debug, package, signing, notarization submission or
+publication follows this candidate. Earlier tail-only progress monitoring missed
+failed rows; full accumulated logs are now checked and the owner was told the
+corrected status.
+
+The legacy course stamped a current database as version 4 after dropping newer
+columns but left the version-7 `review_filters` table. Production correctly
+requires five tables for version 4 and refuses its six-table shape before writing.
+A synthetic shape discriminator reproduces six tables before and five after
+removing that newer table. The fixture now drops it too. Production admission,
+migration, account isolation and source-retention checks are unchanged.
+
+The original authenticated Recent course passes in 36.13 seconds using the
+unchanged production helper and corrected fixture. Original exact account,
+destination, reading and retained-object equalities remain. The temporary
+source was restored byte-for-byte before applying this intentional fixture
+repair. Native Windows confirmation and corrected final qualification remain
+pending; no previous failure is converted into a pass.
