@@ -59,6 +59,66 @@ The canonical criterion text below remains intact. The r3 exception for closure
 ahead of Deferred RFC-0020/0021 remains recorded; index position is not a gate.
 The coordinator retains Milestone D integration to main.
 
+## Owner amendment r5: measured placement evidence (2026-10-22)
+
+The owner's decision on [[BPR-1735]], verbatim: "Accept option P (hold
+off-hunk comments before Submit and publish them as file comments; single
+Publish goes straight to a file comment), plus marking a refused single
+comment rejected. Build it."
+
+The amendment changes these rules; the canonical criterion text below stays
+intact and is read with them:
+
+- **Placement evidence.** The core's measured placement is admitted as
+  evidence in place of an exact unsupported response contract for a line
+  outside every hunk. On the Whole PR diff, and on a commit-filtered diff's
+  sides that are GitHub's own, a line is placeable as a native line comment
+  only within three lines (`core::github_comment_context_lines`) of a change
+  of the merge base to the head on its side; hunks whose context touches are
+  one, and a range must lie wholly in one (`core::place_on_github_diff`). The
+  rule was measured by RFC-BPR-0089 on BPR-Test #116 to #119 and again on
+  #124, where GitHub.com refused head line 60 of an 80-line file whose line 10
+  changed, in a review and as a single comment. The epoch host computes the
+  merge base to the head with the review's own diff engine and exact
+  whitespace (`resolve_github_diff_lines`). This replaces "That geometry is
+  not GitHub's API authority and may not be used by itself to declare a line
+  commentable or un-commentable" for this one rule; nothing is inferred when
+  GitHub names no merge base or the file cannot be read, and support is never
+  inferred from the host's name or version.
+- **Single Publish.** Such a line is `review_placement::unresolvable_line` and
+  is admitted straight to the file comment (`admit_unresolvable_line`, the
+  third first-attempt authorization of invariant 2, now on the Whole PR diff
+  too), with no native attempt. Its permalink names the line at the head, or
+  at the merge base for a base line. Start a review refuses it.
+- **Review.** A comment pending in a review that the core places outside
+  GitHub's diff is held before Submit, as RFC-BPR-0090 holds a suggestion,
+  with Publish as file comment on the comment and on Finish your review. It
+  publishes the comment alone, through this RFC's journal, and takes it out
+  of the review before the review's POST; Submit stays blocked while one is
+  held, and the review is still one atomic POST ([[BPR-1345]]).
+- **Rejected.** A fully received 4xx answer to a native or file child, with
+  GitHub's complete comment list holding no comment of it, retires the child
+  as `rejected`. GitHub holds no comment of the publication, so it is
+  reported not published with GitHub's reason, and publishing again starts a
+  new attempt under the same logical key, natively or, once placed off the
+  diff, as the file comment. The classifier's exact unsupported rejection is
+  still native rejection, not this. Timeout, a lost or malformed answer, a
+  redirect, a server error and GET absence never reject.
+- **Kept answers and migration.** Each child's POST answer is kept beside the
+  journal (recovery schema 8, `publication_post`): "no answer" before the POST
+  may leave, then its class. A version 7 journal keeps every logical
+  publication as answered before answers were, at the migration time. A child
+  left possibly sent by an earlier version settles as rejected once ten
+  minutes have passed since the migration and GitHub's complete list holds no
+  comment of it, as [[BPR-1715]] settles a review; a new child with no
+  definite answer stays GET-only.
+
+Unverified on GitHub Enterprise Server 3.20, which the owner's report concerns
+and no designated target serves: that it accepts `subject_type: file` on
+`POST /pulls/{n}/comments`, and that it resolves line comments by the same
+three-line rule. If it refuses a file comment, that refusal is a fully
+received 4xx: the file child is rejected and the draft kept.
+
 ## Product decision
 
 The product contract is:
@@ -297,6 +357,11 @@ A successful native line creation proves that exact anchor was accepted. A
 recognized definitive off-hunk rejection proves that exact anchor was not. A
 repository-wide capability fact may generalize support only when the evidence
 contract explicitly permits it.
+
+[Owner amendment r5](#owner-amendment-r5-measured-placement-evidence-2026-10-22)
+admits one geometry rule as evidence: a line more than three lines from every
+change of the merge base to the head on its side is not placeable, and goes to
+the file comment with no native attempt.
 
 ## Write capability
 

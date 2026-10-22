@@ -1262,3 +1262,61 @@ refreshed publication is adopted without being presented again, the window
 asks again for its filtered line facts under the new request. Before, the
 placement waited on the previous request's answer until another file was
 chosen and this one again.
+
+## Comments outside GitHub's diff on the Whole PR diff ([[BPR-1735]])
+
+The owner's decision of 2026-10-22 (RFC-BPR-0022 amendment r5) admits the
+hunk rule above as placement evidence on the Whole PR diff too.
+`core::place_on_github_diff` answers, for a line or range of one side and the
+merge base to the head's correspondence, `in_diff` within
+`github_comment_context_lines` (three) of a change, `outside_diff` beyond it,
+`range_outside_diff` for a range not wholly in one hunk (hunks whose context
+touches are one, as Git's are), and `unknown` with no correspondence.
+`core::place_whole_diff_comment` turns that into a `filtered_comment_target`:
+`head` at the line, a `file_comment` (`outside_github_diff`) naming the line at
+the head or, on the left, the merge base, or `refused`
+(`range_outside_github_diff`). `place_filtered_comment` applies the same rule
+to a filtered diff's sides that are GitHub's own, which it used to place at the
+head unconditionally.
+
+The epoch host reads one file at the merge base GitHub names and at the
+accepted head, from the review's objects, and compares them with the review's
+own engine and exact whitespace (`resolve_github_diff_lines`); the merge base
+must be the accepted comparison's left commit. The composition asks once per
+file, head and merge base, for the selected line's file and for every file
+holding a comment pending in the review; no file need be shown. The mutation
+host repeats the placement from the source observation's
+`review_mutation_source_observation::WholeDiff` before any effect: a line
+outside every hunk is bound at the head with no remote line and marked
+`unresolvable_line` (a base line only when its document is the merge base's,
+with the left document for its permalink), so the provider admits it straight
+to the file comment as [[BPR-1706]] does; a range outside is refused; and
+`comment_destination` refuses such a line for a review. A source for another
+head is `stale_head`. With no merge base named or the lines unread, nothing is
+inferred and the comment is published natively, as before.
+
+A comment pending in the review that the core places outside GitHub's diff is
+held: the window marks it on Finish your review and on the comment with
+Publish as file comment (`workbench_window::present_unplaceable_review_comments`,
+`review_submission_editor::held_kind::unplaceable_line`), every verdict waits,
+and `review_submission_workflow` refuses Submit while one is carried. Publish
+as file comment opens the comment at its line and, once the core has placed it
+on the file, presses the drawer's own Publish, which takes it out of the
+review and publishes it alone through the logical journal.
+
+A fully received 4xx answer to a child whose reconciliation finds no new
+exact comment moves the publication to `rejected` and reports
+`unplaceable_line` (GitHub's words name a line it cannot place),
+`refused_not_published` or, for a migrated record, `settled_not_published`.
+`core::review_publication_outcome::rejected` unlocks a draft whose outcome was
+unknown, the one non-receipt that may. The core plans a rejected publication
+as from `initial`, and the journal admits a new first step under the same key
+(`native_prepared`, `unsupported_evidence_admitted` or
+`unresolvable_line_admitted`). Schema 8's `publication_post` keeps each child
+POST's answer: "no answer" with the transmission witness (best effort; a child
+with none kept only reconciles), then success, an error status's class, or no
+answer. Migration from schema 7 keeps every logical publication as answered
+before answers were, at the migration time;
+`core::publication_definitely_unpublished` settles such a child ten minutes
+later when GitHub's complete list holds none of it, and settles a kept 4xx at
+once. No answer, a success, a redirect and a server error never settle.

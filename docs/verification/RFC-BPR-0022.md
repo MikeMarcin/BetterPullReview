@@ -191,3 +191,24 @@ No source, test, build, packaging or script input changed after `0f3188093`;
 unchanged M1–M3 and D classifier, durability, rendered, isolation, capsule, format
 and strict-tidy evidence remains applicable. Final documentation and board gates
 are recorded in the closeout evidence. This round made no live request or retry.
+
+## Owner amendment r5: measured placement evidence (BPR-1735, 2026-10-22)
+
+The owner, verbatim: "Accept option P (hold off-hunk comments before Submit
+and publish them as file comments; single Publish goes straight to a file
+comment), plus marking a refused single comment rejected. Build it." The
+[RFC amendment](../rfcs/RFC-BPR-0022-semantic-source-line-comments-off-hunk-publication.md#owner-amendment-r5-measured-placement-evidence-2026-10-22)
+records the rules; the canonical criteria above are unchanged and read with
+it. [[BPR-1735]] holds the evidence: core, journal, provider, Qt and composed
+courses on fixtures, and a live course on BPR-Test.
+
+| Criterion read with r5 | What changes | Evidence |
+|---|---|---|
+| 1, 14 | The gesture is the same; the core places a Whole PR line by the measured hunk rule before any write | core_filtered_comment; application_review_mutation_application_host; application_review_submission_composition_public_path |
+| 4, 5 | A line the core places outside every hunk is the file comment at once, with no native attempt; unknown placement still attempts native first | github_review_comment_permalink (`test_an_off_hunk_whole_pr_line_is_a_file_comment_at_once`) |
+| 6, 7 | A fully received 4xx, with GitHub's complete list holding no comment of it, rejects the child; publishing again is a new attempt, at most one comment; no other outcome rejects or resends | core_review_round_trip; sqlite_review_mutation_recovery_storage; github_review_comment_permalink (`test_a_refused_single_comment_is_rejected`, `test_a_migrated_stuck_comment_settles`) |
+| 8 | Support is never inferred from host name or version; the placement rule is geometry admitted by the owner, not capability | RFC amendment r5 |
+
+Unobserved, as before: native GHES. The two GHES assumptions (a file
+comment is taken; the three-line rule holds) are recorded on
+BPR-PENDING-AL1.

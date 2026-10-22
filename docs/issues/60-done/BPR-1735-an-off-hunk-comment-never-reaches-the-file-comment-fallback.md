@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1735"
 title: "An off-hunk comment never reaches the file-comment fallback outside the designated PR"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0022"]
 depends_on: []
 priority: "P1"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1735--BPR-1735--b13813e1d6a2.json","kind":"bug","origin":"Owner report 2026-10-22, after BPR-1715's build showed a review refused on GitHub Enterprise Server 3.20.8 because a comment sits outside every hunk","phase":"diagnosis done; design awaits the owner's choice","related_cards":["BPR-1715","BPR-1716","BPR-1706","BPR-1728","BPR-1732","BPR-1345"],"related_rfcs":["RFC-BPR-0008","RFC-BPR-0089","RFC-BPR-0090"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1735--BPR-1735--b13813e1d6a2.json","kind":"bug","origin":"Owner report 2026-10-22, after BPR-1715's build showed a review refused on GitHub Enterprise Server 3.20.8 because a comment sits outside every hunk","phase":"built under the owner's decision of 2026-10-22","related_cards":["BPR-1715","BPR-1716","BPR-1706","BPR-1728","BPR-1732","BPR-1345"],"related_rfcs":["RFC-BPR-0008","RFC-BPR-0089","RFC-BPR-0090"],"frontend_design":"frontend-design:frontend-design loaded before the held mark's words and layout; it reuses BPR-1728's hold","follow_up":"BPR-PENDING-AL1"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_filtered_comment|application_review_mutation_application_host|qt_workbench_line_draft)$'; python3 tests/end_to_end/bpr1735_whole_pr_live_course.py --build build/dev --work DIR --prefix bpr1735-live --cleanup","detail":"core::place_on_github_diff: the changed line and lines exactly three before and after it are in on either side, four are out, BPR-Test #124's line 60 is out, a range must lie in one hunk, changes six lines apart share a hunk and seven apart leave the middle line out, an insertion's context on both sides, unknown with no diff read or an invalid one. place_whole_diff_comment names the head (right) or merge base (left) for the file comment and refuses a range; place_filtered_comment applies the rule to a filtered diff's own sides. The mutation host places from the source's WholeDiff before any effect (line 13 of #124's shape native, 14 a file comment, a range leaving the hunk refused, a base line only with merge-base numbering, another head stale_head, unread lines native). The editor says before Publish 'GitHub shows no change near this line at the head, so GitHub can't attach a comment to it. Publish adds a comment on the file instead, linking to line 7 of commit 61e8dbc.' Live (#127, github.com): the shipped composition offscreen placed head lines 60 and 14 as file comments at the head and line 13 on itself, with that sentence. Nothing reads the host's name or version. Failing before: the functions and the WholeDiff fact do not exist on main, and core_filtered_comment's own-side cases fail there (a right side that is the head was placed at the head unconditionally)."}},{"criterion":"AC2","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(github_review_comment_permalink|application_review_submission_composition_public_path|qt_review_submission_editor_scale_(100|125|200)|qt_workbench_line_draft)$'; python3 tests/end_to_end/bpr1735_whole_pr_live_course.py --build build/dev --work DIR --prefix bpr1735-live --cleanup","detail":"Single Publish: test_an_off_hunk_whole_pr_line_is_a_file_comment_at_once sends one file POST (subject_type file, commit_id the head, no line or side, body the permalink to line 13 at the head, or at the comparison's left commit for a base line, a blank line and the words), journal unresolvable_line_admitted then succeeded_fallback, no native attempt; a replay and a restart send nothing. Review: the composed owner course holds the off-hunk comment, Publish as file comment publishes it once as a file comment (FilePosts +1, NativePosts unchanged, body 'https://github.com/octo-org/review-repository/blob/<head>/review.cpp#L86' + blank line + words) and takes it out of the review (8 carried), Submit by key sends nothing while held, then one review POST carries the eight and GitHub holds each once and not the file comment's text. Live #127: the review carrying line 60 is refused whole (422 'Line could not be resolved', no review left); line 60 alone as the composition's file comment is 201 subject_type file at the head; the rest (line 13) is one review, 200, one comment RIGHT 13; line 14 natively is 422 pull_request_review_thread.line 'could not be resolved' and as a file comment 201. Three comments in all. Failing before: no hold and no file comment on Whole PR exist on main (the owner course waits on held_comments)."}},{"criterion":"AC3","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(core_review_round_trip|sqlite_review_mutation_recovery_storage|sqlite_review_submission_recovery_storage|github_review_comment_permalink)$'","detail":"A native single comment GitHub refuses with a fully received 4xx, its complete comment list holding none of it, is rejected and reported not published: unplaceable_line for GitHub's line words (recorded PR2-shaped 422), refused_not_published otherwise, through the GitHub CLI's answer and the native transport's error alike; Publish again sends one new native attempt, and a draft refused natively then placed off the diff is published once as the file comment after a restart. A lost answer or a 502 is not rejected, and a day later still only reconciles. Schema 8 keeps each child POST's answer; a version 7 journal migrates every logical publication as kept before answers, at the migration time; such a stuck comment settles (settled_not_published) only once ten minutes have passed and the list holds none of it, and a listed comment confirms it instead. The journal refuses a prepared child's rejection and a receipt on a rejected child, and restarts only under the same key. review_publication_outcome::rejected unlocks an unknown draft. Failing before: on main core plans a rejected record as previously_rejected and the journal refuses the state."}},{"criterion":"AC4","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_review_submission_editor_scale_(100|125|200)|qt_workbench_line_draft|application_review_submission_composition_public_path)$'","detail":"After GitHub refuses the owner's review (the GitHub CLI's 422 naming an unplaceable line), this build marks exactly the comment the core places outside the diff: its row on Finish your review says 'GitHub shows no change near line 86, so it can't place this comment in a review.' in the reading amber with Publish as file comment beside Delete, and on the comment itself Publish as file comment takes the sending buttons' place. Every verdict waits with '1 comment GitHub can't place in a review is held. Publish it as a file comment or delete it first.' A held range offers no action."}},{"criterion":"AC5: the owner's stuck review","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"ctest --preset dev -R '^application_review_submission_composition_public_path$'","detail":"Nine comments (eight in hunks at head lines 46-51, 58, 59; one at head line 86 outside every hunk) written by a build that placed nothing on the Whole PR diff (set_whole_diff_placement_enabled false), refused in the GitHub CLI's 422 shape and settled by BPR-1715 with all nine kept; restarted on this build, the off-hunk comment alone is held, Submit is blocked, Publish as file comment publishes it once, and Submit sends the other eight as one review."}},{"criterion":"AC6: gates","outcome":"pass","revision":"ba7ed6b095ecc4893bcb90ebf5cf0c656da469d8","evidence":{"kind":"command","command":"_coding-standard/scripts/format.py; _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <25 changed units>; cmake --preset core-only && ctest --preset core-only; reseal_round_trip_composition.py --check; reseal_command_correctness.py --check; python3 scripts/verify_documentation.py --root .; python3 tests/scripts/verify_documentation_tests.py","detail":"clang-format 22 applied to every changed C++ file; clang-tidy (LLVM 22) with warnings as errors passes on all 25 changed units. Focused and integration selections pass offscreen on macOS with the dev preset -O0 -g0: 143 core/sqlite/github/live/host rows, 37 Qt and transport rows, 89 application review/comment/draft/publication/tour/label/submission/round-trip/commit-filter rows after the course fixes below, and the seed users. core-only: 311 of 314 pass; application_diff_host failed once under load and passes alone, command_correctness_registry_contract passes after the reseal, documentation_structure refuses only BPR-PENDING-AL1's provisional ID. The full-application and manifest pins are resealed with a note; mutation 16d135419 stays exact."}}]
 ---
 
 # BPR-1735: An off-hunk comment never reaches the file-comment fallback outside the designated PR
@@ -276,3 +277,124 @@ Keep the review. Delete the off-hunk comment from it (BPR-1715's Delete, after
 copying its text), Submit the other eight, and post that text on the GHE web
 page, as a comment on the file where the page offers one, otherwise in the
 conversation.
+
+## Owner decision, 2026-10-22
+
+Verbatim: "Accept option P (hold off-hunk comments before Submit and publish
+them as file comments; single Publish goes straight to a file comment), plus
+marking a refused single comment rejected. Build it."
+
+Recorded as RFC-BPR-0022 owner amendment r5, in the workbench
+specification's "Source-line comments outside a hunk", and as BPR-1716's
+restated AC3.
+
+## The placement rule and its amendment
+
+On the Whole PR diff, and on a commit-filtered diff's sides that are GitHub's
+own (a right side that is the head, a left side that is the merge base), a
+line is placeable as a native line comment only within three lines
+(`core::github_comment_context_lines`) of a change of the merge base to the
+head on its side. A line at exactly three lines is in; at four it is out.
+Hunks whose context touches are one hunk, as Git's are, so changes six lines
+apart share their context and seven apart leave the middle line out. A range
+is placeable only when all of it lies in one hunk; a range outside has no file
+comment. The rule reads the merge base to the head the epoch host computes
+with the review's own engine and exact whitespace; with no merge base named,
+or the file unreadable, nothing is inferred and Publish is as it always was.
+It never reads the host's name or version.
+
+The amended specification sentence (it replaced "Production fallback remains
+unavailable until an exact unsupported response contract is admitted; the UI
+does not infer support from host name or version."):
+
+> The owner admitted measured placement in place of an exact unsupported
+> response contract on 2026-10-22 ([[BPR-1735]] …). On the Whole PR diff, and
+> on a filtered diff's sides that are GitHub's own, the core places a line as
+> a line comment only within three lines of a change of the merge base to the
+> head on its side, the rule measured on BPR-Test #116 to #119 and #124. …
+> The UI does not infer support from host name or version.
+
+## Change
+
+- **Core.** `place_on_github_diff` (`in_diff`, `outside_diff`,
+  `range_outside_diff`, `unknown`), `holds_review_comment`,
+  `place_whole_diff_comment`; `place_filtered_comment` applies the rule to a
+  filtered diff's own sides (a new refusal `range_outside_github_diff`, last).
+  The publication policy plans a `rejected` publication as a new attempt, and
+  `publication_definitely_unpublished` decides from a kept answer whether a
+  possibly sent child is settled: a 4xx at once, a record kept before answers
+  ten minutes after its migration, nothing else.
+  `review_publication_outcome::rejected` unlocks a draft whose outcome was
+  unknown.
+- **Epoch host.** `resolve_github_diff_lines`: one file at the merge base
+  (the accepted comparison's left) and the head, compared.
+- **Mutation host.** `review_mutation_source_observation::WholeDiff`; the host
+  places a Whole PR comment by the core before any effect: a line outside every
+  hunk is bound as `unresolvable_line` at the head (a base line only when its
+  document is the merge base's, with the left document for the permalink), a
+  range outside is refused, and `comment_destination` refuses such a line.
+- **Provider.** The file comment is admitted at once on the Whole PR diff
+  too; the permalink names a Whole PR base line at the comparison's left
+  commit. A fully received 4xx (an answer, or an error carrying the status),
+  with GitHub's complete list holding no comment of it, rejects the child and
+  reports `unplaceable_line` (GitHub's words name the line) or
+  `refused_not_published`; a migrated stuck record settles as
+  `settled_not_published`. Each child's POST answer is kept.
+- **Journal.** `rejected` is a valid durable state (a sent native child, or a
+  sent file child under its authorization); it starts again under the same key
+  as `native_prepared`, `unsupported_evidence_admitted` or
+  `unresolvable_line_admitted`. Recovery schema 8 adds `publication_post`;
+  migration from 7 keeps every logical publication as answered before answers
+  were, at the migration time.
+- **Composition.** Reads GitHub's own diff for the selected line's file and
+  for every file holding a pending review comment (no file need be shown),
+  places the selected line, holds each pending comment the core places
+  outside, and refuses Submit while one is held
+  (`review_submission_workflow::hold_comments`).
+- **Qt.** The editor's notice and the suggestion hold on the Whole PR diff;
+  `present_unplaceable_review_comments` holds a pending comment on the
+  comment itself and on Finish your review with **Publish as file comment**
+  (`review_submission_editor::held_kind::unplaceable_line`), in the reading
+  amber, every verdict waiting; Publish as file comment opens the comment at
+  its line and presses its own Publish once the core has placed it on the
+  file. A held range offers no action.
+
+frontend-design:frontend-design was loaded before the held mark's words and
+layout were written; the mark reuses BPR-1728's hold (reason under the row in
+the reading amber, the action beside Delete, the verdicts waiting) with no new
+visual language.
+
+## Tests and live results
+
+- Core, journal, provider, host, Qt and composed courses as recorded in the
+  acceptance above. Each fails before the change: the new placement
+  functions, the WholeDiff fact, the hold and the journal's `rejected` state
+  do not exist on main, and the owner course waits on a hold main never sets.
+- Live, github.com, BPR-Test #127 (2026-10-22, closed, both branches deleted):
+  the composition's placements for head lines 60, 14 and 13; the review with
+  line 60 refused whole with 422; line 60 published alone as a file comment
+  (201, `subject_type` file at the head); the rest as one review (200, RIGHT
+  13); line 14 natively 422, as a file comment 201.
+  `X-RateLimit-Remaining` stayed at 4,844 or above. An earlier run, #126, made
+  the same refusal, file comment and review, then stopped on a check of the
+  wrong list (the review's own comment list reports positions); it was closed
+  and its branches deleted. Six comments remain on the two closed pull
+  requests.
+
+## Remaining GitHub Enterprise Server assumptions
+
+Recorded on BPR-PENDING-AL1: GHES 3.20 takes `subject_type: file` on
+`POST /pulls/{n}/comments`, and resolves line comments by the same three-line
+rule. Neither can be observed without the owner's host.
+
+## What the owner does on the new build
+
+Open the pull request whose review was refused on 2026-10-21 and open Finish
+your review. The comment on the line outside every hunk is marked "GitHub
+shows no change near line N, so it can't place this comment in a review." and
+Submit waits. Choose Publish as file comment on that row: the comment opens at
+its line and is published once on its own, as a comment on the file whose
+first line links to that line. The page then carries the other eight; choose
+Comment (or the verdict wanted) to submit them as one review.
+
+[[BPR-1736]] (Backlog) designs how the application learns that a host takes a line comment beyond this rule, from GitHub's own answer, and places it natively there.

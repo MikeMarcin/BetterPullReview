@@ -2989,8 +2989,27 @@ visible code link supplies placement. The disclosure is keyboard operable and
 accessible; expanded text can require scrolling in a narrow drawer. Native and
 file subjects use the same focus and selection behavior. Three-scale, three-theme
 rendered evidence is in the [RFC-0022 ledger](../verification/RFC-BPR-0022.md).
-Production fallback remains unavailable until an exact unsupported response
-contract is admitted; the UI does not infer support from host name or version.
+The owner admitted measured placement in place of an exact unsupported response
+contract on 2026-10-22 ([[BPR-1735]]: "Accept option P (hold off-hunk comments
+before Submit and publish them as file comments; single Publish goes straight
+to a file comment), plus marking a refused single comment rejected. Build it.").
+On the Whole PR diff, and on a filtered diff's sides that are GitHub's own, the
+core places a line as a line comment only within three lines of a change of the
+merge base to the head on its side, the rule measured on BPR-Test #116 to #119
+and #124. Outside it the editor says GitHub can't attach a comment to the line
+and that Publish adds a comment on the file, linking to the line at its side's
+commit; Publish then writes RFC-BPR-0022's file comment with no native attempt,
+and Start a review refuses the line. A comment already pending in a review that
+the core places outside GitHub's diff is held, as a suggestion GitHub cannot
+apply is held (RFC-BPR-0090): its row on Finish your review and the comment
+itself say why in the reading amber and offer **Publish as file comment**,
+which publishes it on its own and takes it out of the review, and Comment,
+Approve, Request changes and Submit wait until none is held. A range outside a
+hunk is held with no action: it is deleted or written on one line. A native
+single comment GitHub refuses with a fully received 4xx is reported not
+published with GitHub's reason, and can be published again. With the merge
+base unknown or the file's lines unread nothing is inferred, and Publish is as
+it always was. The UI does not infer support from host name or version.
 
 ## Draft status on Home
 
