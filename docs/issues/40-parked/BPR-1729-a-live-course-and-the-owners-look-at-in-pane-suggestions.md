@@ -8,7 +8,8 @@ depends_on: ["BPR-1728"]
 priority: "P2"
 platforms: ["mac","win","linux"]
 parked_on: "human-review"
-metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2","milestone":"RFC-BPR-0090 M4","live_pull_request":"MikeMarcin/BPR-Test#123","look_session":{"id":"7dba4a1f1dbf08a0ad93da313b35fbcd","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0090-look-v001","status":"six candidates ready at event cursor 18, host serving"},"wizard_session":{"id":"882aa75a-b47d-49a0-ab01-340f0ca80646","state":"/Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001","status":"active, waiting on step commit-batch"},"frozen_build":{"root":"/Users/jaeger/bpr-rfc0090-in-pane-v001.t2govxlb","commit":"b13164f02fa980ec881a55ce2c4fdd0f5a044bc6","executable_sha256":"34a0eb21f6ed5c8962405acca55c83becd4075c6054a6c85cb73e6f5860c51c0"}}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2","milestone":"RFC-BPR-0090 M4","live_pull_request":"MikeMarcin/BPR-Test#123","look_session":{"id":"7dba4a1f1dbf08a0ad93da313b35fbcd","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0090-look-v001","status":"closed 2026-10-22: handed back at event 55, all six accepted, released, handed back and its host stopped"},"wizard_session":{"id":"882aa75a-b47d-49a0-ab01-340f0ca80646","state":"/Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001","status":"active, waiting on step commit-batch"},"frozen_build":{"root":"/Users/jaeger/bpr-rfc0090-in-pane-v001.t2govxlb","commit":"b13164f02fa980ec881a55ce2c4fdd0f5a044bc6","executable_sha256":"34a0eb21f6ed5c8962405acca55c83becd4075c6054a6c85cb73e6f5860c51c0"}}
+acceptance: [{"criterion":"AC1: RFC AC03 (live), with the CRLF measurement recorded","outcome":"pending","revision":"a7b8b0f6d8a745d14c9383b328bee81e582817f4","evidence":{"kind":"observation","detail":"BPR-Test #123: the core's five planned suggestions were accepted at their planned lines and read back identical (body, start_line, line, side, path, commit). Pending: GitHub's Commit suggestions, which only the owner can press (wizard 882aa75a-b47d-49a0-ab01-340f0ca80646), and the measurement of what it writes into the CRLF file."}},{"criterion":"AC2: RFC AC10, from the owner","outcome":"pass","revision":"a7b8b0f6d8a745d14c9383b328bee81e582817f4","evidence":{"kind":"observation","detail":"Attended session 7dba4a1f1dbf08a0ad93da313b35fbcd, frozen build of b13164f02 (on main as a7b8b0f6d, which differs only in main's own files), handed back at event 55: the owner accepted all six questions (entry and continuity 7967e7b0, fixed lines 0becd990, growth and deletion 0dcafafd, drawer link 938ce4e6, held suggestion and Convert 98f535ad, one pane b01228b2). Two notes: dim the read-only code outside the range (a refinement, taken in this card), and a stray highlight in one pane after a selection and Esc outside Suggest change (BPR-PENDING-AJ)."}}]
 ---
 
 # BPR-1729: Publish in-pane suggestions on BPR-Test, measure CRLF, and take the owner's look
@@ -73,6 +74,24 @@ Commit suggestions (wizard below); the agent cannot press it.
   entry and continuity, the fixed lines' refusal, growth and deletion, the
   drawer link, the held suggestion and Convert (from the composed window's
   render, since the fixture sets no commit filter), and one pane.
+
+## The owner's look, 2026-10-22
+
+All six questions were accepted, in session `7dba4a1f1dbf08a0ad93da313b35fbcd`
+(handed back at event 55). Two came with notes, verbatim:
+
+- Drawer link: "I wonder if we can make it more obvious which parts of the
+  panes are read only. The rail is nice but maybe we could dim the
+  background the rest of the code or something." Taken as a refinement of
+  the accepted look: the code outside the range is dimmed while it is
+  edited, and the rail stays.
+- One pane: "One-pane seems to have an unreleated virtual space
+  highlighting problem. The attached screenshot was after i made a
+  selection and hit esc outside of the suggest mode." Its own card,
+  BPR-PENDING-AJ.
+
+The session was released, handed back again and its host stopped through
+the script.
 
 ## After the owner
 
