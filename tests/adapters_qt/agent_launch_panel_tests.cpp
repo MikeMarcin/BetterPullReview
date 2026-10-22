@@ -16,6 +16,7 @@
 #include <ranges>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -420,6 +421,32 @@ namespace {
 			panel.status_text() == "Finished: workspace_unavailable"
 				&& panel.output_text() == diagnostic,
 			"a failed workspace terminal visibly renders its bounded diagnostic");
+		expect(
+			panel.stop_reason_text().startsWith(QStringLiteral("The agent's copy of this pull request could not be made."))
+				&& panel.stop_reason_text().contains(QStringLiteral("ask again")),
+			"a workspace stop with no reason says the copy failed and what to do [[BPR-PENDING-AO]]");
+		for (const auto& [reason, phrase] : std::array{
+				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("Downloading the rest failed.") },
+				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then ask again.") },
+				 std::pair{ application::agent_workspace_unavailable_reason::sign_in_refused, QStringLiteral("Check that gh is signed in") },
+				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("larger than the agent's private copy allows") },
+			 }) {
+			const auto reasoned = identity(40U + static_cast<std::uint64_t>(reason));
+			panel.admit(reasoned);
+			expect(panel.stop_reason_text().isEmpty(), "an admitted run has no stop reason yet");
+			panel.finish(
+				reasoned,
+				application::agent_run_result{
+					.Session         = reasoned.Session.Id,
+					.Outcome         = application::agent_run_outcome::workspace_unavailable,
+					.StandardError   = diagnostic.toStdString(),
+					.WorkspaceReason = reason,
+				});
+			expect(
+				panel.status_text() == "Finished: workspace_unavailable" && panel.output_text() == diagnostic
+					&& panel.stop_reason_text().contains(phrase),
+				"a workspace stop says why in plain words and keeps Git's text in the log [[BPR-PENDING-AO]]");
+		}
 
 		const auto active  = identity(5U);
 		const auto foreign = identity(6U);

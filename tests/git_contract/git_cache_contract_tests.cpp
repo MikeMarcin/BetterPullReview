@@ -3246,7 +3246,7 @@ namespace {
 				},
 				.ParentDirectory = workspaceParent,
 			},
-			{ });
+			std::nullopt, { });
 		require(
 			!unavailableWorkspace.has_value()
 				&& unavailableWorkspace.error()

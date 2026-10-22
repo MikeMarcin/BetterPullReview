@@ -190,11 +190,31 @@ namespace bpr::application {
 		git_commit_id         Commit;
 	};
 
+	/// \brief [[BPR-PENDING-AO]]. A pack holding one commit, its tree and every
+	/// blob it names, with no ancestor.
+	///
+	/// \details A sparse review's cache holds the head's commit and trees and
+	/// none of its blobs or parents, so its workspace is made from this pack
+	/// instead. The workspace records `Head` as a shallow boundary.
+	struct git_workspace_snapshot_pack
+	{
+		std::filesystem::path Pack;
+		std::uint64_t         Bytes = 0U;
+		core::git_commit_oid  Head;
+
+		auto operator<=>(const git_workspace_snapshot_pack&) const = default;
+	};
+
 	/// \brief Materializes one exact commit from an owned bare cache repository.
+	///
+	/// \details Without `Snapshot`, the workspace takes the head's whole
+	/// reachable closure from the cache, which must hold it. With one, it
+	/// takes the snapshot's objects alone and is shallow at the head.
 	struct git_agent_workspace_request
 	{
-		std::filesystem::path                   Repository;
-		agent_workspace_materialization_request Materialization;
+		std::filesystem::path                      Repository;
+		agent_workspace_materialization_request    Materialization;
+		std::optional<git_workspace_snapshot_pack> Snapshot;
 
 		auto operator<=>(const git_agent_workspace_request&) const = default;
 	};

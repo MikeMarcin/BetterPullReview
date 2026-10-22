@@ -135,6 +135,14 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const gh_cli_account_pin&) const -> bool = default;
 	};
 
+	/// \brief Which objects a sparse clone keeps ([[BPR-PENDING-AO]]).
+	enum class gh_cli_clone_content : std::uint8_t {
+		/// Commits and trees, no blobs: an epoch's commit or the chain.
+		trees,
+		/// One commit, its tree and every blob: an agent workspace.
+		snapshot,
+	};
+
 	class validated_gh_cli_configuration final
 	{
 	public:
@@ -211,7 +219,7 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_git_clone_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_request_context&, core::git_commit_oid,
-			const std::filesystem::path&, const std::filesystem::path&, std::size_t, std::uint32_t)
+			const std::filesystem::path&, const std::filesystem::path&, std::size_t, std::uint32_t, gh_cli_clone_content)
 			-> std::optional<github_cli_process_request>;
 	};
 
@@ -376,13 +384,16 @@ namespace bpr::adapters::github::detail {
 	/// \details A sparse clone takes \p aDepth generations of trees without
 	/// blobs: one for an epoch's commit, more for RFC-BPR-0089's first-parent
 	/// chain (at most `maximum_gh_cli_clone_depth`). A complete clone takes no
-	/// depth, and any other \p aDepth refuses it.
+	/// depth, and any other \p aDepth refuses it. [[BPR-PENDING-AO]]. A sparse
+	/// review's `snapshot` clone takes one generation with every blob, for an
+	/// agent workspace; any other \p aDepth refuses it.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,
 		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
-		std::size_t aIndex, std::uint32_t aDepth = 1U) -> std::optional<github_cli_process_request>;
+		std::size_t aIndex, std::uint32_t aDepth = 1U,
+		gh_cli_clone_content aContent = gh_cli_clone_content::trees) -> std::optional<github_cli_process_request>;
 
 	/// \brief RFC-BPR-0089. The deepest sparse clone: 250 listed commits and
 	/// the commit the chain grew from.

@@ -42,6 +42,24 @@ namespace bpr::application {
 		return { };
 	}
 
+	auto stable_name(const agent_workspace_unavailable_reason aReason) noexcept
+		-> std::string_view
+	{
+		switch (aReason) {
+		case agent_workspace_unavailable_reason::copy_failed:
+			return "copy_failed";
+		case agent_workspace_unavailable_reason::download_failed:
+			return "download_failed";
+		case agent_workspace_unavailable_reason::connection_failed:
+			return "connection_failed";
+		case agent_workspace_unavailable_reason::sign_in_refused:
+			return "sign_in_refused";
+		case agent_workspace_unavailable_reason::too_large:
+			return "too_large";
+		}
+		return { };
+	}
+
 	auto prepare_agent_workspace(
 		const core::agent_profile&                 aProfile,
 		const core::agent_session&                 aSession,

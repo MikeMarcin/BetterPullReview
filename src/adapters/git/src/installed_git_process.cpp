@@ -4361,34 +4361,78 @@ namespace bpr::adapters::git {
 					return fail(initialized.error());
 				}
 
-				auto arguments = common_git_arguments(aRequest.Repository, HooksRoot);
-				append_arguments(
-					arguments,
-					"pack-objects",
-					"--revs",
-					"--delta-base-offset",
-					"--non-empty",
-					"--",
-					path_text(destination / ".git" / "objects" / "pack" / "pack"));
-				const auto packed = submitWorkspace(
-					process_request{
-						.Arguments = std::move(arguments),
-						.Input     = memory_input{ headText + "\n" },
-						.Timeout   = pack_process_timeout,
-					},
-					aStop);
 				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
-				if (
-					!packed.has_value()
-					|| packed->StandardOutput.size() != packHashBytes + 1U
-					|| packed->StandardOutput.back() != '\n'
-					|| !valid_fixed_hex(
-						std::string_view{ packed->StandardOutput }.substr(0U, packHashBytes),
-						packHashBytes)) {
-					return fail(
-						packed.has_value()
-							? git_process_failure::malformed_output
-							: packed.error());
+				auto       arguments     = std::vector<std::string>{ };
+				if (aRequest.Snapshot) {
+					// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's
+					// commit and trees but no blobs and no parents, so packing the
+					// head's closure out of it walks into the first missing
+					// parent. The snapshot carries exactly the head's commit, tree
+					// and blobs; it is indexed into the workspace, which is then
+					// shallow at the head, so nothing in it walks past the commit.
+					const auto&     snapshot = *aRequest.Snapshot;
+					std::error_code snapshotError;
+					if (
+						snapshot.Head != head || !snapshot.Pack.is_absolute() || snapshot.Bytes == 0U
+						|| snapshot.Bytes > application::maximum_git_pack_input_bytes
+						|| !std::filesystem::is_regular_file(snapshot.Pack, snapshotError) || snapshotError
+						|| std::filesystem::file_size(snapshot.Pack, snapshotError) != snapshot.Bytes || snapshotError) {
+						return fail(git_process_failure::invalid_request);
+					}
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(
+						arguments,
+						"index-pack",
+						"--stdin",
+						sparse_fsck_argument(),
+						"--max-input-size=" + std::to_string(snapshot.Bytes),
+						"--threads=1",
+						"--no-rev-index");
+					const auto indexedSnapshot = submitWorkspace(
+						process_request{
+							.Arguments = std::move(arguments),
+							.Input     = file_input{
+								.Path  = snapshot.Pack,
+								.Bytes = snapshot.Bytes,
+							},
+							.Timeout = pack_process_timeout,
+						},
+						aStop);
+					if (!indexedSnapshot.has_value()) {
+						return fail(indexedSnapshot.error());
+					}
+					if (!write_private_file(destination / ".git" / "shallow", headText + "\n")) {
+						return fail(git_process_failure::invalid_repository);
+					}
+				} else {
+					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+					append_arguments(
+						arguments,
+						"pack-objects",
+						"--revs",
+						"--delta-base-offset",
+						"--non-empty",
+						"--",
+						path_text(destination / ".git" / "objects" / "pack" / "pack"));
+					const auto packed = submitWorkspace(
+						process_request{
+							.Arguments = std::move(arguments),
+							.Input     = memory_input{ headText + "\n" },
+							.Timeout   = pack_process_timeout,
+						},
+						aStop);
+					if (
+						!packed.has_value()
+						|| packed->StandardOutput.size() != packHashBytes + 1U
+						|| packed->StandardOutput.back() != '\n'
+						|| !valid_fixed_hex(
+							std::string_view{ packed->StandardOutput }.substr(0U, packHashBytes),
+							packHashBytes)) {
+						return fail(
+							packed.has_value()
+								? git_process_failure::malformed_output
+								: packed.error());
+					}
 				}
 
 				arguments = workspace_git_arguments(destination, HooksRoot);

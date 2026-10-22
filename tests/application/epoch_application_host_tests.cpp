@@ -421,31 +421,37 @@ namespace {
 		/// told when that happens. Nothing could answer it while the only
 		/// injectable failures were prune and delete.
 		std::deque<std::pair<std::string, application::git_cache_failure>>
-															PrepareCacheFailures;
-		bool                                                PromoteAppliesThenFails           = false;
-		bool                                                AssociationAppliesThenFails       = false;
-		bool                                                CacheDeleteFinalizesWithoutChange = false;
-		bool                                                ThrowRecoveryAbort                = false;
-		bool                                                BlobMaterializationIgnoresStop    = false;
-		std::function<void()>                               AfterCommitAuthorized;
-		std::function<void()>                               AfterRefCommitInProgress;
-		std::function<void(std::stop_token)>                DuringBlobMaterialization;
-		std::function<void(std::stop_token)>                DuringTreeEntryLookup;
-		std::optional<application::git_cache_error>         WorkspaceMaterializationFailure;
-		std::optional<application::git_cache_error>         WorkspaceCleanupFailure;
-		std::vector<std::uint64_t>                          AuthorityRevocations;
-		std::vector<application::epoch_presentation_update> Updates;
-		std::size_t                                         CacheMutationCalls          = 0U;
-		std::size_t                                         ActiveCacheSessions         = 0U;
-		std::size_t                                         MaximumActiveCacheSessions  = 0U;
-		std::size_t                                         TransportCalls              = 0U;
-		std::size_t                                         ProjectionCalls             = 0U;
-		std::size_t                                         ProjectionOutsideDecision   = 0U;
-		std::size_t                                         ProjectionFailuresRemaining = 0U;
-		std::size_t                                         ProjectionDepth             = 0U;
-		std::size_t                                         MaximumProjectionDepth      = 0U;
-		std::size_t                                         ProjectionIngressCalls      = 0U;
-		std::function<void()>                               ProjectionIngress;
+													PrepareCacheFailures;
+		bool                                        PromoteAppliesThenFails           = false;
+		bool                                        AssociationAppliesThenFails       = false;
+		bool                                        CacheDeleteFinalizesWithoutChange = false;
+		bool                                        ThrowRecoveryAbort                = false;
+		bool                                        BlobMaterializationIgnoresStop    = false;
+		std::function<void()>                       AfterCommitAuthorized;
+		std::function<void()>                       AfterRefCommitInProgress;
+		std::function<void(std::stop_token)>        DuringBlobMaterialization;
+		std::function<void(std::stop_token)>        DuringTreeEntryLookup;
+		std::optional<application::git_cache_error> WorkspaceMaterializationFailure;
+		/// [[BPR-PENDING-AO]]. What the cache was handed for each workspace, the
+		/// workspace it answers, and what the transport's snapshot was asked.
+		std::vector<std::optional<application::git_workspace_snapshot_pack>> WorkspaceSnapshots;
+		std::optional<application::owned_agent_workspace>                    WorkspaceResult;
+		std::vector<application::git_smart_workspace_snapshot_request>       SnapshotRequests;
+		std::optional<application::git_smart_transport_failure>              SnapshotFailure;
+		std::optional<application::git_cache_error>                          WorkspaceCleanupFailure;
+		std::vector<std::uint64_t>                                           AuthorityRevocations;
+		std::vector<application::epoch_presentation_update>                  Updates;
+		std::size_t                                                          CacheMutationCalls          = 0U;
+		std::size_t                                                          ActiveCacheSessions         = 0U;
+		std::size_t                                                          MaximumActiveCacheSessions  = 0U;
+		std::size_t                                                          TransportCalls              = 0U;
+		std::size_t                                                          ProjectionCalls             = 0U;
+		std::size_t                                                          ProjectionOutsideDecision   = 0U;
+		std::size_t                                                          ProjectionFailuresRemaining = 0U;
+		std::size_t                                                          ProjectionDepth             = 0U;
+		std::size_t                                                          MaximumProjectionDepth      = 0U;
+		std::size_t                                                          ProjectionIngressCalls      = 0U;
+		std::function<void()>                                                ProjectionIngress;
 	};
 
 	template <typename Failure>
@@ -1779,11 +1785,13 @@ namespace {
 		}
 
 		[[nodiscard]] auto materialize_agent_workspace(
-			const application::agent_workspace_materialization_request&,
-			const std::stop_token aStop)
+			const application::agent_workspace_materialization_request&    aRequest,
+			const std::optional<application::git_workspace_snapshot_pack>& aSnapshot,
+			const std::stop_token                                          aStop)
 			-> application::git_cache_result<application::owned_agent_workspace> override
 		{
 			State.Calls.emplace_back("cache.materialize-agent-workspace");
+			State.WorkspaceSnapshots.push_back(aSnapshot);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
 			}
@@ -1791,6 +1799,18 @@ namespace {
 				auto failure = std::move(*State.WorkspaceMaterializationFailure);
 				State.WorkspaceMaterializationFailure.reset();
 				return std::unexpected{ std::move(failure) };
+			}
+			// [[BPR-PENDING-AO]]. A sparse cache holds no parent and no blob, so
+			// copying the head's closure out of it fails as installed Git does.
+			if (State.SparseObjects && !aSnapshot) {
+				return std::unexpected{ application::git_cache_error{
+					application::git_cache_failure::process_failure,
+					"error: Could not read " + std::string{ core::canonical_hex(oid<core::git_commit_oid>(10U)).view() }
+						+ "\nfatal: Failed to traverse parents of commit "
+						+ std::string{ core::canonical_hex(aRequest.Session.Binding.HeadOid).view() } + "\n" } };
+			}
+			if (State.WorkspaceResult) {
+				return *State.WorkspaceResult;
 			}
 			return std::unexpected{ application::git_cache_failure::invalid_request };
 		}
@@ -2049,9 +2069,37 @@ namespace {
 		std::vector<core::git_commit_oid> Held;
 	};
 
+	/// [[BPR-PENDING-AO]]. A snapshot the host holds until the workspace is made.
+	class fake_workspace_snapshot final : public application::git_workspace_snapshot
+	{
+	public:
+		explicit fake_workspace_snapshot(const core::git_commit_oid& aHead)
+			: Head{ aHead }
+		{
+		}
+
+		[[nodiscard]] auto head() const noexcept -> const core::git_commit_oid& override { return Head; }
+		[[nodiscard]] auto pack() const noexcept -> const std::filesystem::path& override { return Pack; }
+		[[nodiscard]] auto pack_bytes() const noexcept -> std::uint64_t override { return 64U; }
+
+	private:
+		core::git_commit_oid  Head;
+		std::filesystem::path Pack{ "/fixture/snapshot.pack" };
+	};
+
 	class fake_transport final : public application::git_smart_transport_port
 	{
 	public:
+		[[nodiscard]] auto acquire_workspace_snapshot(const application::git_smart_workspace_snapshot_request& aRequest, std::stop_token)
+			-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_snapshot>> override
+		{
+			State.SnapshotRequests.push_back(aRequest);
+			if (State.SnapshotFailure) {
+				return std::unexpected{ application::git_smart_transport_error{ *State.SnapshotFailure } };
+			}
+			return std::make_shared<fake_workspace_snapshot>(aRequest.Head);
+		}
+
 		[[nodiscard]] auto acquire_chain_trees(const application::git_smart_chain_request& aRequest, std::stop_token)
 			-> application::git_smart_transport_result<std::shared_ptr<application::git_chain_tree_store>> override
 		{
@@ -7872,6 +7920,85 @@ namespace {
 			"workspace cleanup maps the code and preserves cache detail exactly");
 	}
 
+	/// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's commit and
+	/// trees, and no blob or parent. Its agent workspace used to be copied out
+	/// of the cache by walking the head's closure, which stopped at the first
+	/// missing parent ("Failed to traverse parents of commit"). It is now made
+	/// from the head's snapshot, fetched through the review's own lease.
+	void sparse_agent_workspace_is_made_from_the_heads_snapshot()
+	{
+		const auto run = [](fixture& aValue) {
+			auto materialized = std::optional<std::expected<application::owned_agent_workspace, application::agent_workspace_error>>{ };
+			auto done         = std::atomic_bool{ false };
+			{
+				auto caller = std::jthread{ [&] {
+					materialized = aValue.Host->materialize_agent_workspace(workspace_request_for(aValue.Host->state()), { });
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (aValue.Effects.pending() != 0U) {
+						aValue.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+			return *materialized;
+		};
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			const auto workspace        = owned_workspace_for(value.Host->state());
+			value.State.WorkspaceResult = workspace;
+			const auto head             = workspace_request_for(value.Host->state()).Session.Binding.HeadOid;
+			const auto materialized     = run(value);
+			expect(materialized.has_value() && *materialized == workspace,
+				   "a sparse review's agent workspace is made, not refused at the head's first missing parent");
+			expect(value.State.SnapshotRequests.size() == 1U && value.State.SnapshotRequests.front().Head == head
+					   && value.State.SnapshotRequests.front().Context.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees,
+				   "the head's snapshot is asked for once, for the session's exact head, through the sparse lease");
+			expect(value.State.WorkspaceSnapshots.size() == 1U && value.State.WorkspaceSnapshots.front()
+					   && value.State.WorkspaceSnapshots.front()->Head == head
+					   && value.State.WorkspaceSnapshots.front()->Pack == std::filesystem::path{ "/fixture/snapshot.pack" }
+					   && value.State.WorkspaceSnapshots.front()->Bytes == 64U,
+				   "the cache makes the workspace from that snapshot's pack");
+		}
+		for (const auto& [failure, reason] : std::array{
+				 std::pair{ application::git_smart_transport_failure::network, application::agent_workspace_unavailable_reason::connection_failed },
+				 std::pair{ application::git_smart_transport_failure::timeout, application::agent_workspace_unavailable_reason::connection_failed },
+				 std::pair{ application::git_smart_transport_failure::authentication, application::agent_workspace_unavailable_reason::sign_in_refused },
+				 std::pair{ application::git_smart_transport_failure::response_limit, application::agent_workspace_unavailable_reason::too_large },
+				 std::pair{ application::git_smart_transport_failure::unavailable, application::agent_workspace_unavailable_reason::download_failed },
+			 }) {
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.SnapshotFailure = failure;
+			const auto materialized     = run(value);
+			expect(!materialized.has_value() && materialized.error() == application::agent_workspace_failure::unavailable
+					   && materialized.error().Reason == reason && !materialized.error().Detail.empty()
+					   && value.State.WorkspaceSnapshots.empty(),
+				   "a snapshot that cannot be fetched says why, keeps the transport's words for the log, and copies nothing");
+		}
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.MissingCommits.push_back(workspace_request_for(value.Host->state()).Session.Binding.HeadOid);
+			const auto materialized = run(value);
+			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::copy_failed
+					   && value.State.SnapshotRequests.empty() && value.State.WorkspaceSnapshots.empty(),
+				   "a head the review's cache does not hold is never fetched");
+		}
+		{
+			fixture value;
+			establish_ready_comparison(value);
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			const auto materialized     = run(value);
+			expect(materialized.has_value() && value.State.SnapshotRequests.empty() && value.State.WorkspaceSnapshots.size() == 1U
+					   && !value.State.WorkspaceSnapshots.front(),
+				   "a complete review's workspace is still copied out of its cache, with no download");
+		}
+	}
+
 	void invalidated_inflight_blob_cannot_publish_bytes()
 	{
 		fixture value;
@@ -9774,6 +9901,7 @@ int main(int argc, char** argv)
 	realignment_context_is_minted_scoped_and_never_assumed();
 	invalidated_authority_cannot_materialize_retained_cache();
 	agent_workspace_failures_preserve_the_cache_diagnostic();
+	sparse_agent_workspace_is_made_from_the_heads_snapshot();
 	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();
 	stop_immediately_after_ponr_cannot_replace_committed_terminal();

@@ -3952,6 +3952,115 @@ namespace {
 		}
 	}
 
+	/// [[BPR-PENDING-AO]]. A sparse review's cache holds the head's commit and
+	/// trees and no blob or parent, as the gh transport's sparse acquisition
+	/// installs them. Copying a workspace out of it packed the head's closure
+	/// and stopped at the first missing parent. A snapshot pack of the head
+	/// alone makes a working, shallow workspace whose history ends at the head.
+	auto run_sparse_agent_workspace_contract() -> void
+	{
+		temporary_root root{ "git-sparse-agent-workspace" };
+		auto           adapter      = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, root.Path);
+		const auto     installation = adapter->installation();
+		if (installation.VersionMajor < 2U || (installation.VersionMajor == 2U && installation.VersionMinor < 44U)) {
+			return; // Older Git cannot configure sparse fsck severities.
+		}
+		const auto source = repository_path(root.Path, '1');
+		initialize_repository(*adapter, source, application::git_hash_algorithm::sha1);
+		const auto readme = run_fixture_git(source, { "hash-object", "-w", "--stdin" }, "the head's readme\n");
+		const auto code   = run_fixture_git(source, { "hash-object", "-w", "--stdin" }, "int main() { return 0; }\n");
+		const auto nested = run_fixture_git(source, { "mktree" }, "100644 blob " + code + "\tmain.cpp\n");
+		const auto tree   = run_fixture_git(source, { "mktree" }, "100644 blob " + readme + "\tREADME.md\n040000 tree " + nested + "\tsrc\n");
+		const auto parent = run_fixture_git(source, { "commit-tree", tree }, "parent the review never fetched\n");
+		const auto head   = run_fixture_git(source, { "commit-tree", tree, "-p", parent }, "head\n");
+
+		// The sparse cache: the head's commit and trees, as the review holds them.
+		const auto cache       = repository_path(root.Path, '2');
+		const auto sparsePack  = root.Path / "sparse";
+		const auto sparseHex   = run_fixture_git(source, { "pack-objects", sparsePack.string() }, head + "\n" + tree + "\n" + nested + "\n");
+		const auto sparseBytes = read_text(sparsePack.string() + "-" + sparseHex + ".pack");
+		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
+		const auto operation = make_operation(0x91U);
+		write_spool(*adapter, operation, std::as_bytes(std::span{ sparseBytes }));
+		const auto imported = adapter->index_sparse_pack(
+			{
+				.Repository        = cache,
+				.Operation         = operation,
+				.SpoolBytes        = sparseBytes.size(),
+				.MaximumInputBytes = sparseBytes.size(),
+				.ExpectedPack      = object<application::git_pack_id>(sparseHex, application::git_hash_algorithm::sha1),
+			},
+			{ });
+		require(imported.has_value(), "the sparse cache holds the head's commit and trees");
+
+		// The snapshot: the same commit, its trees and its blobs, still no parent.
+		const auto snapshotDirectory = root.Path / "snapshot";
+		std::filesystem::create_directory(snapshotDirectory);
+		std::filesystem::permissions(snapshotDirectory, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		const auto snapshotHex  = run_fixture_git(source, { "pack-objects", (snapshotDirectory / "snapshot").string() },
+												  head + "\n" + tree + "\n" + nested + "\n" + readme + "\n" + code + "\n");
+		const auto snapshotPack = snapshotDirectory / ("snapshot-" + snapshotHex + ".pack");
+		std::filesystem::remove(snapshotDirectory / ("snapshot-" + snapshotHex + ".idx"));
+		std::filesystem::permissions(snapshotPack, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+									 std::filesystem::perm_options::replace);
+
+		temporary_root workspaceParent{ "git-sparse-agent-workspace-parent" };
+		const auto     headOid   = core::git_commit_oid{ core::git_hash_algorithm::sha1,
+														 object<application::git_commit_id>(head, application::git_hash_algorithm::sha1).Digest };
+		const auto     authority = workspace_authority();
+		const auto     request   = [&](const std::uint64_t aSession, std::optional<application::git_workspace_snapshot_pack> aSnapshot) {
+			return application::git_agent_workspace_request{
+				.Repository      = cache,
+				.Materialization = {
+					.ApplicationSession = core::application_session_id{ 1U },
+					.Authority          = authority,
+					.Session            = {
+						.Id      = core::agent_session_id{ aSession },
+						.Profile = core::external_terminal_profile_id,
+						.Binding = {
+							.Host        = authority.Host,
+							.Repository  = authority.Repository,
+							.PullRequest = authority.PullRequest,
+							.BaseOid     = headOid,
+							.HeadOid     = headOid,
+							.LeftEpoch   = core::epoch_ordinal{ 1U },
+							.RightEpoch  = core::epoch_ordinal{ 1U },
+						},
+					},
+					.ParentDirectory = workspaceParent.Path,
+				},
+				.Snapshot = std::move(aSnapshot),
+			};
+		};
+
+		const auto copied = adapter->materialize_agent_workspace(request(1U, std::nullopt), { });
+		require(!copied.has_value() && copied.error().Detail.find("parents") != std::string::npos,
+				"copying the head's closure out of a sparse cache stops at its missing parent, as the reported failure did");
+		require(std::filesystem::is_empty(workspaceParent.Path), "the refused copy leaves no workspace behind");
+
+		const auto snapshot = application::git_workspace_snapshot_pack{
+			.Pack  = snapshotPack,
+			.Bytes = std::filesystem::file_size(snapshotPack),
+			.Head  = headOid,
+		};
+		auto other = snapshot;
+		other.Head = core::git_commit_oid{ core::git_hash_algorithm::sha1, object<application::git_commit_id>(parent, application::git_hash_algorithm::sha1).Digest };
+		require(!adapter->materialize_agent_workspace(request(2U, other), { }).has_value(), "a snapshot of another commit is refused");
+		auto misstated = snapshot;
+		misstated.Bytes += 1U;
+		require(!adapter->materialize_agent_workspace(request(3U, misstated), { }).has_value(), "a snapshot whose size is misstated is refused");
+
+		const auto made = adapter->materialize_agent_workspace(request(4U, snapshot), { });
+		require(made.has_value(), "a sparse review's workspace is made from the head's snapshot");
+		const auto workspace = std::filesystem::path{ made->Workspace.Path };
+		require(read_text(workspace / "README.md") == "the head's readme\n" && read_text(workspace / "src" / "main.cpp") == "int main() { return 0; }\n",
+				"the workspace holds every file at the head");
+		require(read_text(workspace / ".git" / "shallow") == head + "\n", "the workspace records the head as its shallow boundary");
+		require(run_fixture_git(workspace / ".git", { "rev-list", "--count", "HEAD" }) == "1",
+				"history in the workspace ends at the head instead of failing at its missing parent");
+		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the snapshot workspace cleans up normally");
+	}
+
 	auto run_fsck_severity_contract() -> void
 	{
 		const std::filesystem::path fixtures{ BPR_FSCK_SEVERITY_FIXTURE_ROOT };
@@ -4354,6 +4463,7 @@ try {
 	run_process_error_detail_contract();
 	run_fsck_severity_contract();
 	run_sparse_special_blob_contract();
+	run_sparse_agent_workspace_contract();
 #if defined(_WIN32)
 	run_windows_inherited_handle_contract();
 	// Last: it moves this process into an accounting job it cannot leave.

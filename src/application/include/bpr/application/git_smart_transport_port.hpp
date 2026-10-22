@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <span>
@@ -287,6 +288,51 @@ namespace bpr::application {
 			-> git_smart_transport_result<std::optional<core::git_blob_oid>> = 0;
 	};
 
+	/// \brief [[BPR-PENDING-AO]]. Asks for one commit's complete snapshot: the
+	/// commit, its tree and every blob it names, and no ancestor.
+	///
+	/// \details A sparse review holds its commits' trees and no blobs, so a
+	/// disposable agent workspace cannot be checked out of the cache. The host
+	/// names a commit the review's cache already holds; only a sparse
+	/// acquisition asks, because a complete one already holds every blob.
+	struct git_smart_workspace_snapshot_request
+	{
+		git_smart_request_context Context;
+		core::git_commit_oid      Head;
+	};
+
+	/// \brief Checks the request's own shape; it does not check authority.
+	[[nodiscard]] inline auto valid(const git_smart_workspace_snapshot_request& aRequest) noexcept -> bool
+	{
+		return aRequest.Head.valid() && aRequest.Head.algorithm() == core::git_hash_algorithm::sha1
+			&& aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees;
+	}
+
+	/// \brief [[BPR-PENDING-AO]]. A transient pack holding one commit's
+	/// snapshot, owned by the host until the workspace is made from it.
+	///
+	/// \details The pack names the commit as a shallow boundary: it carries
+	/// no parent, and a reader that walks history from it must treat the
+	/// commit as having none. Removed with the object.
+	class git_workspace_snapshot
+	{
+	public:
+		virtual ~git_workspace_snapshot() = default;
+
+		git_workspace_snapshot()                                                 = default;
+		git_workspace_snapshot(const git_workspace_snapshot&)                    = delete;
+		auto operator=(const git_workspace_snapshot&) -> git_workspace_snapshot& = delete;
+		git_workspace_snapshot(git_workspace_snapshot&&)                         = delete;
+		auto operator=(git_workspace_snapshot&&) -> git_workspace_snapshot&      = delete;
+
+		/// \brief The commit the pack is a snapshot of.
+		[[nodiscard]] virtual auto head() const noexcept -> const core::git_commit_oid& = 0;
+		/// \brief The absolute path of the pack file.
+		[[nodiscard]] virtual auto pack() const noexcept -> const std::filesystem::path& = 0;
+		/// \brief The pack file's exact size.
+		[[nodiscard]] virtual auto pack_bytes() const noexcept -> std::uint64_t = 0;
+	};
+
 	/// \brief Provides the git smart wire consumer contract.
 	class git_smart_wire_consumer
 	{
@@ -336,6 +382,14 @@ namespace bpr::application {
 		/// into a transient store; transports without this capability refuse.
 		[[nodiscard]] virtual auto acquire_chain_trees(const git_smart_chain_request&, std::stop_token)
 			-> git_smart_transport_result<std::shared_ptr<git_chain_tree_store>>
+		{
+			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
+
+		/// \brief [[BPR-PENDING-AO]]. Acquires one commit's complete snapshot
+		/// for an agent workspace; transports without this capability refuse.
+		[[nodiscard]] virtual auto acquire_workspace_snapshot(const git_smart_workspace_snapshot_request&, std::stop_token)
+			-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}

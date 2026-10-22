@@ -124,6 +124,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto existing_checkout_action() const noexcept -> QAction*;
 		[[nodiscard]] auto disclosure_text() const -> QString;
 		[[nodiscard]] auto status_text() const -> QString;
+		/// \brief [[BPR-PENDING-AO]]. Why the last run stopped and what to do,
+		/// in a reviewer's words, when there is more to say than its outcome.
+		[[nodiscard]] auto stop_reason_text() const -> QString;
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
@@ -155,6 +158,7 @@ namespace bpr::qt {
 		bool                                           Running                = false;
 		bool                                           Disclosed              = false;
 		std::optional<application::agent_draft_choice> OfferedDraft;
+		QString                                        StopReason;
 		std::optional<application::agent_invocation_projection_identity>
 			ActiveInvocation;
 

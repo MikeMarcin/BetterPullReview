@@ -1467,9 +1467,10 @@ namespace bpr::adapters::github::detail {
 		const validated_github_host_profile&          aProfile,
 		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
-		std::size_t aIndex, const std::uint32_t aDepth) -> std::optional<github_cli_process_request>
+		std::size_t aIndex, const std::uint32_t aDepth, const gh_cli_clone_content aContent) -> std::optional<github_cli_process_request>
 	{
 #if !defined(__APPLE__)
+		static_cast<void>(aContent);
 		static_cast<void>(aConfiguration);
 		static_cast<void>(aProfile);
 		static_cast<void>(aContext);
@@ -1482,8 +1483,11 @@ namespace bpr::adapters::github::detail {
 #else
 		// A complete clone takes no depth; a sparse one takes one generation
 		// for an epoch's commit, or the chain's (RFC-BPR-0089).
+		const auto snapshot = aContent == gh_cli_clone_content::snapshot;
 		if (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth
-			|| (aDepth != 1U && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)) {
+			|| (aDepth != 1U && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
+			|| (aContent != gh_cli_clone_content::trees && !snapshot)
+			|| (snapshot && (aDepth != 1U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
 			return std::nullopt;
 		}
 		std::error_code error;
@@ -1521,7 +1525,9 @@ namespace bpr::adapters::github::detail {
 											   "--config", "core.fsmonitor=false" };
 		if (aContext.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees) {
 			arguments.emplace_back("--depth=" + std::to_string(aDepth));
-			arguments.emplace_back("--filter=blob:none");
+			if (!snapshot) {
+				arguments.emplace_back("--filter=blob:none");
+			}
 		}
 		return constrain_gh_writes(github_cli_process_request{
 									   .Executable              = path_bytes(aConfiguration.Executable),

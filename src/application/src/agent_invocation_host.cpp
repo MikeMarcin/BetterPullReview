@@ -733,11 +733,18 @@ namespace bpr::application {
 						},
 						aInvocation->Stop->get_token());
 					if (!materialized.has_value()) {
-						finish_run(
-							{ .Session       = aInvocation->Identity.Session.Id,
-							  .Outcome       = workspace_outcome(materialized.error()),
-							  .StandardError = std::move(materialized.error().Detail) },
-							aInvocation);
+						auto failed = agent_run_result{
+							.Session       = aInvocation->Identity.Session.Id,
+							.Outcome       = workspace_outcome(materialized.error()),
+							.StandardError = std::move(materialized.error().Detail),
+						};
+						// [[BPR-PENDING-AO]]. The reason travels with the outcome
+						// so the reviewer is told what happened and what to do;
+						// Git's own text stays in the log.
+						if (failed.Outcome == agent_run_outcome::workspace_unavailable) {
+							failed.WorkspaceReason = materialized.error().Reason;
+						}
+						finish_run(std::move(failed), aInvocation);
 						return;
 					}
 					workspace     = materialized->Workspace;

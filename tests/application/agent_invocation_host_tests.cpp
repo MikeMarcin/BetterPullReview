@@ -903,6 +903,7 @@ namespace {
 		test.Workspaces.MaterializationFailure = application::agent_workspace_error{
 			application::agent_workspace_failure::unavailable,
 			diagnostic,
+			application::agent_workspace_unavailable_reason::connection_failed,
 		};
 		test.Host.observe(
 			core::application_session_id{ 1U },
@@ -920,6 +921,12 @@ namespace {
 				&& test.Projection.Finished.front().StandardError == diagnostic
 				&& test.Processes.Starts == 0U && test.Host.is_quiescent(),
 			"workspace failure retains identity and diagnostic through its typed terminal");
+		// [[BPR-PENDING-AO]]. The reason reaches the presentation with the
+		// outcome, so it can say what happened instead of the outcome's name.
+		expect(
+			test.Projection.Finished.front().WorkspaceReason
+				== std::optional{ application::agent_workspace_unavailable_reason::connection_failed },
+			"workspace failure carries its reason through its typed terminal");
 		// BPR-0348. `Starts == 0U` above already says no executable was reached,
 		// and the terminal must say the same thing. It used to answer
 		// `failed_to_start`, which sends whoever reads it to look at the agent

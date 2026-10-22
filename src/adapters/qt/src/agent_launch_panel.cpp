@@ -15,6 +15,29 @@
 #include <utility>
 
 namespace bpr::qt {
+	namespace {
+		/// \brief [[BPR-PENDING-AO]]. What a reviewer is told when the agent's
+		/// workspace could not be made: what happened, then what to do. Git's
+		/// own words stay in the log.
+		[[nodiscard]] auto workspace_stop_reason(const application::agent_workspace_unavailable_reason aReason) -> QString
+		{
+			using reason = application::agent_workspace_unavailable_reason;
+			switch (aReason) {
+			case reason::copy_failed:
+				return QStringLiteral("The agent's copy of this pull request could not be made. Reopen the pull request, then ask again.");
+			case reason::download_failed:
+				return QStringLiteral("The agent needs every file at this head, and this review holds only the files it shows. Downloading the rest failed. Ask again, or show the log for the cause.");
+			case reason::connection_failed:
+				return QStringLiteral("The agent needs every file at this head, and GitHub could not be reached to download them. Check the connection, then ask again.");
+			case reason::sign_in_refused:
+				return QStringLiteral("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then ask again.");
+			case reason::too_large:
+				return QStringLiteral("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
+			}
+			return { };
+		}
+	} // namespace
+
 	agent_launch_panel::agent_launch_panel(
 		agent_intent_dispatch aDispatch,
 		QWidget* const        aParent)
@@ -230,6 +253,7 @@ namespace bpr::qt {
 		}
 		Running = false;
 		Output->clear();
+		StopReason.clear();
 		Status->setText(
 			QStringLiteral("Not started: %1")
 				.arg(QString::fromUtf8(aReason.data(), static_cast<qsizetype>(aReason.size()))));
@@ -246,6 +270,7 @@ namespace bpr::qt {
 		}
 		ActiveInvocation = aIdentity;
 		Output->clear();
+		StopReason.clear();
 		Status->setText(QStringLiteral("Preparing agent invocation"));
 		set_running(true);
 	}
@@ -292,6 +317,9 @@ namespace bpr::qt {
 					QString::fromStdString(aResult.StandardError));
 			}
 		}
+		StopReason = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
+			? workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed))
+			: QString{ };
 		Status->setText(
 			QStringLiteral("Finished: %1")
 				.arg(QString::fromUtf8(application::name(aResult.Outcome))));
@@ -380,6 +408,11 @@ namespace bpr::qt {
 	auto agent_launch_panel::status_text() const -> QString
 	{
 		return Status->text();
+	}
+
+	auto agent_launch_panel::stop_reason_text() const -> QString
+	{
+		return StopReason;
 	}
 
 	auto agent_launch_panel::output_text() const -> QString

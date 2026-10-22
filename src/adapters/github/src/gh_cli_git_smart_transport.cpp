@@ -405,6 +405,31 @@ namespace bpr::adapters::github::detail {
 			std::mutex                               Mutex;
 		};
 
+		/// \brief [[BPR-PENDING-AO]]. One commit's snapshot pack, kept in the
+		/// transport's private temporary root until the host lets it go.
+		class gh_cli_workspace_snapshot final : public git_workspace_snapshot
+		{
+		public:
+			gh_cli_workspace_snapshot(std::unique_ptr<QTemporaryDir> aDirectory, const core::git_commit_oid& aHead, std::filesystem::path aPack,
+									  const std::uint64_t aBytes)
+				: Directory{ std::move(aDirectory) }
+				, Head{ aHead }
+				, Pack{ std::move(aPack) }
+				, Bytes{ aBytes }
+			{
+			}
+
+			[[nodiscard]] auto head() const noexcept -> const core::git_commit_oid& override { return Head; }
+			[[nodiscard]] auto pack() const noexcept -> const std::filesystem::path& override { return Pack; }
+			[[nodiscard]] auto pack_bytes() const noexcept -> std::uint64_t override { return Bytes; }
+
+		private:
+			std::unique_ptr<QTemporaryDir> Directory;
+			core::git_commit_oid           Head;
+			std::filesystem::path          Pack;
+			std::uint64_t                  Bytes = 0U;
+		};
+
 		class gh_cli_git_smart_transport final : public git_smart_transport_port, public viewer_named_blob_reader
 		{
 		public:
@@ -740,6 +765,35 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
+			/// \brief [[BPR-PENDING-AO]]. Clones one commit with every blob and no
+			/// ancestor, under the same qualification, identity observations and
+			/// bounds as an epoch's sparse acquisition, and packs it for an agent
+			/// workspace.
+			auto acquire_workspace_snapshot(const git_smart_workspace_snapshot_request& aRequest, std::stop_token aStop)
+				-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>> override
+			{
+				std::lock_guard lock{ Mutex };
+				auto            step = git_smart_transport_step::admission;
+				if (const auto error = admission(aRequest.Context, aStop)) {
+					return std::unexpected{ git_smart_transport_error{ *error, step } };
+				}
+				if (!application::valid(aRequest)) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::stop_source   stop;
+				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
+				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
+				try {
+					auto result = acquire_snapshot(aRequest.Head, stop.get_token(), step);
+					if (!result) {
+						result.error().Step = step;
+					}
+					return result;
+				} catch (...) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable, step } };
+				}
+			}
+
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)
 				-> git_smart_transport_result<void> override
 			{
@@ -957,6 +1011,128 @@ namespace bpr::adapters::github::detail {
 					}
 				}
 				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Git, std::move(process), aRequest.Commits);
+			}
+
+			/// \brief [[BPR-PENDING-AO]]. A sparse review's cache holds no blobs, so
+			/// an agent workspace's files come from this one-generation clone.
+			/// The pack names the commit as a shallow boundary: its parents are
+			/// never sent, and nothing that reads it walks past the commit.
+			auto acquire_snapshot(const core::git_commit_oid& aHead, std::stop_token aStop, git_smart_transport_step& aStep)
+				-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>>
+			{
+				aStep          = git_smart_transport_step::temporary_store;
+				auto directory = std::make_unique<QTemporaryDir>(QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX"));
+				if (!directory->isValid()) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				const std::filesystem::path root{ directory->path().toStdString() };
+				std::filesystem::create_directory(root / "empty");
+				aStep        = git_smart_transport_step::process_runner;
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
+				if (!process) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				process->set_insights_channel(Insights);
+				if (auto qualified = qualify(*process, root, aStop, aStep, true); !qualified) {
+					return std::unexpected{ qualified.error() };
+				}
+				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
+				if (!credential) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
+				}
+				{
+					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+					identity.set_insights_channel(Insights);
+					aStep             = git_smart_transport_step::identity_before;
+					const auto before = viewer(identity, aStop);
+					if (!before) {
+						return std::unexpected{ before.error() };
+					}
+					aStep = git_smart_transport_step::admission;
+					if (const auto error = admission(Context, aStop)) {
+						return std::unexpected{ git_smart_transport_error{ *error } };
+					}
+					aStep                 = git_smart_transport_step::clone;
+					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aHead, Git, root, 0U, 1U, gh_cli_clone_content::snapshot);
+					if (!invocation) {
+						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+					}
+					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
+					if (!cloneProcess) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					cloneProcess->set_insights_channel(Insights);
+					const auto cloned = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
+					if (!cloned) {
+						return std::unexpected{ git_smart_transport_error{ process_error(cloned.error()) } };
+					}
+					if (cloned->ExitCode != 0) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					aStep            = git_smart_transport_step::identity_after;
+					const auto after = viewer(identity, aStop);
+					if (!after) {
+						return std::unexpected{ after.error() };
+					}
+					if (before->Account != after->Account || before->Login != after->Login) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+					}
+				}
+				aStep             = git_smart_transport_step::object_check;
+				const auto store  = gh_cli_git_clone_store(root, 0U);
+				const auto hex    = std::string{ core::canonical_hex(aHead).view() };
+				const auto scope  = "--git-dir=" + store.string();
+				const auto commit = process->run(local_request(root, { scope, "cat-file", "-t", hex }), aStop);
+				const auto tree   = process->run(local_request(root, { scope, "cat-file", "-t", hex + "^{tree}" }), aStop);
+				if (!commit || !tree) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::malformed_response } };
+				}
+				if (commit->ExitCode != 0 || tree->ExitCode != 0 || commit->StandardOutput != "commit\n" || tree->StandardOutput != "tree\n") {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				// The commit is the boundary whatever the clone recorded, so the
+				// pack below carries no parent even where the clone has one.
+				aStep = git_smart_transport_step::local_store;
+				{
+					std::ofstream shallow{ store / "shallow", std::ios::binary | std::ios::trunc };
+					shallow << hex << '\n';
+					shallow.close();
+					if (!shallow) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+				}
+				aStep                  = git_smart_transport_step::local_pack;
+				const auto spool       = root / "snapshot.pack";
+				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false });
+				if (!packProcess) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				const auto      packed = packProcess->run(local_request(root, { scope, "pack-objects", "--stdout", "--revs", "--quiet" }, hex + "\n"), aStop);
+				std::error_code sizeError;
+				const auto      bytes = std::filesystem::file_size(spool, sizeError);
+				if (!packed || packed->ExitCode != 0) {
+					if (!sizeError && bytes >= pack_limit) {
+						return std::unexpected{ git_smart_transport_error{ failure::response_limit } };
+					}
+					return std::unexpected{ git_smart_transport_error{ packed ? failure::unavailable : process_error(packed.error()) } };
+				}
+				aStep = git_smart_transport_step::pack_read;
+				std::array<char, 4> magic{ };
+				{
+					std::ifstream pack{ spool, std::ios::binary };
+					pack.read(magic.data(), magic.size());
+					if (sizeError || bytes < 32U || !pack || std::string_view{ magic.data(), magic.size() } != "PACK") {
+						return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+					}
+				}
+				// The workspace reads it as an owner-private file only.
+				std::filesystem::permissions(spool, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write,
+											 std::filesystem::perm_options::replace, sizeError);
+				if (sizeError) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				return std::make_shared<gh_cli_workspace_snapshot>(std::move(directory), aHead, spool, bytes);
 			}
 
 			/// \brief Proves this `gh` and Git, by version and local help, before

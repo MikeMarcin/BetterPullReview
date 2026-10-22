@@ -5,6 +5,7 @@
 #include "github_paged_read.hpp"
 #include "github_provider.hpp"
 #include <QCoreApplication>
+#include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
@@ -518,7 +519,7 @@ namespace {
 			std::cout << "HTTP/2.0 200 OK\r\nContent-Type: application/json\r\nX-RateLimit-Limit: 5000\r\nX-RateLimit-Remaining: 4999\r\nX-RateLimit-Used: 1\r\nX-RateLimit-Reset: 2000000000\r\nX-RateLimit-Resource: core\r\n\r\n{\"id\":" << (switched ? 999 : 203) << ",\"node_id\":\"U_fixture\",\"login\":\"fixture\",\"name\":\"Fixture\"}";
 			return 0;
 		}
-		if ((aArguments.size() == 19 || aArguments.size() == 21) && aArguments[1] == "repo" && aArguments[2] == "clone") {
+		if ((aArguments.size() == 19 || aArguments.size() == 20 || aArguments.size() == 21) && aArguments[1] == "repo" && aArguments[2] == "clone") {
 			if (std::filesystem::exists(root / "fail-clone")) {
 				return 1;
 			}
@@ -534,6 +535,11 @@ namespace {
 			// fake records how many and keeps every commit it was asked for.
 			const auto chainDepth = aArguments.size() == 21 && aArguments[19].startsWith("--depth=") && aArguments[19] != "--depth=1";
 			if (aArguments.size() == 21 && ((!chainDepth && aArguments[19] != "--depth=1") || aArguments[20] != "--filter=blob:none")) {
+				return 6;
+			}
+			// [[BPR-PENDING-AO]]. A workspace snapshot asks for one generation
+			// with every blob.
+			if (aArguments.size() == 20 && aArguments[19] != "--depth=1") {
 				return 6;
 			}
 			if (chainDepth) {
@@ -1559,6 +1565,49 @@ namespace {
 			expect(!missing && missing.error().Failure == application::git_smart_transport_failure::response_limit,
 				   "a chain commit the clone did not bring refuses the store");
 			std::filesystem::remove(root / "chain-omitted");
+		}
+		{
+			// [[BPR-PENDING-AO]]. An agent workspace's snapshot: one generation
+			// with every blob, packed with the head as its shallow boundary.
+			const auto commitOf = [](const QString& aHex) { return *core::parse_git_commit_oid(aHex.toStdString()); };
+			const auto request  = application::git_smart_workspace_snapshot_request{ .Context = sparseContext, .Head = commitOf(head) };
+			{
+				QTemporaryDir cloneTemporary{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
+				const auto    cloneRoot = std::filesystem::canonical(cloneTemporary.path().toStdString());
+				const auto    clone     = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U,
+																		   gh_cli_clone_content::snapshot);
+				const auto    deep      = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 2U,
+																		   gh_cli_clone_content::snapshot);
+				const auto    complete  = compile_gh_cli_git_clone_request(*configuration, *profile, context, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U,
+																		   gh_cli_clone_content::snapshot);
+				expect(clone && std::ranges::find(clone->Arguments, std::string{ "--depth=1" }) != clone->Arguments.end()
+						   && std::ranges::find(clone->Arguments, std::string{ "--filter=blob:none" }) == clone->Arguments.end() && !deep && !complete,
+					   "the snapshot clone asks for one generation with blobs; deeper, or for a complete review, it is refused");
+			}
+			auto snapshot = (*sparseTransport)->acquire_workspace_snapshot(request, { });
+			expect(snapshot && *snapshot && (*snapshot)->head() == commitOf(head), "the head's snapshot is acquired through the sparse lease");
+			const auto snapshotPack = (*snapshot)->pack();
+			expect(snapshotPack.is_absolute() && std::filesystem::file_size(snapshotPack) == (*snapshot)->pack_bytes()
+					   && (std::filesystem::status(snapshotPack).permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all))
+						   == std::filesystem::perms::none,
+				   "the snapshot is one owner-private pack of the size it states");
+			QFile packFile{ QString::fromStdString(snapshotPack.string()) };
+			expect(packFile.open(QIODevice::ReadOnly), "the snapshot pack can be read");
+			const auto snapshotBytes  = packFile.readAll();
+			const auto snapshotVerify = root / "snapshot-verify.git";
+			git(root, { "init", "--bare", QString::fromStdString(snapshotVerify.string()) });
+			const auto snapshotScope = "--git-dir=" + QString::fromStdString(snapshotVerify.string());
+			git(root, { snapshotScope, "index-pack", "--stdin" }, snapshotBytes);
+			const auto snapshotInventory = git(root, { snapshotScope, "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)" });
+			expect(snapshotInventory.count("commit") == 1 && snapshotInventory.contains("blob"), "the snapshot carries the head and its blobs, and no ancestor");
+			expect(git(root, { snapshotScope, "cat-file", "-p", QString::fromUtf8(head) + ":file.txt" }) == "changed local contents"
+					   && git(root, { snapshotScope, "cat-file", "-p", QString::fromUtf8(head) + ":secondary.txt" }) == "secondary head contents",
+				   "every file at the head is in the snapshot");
+			auto completeRequest    = request;
+			completeRequest.Context = context;
+			expect(!(*sparseTransport)->acquire_workspace_snapshot(completeRequest, { }), "a complete review never asks for a snapshot");
+			snapshot = std::unexpected{ application::git_smart_transport_error{ } };
+			expect(!std::filesystem::exists(snapshotPack), "the snapshot's pack goes with it");
 		}
 		const auto expectCliRefusal = [&](std::string_view aWhy, application::git_smart_transport_step aStep, application::git_smart_transport_failure aFailure) {
 			// The sandboxed fake cannot record calls, so a viewer read or clone

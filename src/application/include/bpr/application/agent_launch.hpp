@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 
+#include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
@@ -520,6 +521,8 @@ namespace bpr::application {
 		std::optional<int>              ExitCode;
 		/// Exact decoder cause when `Outcome` is `protocol_failure`.
 		std::optional<agent_protocol_failure> ProtocolFailure;
+		/// [[BPR-PENDING-AO]]. Why, when `Outcome` is `workspace_unavailable`.
+		std::optional<agent_workspace_unavailable_reason> WorkspaceReason;
 		/// The turn's decoded findings, before any verdict. Absent when the
 		/// turn returned none. Unlike `Events` this survives a stale
 		/// finalization, because a payload the reviewer can no longer act on
