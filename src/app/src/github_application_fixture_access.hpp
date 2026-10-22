@@ -432,6 +432,10 @@ namespace bpr::app::detail {
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.
 		std::optional<claude_search_environment> ClaudeSearch;
+		/// [[BPR-PENDING-AQ1]]. Where the shipped bare `codex` is looked for,
+		/// as `ClaudeSearch` is for `claude`. Absent, the application's
+		/// environment and Codex's usual folders are searched, as shipped.
+		std::optional<claude_search_environment> CodexSearch;
 		std::optional<std::filesystem::path>     GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.

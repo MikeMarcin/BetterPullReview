@@ -96,6 +96,7 @@
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+	#include "bpr/application/agent_program_resolution.hpp"
 	#include "bpr/application/claude_process_wrapper.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
@@ -5165,6 +5166,7 @@ namespace bpr::app {
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
 				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 				ClaudeSearch            = aFixtureOptions.ClaudeSearch;
+				CodexSearch             = aFixtureOptions.CodexSearch;
 				RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;
 				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
@@ -6521,6 +6523,7 @@ namespace bpr::app {
 		std::optional<std::filesystem::path>             CodexAgentExecutable;
 		std::optional<std::filesystem::path>             ClaudeAgentExecutable;
 		std::optional<detail::claude_search_environment> ClaudeSearch;
+		std::optional<detail::claude_search_environment> CodexSearch;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool UseGrantedNotificationSink = false;
@@ -8268,7 +8271,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
 																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder }, nullptr,
 #if defined(BPR_AGENT_INTEGRATIONS)
-																  ClaudeWrapperSource, locate_claude()
+																  ClaudeWrapperSource, locate_claude(), AgentProgramSource, locate_agent_program()
 #else
 																  nullptr
 #endif
@@ -8826,10 +8829,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (AgentProcessProbe != nullptr) {
 				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+				// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. Codex and the plain-text
+				// harness get an absolute program here, in front of the Claude
+				// wrapper, so a shipped build starts them.
+				LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
 			}
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 	#else
-			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+			ClaudeProcess  = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+			LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
 	#endif
 			{
 				// BPR-0532. The re-alignment a continued turn asks for, served
@@ -8846,7 +8854,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-					*ClaudeProcess,
+					*LocatedProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -11315,6 +11323,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto path = qEnvironmentVariable(std::string{ core::agent_search_path_variable() }.c_str()).toStdString();
 				const auto home = QDir::toNativeSeparators(QDir::homePath()).toStdString();
 				return adapters::agent::locate_claude(path, std::string_view{ home });
+			};
+		}
+
+		/// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5 (owner, 2026-10-22). Finds the
+		/// `codex` a Codex launch with no saved program runs, exactly as
+		/// `locate_claude` finds `claude`: this application's own `PATH` and
+		/// home folder as they are when asked, and Codex's usual folders.
+		[[nodiscard]] auto locate_agent_program() const -> application::agent_program_locator
+		{
+	#if defined(BPR_BUILD_TESTING)
+			// A fixture course finds only what it put on its own search PATH,
+			// never the developer's own `codex`.
+			if (CodexSearch || ClaudeSearch || Fixture) {
+				return [codex = CodexSearch, claude = ClaudeSearch](const core::agent_program aProgram) -> std::optional<core::agent_search_candidate> {
+					const auto& search = aProgram == core::agent_program::codex ? codex : claude;
+					if (!search) {
+						return std::nullopt;
+					}
+					return adapters::agent::locate_agent_program(aProgram, search->PathVariable, std::span<const std::string>{ search->UsualFolders });
+				};
+			}
+	#endif
+			return [](const core::agent_program aProgram) {
+				const auto path = qEnvironmentVariable(std::string{ core::agent_search_path_variable() }.c_str()).toStdString();
+				const auto home = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+				return adapters::agent::locate_agent_program(aProgram, path, std::string_view{ home });
 			};
 		}
 #endif
@@ -21762,6 +21796,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
+		decltype(github_profile_runtime::CodexSearch)&                            CodexSearch                            = Profile->CodexSearch;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;
@@ -21930,7 +21965,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// holds the port, so the port outlives it.
 		std::shared_ptr<application::claude_process_wrapper_source> ClaudeWrapperSource = std::make_shared<application::claude_process_wrapper_source>();
 		std::unique_ptr<application::wrapped_claude_process>        ClaudeProcess;
-		std::unique_ptr<application::claude_wrapper_editor>         ClaudeWrapperEditor;
+		/// [[BPR-PENDING-AQ1]]. The Codex and plain-text harness programs this
+		/// window's profile saved, and the port that gives those launches an
+		/// absolute program.
+		std::shared_ptr<application::agent_program_source>  AgentProgramSource = std::make_shared<application::agent_program_source>();
+		std::unique_ptr<application::located_agent_process> LocatedProcess;
+		std::unique_ptr<application::claude_wrapper_editor> ClaudeWrapperEditor;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

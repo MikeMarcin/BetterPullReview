@@ -3,6 +3,7 @@
 
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_program_resolution.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/claude_process_wrapper.hpp"
 #include "bpr/application/github_publication_port.hpp"
@@ -79,7 +80,8 @@ namespace bpr::app {
 		/// manual lanes names its lane here.
 		review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, core::bpr_profile_id aProfile, application::effect_executor& aEffects,
 							 application::decision_executor& aDecisions, review_cycle_syntax aSyntax = { }, application::effect_executor* aCaptures = nullptr,
-							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr, application::claude_locator aLocateClaude = { });
+							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr, application::claude_locator aLocateClaude = { },
+							 std::shared_ptr<const application::agent_program_source> aPrograms = nullptr, application::agent_program_locator aLocatePrograms = { });
 		~review_cycle_desktop() override;
 		review_cycle_desktop(const review_cycle_desktop&)                    = delete;
 		auto operator=(const review_cycle_desktop&) -> review_cycle_desktop& = delete;
@@ -184,7 +186,10 @@ namespace bpr::app {
 		/// with the agent integrations; an agent-free build has neither.
 		/// [[BPR-1301]]. The supervised launcher, and in front of it the port
 		/// that points a Claude send at the window's profile wrapper.
-		std::unique_ptr<application::agent_process_port>     SendLauncher;
+		std::unique_ptr<application::agent_process_port> SendLauncher;
+		/// [[BPR-PENDING-AQ1]]. The Claude wrapper's port, in front of which
+		/// `SendProcesses` gives Codex and the plain-text harness a program.
+		std::unique_ptr<application::agent_process_port>     SendClaude;
 		std::unique_ptr<application::agent_process_port>     SendProcesses;
 		std::unique_ptr<worker_executor>                     SendLane;
 		std::shared_ptr<application::review_cycle_sender>    Sender;

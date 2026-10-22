@@ -708,6 +708,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_queue_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_workshop_construction_cut_contract": "dos-volume-name",
+    # [[BPR-PENDING-AQ1]]. The positive course with the shipped bare codex found
+    # on its own search PATH; the same composed course as its siblings.
+    "application_agent_finding_codex_found_contract": "unmeasured (registered on macOS)",
     "application_agent_invocation_staleness_contract": "dos-volume-name",
     "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
     "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",

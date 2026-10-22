@@ -106,6 +106,7 @@ add_library(
         src/agent_finding_promotion.cpp
         src/agent_profile.cpp
         src/agent_wrapper.cpp
+        src/agent_setup.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
         src/home_ignore.cpp

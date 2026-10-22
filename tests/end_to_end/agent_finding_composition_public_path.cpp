@@ -409,7 +409,13 @@ auto main(int argc, char** argv) -> int
 		report_failure("arguments", "expected=<course> <canary>");
 		return EXIT_FAILURE;
 	}
-	const auto course = std::string_view{ argv[1] };
+	// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. The codex-found course is the
+	// positive course with no fixture executable: the Codex profile names the
+	// shipped bare `codex`, and the only `codex` is the canary, put on the
+	// course's own search PATH under that name. A shipped build that hands the
+	// bare name to the launcher starts nothing and fails this course.
+	const auto codexFound = std::string_view{ argv[1] } == "codex-found";
+	const auto course     = codexFound ? std::string_view{ "positive" } : std::string_view{ argv[1] };
 	if (
 		course != "positive" && course != "full-agent"
 		&& course != "finding-host-construction-cut"
@@ -450,6 +456,19 @@ auto main(int argc, char** argv) -> int
 	const auto noAgent         = course == "workshop-guidance-no-agent";
 	const auto agentExecutable
 		= noAgent ? dataRoot / "no-agent-installed" / "codex" : std::filesystem::path{ argv[2] };
+	auto codexSearch = std::optional<app::detail::claude_search_environment>{ };
+	if (codexFound) {
+		const auto folder = dataRoot / "codex-search";
+		auto       error  = std::error_code{ };
+		std::filesystem::create_directory(folder, error);
+		std::filesystem::copy_file(agentExecutable, folder / "codex", error);
+		if (error) {
+			report_failure("codex-search-copy", error.message());
+			return EXIT_FAILURE;
+		}
+		std::filesystem::permissions(folder / "codex", std::filesystem::perms::owner_all, error);
+		codexSearch = app::detail::claude_search_environment{ .PathVariable = folder.string() };
+	}
 
 	std::unique_ptr<app::github_application> application;
 	auto                                     startupTerminal = false;
@@ -467,7 +486,8 @@ auto main(int argc, char** argv) -> int
 			= course == "chat-panel-construction-cut",
 			.DisableFindingQueueComposition
 			= course == "queue-construction-cut",
-			.CodexAgentExecutable = agentExecutable,
+			.CodexAgentExecutable = codexFound ? std::optional<std::filesystem::path>{ } : std::optional{ agentExecutable },
+			.CodexSearch          = codexSearch,
 			.LabelHelper          = guidanceCourse,
 		},
 		[&](auto aResult) {
@@ -1662,7 +1682,7 @@ auto main(int argc, char** argv) -> int
 			if (!shutdown(*application) || !exact) {
 				return EXIT_FAILURE;
 			}
-			std::cout << "agent-finding-composition:pass\n";
+			std::cout << (codexFound ? "agent-finding-codex-found:pass\n" : "agent-finding-composition:pass\n");
 			return EXIT_SUCCESS;
 		}
 		// The full-agent half. The launch above is the full agent session: a

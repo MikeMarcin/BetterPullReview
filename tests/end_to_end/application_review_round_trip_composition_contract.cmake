@@ -1,3 +1,19 @@
+# [[BPR-PENDING-AQ1]] reseal (2026-10-22) over last matching main 92162efed,
+# linear, on this card's commit. Pinned-scope change, RFC-BPR-0091 Q5 (owner,
+# 2026-10-22): github_application.cpp, agent builds only, puts
+# application::located_agent_process in front of the Claude wrapper port, so
+# a Codex or plain-text harness request that names its shipped bare program
+# (codex, bpr-agent-terminal) runs the profile's saved program or, for Codex
+# alone, the codex the agent adapter finds now on this application's PATH or
+# in Codex's usual folders (locate_agent_program); none found ends the request
+# failed_to_start and starts nothing. A request already naming its program by
+# path, and every Claude request, passes through unchanged. Tests-on only: the
+# fixture's CodexSearch, and a fixture course never finds the developer's own
+# codex. review_cycle_desktop.{hpp,cpp} take the same source and locator for
+# Send to Agent. No shell, grant, target, provider, credential, child
+# environment, mutation or publication path changes; host policy unchanged;
+# no new src/app source. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
 # Upkeep reseal (2026-10-23): the only src/app change since the BPR-1746 note below
 # is renaming its [[BPR-PENDING-AX]] comment tags to [[BPR-1746]]; no code change.
 # [[BPR-1746]] reseal (2026-10-23) over last matching main b8d2ec6cf,

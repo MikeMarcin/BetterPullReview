@@ -234,7 +234,9 @@ namespace bpr::app {
 	review_cycle_desktop::review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, const core::bpr_profile_id aProfile,
 											   application::effect_executor& aEffects, application::decision_executor& aDecisions, const review_cycle_syntax aSyntax,
 											   application::effect_executor* aCaptures, [[maybe_unused]] std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper,
-											   [[maybe_unused]] application::claude_locator aLocateClaude)
+											   [[maybe_unused]] application::claude_locator                              aLocateClaude,
+											   [[maybe_unused]] std::shared_ptr<const application::agent_program_source> aPrograms,
+											   [[maybe_unused]] application::agent_program_locator                       aLocatePrograms)
 		: Window{ aWindow }
 		, Source{ adapters::workspace::make_local_workspace_source() }
 		, ProfileRoot{ aProfileRoot }
@@ -357,9 +359,13 @@ namespace bpr::app {
 		// [[BPR-1301]]. A Claude send runs the profile's wrapper when one is
 		// saved, exactly as every other Claude launch of the window does, and
 		// with none saved the claude found on PATH (owner, 2026-10-07).
-		SendLauncher  = std::make_unique<adapters::agent::agent_process_launcher>();
-		SendProcesses = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper,
-																			  std::move(aLocateClaude));
+		SendLauncher = std::make_unique<adapters::agent::agent_process_launcher>();
+		SendClaude   = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper,
+																			 std::move(aLocateClaude));
+		// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. A Codex or plain-text harness
+		// send runs the program the window's launches run.
+		SendProcesses = std::make_unique<application::located_agent_process>(*SendClaude, std::move(aPrograms), &adapters::agent::inspect_claude_process_wrapper,
+																			 std::move(aLocatePrograms));
 		SendLane      = std::make_unique<worker_executor>();
 		Sender        = std::make_shared<application::agent_round_sender>(*SendProcesses, [](const std::string& aName) -> std::optional<std::string> {
 			if (!qEnvironmentVariableIsSet(aName.c_str())) {

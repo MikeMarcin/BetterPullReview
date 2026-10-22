@@ -132,6 +132,40 @@ namespace bpr::core {
 	/// the first that is an executable regular file.
 	[[nodiscard]] auto claude_search_candidates(std::string_view aPathVariable, std::span<const std::string> aUsualFolders, agent_wrapper_platform aPlatform)
 		-> std::vector<claude_search_candidate>;
+
+	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5 (owner, 2026-10-22). The
+	/// programs a launch with no saved path looks for. The plain-text harness
+	/// is not one: it runs only a program path the reviewer chose.
+	enum class agent_program : std::uint8_t {
+		claude,
+		codex,
+	};
+
+	/// \brief Where a searched-for program was found. One answer for every
+	/// program, so `claude_found_in` keeps its name for the Claude rows.
+	using agent_found_in = claude_found_in;
+
+	/// \brief One place to look for a program, in search order.
+	using agent_search_candidate = claude_search_candidate;
+
+	/// \brief [[BPR-PENDING-AQ1]]. The fixed usual install folders a Codex
+	/// launch searches after `PATH`, in order.
+	///
+	/// \details As for Claude, a macOS application opened from the Finder gets
+	/// a `PATH` that holds none of them. On POSIX: `HOME/.local/bin`,
+	/// `/opt/homebrew/bin` and `/usr/local/bin` (Homebrew, and npm's global
+	/// folder under a Homebrew or installer Node) and `HOME/.npm-global/bin`.
+	/// On Windows `HOME\.local\bin`; npm's `codex.cmd` is a script and never
+	/// runs. A `HOME` folder is left out when `aHome` is not absolute.
+	[[nodiscard]] auto usual_codex_folders(std::string_view aHome, agent_wrapper_platform aPlatform) -> std::vector<std::string>;
+
+	/// \brief [[BPR-PENDING-AQ1]]. The ordered places a launch of `aProgram`
+	/// with no saved path looks for it: `aPathVariable`'s entries, then
+	/// `aUsualFolders`, under exactly the rules `claude_search_candidates`
+	/// states, with the program's own name (`codex`, or `codex.exe` on
+	/// Windows).
+	[[nodiscard]] auto agent_search_candidates(agent_program aProgram, std::string_view aPathVariable, std::span<const std::string> aUsualFolders,
+											   agent_wrapper_platform aPlatform) -> std::vector<agent_search_candidate>;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_WRAPPER_HPP

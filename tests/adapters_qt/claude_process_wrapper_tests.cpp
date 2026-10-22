@@ -14,6 +14,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_program_resolution.hpp"
 #include "bpr/application/claude_process_wrapper.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 
@@ -485,6 +486,53 @@ namespace {
 		expect(counted.Runs == runs, "and nothing is started");
 	}
 
+	/// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. The shipped bare `codex` through
+	/// the real launcher: alone it never starts, which is the defect; through
+	/// `located_agent_process` the codex found on a scratch PATH runs with
+	/// Codex's exact launch. The plain-text harness with no program chosen
+	/// starts nothing.
+	void test_found_codex_through_the_launcher(const std::filesystem::path& aRoot)
+	{
+		const auto folder = aRoot / "codex-path";
+		std::filesystem::create_directories(folder);
+		const auto codex    = copy_canary(folder, "codex");
+		const auto entries  = text(folder);
+		auto       source   = std::make_shared<application::agent_program_source>();
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		auto       counted  = counting_port{ launcher };
+		auto       located  = application::located_agent_process{ counted, source, &adapters::agent::inspect_claude_process_wrapper,
+																  [entries](const core::agent_program aProgram) {
+															   return adapters::agent::locate_agent_program(aProgram, entries, std::span<const std::string>{ });
+														   } };
+		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::codex_app_server }) {
+			const auto shipped = build(entry::round_send, claude_profile("codex", protocol), aRoot);
+			const auto bare    = launcher.run(shipped, 20'000);
+			expect(bare.Outcome == application::agent_run_outcome::failed_to_start, "the launcher alone never starts the shipped bare codex");
+			const auto before = counted.Runs;
+			const auto now    = located.run(shipped, 20'000);
+			expect(counted.Runs == before + 1U && counted.Executables.back() == text(codex), "the one process started is the found codex, by its absolute path");
+			const auto argv = event_values(now, "argv");
+			expect(!argv.empty() && argv.front() == text(codex), "the child is the found codex");
+			const auto today   = build(entry::round_send, claude_profile(BPR_AGENT_CANARY_EXECUTABLE, protocol), aRoot);
+			const auto was     = launcher.run(today, 20'000);
+			const auto argvWas = event_values(was, "argv");
+			expect(argv.size() == argvWas.size() && std::equal(argv.begin() + 1, argv.end(), argvWas.begin() + 1), "it gets exactly Codex's arguments");
+		}
+		const auto runs    = counted.Runs;
+		const auto harness = located.run(build(entry::round_send, claude_profile("bpr-agent-terminal", core::agent_protocol::external_terminal), aRoot), 20'000);
+		expect(harness.Outcome == application::agent_run_outcome::failed_to_start && harness.StandardError == application::plain_text_harness_unset_message,
+			   "the plain-text harness with no program chosen ends as not started");
+		expect(counted.Runs == runs, "and starts nothing");
+		const auto chosen = copy_canary(aRoot, "corp-harness");
+		source->set(core::setup_agent::plain_text_harness, text(chosen));
+		const auto ran = located.run(build(entry::round_send, claude_profile("bpr-agent-terminal", core::agent_protocol::external_terminal), aRoot), 20'000);
+		expect(counted.Executables.back() == text(chosen) && !event_values(ran, "argv").empty(), "the chosen harness program runs");
+		std::filesystem::remove(codex);
+		const auto gone = located.run(build(entry::round_send, claude_profile("codex", core::agent_protocol::codex_jsonl_exec), aRoot), 20'000);
+		expect(gone.Outcome == application::agent_run_outcome::failed_to_start && gone.StandardError == application::codex_not_found_message,
+			   "a codex removed before the launch ends the request as not found");
+	}
+
 	void test_other_harnesses_unchanged(const std::filesystem::path& aRoot)
 	{
 		const auto wrapper = copy_canary(aRoot, "ignored-wrapper");
@@ -522,6 +570,7 @@ try {
 	test_other_harnesses_unchanged(root);
 	test_path_search_on_real_files(root);
 	test_found_claude_through_the_launcher(root);
+	test_found_codex_through_the_launcher(root);
 	std::cout << "claude-process-wrapper-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {
