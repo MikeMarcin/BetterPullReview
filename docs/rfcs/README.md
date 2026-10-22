@@ -697,3 +697,20 @@ GitHub CLI connection as fixed GraphQL documents. The owner accepted the
 chips, the picker and Resolve conversation (session
 `3b59571c0c371e211a07e6a1c88e5711`, closed). Windows and Linux native runs are
 not claimed. [Import](assets/reactions-and-resolve-v1.LIVE_IMPORT.md).
+
+## Agent setup
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0091](RFC-BPR-0091-agent-first-run-setup.md) | Set up an agent the first time the Agent tab opens | In Progress | RFC-BPR-0003, RFC-BPR-0011, RFC-BPR-0012, RFC-BPR-0060, RFC-BPR-0085 |
+
+Drafted 2026-10-22 as RFC-DRAFT-0026 from the owner's request for setup UX
+the first time the Agent tab opens
+([BPR-PENDING-AN](../issues/60-done/BPR-PENDING-AN-set-up-an-agent-the-first-time.md)).
+Revision r3 records the owner's decisions D1 (the review workflow ships as an
+editable skill) and D2 (a clone folders setting) and answers to Q1 to Q9: a
+four-step setup in the tab, detection when it shows, the agent's status
+command as the check, plain names, Codex found as Claude is, a worktree of the
+reviewer's clone by default with the head from the application's own copy, and
+the review skill in each request's brief. Milestones BPR-PENDING-AQ1 to AQ9.
+[Import](assets/agent-first-run-setup-v1.LIVE_IMPORT.md).
