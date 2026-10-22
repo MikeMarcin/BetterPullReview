@@ -12240,10 +12240,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::ranges::sort(comments, [](const core::review_submission_comment& aLeft, const core::review_submission_comment& aRight) {
 				return std::tie(aLeft.Path, aLeft.Side, aLeft.Line, aLeft.Draft) < std::tie(aRight.Path, aRight.Side, aRight.Line, aRight.Draft);
 			});
+			PendingReviewComments = comments;
 			ReviewSubmission->observe_review_comments(std::move(comments));
 			if (!held.empty()) {
 				ReviewSubmission->resolve_held(std::move(held));
 			}
+			present_review_comment_holds();
 		}
 
 		/// [[BPR-1345]]. Start a review, or Add review comment: the shown
@@ -12712,6 +12714,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// Full-file alignment is not a provider patch-domain observation.
 				.Placement = core::review_placement::unknown,
 				.Filtered  = SelectedDiffPublication->Key.Filter ? filtered_comment_source() : std::nullopt,
+				// [[BPR-1735]]. GitHub's own diff of the file, read from the
+				// merge base and the head, which the core places a comment by.
+				.WholeDiff = SelectedDiffPublication->Key.Filter ? std::nullopt : whole_diff_source([&file] {
+					const auto bytes = file->CurrentPath.generic_u8string();
+					return std::string{ bytes.begin(), bytes.end() };
+				}()),
 			};
 		}
 
@@ -14342,6 +14350,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// and the answer.
 		std::optional<application::filtered_comment_lines_request>     FilteredCommentLinesAsked;
 		std::optional<application::filtered_comment_lines_observation> FilteredCommentLines;
+		/// [[BPR-1735]]. GitHub's own diff (the merge base to the head) of each
+		/// file a comment is placed on, by its head path: what was asked, at
+		/// which head and merge base, and the answer once it came.
+		struct github_diff_lines_entry
+		{
+			core::git_commit_oid                                      Head;
+			core::git_commit_oid                                      MergeBase;
+			std::optional<application::github_diff_lines_observation> Answer;
+		};
+		std::map<std::string, github_diff_lines_entry> GitHubDiffLines;
+		/// [[BPR-1735]]. The comments pending in the review on this head, as
+		/// last published to it, which the core holds back when it places one
+		/// outside GitHub's diff.
+		std::vector<core::review_submission_comment> PendingReviewComments;
+		/// [[BPR-1735]]. Testing only: a build that placed nothing on the Whole
+		/// PR diff, as before the owner's decision.
+		bool WholeDiffPlacementDisabled = false;
 		/// [[BPR-1733]]. Each comparison this window showed a file on, with the
 		/// commit its right side was read at and the file's path there: what a
 		/// kept suggestion on that comparison can be carried from.
@@ -14713,6 +14738,186 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// \brief RFC-BPR-0089 M4. Asks once per filtered diff for the lines a
 		/// placement needs; a diff whose sides are GitHub's own needs none. A
 		/// refusal is an answer: nothing can be placed off GitHub's diff.
+		/// \brief [[BPR-1735]]. The accepted head and the merge base GitHub
+		/// names for it; none when GitHub named no merge base, when nothing is
+		/// inferred about its diff.
+		[[nodiscard]] auto whole_diff_commits() const -> std::optional<std::pair<core::git_commit_oid, core::git_commit_oid>>
+		{
+			if (WholeDiffPlacementDisabled || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			if (snapshot.MergeBaseAvailability != application::github_merge_base_availability::available || !snapshot.MergeBaseOid) {
+				return std::nullopt;
+			}
+			const auto head = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			const auto base = core::parse_git_commit_oid(snapshot.MergeBaseOid->value());
+			if (!head || !base) {
+				return std::nullopt;
+			}
+			return std::pair{ *head, *base };
+		}
+
+		/// \brief [[BPR-1735]]. The facts the core places a comment on GitHub's
+		/// own diff of the file at `aHeadPath` from, its lines once read.
+		[[nodiscard]] auto whole_diff_source(const std::string& aHeadPath) const -> std::optional<core::whole_diff_comment_source>
+		{
+			const auto commits = whole_diff_commits();
+			if (!commits) {
+				return std::nullopt;
+			}
+			auto       source = core::whole_diff_comment_source{ .Head = commits->first, .MergeBase = commits->second, .BaseToHead = std::nullopt };
+			const auto found  = GitHubDiffLines.find(aHeadPath);
+			if (found != GitHubDiffLines.end() && found->second.Head == commits->first && found->second.MergeBase == commits->second && found->second.Answer
+				&& found->second.Answer->Status == application::github_diff_lines_status::resolved) {
+				source.BaseToHead = found->second.Answer->BaseToHead;
+			}
+			return source;
+		}
+
+		/// \brief [[BPR-1735]]. GitHub's own diff of the file shown, once read:
+		/// none while it is being read, an empty answer when nothing is known
+		/// (no merge base named, a filtered diff, or the read failed). The
+		/// fixture courses that write line comments choose lines by it.
+		[[nodiscard]] auto shown_github_diff_lines() -> std::optional<std::optional<core::line_correspondence>>
+		{
+			if (!whole_diff_commits() || !SelectedDiffPublication || SelectedDiffPublication->Key.Filter) {
+				return std::optional<core::line_correspondence>{ };
+			}
+			const auto bytes = SelectedDiffPublication->Request.File.CurrentPath.generic_u8string();
+			const auto path  = std::string{ bytes.begin(), bytes.end() };
+			request_github_diff_lines({ path });
+			const auto found = GitHubDiffLines.find(path);
+			if (found != GitHubDiffLines.end() && !found->second.Answer) {
+				return std::nullopt;
+			}
+			auto       known  = std::optional<core::line_correspondence>{ };
+			const auto source = whole_diff_source(path);
+			if (source) {
+				known = source->BaseToHead;
+			}
+			return known;
+		}
+
+		/// \brief [[BPR-1735]]. Asks once per file, head and merge base for
+		/// GitHub's own diff of each path. A refusal is an answer: nothing is
+		/// inferred for that file. A cancelled read is asked again later.
+		void request_github_diff_lines(const std::vector<std::string>& aHeadPaths)
+		{
+			const auto commits = whole_diff_commits();
+			if (Closing || EpochHost == nullptr || !LastAcceptedHandoff || !commits) {
+				return;
+			}
+			// The accepted comparison names the pull request's diff; no file
+			// need be shown for it to be read.
+			const auto authority = workbench_authority(*LastAcceptedHandoff);
+			const auto context   = EpochHost->context(authority);
+			if (!context) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			for (const auto& path : aHeadPaths) {
+				if (const auto found = GitHubDiffLines.find(path); found != GitHubDiffLines.end() && found->second.Head == commits->first && found->second.MergeBase == commits->second) {
+					continue;
+				}
+				const auto whole    = std::ranges::find(snapshot.Files, path, &application::github_file_record::Path);
+				const auto basePath = whole != snapshot.Files.end() && whole->PreviousPath ? *whole->PreviousPath : path;
+				auto       request  = application::github_diff_lines_request{
+					.WorkbenchAuthority = authority,
+					.Head               = commits->first,
+					.MergeBase          = commits->second,
+					.Key                = core::file_comparison_key{ .Authority   = context->Authority,
+																	 .Repository  = context->Authority.Repository,
+																	 .PullRequest = context->Authority.PullRequest,
+																	 .LeftAnchor  = context->Comparison.Left.Identity,
+																	 .RightAnchor = context->Comparison.Right.Identity,
+																	 .File        = core::file_identity_of(path),
+																	 .Options     = context->OptionsDigest,
+																	 .Algorithm   = context->Algorithm },
+					.HeadPath           = path,
+					.BasePath           = basePath,
+				};
+				GitHubDiffLines.insert_or_assign(path, github_diff_lines_entry{ .Head = commits->first, .MergeBase = commits->second, .Answer = std::nullopt });
+				if (!EpochHost->resolve_github_diff_lines(request, [this, path](const application::github_diff_lines_observation& aObservation) {
+						const auto found = GitHubDiffLines.find(path);
+						if (Closing || found == GitHubDiffLines.end() || found->second.Head != aObservation.Request.Head || found->second.MergeBase != aObservation.Request.MergeBase) {
+							return;
+						}
+						if (aObservation.Status == application::github_diff_lines_status::cancelled || aObservation.Status == application::github_diff_lines_status::stale) {
+							GitHubDiffLines.erase(found);
+							return;
+						}
+						found->second.Answer = aObservation;
+						present_filtered_comment();
+						present_review_comment_holds();
+					})) {
+					GitHubDiffLines.insert_or_assign(path, github_diff_lines_entry{ .Head = commits->first, .MergeBase = commits->second, .Answer = application::github_diff_lines_observation{ .Request = request, .Status = application::github_diff_lines_status::unauthorized, .BaseToHead = std::nullopt } });
+				}
+			}
+		}
+
+		/// \brief [[BPR-1735]]. The selected line of the Whole PR diff placed by
+		/// the core, said only when it is not the line itself.
+		[[nodiscard]] auto whole_diff_presentation() -> std::optional<qt::filtered_comment_presentation>
+		{
+			if (!SelectedDiffPublication || SelectedDiffPublication->Key.Filter || !SelectedSemanticSelection
+				|| SelectedSemanticSelection->PreferredLine.Comparison != core::comparison_digest(SelectedDiffPublication->Key)) {
+				return std::nullopt;
+			}
+			const auto& line  = SelectedSemanticSelection->PreferredLine;
+			const auto  bytes = SelectedDiffPublication->Request.File.CurrentPath.generic_u8string();
+			const auto  path  = std::string{ bytes.begin(), bytes.end() };
+			request_github_diff_lines({ path });
+			// A base line is GitHub's only when its document is the merge base's.
+			if (line.Side == core::diff_side::left && !(ReviewSourceMaterial && ReviewSourceMaterial->BaseNumberedAsGitHub)) {
+				return std::nullopt;
+			}
+			const auto source = whole_diff_source(path);
+			const auto start  = ReviewDraft && ReviewDraft->Anchor == line ? ReviewDraft->StartLine : std::nullopt;
+			const auto target = source ? core::place_whole_diff_comment(*source, line.Side, line.Line, start) : std::nullopt;
+			if (!target || target->Placement == core::filtered_comment_placement::head) {
+				return std::nullopt;
+			}
+			const auto hex = core::canonical_hex(target->Commit);
+			return qt::filtered_comment_presentation{ .Selection = line, .Target = *target, .Commit = QString::fromUtf8(hex.view().substr(0U, 7U)) };
+		}
+
+		/// \brief [[BPR-1735]]. Holds every comment pending in the review that
+		/// the core places outside GitHub's diff: Finish your review marks it,
+		/// and the review is not submitted while one is held.
+		void present_review_comment_holds()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto paths = std::vector<std::string>{ };
+			for (const auto& comment : PendingReviewComments) {
+				if (std::ranges::find(paths, comment.Path) == paths.end()) {
+					paths.push_back(comment.Path);
+				}
+			}
+			request_github_diff_lines(paths);
+			auto held = std::map<core::review_draft_id, qt::workbench_window::unplaceable_review_comment>{ };
+			auto ids  = std::vector<core::review_draft_id>{ };
+			for (const auto& comment : PendingReviewComments) {
+				const auto source = whole_diff_source(comment.Path);
+				if (!source || !core::holds_review_comment(core::place_on_github_diff(source->BaseToHead, comment.Side, comment.Line, comment.StartLine))) {
+					continue;
+				}
+				const auto target = core::place_whole_diff_comment(*source, comment.Side, comment.Line, comment.StartLine);
+				if (!target) {
+					continue;
+				}
+				const auto hex = core::canonical_hex(target->Placement == core::filtered_comment_placement::file_comment ? target->Commit : source->Head);
+				held.emplace(comment.Draft, qt::workbench_window::unplaceable_review_comment{ .Target = *target, .StartLine = comment.StartLine, .Commit = QString::fromUtf8(hex.view().substr(0U, 7U)) });
+				ids.push_back(comment.Draft);
+			}
+			if (ReviewSubmission) {
+				ReviewSubmission->hold_comments(std::move(ids));
+			}
+			Window->present_unplaceable_review_comments(std::move(held));
+		}
+
 		void request_filtered_comment_lines()
 		{
 			if (Closing || EpochHost == nullptr) {
@@ -14936,8 +15141,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (!selected_diff_filtered()) {
 				Window->present_filtered_comment(false, std::nullopt);
+				// [[BPR-1735]]. The Whole PR diff's own placement.
+				Window->present_whole_diff_comment(whole_diff_presentation());
 				return;
 			}
+			Window->present_whole_diff_comment(std::nullopt);
 			auto placement = std::optional<qt::filtered_comment_presentation>{ };
 			if (SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine.Comparison == core::comparison_digest(SelectedDiffPublication->Key)) {
 				if (const auto source = filtered_comment_source()) {
@@ -19133,6 +19341,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// until another file was chosen and this one again.
 					request_filtered_comment_lines();
 					present_filtered_comment();
+					present_review_comment_holds();
 					observe_head_moves();
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
@@ -19152,6 +19361,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_split_strip();
 			request_filtered_comment_lines();
 			present_filtered_comment();
+			// [[BPR-1735]]. GitHub's own diff can be read once a file is shown.
+			present_review_comment_holds();
 			observe_head_moves();
 			request_diff(
 				aPublication.Key,
@@ -23197,6 +23408,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	void detail::github_application_fixture_access::stale_base_numbering_question(github_application& aApplication)
 	{
 		aApplication.Implementation->StaleBaseNumberingQuestion = true;
+	}
+
+	void detail::github_application_fixture_access::set_whole_diff_placement_enabled(github_application& aApplication, const bool aEnabled)
+	{
+		aApplication.Implementation->WholeDiffPlacementDisabled = !aEnabled;
 	}
 
 	void detail::github_application_fixture_access::set_preparation_enabled(github_application& aApplication, const bool aEnabled)
@@ -29319,6 +29535,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (!implementation->ReviewRoundTripCompositionProbe.has_value()) {
 			implementation->ReviewRoundTripCompositionProbe.emplace();
+			// [[BPR-1735]]. This course's off-hunk line exercises RFC-BPR-0022's
+			// native attempt and fallback, its subject, so it places as a build
+			// before the hunk rule did; the BPR-1735 courses cover the rule.
+			implementation->WholeDiffPlacementDisabled = true;
 		}
 		auto& probe = *implementation->ReviewRoundTripCompositionProbe;
 		if (probe.Phase == state_type::phase::failed) {
@@ -30397,8 +30617,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// Chosen once and then kept selected, as the label-authoring course does.
 		auto& line = implementation->AttendedDraftLine;
 		if (!line) {
+			// [[BPR-1735]]. A line GitHub places in its own diff, once that
+			// diff is read where GitHub names a merge base: a line outside
+			// every hunk publishes as a file comment, not the line comment
+			// these courses write.
+			const auto lines = implementation->shown_github_diff_lines();
+			if (!lines) {
+				return result::pending;
+			}
 			for (auto candidate = std::uint32_t{ 0U }; candidate < 64U && !line; ++candidate) {
-				if (window->comparison_surface()->select_conversation_line(aSide, candidate)
+				if (core::place_on_github_diff(*lines, aSide, candidate, std::nullopt) != core::github_diff_placement::outside_diff
+					&& window->comparison_surface()->select_conversation_line(aSide, candidate)
 					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
 					line = candidate;
 				}
@@ -30434,6 +30663,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (!implementation->LabelAuthoringProbe.has_value()) {
 			implementation->LabelAuthoringProbe.emplace();
 			implementation->LabelAuthoringProbe->LineDraftOnly = aLineDraftOnly;
+			// [[BPR-1735]]. This course's lines lie outside GitHub's diff of its
+			// fixture and it publishes them natively; its subject is the
+			// labels, so it places as a build before the hunk rule did.
+			implementation->WholeDiffPlacementDisabled = true;
 		}
 		auto& probe = *implementation->LabelAuthoringProbe;
 		if (probe.Phase == state_type::phase::failed) {
@@ -32624,6 +32857,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (!implementation->StartReviewProbe.has_value()) {
 			implementation->StartReviewProbe.emplace();
+			// [[BPR-1735]]. This course's lines lie outside GitHub's diff of its
+			// fixture; its subject is the review, so it places as a build before
+			// the hunk rule did. The BPR-1735 courses cover placement.
+			implementation->WholeDiffPlacementDisabled = true;
 		}
 		auto& probe = *implementation->StartReviewProbe;
 		if (probe.Phase == state_type::phase::failed) {

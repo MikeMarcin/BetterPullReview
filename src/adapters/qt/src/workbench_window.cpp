@@ -2459,6 +2459,15 @@ namespace bpr::qt {
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
 					break;
 				case card_action::convert_draft:
+					// [[BPR-1735]]. On a comment GitHub cannot place in the
+					// review, the held action is Publish as file comment.
+					if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt;
+						shown.has_value() && UnplaceableComments.contains(shown->Id) && !HeldSuggestions.contains(shown->Id)) {
+						if (ReviewEditor->publish_action()->isEnabled()) {
+							ReviewEditor->publish_action()->trigger();
+						}
+						break;
+					}
 					convert_pane_suggestion();
 					break;
 				case card_action::carry_suggestion:
@@ -3063,6 +3072,17 @@ namespace bpr::qt {
 		// [[RFC-BPR-0090]]. Convert on a held suggestion (owner, Q3): the
 		// comment is opened at its line, and converted there once it shows.
 		ReviewSubmissionEditor->set_pending_convert([this](const core::review_submission_comment& aComment) {
+			// [[BPR-1735]]. Publish as file comment: the comment is opened at
+			// its line and published there on its own once the core places it.
+			if (UnplaceableComments.contains(aComment.Draft) && !HeldSuggestions.contains(aComment.Draft)) {
+				PendingFilePublish = aComment.Draft;
+				if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->Id == aComment.Draft) {
+					publish_pending_file_comment();
+					return;
+				}
+				open_pending_comment(aComment, core::workbench_thread_destination::review);
+				return;
+			}
 			if (!HeldSuggestions.contains(aComment.Draft)) {
 				return;
 			}
@@ -8265,17 +8285,24 @@ namespace bpr::qt {
 	{
 		using placement = core::filtered_comment_placement;
 		using refusal   = core::filtered_comment_refusal;
-		if (!FilteredComments || ComparisonSurface == nullptr) {
+		if (ComparisonSurface == nullptr) {
 			return { };
 		}
 		const auto selection = ComparisonSurface->selection();
 		if (!selection.has_value() || comment_reply_thread().has_value()) {
 			return { };
 		}
-		if (!FilteredPlacement || FilteredPlacement->Selection != selection->PreferredLine) {
+		// [[BPR-1735]]. On the Whole PR diff only a placement off the line
+		// itself is said; with none, Publish is as it always was.
+		if (!FilteredComments) {
+			if (!WholeDiffPlacement || WholeDiffPlacement->Selection != selection->PreferredLine) {
+				return { };
+			}
+		} else if (!FilteredPlacement || FilteredPlacement->Selection != selection->PreferredLine) {
 			return { tr("Working out where GitHub puts a comment on this line…"), true };
 		}
-		const auto& target = FilteredPlacement->Target;
+		const auto& shown  = FilteredComments ? *FilteredPlacement : *WholeDiffPlacement;
+		const auto& target = shown.Target;
 		const auto  line   = static_cast<qulonglong>(target.Line) + 1U;
 		switch (target.Placement) {
 		case placement::head:
@@ -8287,16 +8314,16 @@ namespace bpr::qt {
 					 false };
 		case placement::earlier_commit:
 			return { tr("Goes on commit %1, where this line was written. A later commit changed it, so GitHub shows this comment as outdated: in the conversation, not in Files changed.")
-						 .arg(FilteredPlacement->Commit),
+						 .arg(shown.Commit),
 					 false };
 		case placement::file_comment: {
 			// [[BPR-1706]]. Why GitHub takes no line comment here, then what
 			// Publish does instead.
 			const auto why = target.Refusal == refusal::base_line_changed ? tr("This line changed after the merge base, where GitHub counts base lines, so GitHub can't attach a comment to it.")
 				: target.Refusal == refusal::not_on_commit
-				? tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so GitHub can't attach a comment to it.").arg(FilteredPlacement->Commit)
+				? tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so GitHub can't attach a comment to it.").arg(shown.Commit)
 				: tr("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it.");
-			return { tr("%1 Publish adds a comment on the file instead, linking to line %2 of commit %3.").arg(why).arg(line).arg(FilteredPlacement->Commit), false };
+			return { tr("%1 Publish adds a comment on the file instead, linking to line %2 of commit %3.").arg(why).arg(line).arg(shown.Commit), false };
 		}
 		case placement::refused:
 			break;
@@ -8308,7 +8335,7 @@ namespace bpr::qt {
 			return { tr("A range can be commented on only where this diff's side is the pull request's own. Comment on one line."), true };
 		case refusal::not_on_commit:
 			return { tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so no comment can go there. Comment on it in the whole pull request instead.")
-						 .arg(FilteredPlacement->Commit),
+						 .arg(shown.Commit),
 					 true };
 		case refusal::base_line_changed:
 			return { tr("This line changed after the merge base, where GitHub counts base lines. Comment on a right-side line instead."), true };
@@ -8329,7 +8356,71 @@ namespace bpr::qt {
 
 	auto workbench_window::filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&
 	{
-		return FilteredPlacement;
+		return FilteredComments ? FilteredPlacement : WholeDiffPlacement;
+	}
+
+	void workbench_window::present_whole_diff_comment(std::optional<filtered_comment_presentation> aPlacement)
+	{
+		if (WholeDiffPlacement == aPlacement) {
+			return;
+		}
+		WholeDiffPlacement = std::move(aPlacement);
+		present_filtered_notice();
+		update_comment_target();
+		present_inline_draft();
+		publish_pending_file_comment();
+	}
+
+	void workbench_window::present_unplaceable_review_comments(std::map<core::review_draft_id, unplaceable_review_comment> aHeld)
+	{
+		if (UnplaceableComments == aHeld) {
+			return;
+		}
+		UnplaceableComments = std::move(aHeld);
+		present_held_suggestions();
+		present_inline_draft();
+	}
+
+	auto workbench_window::unplaceable_review_comments() const noexcept -> const std::map<core::review_draft_id, unplaceable_review_comment>&
+	{
+		return UnplaceableComments;
+	}
+
+	auto workbench_window::unplaceable_hold(const unplaceable_review_comment& aComment) const -> std::pair<QString, QString>
+	{
+		// [[BPR-1735]]. Why GitHub refuses it in a review, and what to do: a
+		// line is published on its own as a file comment; a range, which has
+		// no file comment, is deleted or rewritten on one line.
+		const auto line = static_cast<qulonglong>(aComment.Target.Placement == core::filtered_comment_placement::file_comment ? aComment.Target.Line : 0U) + 1U;
+		if (aComment.Target.Placement == core::filtered_comment_placement::file_comment) {
+			return { tr("GitHub shows no change near line %1, so it can't place this comment in a review.").arg(line), tr("Publish as file comment") };
+		}
+		return { tr("GitHub shows no change near some of these lines, so it can't place this comment in a review, and a comment on several lines can't go on the file. Delete it, or write it on one line."),
+				 QString{ } };
+	}
+
+	void workbench_window::publish_pending_file_comment()
+	{
+		// [[BPR-1735]]. Finish your review's Publish as file comment, once the
+		// comment shows at its line and the core has placed it on the file:
+		// the drawer's own Publish, which takes it out of the review.
+		if (!PendingFilePublish.has_value() || ReviewEditor == nullptr) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->Id != *PendingFilePublish) {
+			return;
+		}
+		if (!UnplaceableComments.contains(draft->Id)) {
+			PendingFilePublish.reset();
+			return;
+		}
+		if (!WholeDiffPlacement.has_value() || WholeDiffPlacement->Selection != draft->Anchor || WholeDiffPlacement->Target.Placement != core::filtered_comment_placement::file_comment
+			|| !ReviewEditor->publish_action()->isEnabled()) {
+			return;
+		}
+		PendingFilePublish.reset();
+		ReviewEditor->publish_action()->trigger();
 	}
 
 	void workbench_window::present_filtered_notice()
@@ -9448,8 +9539,8 @@ namespace bpr::qt {
 		// its thread, wherever it was drafted from.
 		// RFC-BPR-0089 M4. On a commit-filtered diff the host's core places
 		// the line; its refusal is the reason, its pending answer is not one.
-		if (const auto [notice, blocks] = filtered_comment_notice(); blocks && FilteredPlacement && FilteredPlacement->Target.Refusal != core::filtered_comment_refusal::lines_pending
-			&& selection && FilteredPlacement->Selection == selection->PreferredLine) {
+		if (const auto [notice, blocks] = filtered_comment_notice(); blocks && filtered_comment_placement() && filtered_comment_placement()->Target.Refusal != core::filtered_comment_refusal::lines_pending
+			&& selection && filtered_comment_placement()->Selection == selection->PreferredLine) {
 			return say(notice, tr("Cannot comment on this line here"));
 		}
 		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value() && !FilteredComments) {
@@ -10200,6 +10291,10 @@ namespace bpr::qt {
 			input.Filtered = FilteredPlacement.has_value() && FilteredPlacement->Selection == PaneSuggestion->Anchor
 				? FilteredPlacement->Target
 				: core::filtered_comment_target{ .Placement = core::filtered_comment_placement::refused, .Refusal = core::filtered_comment_refusal::lines_pending };
+		} else if (WholeDiffPlacement.has_value() && WholeDiffPlacement->Selection == PaneSuggestion->Anchor) {
+			// [[BPR-1735]]. On the Whole PR diff a line GitHub resolves nowhere
+			// cannot take a suggestion either.
+			input.Filtered = WholeDiffPlacement->Target;
 		}
 		auto* const editor = PaneSuggestion->Open && ComparisonSurface != nullptr ? ComparisonSurface->head_editor() : nullptr;
 		if (editor != nullptr) {
@@ -10286,6 +10381,12 @@ namespace bpr::qt {
 		auto held = std::map<core::review_draft_id, review_submission_editor::held_comment>{ };
 		for (const auto& [id, suggestion] : HeldSuggestions) {
 			held.emplace(id, review_submission_editor::held_comment{ .Reason = suggestion.Reason, .Convert = suggestion.Convert, .Ink = ink });
+		}
+		// [[BPR-1735]]. A comment GitHub cannot place in a review is held the
+		// same way, its action Publish as file comment.
+		for (const auto& [id, comment] : UnplaceableComments) {
+			const auto [reason, action] = unplaceable_hold(comment);
+			held.insert_or_assign(id, review_submission_editor::held_comment{ .Reason = reason, .Convert = action, .Ink = ink, .Kind = review_submission_editor::held_kind::unplaceable_line });
 		}
 		ReviewSubmissionEditor->set_held_comments(std::move(held));
 	}
@@ -10851,6 +10952,13 @@ namespace bpr::qt {
 			cards->present_draft(std::nullopt);
 			return;
 		}
+		// [[BPR-1735]]. A comment GitHub cannot place in the review is held on
+		// the comment itself too, its action Publish as file comment.
+		if (hold.first.isEmpty()) {
+			if (const auto found = UnplaceableComments.find(draft->Id); found != UnplaceableComments.end()) {
+				hold = unplaceable_hold(found->second);
+			}
+		}
 		// [[BPR-1329]]. What the last Publish came to comes first: publishing,
 		// or why it did not happen. Otherwise, why Publish is unavailable.
 		auto notice = ReviewEditor->publication_status();
@@ -10876,6 +10984,7 @@ namespace bpr::qt {
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),
 		});
+		publish_pending_file_comment();
 	}
 
 	auto workbench_window::draft_review() const -> draft_review_state

@@ -458,6 +458,11 @@ namespace bpr::app {
 						  : QStringLiteral("Review status is still unknown. Check status again.");
 	}
 
+	void review_submission_workflow::hold_comments(std::vector<core::review_draft_id> aDrafts)
+	{
+		UnplaceableDrafts = std::move(aDrafts);
+	}
+
 	void review_submission_workflow::dispatch(qt::review_submission_editor_intent aIntent)
 	{
 		// Refuse stale draft identity before touching the supplied summary.
@@ -477,6 +482,16 @@ namespace bpr::app {
 				|| (kind == command_kind::begin_submit && controls.Submit)
 				|| (kind == command_kind::discard && controls.Discard);
 			if (!allowed) {
+				return;
+			}
+			// [[BPR-1735]]. GitHub refuses a whole review carrying a comment it
+			// cannot place; such a comment is published as a file comment or
+			// deleted first.
+			if (kind == command_kind::begin_submit && std::ranges::any_of(Draft->Comments, [this](const core::review_submission_comment& aComment) {
+					return std::ranges::find(UnplaceableDrafts, aComment.Draft) != UnplaceableDrafts.end();
+				})) {
+				Status = QStringLiteral("A comment GitHub can't place in a review is held. Publish it as a file comment or delete it, then submit.");
+				present();
 				return;
 			}
 			if (kind == command_kind::begin_submit) {

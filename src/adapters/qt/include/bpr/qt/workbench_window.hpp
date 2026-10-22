@@ -494,8 +494,31 @@ namespace bpr::qt {
 		/// \brief The words above Publish for the selected line, and whether
 		/// they are why Publish is unavailable; empty off a filtered diff.
 		[[nodiscard]] auto filtered_comment_notice() const -> std::pair<QString, bool>;
-		/// \brief The placement the host last gave, for whichever line.
+		/// \brief The placement the host last gave, for whichever line: on a
+		/// filtered diff its own, otherwise the Whole PR diff's ([[BPR-1735]]).
 		[[nodiscard]] auto filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&;
+		/// \brief [[BPR-1735]]. Where a comment on the selected line of the
+		/// Whole PR diff goes, as the host's core placed it from GitHub's own
+		/// diff, when that is not the line itself: a file comment, or a range
+		/// refused. None while the diff is unread or the line is in a hunk;
+		/// then Publish is as it always was.
+		void present_whole_diff_comment(std::optional<filtered_comment_presentation> aPlacement);
+		/// \brief [[BPR-1735]]. A comment pending in the review that the core
+		/// placed outside GitHub's diff: GitHub refuses a review carrying it.
+		struct unplaceable_review_comment
+		{
+			core::filtered_comment_target Target;
+			std::optional<std::uint32_t>  StartLine;
+			/// The commit its permalink names, abbreviated.
+			QString Commit;
+
+			auto operator==(const unplaceable_review_comment&) const -> bool = default;
+		};
+		/// \brief [[BPR-1735]]. The review's held comments, by draft: each is
+		/// marked on Finish your review and on the comment, with Publish as
+		/// file comment (owner, 2026-10-22), and the review waits for them.
+		void               present_unplaceable_review_comments(std::map<core::review_draft_id, unplaceable_review_comment> aHeld);
+		[[nodiscard]] auto unplaceable_review_comments() const noexcept -> const std::map<core::review_draft_id, unplaceable_review_comment>&;
 		/// \brief One of the split file's diffs chosen, by its position.
 		void               set_split_segment_dispatch(std::function<void(std::size_t)> aDispatch);
 		[[nodiscard]] auto split_strip() const noexcept -> split_diff_strip*;
@@ -2650,11 +2673,19 @@ namespace bpr::qt {
 		std::map<core::review_draft_id, held_suggestion> HeldSuggestions;
 		/// A held draft Finish your review asked to convert, once it shows.
 		std::optional<core::review_draft_id> PendingConvert;
-		QString                              CommentDraftUnavailable;
-		std::optional<core::source_line_ref> WritingAnchor;
-		QAction*                             AddCommentAction    = nullptr;
-		QAction*                             SuggestChangeAction = nullptr;
-		QPointer<QWidget>                    DiscussReturnFocus;
+		/// [[BPR-1735]]. The Whole PR diff's placement of the selected line,
+		/// the review's comments GitHub cannot place, and the one Finish your
+		/// review asked to publish as a file comment, once it shows placed.
+		std::optional<filtered_comment_presentation>                WholeDiffPlacement;
+		std::map<core::review_draft_id, unplaceable_review_comment> UnplaceableComments;
+		std::optional<core::review_draft_id>                        PendingFilePublish;
+		[[nodiscard]] auto                                          unplaceable_hold(const unplaceable_review_comment& aComment) const -> std::pair<QString, QString>;
+		void                                                        publish_pending_file_comment();
+		QString                                                     CommentDraftUnavailable;
+		std::optional<core::source_line_ref>                        WritingAnchor;
+		QAction*                                                    AddCommentAction    = nullptr;
+		QAction*                                                    SuggestChangeAction = nullptr;
+		QPointer<QWidget>                                           DiscussReturnFocus;
 		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
 		/// Discuss, so going back to the Overview finds the same cell.
 		QPointer<QWidget> OverviewReturnFocus;

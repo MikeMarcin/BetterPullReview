@@ -1,3 +1,24 @@
+# [[BPR-1735]] reseal (2026-10-22) over last matching main 4ed30b995,
+# linear, on this card's commits. Pinned-scope change, owner decision of
+# 2026-10-22 (RFC-BPR-0022 amendment r5): github_application.cpp reads
+# GitHub's own diff of a file (the merge base to the head) through the epoch
+# host's new resolve_github_diff_lines, places the selected Whole PR line and
+# every comment pending in the review with the core's hunk rule, passes the
+# facts to the mutation host as the source observation's WholeDiff, holds a
+# pending comment the core places outside every hunk (the window's hold and
+# review_submission_workflow::hold_comments, which refuses Submit while one is
+# carried), and treats the journal's rejection (unplaceable_line,
+# refused_not_published, settled_not_published) as a definite refusal that
+# unlocks the draft. Its BUILD_TESTING courses: the attended draft seed
+# chooses a line GitHub's diff holds, and the start-review, label-authoring,
+# review round-trip and private-review courses place as a build before the
+# rule (set_whole_diff_placement_enabled), their subjects being the review,
+# the labels and RFC-BPR-0022's negotiation. review_submission_workflow.cpp
+# and .hpp are in the manifest; private_review_fixture_course.cpp and
+# github_application_fixture_access.hpp, test-only, are not. No credential, grant,
+# provider selection, ledger write or source-inventory change; publication now
+# admits a Whole PR off-hunk line to the file comment at once. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # BPR-1694 combined integration over reviewed main b9a74b63a and release 0f52c515e.
 # All main feature reviews below are retained. Additional pinned-source difference
 # is exactly the retained complete_on_lane/observe_on_lane calls and the guarded
@@ -2013,7 +2034,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"777150d62bc2b381c740dd1ef150be933290577732c54c6693d7778fc5ce7f2c"
+		"9b8e6974dd2b137293d1ba01ca49c99667eb4179eff5036cfb1b33b9b360fb4c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2237,7 +2258,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b15421f3cef78d5bc05d15c58923d696ca69908a37afb760f20eb8e4c3ed9c5c"
+        "75f19066e5f16af5322a6390aa222a38df6e7a39307b3649107004b32ec41b5c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -584,6 +584,36 @@ auto main(int argc, char** argv) -> int
 		const auto stillHeld = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
 		expect(verdict->isEnabled() == free && std::ranges::none_of(stillHeld, [](const QLabel* aLabel) { return aLabel->isVisible(); }),
 			   "once nothing is held the rows say nothing more and the verdicts are as they were");
+
+		// [[BPR-1735]]. A comment GitHub cannot place in a review is held the
+		// same way, its action Publish as file comment; Submit waits for it.
+		held.set_held_comments({ { suggestion.Draft, { .Reason = QStringLiteral("GitHub shows no change near line 86, so it can't place this comment in a review."), .Convert = QStringLiteral("Publish as file comment"), .Kind = qt::review_submission_editor::held_kind::unplaceable_line } } });
+		QApplication::processEvents();
+		const auto visible = [](const auto& aWidgets) {
+			return static_cast<std::size_t>(std::ranges::count_if(aWidgets, [](const QWidget* aWidget) { return aWidget->isVisible(); }));
+		};
+		const auto placeReasons = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
+		const auto publishes    = held.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingConvert"));
+		auto*      publish      = publishes.isEmpty() ? nullptr : *std::ranges::find_if(publishes, [](const QToolButton* aButton) { return aButton->isVisible(); });
+		expect(visible(placeReasons) == 1U && visible(publishes) == 1U && publish != nullptr && publish->text() == QStringLiteral("Publish as file comment")
+				   && publish->toolTip().contains(QStringLiteral("on the file with a link to its line, and leaves this review")),
+			   "the held comment's row says why and offers Publish as file comment beside Delete");
+		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 comment GitHub can't place in a review is held. Publish it as a file comment or delete it first."),
+			   "every verdict waits while it is held, and says why");
+		const auto placeBefore = heldIntents.size();
+		held.submit_action()->trigger();
+		QApplication::processEvents();
+		expect(std::ranges::none_of(std::span{ heldIntents }.subspan(placeBefore), [](const qt::review_submission_editor_intent& aIntent) {
+				   return aIntent.Command.Kind == core::review_submission_command_kind::begin_submit;
+			   }),
+			   "Submit by its key sends nothing while it is held");
+		converted.clear();
+		publish->click();
+		QApplication::processEvents();
+		expect(converted == std::vector<core::review_draft_id>{ suggestion.Draft }, "Publish as file comment asks the window for exactly that comment");
+		held.set_held_comments({ });
+		QApplication::processEvents();
+		expect(verdict->isEnabled() == free, "once it leaves the review the verdicts are as they were, and Submit is allowed");
 	}
 
 	// [[BPR-1719]]. Several pending comments are selected with Shift,

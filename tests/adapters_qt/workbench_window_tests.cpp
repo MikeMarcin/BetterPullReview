@@ -12402,6 +12402,69 @@ namespace {
 		expect(course.Surface->head_editor() == nullptr, "Esc collapses the carets, then ends the edit");
 	}
 
+	/// \brief [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff a line the
+	/// host's core placed outside GitHub's diff says so before Publish, and a
+	/// comment pending in the review there is held on the comment itself, as
+	/// a suggestion is: Publish as file comment takes the sending buttons'
+	/// place, publishes it, and Finish your review holds it until it leaves.
+	void test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment()
+	{
+		auto  course = line_gesture_course{ false };
+		auto& window = course.Window;
+		auto* cards  = window.conversation_panel()->cards();
+		course.reset();
+		course.click(course.right(6U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 6U; }, 2000);
+		const auto anchor = core::source_line_ref{ .Comparison = course.Diff.Alignment.Digest, .Side = core::diff_side::right, .Line = 6U };
+		const auto target = core::filtered_comment_target{ .Placement = core::filtered_comment_placement::file_comment, .Refusal = core::filtered_comment_refusal::outside_github_diff, .Side = core::diff_side::right, .Line = 6U };
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc") });
+		window.comment_action()->trigger();
+		wait_for([cards] { return cards->writing_draft() && cards->draft_editor() != nullptr; }, 2000);
+		expect(cards->draft_editor() != nullptr, "Comment opens the line's draft in the drawer");
+		cards->draft_editor()->setPlainText(QStringLiteral("issue: outside every hunk."));
+		course.settle();
+		const auto [notice, blocks] = window.filtered_comment_notice();
+		expect(notice == QStringLiteral("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it. Publish adds a comment on the file instead, linking to line 7 of commit 61e8dbc.") && !blocks,
+			   "before Publish the editor says GitHub can't attach a comment to the line and Publish adds one on the file");
+		expect(window.filtered_comment_placement() && window.filtered_comment_placement()->Target.Placement == core::filtered_comment_placement::file_comment,
+			   "the Whole PR placement is the one a review's Start asks about");
+
+		const auto id = course.Accepted->Draft.Id;
+		window.present_unplaceable_review_comments({ { id, qt::workbench_window::unplaceable_review_comment{ .Target = target, .StartLine = std::nullopt, .Commit = QStringLiteral("61e8dbc") } } });
+		course.settle();
+		auto* const card    = cards->open_card();
+		auto* const action  = card->findChild<QAbstractButton*>(QStringLiteral("threadConvertDraft"));
+		auto* const publish = card->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+		auto* const review  = card->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft"));
+		const auto& held    = window.review_submission_editor_view()->held_comments();
+		expect(action != nullptr && action->isVisible() && action->text() == QStringLiteral("Publish as file comment") && publish != nullptr && !publish->isVisible() && review != nullptr
+				   && !review->isVisible(),
+			   "on the comment itself Publish as file comment takes the sending buttons' place");
+		expect(held.contains(id) && held.at(id).Kind == qt::review_submission_editor::held_kind::unplaceable_line
+				   && held.at(id).Reason == QStringLiteral("GitHub shows no change near line 7, so it can't place this comment in a review.") && held.at(id).Convert == QStringLiteral("Publish as file comment"),
+			   "Finish your review holds it, saying why, with the same action");
+		save_render(window, QStringLiteral("held-off-hunk-comment"));
+		const auto sent = course.Commands.size();
+		action->click();
+		process_events();
+		expect(std::ranges::any_of(std::span{ course.Commands }.subspan(sent), [](const core::revisioned_review_draft_command& aCommand) {
+				   return aCommand.Command.Kind == core::review_draft_command_kind::begin_publish;
+			   }),
+			   "Publish as file comment is the comment's own Publish");
+		window.present_unplaceable_review_comments({ });
+		course.settle();
+		expect(!window.review_submission_editor_view()->held_comments().contains(id), "once it leaves the review nothing is held");
+
+		// A range outside a hunk is held with no action: a range has no file comment.
+		const auto rangeTarget = core::filtered_comment_target{ .Placement = core::filtered_comment_placement::refused, .Refusal = core::filtered_comment_refusal::range_outside_github_diff };
+		window.present_unplaceable_review_comments({ { id, qt::workbench_window::unplaceable_review_comment{ .Target = rangeTarget, .StartLine = 4U, .Commit = QStringLiteral("61e8dbc") } } });
+		course.settle();
+		expect(window.review_submission_editor_view()->held_comments().at(id).Convert.isEmpty(), "a held range offers no action, only Delete");
+		window.present_unplaceable_review_comments({ });
+		window.present_whole_diff_comment(std::nullopt);
+		course.settle();
+	}
+
 	/// \brief [[RFC-BPR-0090]] M3. A suggestion GitHub cannot apply where it
 	/// goes is held, marked and converted on the comment (owner, Q3), and
 	/// Finish your review holds it too; a kept suggestion opens in the code
@@ -21906,6 +21969,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_a_suggestion_from_an_earlier_head_is_carried_or_copied", &test_a_suggestion_from_an_earlier_head_is_carried_or_copied);
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
+		runCase("test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment", &test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);

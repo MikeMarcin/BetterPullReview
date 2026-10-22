@@ -1610,7 +1610,9 @@ namespace bpr::qt {
 					convert->setText(held->second.Convert);
 					convert->setToolButtonStyle(Qt::ToolButtonTextOnly);
 					convert->setFocusPolicy(Qt::StrongFocus);
-					convert->setToolTip(tr("%1. Your words and the change become text on the same lines.").arg(held->second.Convert));
+					convert->setToolTip(held->second.Kind == held_kind::unplaceable_line
+											? tr("%1. It is posted now on its own, on the file with a link to its line, and leaves this review.").arg(held->second.Convert)
+											: tr("%1. Your words and the change become text on the same lines.").arg(held->second.Convert));
 					convert->setAccessibleName(tr("%1: %2").arg(held->second.Convert, said));
 					connect(convert, &QToolButton::clicked, this, [this, comment] {
 						if (PendingConvert) {
@@ -1669,12 +1671,21 @@ namespace bpr::qt {
 		const auto blocked   = Shown.Status.isEmpty() ? tr("This review cannot be submitted now.") : Shown.Status;
 		// [[RFC-BPR-0090]]. A held suggestion keeps the review back until it
 		// is converted or deleted (owner, Q3).
-		const auto held      = Draft.has_value() ? static_cast<std::size_t>(std::ranges::count_if(Draft->Comments, [this](const core::review_submission_comment& aComment) {
+		const auto held = Draft.has_value() ? static_cast<std::size_t>(std::ranges::count_if(Draft->Comments, [this](const core::review_submission_comment& aComment) {
 			return Held.contains(aComment.Draft);
 		}))
+											: 0U;
+		// [[BPR-1735]]. A comment GitHub cannot place is held the same way.
+		const auto placed    = Draft.has_value() ? static_cast<std::size_t>(std::ranges::count_if(Draft->Comments, [this](const core::review_submission_comment& aComment) {
+			const auto found = Held.find(aComment.Draft);
+			return found != Held.end() && found->second.Kind == held_kind::unplaceable_line;
+		}))
 												 : 0U;
-		const auto heldWords = held == 1U ? tr("1 suggestion GitHub cannot apply is held. Convert it or delete it first.")
-										  : tr("%1 suggestions GitHub cannot apply are held. Convert them or delete them first.").arg(held);
+		const auto heldWords = placed == held ? (held == 1U ? tr("1 comment GitHub can't place in a review is held. Publish it as a file comment or delete it first.")
+															: tr("%1 comments GitHub can't place in a review are held. Publish them as file comments or delete them first.").arg(held))
+			: placed == 0U                    ? (held == 1U ? tr("1 suggestion GitHub cannot apply is held. Convert it or delete it first.")
+															: tr("%1 suggestions GitHub cannot apply are held. Convert them or delete them first.").arg(held))
+											  : tr("%1 comments are held. Convert or publish each one, or delete it, first.").arg(held);
 		for (const auto disposition : decision_order) {
 			auto* const button  = Decisions[decision_index(disposition)];
 			const auto  enabled = connected && core::submits_as(Shown.Controls, disposition) && held == 0U;

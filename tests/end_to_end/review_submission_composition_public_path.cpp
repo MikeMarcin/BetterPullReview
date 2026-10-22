@@ -100,13 +100,24 @@ namespace {
 		auto& window = aApp.window();
 		window.close_review_sheet();
 		window.choose_modality(qt::review_modality::review);
-		wait([&] { return access::reveal_fixture_file(aApp, "review.cpp") == app::detail::fixture_file_reveal_result::shown; }, "review.cpp is shown in Review");
+		auto revealed = app::detail::fixture_file_reveal_result::pending;
+		if (!e2e::wait_until_plain([&] { revealed = access::reveal_fixture_file(aApp, "review.cpp"); return revealed == app::detail::fixture_file_reveal_result::shown; }, e2e::default_queue_budget)) {
+			std::cerr << "review-submission-composition: review.cpp reveal " << static_cast<int>(revealed) << " status=" << window.github_status_text() << '\n';
+			throw std::runtime_error{ "review.cpp is shown in Review" };
+		}
 		wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, aLine); }, "a head line of review.cpp is selected");
-		wait([&] { return window.comment_action()->isEnabled(); }, "Comment is offered on the current head line");
+		if (!e2e::wait_until_plain([&] { return window.comment_action()->isEnabled(); }, e2e::default_queue_budget)) {
+			std::cerr << "review-submission-composition: line " << aLine << " comment action: " << window.comment_action()->toolTip().toStdString() << '\n';
+			throw std::runtime_error{ "Comment is offered on the current head line" };
+		}
 		window.comment_action()->trigger();
 		auto* const editor = window.review_editor();
 		auto* const cards  = window.conversation_panel()->cards();
-		wait([&] { return cards->writing_draft() && !editor->body_editor()->isReadOnly(); }, "the drawer opens a new comment");
+		if (!e2e::wait_until_plain([&] { return cards->writing_draft() && !editor->body_editor()->isReadOnly(); }, e2e::default_queue_budget)) {
+			std::cerr << "review-submission-composition: line " << aLine << " writing=" << cards->writing_draft() << " readonly=" << editor->body_editor()->isReadOnly()
+					  << " draft=" << (editor->shown_draft() ? editor->shown_draft()->Body : std::string{ "none" }) << '\n';
+			throw std::runtime_error{ "the drawer opens a new comment" };
+		}
 		editor->body_editor()->setPlainText(aBody);
 		wait([&] { return editor->shown_draft() && editor->shown_draft()->Body == aBody.toStdString() && !editor->rejected_candidate(); }, "the comment is kept locally");
 		auto* const start = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft")) : nullptr;
@@ -168,10 +179,12 @@ auto main(int argc, char** argv) -> int
 	e2e::cli_publication_course cli{ cliMode };
 	auto                        server = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
-	auto make                          = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false) {
+	auto make                          = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false,
+											 bool aMergeBaseUnavailable = false) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
 		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
+		options.MergeBaseUnavailable                             = aMergeBaseUnavailable;
 		cli.configure(options);
 		auto startup = access::start(aFixture,
 									 options,
@@ -891,7 +904,7 @@ auto main(int argc, char** argv) -> int
 			const auto journal  = *dataRoot / "state" / "v1" / "review-mutation-recovery.sqlite3";
 			::sqlite3* database = nullptr;
 			expect(std::filesystem::exists(journal) && ::sqlite3_open_v2(journal.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the recovery journal opens");
-			const auto downgraded = ::sqlite3_exec(database, "DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;", nullptr, nullptr, nullptr);
+			const auto downgraded = ::sqlite3_exec(database, "DROP TABLE publication_post; DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;", nullptr, nullptr, nullptr);
 			static_cast<void>(::sqlite3_close_v2(database));
 			expect(downgraded == SQLITE_OK, "the journal is the version an earlier application wrote");
 		}
@@ -955,6 +968,95 @@ auto main(int argc, char** argv) -> int
 				}
 				expect(std::ranges::none_of(server->PreviousComments, [&offHunk](const application::staged_review_comment& aComment) { return aComment.Body == offHunk; }), "and not the deleted one");
 			}
+		}
+		// [[BPR-1735]] (owner, 2026-10-22). The owner's review on GHES 3.20.8:
+		// nine comments, one on a line outside every hunk, written by a build
+		// that placed nothing on the Whole PR diff, and refused
+		// by GitHub in the GitHub CLI's shape. This build holds that comment,
+		// publishes it on its own as a file comment, then submits the other
+		// eight as one review.
+		shutdown(*application);
+		application.reset();
+		application = make();
+		access::set_whole_diff_placement_enabled(*application, false);
+		open(*application, cli);
+		auto owner     = std::vector<std::string>{ };
+		auto ownerPost = std::size_t{ 0U };
+		// Head line 86 (zero-based 85) lies between the hunks ending at 68 and
+		// starting at 113: more than three lines from any change.
+		const auto offHunkLine = 85U;
+		const auto offHunkBody = std::string{ "issue: The owner's comment outside every hunk.\nIt is kept word for word." };
+		{
+			auto& course   = application->window();
+			auto& composer = *course.review_submission_editor_view();
+			// Head lines 46 to 51 and 58 and 59, in the second and third hunks.
+			for (const auto line : { 45U, 46U, 47U, 48U, 49U, 50U, 57U, 58U }) {
+				owner.push_back("issue: Owner comment " + std::to_string(line) + " in a hunk.");
+				static_cast<void>(write_pending(*application, line, QString::fromStdString(owner.back())));
+			}
+			static_cast<void>(write_pending(*application, offHunkLine, QString::fromStdString(offHunkBody)));
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 9U && composer.submit_action()->isEnabled(); }, "the owner's review carries its nine comments, nothing held");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseNextReviewAsAnswer = true;
+				ownerPost                        = server->ReviewPosts.size();
+			}
+			composer.submit_action()->trigger();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->State == state::drafting && composer.shown_draft()->Comments.size() == 9U && composer.submit_action()->isEnabled(); },
+				 "GitHub's refusal, in the GitHub CLI's shape, is settled and keeps all nine");
+			expect(composer.status_label()->text().contains(QStringLiteral("a line GitHub can't place")), "the page says a comment is on a line GitHub can't place");
+		}
+		shutdown(*application);
+		application.reset();
+		application = make();
+		open(*application, cli);
+		{
+			auto&      course   = application->window();
+			auto&      composer = *course.review_submission_editor_view();
+			const auto before   = access::review_mutation_evidence(*application);
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 9U && !composer.held_comments().empty(); }, "this build reads GitHub's diff and holds the off-hunk comment");
+			const auto& carried = composer.shown_draft()->Comments;
+			const auto  held    = std::ranges::find(carried, offHunkBody, &core::review_submission_comment::Body);
+			expect(held != carried.end() && composer.held_comments().size() == 1U && composer.held_comments().contains(held->Draft), "exactly the off-hunk comment is held");
+			const auto rows    = composer.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
+			const auto actions = composer.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingConvert"));
+			const auto shown   = [](const auto& aWidgets) { return std::ranges::count_if(aWidgets, [](const QWidget* aWidget) { return aWidget->isVisible(); }); };
+			expect(shown(rows) == 1 && shown(actions) == 1, "its row alone says why and offers an action");
+			auto* const publish = *std::ranges::find_if(actions, [](const QToolButton* aButton) { return aButton->isVisible(); });
+			expect(publish->text() == QStringLiteral("Publish as file comment"), "the action is Publish as file comment");
+			expect(!composer.disposition_button(core::review_disposition::comment)->isEnabled(), "Submit is blocked while it is held");
+			std::size_t blocked = 0U;
+			{
+				std::scoped_lock lock{ server->Mutex };
+				blocked = server->ReviewPosts.size();
+			}
+			composer.submit_action()->trigger();
+			QApplication::processEvents();
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->ReviewPosts.size() == blocked, "Submit by its key sends nothing while it is held");
+			}
+			publish->click();
+			wait([&] { return access::review_mutation_evidence(*application).FilePosts == before.FilePosts + 1U && composer.shown_draft() && composer.shown_draft()->Comments.size() == 8U; },
+				 "Publish as file comment publishes it on its own and takes it out of the review");
+			const auto after = access::review_mutation_evidence(*application);
+			expect(after.NativePosts == before.NativePosts && after.LastFile && after.LastPath == "review.cpp" && after.LastCommit == access::accepted_head(*application),
+				   "one file comment at the head, with no native attempt");
+			expect(after.LastBody == "https://github.com/octo-org/review-repository/blob/" + access::accepted_head(*application) + "/review.cpp#L86\n\n" + offHunkBody,
+				   "its body is the permalink to head line 86 and the comment word for word");
+			wait([&] { return composer.held_comments().empty() && composer.disposition_button(core::review_disposition::comment)->isEnabled(); }, "with nothing held Submit is allowed");
+			composer.submit_action()->trigger();
+			submitted(composer);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->ReviewPosts.size() == ownerPost + 2U && server->ReviewPosts.back().find("outside every hunk") == std::string::npos, "one review is posted, without the file comment's text");
+				for (const auto& body : owner) {
+					expect(std::ranges::count_if(server->PreviousComments, [&body](const application::staged_review_comment& aComment) { return aComment.Body == body; }) == 1, "GitHub holds each of the eight once");
+				}
+			}
+			expect(access::review_mutation_evidence(*application).FilePosts == before.FilePosts + 1U, "and the file comment was published once");
 		}
 		shutdown(*application);
 		cli.check();

@@ -1620,6 +1620,9 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1327]]. Turns preparation off or on in the active
 		/// window, so one course can measure opening files both ways.
 		static void set_preparation_enabled(github_application& aApplication, bool aEnabled);
+		/// \brief [[BPR-1735]]. Turns the Whole PR diff's placement off or on,
+		/// so a course can write what a build before it wrote.
+		static void set_whole_diff_placement_enabled(github_application& aApplication, bool aEnabled);
 		/// \brief [[BPR-1212]]. The next `aCount` base-numbering answers apply as
 		/// `cancelled`, as an accept that stops queued epoch work leaves them.
 		static void cancel_base_numbering_answers(github_application& aApplication, std::size_t aCount);

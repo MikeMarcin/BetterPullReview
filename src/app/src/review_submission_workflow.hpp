@@ -58,6 +58,10 @@ namespace bpr::app {
 		/// this workflow is not already settling is looked up, and its answer
 		/// settles its drafts.
 		void resolve_held(std::vector<std::string> aKeys);
+		/// \brief [[BPR-1735]]. The carried drafts the core placed outside
+		/// GitHub's diff: GitHub refuses a review carrying one, so Submit is
+		/// refused while any is carried.
+		void hold_comments(std::vector<core::review_draft_id> aDrafts);
 		/// [[BPR-1475]]. A review GitHub confirmed published, on its answer or
 		/// on Check status. Called whether or not it carried comments, so the
 		/// window can read the pull request again (owner, 2026-10-13).
@@ -126,6 +130,7 @@ namespace bpr::app {
 		core::review_submission_rejection                     CommentsRefusal = core::review_submission_rejection::none;
 		bool                                                  Locking         = false;
 		std::vector<std::string>                              Lookups;
+		std::vector<core::review_draft_id>                    UnplaceableDrafts;
 		std::vector<std::string>                              LookedUp;
 		std::optional<std::string>                            LookupKey;
 		std::optional<application::review_submission_request> Recovering;
