@@ -1,12 +1,12 @@
 {
   "packages": [
     {
-      "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
+      "commit": "eaf54fa066dfd1933c420672494f2e6cff5801c5",
       "git_object_format": "sha1",
       "id": "attended-review",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/attended-review",
-      "payload_digest": "sha256:303b28682be660882b396ad3d3b027f14ca71142c58566e3b4d0c351f663f7bf",
+      "payload_digest": "sha256:6f5477a9ad1a719df1e939cd628b3b60ad5f2e78cf4fff58cbf623f9839c4501",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
