@@ -44,8 +44,12 @@ namespace bpr::core {
 		// [[BPR-1706]]. GitHub resolves an unresolvable line nowhere, so it
 		// never has a native child to prepare or post: it is admitted
 		// straight to the file comment, and only from the initial state.
+		// [[BPR-1735]]. A rejected publication's every child was answered
+		// with a fully received refusal, so GitHub holds no comment of it: it
+		// starts again as a new attempt, planned as from the initial state.
+		const auto fresh        = aObservation.State == state::initial || aObservation.State == state::rejected;
 		const auto unresolvable = aObservation.Placement == review_placement::unresolvable_line;
-		if (unresolvable && aObservation.State == state::initial) {
+		if (unresolvable && fresh) {
 			return fallback(aObservation, action::admit_unresolvable_line);
 		}
 		if (unresolvable && aObservation.State == state::native_prepared) {
@@ -53,12 +57,13 @@ namespace bpr::core {
 		}
 		switch (aObservation.State) {
 		case state::initial:
+		case state::rejected:
 			if (aObservation.Placement == review_placement::off_hunk
 				&& aObservation.Capability == off_hunk_creation_capability::unsupported
 				&& aObservation.CapabilityCurrent) {
 				return fallback(aObservation, action::admit_unsupported_evidence);
 			}
-			[[fallthrough]];
+			return { .Action = action::native_attempt, .Representation = representation::native_line };
 		case state::native_prepared:
 			return { .Action = action::native_attempt, .Representation = representation::native_line };
 		case state::native_possibly_transmitted:
@@ -74,8 +79,6 @@ namespace bpr::core {
 			return { .Action = action::already_succeeded, .Representation = representation::native_line };
 		case state::succeeded_fallback:
 			return { .Action = action::already_succeeded, .Representation = representation::file_comment_with_permalink };
-		case state::rejected:
-			return { .Diagnostic = review_publication_diagnostic::previously_rejected };
 		}
 		return { .Diagnostic = review_publication_diagnostic::invalid_observation };
 	}
@@ -90,14 +93,16 @@ namespace bpr::core {
 		const auto current = aObservation.State;
 		const auto native  = current == state::native_prepared || current == state::native_possibly_transmitted;
 		const auto file    = current == state::fallback_prepared || current == state::fallback_possibly_transmitted;
+		// [[BPR-1735]]. A rejected publication starts again as from the initial state.
+		const auto fresh = current == state::initial || current == state::rejected;
 		switch (aEvent) {
 		case event::prepare_native:
-			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::native_attempt) {
+			if (fresh && plan_review_publication(aObservation).Action == review_publication_action::native_attempt) {
 				return state::native_prepared;
 			}
 			break;
 		case event::admit_unsupported_evidence:
-			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::admit_unsupported_evidence) {
+			if (fresh && plan_review_publication(aObservation).Action == review_publication_action::admit_unsupported_evidence) {
 				return state::unsupported_evidence_admitted;
 			}
 			break;
@@ -117,7 +122,7 @@ namespace bpr::core {
 			}
 			break;
 		case event::admit_unresolvable_line:
-			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::admit_unresolvable_line) {
+			if (fresh && plan_review_publication(aObservation).Action == review_publication_action::admit_unresolvable_line) {
 				return state::unresolvable_line_admitted;
 			}
 			break;

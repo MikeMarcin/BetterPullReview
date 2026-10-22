@@ -215,6 +215,111 @@ namespace {
 			   "a diff of one commit with itself is refused");
 	}
 
+	/// [[BPR-1735]]. BPR-Test #124's shape: an 80-line file whose head changes
+	/// line 10 (zero-based 9). GitHub refused line 60 there with 422, in a
+	/// review and as a single comment.
+	auto line_ten_changed() -> core::line_correspondence
+	{
+		return { .LeftLines = 80U, .RightLines = 80U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 70U } } };
+	}
+
+	void test_github_diff_rule()
+	{
+		using diff       = core::github_diff_placement;
+		const auto lines = std::optional{ line_ten_changed() };
+		for (const auto side : { diff_side::right, diff_side::left }) {
+			expect(core::place_on_github_diff(lines, side, 9U, std::nullopt) == diff::in_diff, "the changed line is in its hunk, on either side");
+			expect(core::place_on_github_diff(lines, side, 6U, std::nullopt) == diff::in_diff, "exactly three lines before the change is in");
+			expect(core::place_on_github_diff(lines, side, 12U, std::nullopt) == diff::in_diff, "exactly three lines after it is in");
+			expect(core::place_on_github_diff(lines, side, 5U, std::nullopt) == diff::outside_diff, "four lines before it is outside");
+			expect(core::place_on_github_diff(lines, side, 13U, std::nullopt) == diff::outside_diff, "four lines after it is outside");
+			expect(core::place_on_github_diff(lines, side, 59U, std::nullopt) == diff::outside_diff, "#124's line 60 is outside every hunk");
+			expect(core::place_on_github_diff(lines, side, 0U, std::nullopt) == diff::outside_diff, "so is the first line");
+			expect(core::place_on_github_diff(lines, side, 80U, std::nullopt) == diff::unknown, "a line past the document is not placed");
+			expect(core::place_on_github_diff(lines, side, 11U, 7U) == diff::in_diff, "a range inside the hunk is in");
+			expect(core::place_on_github_diff(lines, side, 12U, 6U) == diff::in_diff, "a range of the whole hunk is in");
+			expect(core::place_on_github_diff(lines, side, 12U, 5U) == diff::range_outside_diff, "a range starting outside it is not");
+			expect(core::place_on_github_diff(lines, side, 13U, 10U) == diff::range_outside_diff, "nor one ending outside it");
+			expect(core::place_on_github_diff(lines, side, 9U, 9U) == diff::unknown, "a range that does not end after it starts is not placed");
+		}
+		expect(core::place_on_github_diff(std::nullopt, diff_side::right, 59U, std::nullopt) == diff::unknown, "with no diff read nothing is inferred");
+		expect(core::place_on_github_diff(core::line_correspondence{ .LeftLines = 3U, .RightLines = 3U, .Unchanged = { { 0U, 0U, 4U } } }, diff_side::right, 1U, std::nullopt) == diff::unknown,
+			   "an invalid correspondence places nothing");
+
+		// Two lines inserted after line 20: three right lines either side of
+		// them, and on the left the place they go, are in.
+		const auto inserted = std::optional{ core::line_correspondence{ .LeftLines = 80U, .RightLines = 82U, .Unchanged = { { 0U, 0U, 20U }, { 20U, 22U, 60U } } } };
+		expect(core::place_on_github_diff(inserted, diff_side::right, 17U, std::nullopt) == diff::in_diff && core::place_on_github_diff(inserted, diff_side::right, 24U, std::nullopt) == diff::in_diff,
+			   "the right lines three either side of an insertion are in");
+		expect(core::place_on_github_diff(inserted, diff_side::right, 16U, std::nullopt) == diff::outside_diff && core::place_on_github_diff(inserted, diff_side::right, 25U, std::nullopt) == diff::outside_diff,
+			   "and the fourth are not");
+		expect(core::place_on_github_diff(inserted, diff_side::left, 17U, std::nullopt) == diff::in_diff && core::place_on_github_diff(inserted, diff_side::left, 22U, std::nullopt) == diff::in_diff,
+			   "the left lines three either side of where it goes are in");
+		expect(core::place_on_github_diff(inserted, diff_side::left, 16U, std::nullopt) == diff::outside_diff && core::place_on_github_diff(inserted, diff_side::left, 23U, std::nullopt) == diff::outside_diff,
+			   "and the fourth are not");
+
+		// Changes six lines apart share their context, as Git's hunks do;
+		// seven apart leave the middle line outside both.
+		const auto six = std::optional{ core::line_correspondence{ .LeftLines = 80U, .RightLines = 80U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 6U }, { 17U, 17U, 63U } } } };
+		expect(core::place_on_github_diff(six, diff_side::right, 19U, 6U) == diff::in_diff, "changes six lines apart are one hunk");
+		const auto seven = std::optional{ core::line_correspondence{ .LeftLines = 80U, .RightLines = 80U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 7U }, { 18U, 18U, 62U } } } };
+		expect(core::place_on_github_diff(seven, diff_side::right, 13U, std::nullopt) == diff::outside_diff, "seven apart, the line four from both is outside");
+		expect(core::place_on_github_diff(seven, diff_side::right, 12U, std::nullopt) == diff::in_diff && core::place_on_github_diff(seven, diff_side::right, 14U, std::nullopt) == diff::in_diff,
+			   "while each change keeps its own three lines");
+		expect(core::place_on_github_diff(seven, diff_side::right, 15U, 8U) == diff::range_outside_diff, "and a range across the gap is in no one hunk");
+
+		expect(core::holds_review_comment(diff::outside_diff) && core::holds_review_comment(diff::range_outside_diff), "a comment GitHub cannot place is held from a review");
+		expect(!core::holds_review_comment(diff::in_diff) && !core::holds_review_comment(diff::unknown), "a placeable or unknown one is not");
+	}
+
+	void test_whole_diff()
+	{
+		// The Whole PR diff: the merge base on the left, the head on the right.
+		auto whole = core::whole_diff_comment_source{ .Head = c2, .MergeBase = base, .BaseToHead = std::nullopt };
+		expect(!core::place_whole_diff_comment(whole, diff_side::right, 59U, std::nullopt), "before the diff is read nothing is placed");
+		whole.BaseToHead  = line_ten_changed();
+		const auto inside = core::place_whole_diff_comment(whole, diff_side::right, 12U, std::nullopt);
+		expect(inside && inside->Placement == placement::head && inside->Commit == c2 && inside->Side == diff_side::right && inside->Line == 12U,
+			   "a line three from the change is a line comment at the head");
+		const auto outside = core::place_whole_diff_comment(whole, diff_side::right, 59U, std::nullopt);
+		expect(outside && outside->Placement == placement::file_comment && outside->Refusal == refusal::outside_github_diff && outside->Commit == c2
+				   && outside->Side == diff_side::right && outside->Line == 59U,
+			   "line 60 is a file comment whose permalink names the head's line");
+		const auto left = core::place_whole_diff_comment(whole, diff_side::left, 13U, std::nullopt);
+		expect(left && left->Placement == placement::file_comment && left->Commit == base && left->Side == diff_side::left && left->Line == 13U,
+			   "a base line four from the change is a file comment naming the merge base's line");
+		const auto leftInside = core::place_whole_diff_comment(whole, diff_side::left, 6U, std::nullopt);
+		expect(leftInside && leftInside->Placement == placement::head && leftInside->Side == diff_side::left && leftInside->Line == 6U, "and three from it a LEFT line comment");
+		const auto range = core::place_whole_diff_comment(whole, diff_side::right, 13U, 11U);
+		expect(range && range->Placement == placement::refused && range->Refusal == refusal::range_outside_github_diff, "a range leaving the hunk is refused, never a file comment");
+		whole.MergeBase = core::git_commit_oid{ };
+		expect(!core::place_whole_diff_comment(whole, diff_side::right, 59U, std::nullopt), "without the merge base nothing is inferred");
+	}
+
+	void test_own_sides_of_a_filtered_diff()
+	{
+		// Only C2 shown: its right side is the head's own document. With the
+		// merge base to the head read, a line outside its hunks is a file comment.
+		auto onlyHead  = source({ .Left = c1, .Right = c2 });
+		onlyHead.Lines = core::filtered_comment_lines{ .RightToHead = std::nullopt, .BaseToRight = std::nullopt, .LeftToBase = std::nullopt, .BaseToHead = base_to_head() };
+		const auto in  = core::place_filtered_comment(onlyHead, diff_side::right, 19U, std::nullopt);
+		expect(in.Placement == placement::head && in.Commit == c2 && in.Line == 19U, "a head line three after a change goes to the head");
+		const auto out = core::place_filtered_comment(onlyHead, diff_side::right, 20U, std::nullopt);
+		expect(out.Placement == placement::file_comment && out.Refusal == refusal::outside_github_diff && out.Commit == c2 && out.Side == diff_side::right && out.Line == 20U,
+			   "a head line four after it is a file comment at the head");
+		expect(core::place_filtered_comment(onlyHead, diff_side::right, 20U, 18U).Refusal == refusal::range_outside_github_diff, "a range leaving the hunk is refused");
+		expect(core::place_filtered_comment(onlyHead, diff_side::right, 19U, 17U).Placement == placement::head, "a range inside it goes to the head");
+
+		// The merge base on the left: its LEFT lines are placed the same way.
+		auto fromBase  = source({ .Left = base, .Right = c1 });
+		fromBase.Lines = core::filtered_comment_lines{ .RightToHead = c1_to_head(), .BaseToRight = base_to_c1(), .LeftToBase = std::nullopt, .BaseToHead = base_to_head() };
+		expect(core::place_filtered_comment(fromBase, diff_side::left, 7U, std::nullopt).Placement == placement::head, "a base line three after a change is LEFT at the head");
+		const auto far = core::place_filtered_comment(fromBase, diff_side::left, 8U, std::nullopt);
+		expect(far.Placement == placement::file_comment && far.Refusal == refusal::outside_github_diff && far.Commit == base && far.Side == diff_side::left && far.Line == 8U,
+			   "a base line four after it is a file comment naming the merge base's line");
+		expect(core::filtered_comment_needs_lines(source({ .Left = base, .Right = c2 })), "even a diff of GitHub's own sides reads its lines");
+	}
+
 	void test_thread_lines()
 	{
 		const auto hidden = core::filtered_diff_endpoints{ .Left = base, .Right = c1 };
@@ -244,6 +349,9 @@ auto main() -> int
 	test_right_side();
 	test_left_side();
 	test_outside_pull_request();
+	test_github_diff_rule();
+	test_whole_diff();
+	test_own_sides_of_a_filtered_diff();
 	test_thread_lines();
 	std::cout << "filtered comment decisions pass\n";
 	return 0;

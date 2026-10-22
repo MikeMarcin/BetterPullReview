@@ -83,6 +83,46 @@ namespace bpr::core {
 	[[nodiscard]] auto line_in_change_context(const line_correspondence& aLines, diff_side aSide, std::uint32_t aLine) noexcept
 		-> bool;
 
+	/// \brief [[BPR-1735]]. Where GitHub resolves a line comment written at the
+	/// head on the pull request's own diff, the merge base to the head.
+	enum class github_diff_placement : std::uint8_t {
+		/// The merge base to the head was not read or not compared: nothing is
+		/// inferred, and the comment is published as it always was.
+		unknown,
+		/// Inside one of the diff's hunks on its side: a line comment.
+		in_diff,
+		/// Outside every hunk on its side: GitHub refuses a line comment there
+		/// (422 on BPR-Test #117, #124 and, reported, GitHub Enterprise Server
+		/// 3.20.8), so it is RFC-BPR-0022's file comment.
+		outside_diff,
+		/// A range not wholly inside one hunk: GitHub refuses it, and a range
+		/// has no file comment.
+		range_outside_diff,
+	};
+
+	/// \brief [[BPR-1735]]. The owner's rule (2026-10-22), measured by
+	/// RFC-BPR-0089 on BPR-Test #116 to #119 and again on #124: a line is
+	/// placeable as a line comment only within `github_comment_context_lines`
+	/// of a change of the merge base to the head on its side.
+	///
+	/// \details `aBaseToHead` is that diff's correspondence, the merge base's
+	/// document on the left and the head's on the right; absent, the answer is
+	/// `unknown`. A line at exactly three lines from a change is inside, a line
+	/// at four is outside. Hunks whose context touches or overlaps are one
+	/// hunk, as Git's are, so a range is placeable only when every line of it
+	/// is inside, which keeps its first and last line in one hunk. The rule
+	/// reads no host name, version or server answer.
+	[[nodiscard]] auto place_on_github_diff(const std::optional<line_correspondence>& aBaseToHead, diff_side aSide, std::uint32_t aLine,
+											std::optional<std::uint32_t> aStartLine) noexcept -> github_diff_placement;
+
+	/// \brief [[BPR-1735]]. Whether a comment pending in a review is held back
+	/// from it: GitHub refuses a whole review that carries one comment it
+	/// cannot place, and names no comment (BPR-Test #124).
+	[[nodiscard]] constexpr auto holds_review_comment(const github_diff_placement aPlacement) noexcept -> bool
+	{
+		return aPlacement == github_diff_placement::outside_diff || aPlacement == github_diff_placement::range_outside_diff;
+	}
+
 	/// \brief What the host read about a filtered diff's lines.
 	///
 	/// \details Each correspondence is absent when its diff is not needed
@@ -123,8 +163,9 @@ namespace bpr::core {
 		auto operator<=>(const filtered_comment_source&) const = default;
 	};
 
-	/// \brief Whether a placement needs `Lines` at all: a diff whose right side
-	/// is the head and whose left side is the merge base is GitHub's own.
+	/// \brief Whether a placement needs `Lines`: [[BPR-1735]] every valid
+	/// filtered diff does, since even a diff whose sides are GitHub's own
+	/// places a line only inside a hunk of the merge base to the head.
 	[[nodiscard]] auto filtered_comment_needs_lines(const filtered_comment_source& aSource) noexcept -> bool;
 
 	enum class filtered_comment_placement : std::uint8_t {
@@ -164,6 +205,10 @@ namespace bpr::core {
 		/// The line moves to the head, where it lies outside every hunk of the
 		/// merge base to the head, so GitHub resolves it nowhere (422).
 		outside_github_diff,
+		/// [[BPR-1735]]. A range at the head not wholly inside one hunk of the
+		/// merge base to the head: GitHub refuses it, and a range has no file
+		/// comment.
+		range_outside_github_diff,
 	};
 
 	/// \brief Where a comment on a filtered diff goes (owner decision Q1).
@@ -203,8 +248,42 @@ namespace bpr::core {
 	/// the merge base. Both commits must be of the chain (or its fork or the
 	/// merge base on the left), so a commit outside the pull request is
 	/// refused before anything is written.
+	///
+	/// [[BPR-1735]]. A side that is GitHub's own (a right side that is the
+	/// head, a left side that is the merge base) is placed by
+	/// `place_on_github_diff` once `BaseToHead` is read: a line outside every
+	/// hunk is a `file_comment` naming the line at that side's commit, a range
+	/// not wholly inside one is refused (`range_outside_github_diff`). Before
+	/// the lines are read, or when they could not be, it goes to the head as
+	/// it always did.
 	[[nodiscard]] auto place_filtered_comment(const filtered_comment_source& aSource, diff_side aSide, std::uint32_t aLine,
 											  std::optional<std::uint32_t> aStartLine) -> filtered_comment_target;
+
+	/// \brief [[BPR-1735]]. The facts a comment on the pull request's whole
+	/// diff is placed from: the accepted head, the merge base GitHub names,
+	/// and, once the host has read and compared the file at both, the merge
+	/// base to the head.
+	struct whole_diff_comment_source
+	{
+		git_commit_oid                     Head;
+		git_commit_oid                     MergeBase;
+		std::optional<line_correspondence> BaseToHead;
+
+		auto operator<=>(const whole_diff_comment_source&) const = default;
+	};
+
+	/// \brief [[BPR-1735]]. Where a comment written on the Whole PR diff goes,
+	/// or none when that is not known.
+	///
+	/// \details None when either commit is invalid or `BaseToHead` is absent:
+	/// the comment is published as it always was, with no inference. Otherwise
+	/// `head` at the line itself, a `file_comment` (`outside_github_diff`)
+	/// whose permalink names the line at the head on the right or at the merge
+	/// base on the left, or `refused` (`range_outside_github_diff`) for a
+	/// range. The left document must be the merge base's for a left line; the
+	/// host asks only then.
+	[[nodiscard]] auto place_whole_diff_comment(const whole_diff_comment_source& aSource, diff_side aSide, std::uint32_t aLine,
+												std::optional<std::uint32_t> aStartLine) -> std::optional<filtered_comment_target>;
 
 	/// \brief One review thread's line facts, as GitHub reported them.
 	struct filtered_thread_anchor

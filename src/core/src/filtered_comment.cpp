@@ -45,6 +45,68 @@ namespace bpr::core {
 		{
 			return { .Placement = filtered_comment_placement::file_comment, .Refusal = aReason, .Commit = aCommit, .Side = aSide, .Line = aLine };
 		}
+
+		/// \brief [[BPR-1735]]. The hunk holding a line on one side, as the
+		/// half-open span of its lines with their context; none when no hunk
+		/// holds it.
+		///
+		/// \details Each change (a gap between unchanged runs, before the
+		/// first or after the last) is widened by the context on both ends and
+		/// clipped to the document. Spans that touch or overlap are one hunk:
+		/// two changes at most twice the context apart share their context, as
+		/// Git's hunks do.
+		[[nodiscard]] auto hunk_holding(const line_correspondence& aLines, const diff_side aSide, const std::uint32_t aLine) noexcept
+			-> std::optional<std::pair<std::uint64_t, std::uint64_t>>
+		{
+			using span               = std::pair<std::uint64_t, std::uint64_t>;
+			const auto lines         = std::uint64_t{ aSide == diff_side::left ? aLines.LeftLines : aLines.RightLines };
+			auto       previousLeft  = std::uint64_t{ 0U };
+			auto       previousRight = std::uint64_t{ 0U };
+			auto       current       = std::optional<span>{ };
+			const auto holds         = [aLine](const std::optional<span>& aSpan) { return aSpan && aLine >= aSpan->first && aLine < aSpan->second; };
+			for (std::size_t index = 0U; index <= aLines.Unchanged.size(); ++index) {
+				const auto nextLeft  = index < aLines.Unchanged.size() ? std::uint64_t{ aLines.Unchanged[index].Left } : std::uint64_t{ aLines.LeftLines };
+				const auto nextRight = index < aLines.Unchanged.size() ? std::uint64_t{ aLines.Unchanged[index].Right } : std::uint64_t{ aLines.RightLines };
+				if (nextLeft > previousLeft || nextRight > previousRight) {
+					const auto begin = aSide == diff_side::left ? previousLeft : previousRight;
+					const auto end   = aSide == diff_side::left ? nextLeft : nextRight;
+					const auto from  = begin > github_comment_context_lines ? begin - github_comment_context_lines : 0U;
+					const auto to    = std::min(end + github_comment_context_lines, lines);
+					if (current && from <= current->second) {
+						current->second = std::max(current->second, to);
+					} else {
+						if (holds(current)) {
+							return current;
+						}
+						current = span{ from, to };
+					}
+				}
+				if (index < aLines.Unchanged.size()) {
+					previousLeft  = nextLeft + aLines.Unchanged[index].Length;
+					previousRight = nextRight + aLines.Unchanged[index].Length;
+				}
+			}
+			return holds(current) ? current : std::nullopt;
+		}
+
+		/// \brief [[BPR-1735]]. A line of a side that is GitHub's own: at the
+		/// head, unless the merge base to the head shows GitHub resolves it
+		/// nowhere. The permalink names it at that side's commit.
+		[[nodiscard]] auto own_side(const std::optional<line_correspondence>& aBaseToHead, const git_commit_oid& aHead, const git_commit_oid& aSideCommit,
+									const diff_side aSide, const std::uint32_t aLine, const std::optional<std::uint32_t> aStartLine) noexcept
+			-> filtered_comment_target
+		{
+			switch (place_on_github_diff(aBaseToHead, aSide, aLine, aStartLine)) {
+			case github_diff_placement::outside_diff:
+				return file_comment(filtered_comment_refusal::outside_github_diff, aSideCommit, aSide, aLine);
+			case github_diff_placement::range_outside_diff:
+				return refused(filtered_comment_refusal::range_outside_github_diff);
+			case github_diff_placement::unknown:
+			case github_diff_placement::in_diff:
+				break;
+			}
+			return placed(filtered_comment_placement::head, aHead, aSide, aLine);
+		}
 	} // namespace
 
 	auto valid(const line_correspondence& aLines) noexcept -> bool
@@ -137,9 +199,33 @@ namespace bpr::core {
 		return false;
 	}
 
+	auto place_on_github_diff(const std::optional<line_correspondence>& aBaseToHead, const diff_side aSide, const std::uint32_t aLine,
+							  const std::optional<std::uint32_t> aStartLine) noexcept -> github_diff_placement
+	{
+		if (!aBaseToHead || (aSide != diff_side::left && aSide != diff_side::right) || (aStartLine && *aStartLine >= aLine) || !valid(*aBaseToHead)
+			|| aLine >= (aSide == diff_side::left ? aBaseToHead->LeftLines : aBaseToHead->RightLines)) {
+			return github_diff_placement::unknown;
+		}
+		const auto hunk = hunk_holding(*aBaseToHead, aSide, aLine);
+		if (!aStartLine) {
+			return hunk ? github_diff_placement::in_diff : github_diff_placement::outside_diff;
+		}
+		return hunk && *aStartLine >= hunk->first ? github_diff_placement::in_diff : github_diff_placement::range_outside_diff;
+	}
+
 	auto filtered_comment_needs_lines(const filtered_comment_source& aSource) noexcept -> bool
 	{
-		return aSource.Diff.Right != aSource.Head || aSource.Diff.Left != aSource.MergeBase;
+		return valid(aSource.Diff);
+	}
+
+	auto place_whole_diff_comment(const whole_diff_comment_source& aSource, const diff_side aSide, const std::uint32_t aLine,
+								  const std::optional<std::uint32_t> aStartLine) -> std::optional<filtered_comment_target>
+	{
+		if (!aSource.Head.valid() || !aSource.MergeBase.valid()
+			|| place_on_github_diff(aSource.BaseToHead, aSide, aLine, aStartLine) == github_diff_placement::unknown) {
+			return std::nullopt;
+		}
+		return own_side(aSource.BaseToHead, aSource.Head, aSide == diff_side::left ? aSource.MergeBase : aSource.Head, aSide, aLine, aStartLine);
 	}
 
 	auto place_filtered_comment(const filtered_comment_source& aSource, const diff_side aSide, const std::uint32_t aLine,
@@ -153,9 +239,10 @@ namespace bpr::core {
 			return refused(filtered_comment_refusal::outside_pull_request);
 		}
 		if (aSide == diff_side::right) {
-			// The head's own document: every line is where it is at the head.
+			// The head's own document: every line is where it is at the head,
+			// and GitHub resolves it there only inside a hunk ([[BPR-1735]]).
 			if (diff.Right == aSource.Head) {
-				return placed(filtered_comment_placement::head, aSource.Head, diff_side::right, aLine);
+				return own_side(aSource.Lines ? aSource.Lines->BaseToHead : std::nullopt, aSource.Head, aSource.Head, diff_side::right, aLine, aStartLine);
 			}
 			if (aStartLine) {
 				return refused(filtered_comment_refusal::range);
@@ -186,7 +273,7 @@ namespace bpr::core {
 		}
 		// GitHub counts a `LEFT` line in the merge base's file.
 		if (diff.Left == aSource.MergeBase) {
-			return placed(filtered_comment_placement::head, aSource.Head, diff_side::left, aLine);
+			return own_side(aSource.Lines ? aSource.Lines->BaseToHead : std::nullopt, aSource.Head, aSource.MergeBase, diff_side::left, aLine, aStartLine);
 		}
 		if (aStartLine) {
 			return refused(filtered_comment_refusal::range);

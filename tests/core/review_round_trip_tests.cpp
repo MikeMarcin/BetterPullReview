@@ -498,6 +498,52 @@ namespace {
 			   "a replay returns the file comment's receipt");
 	}
 
+	/// [[BPR-1735]]. A fully received refusal retires the child as rejected;
+	/// GitHub holds no comment of it, so publishing again is a new attempt,
+	/// and a line the core now places outside GitHub's diff goes to its file
+	/// comment. Nothing else rejects.
+	void test_rejected_publication_policy()
+	{
+		using namespace core;
+		using action = review_publication_action;
+		using state  = review_publication_state;
+		using event  = review_publication_event;
+		review_publication_observation value{ .Eligible = true };
+		const auto                     step = [&value](event aEvent) { auto next=advance_review_publication(value,aEvent); expect(next.has_value(), "legal durable transition"); value.State=*next; };
+		step(event::prepare_native);
+		step(event::native_transmission_witness);
+		expect(plan_review_publication(value).Action == action::reconcile_native, "an unanswered native child only reconciles");
+		step(event::definitively_rejected);
+		expect(value.State == state::rejected, "a fully received refusal rejects the native child");
+		const auto again = plan_review_publication(value);
+		expect(again.Action == action::native_attempt && again.Representation == review_publication_representation::native_line, "a rejected comment can be published again");
+		expect(advance_review_publication(value, event::prepare_native) == std::optional{ state::native_prepared }, "as a new native attempt");
+		expect(!advance_review_publication(value, event::prepare_fallback) && !advance_review_publication(value, event::native_created)
+				   && !advance_review_publication(value, event::fallback_created) && !advance_review_publication(value, event::native_transmission_witness),
+			   "a rejection authorizes no fallback and no receipt");
+		value.Placement = review_placement::unresolvable_line;
+		expect(plan_review_publication(value).Action == action::admit_unresolvable_line, "a refused line now placed outside GitHub's diff goes to its file comment");
+		expect(advance_review_publication(value, event::admit_unresolvable_line) == std::optional{ state::unresolvable_line_admitted } && !advance_review_publication(value, event::prepare_native),
+			   "admitted, with no native attempt");
+		value.Placement         = review_placement::off_hunk;
+		value.Capability        = off_hunk_creation_capability::unsupported;
+		value.CapabilityCurrent = true;
+		expect(plan_review_publication(value).Action == action::admit_unsupported_evidence, "fresh scoped evidence is admitted as from the start");
+
+		// A file comment GitHub refused (subject_type file on a host that has
+		// none) is rejected too, and its draft kept.
+		value = { .Placement = review_placement::unresolvable_line, .Eligible = true };
+		step(event::admit_unresolvable_line);
+		step(event::prepare_fallback);
+		step(event::fallback_transmission_witness);
+		step(event::definitively_rejected);
+		expect(value.State == state::rejected, "a refused file comment is rejected");
+		expect(plan_review_publication(value).Action == action::admit_unresolvable_line, "and can be published again");
+		for (const auto unanswered : { state::initial, state::native_definitively_unsupported, state::unsupported_evidence_admitted, state::unresolvable_line_admitted, state::succeeded_native, state::succeeded_fallback, state::rejected }) {
+			expect(!advance_review_publication({ .State = unanswered, .Eligible = true }, event::definitively_rejected), "only a sent child is rejected");
+		}
+	}
+
 	void test_publication_policy()
 	{
 		using namespace core;
@@ -565,6 +611,7 @@ namespace {
 			}
 		}
 		test_unresolvable_line_policy();
+		test_rejected_publication_policy();
 		expect(classify_review_body("text\n```suggestion:-1+2\nx\n```") == review_body_compatibility::requires_line_subject, "suggestion ranges keep line semantics");
 		expect(classify_review_body("~~~  suggestion\ncode") == review_body_compatibility::requires_line_subject, "whitespace in a suggestion info string cannot degrade");
 		expect(classify_review_body("ordinary prose") == review_body_compatibility::portable, "plain prose is portable");

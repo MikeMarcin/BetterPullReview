@@ -8314,6 +8314,10 @@ namespace bpr::qt {
 			return { tr("This line changed after the merge base, where GitHub counts base lines. Comment on a right-side line instead."), true };
 		case refusal::outside_github_diff:
 			return { tr("This line is unchanged at the head, where GitHub shows no change near it, so no line comment can go there. Comment on a changed line instead."), true };
+		case refusal::range_outside_github_diff:
+			// [[BPR-1735]]. A range has no file comment: one line's link would
+			// say less than the reviewer selected.
+			return { tr("GitHub shows no change near some of these lines, so it can't attach a comment to them, and a comment on several lines can't go on the file. Comment on one line."), true };
 		case refusal::outside_pull_request:
 			return { tr("This diff's commits are not the pull request's own, so nothing can be published on it."), true };
 		case refusal::lines_unavailable:

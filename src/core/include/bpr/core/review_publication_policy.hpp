@@ -47,6 +47,10 @@ namespace bpr::core {
 		fallback_possibly_transmitted,
 		succeeded_native,
 		succeeded_fallback,
+		/// [[BPR-1735]]. GitHub answered the last child with a fully received
+		/// refusal (a 4xx), so no comment of this publication exists. Planned
+		/// as `initial`: publishing again starts a new attempt, and a line the
+		/// core now places outside GitHub's diff is admitted to its file comment.
 		rejected,
 		/// [[BPR-1706]]. First-attempt admission of an unresolvable line: the
 		/// parent's own durable authorization for its file comment, with no
@@ -83,6 +87,8 @@ namespace bpr::core {
 		ineligible_anchor,
 		invalid_observation,
 		incompatible_body,
+		/// No longer planned: [[BPR-1735]] plans a rejected publication as a new
+		/// attempt. Kept so the values after it keep their meaning.
 		previously_rejected,
 	};
 	struct review_publication_decision
@@ -106,6 +112,8 @@ namespace bpr::core {
 		prepare_fallback,
 		fallback_transmission_witness,
 		fallback_created,
+		/// [[BPR-1735]]. A fully received refusal of a child: never a timeout, a
+		/// lost or malformed answer, or GET absence.
 		definitively_rejected,
 		/// [[BPR-1706]]. Only from `initial`, only for an unresolvable line.
 		admit_unresolvable_line,
