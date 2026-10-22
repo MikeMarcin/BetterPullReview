@@ -216,6 +216,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-PENDING-AQ2]]. The agent setup store opens under the same retained
     # ancestor walk as its siblings.
     "sqlite_agent_setup_storage": "unmeasured (registered on macOS)",
+    "workspace_clone_folder_scan": "unmeasured (registered on macOS)",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now
     # measured ([[BPR-1631]]).

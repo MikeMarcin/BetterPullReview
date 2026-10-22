@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 #ifndef _WIN32
 	#include <sys/stat.h>
 #endif
@@ -50,6 +51,40 @@ try {
 	control.HarnessProgram = "/bin/harness\n--flag";
 	expect(!store->store(control), "a program with a control character is not written");
 	expect(store->load() == none, "a refused write leaves the stored preferences as they were");
+
+	// [[BPR-PENDING-AQ3]]. Clone folders and repository links in the same file.
+	auto links = adapters::sqlite::make_clone_link_store(scratch.path());
+	expect(links->load_clone_folders() == std::vector<std::string>{ } && links->load_links() == std::vector<application::repository_link>{ }, "no folders or links at first");
+	const auto folders = std::vector<std::string>{ "/Users/me/Documents/GitHub", "/Users/me/src" };
+	expect(links->store_clone_folders(folders) && links->load_clone_folders() == folders, "folders keep their order");
+	expect(links->store_clone_folders(std::vector<std::string>{ "/Users/me/src" }) && links->load_clone_folders() == std::vector<std::string>{ "/Users/me/src" },
+		   "storing folders replaces them");
+	auto tooMany = std::vector<std::string>(core::maximum_clone_folders + 1U, "/x");
+	expect(!links->store_clone_folders(tooMany), "more than the folder bound is refused");
+	auto link       = application::repository_link{ };
+	link.Host       = "github.com";
+	link.Repository = 42U;
+	link.Owner      = "bpr-fixtures";
+	link.Name       = "engine";
+	link.Path       = "/Users/me/src/engine";
+	link.Remote     = "origin";
+	expect(links->store_link(link), "a link is stored");
+	auto copy        = link;
+	copy.Repository  = 43U;
+	copy.Name        = "other";
+	copy.Path        = { };
+	copy.Remote      = { };
+	copy.PrivateCopy = true;
+	expect(links->store_link(copy), "a private copy choice is stored");
+	auto invalid        = link;
+	invalid.PrivateCopy = true;
+	expect(!links->store_link(invalid), "a private copy with a path is refused");
+	links.reset();
+	links          = adapters::sqlite::make_clone_link_store(scratch.path());
+	const auto all = links->load_links();
+	expect(all && all->size() == 2U && (*all)[0] == link && (*all)[1] == copy, "links read back after a restart");
+	expect(links->forget_link("github.com", 42U, "bpr-fixtures", "engine") && links->load_links()->size() == 1U, "Forget removes one link");
+	expect(store->load() == none, "the preferences are untouched by links");
 
 #ifndef _WIN32
 	struct stat status{ };

@@ -998,6 +998,13 @@ bpr_enable_hardening(test_better_pull_review_agent_setup_host_tests)
 bpr_enable_warnings(test_better_pull_review_agent_setup_host_tests)
 bpr_add_network_isolated_test(NAME application_agent_setup_host COMMAND test_better_pull_review_agent_setup_host_tests)
 set_tests_properties(application_agent_setup_host PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-host-tests:pass" TIMEOUT 30)
+# [[BPR-PENDING-AQ3]]. RFC-BPR-0091 M3: clone folders, discovery and links.
+bpr_add_executable(test_better_pull_review_clone_link_host_tests clone_link_host_tests.cpp)
+target_link_libraries(test_better_pull_review_clone_link_host_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_clone_link_host_tests)
+bpr_enable_warnings(test_better_pull_review_clone_link_host_tests)
+bpr_add_network_isolated_test(NAME application_clone_link_host COMMAND test_better_pull_review_clone_link_host_tests)
+set_tests_properties(application_clone_link_host PROPERTIES PASS_REGULAR_EXPRESSION "clone-link-host-tests:pass" TIMEOUT 30)
 endif()
 
 bpr_add_executable(test_review_tour_host review_tour_host_tests.cpp)

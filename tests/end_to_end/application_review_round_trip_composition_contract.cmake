@@ -1,3 +1,19 @@
+# [[BPR-PENDING-AQ3]] reseal (2026-10-22) over the BPR-PENDING-AQ2 reseal
+# below (f8b7fbabd), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0091 M3 (owner decision D2 of 2026-10-22): github_application.cpp,
+# agent builds only, composes the profile's clone folders and repository
+# links: adapters::sqlite::make_clone_link_store over the same agent-setup
+# file (folder paths in order; per repository a clone path, a remote name or
+# the private copy; no URL or credential column) and
+# application::clone_link_host, whose reads are the workspace adapter's
+# scan_clone_folders, read_clone and existing_folders (metadata only, no
+# link followed, no Git run, nothing written). The accepted review's host
+# name, repository identity and owner/name are observed when its facts are
+# set and cleared with them; a link that serves, or the private copy, marks
+# setup's Repository step done. Shut down with the window and counted in
+# quiescence. No grant, target, provider, credential, mutation or publication
+# path changes; no new src/app source. Full and manifest pins bind these
+# bytes; mutation 16d135419 stays exact.
 # [[BPR-PENDING-AQ2]] reseal (2026-10-22) over the BPR-PENDING-AQ1 reseal
 # below (067c49fdb), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0091 M2 (owner answers Q2 and Q3 A of 2026-10-22):

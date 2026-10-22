@@ -5,6 +5,7 @@
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/workspace/clone_folder_scan.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
@@ -100,6 +101,7 @@
 	#include "bpr/application/agent_program_resolution.hpp"
 	#include "bpr/application/agent_setup_host.hpp"
 	#include "bpr/application/claude_process_wrapper.hpp"
+	#include "bpr/application/clone_link_host.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -9314,6 +9316,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 			}
 			AgentSetup->load();
+			// [[BPR-PENDING-AQ3]], RFC-BPR-0091 D2. The profile's clone folders
+			// and each repository's remembered clone, read by metadata alone.
+			CloneLinkStore = adapters::sqlite::make_clone_link_store(ApplicationDataRoot);
+			{
+				auto dependencies           = application::clone_link_dependencies{ };
+				dependencies.Store          = CloneLinkStore.get();
+				dependencies.Reads.Scan     = [](const std::span<const std::string> aFolders, std::stop_token aStop) { return adapters::workspace::scan_clone_folders(aFolders, std::move(aStop)); };
+				dependencies.Reads.Read     = [](const std::string& aPath) { return adapters::workspace::read_clone(aPath); };
+				dependencies.Reads.Existing = [](const std::span<const std::string> aFolders) { return adapters::workspace::existing_folders(aFolders); };
+				dependencies.Home           = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+	#if defined(Q_OS_WIN)
+				dependencies.Windows = true;
+	#endif
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::clone_link_projection& aProjection) { present_clone_links(aProjection); };
+				CloneLinks            = std::make_unique<application::clone_link_host>(std::move(dependencies));
+			}
+			CloneLinks->load();
+			observe_clone_repository();
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
@@ -11384,9 +11406,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+		/// [[BPR-PENDING-AQ3]], RFC-BPR-0091 D2. The repository of the review
+		/// now open, for its remembered clone.
+		void observe_clone_repository()
+		{
+			if (!CloneLinks) {
+				return;
+			}
+			if (!AgentReview) {
+				CloneLinks->observe_repository(std::nullopt);
+				return;
+			}
+			auto repository       = application::clone_repository{ };
+			repository.Host       = AgentReview->Hostname;
+			repository.Repository = AgentReview->Repository.value();
+			repository.Owner      = AgentReview->Locator.Owner;
+			repository.Name       = AgentReview->Locator.Name;
+			CloneLinks->observe_repository(std::move(repository));
+		}
+
 		/// [[BPR-PENDING-AQ2]], RFC-BPR-0091. What setup decided reaches the
 		/// window: the saved or chosen agent is the one the Agent tab and Send to
 		/// Agent offer first.
+		/// [[BPR-PENDING-AQ3]]. A repository with a serving link or the private
+		/// copy has its Repository step done.
+		void present_clone_links(const application::clone_link_projection& aProjection)
+		{
+			static_cast<void>(aProjection);
+			if (Closing || !CloneLinks || !AgentSetup) {
+				return;
+			}
+			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen());
+		}
+
 		void present_agent_setup(const application::agent_setup_projection& aProjection)
 		{
 			if (Closing || Window == nullptr) {
@@ -16726,6 +16778,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.Hostname    = std::string{ aHandoff.Hostname.value() },
 					.Locator     = aHandoff.Locator,
 				};
+#if defined(BPR_AGENT_INTEGRATIONS)
+				observe_clone_repository();
+#endif
 				const auto authority = workbench_authority(aHandoff);
 				const auto snapshot  = Host != nullptr
 					? WindowRead->accepted_snapshot()
@@ -16842,6 +16897,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReadingDestination.reset();
 			AcceptedReadingPosition.reset();
 			AgentReview.reset();
+#if defined(BPR_AGENT_INTEGRATIONS)
+			observe_clone_repository();
+#endif
 			// [[BPR-1365]]. No recent entry is open any more.
 			if (closed) {
 				publish_recent();
@@ -20885,6 +20943,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (AgentSetup) {
 				AgentSetup->shutdown();
 			}
+			if (CloneLinks) {
+				CloneLinks->shutdown();
+			}
 #endif
 			if (TourHost) {
 				TourHost->shutdown();
@@ -20997,6 +21058,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_AGENT_INTEGRATIONS)
 				|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
 				|| (AgentSetup && !AgentSetup->is_quiescent())
+				|| (CloneLinks && !CloneLinks->is_quiescent())
 #endif
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
@@ -22038,6 +22100,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<adapters::agent::agent_process_launcher> AgentSetupLauncher;
 		std::unique_ptr<worker_executor>                         AgentSetupLane;
 		std::unique_ptr<application::agent_setup_host>           AgentSetup;
+		/// [[BPR-PENDING-AQ3]]. Clone folders and links: store, then host.
+		std::unique_ptr<application::clone_link_store_port> CloneLinkStore;
+		std::unique_ptr<application::clone_link_host>       CloneLinks;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

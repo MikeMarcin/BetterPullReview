@@ -2,6 +2,7 @@
 #define BPR_SQLITE_AGENT_SETUP_STORE_HPP
 
 #include "bpr/application/agent_setup_preferences.hpp"
+#include "bpr/application/clone_link_host.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -17,6 +18,12 @@ namespace bpr::adapters::sqlite {
 	/// does not read back as valid is reported as defaults rather than
 	/// trusted. Settings resets clear it with the other settings stores.
 	[[nodiscard]] auto make_agent_setup_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_setup_store_port>;
+
+	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0091 D2. The same file's clone
+	/// folders (at most `core::maximum_clone_folders`, in order) and repository
+	/// links (at most 1,000), each a folder path, a remote name and a private
+	/// copy flag; no URL or credential is stored.
+	[[nodiscard]] auto make_clone_link_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::clone_link_store_port>;
 } // namespace bpr::adapters::sqlite
 
 #endif

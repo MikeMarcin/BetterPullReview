@@ -7,6 +7,9 @@ add_library(
     better_pull_review_adapter_workspace
     STATIC
         src/local_workspace_source.cpp
+        # [[BPR-PENDING-AQ3]]. RFC-BPR-0091 D2: clone folders, read by
+        # metadata, no links followed, nothing written or run.
+        src/clone_folder_scan.cpp
 )
 add_library(
     BetterPullReview::AdapterWorkspace
