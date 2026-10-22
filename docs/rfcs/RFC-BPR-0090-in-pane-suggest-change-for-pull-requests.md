@@ -14,6 +14,11 @@ In Progress, revision r2. Adopted from
 ([import record](assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md)) after the
 owner answered its five questions. Card [[BPR-1723]] holds the phase 1
 finding; the milestone cards are listed under [Milestones](#milestones).
+M1 to M3 are implemented; Carry and Copy change at a newer head are
+BPR-PENDING-AH8. M4's live course on BPR-Test #123 published the core's
+planned suggestions, which GitHub took at their lines and returned
+unchanged; GitHub's Commit suggestion on a CRLF file and the owner's look
+are parked on the owner ([checkpoint](../issues/_checkpoints/RFC-BPR-0090-M4/handoff.md)).
 
 ## Problem and grounded current behavior
 

@@ -31,7 +31,7 @@ RFC-BPR-0090 M4 ([RFC](../../rfcs/RFC-BPR-0090-in-pane-suggest-change-for-pull-r
 
 ## Live course, 2026-10-21
 
-`test_pull_request_suggestion --live-plans` (`56bfc1518`) planned five
+`test_pull_request_suggestion --live-plans` (`9cf0d41b2`) planned five
 suggestions through `decide_suggestion_range` and
 `plan_pull_request_suggestion`; a course script posted each through `gh`
 as a single review comment with the plan's anchor and body, on
@@ -77,5 +77,11 @@ Commit suggestions (wizard below); the agent cannot press it.
 ## After the owner
 
 Run `measure`, record AC1; read the look's decisions, record AC2; then the
-course's `cleanup` closes #123 and deletes both branches. Remove the frozen
+course's `cleanup` closes #123 and deletes both branches. The course script
+and its state are kept with the wizard, in
+`/Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001/course/`. Remove the frozen
 root with `scripts/freeze_attended_build.py remove`.
+
+## Rebase
+
+Rebased onto main `7075954df` on 2026-10-21. The frozen build and the look's candidates are `b13164f02`, as built; on this branch that commit is `a7b8b0f6d`, which differs from it only in main's own files. The plan printer is `9cf0d41b2`.
