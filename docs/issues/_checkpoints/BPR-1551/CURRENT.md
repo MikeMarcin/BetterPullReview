@@ -66,3 +66,33 @@ Mechanical audit and actual native signature evidence do not close independent
 security/legal, clean-account/native runtime/vault/crash or broader M8/M9 gaps.
 The supplied security report explicitly retains those pending qualifications.
 Original4c failure, old unsigned DLL and all meaningful negatives stay preserved.
+
+## Recheck before landing on main (2026-10-22)
+
+The Done notes came from `codex/v021-windows-gate-fixes` (5108d4e05 and
+be8bcd104), cherry-picked with `-x` onto main 4e318b625. Before landing them,
+a Claude rfc-implementer checked again:
+
+- Tag v0.2.2 resolves to 23447f3a9, which main contains. Main has not
+  changed this card, its checkpoints or its plan since 23447.
+- GitHub's asset digests for the v0.2.2 prerelease match the MSI
+  (`b3e2a542…`), the SPDX (`088c1778…`) and the corresponding-source zip
+  (`504b3855…`). The published `.msi.release.json` and `.msi.provenance.json`
+  bind 23447, the application `af01d262…` and the signed xdiff `f5a21055…`.
+- The four receipt inputs under the v0.2.2 publisher's
+  `.mask/sessions/release-v0.2.2/native-final` still hash exactly as
+  [artifact-acceptance-r4.json](artifact-acceptance-r4.json) records. R4
+  still reads exit 0, source 23447, `RELEASE_PACKAGE_OK` and
+  `RELEASE_SECURITY_MECHANICS_OK`, with licence approval pending and trust
+  not assessed.
+- On main, `private_library_producers` and `PRIVATE_LIBRARIES` still bind the
+  declared-library producers, `inspect(..., private_producers=...)` still does
+  the exact DLL check, and `Hardening.cmake` still emits shared-library maps.
+  On macOS, `package_runtime_tests.py` (29, 1 skip),
+  `native_release_tests.py` (30, 1 skip) and `verify_release_security_tests.py`
+  (18) pass.
+
+Nothing native was rerun, so R1 and R4 remain the Windows evidence. This
+recheck approves nothing about release trust, security, legal terms,
+vulnerabilities or the M8/M9 native, vault and crash gaps. BPR-0962 remains
+blocked; see its card.

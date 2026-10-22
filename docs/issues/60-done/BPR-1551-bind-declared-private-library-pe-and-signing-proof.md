@@ -58,3 +58,13 @@ original failures, skips and remaining qualification limits. Canonical Done is
 a docs-only development commit after frozenproducer23447; it never rebinds the
 artifact/tag or triggers another package build. Root retains publication/download
 verification and the raw31scan/security/legal/native-account/vault/crash gaps.
+
+Recheck on 2026-10-22, before these notes were cherry-picked onto main at
+4e318b625: tag v0.2.2 still names 23447f3a9, which main contains. The v0.2.2
+GitHub prerelease's MSI, SPDX and corresponding-source digests match the
+hashes above, and its release manifest binds 23447 and the signed xdiff hash.
+All four receipt inputs still hash as recorded. Main keeps the declared-library
+check, and its portable package-runtime, native-release and release-security
+script tests (77 cases, 2 platform skips) pass on macOS. The native Windows R1
+and R4 runs were not repeated. This recheck claims no trust, security, legal
+or M8/M9 approval.
