@@ -128,6 +128,29 @@ namespace bpr::application {
 		auto operator==(const review_thread_resolution_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-PENDING-AR1]]. Asks the host to add or remove the viewer's
+	/// reaction on one comment or review, named by its GraphQL node.
+	struct review_reaction_publication_request
+	{
+		std::string            Subject;
+		core::reaction_content Content = core::reaction_content::thumbs_up;
+		bool                   Add     = true;
+
+		auto operator<=>(const review_reaction_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-PENDING-AR1]]. One reaction change's terminal.
+	struct review_reaction_terminal
+	{
+		review_mutation_request_context                                 Context;
+		review_reaction_publication_request                             Request;
+		std::expected<review_reaction_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_reaction_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
@@ -137,6 +160,12 @@ namespace bpr::application {
 		/// \brief [[BPR-0657]]. A sink that does not present resolutions ignores
 		/// them; named apart from `publish` so no sink's overload hides it.
 		virtual void publish_resolution(const review_thread_resolution_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+		/// \brief [[BPR-PENDING-AR1]]. A sink that does not present reactions
+		/// ignores them.
+		virtual void publish_reaction(const review_reaction_terminal& aTerminal)
 		{
 			static_cast<void>(aTerminal);
 		}
@@ -211,6 +240,8 @@ namespace bpr::application {
 		std::uint64_t ShutdownRequestsStopped = 0U;
 		/// [[BPR-0657]].
 		std::uint64_t ThreadResolutions = 0U;
+		/// [[BPR-PENDING-AR1]]. Reaction changes GitHub answered as asked.
+		std::uint64_t Reactions = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -266,7 +297,16 @@ namespace bpr::application {
 			review_thread_resolution_publication_request aRequest,
 			review_mutation_execution_grant              aRequestGrant = { })
 			-> review_mutation_request_context;
+		/// \brief [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction
+		/// under a grant bound to the accepted target and actor, as a
+		/// resolution does; refused before any effect when the provider does
+		/// not react or the grant does not permit the exact request.
+		[[nodiscard]] auto react(
+			review_reaction_publication_request aRequest,
+			review_mutation_execution_grant     aRequestGrant = { })
+			-> review_mutation_request_context;
 		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
+
 		/// decided exactly as Publish decides it and without publishing: the
 		/// file's path and the head it is written on, with the anchor.
 		/// \details Start a review keeps the answer as the draft's pending

@@ -5,7 +5,9 @@
 #include "bpr/application/private_review_store.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/github_model.hpp"
+
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -56,9 +58,14 @@ namespace bpr::application {
 		/// the learned fact is now unsupported, so publishing it again posts a
 		/// file comment that links to the line.
 		off_hunk_refused,
+		/// [[BPR-PENDING-AR1]]. A reaction or a resolution whose outcome was
+		/// ambiguous, and whose state GitHub, asked once more, does not show
+		/// as the one asked for. The write is not repeated.
+		not_confirmed,
 	};
 
 	/// \brief [[BPR-1735]]. Whether the failure is the journal's record of a
+
 	/// rejection, which says no comment of the publication exists.
 	[[nodiscard]] constexpr auto journal_rejection(const review_mutation_failure aFailure) noexcept -> bool
 	{
@@ -80,6 +87,8 @@ namespace bpr::application {
 	{
 		bool ResolvesThreads    = true;
 		bool RecordsViewedState = true;
+		/// [[BPR-PENDING-AR1]]. Adds and removes reactions on comments.
+		bool Reacts = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -384,6 +393,43 @@ namespace bpr::application {
 		auto operator<=>(const review_thread_resolution_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-PENDING-AR1]]. Asks the provider to add or remove the
+	/// viewer's reaction on one comment or review.
+	///
+	/// \details `Subject` is the comment's or review's GraphQL node as the
+	/// read reported it. Bound to the accepted target and the acting identity
+	/// like a resolution, so a provider serving another pull request or
+	/// another account refuses it.
+	struct review_reaction_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		std::string                                 Subject;
+		core::reaction_content                      Content = core::reaction_content::thumbs_up;
+		bool                                        Add     = true;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_reaction_request&) const = default;
+	};
+
+	/// \brief The provider's answer: the subject's reactions as GitHub now
+	/// gives them, and how that was learned.
+	struct review_reaction_receipt
+	{
+		std::string            Subject;
+		core::reaction_content Content = core::reaction_content::thumbs_up;
+		/// Whether the viewer now has the reaction.
+		bool                   Reacted = false;
+		core::reaction_summary Reactions;
+		/// A write was sent; false when GitHub already showed the state asked.
+		bool Written = false;
+		/// The write's own answer was lost or unreadable, and GitHub's state
+		/// read back afterwards is the one asked.
+		bool ConfirmedByReadBack = false;
+
+		auto operator<=>(const review_reaction_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -456,7 +502,20 @@ namespace bpr::application {
 			static_cast<void>(aStop);
 			return std::unexpected(review_mutation_failure::unavailable);
 		}
+		/// \brief [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction
+		/// on one comment; a provider without the capability answers
+		/// `unsupported`.
+		[[nodiscard]] virtual auto set_reaction(
+			const review_reaction_request& aRequest,
+			std::stop_token                aStop)
+			-> std::expected<review_reaction_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
 		/// \brief Repairs a previously admitted logical attempt using only reads; never submits.
+
 		[[nodiscard]] virtual auto reconcile_publication(const review_mutation_request&, std::stop_token = { }) -> review_mutation_submission { return { }; }
 		/// One read-only pass over retained private publication joins.
 		virtual void               repair_pending_publications(std::stop_token = { }) { }

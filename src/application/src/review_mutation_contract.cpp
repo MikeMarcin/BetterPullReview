@@ -168,6 +168,8 @@ namespace bpr::application {
 			return "settled_not_published";
 		case review_mutation_failure::off_hunk_refused:
 			return "off_hunk_refused";
+		case review_mutation_failure::not_confirmed:
+			return "not_confirmed";
 		}
 		return "unavailable";
 	}

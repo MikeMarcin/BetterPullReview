@@ -86,6 +86,15 @@ namespace bpr::application {
 			bool               aResolve,
 			std::stop_token    aStop = { })
 			-> std::expected<review_thread_resolution_receipt, review_mutation_failure>;
+		/// \brief [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction on
+		/// one comment through the provider, after confirming the target as a
+		/// resolution does.
+		[[nodiscard]] auto set_reaction(
+			const std::string&     aSubject,
+			core::reaction_content aContent,
+			bool                   aAdd,
+			std::stop_token        aStop = { })
+			-> std::expected<review_reaction_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

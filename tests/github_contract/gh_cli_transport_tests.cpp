@@ -1776,10 +1776,11 @@ namespace {
 						   && process.LastRequest->StandardOutputLimit == maximum_review_mutation_list_response_bytes + 32U * 1024U,
 					   "[[BPR-1538]] a page of the comment collection may carry a full page of GitHub's comments");
 			}
-			// Every GraphQL-rooted shape is refused before launch: the four
-			// the milestone never admitted, and [[BPR-0896]]'s thread
-			// reconciliation of a reply, which nothing this transport wrote
-			// can need.
+			// A reply and [[BPR-0896]]'s thread reconciliation of one are
+			// refused before launch: nothing this transport wrote can need
+			// them. [[BPR-PENDING-AR1]]: a resolution, a reaction and the reads
+			// that bind them go by `gh api graphql`, below.
+
 			auto reply                   = semanticRequest;
 			reply.Proposal.ReplyToThread = "PRRT_fixture_1";
 			reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
@@ -1792,12 +1793,41 @@ namespace {
 			};
 			auto unresolution    = resolution;
 			unresolution.Resolve = false;
-			for (const auto& graphql : { compile_review_comment_request(reply, profile->server_contract()), compile_review_comment_observation_request(reply, profile->server_contract()), compile_thread_resolution_request(resolution, profile->server_contract()), compile_thread_resolution_request(unresolution, profile->server_contract()), compile_thread_target_observation_request(resolution, profile->server_contract()) }) {
+			for (const auto& graphql : { compile_review_comment_request(reply, profile->server_contract()), compile_review_comment_observation_request(reply, profile->server_contract()) }) {
 				expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "GraphQL-rooted shape compiles at the GraphQL root");
 				const auto launches = process.Calls;
 				const auto refused  = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, [] { return true; });
-				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == launches, "a GraphQL-rooted shape never launches the CLI");
+				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == launches, "a reply's GraphQL shape never launches the CLI");
 			}
+			const auto reaction = application::review_reaction_request{
+				.Target         = binding.Target.Semantic,
+				.ActingIdentity = binding.ActingIdentity.Account,
+				.Subject        = "PRRC_fixture_1",
+				.Content        = core::reaction_content::rocket,
+				.Add            = true,
+				.LiveBinding    = binding,
+			};
+			auto unreaction          = reaction;
+			unreaction.Add           = false;
+			const auto statePrevious = process.Result;
+			process.Result           = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n{}" };
+			for (const auto& graphql : { compile_thread_resolution_request(resolution, profile->server_contract()), compile_thread_resolution_request(unresolution, profile->server_contract()),
+										 compile_thread_target_observation_request(resolution, profile->server_contract()), compile_reaction_subject_observation_request(reaction, profile->server_contract()),
+										 compile_reaction_request(reaction, profile->server_contract()), compile_reaction_request(unreaction, profile->server_contract()) }) {
+				expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "a state change compiles at the GraphQL root");
+				const auto launches = process.Calls;
+				const auto answered = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, { });
+				const auto args     = gh_arguments(*process.LastRequest);
+				expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == launches + 1U && args[0] == "api" && args[1] == "graphql"
+						   && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql->Body,
+					   "a resolution, a reaction and their binding reads go by gh api graphql with the exact body on stdin");
+				auto changed = *graphql;
+				changed.Body.replace(changed.Body.find("query") == std::string::npos ? 0U : changed.Body.find("query"), 0U, " ");
+				const auto before  = process.Calls;
+				const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
+				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a body not exactly the compiled one never launches");
+			}
+			process.Result = statePrevious;
 
 			for (bool wholeReview : { false, true }) {
 				if (wholeReview) {

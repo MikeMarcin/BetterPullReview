@@ -1942,7 +1942,7 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 
-		constexpr std::array<std::string_view, 9> mutations{
+		constexpr std::array<std::string_view, 11> mutations{
 			"MarkFileViewed",
 			"MarkFileUnviewed",
 			"CreateReview",
@@ -1953,6 +1953,9 @@ namespace bpr::adapters::github::detail {
 			"UnresolveThread",
 			// [[BPR-1368]]. The pending tour stop edit.
 			"UpdateReviewComment",
+			// [[BPR-PENDING-AR1]]. A reaction added or removed.
+			"AddReaction",
+			"RemoveReaction",
 		};
 		if (std::ranges::find(mutations, aName) != mutations.end()) {
 			return failure(contract_failure_code::mutation_operation);

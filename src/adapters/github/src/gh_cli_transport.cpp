@@ -1853,7 +1853,14 @@ namespace bpr::adapters::github::detail {
 			} else if constexpr (std::same_as<semantic_type, application::review_mutation_request>) {
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.ActingIdentity == authority.Account;
+			} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>
+								 || std::same_as<semantic_type, application::review_reaction_request>) {
+				// [[BPR-PENDING-AR1]]. A resolution or a reaction is bound to
+				// the target and the actor exactly as a comment is.
+				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
+					&& aSemantic.LiveBinding->ActingIdentity.Account == authority.Account && aSemantic.ActingIdentity == authority.Account;
 			} else {
+
 				return false;
 			}
 		},
@@ -1865,18 +1872,25 @@ namespace bpr::adapters::github::detail {
 		// transport and recovered here is refused, and stays unresolved
 		// rather than being resubmitted.
 		if (!correlated || aRequest.Wire.Operation == review_mutation_operation::reply_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments) {
 			return github_mutation_wire_error{ };
 		}
 		const auto githubCom = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28;
 		const auto prefix    = githubCom ? std::string_view{ "/" } : std::string_view{ "/api/v3/" };
-		// [[BPR-1368]]. The one GraphQL write admitted here is a tour stop
-		// edited while its review is pending, sent to `gh api graphql`, which
-		// names the host's own GraphQL root.
-		const auto graphql  = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment;
+		// [[BPR-1368]]. A tour stop edited while its review is pending is sent
+		// to `gh api graphql`, which names the host's own GraphQL root.
+		// [[BPR-PENDING-AR1]]. So are a thread resolved or reopened and a
+		// reaction added or removed, with the reads that bind them to the pull
+		// request first. Each is a fixed document the outbound validator above
+		// compared for exact equality; no other GraphQL write is admitted.
+		const auto stateWrite = aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::add_reaction
+			|| aRequest.Wire.Operation == review_mutation_operation::remove_reaction;
+		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_reaction_subject;
+
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
 		if (!exchange || exchange->Graphql != graphql
 			|| (graphql ? aRequest.Wire.Path != (githubCom ? "/graphql" : "/api/graphql") : !aRequest.Wire.Path.starts_with(prefix))) {
@@ -1925,7 +1939,10 @@ namespace bpr::adapters::github::detail {
 		if (writes && (!aWitness || !aWitness())) {
 			return github_mutation_wire_error{ };
 		}
-		const auto sent             = writes ? transmission::indeterminate : transmission::definitely_not_sent;
+		// A state write keeps no witness, but once launched it may have been
+		// sent like any other write.
+		const auto sent = writes || stateWrite ? transmission::indeterminate : transmission::definitely_not_sent;
+
 		invocation.Insights         = insights_channel();
 		invocation.InsightsResource = exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core;
 		invocation.InsightsCategory = core::insights_category::publishing;

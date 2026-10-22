@@ -88,6 +88,14 @@ namespace bpr::adapters::github::detail {
 		/// `installed_version` a learned off-hunk fact is keyed by, read once
 		/// per session before an off-hunk line is published.
 		observe_server_meta,
+		/// [[BPR-PENDING-AR1]]. GraphQL: which pull request a comment or review
+		/// belongs to, and its reactions, asked before a reaction is written
+		/// and once after an ambiguous one.
+		observe_reaction_subject,
+		/// [[BPR-PENDING-AR1]]. GraphQL: the viewer's reaction added to, or
+		/// removed from, one comment or review.
+		add_reaction,
+		remove_reaction,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -163,9 +171,11 @@ namespace bpr::adapters::github::detail {
 			application::review_mutation_request,
 			review_submission_request,
 			application::staged_review_request,
-			application::review_thread_resolution_request>;
+			application::review_thread_resolution_request,
+			application::review_reaction_request>;
 
-		semantic_type                       Semantic;
+		semantic_type Semantic;
+
 		application::github_server_contract Server    = application::github_server_contract::github_com_2022_11_28;
 		review_mutation_operation           Operation = review_mutation_operation::observe_pull_request;
 		http_method                         Method    = http_method::get;
@@ -367,7 +377,43 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief [[BPR-PENDING-AR1]]. One comment's or review's reactions, as an
+	/// answer bound to the designated pull request gave them.
+	struct review_reaction_subject_observation
+	{
+		std::string            Subject;
+		core::reaction_summary Reactions;
+
+		auto operator<=>(const review_reaction_subject_observation&) const = default;
+	};
+	/// \brief [[BPR-PENDING-AR1]]. Compiles the GraphQL mutation that adds or
+	/// removes the viewer's reaction; refused for an unbound or malformed request.
+	[[nodiscard]] auto compile_reaction_request(
+		const application::review_reaction_request& aRequest,
+		application::github_server_contract         aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-PENDING-AR1]]. Compiles the read of a reaction subject's
+	/// pull request and reactions, with every guard the mutation has.
+	[[nodiscard]] auto compile_reaction_subject_observation_request(
+		const application::review_reaction_request& aRequest,
+		application::github_server_contract         aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-PENDING-AR1]]. Accepts only the subject asked, inside the
+	/// designated pull request.
+	[[nodiscard]] auto parse_reaction_subject_observation(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>;
+	/// \brief [[BPR-PENDING-AR1]]. Accepts only the subject asked, inside the
+	/// designated pull request, with the viewer's reaction in the state asked.
+	[[nodiscard]] auto parse_reaction_response(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
+
 	[[nodiscard]] auto compile_review_submission_request(
 		const review_submission_request&    aRequest,
 		application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28)
@@ -763,8 +809,22 @@ namespace bpr::adapters::github::detail {
 			const application::review_thread_resolution_request& aRequest,
 			std::stop_token                                      aStop = { })
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>;
+		/// \brief [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction on
+		/// one comment: observed first (bound to the pull request, skipped when
+		/// already in the state asked), written once, and an ambiguous outcome
+		/// confirmed by one read back. No recovery record: the state is the
+		/// record.
+		[[nodiscard]] auto set_reaction(
+			const application::review_reaction_request& aRequest,
+			std::stop_token                             aStop = { })
+			-> std::expected<application::review_reaction_receipt, application::review_mutation_failure>;
 
 	private:
+		[[nodiscard]] auto observe_reaction_subject(
+			const application::review_reaction_request& aRequest,
+			std::stop_token                             aStop)
+			-> std::expected<review_reaction_subject_observation, application::review_mutation_failure>;
+
 		[[nodiscard]] auto finish_lineage(const application::review_mutation_request&, application::review_mutation_submission, std::stop_token) -> application::review_mutation_submission;
 		[[nodiscard]] auto submit_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;

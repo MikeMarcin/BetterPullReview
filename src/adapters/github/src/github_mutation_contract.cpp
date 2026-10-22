@@ -2,6 +2,8 @@
 
 #include "github_http_helpers.hpp"
 #include "github_json_preflight.hpp"
+#include "github_paged_read.hpp"
+
 #include "review_comment_permalink.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
@@ -108,6 +110,39 @@ namespace bpr::adapters::github::detail {
 		constexpr auto observe_thread_document = std::string_view{
 			"query ObserveThread($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
 			"id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+		};
+		/// [[BPR-PENDING-AR1]]. A reaction subject: a review-thread comment, a
+		/// pull request comment or a review, each named with the pull request
+		/// it belongs to (as a thread is, [[BPR-0879]]) and its reactions as
+		/// `ListReactions` selects them.
+		constexpr auto observe_reaction_subject_document = std::string_view{
+			"query ObserveReactionSubject($subject:ID!){node(id:$subject){"
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"}}"
+		};
+		constexpr auto add_reaction_document = std::string_view{
+			"mutation AddReaction($subject:ID!,$content:ReactionContent!){addReaction(input:{subjectId:$subject,content:$content}){"
+			"reaction{content} subject{"
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"}}}"
+		};
+		constexpr auto remove_reaction_document = std::string_view{
+			"mutation RemoveReaction($subject:ID!,$content:ReactionContent!){removeReaction(input:{subjectId:$subject,content:$content}){"
+			"reaction{content} subject{"
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"}}}"
 		};
 		/// [[BPR-0896]]. The read that reconciles a reply. A reply is written
 		/// by GraphQL, so its own path is the GraphQL root and no REST
@@ -478,6 +513,42 @@ namespace bpr::adapters::github::detail {
 					"variables", &resolution_query_json::Variables);
 			};
 		};
+		// [[BPR-PENDING-AR1]]. A reaction's envelopes, outbound.
+		struct reaction_variables_json
+		{
+			std::string_view Subject;
+			std::string_view Content;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("subject", &reaction_variables_json::Subject, "content", &reaction_variables_json::Content);
+			};
+		};
+		struct reaction_query_json
+		{
+			std::string_view        Query;
+			reaction_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &reaction_query_json::Query, "variables", &reaction_query_json::Variables);
+			};
+		};
+		struct reaction_subject_variables_json
+		{
+			std::string_view Subject;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("subject", &reaction_subject_variables_json::Subject);
+			};
+		};
+		struct reaction_subject_query_json
+		{
+			std::string_view                Query;
+			reaction_subject_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &reaction_subject_query_json::Query, "variables", &reaction_subject_query_json::Variables);
+			};
+		};
 		// [[BPR-1368]]. The pending stop edit's envelope, outbound.
 		struct update_comment_variables_json
 		{
@@ -640,6 +711,116 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("data", &thread_node_response_json::Data);
 			};
 		};
+		// [[BPR-PENDING-AR1]]. A reaction subject as an answer names it. The
+		// groups are kept raw and read by the same reader `ListReactions`
+		// uses, so a reaction answer is held to one rule.
+		struct reaction_subject_json
+		{
+			std::string              Typename;
+			std::string              Id;
+			bool                     ViewerCanReact = false;
+			glz::raw_json            ReactionGroups;
+			thread_pull_request_json PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"__typename", &reaction_subject_json::Typename,
+					"id", &reaction_subject_json::Id,
+					"viewerCanReact", &reaction_subject_json::ViewerCanReact,
+					"reactionGroups", &reaction_subject_json::ReactionGroups,
+					"pullRequest", &reaction_subject_json::PullRequest);
+			};
+		};
+		struct reaction_node_data_json
+		{
+			std::variant<reaction_subject_json, std::nullptr_t> Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &reaction_node_data_json::Node);
+			};
+		};
+		struct reaction_node_response_json
+		{
+			reaction_node_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &reaction_node_response_json::Data);
+			};
+		};
+		struct reaction_content_json
+		{
+			std::string Content;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("content", &reaction_content_json::Content);
+			};
+		};
+		struct reaction_payload_json
+		{
+			reaction_content_json Reaction;
+			reaction_subject_json Subject;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("reaction", &reaction_payload_json::Reaction, "subject", &reaction_payload_json::Subject);
+			};
+		};
+		struct add_reaction_data_json
+		{
+			reaction_payload_json Add;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("addReaction", &add_reaction_data_json::Add);
+			};
+		};
+		struct add_reaction_response_json
+		{
+			add_reaction_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &add_reaction_response_json::Data);
+			};
+		};
+		struct remove_reaction_data_json
+		{
+			reaction_payload_json Remove;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("removeReaction", &remove_reaction_data_json::Remove);
+			};
+		};
+		struct remove_reaction_response_json
+		{
+			remove_reaction_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &remove_reaction_response_json::Data);
+			};
+		};
+		/// [[BPR-PENDING-AR1]]. The subject's reactions, held to the
+		/// `ListReactions` reader: a subject of one of the three kinds, the
+		/// identity asked, in the designated pull request.
+		[[nodiscard]] auto reaction_subject_observation(
+			const reaction_subject_json&                aSubject,
+			const application::review_reaction_request& aExpected)
+			-> review_mutation_parse_result<review_reaction_subject_observation>
+		{
+			if ((aSubject.Typename != "PullRequestReviewComment" && aSubject.Typename != "IssueComment" && aSubject.Typename != "PullRequestReview")
+				|| aSubject.Id != aExpected.Subject || !aExpected.LiveBinding.has_value()
+				|| !binds_designated_pull_request(aSubject.PullRequest, aExpected.LiveBinding->Target)) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			auto object = std::string{ R"({"viewerCanReact":)" };
+			object += aSubject.ViewerCanReact ? "true" : "false";
+			object += R"(,"reactionGroups":)";
+			object += aSubject.ReactionGroups.str.empty() ? std::string_view{ "null" } : std::string_view{ aSubject.ReactionGroups.str };
+			object += "}";
+			auto summary = parse_reaction_summary(object);
+			if (!summary.has_value()) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			return review_reaction_subject_observation{ .Subject = aSubject.Id, .Reactions = std::move(*summary) };
+		}
+
 		// [[BPR-0896]]. The thread a reply landed in, with its comments, as
 		// the reconciliation observes it. `line`, `commit` and
 		// `fullDatabaseId` are nullable on the wire and the author's
@@ -2274,7 +2455,14 @@ namespace bpr::adapters::github::detail {
 		case operation::unresolve_review_thread:
 		case operation::observe_review_thread:
 		case operation::observe_review_thread_comments:
+		// [[BPR-PENDING-AR1]]. A reaction keeps no recovery record either: it
+		// is idempotent by state, so an ambiguous one is confirmed by reading
+		// the state back, never by sending it again.
+		case operation::observe_reaction_subject:
+		case operation::add_reaction:
+		case operation::remove_reaction:
 			return review_mutation_exchange{
+
 				.Method  = http_method::post,
 				.Graphql = true,
 			};
@@ -2582,6 +2770,62 @@ namespace bpr::adapters::github::detail {
 		return observation;
 	}
 
+	auto compile_reaction_request(
+		const application::review_reaction_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		// A reaction binds the target and the actor, as a resolution does.
+		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
+			|| !application::valid(aRequest.LiveBinding->Target)
+			|| !application::valid(aRequest.LiveBinding->ActingIdentity)
+			|| aRequest.LiveBinding->Target.ServerContract != aServer
+			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
+			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
+			|| !graphql_token(aRequest.Subject) || core::reaction_graphql_name(aRequest.Content).empty()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto headers = common_headers();
+		headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+		auto body = glz::write<review_json_options{ }>(reaction_query_json{
+			.Query     = aRequest.Add ? add_reaction_document : remove_reaction_document,
+			.Variables = { .Subject = aRequest.Subject, .Content = core::reaction_graphql_name(aRequest.Content) },
+		});
+		if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aRequest,
+			.Server    = aServer,
+			.Operation = aRequest.Add ? review_mutation_operation::add_reaction : review_mutation_operation::remove_reaction,
+			.Method    = http_method::post,
+			.Path      = std::string{ graphql_path(aServer) },
+			.Headers   = std::move(headers),
+			.Body      = std::move(*body),
+		};
+	}
+
+	auto compile_reaction_subject_observation_request(
+		const application::review_reaction_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		auto observation = compile_reaction_request(aRequest, aServer);
+		if (!observation.has_value()) {
+			return observation;
+		}
+		auto body = glz::write<review_json_options{ }>(reaction_subject_query_json{
+			.Query     = observe_reaction_subject_document,
+			.Variables = { .Subject = aRequest.Subject },
+		});
+		if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		observation->Operation = review_mutation_operation::observe_reaction_subject;
+		observation->Body      = std::move(*body);
+		return observation;
+	}
+
 	auto compile_review_submission_request(
 		const review_submission_request&          aRequest,
 		const application::github_server_contract aServer)
@@ -2722,7 +2966,12 @@ namespace bpr::adapters::github::detail {
 						canonical = aRequest.Operation == review_mutation_operation::observe_reviews
 							? compile_review_submission_observation_request(aSemantic, aRequest.Server)
 							: compile_review_submission_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::review_reaction_request>) {
+						canonical = aRequest.Operation == review_mutation_operation::observe_reaction_subject
+							? compile_reaction_subject_observation_request(aSemantic, aRequest.Server)
+							: compile_reaction_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>) {
+
 						canonical = aRequest.Operation
 								== review_mutation_operation::observe_review_thread
 							? compile_thread_target_observation_request(aSemantic, aRequest.Server)
@@ -3171,6 +3420,62 @@ namespace bpr::adapters::github::detail {
 		return review_thread_resolution_observation{
 			.Receipt = { .Thread = thread->Id, .Resolved = thread->IsResolved },
 		};
+	}
+
+	auto parse_reaction_subject_observation(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>
+	{
+		if (!aExpected.LiveBinding.has_value()
+			|| !compile_reaction_subject_observation_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<reaction_node_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+			return failed(review_mutation_contract_failure::target_unavailable);
+		}
+		return reaction_subject_observation(std::get<reaction_subject_json>(response->Data.Node), aExpected);
+	}
+
+	auto parse_reaction_response(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>
+	{
+		if (!aExpected.LiveBinding.has_value() || !compile_reaction_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		auto payload = std::optional<reaction_payload_json>{ };
+		if (aExpected.Add) {
+			if (auto response = document<add_reaction_response_json>(aResponse); response) {
+				payload = std::move(response->Data.Add);
+			}
+		} else if (auto response = document<remove_reaction_response_json>(aResponse); response) {
+			payload = std::move(response->Data.Remove);
+		}
+		if (!payload.has_value() || payload->Reaction.Content != core::reaction_graphql_name(aExpected.Content)) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		auto observed = reaction_subject_observation(payload->Subject, aExpected);
+		if (!observed.has_value()) {
+			return observed;
+		}
+		// The write's own answer must show the state it asked for.
+		const auto* const group = core::find_reaction_group(observed->Reactions, aExpected.Content);
+		if ((group != nullptr && group->ViewerReacted) != aExpected.Add) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return observed;
 	}
 
 	auto parse_review_submission_response(
@@ -3785,28 +4090,153 @@ namespace bpr::adapters::github::detail {
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return std::unexpected(application::review_mutation_failure::undesignated_target);
 			}
-			if (const auto bound = observe_thread_target(aRequest, aStop);
-				!bound.has_value()) {
+			const auto bound = observe_thread_target(aRequest, aStop);
+			if (!bound.has_value()) {
 				return std::unexpected(bound.error());
+			}
+			// [[BPR-PENDING-AR1]]. A thread GitHub already shows in the state
+			// asked is not written again.
+			if (bound->Resolved == aRequest.Resolve) {
+				return application::review_thread_resolution_receipt{ .Thread = bound->Thread, .Resolved = bound->Resolved };
 			}
 			const auto wire = compile_thread_resolution_request(
 				aRequest, Configuration.CredentialContext.Authority.ServerContract);
 			if (!wire.has_value()) {
 				return std::unexpected(map_contract_failure(wire.error()));
 			}
-			auto response = perform(*wire, aStop, { });
-			if (!response.has_value()) {
-				return std::unexpected(response.error());
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				const auto observed = parse_thread_resolution_response(*response, aRequest);
+				if (observed.has_value()) {
+					return observed->Receipt;
+				}
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
 			}
-			const auto observed = parse_thread_resolution_response(*response, aRequest);
-			if (!observed.has_value()) {
-				return std::unexpected(map_contract_failure(observed.error()));
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
 			}
-			return observed->Receipt;
+			// [[BPR-PENDING-AR1]]. An ambiguous outcome is confirmed by one read
+			// of the thread's state, never by resolving it again.
+			const auto after = observe_thread_target(aRequest, aStop);
+			if (after.has_value() && after->Resolved == aRequest.Resolve) {
+				return application::review_thread_resolution_receipt{ .Thread = after->Thread, .Resolved = after->Resolved };
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+
 		} catch (const std::bad_alloc&) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 	}
+	auto review_mutation_session::observe_reaction_subject(
+		const application::review_reaction_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<review_reaction_subject_observation, application::review_mutation_failure>
+	{
+		const auto wire = compile_reaction_subject_observation_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+		if (!wire.has_value()) {
+			return std::unexpected(map_contract_failure(wire.error()));
+		}
+		auto response = perform(*wire, aStop, { });
+		if (!response.has_value()) {
+			return std::unexpected(response.error());
+		}
+		auto observed = parse_reaction_subject_observation(*response, aRequest);
+		if (!observed.has_value()) {
+			return std::unexpected(map_contract_failure(observed.error()));
+		}
+		return std::move(*observed);
+	}
+
+	auto review_mutation_session::set_reaction(
+		const application::review_reaction_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<application::review_reaction_receipt, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+				|| aRequest.LiveBinding->Target != Configuration.Target
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			const auto receipt = [&aRequest](const review_reaction_subject_observation& aObserved, const bool aWritten, const bool aReadBack) {
+				const auto* const group = core::find_reaction_group(aObserved.Reactions, aRequest.Content);
+				return application::review_reaction_receipt{
+					.Subject             = aObserved.Subject,
+					.Content             = aRequest.Content,
+					.Reacted             = group != nullptr && group->ViewerReacted,
+					.Reactions           = aObserved.Reactions,
+					.Written             = aWritten,
+					.ConfirmedByReadBack = aReadBack,
+				};
+			};
+			const auto asked = [&aRequest](const review_reaction_subject_observation& aObserved) {
+				const auto* const group = core::find_reaction_group(aObserved.Reactions, aRequest.Content);
+				return (group != nullptr && group->ViewerReacted) == aRequest.Add;
+			};
+			// Bound to the pull request before anything is written, and the
+			// state GitHub has now: a reaction already as asked is not sent.
+			const auto before = observe_reaction_subject(aRequest, aStop);
+			if (!before.has_value()) {
+				return std::unexpected(before.error());
+			}
+			if (asked(*before)) {
+				return receipt(*before, false, false);
+			}
+			if (!before->Reactions.ViewerCanReact) {
+				return std::unexpected(application::review_mutation_failure::refused_by_server);
+			}
+			const auto wire = compile_reaction_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+			if (!wire.has_value()) {
+				return std::unexpected(map_contract_failure(wire.error()));
+			}
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				const auto observed = parse_reaction_response(*response, aRequest);
+				if (observed.has_value()) {
+					return receipt(*observed, true, false);
+				}
+				// An answer naming another subject or pull request is not
+				// ambiguous; it is refused as the pre-flight would have.
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
+			}
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			// The outcome is ambiguous: ask once what GitHub shows. Success only
+			// when it is the state asked; the write is never sent again.
+			const auto after = observe_reaction_subject(aRequest, aStop);
+			if (after.has_value() && asked(*after)) {
+				return receipt(*after, true, true);
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+	}
+
 	namespace {
 		using publication_state = core::review_publication_state;
 		using representation    = core::review_publication_representation;

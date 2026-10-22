@@ -338,8 +338,26 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = Resolves, .RecordsViewedState = false };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts };
 		}
+		auto set_reaction(
+			const application::review_reaction_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<application::review_reaction_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Reacted.push_back(aRequest);
+			auto reactions = core::reaction_summary{ .ViewerCanReact = true };
+			if (aRequest.Add) {
+				reactions.Groups.push_back(core::reaction_group{ .Content = aRequest.Content, .Count = 1U, .ViewerReacted = true });
+			}
+			return application::review_reaction_receipt{ .Subject = aRequest.Subject, .Content = aRequest.Content, .Reacted = aRequest.Add, .Reactions = reactions, .Written = true };
+		}
+		bool                                              Reacts = false;
+		std::vector<application::review_reaction_request> Reacted;
+
 		auto resolve_thread(
 			const application::review_thread_resolution_request& aRequest,
 			const std::stop_token                                aStop)
@@ -375,6 +393,11 @@ namespace {
 		{
 			Resolutions.push_back(aTerminal);
 		}
+		void publish_reaction(const application::review_reaction_terminal& aTerminal) override
+		{
+			Reactions.push_back(aTerminal);
+		}
+		std::vector<application::review_reaction_terminal> Reactions;
 
 		std::optional<application::review_mutation_source_observation> Source = [] {
 			const auto request = publication_request();
@@ -1069,6 +1092,63 @@ namespace {
 		effects.run_next();
 		decisions.run_next();
 		expect(observer->reviews().size() == 2 && observer->reviews()[0].Identity != observer->reviews()[1].Identity, "resolving again after unresolve counts a new event");
+		host.shutdown();
+	}
+
+	/// [[BPR-PENDING-AR1]]. A reaction is admitted like a resolution: the
+	/// provider must react, the grant must permit the exact change, and a
+	/// grant issued for anything else permits none.
+	void test_a_reaction_needs_the_capability_and_a_permitting_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto request = application::review_reaction_publication_request{
+			.Subject = "PRRC_fixture_1", .Content = core::reaction_content::hooray, .Add = true
+		};
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.Reactions.empty() && !projection.Reactions.back().Result.has_value() && projection.Reactions.back().Result.error() == aFailure, aWhy);
+		};
+		static_cast<void>(host.react(request));
+		refused(application::review_mutation_failure::unsupported, "without the provider's capability the reaction is refused before any effect");
+		observed->Reacts = true;
+		static_cast<void>(host.react({ .Subject = "", .Content = core::reaction_content::hooray }));
+		refused(application::review_mutation_failure::undesignated_target, "a nameless comment is an undesignated target");
+		static_cast<void>(host.react({ .Subject = "PRRC_fixture_1", .Content = static_cast<core::reaction_content>(8U) }));
+		refused(application::review_mutation_failure::undesignated_target, "an unknown reaction is refused");
+		static_cast<void>(host.react(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity())));
+		refused(application::review_mutation_failure::unavailable, "another session's grant permits nothing");
+		static_cast<void>(host.react(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no reaction");
+		expect(observed->Reacted.empty() && host.statistics().Reactions == 0U, "no refusal reached the provider");
+
+		const auto context = host.react(request);
+		expect(context.Request.value() != 0U && effects.pending() == 1U && observed->Reacted.empty(), "an admitted reaction is queued and returns immediately");
+		effects.run_next();
+		expect(observed->Reacted.size() == 1U && observed->Reacted.front().Subject == "PRRC_fixture_1" && observed->Reacted.front().Content == core::reaction_content::hooray
+				   && observed->Reacted.front().Add && observed->Reacted.front().Target == target() && observed->Reacted.front().LiveBinding.has_value()
+				   && observed->Reacted.front().LiveBinding->Target == live_target() && observed->Reacted.front().LiveBinding->ActingIdentity == acting_identity(),
+			   "the effect asks the provider for the exact comment and reaction, bound to the target and the actor");
+		decisions.run_next();
+		expect(projection.Reactions.back().Context == context && projection.Reactions.back().Result.has_value() && projection.Reactions.back().Result->Reacted
+				   && projection.Reactions.back().Request == request && host.statistics().Reactions == 1U,
+			   "the terminal carries GitHub's answer for the comment");
 		host.shutdown();
 	}
 
@@ -1815,6 +1895,8 @@ auto main() -> int
 	test_one_shot_authority_expiry_invalidation_and_shutdown_revoke_grants();
 	test_one_shot_authority_rejects_same_core_different_full_identity();
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
+	test_a_reaction_needs_the_capability_and_a_permitting_grant();
+
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
 	test_a_base_line_root_needs_githubs_base_numbering();
 	test_filtered_diff_comments_are_placed_by_the_core();

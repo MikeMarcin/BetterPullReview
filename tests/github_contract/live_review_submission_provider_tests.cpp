@@ -247,6 +247,9 @@ namespace {
 		case review_mutation_operation::unresolve_review_thread:        return "unresolve_review_thread";
 		case review_mutation_operation::observe_review_thread:          return "observe_review_thread";
 		case review_mutation_operation::observe_review_thread_comments: return "observe_review_thread_comments";
+		case review_mutation_operation::observe_reaction_subject:       return "observe_reaction_subject";
+		case review_mutation_operation::add_reaction:                   return "add_reaction";
+		case review_mutation_operation::remove_reaction:                return "remove_reaction";
 		}
 		return "unknown";
 	}

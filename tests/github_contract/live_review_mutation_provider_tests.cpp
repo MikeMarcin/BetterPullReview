@@ -572,6 +572,9 @@ namespace {
 		case review_mutation_operation::observe_recorded_merge_base:   return "observe_recorded_merge_base";
 		case review_mutation_operation::observe_base_ancestry:         return "observe_base_ancestry";
 		case review_mutation_operation::observe_server_meta:           return "observe_server_meta";
+		case review_mutation_operation::observe_reaction_subject:      return "observe_reaction_subject";
+		case review_mutation_operation::add_reaction:                  return "add_reaction";
+		case review_mutation_operation::remove_reaction:               return "remove_reaction";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -1795,6 +1798,16 @@ namespace {
 			return Session->resolve_thread(aRequest, aStop);
 		}
 
+		auto set_reaction(
+			const application::review_reaction_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<
+				application::review_reaction_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->set_reaction(aRequest, aStop);
+		}
+
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
@@ -1912,6 +1925,186 @@ namespace {
 	// [[BPR-0879]]. The coordinator applies one rule to every write it makes,
 	// and a resolution POST is counted as the submission it is. Counting only
 	// the attempt let diagnostics report zero submissions after a real write.
+	/// [[BPR-PENDING-AR1]]. A reaction subject's state as GitHub answers it:
+	/// a review comment of the designated pull request (or another), its
+	/// permission, and the viewer's thumbs up with a count.
+	[[nodiscard]] auto reaction_subject_json(const bool aDesignated, const bool aMine, const std::uint32_t aCount, const bool aCanReact = true) -> std::string
+	{
+		auto groups = std::string{ R"([{"content":"THUMBS_UP","viewerHasReacted":)" } + (aMine ? "true" : "false") + R"(,"reactors":{"totalCount":)"
+			+ std::to_string(aCount) + R"(,"nodes":[)" + (aMine ? R"({"__typename":"User","login":"fixture-reviewer"})" : "") + R"(]}},)"
+			+ R"({"content":"HEART","viewerHasReacted":false,"reactors":{"totalCount":0,"nodes":[]}}])";
+		return R"({"__typename":"PullRequestReviewComment","id":"PRRC_fixture_1","viewerCanReact":)" + std::string{ aCanReact ? "true" : "false" }
+		+ R"(,"reactionGroups":)" + groups + "," + (aDesignated ? designated_pull_request_json() : foreign_pull_request_json()) + "}";
+	}
+
+	[[nodiscard]] auto reaction_observation_response(const bool aDesignated, const bool aMine, const std::uint32_t aCount, const bool aCanReact = true)
+		-> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + reaction_subject_json(aDesignated, aMine, aCount, aCanReact) + "}}" } };
+	}
+
+	[[nodiscard]] auto reaction_write_response(const bool aAdd, const std::uint32_t aCount, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = {
+												 .Status = 200,
+												 .Body   = std::string{ R"({"data":{")" } + (aAdd ? "addReaction" : "removeReaction")
+													 + R"(":{"reaction":{"content":"THUMBS_UP"},"subject":)" + reaction_subject_json(aDesignated, aAdd, aCount) + "}}}",
+											 } };
+	}
+
+	[[nodiscard]] auto reaction_request(const bool aAdd) -> application::review_reaction_request
+	{
+		return {
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Subject        = "PRRC_fixture_1",
+			.Content        = core::reaction_content::thumbs_up,
+			.Add            = aAdd,
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+	}
+
+	[[nodiscard]] auto count_operation(const fake_transport& aTransport, const review_mutation_operation aOperation) -> std::size_t
+	{
+		return static_cast<std::size_t>(std::ranges::count_if(aTransport.Requests, [aOperation](const auto& aWire) { return aWire.Wire.Operation == aOperation; }));
+	}
+
+	// [[BPR-PENDING-AR1]]. A reaction is bound to the designated pull request
+	// before it is written, is not written when GitHub already shows it, and
+	// takes GitHub's own answer for the counts.
+	void test_a_reaction_is_observed_then_written_once()
+	{
+		for (const auto add : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, !add, add ? 2U : 3U));
+			transport.answer(graphql(add ? "AddReaction" : "RemoveReaction"), reaction_write_response(add, add ? 3U : 2U));
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto receipt = session.set_reaction(reaction_request(add));
+			expect(receipt.has_value() && receipt->Subject == "PRRC_fixture_1" && receipt->Reacted == add && receipt->Written && !receipt->ConfirmedByReadBack
+					   && receipt->Reactions.Groups.size() == 1U && receipt->Reactions.Groups[0].Count == (add ? 3U : 2U)
+					   && transport.Requests.size() == 2U && transport.Requests[0].Wire.Operation == review_mutation_operation::observe_reaction_subject
+					   && transport.Requests[1].Wire.Operation == (add ? review_mutation_operation::add_reaction : review_mutation_operation::remove_reaction),
+				   "a reaction inside the designated pull request is observed, then written once, and GitHub's counts come back");
+		}
+
+		auto already = fake_transport{ };
+		already.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, true, 4U));
+		auto       alreadySession = review_mutation_session{ already, configuration(), mutation_lease(), make_recovery() };
+		const auto kept           = alreadySession.set_reaction(reaction_request(true));
+		expect(kept.has_value() && kept->Reacted && !kept->Written && kept->Reactions.Groups[0].Count == 4U && already.Requests.size() == 1U,
+			   "a reaction GitHub already shows is not written again");
+
+		auto foreign = fake_transport{ };
+		foreign.answer(graphql("ObserveReactionSubject"), reaction_observation_response(false, false, 0U));
+		auto       foreignSession = review_mutation_session{ foreign, configuration(), mutation_lease(), make_recovery() };
+		const auto refused        = foreignSession.set_reaction(reaction_request(true));
+		expect(!refused && refused.error() == application::review_mutation_failure::undesignated_target && foreign.Requests.size() == 1U,
+			   "a comment outside the designated pull request is refused before any write");
+
+		auto forbidden = fake_transport{ };
+		forbidden.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 1U, false));
+		auto       forbiddenSession = review_mutation_session{ forbidden, configuration(), mutation_lease(), make_recovery() };
+		const auto denied           = forbiddenSession.set_reaction(reaction_request(true));
+		expect(!denied && denied.error() == application::review_mutation_failure::refused_by_server && forbidden.Requests.size() == 1U,
+			   "a comment GitHub says the viewer may not react to is not written");
+
+		auto gone = fake_transport{ };
+		gone.answer(graphql("ObserveReactionSubject"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":null}})" } });
+		auto       goneSession = review_mutation_session{ gone, configuration(), mutation_lease(), make_recovery() };
+		const auto missing     = goneSession.set_reaction(reaction_request(true));
+		expect(!missing && missing.error() == application::review_mutation_failure::target_unavailable && gone.Requests.size() == 1U,
+			   "a comment GitHub no longer shows is unavailable");
+
+		auto mismatched = fake_transport{ };
+		mismatched.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		mismatched.answer(graphql("AddReaction"), reaction_write_response(true, 1U, false));
+		auto       mismatchedSession = review_mutation_session{ mismatched, configuration(), mutation_lease(), make_recovery() };
+		const auto other             = mismatchedSession.set_reaction(reaction_request(true));
+		expect(!other && other.error() == application::review_mutation_failure::undesignated_target && mismatched.Requests.size() == 2U,
+			   "an answer naming another pull request is an undesignated target, and nothing is sent twice");
+	}
+
+	// [[BPR-PENDING-AR1]]. An ambiguous reaction or resolution is confirmed by
+	// reading its state back once, never by sending it again.
+	void test_an_ambiguous_change_is_confirmed_by_reading_it_back()
+	{
+		const auto lost = github_mutation_wire_error{
+			.Failure      = application::review_mutation_failure::unavailable,
+			.Transmission = github_mutation_transmission::indeterminate,
+		};
+		for (const auto took : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 1U));
+			transport.answer(graphql("AddReaction"), lost);
+			transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, took, took ? 2U : 1U));
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto result  = session.set_reaction(reaction_request(true));
+			expect(transport.Requests.size() == 3U && count_operation(transport, review_mutation_operation::add_reaction) == 1U,
+				   "an ambiguous reaction is observed once more and never sent twice");
+			if (took) {
+				expect(result.has_value() && result->Reacted && result->Written && result->ConfirmedByReadBack && result->Reactions.Groups[0].Count == 2U,
+					   "GitHub showing the reaction after a lost answer confirms it");
+			} else {
+				expect(!result && result.error() == application::review_mutation_failure::not_confirmed,
+					   "GitHub not showing it is named not_confirmed");
+			}
+		}
+		auto unreadable = fake_transport{ };
+		unreadable.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, true, 1U));
+		unreadable.answer(graphql("RemoveReaction"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{" } });
+		unreadable.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		auto       unreadableSession = review_mutation_session{ unreadable, configuration(), mutation_lease(), make_recovery() };
+		const auto removed           = unreadableSession.set_reaction(reaction_request(false));
+		expect(removed.has_value() && !removed->Reacted && removed->ConfirmedByReadBack && removed->Reactions.Groups.empty(),
+			   "an unreadable answer is settled by the state read back");
+
+		for (const auto took : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveThread"), thread_observation_response(true, false));
+			transport.answer(graphql("ResolveThread"), lost);
+			transport.answer(graphql("ObserveThread"), thread_observation_response(true, took));
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto result  = session.resolve_thread(resolution_request(true));
+			expect(transport.Requests.size() == 3U && count_operation(transport, review_mutation_operation::resolve_review_thread) == 1U,
+				   "an ambiguous resolution is observed once more and never sent twice");
+			expect(took ? (result.has_value() && result->Resolved) : (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "a thread GitHub shows resolved after a lost answer is resolved" : "a thread still open is named not_confirmed");
+		}
+		auto resolved = fake_transport{ };
+		resolved.answer(graphql("ObserveThread"), thread_observation_response(true, true));
+		auto       resolvedSession = review_mutation_session{ resolved, configuration(), mutation_lease(), make_recovery() };
+		const auto again           = resolvedSession.resolve_thread(resolution_request(true));
+		expect(again.has_value() && again->Resolved && resolved.Requests.size() == 1U, "a thread GitHub already shows resolved is not resolved again");
+
+		auto cancelled = fake_transport{ };
+		cancelled.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		cancelled.answer(graphql("AddReaction"), github_mutation_wire_cancelled{ });
+		auto       cancelledSession = review_mutation_session{ cancelled, configuration(), mutation_lease(), make_recovery() };
+		const auto stopped          = cancelledSession.set_reaction(reaction_request(true));
+		expect(!stopped && stopped.error() == application::review_mutation_failure::cancelled && cancelled.Requests.size() == 2U,
+			   "a cancelled reaction is not read back; the next read reconciles it");
+	}
+
+	void test_the_coordinator_confirms_the_target_before_a_reaction()
+	{
+		auto transport = fake_transport{ };
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		transport.answer(graphql("AddReaction"), reaction_write_response(true, 1U));
+		auto       session     = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+		auto       port        = session_port{ session };
+		auto       coordinator = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto receipt     = coordinator.set_reaction("PRRC_fixture_1", core::reaction_content::thumbs_up, true);
+		const auto counted     = coordinator.statistics();
+		expect(receipt.has_value() && receipt->Reacted && counted.TargetObservations == 1U && counted.Submissions == 1U && transport.Requests.size() == 4U,
+			   "the coordinator observes the target, then the provider observes the comment and reacts");
+		expect(!coordinator.set_reaction("", core::reaction_content::thumbs_up, true).has_value(), "a nameless comment is refused before any read");
+	}
+
 	void test_the_coordinator_confirms_the_target_and_counts_a_resolution()
 	{
 		auto transport = fake_transport{ };
@@ -2165,6 +2358,10 @@ namespace {
 			 &test_an_interrupted_reply_is_recovered_from_its_thread },
 		row{ "the_coordinator_confirms_the_target_and_counts_a_resolution",
 			 &test_the_coordinator_confirms_the_target_and_counts_a_resolution },
+		row{ "a_reaction_is_observed_then_written_once", &test_a_reaction_is_observed_then_written_once },
+		row{ "an_ambiguous_change_is_confirmed_by_reading_it_back", &test_an_ambiguous_change_is_confirmed_by_reading_it_back },
+		row{ "the_coordinator_confirms_the_target_before_a_reaction", &test_the_coordinator_confirms_the_target_before_a_reaction },
+
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};
 } // namespace

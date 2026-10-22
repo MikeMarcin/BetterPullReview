@@ -569,6 +569,12 @@ namespace {
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveThread" };
 		case operation::observe_review_thread_comments:
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveThreadComments" };
+		case operation::observe_reaction_subject:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveReactionSubject" };
+		case operation::add_reaction:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation AddReaction" };
+		case operation::remove_reaction:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation RemoveReaction" };
 		}
 		return std::nullopt;
 	}
@@ -653,7 +659,18 @@ namespace {
 			.Disposition    = core::review_disposition::comment,
 			.Body           = "Looks good.",
 		};
+		const auto reaction = application::review_reaction_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Subject        = "PRRC_fixture_1",
+			.Content        = core::reaction_content::heart,
+			.Add            = true,
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto unreaction = reaction;
+		unreaction.Add  = false;
 		return std::array{
+
 			compile_target_observation_request(serverTarget, aServer),
 			compile_viewer_observation_request(identity(), aServer),
 			compile_review_comment_observation_request(root, aServer),
@@ -682,7 +699,9 @@ namespace {
 			compile_merge_base_observation_request(serverTarget, aServer, merge_base_observation_basis::recorded_base),
 			compile_merge_base_observation_request(merge_base_ancestry_binding(serverTarget, commit(0x22U)), aServer, merge_base_observation_basis::base_ancestry),
 			compile_server_meta_request(serverTarget, aServer),
-
+			compile_reaction_subject_observation_request(reaction, aServer),
+			compile_reaction_request(reaction, aServer),
+			compile_reaction_request(unreaction, aServer),
 		};
 	}
 
@@ -729,7 +748,11 @@ namespace {
 			row{ operation::observe_recorded_merge_base, http_method::get, false, 200, false },
 			row{ operation::observe_base_ancestry, http_method::get, false, 200, false },
 			row{ operation::observe_server_meta, http_method::get, false, 200, false },
+			row{ operation::observe_reaction_subject, http_method::post, true, 200, false },
+			row{ operation::add_reaction, http_method::post, true, 200, false },
+			row{ operation::remove_reaction, http_method::post, true, 200, false },
 		};
+
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
 			expect(review_mutation_exchange_for(op)
 					   == review_mutation_exchange{
@@ -765,6 +788,155 @@ namespace {
 			}
 			expect_every_shape_exercised(exercised, server);
 		}
+	}
+
+	/// [[BPR-PENDING-AR1]]. GitHub's eight groups, as `reactionGroups` always
+	/// answers them: zero counts included, the viewer's thumbs up named.
+	[[nodiscard]] auto all_reaction_groups_json(const bool aMine, const std::uint32_t aThumbs) -> std::string
+	{
+		auto groups = std::string{ "[" };
+		for (const auto content : core::reaction_contents) {
+			const auto thumbs = content == core::reaction_content::thumbs_up;
+			const auto mine   = thumbs && aMine;
+			groups += std::string{ groups.size() > 1U ? "," : "" } + "{\"content\":\"" + std::string{ core::reaction_graphql_name(content) } + "\",\"viewerHasReacted\":"
+				+ (mine ? "true" : "false") + ",\"reactors\":{\"totalCount\":" + std::to_string(thumbs ? aThumbs : 0U) + ",\"nodes\":["
+				+ (mine ? "{\"__typename\":\"User\",\"login\":\"fixture-reviewer\"}" : "") + "]}}";
+		}
+		return groups + "]";
+	}
+
+	[[nodiscard]] auto reaction_subject_body(const std::string_view aType, const std::string_view aId, const bool aMine, const std::uint32_t aThumbs, const std::string& aPullRequest)
+		-> std::string
+	{
+		return "{\"__typename\":\"" + std::string{ aType } + "\",\"id\":\"" + std::string{ aId } + "\",\"viewerCanReact\":true,\"reactionGroups\":"
+			+ all_reaction_groups_json(aMine, aThumbs) + "," + aPullRequest + "}";
+	}
+
+	// [[BPR-PENDING-AR1]]. A reaction goes by fixed GraphQL documents: the
+	// read that binds the comment to the pull request, and the two writes,
+	// each named so the read transport refuses it, each answer bound to the
+	// pull request and the comment, and a write's answer in the state asked.
+	void test_reactions_go_by_graphql_exactly()
+	{
+		const auto selection = std::string{
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+		};
+		const auto reaction = application::review_reaction_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Subject        = "PRRC_fixture_1",
+			.Content        = core::reaction_content::thumbs_up,
+			.Add            = true,
+			.LiveBinding    = request().LiveBinding,
+		};
+		auto unreaction = reaction;
+		unreaction.Add  = false;
+		const auto add  = compile_reaction_request(reaction);
+		expect(add.has_value() && add->Operation == review_mutation_operation::add_reaction && add->Method == http_method::post && add->Path == "/graphql"
+				   && add->Body
+					   == "{\"query\":\"mutation AddReaction($subject:ID!,$content:ReactionContent!){addReaction(input:{subjectId:$subject,content:$content}){"
+						  "reaction{content} subject{"
+						   + selection + "}}}\",\"variables\":{\"subject\":\"PRRC_fixture_1\",\"content\":\"THUMBS_UP\"}}",
+			   "adding a reaction compiles to the reserved document with the exact comment and content");
+		const auto remove = compile_reaction_request(unreaction);
+		expect(remove.has_value() && remove->Operation == review_mutation_operation::remove_reaction
+				   && remove->Body.starts_with("{\"query\":\"mutation RemoveReaction($subject:ID!,$content:ReactionContent!){removeReaction(")
+				   && remove->Body.ends_with("\"variables\":{\"subject\":\"PRRC_fixture_1\",\"content\":\"THUMBS_UP\"}}"),
+			   "removing a reaction compiles to its own reserved document");
+		const auto observe = compile_reaction_subject_observation_request(reaction);
+		expect(observe.has_value() && observe->Operation == review_mutation_operation::observe_reaction_subject && observe->Path == "/graphql"
+				   && observe->Body == "{\"query\":\"query ObserveReactionSubject($subject:ID!){node(id:$subject){" + selection + "}}\",\"variables\":{\"subject\":\"PRRC_fixture_1\"}}",
+			   "the subject observation is a read document naming only the comment");
+		for (const auto& wire : { *add, *remove, *observe }) {
+			expect(validate_outbound_review_mutation_request(wire).has_value(), "each reaction request revalidates canonically");
+		}
+		for (const auto content : core::reaction_contents) {
+			auto other    = reaction;
+			other.Content = content;
+			expect(compile_reaction_request(other)->Body.find("\"content\":\"" + std::string{ core::reaction_graphql_name(content) } + "\"") != std::string::npos,
+				   "every content goes by GitHub's ReactionContent name");
+		}
+		auto spoofed      = *observe;
+		spoofed.Operation = review_mutation_operation::add_reaction;
+		auto swapped      = *add;
+		swapped.Operation = review_mutation_operation::remove_reaction;
+		auto rewritten    = *add;
+		rewritten.Body.replace(rewritten.Body.find("THUMBS_UP"), 9U, "HEART");
+		expect(!validate_outbound_review_mutation_request(spoofed).has_value() && !validate_outbound_review_mutation_request(swapped).has_value()
+				   && !validate_outbound_review_mutation_request(rewritten).has_value(),
+			   "a read passed off as a write, a write passed off as the other and a body changed in flight are refused");
+		auto unbound               = reaction;
+		unbound.LiveBinding        = std::nullopt;
+		auto foreign               = reaction;
+		foreign.Target.PullRequest = core::pull_request_id{ 99U };
+		auto blank                 = reaction;
+		blank.Subject              = "";
+		auto quoted                = reaction;
+		quoted.Subject             = "PRRC\"x";
+		auto unknown               = reaction;
+		unknown.Content            = static_cast<core::reaction_content>(9U);
+		for (const auto& refused : { unbound, foreign, blank, quoted, unknown }) {
+			expect(!compile_reaction_request(refused).has_value() && !compile_reaction_subject_observation_request(refused).has_value(),
+				   "an unbound, foreign, nameless, unsafe or unknown reaction is refused before the wire");
+		}
+		auto enterprise                               = reaction;
+		enterprise.LiveBinding->Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		enterprise.LiveBinding->Target.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+		expect(compile_reaction_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && !compile_reaction_request(reaction, application::github_server_contract::ghes_3_18_2022_11_28).has_value(),
+			   "GHES reacts at its GraphQL root, and a binding for another server is refused");
+
+		// The answers.
+		const auto observed = parse_reaction_subject_observation(
+			{ .Status = 200, .Body = "{\"data\":{\"node\":" + reaction_subject_body("PullRequestReviewComment", "PRRC_fixture_1", false, 2U, designated_pull_request_json()) + "}}" }, reaction);
+		expect(observed.has_value() && observed->Subject == "PRRC_fixture_1" && observed->Reactions.ViewerCanReact && observed->Reactions.Groups.size() == 1U
+				   && observed->Reactions.Groups[0].Count == 2U && !observed->Reactions.Groups[0].ViewerReacted,
+			   "a comment inside the designated pull request is observed with its reactions, zero groups dropped");
+		const auto outside = parse_reaction_subject_observation(
+			{ .Status = 200, .Body = "{\"data\":{\"node\":" + reaction_subject_body("IssueComment", "PRRC_fixture_1", false, 2U, foreign_pull_request_json()) + "}}" }, reaction);
+		expect(!outside && outside.error() == review_mutation_contract_failure::identity_mismatch, "a comment of another pull request is an identity mismatch");
+		const auto otherComment = parse_reaction_subject_observation(
+			{ .Status = 200, .Body = "{\"data\":{\"node\":" + reaction_subject_body("IssueComment", "IC_other", false, 2U, designated_pull_request_json()) + "}}" }, reaction);
+		expect(!otherComment && otherComment.error() == review_mutation_contract_failure::identity_mismatch, "another comment is an identity mismatch");
+		const auto commit = parse_reaction_subject_observation(
+			{ .Status = 200, .Body = "{\"data\":{\"node\":" + reaction_subject_body("Commit", "PRRC_fixture_1", false, 2U, designated_pull_request_json()) + "}}" }, reaction);
+		expect(!commit && commit.error() == review_mutation_contract_failure::identity_mismatch, "a subject of another kind is an identity mismatch");
+		expect(parse_reaction_subject_observation({ .Status = 200, .Body = R"({"data":{"node":null}})" }, reaction).error() == review_mutation_contract_failure::target_unavailable,
+			   "a comment GitHub no longer shows is unavailable");
+		expect(!parse_reaction_subject_observation({ .Status = 502, .Body = "{}" }, reaction).has_value(), "a non-200 answer is an invalid status");
+
+		const auto written = parse_reaction_response(
+			{ .Status = 200,
+			  .Body   = "{\"data\":{\"addReaction\":{\"reaction\":{\"content\":\"THUMBS_UP\"},\"subject\":"
+				  + reaction_subject_body("PullRequestReviewComment", "PRRC_fixture_1", true, 3U, designated_pull_request_json()) + "}}}" },
+			reaction);
+		expect(written.has_value() && written->Reactions.Groups[0].ViewerReacted && written->Reactions.Groups[0].Count == 3U
+				   && written->Reactions.Groups[0].Reactors == std::vector<std::string>{ "fixture-reviewer" },
+			   "an exact add answer yields the comment's reactions with mine");
+		const auto notTaken = parse_reaction_response(
+			{ .Status = 200,
+			  .Body   = "{\"data\":{\"addReaction\":{\"reaction\":{\"content\":\"THUMBS_UP\"},\"subject\":"
+				  + reaction_subject_body("PullRequestReviewComment", "PRRC_fixture_1", false, 2U, designated_pull_request_json()) + "}}}" },
+			reaction);
+		expect(!notTaken && notTaken.error() == review_mutation_contract_failure::identity_mismatch, "an answer not in the state asked is a mismatch, not a success");
+		const auto otherContent = parse_reaction_response(
+			{ .Status = 200,
+			  .Body   = "{\"data\":{\"addReaction\":{\"reaction\":{\"content\":\"HEART\"},\"subject\":"
+				  + reaction_subject_body("PullRequestReviewComment", "PRRC_fixture_1", true, 3U, designated_pull_request_json()) + "}}}" },
+			reaction);
+		expect(!otherContent.has_value(), "an answer about another content is refused");
+		const auto removed = parse_reaction_response(
+			{ .Status = 200,
+			  .Body   = "{\"data\":{\"removeReaction\":{\"reaction\":{\"content\":\"THUMBS_UP\"},\"subject\":"
+				  + reaction_subject_body("PullRequestReviewComment", "PRRC_fixture_1", false, 1U, designated_pull_request_json()) + "}}}" },
+			unreaction);
+		expect(removed.has_value() && !removed->Reactions.Groups[0].ViewerReacted && removed->Reactions.Groups[0].Count == 1U, "an exact remove answer yields the comment without mine");
+		expect(!parse_reaction_response({ .Status = 200, .Body = R"({"data":{"addReaction":null},"errors":[{"type":"FORBIDDEN"}]})" }, reaction).has_value(),
+			   "a GraphQL refusal is not a success");
 	}
 
 	void test_whole_review_dispositions_and_literal_summary()
@@ -2126,6 +2298,8 @@ auto main() -> int
 	test_a_placed_line_sends_its_commit_and_line();
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();
+	test_reactions_go_by_graphql_exactly();
+
 	test_a_reply_is_reconciled_through_its_thread();
 	test_whole_review_dispositions_and_literal_summary();
 	test_whole_review_request_rejection();
