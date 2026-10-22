@@ -597,6 +597,38 @@ A provider that cannot resolve threads or record viewed state reports that
 rather than skipping the operation. Silently skipping would leave a reviewer
 believing they had resolved something.
 
+## Reactions and resolving conversations ([[BPR-PENDING-AR1]])
+
+After the snapshot an authenticated read asks for the reactions of the pull
+request's review-thread comments, pull request comments and reviews with words
+(`ListReactions`, fifty node identities a page, at most four hundred a read,
+bound to the repository and pull request the snapshot read). A refused or
+rate-limited reaction read leaves reactions unread and the snapshot whole;
+public preview asks nothing.
+
+`core::decide_reaction` refuses a reaction for an anonymous read, unread
+reactions, GitHub's `viewerCanReact` false and a change to the same reaction
+still unanswered; `core::decide_thread_resolution` also refuses a direction
+GitHub denies the viewer (`viewerCanResolve`, `viewerCanUnresolve`). The
+mutation host carries a reaction as it carries a resolution, under a one-shot
+gesture grant bound to session, generation, target, actor and subject.
+
+The session observes the subject first (it must belong to the designated pull
+request), sends nothing when GitHub already shows the state asked, writes once,
+and takes the counts from the write's own answer. Neither a reaction nor a
+resolution keeps a recovery record: both are idempotent by state. An ambiguous
+outcome (a lost answer, a non-200 status or an unreadable body) is settled by
+one read of the subject's state: success only when GitHub shows the state
+asked, `not_confirmed` otherwise, and the write is never sent twice. An answer
+naming another subject or pull request is refused as the pre-flight would
+refuse it.
+
+The composition keeps `core::conversation_overlay`: a change shows at once,
+GitHub's answer replaces the read for that comment until the next read, and a
+confirmed change is dropped when a read agrees with it or disagrees twice, so
+a read begun before the write cannot undo it on screen. A failed change shows
+the read again and names why.
+
 ## Credential acquisition has no impact here
 
 RFC-BPR-0016 adds a second way to acquire the credential and changes nothing

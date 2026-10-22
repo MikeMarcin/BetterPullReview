@@ -152,9 +152,14 @@ non-atomic, and an optional description edit is a separately named operation.
 A stop edited while its review is pending goes by the fixed GraphQL mutation
 `UpdateReviewComment` (`updatePullRequestReviewComment`, by the comment's node
 ID), because GitHub.com answers the REST `PATCH /pulls/comments/{id}` 404 for a
-pending comment ([[BPR-1368]]). It is the only GraphQL write `gh api graphql`
-admits; a submitted stop is still edited through REST. These Tour operations
-remain unavailable on an unqualified host/transport.
+pending comment ([[BPR-1368]]); a submitted stop is still edited through REST.
+These Tour operations remain unavailable on an unqualified host/transport.
+`gh api graphql` also carries a thread resolved or reopened
+(`ResolveThread`, `UnresolveThread`) and a reaction added or removed
+(`AddReaction`, `RemoveReaction`), each after the read that binds its subject
+to the pull request (`ObserveThread`, `ObserveReactionSubject`)
+([[BPR-PENDING-AR1]]). Those are the only GraphQL writes it admits; each body
+must equal its compiled form, and a reply is still refused there.
 
 RFC-BPR-0078's `strict-cli-publication-r2` amendment permits one transient
 credential inside the GitHub adapter for each chosen-account operation. Stock
@@ -862,6 +867,8 @@ MarkFileViewed / Unviewed
 CreateReview / SubmitReview
 CreateThread / ReplyToThread
 ResolveThread / UnresolveThread
+ListReactions
+AddReaction / RemoveReaction
 ```
 
 Unsupported capabilities produce explicit unavailable states and safe fallbacks; they do not silently approximate a mutation.
