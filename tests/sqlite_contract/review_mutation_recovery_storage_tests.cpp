@@ -500,11 +500,42 @@ namespace {
 		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect((*store)->admit(record()).has_value(), "v3 native input admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store && user_version(database_path(directory)) == 6 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
+		expect(store && user_version(database_path(directory)) == 7 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
 		auto submission = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
 		expect(submission.has_value(), "whole-review journal remains compatible after migration");
+	}
+
+	// [[BPR-1715]]. Version 7 keeps a whole review's POST answer. A version 6
+	// journal migrates without touching the source-line journal: a possibly
+	// sent comment and a logical publication read back exactly, and no
+	// source-line attempt gains a whole review's answer.
+	void test_version_six_migration_keeps_the_source_line_journal()
+	{
+		temporary_directory directory;
+		expect(directory.Private, "the recovery root becomes owner-private");
+		auto store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "v6 fixture opens");
+		const auto prepared = record();
+		expect((*store)->admit(prepared).has_value(), "v6 source-line attempt admitted");
+		const auto sent = (*store)->mark_possibly_transmitted(prepared.IdempotencyKey, prepared.RequestFingerprint);
+		expect(sent.has_value() && sent->Transmission == application::review_mutation_recovery_transmission::possibly_transmitted,
+			   "v6 source-line attempt is possibly sent");
+		const auto value = publication();
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "v6 logical publication admitted");
+		store->reset();
+		execute_sql(database_path(directory), "DROP TABLE submission_post; PRAGMA user_version = 6; UPDATE recovery_meta SET schema_format = 6;");
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value() && user_version(database_path(directory)) == 7
+				   && query_text(database_path(directory), "SELECT schema_format FROM recovery_meta WHERE singleton = 1") == "7",
+			   "v6 migrates to v7");
+		expect((*store)->load(prepared.IdempotencyKey).value() == *sent, "v6 possibly sent source-line attempt is kept exactly");
+		expect((*store)->load_publication(value.Key).value() == value, "v6 logical publication is kept exactly");
+		expect(query_text(database_path(directory), "SELECT count(*) FROM submission_post") == "0",
+			   "no source-line attempt gains a whole review's POST answer");
+		expect(adapters::sqlite::make_review_submission_recovery_store(configuration(directory)).has_value(),
+			   "the whole-review journal opens the migrated database");
 	}
 
 	void test_durable_unresolved_and_success_reopen()
@@ -626,7 +657,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 7",
+				   "PRAGMA user_version = 8",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -675,8 +706,8 @@ namespace {
 			candidate.LegacyKey = std::string(64U, alias);
 			expect(!(*migrated)->advance_publication(std::nullopt, candidate), "migrated unresolved and succeeded aliases cannot admit another publication");
 		}
-		expect(user_version(database_path(directory)) == 6,
-			   "version-one migration commits schema version four");
+		expect(user_version(database_path(directory)) == 7,
+			   "version-one migration commits the current schema version");
 	}
 
 	void test_version_two_migration_preserves_anchored_rows()
@@ -687,11 +718,11 @@ namespace {
 		const auto expected = record();
 		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
 		anchored->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
 		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
-		expect(sibling.has_value() && user_version(database_path(directory)) == 6, "submission factory migrates exact v2 database to v4");
+		expect(sibling.has_value() && user_version(database_path(directory)) == 7, "submission factory migrates exact v2 database to the current version");
 		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(anchored.has_value(), "source-line factory opens shared v4 schema");
+		expect(anchored.has_value(), "source-line factory opens the shared current schema");
 		const auto loaded = (*anchored)->load(expected.IdempotencyKey);
 		expect(loaded && *loaded && **loaded == expected, "v2 anchored data preserved through sibling migration");
 	}
@@ -801,6 +832,7 @@ try {
 	test_evidence_admission_and_legacy_conflicts();
 	test_an_unresolvable_line_admission_survives_a_restart();
 	test_version_three_keeps_both_journals();
+	test_version_six_migration_keeps_the_source_line_journal();
 	test_logical_capacity_and_stale_compare_exchange();
 	test_durable_unresolved_and_success_reopen();
 	test_schema_identity_is_fail_closed_and_credential_free();

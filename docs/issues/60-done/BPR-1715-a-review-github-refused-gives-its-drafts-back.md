@@ -168,3 +168,20 @@ It cannot cause a duplicate publish:
 - **AC4.** The focused review submission, tour publication, recovery and
   composition suites pass, along with format, tidy, the documentation gates
   and the resealed pins.
+
+## Follow-up — 2026-10-21: the source-line journal's storage test
+
+`sqlite_review_mutation_recovery_storage` failed on main after this card. The
+recovery database holds both journals, and its schema lives in
+`review_mutation_recovery_store.cpp`, so the move to version 7 is that store's
+change too. The test still expected version 6, its version 3 and version 2
+fixtures kept the new `submission_post` table, and its "future" version was 7.
+The migration was right; only the test was stale. It now expects version 7,
+drops `submission_post` when it rolls a journal back, refuses version 8 as the
+future, and covers 6 to 7: a possibly sent comment and a logical publication
+read back exactly, and no source-line attempt gains a POST answer.
+
+Why the verification missed it: AC2 and AC4 chose the suites by the feature's
+name and ran `sqlite_review_submission_recovery_storage` only. [[BPR-1540]]'s
+move to version 6 had updated both storage tests. A change to this store's
+schema needs both.
