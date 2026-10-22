@@ -9,7 +9,10 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <iterator>
+
 #include <limits>
 #include <optional>
 #include <string>
@@ -937,6 +940,66 @@ namespace {
 		expect(removed.has_value() && !removed->Reactions.Groups[0].ViewerReacted && removed->Reactions.Groups[0].Count == 1U, "an exact remove answer yields the comment without mine");
 		expect(!parse_reaction_response({ .Status = 200, .Body = R"({"data":{"addReaction":null},"errors":[{"type":"FORBIDDEN"}]})" }, reaction).has_value(),
 			   "a GraphQL refusal is not a success");
+	}
+
+	[[nodiscard]] auto recorded_answer(const std::string_view aName) -> review_mutation_wire_response
+	{
+		auto file = std::ifstream{ std::string{ BPR_REACTIONS_FIXTURE_DIR } + "/" + std::string{ aName }, std::ios::binary };
+		expect(file.good(), "the recorded answer opens");
+		return { .Status = 200, .Body = std::string{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } } };
+	}
+
+	// [[BPR-PENDING-AR1]]. GitHub's own answers to the product's documents,
+	// recorded on BPR-Test #132 (tests/fixtures/github/reactions-v1), read by
+	// the product's parsers as they read them live.
+	void test_recorded_reaction_and_resolution_answers()
+	{
+		auto bound                     = target();
+		bound.Repository               = { .Owner = "MikeMarcin", .Name = "BPR-Test" };
+		bound.Number                   = core::pull_request_number{ 132U };
+		bound.RepositoryDatabaseId     = 1'328'277'631U;
+		bound.RepositoryNodeId         = "R_kgDOTyvofw";
+		bound.PullRequestDatabaseId    = 4'974'995'320U;
+		bound.PullRequestNodeId        = "PR_kwDOTyvof88AAAABKIhneA";
+		bound.BaseRepositoryDatabaseId = 1'328'277'631U;
+		auto live                      = request().LiveBinding;
+		live->Target                   = bound;
+		const auto reaction            = [&](const std::string& aSubject, const core::reaction_content aContent, const bool aAdd) {
+			return application::review_reaction_request{ .Target = bound.Semantic, .ActingIdentity = identity().Account, .Subject = aSubject, .Content = aContent, .Add = aAdd, .LiveBinding = live };
+		};
+		const auto comment  = std::string{ "PRRC_kwDOTyvof88AAAABA4f-_w" };
+		const auto observed = parse_reaction_subject_observation(recorded_answer("observe-review-comment.json"), reaction(comment, core::reaction_content::heart, true));
+		expect(observed.has_value() && observed->Reactions.ViewerCanReact && observed->Reactions.Groups.size() == 1U
+				   && observed->Reactions.Groups[0].Content == core::reaction_content::thumbs_up && observed->Reactions.Groups[0].Count == 1U
+				   && !observed->Reactions.Groups[0].ViewerReacted && observed->Reactions.Groups[0].Reactors == std::vector<std::string>{ "MikeMarcinTest" },
+			   "the recorded observation is the second identity's thumbs up, not mine");
+		const auto heart = parse_reaction_response(recorded_answer("add-heart.json"), reaction(comment, core::reaction_content::heart, true));
+		expect(heart.has_value() && heart->Reactions.Groups.size() == 2U && heart->Reactions.Groups[1].Content == core::reaction_content::heart
+				   && heart->Reactions.Groups[1].ViewerReacted,
+			   "the recorded add answer has my heart beside the thumbs up");
+		const auto thumbs = parse_reaction_response(recorded_answer("add-thumbs-up.json"), reaction(comment, core::reaction_content::thumbs_up, true));
+		expect(thumbs.has_value() && thumbs->Reactions.Groups[0].Count == 2U && thumbs->Reactions.Groups[0].ViewerReacted
+				   && thumbs->Reactions.Groups[0].Reactors == std::vector<std::string>{ "MikeMarcinTest", "MikeMarcin" },
+			   "two reactors on one reaction, mine among them, both named");
+		const auto removed = parse_reaction_response(recorded_answer("remove-heart.json"), reaction(comment, core::reaction_content::heart, false));
+		expect(removed.has_value() && core::find_reaction_group(removed->Reactions, core::reaction_content::heart) == nullptr, "the recorded remove answer has no heart left");
+		expect(!parse_reaction_response(recorded_answer("remove-heart.json"), reaction(comment, core::reaction_content::heart, true)).has_value(),
+			   "the remove answer is not an add's");
+		const auto eyes = parse_reaction_response(recorded_answer("add-eyes-to-review.json"), reaction("PRR_kwDOTyvof88AAAABTxO_vw", core::reaction_content::eyes, true));
+		expect(eyes.has_value() && eyes->Reactions.Groups.size() == 1U && eyes->Reactions.Groups[0].Content == core::reaction_content::eyes, "a review takes a reaction as a comment does");
+		auto other         = reaction(comment, core::reaction_content::heart, true);
+		other.LiveBinding  = request().LiveBinding;
+		other.Target       = request().Target;
+		const auto foreign = parse_reaction_response(recorded_answer("add-heart.json"), other);
+		expect(!foreign && foreign.error() == review_mutation_contract_failure::identity_mismatch, "the recorded answer is refused for another pull request");
+
+		const auto resolution = [&](const bool aResolve) {
+			return application::review_thread_resolution_request{ .Target = bound.Semantic, .ActingIdentity = identity().Account, .Thread = "PRRT_kwDOTyvof86vZ2dW", .Resolve = aResolve, .LiveBinding = live };
+		};
+		const auto resolved = parse_thread_resolution_response(recorded_answer("resolve-thread.json"), resolution(true));
+		const auto reopened = parse_thread_resolution_response(recorded_answer("unresolve-thread.json"), resolution(false));
+		expect(resolved.has_value() && resolved->Receipt.Resolved && reopened.has_value() && !reopened->Receipt.Resolved,
+			   "the recorded resolve and unresolve answers name the thread in the state asked");
 	}
 
 	void test_whole_review_dispositions_and_literal_summary()
@@ -2299,6 +2362,7 @@ auto main() -> int
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();
 	test_reactions_go_by_graphql_exactly();
+	test_recorded_reaction_and_resolution_answers();
 
 	test_a_reply_is_reconciled_through_its_thread();
 	test_whole_review_dispositions_and_literal_summary();

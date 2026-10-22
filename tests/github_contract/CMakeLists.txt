@@ -699,6 +699,11 @@ target_include_directories(
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
 )
+target_compile_definitions(
+    test_better_pull_review_github_mutation_contract_tests
+    PRIVATE
+        "BPR_REACTIONS_FIXTURE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/reactions-v1\""
+)
 bpr_enable_hardening(test_better_pull_review_github_mutation_contract_tests)
 bpr_enable_warnings(test_better_pull_review_github_mutation_contract_tests)
 bpr_add_network_isolated_test(
@@ -1410,6 +1415,25 @@ bpr_add_network_isolated_test(
     NAME github_markdown_image_resolution
     COMMAND test_better_pull_review_markdown_image_resolution_tests
 )
+
+# [[BPR-PENDING-AR1]]. The live reaction and resolution course against the
+# one owner-designated disposable repository. Not a test row and not built by
+# default: it reaches GitHub.com through gh, so only an explicit configure
+# builds it, and tests/scripts/reaction_live_course.py runs it by hand.
+option(BPR_BUILD_LIVE_REACTION_COURSE "Build the live reaction course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_REACTION_COURSE)
+    bpr_add_executable(tool_reaction_live_course reaction_live_course.cpp)
+    target_link_libraries(
+        tool_reaction_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            Qt6::Core
+    )
+    target_include_directories(tool_reaction_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    bpr_enable_hardening(tool_reaction_live_course)
+    bpr_enable_warnings(tool_reaction_live_course)
+endif()
 
 # RFC-BPR-0084. The live image course's process. CTest runs only its offline
 # request compilation; tests/scripts/markdown_image_live_course.py drives it
