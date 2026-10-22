@@ -17,6 +17,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/release_maintenance.hpp"
@@ -196,6 +197,19 @@ namespace bpr::qt {
 	using workbench_queue_preferences_dispatch = std::function<void(application::queue_preferences_intent)>;
 	/// \brief Mark read for the thread whose root projection identity is given ([[BPR-0656]]).
 	using conversation_read_dispatch = std::function<void(const std::string&)>;
+	/// \brief [[BPR-1699]]. Mark all comments as read: every post of the
+	/// pull request without an author, or only the posts of the GitHub login given.
+	using conversations_read_dispatch = std::function<void(const std::optional<std::string>&)>;
+	/// \brief [[BPR-1699]]. What one bulk Mark read did: the posts it
+	/// made read, and the author's posts it left new behind a newer post by
+	/// someone else.
+	struct conversations_read_result
+	{
+		std::uint32_t Marked = 0U;
+		std::uint32_t Kept   = 0U;
+
+		auto operator<=>(const conversations_read_result&) const = default;
+	};
 	/// \brief Save or forget a repository ([[BPR-0659]]).
 	using workbench_saved_repository_dispatch = std::function<void(application::saved_repository_intent)>;
 	/// \brief [[BPR-0990]]. The local Follow or Unfollow of the open pull request.
@@ -361,6 +375,20 @@ namespace bpr::qt {
 	/// status line. Review-history loading, failure, cancellation, and empty
 	/// wording is the composed control's decision; the window quotes it rather
 	/// than restating it, so no state gains a second vocabulary.
+	/// \brief RFC-BPR-0089 M4. Where a comment on the selected line of a
+	/// commit-filtered diff goes, as the host's core decided it (owner
+	/// decision Q1). Qt words it; it decides nothing.
+	struct filtered_comment_presentation
+	{
+		/// The selected line the decision is for.
+		core::source_line_ref         Selection;
+		core::filtered_comment_target Target;
+		/// The diff's right commit, abbreviated, to name an earlier commit.
+		QString Commit;
+
+		auto operator==(const filtered_comment_presentation&) const -> bool = default;
+	};
+
 	class workbench_window final
 		: public QMainWindow,
 		  public application::workbench_projection_port,
@@ -459,6 +487,15 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0089 M3 (owner, Q2). The strip over a split file's
 		/// diff, or none to hide it.
 		void present_split_diff(std::optional<application::split_diff_projection> aProjection);
+		/// \brief RFC-BPR-0089 M4. Whether the diff on screen is commit
+		/// filtered, and where a comment on its selected line goes. With a
+		/// filter and no decision for the selected line, Publish waits for one.
+		void present_filtered_comment(bool aFiltered, std::optional<filtered_comment_presentation> aPlacement);
+		/// \brief The words above Publish for the selected line, and whether
+		/// they are why Publish is unavailable; empty off a filtered diff.
+		[[nodiscard]] auto filtered_comment_notice() const -> std::pair<QString, bool>;
+		/// \brief The placement the host last gave, for whichever line.
+		[[nodiscard]] auto filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&;
 		/// \brief One of the split file's diffs chosen, by its position.
 		void               set_split_segment_dispatch(std::function<void(std::size_t)> aDispatch);
 		[[nodiscard]] auto split_strip() const noexcept -> split_diff_strip*;
@@ -613,6 +650,14 @@ namespace bpr::qt {
 		/// draft at the revision the page listed. Nothing is published.
 		void set_comment_draft_unavailable(QString aReason);
 		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
+		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
+		/// of the file shown, as the core decided them at this head: each a
+		/// note at its lines, offering Carry to the new head or Copy change.
+		void present_moved_suggestions(std::vector<moved_suggestion_card> aMoved);
+		/// \brief [[BPR-1733]]. Where the draft a carried suggestion came from
+		/// goes once the carried one is saved: the composition deletes it at
+		/// the revision its note showed. Nothing is published.
+		void set_carried_suggestion_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
@@ -726,6 +771,16 @@ namespace bpr::qt {
 		void set_conversation_read_dispatch(conversation_read_dispatch aDispatch);
 		/// \brief [[BPR-1582]]. Where Threads' Mark as unread goes.
 		void set_conversation_unread_dispatch(conversation_read_dispatch aDispatch);
+		/// \brief [[BPR-1699]]. Where Mark All Comments as Read and
+		/// Mark all from an author as read go: the composition, then the
+		/// ledger host. Nothing reaches GitHub.
+		void set_conversations_read_dispatch(conversations_read_dispatch aDispatch);
+		/// \brief [[BPR-1699]]. Says in the status bar what a bulk mark
+		/// did, once it is durable; none when the ledger refused it, and then
+		/// nothing changed.
+		void present_conversations_read(std::optional<conversations_read_result> aResult, const std::optional<std::string>& aAuthor);
+		/// \brief [[BPR-1699]]. The Pull Request menu's Mark All Comments as Read.
+		[[nodiscard]] auto mark_all_comments_read_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0661]]. Adopts the sink the Review and Comments preference rows dispatch to.
 		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);
 		/// \brief The review-behaviour preferences the host last published.
@@ -1702,11 +1757,18 @@ namespace bpr::qt {
 		void update_strip_identity();
 		void update_account_action();
 		void apply_strip_width();
-		/// \brief [[BPR-1129]]. What yields on the review bar as it narrows: the
-		/// comparison's dates, then the positions' words. Nothing folds away.
+		/// \brief [[BPR-1129]]. What yields on the review bar as it narrows:
+		/// Compose review's words to "Approve…" ([[BPR-1700]]), the
+		/// comparison's dates, the positions' words and numbers, the steps'
+		/// names, and last "Approve…". Nothing folds away.
 		void apply_review_bar_width();
 		/// \brief [[BPR-1129]]. Marks Compose review while a review draft is kept.
 		void update_compose_mark();
+		/// \brief [[BPR-1700]]. Compose review's face: "Approve or
+		/// comment…" beside its pencil on the accent's edge while no review is
+		/// in progress and the bar has room, its icon otherwise; its name and
+		/// description to match.
+		void present_compose_entry();
 		/// [[BPR-1345]]. The chip counts what the saved drafts say.
 		void update_review_chip();
 		/// \brief [[BPR-1133]]. The review thread Comment answers: the one the
@@ -1805,6 +1867,10 @@ namespace bpr::qt {
 
 	private:
 		bool ThreadMarksSuspended = false;
+		/// RFC-BPR-0089 M4. See `present_filtered_comment`.
+		bool                                         FilteredComments = false;
+		std::optional<filtered_comment_presentation> FilteredPlacement;
+		void                                         present_filtered_notice();
 		/// RFC-BPR-0089. The Files drawer's commit filter chip, and the
 		/// gestures it shares with the Commits tab.
 		commit_filter_chip*                                            FilesCommitChip = nullptr;
@@ -1868,6 +1934,36 @@ namespace bpr::qt {
 		void maximize_drawer_draft();
 		/// \brief [[BPR-1212]]. The exact head lines the shown draft is on.
 		[[nodiscard]] auto draft_source_lines() const -> std::optional<std::vector<std::string>>;
+		/// \brief [[RFC-BPR-0090]]. Why Suggest change cannot open on lines the
+		/// comment rules took (`core::decide_suggestion_range`), or nothing;
+		/// `aWords` receives the menu's few words.
+		[[nodiscard]] auto suggestion_range_reason(const core::comment_range_decision& aDecision, QString* aWords = nullptr) const -> QString;
+		/// \brief [[RFC-BPR-0090]]. Opens the shown draft's lines for writing
+		/// in the head pane (Suggest change, owner Q1 and Q5): a kept
+		/// suggestion opens with its block, words stay in the drawer.
+		/// \details `aFocusCode` puts the keyboard in the code, as Suggest
+		/// change does; reopening a kept suggestion by its card or its line
+		/// leaves it in the drawer's words.
+		/// \returns Whether the edit opened.
+		auto begin_pane_suggestion(bool aFocusCode = true) -> bool;
+		/// \brief [[RFC-BPR-0090]]. Ends the head pane's edit; the draft keeps
+		/// what was written, and the drawer still holds only its words.
+		void end_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. Ends the edit and the drawer's link to it.
+		void release_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. The core's plan for the head pane's edit now.
+		[[nodiscard]] auto pane_suggestion_plan() const -> std::optional<core::pull_request_suggestion_plan>;
+		/// \brief [[RFC-BPR-0090]]. Writes the plan's body to the draft.
+		void compose_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. Why GitHub cannot apply the plan's
+		/// suggestion and Convert's words, or nothing when it can.
+		[[nodiscard]] auto suggestion_hold(const core::pull_request_suggestion_plan& aPlan) const -> std::pair<QString, QString>;
+		/// \brief [[RFC-BPR-0090]]. Convert (owner, Q3): the drawer draft's
+		/// held suggestion becomes text at the same lines, its words first.
+		void convert_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. Tells Finish your review which of its
+		/// comments are held suggestions.
+		void present_held_suggestions();
 		/// [[BPR-1084]]. Tells the draft editor where the reply it shows is attached.
 		void present_reply_placement();
 		void update_new_comment_group();
@@ -1990,8 +2086,9 @@ namespace bpr::qt {
 		void               dispatch_file_selection(const QModelIndex& aIndex);
 		void               dispatch_receipt(std::size_t aIndex);
 		void               update_receipt_actions();
-		/// [[BPR-1578]]. Whether a click on the Seen or Read step moves the
-		/// file forward; a step already reached does nothing.
+		/// [[BPR-1578]]. Whether a click on the Seen or Read step does
+		/// something. [[BPR-1701]]: a reached step unchecks, through the
+		/// inverse command the projection put in its slot.
 		[[nodiscard]] auto progress_step_offered(std::size_t aIndex) const -> bool;
 		void               take_progress_step(std::size_t aIndex);
 		void               update_progress_track();
@@ -2186,7 +2283,29 @@ namespace bpr::qt {
 		/// sink and the drawer Delete's question.
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
-		QPointer<destructive_question>                            DeleteDraftConfirmation;
+		std::function<void(core::review_draft_id, std::uint64_t)> CarriedSuggestionDispatch;
+		/// [[BPR-1733]]. The moved suggestions the composition last presented.
+		std::vector<moved_suggestion_card> MovedSuggestions;
+		/// [[BPR-1733]]. A suggestion being carried to this head: the draft it
+		/// came from and its revision, the lines it goes to, and its body,
+		/// which the new draft takes once Suggest change opens there.
+		struct carried_suggestion
+		{
+			core::review_draft_id        From;
+			std::uint64_t                Revision = 0U;
+			core::source_line_ref        Anchor;
+			std::optional<std::uint32_t> StartLine;
+			std::string                  Body;
+			bool                         Written = false;
+		};
+		std::optional<carried_suggestion> Carrying;
+		void                              carry_moved_suggestion(const std::string& aIdentity);
+		/// [[BPR-1733]]. Writes the carried body into the draft Suggest change
+		/// opened on its lines, and opens the edit again on its block.
+		void write_carried_suggestion();
+		/// [[BPR-1733]]. Once the carried draft is saved, the earlier one goes.
+		void                           settle_carried_suggestion(const std::vector<core::review_comment_draft>& aDrafts);
+		QPointer<destructive_question> DeleteDraftConfirmation;
 		/// [[BPR-1374]]. A kept reply's actions, and Discard's question.
 		std::function<void(core::review_draft_id, unsent_reply_action)> UnsentReplyDispatch;
 		QPointer<destructive_question>                                  DiscardReplyConfirmation;
@@ -2208,6 +2327,15 @@ namespace bpr::qt {
 		/// [[BPR-1129]]. The positions' short form, "3/11", taken when the bar is narrow.
 		bool ReviewBarCompact        = false;
 		bool ReviewBarPositionsShown = true;
+		/// [[BPR-1700]]. Compose review's words: "Approve or comment…",
+		/// shortened to "Approve…" first of the bar's yields, and the pencil
+		/// alone after every other.
+		enum class compose_words : std::uint8_t {
+			full,
+			brief,
+			none,
+		};
+		compose_words ComposeReviewWords = compose_words::full;
 #if defined(_WIN32)
 		QToolButton*             StripMenuButton = nullptr;
 		windows_caption_buttons* CaptionButtons  = nullptr;
@@ -2491,7 +2619,37 @@ namespace bpr::qt {
 			std::optional<std::uint32_t> StartLine;
 			bool                         Suggestion = false;
 		};
-		std::optional<pending_line_comment>  PendingLineComment;
+		std::optional<pending_line_comment> PendingLineComment;
+		/// [[RFC-BPR-0090]]. The drawer draft whose suggestion is written in
+		/// the head pane: its lines, the head's own text of them, and the
+		/// reviewer's words, which the drawer field holds while the block
+		/// lives in the code. It stays linked after the edit closes, for as
+		/// long as the drawer writes that draft, so the block never moves into
+		/// the field (owner, Q5).
+		struct pane_suggestion
+		{
+			core::source_line_ref        Anchor;
+			std::optional<std::uint32_t> StartLine;
+			std::vector<core::text_line> Original;
+			QString                      Prose;
+			/// The words held a suggestion block of their own when the edit opened.
+			bool OwnBlock = false;
+			/// The head pane's edit is open.
+			bool Open = false;
+		};
+		std::optional<pane_suggestion> PaneSuggestion;
+		/// [[RFC-BPR-0090]]. Suggestions GitHub cannot apply where they go, by
+		/// draft, as the window last planned them: why, Convert's words and
+		/// the text Convert writes. Finish your review holds them back.
+		struct held_suggestion
+		{
+			QString     Reason;
+			QString     Convert;
+			std::string Body;
+		};
+		std::map<core::review_draft_id, held_suggestion> HeldSuggestions;
+		/// A held draft Finish your review asked to convert, once it shows.
+		std::optional<core::review_draft_id> PendingConvert;
 		QString                              CommentDraftUnavailable;
 		std::optional<core::source_line_ref> WritingAnchor;
 		QAction*                             AddCommentAction    = nullptr;
@@ -2514,6 +2672,8 @@ namespace bpr::qt {
 		std::uint32_t                                                                        NewConversationComments = 0;
 		bool                                                                                 dispatch_conversation_reply(core::conversation_reply_action aAction, const std::string& aIdentity, const QString& aText = { });
 		conversation_read_dispatch                                                           ConversationUnreadDispatch;
+		conversations_read_dispatch                                                          ConversationsReadDispatch;
+		QAction*                                                                             MarkAllCommentsRead = nullptr;
 		std::array<QAction*, 4>                                                              ReceiptActions{ };
 		std::array<drawer_entry, 3>                                                          Drawers{ };
 		files_tree_view*                                                                     FilesTree                = nullptr;

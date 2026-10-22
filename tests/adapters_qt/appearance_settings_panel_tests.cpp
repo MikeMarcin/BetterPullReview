@@ -30,6 +30,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMouseEvent>
+#include <QPixmap>
 #include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
@@ -46,6 +47,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -1416,6 +1418,158 @@ namespace {
 	}
 
 	/// \brief The composition's presentation facts must reach the cards.
+	/// \brief Presses Return in a field, as the keyboard does.
+	void press_return(QLineEdit& aField)
+	{
+		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(&aField, &press);
+		QApplication::sendEvent(&aField, &release);
+		settle();
+	}
+
+	/// \brief Types one character at the end of a field, as the keyboard does.
+	void type_at_end(QLineEdit& aField, const QChar aCharacter, const Qt::Key aKey)
+	{
+		aField.setCursorPosition(static_cast<int>(aField.text().size()));
+		auto press = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier, QString{ aCharacter } };
+		QApplication::sendEvent(&aField, &press);
+		settle();
+	}
+
+	/// \brief [[BPR-1714]]. The Syntax card's known-namespace field edits,
+	/// judges with the core and names every refused entry under itself.
+	void test_known_namespaces_field_edits_and_validates()
+	{
+		auto intents = recorder{ };
+		auto panel   = qt::appearance_settings_panel{ intents.sink() };
+		auto adopted = legal_settings();
+		panel.adopt(adopted);
+		show(panel);
+		auto* const card    = panel.findChild<QWidget*>(QStringLiteral("appearanceSyntaxCard"));
+		auto* const field   = panel.known_namespaces_editor();
+		auto* const problem = panel.known_namespaces_problem();
+		expect(card != nullptr && card->accessibleName() == QStringLiteral("Syntax") && field != nullptr && problem != nullptr,
+			   "the Syntax card holds the known-namespace field");
+		expect(field->text() == QStringLiteral("std"), "the field shows the default list, std");
+		expect(field->accessibleName() == QStringLiteral("C++ namespaces")
+				   && field->accessibleDescription().contains(QStringLiteral("boost::asio"))
+				   && field->accessibleDescription().contains(QStringLiteral("std::chrono")),
+			   "the field says what it does and how a nested name is written");
+		expect(!problem->isVisible(), "a legal list names no problem");
+
+		field->setText(QStringLiteral("std, Qt boost::asio"));
+		press_return(*field);
+		const auto* offered = intents.last<application::apply_known_namespaces_intent>();
+		expect(offered != nullptr && offered->Namespaces == core::known_namespaces{ .Names = { "std", "Qt", "boost::asio" } },
+			   "Return offers the whole list, split at commas and spaces");
+		adopted.Namespaces = offered->Namespaces;
+		panel.adopt(adopted);
+		expect(field->text() == QStringLiteral("std, Qt, boost::asio"), "the field shows the list in effect, joined by commas");
+
+		intents.clear();
+		field->setText(QStringLiteral("std, 3d, my-lib, Qt, Qt"));
+		press_return(*field);
+		expect(intents.count() == 0U, "a list with a refused entry is not offered");
+		expect(problem->isVisible()
+				   && problem->text()
+					   == QStringLiteral("Not saved. \"3d\" starts a name with a digit; \"my-lib\" has \"-\", which a "
+										 "namespace name cannot hold; \"Qt\" is listed twice."),
+			   "every refused entry is named under the field with its reason");
+		expect(problem->foregroundRole() == QPalette::WindowText, "in the page's own text role, not the fainter placeholder");
+		expect(field->text() == QStringLiteral("std, 3d, my-lib, Qt, Qt"), "the text stays for the reviewer to correct");
+		expect(field->accessibleDescription().startsWith(QStringLiteral("Not saved.")), "and the problem is spoken with the field");
+		auto dark = adopted;
+		dark.Mode = core::appearance_mode::dark;
+		panel.adopt(dark);
+		expect(field->text() == QStringLiteral("std, 3d, my-lib, Qt, Qt") && problem->isVisible(),
+			   "an unrelated adoption leaves uncorrected text and its problem alone");
+
+		field->setText(QStringLiteral("std, Qt,"));
+		type_at_end(*field, QLatin1Char('x'), Qt::Key_X);
+		expect(!problem->isVisible(), "the problem goes as soon as the text is legal");
+		press_return(*field);
+		offered = intents.last<application::apply_known_namespaces_intent>();
+		expect(offered != nullptr && offered->Namespaces == core::known_namespaces{ .Names = { "std", "Qt", "x" } },
+			   "and the corrected list is offered");
+
+		field->setText(QStringLiteral("1a 2b 3c 4d 5e"));
+		press_return(*field);
+		expect(problem->text().endsWith(QStringLiteral(" 2 more entries are not namespace names.")),
+			   "a long run of refused entries names three and counts the rest");
+
+		intents.clear();
+		auto* const reset = button_named(panel, QStringLiteral("Reset C++ namespaces"));
+		expect(reset != nullptr, "the Syntax card has its Reset");
+		reset->click();
+		expect(intents.last<application::reset_appearance_intent>() != nullptr
+				   && intents.last<application::reset_appearance_intent>()->Scope == application::appearance_reset_scope::known_namespaces,
+			   "Reset dispatches the known-namespace scope");
+		expect(field->text() == QStringLiteral("std, Qt, boost::asio") && !problem->isVisible(),
+			   "and drops uncorrected text for the list in effect until the host answers");
+
+		intents.clear();
+		field->setText(QStringLiteral(" std ,Qt,   boost::asio"));
+		press_return(*field);
+		expect(intents.count() == 0U && field->text() == QStringLiteral("std, Qt, boost::asio"),
+			   "the list in effect, spaced differently, is shown as kept rather than offered again");
+
+		field->setText(QStringLiteral("std, int"));
+		const auto refusal = std::array{ core::known_namespace_rejection{ .Index = 1U, .Problem = core::known_namespace_problem::keyword } };
+		panel.report(std::span<const core::known_namespace_rejection>{ refusal });
+		expect(problem->isVisible() && problem->text() == QStringLiteral("Not saved. \"int\" uses a C++ keyword as a name."),
+			   "a host refusal is named under the field the same way");
+
+		field->setText(QString{ });
+		press_return(*field);
+		offered = intents.last<application::apply_known_namespaces_intent>();
+		expect(offered != nullptr && offered->Namespaces == core::known_namespaces{ .Names = { } } && !problem->isVisible(),
+			   "an empty field offers the empty list, which is legal");
+		panel.hide();
+	}
+
+	/// \brief [[BPR-1714]]. A widget drawn at twice its logical size, for
+	/// the owner's 2x captures without scaling the whole course.
+	[[nodiscard]] auto capture_2x(QWidget& aWidget) -> QPixmap
+	{
+		auto pixmap = QPixmap{ aWidget.size() * 2 };
+		pixmap.setDevicePixelRatio(2.0);
+		pixmap.fill(Qt::transparent);
+		aWidget.render(&pixmap);
+		return pixmap;
+	}
+
+	/// \brief [[BPR-1714]]. The Syntax card as the owner sees it, in Light
+	/// and Dark, with a list in effect and with a refused entry named.
+	void test_known_namespaces_design_captures()
+	{
+		const auto directory = qEnvironmentVariable("BPR_KNOWN_NAMESPACES_CAPTURE_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto panel   = qt::appearance_settings_panel{ };
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			auto adopted       = legal_settings();
+			adopted.Mode       = mode;
+			adopted.Namespaces = core::known_namespaces{ .Names = { "std", "Qt", "boost::asio" } };
+			panel.adopt(adopted);
+			profile.apply_to(panel);
+			panel.adopt_appearance(profile);
+			show(panel);
+			auto* const card = panel.findChild<QWidget*>(QStringLiteral("appearanceSyntaxCard"));
+			expect(card != nullptr, "the Syntax card is composed");
+			const auto name = core::stable_name(mode);
+			const auto tag  = QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
+			expect(capture_2x(*card).save(QStringLiteral("%1/syntax-card-%2.png").arg(directory, tag), "PNG"), "the Syntax card capture is written");
+			panel.known_namespaces_editor()->setText(QStringLiteral("std, Qt, boost::asio, 3d, my-lib"));
+			press_return(*panel.known_namespaces_editor());
+			expect(capture_2x(*card).save(QStringLiteral("%1/syntax-card-%2-refused.png").arg(directory, tag), "PNG"), "the refused capture is written");
+			panel.hide();
+		}
+	}
+
 	void test_the_profile_supplies_what_only_it_knows()
 	{
 		auto panel   = qt::appearance_settings_panel{ };
@@ -1471,6 +1625,8 @@ auto main(int argc, char** argv) -> int
 	test_theme_and_contrast_refusals_remain_typed_and_visible();
 	test_dif_controls_translate_and_explain();
 	test_the_profile_supplies_what_only_it_knows();
+	test_known_namespaces_field_edits_and_validates();
+	test_known_namespaces_design_captures();
 	std::cout << "appearance-settings-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

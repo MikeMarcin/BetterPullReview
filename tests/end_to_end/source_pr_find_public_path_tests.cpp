@@ -1,9 +1,11 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
+#include "../support/window_system_mouse.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/files_tree.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -16,6 +18,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QClipboard>
+#include <QContextMenuEvent>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -303,6 +306,55 @@ int main(int aArgc, char** aArgv)
 	std::cout << "REVEAL_RACE before=" << (ordinaryReading ? static_cast<int>(ordinaryReading->PreferredLine.Side) : -1) << ":" << (ordinaryReading ? ordinaryReading->PreferredLine.Line : 0) << " after=" << (surface->selection() ? static_cast<int>(surface->selection()->PreferredLine.Side) : -1) << ":" << (surface->selection() ? surface->selection()->PreferredLine.Line : 0) << '\n'
 			  << std::flush;
 	expect(!surface->selection() || surface->selection()->PreferredLine.Line != pendingLocation.Line || surface->selection()->PreferredLine.Side != pendingLocation.Side, "cancelled reveal cannot revive after returning to its old file");
+
+	// [[BPR-1712]]. A result's menu opens it in a new tab: a tab of its
+	// own after the active one, made active and shown at the result's line,
+	// with the results kept and nothing searched again.
+	{
+		open(*application, "src/other.cpp");
+		auto* const strip  = window.document_tabs();
+		const auto  active = [&]() -> std::optional<qt::document_tab_presentation> {
+            const auto found=std::ranges::find_if(strip->tabs(),&qt::document_tab_presentation::Active);
+            return found==strip->tabs().end()?std::nullopt:std::optional{*found}; };
+		wait_for([&] { return active() && active()->Path == QStringLiteral("src/other.cpp"); }, "the active tab shows src/other.cpp");
+		const auto before  = strip->tabs().size();
+		const auto origin  = active()->Id;
+		const auto results = panel->projection().Matches;
+		const auto scans   = panel->projection().Statistics.Scans;
+		auto*      tree    = panel->tree();
+		const auto deepHit = tree->model()->index(1, 0, tree->model()->index(0, 0));
+		expect(deepHit.data(qt::source_search_sides_role).toInt() == 2 && deepHit.data(qt::source_search_line_role).toString() == QStringLiteral("1103"), "the right result is on line 1,103 of 1,107");
+		tree->scrollTo(deepHit);
+		const auto        point = tree->visualRect(deepHit).center();
+		QContextMenuEvent context{ QContextMenuEvent::Mouse, point, tree->viewport()->mapToGlobal(point) };
+		QApplication::sendEvent(tree->viewport(), &context);
+		auto* const menu = tree->findChild<QMenu*>(QStringLiteral("sourceSearchResultMenu"));
+		expect(menu != nullptr && menu->isVisible(), "right-click on a result opens its menu");
+		QAction* newTab = nullptr;
+		for (auto* action : menu->actions()) {
+			newTab = action->objectName() == QStringLiteral("sourceSearchOpenInNewTab") ? action : newTab;
+		}
+		expect(newTab != nullptr && newTab->isEnabled() && newTab->text() == QStringLiteral("Open in New Tab"), "the composed menu offers Open in New Tab");
+		// Chosen with a click, as a hand does: the menu closes, then the item acts.
+		tests::window_system_clicks(*menu, QPointF{ menu->actionGeometry(newTab).center() }, 1);
+		wait_for([&] { return strip->tabs().size() == before + 1U && active() && active()->Id != origin && surface->current_result() && surface->current_context()->Key.File == core::file_identity_of("src/find.cpp") && !surface->geometry_pending() && surface->right_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"); }, "Open in New Tab opens the result's file in a new active tab with the match selected");
+		settle();
+		const auto originIndex = strip->index_of(origin);
+		const auto addedIndex  = strip->index_of(active()->Id);
+		expect(originIndex && addedIndex && *addedIndex == *originIndex + 1 && strip->tabs()[static_cast<std::size_t>(*originIndex)].Path == QStringLiteral("src/other.cpp") && active()->Path == QStringLiteral("src/find.cpp"), "the new tab follows the one it came from, which keeps its file");
+		auto* const pane   = surface->right_pane();
+		const auto  cursor = pane->cursorRect();
+		std::cout << "NEW_TAB_REVEAL block=" << pane->textCursor().blockNumber() << " cursor=" << cursor.top() << " viewport=" << pane->viewport()->height() << '\n'
+				  << std::flush;
+		expect(pane->textCursor().selectedText() == QStringLiteral("offscreen needle") && pane->viewport()->rect().contains(cursor.center()), "the result's line is in view in the new tab");
+		expect(surface->selection() && surface->selection()->PreferredLine.Side == core::diff_side::right && surface->selection()->PreferredLine.Line == 1102U && window.focusWidget() == pane, "the new tab reads the right side at the result's line, with the window's keyboard there");
+		expect(panel->projection().Matches == results && panel->projection().Statistics.Scans == scans, "the results stay and nothing is searched again");
+		expect(panel->projection().CurrentMatch == std::optional<std::uint32_t>{ 1U }, "the opened result is the current one");
+		render(window, QStringLiteral("pr-search-open-in-new-tab"));
+		// Offscreen, no window is active once the popup has gone.
+		window.activateWindow();
+		settle();
+	}
 
 	const auto composedFrom = window.current_modality();
 	window.compose_review_action()->trigger();

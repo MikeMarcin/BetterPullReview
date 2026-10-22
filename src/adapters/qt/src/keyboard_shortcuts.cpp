@@ -22,6 +22,8 @@ namespace bpr::qt {
 		constexpr auto in_files     = std::string_view{ "In Overview's files" };
 		constexpr auto in_draft     = std::string_view{ "In a comment draft" };
 		constexpr auto in_query     = std::string_view{ "In the Find query" };
+		constexpr auto in_results   = std::string_view{ "In Find in files' results" };
+		constexpr auto in_pending   = std::string_view{ "In Finish your review's comments" };
 		constexpr auto in_outline   = std::string_view{ "In the tour outline" };
 		constexpr auto in_editor    = std::string_view{ "In the tour editor" };
 		constexpr auto in_cycle     = std::string_view{ "In a Review Cycle's code" };
@@ -92,6 +94,10 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::label_key, .Group = comments, .Binding = bound, .Title = "Show the label key", .Place = "On Overview", .Keys = "Alt+K", .Objects = "overviewLabelKeyShortcut" },
 			shortcut_entry{ .Command = command::thread_open_review, .Group = comments, .Binding = read, .Title = "Open the thread in Review", .Place = "In Threads", .Keys = "Return", .Objects = "threadFinderOpenInReviewAction" },
 			shortcut_entry{ .Command = command::thread_open_discuss, .Group = comments, .Binding = read, .Title = "Open the thread in Discuss", .Place = "In Threads", .Keys = "Shift+Return", .Objects = "threadFinderOpenInDiscussAction" },
+			// [[BPR-1719]]. The pending rows read these ahead of any window shortcut.
+			shortcut_entry{ .Command = command::extend_pending_comments, .Group = comments, .Binding = read, .Title = "Select more comments", .Place = in_pending, .Keys = "Shift+Up;Shift+Down" },
+			shortcut_entry{ .Command = command::select_pending_comments, .Group = comments, .Binding = read, .Title = "Select every comment", .Place = in_pending, .Standard = QKeySequence::SelectAll },
+			shortcut_entry{ .Command = command::copy_pending_comments, .Group = comments, .Binding = read, .Title = "Copy the selected comments with their lines", .Place = in_pending, .Standard = QKeySequence::Copy, .Objects = "wholeReviewPendingCopy" },
 
 			// Find.
 			shortcut_entry{ .Command = command::find, .Group = find, .Binding = bound, .Title = "Find in the file", .Standard = QKeySequence::Find, .Objects = "sourceFindAction;desktopSourceFindAction" },
@@ -109,6 +115,9 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::query_previous, .Group = find, .Binding = read, .Title = "Previous match", .Place = in_query, .Keys = "Shift+Return" },
 			shortcut_entry{ .Command = command::query_whole_word, .Group = find, .Binding = read, .Title = "Whole word on or off", .Place = in_query, .Keys = "Alt+W" },
 			shortcut_entry{ .Command = command::query_in_selection, .Group = find, .Binding = read, .Title = "Find in selection on or off", .Place = in_query, .Keys = "Alt+L" },
+			// [[BPR-1712]]. The results list reads both ahead of any window shortcut.
+			shortcut_entry{ .Command = command::copy_results, .Group = find, .Binding = read, .Title = "Copy the selected results", .Place = in_results, .Standard = QKeySequence::Copy, .Objects = "sourceSearchCopy" },
+			shortcut_entry{ .Command = command::select_results, .Group = find, .Binding = read, .Title = "Select every result", .Place = in_results, .Standard = QKeySequence::SelectAll },
 
 			// Views and drawers.
 			shortcut_entry{ .Command = command::files_drawer, .Group = views, .Binding = bound, .Title = "Files drawer", .Keys = files_drawer_keys, .Objects = "toggleWorkbenchFilesDrawerAction" },

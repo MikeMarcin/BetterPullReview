@@ -7,12 +7,22 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <variant>
 
 namespace bpr::core {
 
-	inline constexpr std::uint32_t release_diagnostic_record_limit = 1024U;
-	inline constexpr std::uint64_t release_diagnostic_byte_limit   = 256U * 1024U;
+	/// \brief [[BPR-1722]]. An export's output bounds: a heavy day's
+	/// records with room to spare.
+	/// \details A record is 706 to 867 bytes (783 to 795 on average in the
+	/// fixture courses), and heavy use writes about 1,000 an hour: a pull
+	/// request opened is about 30 to 45 records, a Home refresh about 5 to 10,
+	/// a session start about 15. 16,384 records is about 16 hours of heavy
+	/// use, and at 1 KiB each, wider than any measured, they fit 16 MiB.
+	/// Records with long classified details stop at the byte limit first.
+	inline constexpr std::uint32_t release_diagnostic_record_limit = 16384U;
+	inline constexpr std::uint64_t release_diagnostic_byte_limit   = 16U * 1024U * 1024U;
 	inline constexpr std::uint32_t release_maintenance_entry_limit = 4096U;
 
 	struct release_maintenance_root_id_tag;
@@ -90,6 +100,44 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto valid_diagnostic_export_options(diagnostic_export_options aOptions) noexcept -> bool;
 
+	/// \brief [[BPR-1722]]. A local date and time, as the presenter's or
+	/// host's clock reads it; a name uses it to the minute.
+	struct diagnostic_export_local_time
+	{
+		int      Year   = 0;
+		unsigned Month  = 0U;
+		unsigned Day    = 0U;
+		unsigned Hour   = 0U;
+		unsigned Minute = 0U;
+		unsigned Second = 0U;
+	};
+	/// \brief [[BPR-1722]]. The name a save suggests for an export:
+	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.zip`.
+	/// \details The local date and time come first, so saved exports sort by
+	/// when they were taken, and the name holds no colon or other character a
+	/// file system refuses. The version is added only when it is dotted
+	/// decimal numbers, so no host, account or repository can reach the name.
+	/// An impossible date or time is left out. [[BPR-1725]]: the file is
+	/// a `.zip` holding the text (`diagnostic_export_archive`).
+	[[nodiscard]] auto diagnostic_export_file_name(const diagnostic_export_local_time& aTime, std::string_view aVersion) -> std::string;
+	/// \brief [[BPR-1725]]. The name of the text inside a saved archive:
+	/// the file's name with a final `.zip` replaced by `.txt`, so
+	/// `BetterPullReview-diagnostics-2026-10-21-1432-0.3.1.txt`.
+	/// \details Any case of `.zip` is replaced; a name that then does not end
+	/// in `.txt` gains it. A name that is empty, holds a path separator, a
+	/// NUL or a control character, is not UTF-8 or is over 255 bytes gives
+	/// `BetterPullReview-diagnostics.txt`.
+	[[nodiscard]] auto diagnostic_export_entry_name(std::string_view aFileName) -> std::string;
+	/// \brief [[BPR-1725]]. The bytes of a saved export: a standard ZIP
+	/// archive with one regular-file entry, `aText` deflated under
+	/// `diagnostic_export_entry_name(aFileName)`, with its CRC-32, sizes, a
+	/// UTF-8 name, `aTime` as its modification time and owner-only (0600)
+	/// permissions, as the saved file has.
+	/// \details The text is stored instead when deflate would not shrink it.
+	/// A time the format cannot hold (before 1980 or after 2107, or
+	/// impossible) gives 1980-01-01 00:00. Equal inputs give equal bytes.
+	[[nodiscard]] auto diagnostic_export_archive(std::string_view aFileName, std::string_view aText, const diagnostic_export_local_time& aTime) -> std::string;
+
 	/// \brief Immutable classified bytes retained by the host for preview and export.
 	struct release_diagnostic_snapshot
 	{
@@ -100,13 +148,20 @@ namespace bpr::core {
 		std::uint64_t                Bytes          = 0U;
 		std::uint32_t                OmittedRecords = 0U;
 		diagnostic_export_options    Options{ };
-		std::uint64_t                FirstUtcMs                                                   = 0U;
-		std::uint64_t                LastUtcMs                                                    = 0U;
-		std::uint32_t                Sessions                                                     = 0U;
-		std::uint32_t                Categories                                                   = 0U;
-		std::uint32_t                RecentRecords                                                = 0U;
-		std::uint32_t                CaptureRedactedRecords                                       = 0U;
-		auto                         operator==(const release_diagnostic_snapshot&) const -> bool = default;
+		std::uint64_t                FirstUtcMs             = 0U;
+		std::uint64_t                LastUtcMs              = 0U;
+		std::uint32_t                Sessions               = 0U;
+		std::uint32_t                Categories             = 0U;
+		std::uint32_t                RecentRecords          = 0U;
+		std::uint32_t                CaptureRedactedRecords = 0U;
+		/// [[BPR-1717]]. Of `OmittedRecords`, the classified records left
+		/// out to stay within the record and byte limits. They are always the
+		/// oldest: an export keeps the newest records and drops from the start.
+		std::uint32_t LimitOmittedRecords = 0U;
+		/// [[BPR-1717]]. Whole log files left unread, oldest first, to stay
+		/// within the input limit; their records are not counted anywhere else.
+		std::uint32_t UnreadFiles                                                  = 0U;
+		auto          operator==(const release_diagnostic_snapshot&) const -> bool = default;
 	};
 
 	/// \brief Digest-bound complete inventory retained and revalidated by the host.

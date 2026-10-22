@@ -4,6 +4,7 @@
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 #include "conversation_glyphs.hpp"
 
@@ -11,12 +12,16 @@
 #include <QAbstractTextDocumentLayout>
 #include <QAccessible>
 #include <QAction>
+#include <QClipboard>
 #include <QContextMenuEvent>
+#include <QFocusEvent>
 #include <QFontDatabase>
 #include <QFontMetrics>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
@@ -610,16 +615,66 @@ namespace bpr::qt {
 
 			/// Where an opening goes.
 			std::function<void(core::workbench_thread_destination)> Open;
+			/// [[BPR-1719]]. The selection's gestures; the page decides
+			/// what each selects. A click with its modifiers, Up or Down with or
+			/// without Shift, Select All, Copy, the row taking focus, a menu
+			/// about to open on it, and the menu's own items.
+			std::function<void(Qt::KeyboardModifiers)> Pick;
+			std::function<void(bool, bool)>            Step;
+			std::function<void()>                      SelectAll;
+			std::function<void()>                      Copy;
+			std::function<void()>                      Focused;
+			std::function<void()>                      MenuOpening;
+			std::function<void(QMenu&)>                ExtendMenu;
+
+			void set_selected(const bool aSelected)
+			{
+				if (Selected != aSelected) {
+					Selected = aSelected;
+					update();
+				}
+			}
+
+			[[nodiscard]] auto selected() const noexcept -> bool
+			{
+				return Selected;
+			}
 
 		protected:
-			// A click selects the row and opens nothing.
+			// A click selects the row and opens nothing; with Shift or Command
+			// (Ctrl) it selects more ([[BPR-1719]]).
 			void mousePressEvent(QMouseEvent* aEvent) override
 			{
 				if (aEvent->button() == Qt::LeftButton) {
 					setFocus(Qt::MouseFocusReason);
+					if (Pick) {
+						Pick(aEvent->modifiers());
+					}
 					update();
 				}
 				aEvent->accept();
+			}
+
+			void focusInEvent(QFocusEvent* aEvent) override
+			{
+				QAbstractButton::focusInEvent(aEvent);
+				if (Focused) {
+					Focused();
+				}
+			}
+
+			// Copy and Select All are the row's while it has the keyboard,
+			// ahead of any window shortcut.
+			auto event(QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ShortcutOverride) {
+					auto* const key = static_cast<QKeyEvent*>(aEvent);
+					if (key->matches(QKeySequence::Copy) || key->matches(QKeySequence::SelectAll)) {
+						key->accept();
+						return true;
+					}
+				}
+				return QAbstractButton::event(aEvent);
 			}
 
 			void mouseReleaseEvent(QMouseEvent* aEvent) override
@@ -643,12 +698,47 @@ namespace bpr::qt {
 					}
 					return;
 				}
+				// [[BPR-1719]]. Copy, Select All, Up and Down (with Shift,
+				// selecting more), and the menu key or Shift+F10 for the menu.
+				if (aEvent->matches(QKeySequence::Copy)) {
+					if (Copy) {
+						Copy();
+					}
+					return;
+				}
+				if (aEvent->matches(QKeySequence::SelectAll)) {
+					if (SelectAll) {
+						SelectAll();
+					}
+					return;
+				}
+				const auto modifiers = aEvent->modifiers() & ~Qt::KeypadModifier;
+				if ((aEvent->key() == Qt::Key_Up || aEvent->key() == Qt::Key_Down) && (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier) && Step) {
+					Step(aEvent->key() == Qt::Key_Down, modifiers == Qt::ShiftModifier);
+					return;
+				}
+				if ((aEvent->key() == Qt::Key_Menu && modifiers == Qt::NoModifier) || (aEvent->key() == Qt::Key_F10 && modifiers == Qt::ShiftModifier)) {
+					if (MenuOpening) {
+						MenuOpening();
+					}
+					open_menu(mapToGlobal(QPoint{ gutter, height() }));
+					return;
+				}
 				QAbstractButton::keyPressEvent(aEvent);
 			}
 
 			void contextMenuEvent(QContextMenuEvent* aEvent) override
 			{
 				setFocus(Qt::MouseFocusReason);
+				if (MenuOpening) {
+					MenuOpening();
+				}
+				open_menu(aEvent->globalPos());
+				aEvent->accept();
+			}
+
+			void open_menu(const QPoint& aGlobal)
+			{
 				const auto row = make_thread_row_menu(this, QStringLiteral("wholeReviewPendingMenu"), QStringLiteral("Pending comment"), QStringLiteral("Open this comment beside its code"),
 													  QStringLiteral("Open this comment in Discuss, in its composer"), true);
 				const auto go  = [this](const core::workbench_thread_destination aDestination) {
@@ -659,9 +749,12 @@ namespace bpr::qt {
 				QObject::connect(row.OpenReview, &QAction::triggered, this, [go] { go(core::workbench_thread_destination::review); });
 				QObject::connect(row.OpenDiscuss, &QAction::triggered, this, [go] { go(core::workbench_thread_destination::discuss); });
 				QObject::connect(row.ShowThreads, &QAction::triggered, this, [go] { go(core::workbench_thread_destination::threads); });
+				if (ExtendMenu) {
+					row.Menu->addSeparator();
+					ExtendMenu(*row.Menu);
+				}
 				LastMenu = row.Menu;
-				row.Menu->popup(aEvent->globalPos());
-				aEvent->accept();
+				row.Menu->popup(aGlobal);
 			}
 
 			void paintEvent(QPaintEvent* /*aEvent*/) override
@@ -675,7 +768,16 @@ namespace bpr::qt {
 				const auto highlight = colours.color(QPalette::Active, QPalette::Highlight);
 				const auto box       = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
 				const auto hovered   = underMouse() || isDown() || hasFocus();
-				if (hovered) {
+				if (Selected) {
+					// [[BPR-1719]]. Selected: a firmer wash than the
+					// pointer's and a bar at the leading edge, so a selection
+					// reads apart from the focus ring and in either theme.
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(blend(ground, highlight, hovered ? 0.26 : 0.20));
+					painter.drawRoundedRect(box, 4.0, 4.0);
+					painter.setBrush(highlight);
+					painter.drawRoundedRect(QRectF{ box.left() + 1.0, box.top() + 5.0, 3.0, box.height() - 10.0 }, 1.5, 1.5);
+				} else if (hovered) {
 					painter.setPen(Qt::NoPen);
 					painter.setBrush(blend(ground, highlight, isDown() ? 0.18 : 0.08));
 					painter.drawRoundedRect(box, 4.0, 4.0);
@@ -756,6 +858,7 @@ namespace bpr::qt {
 			int                  LinesColumn = 0;
 			bool                 Suggests    = false;
 			bool                 Repeat      = false;
+			bool                 Selected    = false;
 
 		public:
 			/// The last menu opened, while it is open (for courses).
@@ -781,6 +884,30 @@ namespace bpr::qt {
 			lines.push_back(review_submission_editor::tr("Others: %n open blocking (not yours)", nullptr, static_cast<int>(aPreflight->Others)));
 		}
 		return lines.join(QLatin1Char{ '\n' });
+	}
+
+	auto review_comments_copy_text(const std::span<const core::review_submission_comment> aComments) -> QString
+	{
+		// [[BPR-1719]]. Plain text to keep or paste: where, then the
+		// comment as written, whole.
+		auto blocks = QStringList{ };
+		for (const auto& comment : aComments) {
+			auto header = text_of(comment.Path) + QLatin1Char{ ':' };
+			if (comment.StartLine && *comment.StartLine != comment.Line) {
+				header += QStringLiteral("%1-%2").arg(*comment.StartLine + 1U).arg(comment.Line + 1U);
+			} else {
+				header += QString::number(comment.Line + 1U);
+			}
+			if (comment.Side == core::diff_side::left) {
+				header += QStringLiteral(" (LEFT)");
+			}
+			auto body = text_of(comment.Body);
+			while (body.endsWith(QLatin1Char{ '\n' }) || body.endsWith(QLatin1Char{ '\r' })) {
+				body.chop(1);
+			}
+			blocks.push_back(body.isEmpty() ? header : header + QLatin1Char{ '\n' } + body);
+		}
+		return blocks.join(QStringLiteral("\n\n"));
 	}
 
 	auto review_submission_unknown_text(const core::review_submission_unknown_notice& aNotice) -> QString
@@ -1144,7 +1271,13 @@ namespace bpr::qt {
 		connect(Details, &QToolButton::toggled, this, [this](const bool aOpen) { Target->setVisible(aOpen && !Shown.TargetDescription.isEmpty()); });
 		layout->addStretch(1);
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] { emit_command(core::review_submission_command_kind::edit); });
-		connect(Submit, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::begin_submit); });
+		connect(Submit, &QAction::triggered, this, [this] {
+			// [[RFC-BPR-0090]]. Nothing is submitted while a suggestion is held.
+			if (Draft.has_value() && std::ranges::any_of(Draft->Comments, [this](const core::review_submission_comment& aComment) { return Held.contains(aComment.Draft); })) {
+				return;
+			}
+			emit_command(core::review_submission_command_kind::begin_submit);
+		});
 		connect(Discard, &QAction::triggered, this, [this] { confirm_discard(); });
 		connect(Reconcile, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::reconcile); });
 		setFocusProxy(Body);
@@ -1346,7 +1479,26 @@ namespace bpr::qt {
 		const auto  carried  = Draft.has_value() ? Draft->Comments : std::vector<core::review_submission_comment>{ };
 		const auto& comments = carried;
 		Title->setText(comments.empty() ? tr("Compose review") : tr("Finish your review"));
-		const auto relist = std::exchange(Listed, comments) != comments || ListedRows.size() != static_cast<qsizetype>(comments.size());
+		const auto previous = std::exchange(Listed, comments);
+		const auto relist   = previous != comments || ListedRows.size() != static_cast<qsizetype>(comments.size());
+		// [[BPR-1719]]. A relisted page keeps each comment's selection by
+		// its draft, and where a Shift gesture extends from.
+		auto keptSelected = std::vector<core::review_draft_id>{ };
+		auto keptAnchor   = std::optional<core::review_draft_id>{ };
+		if (relist) {
+			for (std::size_t index = 0U; index < previous.size() && index < PendingSelected.size(); ++index) {
+				if (PendingSelected[index]) {
+					keptSelected.push_back(previous[index].Draft);
+				}
+			}
+			if (PendingAnchor && *PendingAnchor < previous.size()) {
+				keptAnchor = previous[*PendingAnchor].Draft;
+			}
+			PendingButtons.clear();
+			PendingSelected.assign(comments.size(), false);
+			PendingAnchor.reset();
+			PendingCurrent.reset();
+		}
 		while (relist && PendingRows->count() > 0) {
 			auto* const item = PendingRows->takeAt(0);
 			if (auto* const widget = item->widget(); widget != nullptr) {
@@ -1396,7 +1548,6 @@ namespace bpr::qt {
 				linesColumn = std::max(linesColumn, pending_row::lines_width(where, code));
 				made.push_back(open);
 				open->setAccessibleName(said);
-				open->setAccessibleDescription(tr("Double-click or Return opens it in Review; with Shift, in Discuss"));
 				// The whole comment is the tooltip: the row is one line however long.
 				open->setToolTip(tr("Double-click to open in Review, Shift+double-click in Discuss.\n%1, %2\n\n%3").arg(path, where, text_of(comment.Body)));
 				open->Open = [this, comment](const core::workbench_thread_destination aDestination) {
@@ -1406,7 +1557,68 @@ namespace bpr::qt {
 						PendingReveal(comment);
 					}
 				};
-				across->addWidget(open, 1);
+				// [[BPR-1719]]. The selection is the page's; a row only
+				// reports its gestures.
+				open->Pick        = [this, index](const Qt::KeyboardModifiers aModifiers) { pick_pending(index, aModifiers); };
+				open->Step        = [this, index](const bool aDown, const bool aExtend) { step_pending(index, aDown, aExtend); };
+				open->SelectAll   = [this] { select_all_pending(); };
+				open->Copy        = [this] { copy_pending(); };
+				open->Focused     = [this, index] { PendingCurrent = index; };
+				open->MenuOpening = [this, index] { prepare_pending_menu(index); };
+				open->ExtendMenu  = [this](QMenu& aMenu) {
+					auto* const copy = aMenu.addAction(tr("Copy"));
+					copy->setObjectName(QStringLiteral("wholeReviewPendingCopy"));
+					copy->setShortcut(shortcut_key(shortcut_command::copy_pending_comments));
+					copy->setShortcutContext(Qt::WidgetShortcut);
+					copy->setShortcutVisibleInContextMenu(true);
+					copy->setToolTip(tr("Copy the selected comments with their files and lines"));
+					copy->setEnabled(!pending_copy_text().isEmpty());
+					connect(copy, &QAction::triggered, this, [this] { copy_pending(); });
+				};
+				if (std::ranges::find(keptSelected, comment.Draft) != keptSelected.end()) {
+					PendingSelected[index] = true;
+				}
+				if (keptAnchor == comment.Draft) {
+					PendingAnchor = index;
+				}
+				PendingButtons.emplace_back(open);
+				// [[RFC-BPR-0090]]. A held suggestion says why under its row
+				// and offers Convert beside Delete (owner, Q3).
+				const auto held = Held.find(comment.Draft);
+				if (held != Held.end()) {
+					auto* const column = new QVBoxLayout{ };
+					column->setContentsMargins(0, 0, 0, 0);
+					column->setSpacing(1);
+					column->addWidget(open);
+					auto* const why = new QLabel{ held->second.Reason, row };
+					why->setObjectName(QStringLiteral("wholeReviewPendingHeld"));
+					why->setWordWrap(true);
+					why->setTextFormat(Qt::PlainText);
+					why->setContentsMargins(6, 0, 0, 2);
+					auto ink = why->palette();
+					ink.setColor(QPalette::WindowText, held->second.Ink.isValid() ? held->second.Ink : palette().color(QPalette::PlaceholderText));
+					why->setPalette(ink);
+					column->addWidget(why);
+					across->addLayout(column, 1);
+					open->setAccessibleDescription(held->second.Reason);
+				} else {
+					across->addWidget(open, 1);
+				}
+				if (held != Held.end() && !held->second.Convert.isEmpty()) {
+					auto* const convert = new QToolButton{ row };
+					convert->setObjectName(QStringLiteral("wholeReviewPendingConvert"));
+					convert->setText(held->second.Convert);
+					convert->setToolButtonStyle(Qt::ToolButtonTextOnly);
+					convert->setFocusPolicy(Qt::StrongFocus);
+					convert->setToolTip(tr("%1. Your words and the change become text on the same lines.").arg(held->second.Convert));
+					convert->setAccessibleName(tr("%1: %2").arg(held->second.Convert, said));
+					connect(convert, &QToolButton::clicked, this, [this, comment] {
+						if (PendingConvert) {
+							PendingConvert(comment);
+						}
+					});
+					across->addWidget(convert, 0, Qt::AlignVCenter);
+				}
 				auto* const remove = new QToolButton{ row };
 				remove->setObjectName(QStringLiteral("wholeReviewPendingDelete"));
 				remove->setAutoRaise(true);
@@ -1423,6 +1635,15 @@ namespace bpr::qt {
 			for (auto* const open : made) {
 				open->set_columns(fileColumn, linesColumn, code);
 			}
+			restyle_pending_selection();
+		}
+		// [[BPR-1715]]. A comment can be deleted from a review being
+		// written only. While a submission may hold them, the rows offer no
+		// Delete: nothing would be deleted, and the question would say it was.
+		const auto writing = Draft.has_value() && Draft->State == core::review_submission_state::drafting;
+		for (auto* const remove : Pending->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
+			remove->setVisible(writing);
+			remove->setEnabled(writing);
 		}
 		Pending->setVisible(!comments.empty());
 		// The heading holds my blocking feedback's chip whenever there is a
@@ -1446,9 +1667,17 @@ namespace bpr::qt {
 		const auto blank     = Draft.has_value() && QString::fromUtf8(Draft->Body).trimmed().isEmpty();
 		const auto count     = Draft.has_value() ? Draft->Comments.size() : 0U;
 		const auto blocked   = Shown.Status.isEmpty() ? tr("This review cannot be submitted now.") : Shown.Status;
+		// [[RFC-BPR-0090]]. A held suggestion keeps the review back until it
+		// is converted or deleted (owner, Q3).
+		const auto held      = Draft.has_value() ? static_cast<std::size_t>(std::ranges::count_if(Draft->Comments, [this](const core::review_submission_comment& aComment) {
+			return Held.contains(aComment.Draft);
+		}))
+												 : 0U;
+		const auto heldWords = held == 1U ? tr("1 suggestion GitHub cannot apply is held. Convert it or delete it first.")
+										  : tr("%1 suggestions GitHub cannot apply are held. Convert them or delete them first.").arg(held);
 		for (const auto disposition : decision_order) {
 			auto* const button  = Decisions[decision_index(disposition)];
-			const auto  enabled = connected && core::submits_as(Shown.Controls, disposition);
+			const auto  enabled = connected && core::submits_as(Shown.Controls, disposition) && held == 0U;
 			button->setEnabled(enabled);
 			auto tip = QString{ };
 			switch (disposition) {
@@ -1469,6 +1698,9 @@ namespace bpr::qt {
 										: blocked;
 				break;
 			}
+			if (held > 0U) {
+				tip = heldWords;
+			}
 			button->setToolTip(tip);
 			button->setAccessibleDescription(tip);
 		}
@@ -1476,6 +1708,10 @@ namespace bpr::qt {
 	void review_submission_editor::submit_as(const core::review_disposition aDisposition)
 	{
 		if (!Draft || !Dispatch || !core::submits_as(Shown.Controls, aDisposition)) {
+			return;
+		}
+		// [[RFC-BPR-0090]]. Nothing is submitted while a suggestion is held.
+		if (std::ranges::any_of(Draft->Comments, [this](const core::review_submission_comment& aComment) { return Held.contains(aComment.Draft); })) {
 			return;
 		}
 		if (Draft->Disposition != aDisposition) {
@@ -1536,9 +1772,124 @@ namespace bpr::qt {
 			DiscardObserver();
 		}
 	}
+	void review_submission_editor::pick_pending(const std::size_t aIndex, const Qt::KeyboardModifiers aModifiers)
+	{
+		if (aIndex >= PendingSelected.size()) {
+			return;
+		}
+		// [[BPR-1719]]. Shift selects from the anchor to the row
+		// (keeping the rest with Command too); Command (Ctrl) adds or takes
+		// out one row; a plain click selects that row alone.
+		const auto extend = aModifiers.testFlag(Qt::ShiftModifier);
+		const auto toggle = aModifiers.testFlag(Qt::ControlModifier);
+		if (extend && PendingAnchor && *PendingAnchor < PendingSelected.size()) {
+			if (!toggle) {
+				std::ranges::fill(PendingSelected, false);
+			}
+			for (auto index = std::min(*PendingAnchor, aIndex); index <= std::max(*PendingAnchor, aIndex); ++index) {
+				PendingSelected[index] = true;
+			}
+		} else if (toggle) {
+			PendingSelected[aIndex] = !PendingSelected[aIndex];
+			PendingAnchor           = aIndex;
+		} else {
+			std::ranges::fill(PendingSelected, false);
+			PendingSelected[aIndex] = true;
+			PendingAnchor           = aIndex;
+		}
+		PendingCurrent = aIndex;
+		restyle_pending_selection();
+	}
+	void review_submission_editor::step_pending(const std::size_t aIndex, const bool aDown, const bool aExtend)
+	{
+		const auto count = PendingSelected.size();
+		if (aIndex >= count) {
+			return;
+		}
+		// Up and Down go row to row and stop at the ends; with Shift they
+		// select from the anchor to the row they reach.
+		const auto target = aDown ? std::min(aIndex + 1U, count - 1U) : (aIndex == 0U ? 0U : aIndex - 1U);
+		std::ranges::fill(PendingSelected, false);
+		if (aExtend) {
+			const auto anchor = PendingAnchor && *PendingAnchor < count ? *PendingAnchor : aIndex;
+			PendingAnchor     = anchor;
+			for (auto index = std::min(anchor, target); index <= std::max(anchor, target); ++index) {
+				PendingSelected[index] = true;
+			}
+		} else {
+			PendingSelected[target] = true;
+			PendingAnchor           = target;
+		}
+		PendingCurrent = target;
+		if (auto* const button = PendingButtons[target].data(); button != nullptr) {
+			button->setFocus(Qt::OtherFocusReason);
+		}
+		restyle_pending_selection();
+	}
+	void review_submission_editor::select_all_pending()
+	{
+		std::ranges::fill(PendingSelected, true);
+		restyle_pending_selection();
+	}
+	void review_submission_editor::prepare_pending_menu(const std::size_t aIndex)
+	{
+		if (aIndex < PendingSelected.size() && !PendingSelected[aIndex]) {
+			pick_pending(aIndex, Qt::NoModifier);
+		}
+		PendingCurrent = aIndex;
+	}
+	void review_submission_editor::restyle_pending_selection()
+	{
+#if defined(Q_OS_MACOS)
+		const auto command = tr("Command");
+#else
+		const auto command = tr("Ctrl");
+#endif
+		const auto keys = tr("Double-click or Return opens it in Review; with Shift, in Discuss. Shift or %1 with a click, or Shift with an arrow, selects more; %2 selects every comment and %3 copies the selected ones with their files and lines. Shift+F10 or the menu key shows its actions.")
+							  .arg(command, spoken_key(shortcut_key(shortcut_command::select_pending_comments)), spoken_key(shortcut_key(shortcut_command::copy_pending_comments)));
+		for (std::size_t index = 0U; index < PendingButtons.size() && index < PendingSelected.size(); ++index) {
+			auto* const row = static_cast<pending_row*>(PendingButtons[index].data());
+			if (row == nullptr) {
+				continue;
+			}
+			row->set_selected(PendingSelected[index]);
+			const auto description = PendingSelected[index] ? tr("Selected. %1").arg(keys) : keys;
+			if (row->accessibleDescription() != description) {
+				row->setAccessibleDescription(description);
+			}
+		}
+	}
+	auto review_submission_editor::selected_pending() const -> std::vector<core::review_submission_comment>
+	{
+		auto chosen = std::vector<core::review_submission_comment>{ };
+		for (std::size_t index = 0U; index < Listed.size() && index < PendingSelected.size(); ++index) {
+			if (PendingSelected[index]) {
+				chosen.push_back(Listed[index]);
+			}
+		}
+		return chosen;
+	}
+	auto review_submission_editor::pending_copy_text() const -> QString
+	{
+		auto chosen = selected_pending();
+		if (chosen.empty() && PendingCurrent && *PendingCurrent < Listed.size()) {
+			chosen.push_back(Listed[*PendingCurrent]);
+		}
+		return review_comments_copy_text(chosen);
+	}
+	void review_submission_editor::copy_pending() const
+	{
+		// The clipboard write is the page's one effect of a selection; no
+		// draft, command or question follows it.
+		if (const auto text = pending_copy_text(); !text.isEmpty()) {
+			if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+				clipboard->setText(text);
+			}
+		}
+	}
 	void review_submission_editor::confirm_delete(const core::review_submission_comment& aComment)
 	{
-		if (!PendingDelete) {
+		if (!PendingDelete || !Draft || Draft->State != core::review_submission_state::drafting) {
 			return;
 		}
 		if (DeleteQuestion != nullptr) {
@@ -1616,6 +1967,25 @@ namespace bpr::qt {
 	void review_submission_editor::set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete)
 	{
 		PendingDelete = std::move(aDelete);
+	}
+	void review_submission_editor::set_held_comments(std::map<core::review_draft_id, held_comment> aHeld)
+	{
+		if (Held == aHeld) {
+			return;
+		}
+		Held = std::move(aHeld);
+		// The rows say why and the verdicts wait: list again.
+		Listed.clear();
+		present_pending();
+		present_verdicts();
+	}
+	auto review_submission_editor::held_comments() const noexcept -> const std::map<core::review_draft_id, held_comment>&
+	{
+		return Held;
+	}
+	void review_submission_editor::set_pending_convert(std::function<void(const core::review_submission_comment&)> aConvert)
+	{
+		PendingConvert = std::move(aConvert);
 	}
 	void review_submission_editor::set_discard_observer(std::function<void()> aObserver)
 	{

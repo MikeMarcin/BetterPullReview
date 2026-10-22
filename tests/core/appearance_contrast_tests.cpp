@@ -903,6 +903,39 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1709]]. On a fill that wants light ink, a moved colour first
+	/// brightens along its own hue, and tints toward white only past its full
+	/// value; on one that wants dark ink it shades as before.
+	auto test_emphasis_brightens_along_its_hue_before_tinting() -> void
+	{
+		// The dark comment green on a selected added row's mark.
+		constexpr auto comment = srgb(0x66B559);
+		constexpr auto mark    = srgb(0x117277);
+		expect(contrast_ratio_hundredths(comment, mark) < emphasis_text_contrast_minimum_hundredths, "the comment green has to move on the selected mark");
+		const auto green = readable_emphasis_foreground(comment, mark, appearance_variant::dark);
+		expect(contrast_ratio_hundredths(green, mark) >= text_contrast_minimum_hundredths, "the moved green reads at the text floor");
+		// One factor on every channel keeps the ratios between them, to rounding.
+		const auto proportional = [](const appearance_color aFrom, const appearance_color aTo) {
+			const auto close = [](const int aA, const int aB, const int aFromA, const int aFromB) {
+				return std::abs((aA * aFromB) - (aB * aFromA)) <= std::max(aFromA, aFromB);
+			};
+			return close(aTo.Red, aTo.Green, aFrom.Red, aFrom.Green) && close(aTo.Blue, aTo.Green, aFrom.Blue, aFrom.Green);
+		};
+		expect(green.Green > comment.Green && green.Green < 255U && proportional(comment, green),
+			   "it is the same green, brighter, and brightening alone was enough");
+
+		// A colour already at its full value can only tint, and keeps its hue.
+		constexpr auto orange = srgb(0xFF8000);
+		const auto     tint   = readable_emphasis_foreground(orange, mark, appearance_variant::dark);
+		expect(contrast_ratio_hundredths(tint, mark) >= text_contrast_minimum_hundredths && tint.Red == 255U && tint.Green > tint.Blue,
+			   "an orange at full value tints toward white and stays orange");
+
+		// Toward black nothing changed: the light comment grey on a selected
+		// added row's mark shades exactly as it did.
+		expect(readable_emphasis_foreground(srgb(0x555E69), srgb(0x73B5BA), appearance_variant::light) == srgb(0x3A4048),
+			   "a fill that wants dark ink shades the ink as before");
+	}
+
 	/// [[BPR-1156]]. Glyphs on the code view's solid text selection keep a
 	/// readable role colour exactly and move a faint one only as far as the
 	/// variant's text floor, keeping its hue (owner note on composer-layout v005).
@@ -929,6 +962,31 @@ namespace {
 		expect(readable_selection_ink(srgb(0x777777), srgb(0x767676), appearance_variant::high_contrast_dark) == srgb(0x000000)
 				   || readable_selection_ink(srgb(0x777777), srgb(0x767676), appearance_variant::high_contrast_dark) == srgb(0xFFFFFF),
 			   "where no ink reaches the floor, the extreme that contrasts most");
+	}
+
+	/// [[RFC-BPR-0090]]. Code outside a suggestion's editable lines fades a
+	/// quarter of the way toward its ground in light and dark, never below the
+	/// text floor, and keeps its ink in the high-contrast variants.
+	auto test_read_only_code_ink_fades_within_the_floor() -> void
+	{
+		constexpr auto lightGround = srgb(0xF0F2F5);
+		constexpr auto text        = srgb(0x1F2328);
+		expect(read_only_code_fade_alpha(appearance_variant::light) == 64U && read_only_code_fade_alpha(appearance_variant::dark) == 64U,
+			   "light and dark fade a quarter of the way");
+		expect(read_only_code_fade_alpha(appearance_variant::high_contrast_light) == 0U && read_only_code_fade_alpha(appearance_variant::high_contrast_dark) == 0U,
+			   "the high-contrast variants do not fade");
+		const auto faded = read_only_code_ink(text, lightGround, appearance_variant::light);
+		expect(faded == composited(lightGround, text, 64U), "a readable ink is exactly the faded mix");
+		expect(contrast_ratio_hundredths(faded, lightGround) < contrast_ratio_hundredths(text, lightGround), "and reads quieter than the ink it came from");
+		const auto faint = srgb(0x57606A);
+		const auto held  = read_only_code_ink(faint, lightGround, appearance_variant::light);
+		expect(contrast_ratio_hundredths(faint, lightGround) >= text_contrast_minimum_hundredths && contrast_ratio_hundredths(composited(lightGround, faint, 64U), lightGround) < text_contrast_minimum_hundredths
+				   && contrast_ratio_hundredths(held, lightGround) >= text_contrast_minimum_hundredths,
+			   "a faint role that the fade would take below the text floor is held at it");
+		constexpr auto darkGround = srgb(0x141921);
+		const auto     darkInk    = read_only_code_ink(srgb(0xE6EDF3), darkGround, appearance_variant::dark);
+		expect(darkInk.Red < 0xE6U && contrast_ratio_hundredths(darkInk, darkGround) >= text_contrast_minimum_hundredths, "in dark it fades toward the ground and still reads");
+		expect(read_only_code_ink(srgb(0x000000), srgb(0xEBEBEB), appearance_variant::high_contrast_light) == srgb(0x000000), "high-contrast ink is kept");
 	}
 
 	/// [[BPR-1157]]. A focus ring keeps a selection colour that already stands
@@ -1045,7 +1103,9 @@ int main()
 	test_a_derived_mark_brightens_a_dark_fill();
 	test_only_a_bold_fill_carries_its_own_foreground();
 	test_emphasis_preserves_readable_ink_and_adjusts_only_contrast();
+	test_emphasis_brightens_along_its_hue_before_tinting();
 	test_selection_ink_keeps_readable_roles_and_lifts_faint_ones();
+	test_read_only_code_ink_fades_within_the_floor();
 	test_focus_ring_reaches_the_indicator_floor();
 	test_muted_ink_reaches_the_text_floor_on_every_ground();
 	test_signal_ink_turns_amber_burnt_orange_not_brown();

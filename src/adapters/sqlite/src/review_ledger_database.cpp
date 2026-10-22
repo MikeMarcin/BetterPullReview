@@ -1541,6 +1541,33 @@ namespace bpr::adapters::sqlite::detail {
 		return { };
 	}
 
+	auto review_ledger_database::store_conversation_receipts(
+		const std::int64_t                                aScope,
+		const std::span<const core::conversation_receipt> aReceipts)
+		-> std::expected<void, failure>
+	{
+		if (aReceipts.empty()) {
+			return { };
+		}
+		if (auto begin = execute(Handle, "BEGIN IMMEDIATE"); !begin) {
+			return std::unexpected(begin.error());
+		}
+		const auto rollback = [this]() noexcept {
+			(void)::sqlite3_exec(Handle, "ROLLBACK", nullptr, nullptr, nullptr);
+		};
+		for (const auto& receipt : aReceipts) {
+			if (auto stored = store_conversation_receipt(aScope, receipt); !stored) {
+				rollback();
+				return std::unexpected(stored.error());
+			}
+		}
+		if (auto commit = execute(Handle, "COMMIT"); !commit) {
+			rollback();
+			return std::unexpected(commit.error());
+		}
+		return { };
+	}
+
 	auto review_ledger_database::load_conversation_receipts(
 		const std::int64_t aScope)
 		-> std::expected<std::vector<core::conversation_receipt>, failure>

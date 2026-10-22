@@ -158,5 +158,14 @@ int main()
 	expect(reference && reference->Hostname == "conventionalcomments.org" && reference->Path == "/", "Conventional Comments is its site's root");
 	expect(admit_reference_page(reference_page::conventional_comments, false).error() == markdown_link_result::unavailable, "no browser, no page");
 	expect(admit_reference_page(static_cast<reference_page>(7), true).error() == markdown_link_result::refused, "a value that names no page is refused");
+	// [[BPR-1720]]. Help › About's three pages, each one exact host and path.
+	const auto product = admit_reference_page(reference_page::product_site, true);
+	expect(product && product->Hostname == "betterpullreview.com" && product->Path == "/", "the product's site is its root");
+	expect(admit_reference_page(reference_page::product_site, false).error() == markdown_link_result::unavailable, "no browser, no product site");
+	const auto maker = admit_reference_page(reference_page::game_core_tech, true);
+	expect(maker && maker->Hostname == "gamecoretech.com" && maker->Path == "/", "Game Core Tech is its site's root");
+	const auto source = admit_reference_page(reference_page::source_repository, true);
+	expect(source && source->Hostname == "github.com" && source->Path == "/MikeMarcin/BetterPullReview", "the source is the application's own repository");
+	expect(admit_reference_page(reference_page::source_repository, false).error() == markdown_link_result::unavailable, "no browser, no source page");
 	std::cout << "Markdown navigation policy passed\n";
 }

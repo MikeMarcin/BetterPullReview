@@ -46,9 +46,10 @@ namespace bpr::app {
 		/// definitely not published releases them to pending again. The
 		/// request is absent when nothing was ever admitted under the key.
 		using review_answer = std::function<void(const std::string&, application::review_submission_publication, const std::optional<application::review_submission_request>&)>;
-		/// [[BPR-1345]] v002. Discard review: deletes every pending draft of
-		/// the review.
-		using review_discard = std::function<void()>;
+		/// [[BPR-1345]] v002. Discard review: deletes the pending drafts the
+		/// review carries. [[BPR-1715]]: only those, each at the revision
+		/// carried and pending at the review's head.
+		using review_discard = std::function<void(const std::vector<core::review_submission_comment>&, const core::git_commit_oid&)>;
 		void set_review_comment_hooks(comment_lock, review_answer, review_discard);
 		/// [[BPR-1345]]. The pending drafts this review carries, as the draft
 		/// owner holds them now, for the review's account and head.

@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_round_trip.hpp"
@@ -108,6 +109,32 @@ namespace bpr::qt {
 		show_in_discuss,
 		/// [[BPR-1586]]. Show this thread's row, at the post named, in Threads.
 		show_in_threads,
+		/// [[RFC-BPR-0090]]. The drawer draft's suggestion GitHub cannot apply
+		/// becomes text at the same lines (owner, Q3).
+		convert_draft,
+		/// [[BPR-1733]]. My kept suggestion from an earlier head is written
+		/// again at its lines here; the earlier draft goes once it is saved.
+		carry_suggestion,
+		/// [[BPR-1733]]. My kept suggestion's change, copied as its lines.
+		copy_change,
+	};
+
+	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of
+	/// the file shown, as the core decided at this head (RFC-BPR-0090, "A new
+	/// head while editing").
+	struct moved_suggestion_card
+	{
+		/// The draft as it was saved, on its own comparison, and its revision.
+		core::review_comment_draft Draft;
+		std::uint64_t              Revision = 0U;
+		/// The comparison shown, where its note is drawn.
+		core::file_comparison_digest Comparison;
+		/// The short commit it was written on.
+		QString EarlierHead;
+		/// Carry to its lines here, or why not, and the change to copy.
+		core::suggestion_head_move Move;
+
+		auto operator==(const moved_suggestion_card&) const -> bool = default;
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands
@@ -226,6 +253,12 @@ namespace bpr::qt {
 		QString Notice;
 		/// [[BPR-1374]]. My kept reply can become a new comment on its line.
 		bool KeepableAsComment = false;
+		/// [[BPR-1733]]. My kept suggestion from an earlier head, at the
+		/// lines it is carried to here or at its own; `Carryable` when the core
+		/// carries it, and `Change` what Copy change copies.
+		bool    MovedSuggestion = false;
+		bool    Carryable       = false;
+		QString Change;
 		/// How many of the posts are unread; the first post unread makes the
 		/// thread new.
 		std::size_t UnreadCount = 0U;
@@ -246,6 +279,15 @@ namespace bpr::qt {
 		QRect                  Rect;
 		std::vector<card_post> Posts;
 	};
+
+	/// \brief [[BPR-1721]]. The one-based first line of a card on
+	/// several lines, or none for one line: my draft's `FirstLine`, or a
+	/// published thread's `StartLine`, when it is above the card's `Line`.
+	[[nodiscard]] inline auto thread_first_line(const thread_card& aCard) noexcept -> std::optional<std::uint32_t>
+	{
+		const auto first = aCard.Draft ? aCard.FirstLine : aCard.StartLine;
+		return aCard.Line.has_value() && first.has_value() && *first < *aCard.Line ? first : std::nullopt;
+	}
 
 	/// \brief [[BPR-1471]]. Where a closed note's meta row draws, in viewport
 	/// coordinates, from its right edge leftward. A note that is not a draft
@@ -286,7 +328,8 @@ namespace bpr::qt {
 		/// bracket in place of the amber wash.
 		bool Writing = false;
 		/// [[BPR-1212]] slice 1. My draft on several lines: its zero-based
-		/// first line, where the bracket starts.
+		/// first line, where the bracket starts. [[BPR-1721]]: or a
+		/// published thread's, from GitHub's `start_line`.
 		std::optional<std::uint32_t> FirstLine;
 		/// The note under the pointer: its line is washed lightly.
 		bool Hovered = false;
@@ -337,6 +380,13 @@ namespace bpr::qt {
 		QString Lines;
 		/// What the draft's suggestion block changes, when it has one.
 		std::optional<core::suggested_change> Change;
+		/// [[RFC-BPR-0090]]. The change is written in the head pane: `Body`
+		/// is the reviewer's words only, and the block lives in the code.
+		bool InCode = false;
+		/// [[RFC-BPR-0090]]. GitHub cannot apply this suggestion where it goes,
+		/// so it is held: the foot offers this button ("Convert to file
+		/// comment") in place of the sending ones, and `Notice` says why.
+		QString Convert;
 		/// What the last Publish came to ([[BPR-1329]]), else why Publish is
 		/// unavailable, or empty.
 		QString Notice;
@@ -425,12 +475,29 @@ namespace bpr::qt {
 		[[nodiscard]] static auto unsent_reply_notice(core::reply_draft_standing aStanding) -> QString;
 		/// \brief [[BPR-1374]]. The identity of a kept reply's note.
 		[[nodiscard]] static auto kept_reply_identity(core::review_draft_id aDraft) -> std::string;
+		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
+		/// of the file shown, each a note of its own at the lines it is
+		/// carried to, or at its own, while that comparison is shown. The
+		/// window says what each offers; nothing here decides it.
+		void set_moved_suggestions(std::vector<moved_suggestion_card> aMoved);
+		/// \brief [[BPR-1733]]. The identity of a moved suggestion's note.
+		[[nodiscard]] static auto moved_suggestion_identity(core::review_draft_id aDraft) -> std::string;
+		/// \brief [[BPR-1733]]. What a moved suggestion's note says about where
+		/// it was written and what can be done with it.
+		[[nodiscard]] static auto moved_suggestion_notice(const moved_suggestion_card& aMoved) -> QString;
 		void                      set_viewer_login(const QString& aLogin);
 		void                      set_thread_dispatch(card_thread_dispatch aDispatch);
 		void                      set_action_dispatch(card_action_dispatch aDispatch);
 		using defect_badges = std::map<std::string, std::pair<QString, QString>>;
-		void               set_defect_badges(defect_badges aBadges);
-		void               set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
+		void set_defect_badges(defect_badges aBadges);
+		void set_context_menu_builder(std::function<void(QMenu&, const std::string&)> aBuilder);
+		/// \brief [[BPR-1699]]. Where "Mark all from <login> as read"
+		/// goes, from a thread's menu (its first post's author) and from a
+		/// post's body menu (that post's author), with the GitHub login.
+		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-1699]]. How many posts this login wrote that are
+		/// new, over every card; what the author's Mark all is offered for.
+		[[nodiscard]] auto unread_post_count_from(const QString& aLogin) const -> std::size_t;
 		[[nodiscard]] auto thread_menu(const std::string& aIdentity) -> QMenu*;
 		void               show_thread_menu(const std::string& aIdentity, QPoint aGlobalPosition = { });
 		/// \brief Discuss's list ([[BPR-0649]]): every thread in file order
@@ -725,12 +792,14 @@ namespace bpr::qt {
 		std::optional<core::review_comment_draft>                                            Draft;
 		std::vector<core::review_comment_draft>                                              SavedDrafts;
 		std::vector<core::reply_draft_decision>                                              UnsentReplies;
+		std::vector<moved_suggestion_card>                                                   MovedSuggestions;
 		std::optional<core::file_comparison_digest>                                          CurrentComparison;
 		card_line_locator                                                                    Locator;
 		card_thread_dispatch                                                                 ThreadDispatch;
 		card_action_dispatch                                                                 ActionDispatch;
 		defect_badges                                                                        DefectBadges;
 		std::function<void(QMenu&, const std::string&)>                                      ContextMenuBuilder;
+		std::function<void(const std::string&)>                                              AuthorReadDispatch;
 		std::function<void()>                                                                MarksObserver;
 		std::function<bool(QWheelEvent&)>                                                    ScrollForward;
 		std::function<void(const std::string&, const std::string&)>                          LinkDispatch;

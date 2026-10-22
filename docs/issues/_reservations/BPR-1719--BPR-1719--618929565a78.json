@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1719"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Select several pending comments and copy them",
+  "created": "2026-10-21T22:25:31.801625+00:00",
+  "base": "81d42acb5dbba4b2fa6f4a7bdf479f983c7cdf6a"
+}

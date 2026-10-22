@@ -95,6 +95,8 @@ source is a separate release asset,
 
 Qt and xdiff are LGPL and replaceable; `SOURCE-OFFERS.txt` explains how. See
 [licence detail](release-packaging-maintainers.md#bundled-components-and-notices).
+**Help > About BetterPullReview** opens both files, and its **Copy version
+info** copies the version, commit, Qt and system for a bug report.
 
 ## Packages without agent integrations or local automation
 

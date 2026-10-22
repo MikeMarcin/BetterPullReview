@@ -10,6 +10,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <span>
 #include <stop_token>
 #include <string_view>
 #include <vector>
@@ -120,6 +121,13 @@ namespace bpr::adapters::sqlite::detail {
 		[[nodiscard]] auto store_conversation_receipt(
 			std::int64_t                      aScope,
 			const core::conversation_receipt& aReceipt)
+			-> std::expected<void, failure>;
+
+		/// \brief [[BPR-1699]]. Upserts these conversation receipts in one
+		/// transaction: a refused receipt rolls back every one before it.
+		[[nodiscard]] auto store_conversation_receipts(
+			std::int64_t                                aScope,
+			std::span<const core::conversation_receipt> aReceipts)
 			-> std::expected<void, failure>;
 
 		/// \brief Loads every conversation receipt of a scope, by conversation.

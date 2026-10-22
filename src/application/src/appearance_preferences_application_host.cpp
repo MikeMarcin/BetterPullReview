@@ -95,6 +95,12 @@ namespace bpr::application {
 			core::code_zoom_step Step = core::code_zoom_step::actual_size;
 		};
 
+		/// [[BPR-1714]]. One whole known-namespace list.
+		struct deferred_known_namespaces
+		{
+			core::known_namespaces Namespaces;
+		};
+
 		struct deferred_appearance_theme_import
 		{
 			std::string Path;
@@ -127,6 +133,7 @@ namespace bpr::application {
 														 deferred_appearance_palette,
 														 deferred_appearance_typography,
 														 deferred_appearance_zoom,
+														 deferred_known_namespaces,
 														 deferred_appearance_theme_import,
 														 deferred_appearance_cancel,
 														 deferred_appearance_shutdown,
@@ -206,6 +213,9 @@ namespace bpr::application {
 			if (!core::validate_typography(aSettings.Typography).empty()) {
 				throw std::invalid_argument{ "Invalid appearance typography" };
 			}
+			if (!core::validate_known_namespaces(aSettings.Namespaces).empty()) {
+				throw std::invalid_argument{ "Invalid known namespaces" };
+			}
 			return aSettings;
 		}
 
@@ -226,6 +236,7 @@ namespace bpr::application {
 			/// \brief The per-variant customization table this consumer has seen.
 			std::optional<appearance_palette_customisations> PublishedPalettes;
 			std::optional<core::typography_settings>         PublishedTypography;
+			std::optional<core::known_namespaces>            PublishedNamespaces;
 		};
 		[[nodiscard]] auto find_consumer(appearance_consumer_id aId) const -> std::shared_ptr<consumer_state>
 		{
@@ -379,6 +390,8 @@ namespace bpr::application {
 						auto typography             = Settings.Typography;
 						typography.Code.ZoomPercent = core::stepped_code_zoom(typography.Code, aTyped.Step);
 						apply_typography_now(std::move(typography));
+					} else if constexpr (std::is_same_v<ingress_type, deferred_known_namespaces>) {
+						apply_known_namespaces_now(std::move(aTyped.Namespaces));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_import>) {
 						import_theme_now(std::move(aTyped.Path));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_cancel>) {
@@ -760,10 +773,11 @@ namespace bpr::application {
 			auto next            = Settings;
 			auto acknowledgement = std::optional<palette_adoption_publication>{ };
 			switch (aScope) {
-			case appearance_reset_scope::dif:            next.Dif = Defaults.Dif; break;
-			case appearance_reset_scope::mode:           next.Mode = Defaults.Mode; break;
-			case appearance_reset_scope::interface_font: next.Typography.Ui = Defaults.Typography.Ui; break;
-			case appearance_reset_scope::code_font:      next.Typography.Code = Defaults.Typography.Code; break;
+			case appearance_reset_scope::dif:              next.Dif = Defaults.Dif; break;
+			case appearance_reset_scope::mode:             next.Mode = Defaults.Mode; break;
+			case appearance_reset_scope::interface_font:   next.Typography.Ui = Defaults.Typography.Ui; break;
+			case appearance_reset_scope::code_font:        next.Typography.Code = Defaults.Typography.Code; break;
+			case appearance_reset_scope::known_namespaces: next.Namespaces = Defaults.Namespaces; break;
 			case appearance_reset_scope::palette:
 				if (!known(aVariant)) {
 					publish_failure(local_context(), appearance_host_failure::host_failure);
@@ -987,6 +1001,25 @@ namespace bpr::application {
 			adopt(std::move(next));
 		}
 
+		/// \brief [[BPR-1714]]. Adopts a legal list and refuses one with any
+		/// refused entry, naming each.
+		/// \details Kept as written, in the reviewer's order: the list a field shows
+		/// is the list they made. Classification reads its canonical form.
+		void apply_known_namespaces_now(core::known_namespaces aNamespaces)
+		{
+			if (Closing) {
+				return;
+			}
+			auto rejections = core::validate_known_namespaces(aNamespaces);
+			if (!rejections.empty()) {
+				publish_namespace_rejection(local_context(), std::move(rejections));
+				return;
+			}
+			auto next       = Settings;
+			next.Namespaces = std::move(aNamespaces);
+			adopt(std::move(next));
+		}
+
 		void cancel_now()
 		{
 			if (Closing) {
@@ -1047,6 +1080,10 @@ namespace bpr::application {
 			LastRejections = core::validate_typography(loaded.Typography);
 			if (!LastRejections.empty()) {
 				publish_rejection(aContext, LastRejections);
+				return;
+			}
+			if (auto rejections = core::validate_known_namespaces(loaded.Namespaces); !rejections.empty()) {
+				publish_namespace_rejection(aContext, std::move(rejections));
 				return;
 			}
 			if (Settings == loaded) {
@@ -1153,6 +1190,9 @@ namespace bpr::application {
 			if (aConsumer->PublishedTypography != Settings.Typography) {
 				invalidation.Typography = Settings.Typography;
 			}
+			if (aConsumer->PublishedNamespaces != Settings.Namespaces) {
+				invalidation.Namespaces = Settings.Namespaces;
+			}
 			publish_persistence_failure(aConsumer, aContext);
 			if (!aConsumer->Active || Closing) {
 				return;
@@ -1168,6 +1208,7 @@ namespace bpr::application {
 				aConsumer->PublishedResolution = resolution;
 				aConsumer->PublishedPalettes   = Settings.Palettes;
 				aConsumer->PublishedTypography = Settings.Typography;
+				aConsumer->PublishedNamespaces = Settings.Namespaces;
 				aConsumer->PublishedDif        = dif;
 				presentation                   = std::move(invalidation);
 			}
@@ -1238,6 +1279,22 @@ namespace bpr::application {
 					.Context    = aContext,
 					.Failure    = appearance_host_failure::settings_rejected,
 					.Rejections = aRejections,
+				});
+			});
+		}
+
+		void publish_namespace_rejection(
+			const appearance_request_context&            aContext,
+			std::vector<core::known_namespace_rejection> aRejections)
+		{
+			if (Closing) {
+				return;
+			}
+			deliver_projection([this, &aContext, &aRejections] {
+				fail_consumer(appearance_failure_publication{
+					.Context             = aContext,
+					.Failure             = appearance_host_failure::invalid_known_namespaces,
+					.NamespaceRejections = std::move(aRejections),
 				});
 			});
 		}
@@ -1409,6 +1466,11 @@ namespace bpr::application {
 	void appearance_preferences_application_host::step_code_zoom(appearance_consumer_id aConsumer, const core::code_zoom_step aStep)
 	{
 		Implementation->enqueue(deferred_appearance_zoom{ .Step = aStep }, aConsumer);
+	}
+
+	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, core::known_namespaces aNamespaces)
+	{
+		Implementation->enqueue(deferred_known_namespaces{ .Namespaces = std::move(aNamespaces) }, aConsumer);
 	}
 
 	void appearance_preferences_application_host::import_theme_file(appearance_consumer_id aConsumer, std::string aPath)

@@ -185,6 +185,15 @@ namespace bpr::application {
 		return true;
 	}
 
+	auto commit_filter_model::restore_files(core::file_filter_state aState) -> bool
+	{
+		if (!core::valid(aState)) {
+			return false;
+		}
+		FileFilter = std::move(aState);
+		return true;
+	}
+
 	auto commit_filter_model::touches_steps() const -> std::optional<std::vector<commit_filter_touch_step>>
 	{
 		if (!Graph || Trees != commit_filter_trees::idle || !Head) {
@@ -388,6 +397,11 @@ namespace bpr::application {
 	auto commit_filter_model::state() const noexcept -> const core::commit_filter_state&
 	{
 		return State;
+	}
+
+	auto commit_filter_model::graph() const noexcept -> const core::filter_commit_graph*
+	{
+		return Graph.has_value() ? &*Graph : nullptr;
 	}
 
 	auto commit_filter_model::filtering() const -> bool

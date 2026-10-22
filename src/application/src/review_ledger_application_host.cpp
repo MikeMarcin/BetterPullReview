@@ -61,14 +61,19 @@ namespace bpr::application {
 			};
 		};
 
+		// [[BPR-1701]]. Seen and Read carry their inverse once reached, as
+		// Accept and Exclude do: Seen's is Mark unseen, which clears Read
+		// with it; Read's is Mark unread, which leaves the file seen.
 		return file_receipt_action_projection{
 			.Receipt = aReceipt,
 			.Actions = {
 				command(file_receipt_action_id::seen,
-						core::file_receipt_command_kind::mark_seen),
+						aReceipt.Read == core::file_read_state::unread
+							? core::file_receipt_command_kind::mark_seen
+							: core::file_receipt_command_kind::mark_unread),
 				command(file_receipt_action_id::read,
 						aReceipt.Read == core::file_read_state::read
-							? core::file_receipt_command_kind::mark_unread
+							? core::file_receipt_command_kind::unmark_read
 							: core::file_receipt_command_kind::mark_read),
 				command(file_receipt_action_id::accepted,
 						aReceipt.Accepted
@@ -1126,6 +1131,65 @@ namespace bpr::application {
 				return core::mark_conversation_unread(aReceipt, posts);
 			},
 			std::move(aDone));
+	}
+
+	void review_ledger_application_host::mark_conversations_read(
+		std::vector<conversation_thread_observation>    aThreads,
+		const core::conversation_read_scope             aScope,
+		ledger_completion<core::conversation_bulk_read> aDone)
+	{
+		// [[BPR-1699]]. One decision over the held receipts and one
+		// commit of every receipt it changes: either all are read or none.
+		using impl       = implementation;
+		using answered   = std::expected<core::conversation_bulk_read, ledger_store_failure>;
+		auto* const self = Implementation.get();
+		auto        fail = [done = aDone](const ledger_store_failure aFailure) {
+			impl::answer(done, answered{ std::unexpected(aFailure) });
+		};
+		self->enqueue(impl::operation{
+			.Begin = [self, observed = std::move(aThreads), aScope, done = std::move(aDone), fail](impl::outcome& aOutcome) {
+				self->with_conversation_receipts(
+					aOutcome,
+					[self, observed, aScope, done](impl::outcome& aNext) {
+						auto decision = core::mark_conversations_read(*self->ConversationReceipts, observed, aScope);
+						if (decision.Receipts.empty()) {
+							++self->Statistics.Unchanged;
+							aNext.Terminal = [done, decision] { impl::answer(done, answered{ decision }); };
+							return;
+						}
+						if (decision.Receipts.size() > maximum_conversation_receipts
+							|| !std::ranges::all_of(decision.Receipts, [](const core::conversation_receipt& aReceipt) { return valid(aReceipt); })) {
+							aNext.Terminal = [done] { impl::answer(done, answered{ std::unexpected(ledger_store_failure::invalid_record) }); };
+							return;
+						}
+						++self->Statistics.ConversationWrites;
+						aNext.Next = impl::storage<std::expected<void, ledger_store_failure>>(
+							[receipts = decision.Receipts](review_ledger_store_port& aStore) { return aStore.store_conversation_receipts(receipts); },
+							[self, decision, done](std::expected<void, ledger_store_failure> aStored, impl::outcome& aLast) {
+								if (!aStored) {
+									++self->Statistics.StoreFailures;
+									++self->Statistics.ConversationFailures;
+									aLast.Terminal = [failure = aStored.error(), done] { impl::answer(done, answered{ std::unexpected(failure) }); };
+									return;
+								}
+								if (self->ConversationReceipts.has_value()) {
+									auto& kept = *self->ConversationReceipts;
+									for (const auto& read : decision.Receipts) {
+										const auto at = std::ranges::lower_bound(kept, read.Conversation, { }, &core::conversation_receipt::Conversation);
+										if (at != kept.end() && at->Conversation == read.Conversation) {
+											*at = read;
+										} else {
+											kept.insert(at, read);
+										}
+									}
+								}
+								aLast.Terminal = [done, decision] { impl::answer(done, answered{ decision }); };
+							});
+					},
+					fail);
+			},
+			.Fail = std::move(fail),
+		});
 	}
 
 	void review_ledger_application_host::store_conversation_receipt(

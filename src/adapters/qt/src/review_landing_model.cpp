@@ -458,6 +458,42 @@ namespace bpr::qt {
 		return clauses.isEmpty() ? QString{ } : leading(clauses.join(QStringLiteral("; "))) + QLatin1Char{ '.' };
 	}
 
+	auto home_verdict_text(const core::queue_my_review& aReview) -> QString
+	{
+		auto word = QString{ };
+		switch (aReview.Verdict) {
+		case core::my_review_verdict::approved:          word = QStringLiteral("Approved"); break;
+		case core::my_review_verdict::changes_requested: word = QStringLiteral("Changes requested"); break;
+		case core::my_review_verdict::commented:         word = QStringLiteral("Commented"); break;
+		case core::my_review_verdict::dismissed:         return QStringLiteral("Review dismissed");
+		case core::my_review_verdict::none:              return { };
+		}
+		return aReview.NewCommits ? word + QStringLiteral(" · new commits") : word;
+	}
+
+	auto home_verdict_sentence(const core::queue_my_review& aReview) -> QString
+	{
+		// The day it was submitted, in the reviewer's own time zone; the month
+		// is named, so no locale reads it as another day.
+		const auto date = aReview.SubmittedAt
+			? QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(*aReview.SubmittedAt).date(), QStringLiteral("d MMM yyyy"))
+			: QString{ };
+		const auto on   = [&date](const QString& aSaid) {
+			return date.isEmpty() ? aSaid + QLatin1Char{ '.' } : QStringLiteral("%1 on %2.").arg(aSaid, date);
+		};
+		auto sentence = QString{ };
+		switch (aReview.Verdict) {
+		case core::my_review_verdict::approved:          sentence = on(QStringLiteral("You approved this")); break;
+		case core::my_review_verdict::changes_requested: sentence = on(QStringLiteral("You requested changes")); break;
+		case core::my_review_verdict::commented:         sentence = on(QStringLiteral("You commented on this")); break;
+		case core::my_review_verdict::dismissed:
+			return date.isEmpty() ? QStringLiteral("Your review was dismissed.") : QStringLiteral("Your review from %1 was dismissed.").arg(date);
+		case core::my_review_verdict::none:
+			return { };
+		}
+		return aReview.NewCommits ? sentence + QStringLiteral(" New commits were pushed after it.") : sentence;
+	}
+
 	review_landing_model::review_landing_model(QObject* const aParent)
 		: QAbstractListModel{ aParent }
 	{
@@ -486,7 +522,11 @@ namespace bpr::qt {
 		case reason_role:
 			return reason_for(*item);
 		case Qt::AccessibleTextRole: {
-			const auto label = item->Facts.Title.empty() ? home_identity(*item) : QStringLiteral("%1 %2").arg(home_identity(*item), text(item->Facts.Title));
+			auto label = item->Facts.Title.empty() ? home_identity(*item) : QStringLiteral("%1 %2").arg(home_identity(*item), text(item->Facts.Title));
+			// [[BPR-1718]]. My verdict, as its chip's tooltip says it.
+			if (const auto verdict = home_verdict_sentence(item->Facts.MyReview); !verdict.isEmpty()) {
+				label = QStringLiteral("%1. %2").arg(label, verdict);
+			}
 			return item->Facts.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(label) : label;
 		}
 		case Qt::AccessibleDescriptionRole: {
@@ -577,6 +617,14 @@ namespace bpr::qt {
 			return home_age_text(item->Facts.Change, Now);
 		case home_row_role::comments:
 			return home_comments_text(item->Facts.Change);
+		case home_row_role::verdict:
+			return home_verdict_text(item->Facts.MyReview);
+		case home_row_role::verdict_state:
+			return static_cast<int>(item->Facts.MyReview.Verdict);
+		case home_row_role::verdict_stale:
+			return item->Facts.MyReview.NewCommits;
+		case home_row_role::verdict_tip:
+			return home_verdict_sentence(item->Facts.MyReview);
 		case home_row_role::row_action:
 			// [[BPR-1683]]. An ignored row's own action, on hover and focus.
 			return item->Ignored ? home_unignore_text() : QString{ };

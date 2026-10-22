@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1715",
+    "BPR-1716"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Review refusal settles; off-hunk comment follow-up",
+  "created": "2026-10-21T22:05:37.264757+00:00",
+  "base": "8ae1a151568702cbbef69ca40b07058ac8718b4c"
+}

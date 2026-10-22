@@ -9,6 +9,7 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
+#include "bpr/qt/thread_pick_gestures.hpp"
 
 #include <QApplication>
 #include <QFontMetricsF>
@@ -438,17 +439,20 @@ namespace bpr::qt {
 				setFocusPolicy(Qt::NoFocus);
 			}
 
-			void present(const std::optional<core::suggested_change>& aChange, const QString& aLines)
+			void present(const std::optional<core::suggested_change>& aChange, const QString& aLines, const bool aInCode = false)
 			{
-				if (Change == aChange && Lines == aLines) {
+				if (Change == aChange && Lines == aLines && InCode == aInCode) {
 					return;
 				}
 				Change     = aChange;
 				Lines      = aLines;
+				InCode     = aInCode;
 				auto words = QString{ };
 				if (Change.has_value()) {
 					if (Change->unchanged()) {
-						words = QStringLiteral("Suggests a change to %1. Edit the lines in the block; the change shows here.").arg(Lines.toLower());
+						// [[RFC-BPR-0090]]. Written in the code, the change is typed there.
+						words = InCode ? QStringLiteral("Suggests a change to %1. Type it in the code; the change shows here.").arg(Lines.toLower())
+									   : QStringLiteral("Suggests a change to %1. Edit the lines in the block; the change shows here.").arg(Lines.toLower());
 					} else {
 						words = QStringLiteral("What it changes in %1: removes %2, adds %3.").arg(Lines.toLower()).arg(Change->Removed.size()).arg(Change->Added.size());
 					}
@@ -515,7 +519,9 @@ namespace bpr::qt {
 					painter.setFont(caption);
 					painter.setPen(colours.Faint);
 					painter.drawText(QRect{ 8, y, width() - 16, row }, Qt::AlignLeft | Qt::AlignVCenter,
-									 QFontMetrics{ caption }.elidedText(QStringLiteral("Edit the lines in the block above; the change shows here."), Qt::ElideRight, std::max(0, width() - 16)));
+									 QFontMetrics{ caption }.elidedText(InCode ? QStringLiteral("No change yet. Type it in the code; it shows here.")
+																			   : QStringLiteral("Edit the lines in the block above; the change shows here."),
+																		Qt::ElideRight, std::max(0, width() - 16)));
 					painter.restore();
 					return;
 				}
@@ -552,6 +558,7 @@ namespace bpr::qt {
 			open_card_style                       Style;
 			std::optional<core::suggested_change> Change;
 			QString                               Lines;
+			bool                                  InCode = false;
 		};
 
 		void style_reply_chip(QToolButton& aChip, const open_card_style& aStyle)
@@ -1106,11 +1113,14 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("openThreadCard"));
 		// [[BPR-1212]]. A draft on the base side says so.
 		const auto base = aCard.Side == core::diff_side::left ? QStringLiteral("base ") : QString{ };
-		setAccessibleName(Writing          ? (aCard.Line && aCard.FirstLine ? QStringLiteral("Your draft on %1lines %2–%3").arg(base).arg(*aCard.FirstLine).arg(*aCard.Line)
-												  : aCard.Line              ? QStringLiteral("Your draft on %1line %2").arg(base).arg(*aCard.Line)
-																			: QStringLiteral("Your draft"))
-							  : aCard.Line ? QStringLiteral("Thread on line %1").arg(*aCard.Line)
-										   : QStringLiteral("Thread"));
+		// [[BPR-1721]]. A published thread on several lines names them.
+		const auto spanned = thread_first_line(aCard);
+		setAccessibleName(Writing                     ? (aCard.Line && aCard.FirstLine ? QStringLiteral("Your draft on %1lines %2–%3").arg(base).arg(*aCard.FirstLine).arg(*aCard.Line)
+															 : aCard.Line              ? QStringLiteral("Your draft on %1line %2").arg(base).arg(*aCard.Line)
+																					   : QStringLiteral("Your draft"))
+							  : aCard.Line && spanned ? QStringLiteral("Thread on lines %1–%2").arg(*spanned).arg(*aCard.Line)
+							  : aCard.Line            ? QStringLiteral("Thread on line %1").arg(*aCard.Line)
+													  : QStringLiteral("Thread"));
 		setAttribute(Qt::WA_StyledBackground, false);
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		build(aCard);
@@ -1161,9 +1171,13 @@ namespace bpr::qt {
 			if (!Style.Feed) {
 				where->setFont(mono);
 			}
-			where->setText(Style.Feed ? QStringLiteral("Open in Review") : QString::number(*aCard.Line));
-			where->setToolTip(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show line %1 in the code").arg(*aCard.Line));
-			where->setAccessibleName(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show line %1").arg(*aCard.Line));
+			// [[BPR-1721]]. A thread on several lines shows them all.
+			const auto spanned = aCard.Writing ? std::optional<std::uint32_t>{ } : thread_first_line(aCard);
+			const auto lines   = spanned ? QStringLiteral("lines %1–%2").arg(*spanned).arg(*aCard.Line) : QStringLiteral("line %1").arg(*aCard.Line);
+			where->setText(Style.Feed ? QStringLiteral("Open in Review") : spanned ? QStringLiteral("%1–%2").arg(*spanned).arg(*aCard.Line)
+																				   : QString::number(*aCard.Line));
+			where->setToolTip(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show %1 in the code").arg(lines));
+			where->setAccessibleName(Style.Feed ? QStringLiteral("Open in Review at %1:%2").arg(aCard.Path).arg(*aCard.Line) : QStringLiteral("Show %1").arg(lines));
 			where->setCursor(Qt::ArrowCursor);
 			connect(where, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::show_line); } });
 			row->addWidget(where);
@@ -1298,6 +1312,23 @@ namespace bpr::qt {
 			excerpt->setContentsMargins(text_left, 8, text_right, 0);
 			column->addWidget(excerpt);
 		}
+		// [[BPR-1699]]. A post someone else wrote offers Mark all from
+		// them as read in its body menu, after the menu's own items.
+		const auto addAuthorRead = [this](QMenu& aMenu, const QString& aLogin) {
+			if (aLogin.isEmpty()) {
+				return;
+			}
+			const auto  unread = AuthorUnread ? AuthorUnread(aLogin) : std::nullopt;
+			auto* const action = add_author_read_action(aMenu, aLogin, unread.value_or(0U), unread.has_value(), false);
+			action->setObjectName(QStringLiteral("postMarkAuthorRead"));
+			action->setEnabled(action->isEnabled() && static_cast<bool>(AuthorReadRequested));
+			connect(action, &QAction::triggered, this, [this, aLogin] {
+				const auto dispatch = AuthorReadRequested;
+				if (dispatch) {
+					dispatch(aLogin);
+				}
+			});
+		};
 		// The New rule goes only where a read post is followed by the first
 		// new one; a thread whose first post is new says so in its header.
 		auto seenNew = false;
@@ -1320,7 +1351,7 @@ namespace bpr::qt {
 																	  : QStringLiteral("No overall review comment. %1 file comments are linked below.").arg(count));
 			}
 			if (Style.Feed && !aCard.Draft) {
-				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
+				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
 					auto* const open = aMenu.addAction(QStringLiteral("Open in Review"));
@@ -1343,13 +1374,14 @@ namespace bpr::qt {
 							dispatch(id);
 						}
 					});
+					addAuthorRead(aMenu, author);
 				});
 			} else if (!aCard.Draft) {
 				// [[BPR-1581]]. In Review a comment's own menu shows it in
 				// Discuss, with the rest of the conversation; its tools stay
 				// in its name row.
 				view->reader()->set_extended_menu(true);
-				view->reader()->set_context_menu_builder([this, id = post.Id](QMenu& aMenu) {
+				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
 					auto* const show = aMenu.addAction(QStringLiteral("Show in Discuss"));
@@ -1373,6 +1405,7 @@ namespace bpr::qt {
 							dispatch(id);
 						}
 					});
+					addAuthorRead(aMenu, author);
 				});
 			}
 			view->reader()->set_link_dispatch([this, id = post.Id](const std::string& aDestination) {
@@ -1458,6 +1491,40 @@ namespace bpr::qt {
 			auto* const discard = tool(Foot, QStringLiteral("threadDiscardReply"), QStringLiteral("Discard reply"), conversation_glyph::trash, palette);
 			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::discard_reply); } });
 			actions->addWidget(discard);
+			footRow->addLayout(actions);
+		} else if (aCard.Draft && aCard.MovedSuggestion) {
+			// [[BPR-1733]]. My kept suggestion from an earlier head: written
+			// again at its lines here when the core carries it, or its change
+			// copied. Nothing here publishes.
+			footRow->setContentsMargins(text_left, 2, text_right, 10);
+			footRow->setSpacing(8);
+			if (notice != nullptr) {
+				footRow->addWidget(notice);
+			}
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(4);
+			if (aCard.Carryable) {
+				auto* const carry = new note_button{ note_button::kind::primary, QStringLiteral("Carry to the new head"), Foot };
+				carry->setObjectName(QStringLiteral("threadCarrySuggestion"));
+				carry->setIcon(conversation_icon(conversation_glyph::edit, palette));
+				carry->setToolTip(QStringLiteral("Write this suggestion again on these lines of this head. The draft from the earlier head is deleted once the new one is saved. Nothing is published."));
+				carry->set_style(Style);
+				connect(carry, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::carry_suggestion); } });
+				actions->addWidget(carry);
+			}
+			auto* const copy = new QToolButton{ Foot };
+			copy->setObjectName(QStringLiteral("threadCopyChange"));
+			copy->setAutoRaise(true);
+			copy->setText(QStringLiteral("Copy change"));
+			copy->setEnabled(!aCard.Change.isEmpty());
+			copy->setToolTip(aCard.Change.isEmpty() ? QStringLiteral("This suggestion deletes its lines, so there is no text to copy") : QStringLiteral("Copy the suggested lines"));
+			copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+			copy->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::copy));
+			copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			copy->setFocusPolicy(Qt::StrongFocus);
+			connect(copy, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::copy_change); } });
+			actions->addWidget(copy);
+			actions->addStretch(1);
 			footRow->addLayout(actions);
 		} else if (aCard.Draft) {
 			footRow->setContentsMargins(text_left, 4, text_right, 10);
@@ -1707,6 +1774,14 @@ namespace bpr::qt {
 		});
 		pair->addWidget(SplitAction);
 		DraftActions->addLayout(pair);
+		// [[RFC-BPR-0090]]. A suggestion GitHub cannot apply is held: Convert
+		// takes the sending buttons' place (owner, Q3).
+		ConvertAction = new note_button{ note_button::kind::primary, QString{ }, Foot };
+		ConvertAction->setObjectName(QStringLiteral("threadConvertDraft"));
+		ConvertAction->set_style(Style);
+		ConvertAction->hide();
+		connect(ConvertAction, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::convert_draft); } });
+		DraftActions->addWidget(ConvertAction);
 		aFoot.addLayout(DraftActions);
 		present_review_state();
 		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
@@ -1739,7 +1814,7 @@ namespace bpr::qt {
 			ReplyBox->setPlainText(aDraft->Body);
 			auto cursor = ReplyBox->textCursor();
 			cursor.movePosition(QTextCursor::End);
-			if (aDraft->Change.has_value() && !aDraft->Body.isEmpty()) {
+			if (aDraft->Change.has_value() && !aDraft->InCode && !aDraft->Body.isEmpty()) {
 				if (const auto last = aDraft->Body.lastIndexOf(QLatin1Char{ '\n' }); last > 0) {
 					cursor.setPosition(static_cast<int>(last));
 				}
@@ -1748,25 +1823,53 @@ namespace bpr::qt {
 			Applying = false;
 		}
 		// A suggestion is code: monospaced and unwrapped, as it will apply.
-		const auto fenced = aDraft.has_value() && aDraft->Change.has_value();
+		// [[RFC-BPR-0090]]. Written in the code, the field holds words only.
+		const auto inCode    = aDraft.has_value() && aDraft->InCode;
+		const auto suggested = aDraft.has_value() && (aDraft->Change.has_value() || inCode);
+		const auto fenced    = aDraft.has_value() && aDraft->Change.has_value() && !inCode;
 		ReplyBox->setFont(fenced ? Style.CodeFont : font());
 		ReplyBox->setTabStopDistance(QFontMetricsF{ ReplyBox->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
 		ReplyBox->setLineWrapMode(fenced ? QPlainTextEdit::NoWrap : QPlainTextEdit::WidgetWidth);
 		ReplyBox->setHorizontalScrollBarPolicy(fenced ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 		const auto lines = aDraft.has_value() && !aDraft->Lines.isEmpty() ? aDraft->Lines : ReplyBox->accessibleName().section(QLatin1Char{ ' ' }, 2, -1);
 		if (aDraft.has_value() && !aDraft->Lines.isEmpty()) {
-			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
-			ReplyBox->setPlaceholderText(fenced ? QStringLiteral("Edit the lines in the block. Say why above it.")
-												: QStringLiteral("Comment on %1. Type : at the start for a label.").arg(aDraft->Lines.toLower()));
+			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
+			ReplyBox->setPlaceholderText(inCode       ? QStringLiteral("Say why, if you like. The change is written in the code.")
+											 : fenced ? QStringLiteral("Edit the lines in the block. Say why above it.")
+													  : QStringLiteral("Comment on %1. Type : at the start for a label.").arg(aDraft->Lines.toLower()));
 			if (Where != nullptr) {
 				Where->setText(aDraft->Lines);
 				Where->setAccessibleName(QStringLiteral("Show %1").arg(aDraft->Lines.toLower()));
 			}
 		}
 		if (DraftState != nullptr) {
-			static_cast<state_label*>(DraftState)->set_text(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
+			static_cast<state_label*>(DraftState)->set_text(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
-		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines);
+		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
+		// [[RFC-BPR-0090]]. The code's change counts as content, and a held
+		// suggestion offers Convert in place of the sending buttons.
+		CodeChange      = inCode && aDraft->Change.has_value() && !aDraft->Change->unchanged();
+		const auto held = aDraft.has_value() ? aDraft->Convert : QString{ };
+		if (held != ConvertWords && ConvertAction != nullptr && Publish != nullptr && ReviewAction != nullptr && SplitAction != nullptr) {
+			ConvertWords = held;
+			ConvertAction->setText(held);
+			ConvertAction->setAccessibleName(held);
+			ConvertAction->setToolTip(held.isEmpty() ? QString{ } : QStringLiteral("GitHub cannot apply this suggestion where it goes. %1 keeps your words and the change, as text on the same lines.").arg(held));
+			ConvertAction->setVisible(!held.isEmpty());
+			ReviewAction->setVisible(held.isEmpty());
+			if (!held.isEmpty()) {
+				Publish->hide();
+				SplitAction->hide();
+			} else {
+				Publish->show();
+				SplitAction->hide();
+				ReviewAction->set_joined(false);
+				fit_draft_actions();
+			}
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		}
 		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
 		if (!LastNotice.isEmpty()) {
 			ReplyStatus->setText(LastNotice);
@@ -1864,7 +1967,7 @@ namespace bpr::qt {
 
 	void open_thread_card::fit_draft_actions()
 	{
-		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr) {
+		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr || !ConvertWords.isEmpty()) {
 			return;
 		}
 		// Room for the lock, Delete and both pills side by side, or the
@@ -1982,13 +2085,15 @@ namespace bpr::qt {
 
 	void open_thread_card::refresh_reply_controls()
 	{
+		// [[RFC-BPR-0090]]. A change written in the code is content too.
+		const auto written = ReplyBox != nullptr && (CodeChange || !ReplyBox->toPlainText().trimmed().isEmpty());
 		if (Publish != nullptr && ReplyBox != nullptr) {
-			Publish->setEnabled(Publishable && !ReplyBox->toPlainText().trimmed().isEmpty());
+			Publish->setEnabled(Publishable && written);
 		}
 		// [[BPR-1345]]. A review takes a comment with words; closing a
 		// pending one is always possible.
 		if (ReviewAction != nullptr && ReplyBox != nullptr) {
-			ReviewAction->setEnabled(Review == draft_review_state::pending || (!ReplyBox->isReadOnly() && !ReplyBox->toPlainText().trimmed().isEmpty()));
+			ReviewAction->setEnabled(ConvertWords.isEmpty() && (Review == draft_review_state::pending || (!ReplyBox->isReadOnly() && written)));
 		}
 		if (Suggestion != nullptr && ReplyBox != nullptr) {
 			Suggestion->present(core::decide_suggestion_applicability(ReplyBox->toPlainText().toStdString(), Placement));

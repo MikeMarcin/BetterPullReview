@@ -876,6 +876,31 @@ namespace bpr::app::detail {
 					.Packs               = { .File = "commit-filter-split-v1/objects.pack", .SecondFile = "commit-filter-split-v1/objects.pack" },
 					.Commits             = 3U,
 				};
+			// RFC-BPR-0089 M4. The same chain with src/notes.txt shaped as
+			// BPR-Test #116: C1 changes lines 5, 15 and 25, C3 inserts two lines
+			// at its top and changes C1's lines 5 and 25 again. Its review
+			// threads hold one written on C1 and one at the head.
+			case github_public_path_fixture::commit_filter_comment_v1:
+				return {
+					.ContractDirectory   = "commit-filter-comment-v1",
+					.CapabilityDirectory = "github-com",
+					.Server              = server_contract::github_com,
+					.AccountId           = core::github_account_id{ 1U },
+					.RepositoryId        = core::repository_id{ 2U },
+					.PullRequestId       = core::pull_request_id{ 3U },
+					.Number              = core::pull_request_number{ 894U },
+					.Owner               = "bpr-fixtures",
+					.Name                = "commit-filter-comment",
+					.BaseRef             = "refs/heads/main",
+					.BaseOid             = "1d90b2de2c5fd1c5346d91ced16753907c817a17",
+					.HeadOneOid          = "83be2c73bff7a90d91e2b094ef092594e51a1cbe",
+					.HeadTwoOid          = "",
+					.BaseBlob            = "",
+					.HeadOneBlob         = "",
+					.HeadTwoBlob         = "",
+					.Packs               = { .File = "commit-filter-comment-v1/objects.pack" },
+					.Commits             = 3U,
+				};
 			}
 			return { };
 		}
@@ -2151,6 +2176,7 @@ namespace bpr::app::detail {
 							{ QStringLiteral("state"), QStringLiteral("APPROVED") },
 							{ QStringLiteral("commit_id"), head },
 							{ QStringLiteral("body"), QStringLiteral("Approved") },
+							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-14T16:20:00Z") },
 						});
 					}
 					response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
@@ -2293,13 +2319,13 @@ namespace bpr::app::detail {
 				const auto large = number == 4001U, small = number == 4002U;
 				auto       reviews = QJsonArray{ };
 				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
-					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "submittedAt", "2026-10-14T16:20:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
 				}
 				// The inline comments the REST pull request counts, on a review of their own.
 				const auto inlineComments = large ? 5 : small ? 0
 															  : 2;
 				if (known && inlineComments != 0) {
-					reviews.append(QJsonObject{ { "databaseId", 72000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "contributor-reviewer" }, { "id", "U_contributor_reviewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", inlineComments } } } });
+					reviews.append(QJsonObject{ { "databaseId", 72000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "submittedAt", "2026-10-13T09:05:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "contributor-reviewer" }, { "id", "U_contributor_reviewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", inlineComments } } } });
 				}
 				auto       requests        = QJsonArray{ };
 				const auto requestsPresent = !known || !found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load();
@@ -4894,12 +4920,13 @@ namespace bpr::app::detail {
 					// [[BPR-1084]]. The decoded bytes and the line of each attempt
 					// as the fixture server receives them, refused or not.
 					{
-						const auto sent   = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
-						Evidence.LastBody = sent.value("body").toString().toStdString();
-						Evidence.LastPath = sent.value("path").toString().toStdString();
-						Evidence.LastSide = sent.value("side").toString().toStdString();
-						Evidence.LastLine = sent.value("line").isDouble() ? std::optional<std::uint32_t>{ static_cast<std::uint32_t>(sent.value("line").toInt()) } : std::nullopt;
-						Evidence.LastFile = file;
+						const auto sent     = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
+						Evidence.LastBody   = sent.value("body").toString().toStdString();
+						Evidence.LastPath   = sent.value("path").toString().toStdString();
+						Evidence.LastSide   = sent.value("side").toString().toStdString();
+						Evidence.LastLine   = sent.value("line").isDouble() ? std::optional<std::uint32_t>{ static_cast<std::uint32_t>(sent.value("line").toInt()) } : std::nullopt;
+						Evidence.LastFile   = file;
+						Evidence.LastCommit = sent.value("commit_id").toString().toStdString();
 						// [[BPR-1212]]. Present only when the request carried them.
 						Evidence.LastStartLine = sent.contains("start_line") && sent.value("start_line").isDouble() ? std::optional<std::uint32_t>{ static_cast<std::uint32_t>(sent.value("start_line").toInt()) } : std::nullopt;
 						Evidence.LastStartSide = sent.contains("start_side") ? std::optional<std::string>{ sent.value("start_side").toString().toStdString() } : std::nullopt;
@@ -4914,10 +4941,27 @@ namespace bpr::app::detail {
 					object.insert("id", Comments.size() + 100);
 					object.insert("node_id", id);
 					object.insert("user", user);
+					// RFC-BPR-0089 M4. As GitHub answered on BPR-Test #116: a
+					// comment written on an earlier commit (every one this fixture
+					// takes is at a line a later commit changed) keeps that
+					// `commit_id`, reports no `line` and is outdated at once.
+					const auto head    = text(core::canonical_hex(target.Semantic.ExpectedHead).view());
+					const auto written = object.value("commit_id").toString();
+					const auto earlier = !file && written != head;
+					const auto sent    = object.value("line");
+					object.insert("original_commit_id", written);
+					if (!file) {
+						object.insert("original_line", sent);
+					}
+					if (earlier) {
+						object.insert("line", QJsonValue{ QJsonValue::Null });
+						++Evidence.EarlierCommitPosts;
+					}
 					Comments.append(object);
 					Evidence.StoredComments = static_cast<std::size_t>(Comments.size());
-					const auto line         = file ? QJsonValue{ QJsonValue::Null } : object.value("line");
-					auto       post         = QJsonObject{ { "id", id }, { "body", object.value("body") }, { "bodyText", object.value("body") }, { "path", object.value("path") }, { "line", line }, { "originalLine", line }, { "outdated", false }, { "author", QJsonObject{ { "id", text(actor.NodeId) }, { "login", text(actor.Login) } } }, { "replyTo", QJsonValue{ QJsonValue::Null } } };
+					const auto line         = file || earlier ? QJsonValue{ QJsonValue::Null } : object.value("line");
+					const auto original     = file ? QJsonValue{ QJsonValue::Null } : sent;
+					auto       post         = QJsonObject{ { "id", id }, { "body", object.value("body") }, { "bodyText", object.value("body") }, { "path", object.value("path") }, { "line", line }, { "originalLine", original }, { "outdated", earlier }, { "commit", QJsonObject{ { "oid", earlier ? written : head } } }, { "originalCommit", QJsonObject{ { "oid", written } } }, { "author", QJsonObject{ { "id", text(actor.NodeId) }, { "login", text(actor.Login) } } }, { "replyTo", QJsonValue{ QJsonValue::Null } } };
 					// [[BPR-1212]]. A range's thread reads back with its first line.
 					if (!file && object.contains("start_line")) {
 						post.insert("startLine", object.value("start_line"));
@@ -4925,14 +4969,14 @@ namespace bpr::app::detail {
 					}
 					const auto thread = QJsonObject{ { "id", QStringLiteral("PRRT_composed_%1").arg(Comments.size()) },
 													 { "isResolved", false },
-													 { "isOutdated", false },
+													 { "isOutdated", earlier },
 													 { "viewerCanResolve", true },
 													 { "viewerCanUnresolve", false },
 													 { "subjectType", file ? "FILE" : "LINE" },
 													 { "path", object.value("path") },
 													 { "diffSide", file ? QJsonValue{ "RIGHT" } : object.value("side") },
 													 { "line", line },
-													 { "originalLine", line },
+													 { "originalLine", original },
 													 { "comments", QJsonObject{ { "totalCount", 1 }, { "nodes", QJsonArray{ post } }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", "composed-end" } } } } } };
 					{
 						const std::scoped_lock lock{ State->Mutex };

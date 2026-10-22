@@ -319,14 +319,21 @@ try {
 			// existing one-receipt Seen gesture; it stays unread until reopened.
 			expect(window->review_editor()->shown_receipt()
 					   && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen
-					   && !window->seen_action()->isEnabled() && window->read_action()->isEnabled(),
+					   && window->seen_action()->isChecked() && window->read_action()->isEnabled(),
 				   "opening the selected material automatically made Seen durable");
 			window->read_action()->trigger();
 			wait_for([&] { return window->review_editor()->shown_receipt()
 							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::read && quiet(); },
 					 "Read exposes the existing Mark unread command");
 			expect(window->read_action()->text().contains(QStringLiteral("unread")) && window->read_action()->isEnabled(), "Mark unread is the projected command");
+			// [[BPR-1701]]. Mark unread takes Read off and leaves the file
+			// seen; Mark unseen, Seen's inverse, makes it unread.
 			window->read_action()->trigger();
+			wait_for([&] { return window->review_editor()->shown_receipt()
+							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen && quiet(); },
+					 "Mark unread leaves the file seen");
+			expect(window->seen_action()->text() == QStringLiteral("Mark u&nseen") && window->seen_action()->isEnabled(), "Mark unseen is the projected command");
+			window->seen_action()->trigger();
 			wait_for([&] { return window->review_editor()->shown_receipt()
 							   && window->review_editor()->shown_receipt()->Read == core::file_read_state::unread && quiet(); },
 					 "explicit Unread remains until another open");
@@ -396,6 +403,21 @@ try {
 					   && access::scaling_evidence(*owner).OverviewBuilds == before.OverviewBuilds,
 				   "one conversation command observes exactly its thread and post without overview work");
 
+			// [[BPR-1699]]. Mark All Comments as Read through the real
+			// composition: one ledger write for every conversation, and the
+			// counts and the action itself follow once it is durable.
+			settle([&] { return access::scaling_evidence(*owner); });
+			auto* const markAll = window->mark_all_comments_read_action();
+			expect(markAll != nullptr && markAll->isEnabled() && cards->unread_post_count() > 0U, "the Pull Request menu offers Mark All Comments as Read while comments are new");
+			before = access::scaling_evidence(*owner);
+			markAll->trigger();
+			wait_for([&] { return cards->unread_post_count() == 0U && !markAll->isEnabled(); }, "every comment presented read");
+			settle([&] { return access::scaling_evidence(*owner); });
+			const auto markedAll = access::scaling_evidence(*owner);
+			expect(markedAll.Ledger.ConversationWrites == before.Ledger.ConversationWrites + 1U && markedAll.OverviewBuilds == before.OverviewBuilds
+					   && !window->next_new_comment_action()->isEnabled(),
+				   "Mark All Comments as Read is one durable conversation write, with no Overview rebuild, and Next new comment has nothing left");
+
 			// [[BPR-1211]] AC3, composed. The profile's review-ledger lane is
 			// held, as slow or contended storage would hold it. The decision
 			// lane keeps turning: a posted task runs, the reviewer changes
@@ -429,7 +451,7 @@ try {
 				   "the held gesture is decided and queued, and nothing is written or published before the store answers");
 			releaseLedger();
 			wait_for([&] { return access::scaling_evidence(*owner).Ledger.Completions > heldBefore.Ledger.Completions
-							   && window->review_editor()->shown_receipt() && window->review_editor()->shown_receipt()->Read == core::file_read_state::unread
+							   && window->review_editor()->shown_receipt() && window->review_editor()->shown_receipt()->Read == core::file_read_state::seen
 							   && quiet(); },
 					 "the held gesture is durable, then published, once the store answers");
 			settle([&] { return access::scaling_evidence(*owner); });

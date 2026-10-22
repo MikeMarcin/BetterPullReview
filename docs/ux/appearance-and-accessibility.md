@@ -349,6 +349,15 @@ switches — with sizes in
 points rather than hundredths, beside a labelled Preview painted by the review
 window's own code painter from the accepted typography and the theme on
 screen, captioned with the values in effect. **Colours** is the editor above.
+**Syntax** ([[BPR-1714]]) is one row, **C++ namespaces**: a field of the
+names that read as namespaces before `::`, separated by commas or spaces,
+`std` until the reviewer changes it, with its Reset in the card's header.
+Return or leaving the field applies it. The core splits and judges the text: an
+entry is an ASCII identifier or a nested path of them joined by `::`, not a
+keyword, at most 128 bytes, listed once, and at most 64 entries. A list with a
+refused entry is not offered; the line under the field says "Not saved." and
+names the first three refused entries with their reasons, the text stays for
+correcting, and the line goes as soon as the text is legal.
 
 Every row is one line: label, an info glyph and the control. The consequence
 sentence lives in the glyph's popover, which is shown on hover and on keyboard
@@ -404,6 +413,20 @@ canvas. At the required luminance a saturated red is very nearly the removed
 row's own colour, so this is enforced by a test — a collapsed emphasis fill
 passes every contrast check while making intraline marking invisible.
 
+Changed characters keep their syntax colours on the emphasis fill
+([[BPR-1709]]). A colour that reads at the emphasis floor is drawn
+exactly. One that does not moves only until it reads at the text floor, and
+keeps its hue while it moves. On a fill that wants dark ink it shades toward
+black. On one that wants light ink it first brightens, every channel scaled by
+one factor until the largest is full, and only then tints toward white. So in
+dark, where a selected row's lighter mark pushes the comment green under the
+floor, a changed comment reads as a brighter green (`#66B559` becomes
+`#8FFE7D` on the selected added mark `#117277`, 4.50:1), not white. The
+comparison panes and Line details paint each token's colour as a layer over
+the mark that repeats the mark's fill. Qt does not paint a foreground-only
+selection over text an earlier selection drew, so without the fill every
+changed glyph showed in the normal ink.
+
 Red against green is the one distinction the palette cannot carry by colour
 alone. Both modelled dichromacies lose that axis, and added-against-removed is
 measured as indistinguishable in every variant. The pairs in that position are
@@ -444,6 +467,21 @@ criterion exists for.
 The span cache is keyed by blob identity and definition version with the theme
 deliberately absent from the key, so a theme change *cannot* invalidate it. That
 is a stronger guarantee than remembering not to evict on theme change.
+
+C++ keys carry one more input, the known namespaces ([[BPR-1714]]),
+because the list changes which spans the bytes produce. The refinement
+predeclares each listed name, and every segment of a nested one, as if the blob
+declared it, and `std` brings the namespaces ISO C++ nests in it. So a listed
+name before `::` is a namespace, replacing even the grammar's built-in role
+(`Qt::AlignLeft` paints `Qt` as built-in until `Qt` is listed), while a class
+or enum the blob declares with that name wins in its scope and a scope under a
+listed name that the list does not name keeps the scope role. The key holds the
+list's legal entries sorted and unique, and other languages' keys hold none, so
+reordering the list reparses nothing and changing it keys only C++ afresh: no
+span cached under another list is served, an answer for a list no longer in
+effect is dropped, and an open C++ comparison asks again and recolours without a
+restart. A list in effect before answers from the cache. Fenced C++ in comments
+and Review Cycles still classify under `std` alone.
 
 Definitions and approved themes are packaged; standard-path discovery and
 downloads stay disabled in the production build. Build-time source acquisition

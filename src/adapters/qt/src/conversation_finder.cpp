@@ -2033,8 +2033,9 @@ namespace bpr::qt {
 		}
 		hide_preview();
 		hide_anchored_tooltip();
-		MenuRow  = Items[aItem]->Key;
-		MenuBead = aBead;
+		MenuRow          = Items[aItem]->Key;
+		MenuBead         = aBead;
+		AuthorReadAction = nullptr;
 		if (RowMenu != nullptr) {
 			RowMenu->close();
 		}
@@ -2086,6 +2087,38 @@ namespace bpr::qt {
 					ReadDispatch(thread, read);
 				}
 			});
+			// [[BPR-1699]]. Mark All from the author of the post under the
+			// pointer, or of the thread's first post, as read.
+			auto posted = std::size_t{ 0U };
+			if (aBead.has_value()) {
+				if (const auto beads = beads_of(aItem); *aBead < beads.size()) {
+					posted = beads[*aBead].Post;
+				}
+			}
+			const auto* const author = posted < conversation.Posts.size() ? &conversation.Posts[posted] : nullptr;
+			if (author != nullptr && !author->Mine && !author->Author.isEmpty()) {
+				const auto login  = author->Author;
+				auto       unread = std::size_t{ 0U };
+				if (AuthorUnreadCount) {
+					// Threads lists file threads only; the window counts the
+					// author's pull-request comments and summaries too.
+					unread = AuthorUnreadCount(login);
+				} else {
+					for (const auto& each : Conversations) {
+						unread += static_cast<std::size_t>(std::ranges::count_if(each.Posts, [&login](const finder_post& aPost) {
+							return aPost.Unread && !aPost.Mine && aPost.Author.compare(login, Qt::CaseInsensitive) == 0;
+						}));
+					}
+				}
+				AuthorReadAction = add_author_read_action(*menu, login, unread, true, true);
+				AuthorReadAction->setObjectName(QStringLiteral("threadFinderAuthorReadAction"));
+				AuthorReadAction->setEnabled(AuthorReadAction->isEnabled() && static_cast<bool>(AuthorReadDispatch));
+				QObject::connect(AuthorReadAction, &QAction::triggered, this, [this, chosen = login.toStdString()] {
+					if (AuthorReadDispatch) {
+						AuthorReadDispatch(chosen);
+					}
+				});
+			}
 		}
 		RowMenu = menu;
 		menu->popup(aGlobal, OpenReview);
@@ -2133,6 +2166,17 @@ namespace bpr::qt {
 	void conversation_finder::set_read_dispatch(finder_read_dispatch aDispatch)
 	{
 		ReadDispatch = std::move(aDispatch);
+	}
+
+	auto conversation_finder::author_read_action() const noexcept -> QAction*
+	{
+		return AuthorReadAction;
+	}
+
+	void conversation_finder::set_author_read_dispatch(std::function<void(const std::string&)> aDispatch, std::function<std::size_t(const QString&)> aUnreadCount)
+	{
+		AuthorReadDispatch = std::move(aDispatch);
+		AuthorUnreadCount  = std::move(aUnreadCount);
 	}
 
 	void conversation_finder::set_reading_width(const core::reading_width aWidth)

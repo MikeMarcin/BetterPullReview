@@ -246,6 +246,28 @@ retention can replace only other background entries; it cannot displace a blob
 retained for the reviewer. A selected read promotes reused background material.
 The diff cache and its selected/prepared capacities are unchanged.
 
+### Under a commit or file filter
+
+RFC-BPR-0089 ([[BPR-1688]]). While a commit or file filter leaves files out of
+the review, the composition binds Find in files to the filtered set: each file
+the filter lists, with the two commits its filtered diff reads when they are
+not the comparison's own (a split file names its first diff's left commit and
+its last diff's right). The core scope carries only the count
+(`source_search_scope::FilteredFiles`), so the search state stays trivially
+copyable; the epoch host keeps the list beside the scope, and a different list
+is a new catalogue generation. `valid(scope, files)` checks the list against
+the count, path order and bounds, and each pair of commits.
+
+The host narrows the catalogue to those paths and reads each side at its
+filtered commits: in the retained cache or, for a sparse review, the chain
+store the touches job filled. Every commit named must be one that job
+authorized for the accepted head. A file the comparison does not list, because
+a shown commit added it and a hidden one removed it, is searched at those
+commits too. The pane says what it searches: idle, "Type to search the filtered
+set's N files on both sides."; with nothing left, how to search more; after a
+search, "; searched the filtered set". A filter change re-binds the scope
+through the controller's `observe_scope`.
+
 ## PR progress, limits and retry
 
 The worker emits ordered batches of at most 128 records, including empty progress

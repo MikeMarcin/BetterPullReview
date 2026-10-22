@@ -1326,6 +1326,27 @@ set_tests_properties(qt_review_state_icon PROPERTIES
     TIMEOUT 60
 )
 
+# [[BPR-1700]]. With no review in progress Compose review reads
+# "Approve or comment…" on the accent's edge; while one is in progress it is
+# its icon again; a narrow window drops the words and nothing folds. At 1x
+# and 2x, since the words and the floor are measured.
+foreach(bpr_compose_percent IN ITEMS 100 200)
+    if(bpr_compose_percent EQUAL 100)
+        set(bpr_compose_scale 1.0)
+    else()
+        set(bpr_compose_scale 2.0)
+    endif()
+    bpr_add_network_isolated_test(
+        NAME qt_compose_review_entry_scale_${bpr_compose_percent}
+        COMMAND test_better_pull_review_qt_workbench_window_tests --compose-review-entry
+    )
+    set_tests_properties(qt_compose_review_entry_scale_${bpr_compose_percent} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_compose_scale};BPR_EXPECTED_QT_SCALE=${bpr_compose_scale}"
+        PASS_REGULAR_EXPRESSION "compose-review-entry:pass"
+        TIMEOUT 60
+    )
+endforeach()
+
 # [[BPR-1536]]. Option+character window, button and menu-bar keys step aside
 # in every widget that takes typed text on macOS, and work elsewhere.
 bpr_add_network_isolated_test(
@@ -2312,6 +2333,32 @@ set_tests_properties(qt_refresh_feedback_window PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "refresh-feedback-window-tests:pass"
     TIMEOUT 120)
+
+# [[BPR-1720]]. Help › About: content, Copy version info, links and
+# documents through the host's actions, the menu item, keyboard access, the
+# logo at the device's own pixel size and contrast in the built-in themes, at
+# 1x and 2x, each saving its Light and Dark renders.
+bpr_add_executable(test_better_pull_review_qt_about_window_tests about_window_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_about_window_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_about_window_tests)
+bpr_enable_warnings(test_better_pull_review_qt_about_window_tests)
+foreach(bpr_about_scale IN ITEMS 100 200)
+    math(EXPR bpr_about_whole "${bpr_about_scale} / 100")
+    math(EXPR bpr_about_fraction "${bpr_about_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_about_window_scale_${bpr_about_scale}
+        COMMAND test_better_pull_review_qt_about_window_tests
+            --render-directory "${CMAKE_CURRENT_BINARY_DIR}/about-window"
+    )
+    set_tests_properties(
+        qt_about_window_scale_${bpr_about_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_about_whole}.${bpr_about_fraction}"
+            PASS_REGULAR_EXPRESSION "about-window-tests:pass"
+            TIMEOUT 120
+    )
+endforeach()
 
 # [[BPR-1579]]. Every disclosure bar in the four built-in themes: the title at
 # 4.5:1 or more on BPR-1513's raised surface, the chevron in the text colour,

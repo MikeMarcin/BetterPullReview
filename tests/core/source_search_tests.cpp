@@ -34,6 +34,35 @@ namespace {
 		search_expect(empty.Cancel && !empty.Work && !state.Pending && !state.CurrentMatch, "clearing cancels without scanning or navigation");
 	}
 
+	/// RFC-BPR-0089 ([[BPR-1688]]). A filtered Find in files names how many
+	/// files it searches; the host's list is checked against that count.
+	void test_filtered_files_scope()
+	{
+		auto scope          = search_scope(source_search_target::files);
+		scope.FilteredFiles = 2U;
+		search_expect(valid(scope), "Find in files may be bound to a filtered set");
+		const auto left  = *parse_git_commit_oid(std::string(40U, 'e'));
+		const auto right = *parse_git_commit_oid(std::string(40U, 'f'));
+		auto       files = std::vector<source_search_filtered_file>{ { "a.txt", std::nullopt }, { "b.txt", filtered_diff_endpoints{ .Left = left, .Right = right } } };
+		search_expect(valid(scope, files), "a sorted list of the named count, each at a pair of commits, is admitted");
+		search_expect(!valid(scope, { files[1], files[0] }), "an unsorted list is refused");
+		search_expect(!valid(scope, { files[0], files[0] }), "a repeated path is refused");
+		search_expect(!valid(scope, { files[0] }), "a list of another count is refused");
+		auto same               = files;
+		same[1].Endpoints->Left = right;
+		search_expect(!valid(scope, same), "a filtered diff of one commit is refused");
+		auto empty    = files;
+		empty[0].Path = { };
+		search_expect(!valid(scope, empty), "an empty path is refused");
+		auto unfiltered = search_scope(source_search_target::files);
+		search_expect(!valid(unfiltered, files), "an unfiltered scope names no list");
+		auto document          = search_scope(source_search_target::right);
+		document.FilteredFiles = 0U;
+		search_expect(!valid(document), "only Find in files is filtered");
+		scope.FilteredFiles = static_cast<std::uint32_t>(maximum_source_search_filtered_files + 1U);
+		search_expect(!valid(scope), "a filtered set past the bound is refused");
+	}
+
 	void test_exact_stale_and_duplicate_rejection()
 	{
 		auto state = source_search_state{ };
@@ -139,6 +168,7 @@ int main()
 {
 	static_assert(std::is_trivially_copyable_v<source_search_state>);
 	test_query_and_scope_admission();
+	test_filtered_files_scope();
 	test_exact_stale_and_duplicate_rejection();
 	test_scope_refresh_and_authority_ownership();
 	test_qualified_coverage_and_navigation();

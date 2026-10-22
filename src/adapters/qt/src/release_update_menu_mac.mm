@@ -57,7 +57,10 @@ namespace bpr::qt {
 					NSMenu* application = [main itemAtIndex:0].submenu;
 					if (application != nil && Item.menu != application) {
 						[Item.menu removeItem:Item];
-						[application insertItem:Item atIndex:0];
+						// Under Qt's About slot, its menu loader's first item, so About
+						// BetterPullReview ([[BPR-1720]]) leads the application
+						// menu and Check for Updates… follows it, as on macOS generally.
+						[application insertItem:Item atIndex:(application.numberOfItems > 0 ? 1 : 0)];
 					}
 				});
 			}

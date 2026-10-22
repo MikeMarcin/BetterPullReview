@@ -279,9 +279,15 @@ namespace bpr::qt {
 			emphasis.format.setForeground(readable(aInk->Normal));
 		}
 		aSelections.push_back(emphasis);
-		// Keep the exact edit range as one background layer. Foreground-only
-		// intersections preserve each classified token's hue and leave source,
-		// layout and the unedited part of the token untouched.
+		// Keep the exact edit range as one background layer, then lay each
+		// classified token's colour over its part of it. A token layer carries
+		// the same fill: Qt's layout skips a selection that sets a foreground
+		// and no background wherever an earlier selection already drew the
+		// text, so a foreground-only layer was never painted and every changed
+		// glyph read in the normal ink, a green comment as white
+		// ([[BPR-1709]]). The fill is the one already under it, so only
+		// the ink changes; the source, layout and the unedited part of the
+		// token stay untouched.
 		if (!aInk.has_value() || aBlock.layout() == nullptr) {
 			return;
 		}
@@ -295,6 +301,7 @@ namespace bpr::qt {
 			syntax.cursor = QTextCursor{ aBlock };
 			syntax.cursor.setPosition(aBlock.position() + begin);
 			syntax.cursor.setPosition(aBlock.position() + end, QTextCursor::KeepAnchor);
+			syntax.format.setBackground(aFill);
 			syntax.format.setForeground(readable(token.format.foreground().color()));
 			aSelections.push_back(syntax);
 		}

@@ -453,6 +453,14 @@ namespace bpr::app::detail {
 					if (std::exchange(State->RefuseNextReview, false)) {
 						return wire::github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = wire::github_mutation_transmission::indeterminate, .HttpStatus = 422U };
 					}
+					if (std::exchange(State->RefuseNextReviewAsAnswer, false)) {
+						// GitHub's answer to a review with a comment on a line
+						// outside the diff: its words, and no comment named.
+						return wire::github_mutation_wire_success{ .Response = { .Status = 422, .Body = R"({"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff and Pull request review thread diff hunk can't be blank"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})" } };
+					}
+					if (std::exchange(State->DropNextReview, false)) {
+						return wire::github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = wire::github_mutation_transmission::indeterminate };
+					}
 					const auto event = object["event"].toString();
 					const auto id    = 801 + State->PreviousReviews.size();
 					auto       state = application::staged_review_state::commented;
@@ -614,6 +622,8 @@ namespace bpr::app::detail {
 			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.withdraw(aKey, aFingerprint); }
 			/// [[BPR-1540]]. Why an attempt is still unknown, kept in the same store.
 			auto note_unknown(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_unknown_diagnosis& aDiagnosis) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.note_unknown(aKey, aFingerprint, aDiagnosis); }
+			/// [[BPR-1715]]. What GitHub answered the POST, kept in the same store.
+			auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, application::review_mutation_recovery_failure> override { return Store.note_post(aKey, aFingerprint, aPost); }
 
 		private:
 			application::review_submission_recovery_port& Store;

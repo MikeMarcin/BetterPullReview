@@ -88,8 +88,8 @@ private notes/drafts/agent text, credentials, crash memory and unknown fields
 are excluded even if a producer labels a summary sanitized. This deliberately
 does not copy the existing readable local log into a support bundle.
 
-The host prepares at most 1,024 records and 256 KiB of immutable serialized
-metadata. The snapshot carries a nonzero revision, a nonzero 32-byte digest,
+The host prepares at most 16,384 records and 16 MiB of immutable serialized
+metadata ([[BPR-1722]]; 1,024 records and 256 KiB before it). The snapshot carries a nonzero revision, a nonzero 32-byte digest,
 allowed field mask, exact record/byte counts and omitted-record count. An empty
 record set can still have a nonempty format header. A malformed identity, unknown
 field, zero byte representation or exceeded limit fails before preview/export.
@@ -200,12 +200,13 @@ producer prose, so the default export omits the entire tail. This is a stricter
 subset of M3's allowed fields, not a claim that arbitrary local prose is safe.
 Unknown, malformed and incomplete records are omitted and counted.
 
-Input is bounded to 16 MiB and 65,536 records. The v1 line bound is 8,192
+Input is bounded to 32 MiB and 131,072 records (16 MiB and 65,536 before
+[[BPR-1722]]). The v1 line bound is 8,192
 bytes; v2/v3 are at most 16 KiB including the newline. The JSONL reader requires the
 writer's exact field order, bounded ASCII strings with quote/backslash escapes,
 and unsigned decimal integers. Unknown keys, duplicate keys, unsupported
 encodings, malformed syntax and partial tails are omitted without pass-through. Output is
-bounded to 1,024 records and 256 KiB. Input/work overflow refuses rather than
+bounded to 16,384 records and 16 MiB. Input/work overflow refuses rather than
 silently scanning unbounded history. The host verifies the exact prepared
 bytes, count and SHA-256 against the descriptor. Preview and export share the
 same frozen bytes, with no raw log, source/comment/secret, database or crash file.
@@ -464,8 +465,8 @@ session sequence cutoff and optional bounded sanitized context; current-session
 file selection filters the native inventory before reads. A later same-session
 append beyond the cutoff is excluded. Other retained sessions are read into bounded
 immutable input; files are never appended to, rewritten or attached to exports.
-Malformed/partial records have counts. The existing 16 MiB/65,536 input and
-1,024-record/256 KiB output ceilings remain; the optional ring has its independent
+Malformed/partial records have counts. The 32 MiB/131,072 input and
+16,384-record/16 MiB output ceilings apply (raised by [[BPR-1722]]); the optional ring has its independent
 512-event/2 MiB ceiling. Duplicate session/sequence pairs are counted once.
 
 The application classifier rechecks the canonical schema, fixed field vocabularies,
@@ -478,6 +479,121 @@ and disclose irreversible omissions. Version-one input retains metadata only.
 The header and projection report scope, range, categories, bytes/counts and loss.
 A prepared recent-context snapshot is deliberate preview state until consumed or
 cancelled; no new events enter it. Scope changes and hiding the panel cancel it.
+
+[[BPR-1717]] makes both ceilings keep the newest records. Session files are
+named for a random session identity, so name order is not age order. Until this
+change, files were read in name order and the first records read were kept. An
+hours-long running session whose identity sorted after older sessions' was then
+left out of the export. The reader now takes files newest first by modification
+time while they fit the 16 MiB input. Once one does not fit, it and every older
+file are left unread and counted as `unread_files`, rather than refusing the
+export. The files are then joined oldest first. The rich classifier orders every
+admitted record by time, then session and sequence, and treats version-one lines
+as the oldest. It keeps the newest run that fits 1,024 records and 256 KiB less
+a 4 KiB reserve for the header and the Insights section, and writes that run
+oldest first. The metadata classifier keeps its newest 1,024 records the same
+way. The header separates `unclassified_records` from `limit_omitted_records`,
+states `limit_keeps: newest`, and `omitted_records` stays their sum. The
+snapshot carries the over-limit count and the unread-file count, and the panel
+says how many older records and files were left out. A record is about 800
+bytes, so under the limits of that change a retained-sessions export held
+roughly the newest 300.
+
+### Limits sized for a day of heavy use ([[BPR-1722]])
+
+The owner asked for limits that make an export useful for diagnosis. They are
+sized from the fixture courses' own diagnostics files:
+
+- **Record size.** A record on disk is 706 to 867 bytes, 783 to 795 on average
+  across the Home discovery and logging courses. An exported record is about
+  the same; the owner's two exports averaged 801.
+- **Rates.** A session start writes about 15 records (application, viewer,
+  nine capability responses). Opening a pull request writes about 30 to 45:
+  its page responses (13 for the fixture's pull request) and its epoch
+  stages. A Home refresh writes about 5 to 10 at standard detail (start, one
+  line per read, end; the fixture course's seven refreshes wrote 37), and Home
+  refreshes at most every 5 minutes on its own. Heavy use, 15 pull requests
+  opened and 20 Home refreshes an hour with comments and a few submissions,
+  comes to about 1,000 records an hour, and 8,000 for an eight-hour day.
+- **Output: 16,384 records and 16 MiB.** About 16 hours of heavy use, or two
+  ordinary days. At 1 KiB a record, wider than any measured, 16,384 records
+  fit 16 MiB, so records with long classified details are the ones that stop
+  at the byte limit first. The newest are still kept and the rest counted.
+- **Input: 32 MiB and 131,072 lines.** Files are read whole, newest first, and
+  a session file is at most 5 MiB, so at least 27 MiB, about 35,000 records,
+  is read whenever the logs hold that much. That is more than the output keeps,
+  so the output limit, not the input, decides how far back an export reaches.
+  Retention keeps up to 50 MiB (about 66,000 records, nearly three heavy days);
+  reading all of it would only feed records the output drops. The line bound
+  keeps the old ratio of one line per 256 input bytes.
+- **Cost.** The reader releases each file once it is joined, so it holds about
+  one copy of its input: at most 32 MiB of input, 16 MiB of output and an
+  index of the admitted records. `application_release_maintenance`, which
+  prepares an 8,000-record, a 16,394-record and a 17 MiB export, runs in 3 s
+  in an unoptimised build. The preview showed a 16,384-record (13 MiB)
+  document in 31 ms offscreen.
+
+**Compression ([[BPR-1725]]).** A saved export is a standard ZIP
+archive holding the text. The owner approved zlib's deflate for it on
+2026-10-21, so `BprZlibProvider.cmake` now also compiles `deflate.c` and
+`trees.c` from the same pinned 1.3.2 archive. No ZIP library is adopted:
+LibArchive is pinned only for macOS update staging, with only its reader, and
+the core already had a minimal container writer for review bundles
+(`write_cycle_zip`), which now can deflate its members and stamp a time.
+
+- **What is written.** `core::diagnostic_export_archive` gives one regular-file
+  entry: the frozen text, deflated at zlib's level 6 (stored instead if
+  deflate would not shrink it), with its CRC-32, compressed and uncompressed
+  sizes in the local header and central directory, the UTF-8 name flag,
+  owner-only mode 0600 (as the saved file and the earlier `.txt` had) and the
+  local time to two seconds, then one end record. There is no
+  data descriptor, extra field, comment, encryption or ZIP64; a 16 MiB text
+  fits the 32-bit fields. Equal inputs give equal bytes.
+- **Where.** The text is still decided by the application (classification,
+  anonymisation, header, "Current session only" and the metadata policy) and
+  is what the preview shows and the host digest-checks before saving. The
+  file adapter's output (`release_maintenance_files`) turns that text into the
+  archive at write time, on the effect lane, from the chosen file's name and
+  its own local clock, and writes it with the same private temporary file,
+  link and refusal of an existing destination as before.
+- **Names.** The save dialog's filter and default suffix are `.zip`. The entry
+  is the file's name with a final `.zip` (any case) replaced by `.txt`
+  (`core::diagnostic_export_entry_name`); a name that is not UTF-8, holds a
+  separator or control character, or is empty gives
+  `BetterPullReview-diagnostics.txt`.
+- **Size and cost.** A typical export of about 316 records (284 KiB) becomes
+  an 8.5 KB archive, about 33:1, as the owner's hand-zipped 256 KiB exports
+  became about 8 KB. A full 16,384-record export (14.7 MB) becomes about
+  369 KB.
+- **Checks.** Info-ZIP `unzip -t` and `ditto -x -k`, which Archive Utility
+  uses, accept the saved file in the public path course and extract exactly
+  the previewed text.
+
+**Name and header.** The save dialog suggests
+`BetterPullReview-diagnostics-YYYY-MM-DD-HHmm-VERSION.zip` (`.txt` before
+[[BPR-1725]]; its entry keeps the `.txt` name) from the local
+date and time (`core::diagnostic_export_file_name`): sortable by time, no
+colon, and the version only when it is dotted numbers, so no host, account or
+repository can reach the name. The header's first fields are `exported_at`,
+the host's local time with its offset in ISO 8601
+(`2026-10-21T14:32:05-07:00`), and `app_version` and `app_build`, the running
+build as its records name it; each is `unknown` when not known. The metadata
+(v1) export is unchanged.
+
+**Review submission endings.** Until this change a submission was logged only
+when its outcome stayed unknown ([[BPR-1540]]). A run whose outcome is known
+now logs one `github.review_submission` record with the POST's HTTP status
+and the line `review_submission_ending=ENDING run=RUN post=ANSWER
+post_class=N refusal=REFUSAL stop=STOP comments=N duplicate=0|1`
+(`core::review_submission_ending_diagnosis`). ENDING is `published`,
+`refused` (a 4xx answer), `settled` ([[BPR-1715]]'s rule) or `not_sent`;
+RUN is `submit` or `check`; REFUSAL is `none`, `review` or
+`unplaceable_line`; STOP says why a run that sent nothing stopped. The logger
+drops a record whose detail is not exactly that line, or that carries both an
+ending and an unknown reason, and the export admits the line only when it
+parses back. It names no host, repository, account, path or comment. A
+refused or unsent review counts as an Insights publishing problem, as an
+unknown one already did.
 
 The native output admission and exclusive atomic publication above are unchanged.
 Public tests traverse the actual profile Settings, native logs and save chooser,

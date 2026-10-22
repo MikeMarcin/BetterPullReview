@@ -37,6 +37,15 @@
 //       force-pushes a rewrite of it. After `go-push` it refreshes, writes what
 //       the chip and the Commits tab offer, chooses the offer and writes the
 //       filter after it into DIR/force-push.jsonl.
+//   --course filtered-comment --root DIR --pull N --path FILE
+//       RFC-BPR-0089 M4. Opens MikeMarcin/BPR-Test#N, hides the chain's last
+//       commit, opens FILE and selects lines on both sides, writing where the
+//       composition's core places a comment on each and what the editor says
+//       before Publish into DIR/filtered-comment.jsonl. It then shows only the
+//       last commit and does the same on its left side, and waits at
+//       `at-post` while the operator publishes exactly those placements.
+//       After `go-post` it refreshes and writes the lines the threads are
+//       marked at, on C1's diff with the last commit hidden and on Whole PR.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -169,10 +178,10 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment")
 			|| result.Root.empty() || result.Pull <= 0
-			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty())) || (result.Course == "force-push" && result.Path.empty())) {
-			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push --root DIR --pull N [--author LOGIN --path PREFIX]");
+			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty())) || ((result.Course == "force-push" || result.Course == "filtered-comment") && result.Path.empty())) {
+			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -700,6 +709,143 @@ namespace {
 		say("commit-filter:scenarios=" + std::to_string(chain.size() + (chain.size() >= 2U ? 1U : 0U)));
 	}
 
+	/// RFC-BPR-0089 M4 (owner decision Q1). Where a comment on a filtered
+	/// diff's line goes, as the window's composition decides it with its core
+	/// and as the editor says before Publish, written into
+	/// DIR/filtered-comment.jsonl. A tests-enabled composition holds no
+	/// publication grant, so the operator publishes exactly these placements
+	/// through gh while the course waits at `at-post`; after `go-post` the
+	/// course refreshes and writes the lines the threads are marked at.
+	void filtered_comment_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1300, 860);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		require([&] { return aWindow.overview_page()->projection().has_value() && !aWindow.overview_page()->projection()->Files.empty(); }, "the overview lists the files");
+		auto* const drawer = aWindow.overview_page()->status_drawer();
+		drawer->tabs()->setCurrentIndex(1);
+		auto* const tab = drawer->commits();
+		require([&] { return tab->projection() && !tab->projection()->Rows.empty() && tab->projection()->Trees == application::commit_filter_trees::ready; },
+				"the Commits tab reads the chain's trees", std::chrono::seconds{ 600 });
+		auto chain = std::vector<std::string>{ };
+		for (const auto& row : tab->projection()->Rows) {
+			if (row.Role != core::filter_commit_role::side) {
+				chain.push_back(row.Commit);
+			}
+		}
+		if (chain.size() < 2U) {
+			fail("the course needs at least two chain commits");
+		}
+		const auto  last        = chain.back();
+		auto* const surface     = aWindow.comparison_surface();
+		const auto  hex         = [](const core::git_commit_oid& aOid) { return json_text(core::canonical_hex(aOid).view()); };
+		const auto  gestureOnce = [&](const QString& aAction) {
+			aWindow.show_commits();
+			const auto row = tab->model()->row_of(last);
+			tab->list()->selectionModel()->select(QItemSelection{ tab->model()->index(row), tab->model()->index(row) }, QItemSelectionModel::ClearAndSelect);
+			auto        menu   = std::unique_ptr<QMenu>{ tab->make_menu(nullptr) };
+			auto* const action = menu->findChild<QAction*>(aAction);
+			if (action == nullptr || !action->isEnabled()) {
+				fail("the context menu does not offer " + text(aAction));
+			}
+			action->trigger();
+		};
+		// [[BPR-1707]]. Made once: a gesture made while a refresh resolves the
+		// comparison again applies (before, it was lost and M4 repeated it).
+		const auto gesture = [&](const QString& aAction, const std::string& aShown) {
+			gestureOnce(aAction);
+			require([&] { return text(aWindow.overview_page()->commit_chip()->summary()->text()) == aShown; }, "the chip reads " + aShown, std::chrono::seconds{ 60 });
+		};
+		const auto clear = [&] {
+			aWindow.show_commits();
+			if (aWindow.overview_page()->commit_chip()->isVisible()) {
+				aWindow.overview_page()->commit_chip()->clear_button()->click();
+			}
+			require([&] { return !aWindow.overview_page()->commit_chip()->isVisible(); }, "Clear all filters");
+		};
+		const auto openFile = [&] {
+			aWindow.choose_modality(qt::review_modality::review);
+			const auto file = core::file_identity_of(aOptions.Path);
+			require([&] { return aWindow.files_drawer()->contents()->index_for_file(file).isValid(); }, "the file is listed");
+			aWindow.files_drawer()->contents_view()->setCurrentIndex(aWindow.files_drawer()->contents()->index_for_file(file));
+			require([&] {
+				const auto& context = surface->current_context();
+				const auto& result  = surface->current_result();
+				return context && result && result->Alignment.Key == context->Key && context->Key.File == file;
+			},
+					"the file's diff is shown", std::chrono::seconds{ 120 });
+		};
+		std::ofstream out{ aOptions.Root / "filtered-comment.jsonl" };
+		const auto    probe = [&](const std::string& aScenario, const core::diff_side aSide, const std::uint32_t aLine) {
+			if (!surface->select_conversation_line(aSide, aLine)) {
+				fail(aScenario + ": the line cannot be selected");
+			}
+			const auto decided = [&] {
+				const auto& placed    = aWindow.filtered_comment_placement();
+				const auto  selection = surface->selection();
+				return placed && selection && placed->Selection == selection->PreferredLine && placed->Target.Refusal != core::filtered_comment_refusal::lines_pending;
+			};
+			require(decided, aScenario + ": where a comment on the line goes", std::chrono::seconds{ 120 });
+			const auto& placed            = *aWindow.filtered_comment_placement();
+			const auto [notice, blocking] = aWindow.filtered_comment_notice();
+			const auto& filter            = surface->current_context()->Key.Filter;
+			out << "{\"kind\":\"placement\",\"scenario\":" << json_text(aScenario) << ",\"side\":" << json_text(aSide == core::diff_side::left ? "LEFT" : "RIGHT")
+				<< ",\"line\":" << aLine << ",\"left\":" << (filter ? hex(filter->Left) : std::string{ "null" }) << ",\"right\":" << (filter ? hex(filter->Right) : std::string{ "null" })
+				<< ",\"placement\":" << static_cast<int>(placed.Target.Placement) << ",\"refusal\":" << static_cast<int>(placed.Target.Refusal)
+				<< ",\"commit\":" << (placed.Target.Commit.valid() ? hex(placed.Target.Commit) : std::string{ "null" })
+				<< ",\"target_side\":" << json_text(placed.Target.Side == core::diff_side::left ? "LEFT" : "RIGHT") << ",\"target_line\":" << placed.Target.Line
+				<< ",\"notice\":" << json_text(text(notice)) << ",\"blocks\":" << (blocking ? "true" : "false") << "}\n";
+			out.flush();
+			say("filtered-comment:" + aScenario + " " + (aSide == core::diff_side::left ? "LEFT " : "RIGHT ") + std::to_string(aLine + 1U) + " -> placement=" + std::to_string(static_cast<int>(placed.Target.Placement))
+				+ " line=" + std::to_string(placed.Target.Line + 1U) + " notice=" + text(notice));
+		};
+		const auto marks = [&](const std::string& aScenario) {
+			wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 3 });
+			const auto lines = [&](const core::diff_side aSide) {
+				auto result = std::string{ };
+				for (const auto& mark : surface->line_marks(aSide)) {
+					if (!mark.Draft) {
+						result += (result.empty() ? "" : ",") + std::to_string(mark.Line);
+					}
+				}
+				return result;
+			};
+			out << "{\"kind\":\"marks\",\"scenario\":" << json_text(aScenario) << ",\"right\":[" << lines(core::diff_side::right) << "],\"left\":[" << lines(core::diff_side::left) << "]}\n";
+			out.flush();
+			say("filtered-comment:marks " + aScenario + " right=[" + lines(core::diff_side::right) + "] left=[" + lines(core::diff_side::left) + "]");
+		};
+
+		// The last commit hidden: the file's diff ends at the commit before it.
+		gesture(QStringLiteral("commitFilterHide"), std::to_string(chain.size() - 1U) + " of " + std::to_string(chain.size()) + " commits shown");
+		openFile();
+		probe("hide-last", core::diff_side::right, 14U);
+		probe("hide-last", core::diff_side::right, 4U);
+		probe("hide-last", core::diff_side::right, 9U);
+		// Only the last commit: the diff's left side is the commit before it.
+		clear();
+		gesture(QStringLiteral("commitFilterShowOnly"), "1 of " + std::to_string(chain.size()) + " commits shown");
+		openFile();
+		probe("only-last", core::diff_side::left, 14U);
+		probe("only-last", core::diff_side::left, 9U);
+		probe("only-last", core::diff_side::left, 12U);
+		clear();
+		checkpoint(aOptions.Root, "post", "placements written");
+
+		// The status already reads ready before the refresh lands, so the
+		// course lets it settle before it waits for the refreshed state.
+		aWindow.github_refresh_action()->trigger();
+		wait_for([] { return false; }, "the refresh settles (expected)", std::chrono::seconds{ 15 });
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the refreshed pull request is ready");
+		require([&] { return tab->projection() && tab->projection()->Trees == application::commit_filter_trees::ready; }, "the trees after the refresh", std::chrono::seconds{ 600 });
+		gesture(QStringLiteral("commitFilterHide"), std::to_string(chain.size() - 1U) + " of " + std::to_string(chain.size()) + " commits shown");
+		openFile();
+		marks("hide-last");
+		clear();
+		openFile();
+		marks("whole");
+		dump(aWindow);
+	}
+
 	/// RFC-BPR-0089 M3, AC06. Opens the pull request, marks `--path` read in
 	/// Review (a local receipt only), hides the chain's last commit, and waits
 	/// at `at-push` for the operator's force push. After `go-push` it
@@ -991,6 +1137,8 @@ try {
 		generated_course(chosen, *window);
 	} else if (chosen.Course == "force-push") {
 		force_push_course(chosen, *window);
+	} else if (chosen.Course == "filtered-comment") {
+		filtered_comment_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

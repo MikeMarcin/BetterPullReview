@@ -224,6 +224,15 @@ FIXTURES = {
         "mirrors": None,
         "response_fields": {"ListPullRequestCommits": "with-parents"},
     },
+    # RFC-BPR-0089 M4. commit-filter-v1's chain with src/notes.txt, shaped as
+    # BPR-Test #116, written by build_commit_filter_fixture.py --comment.
+    "commit-filter-comment-v1": {
+        "host": HOSTS["github-com"],
+        "identity": Identity("bpr-fixtures", "commit-filter-comment", 894),
+        "mirrors": None,
+        # Its threads carry posts with the commits they were written at.
+        "response_fields": {"ListPullRequestCommits": "with-parents", "ListReviewThreads": "synthetic-commits"},
+    },
     # [[BPR-1083]]. The nested-folders contract with six labelled review
     # threads, written by scripts/build_conventional_comments_fixture.py.
     "conventional-comments-v1": {
@@ -1322,6 +1331,10 @@ class GitHubContractFixtureSecurityTests(unittest.TestCase):
                         # first line, as GitHub's GraphQL does.
                         else EXPECTED_RESPONSE_FIELDS[operation] | {"startLine", "originalStartLine"}
                         if shape == "synthetic-ranges"
+                        # RFC-BPR-0089 M4. Each post names the commit it is on
+                        # and the commit it was written at, by `oid`.
+                        else EXPECTED_RESPONSE_FIELDS[operation] | {"commit", "originalCommit", "oid"}
+                        if shape == "synthetic-commits"
                         # RFC-BPR-0089. A commit's parents, each named by `sha`.
                         else RECORDED_RESPONSE_FIELDS[operation] | {"parents"}
                         if shape == "with-parents"

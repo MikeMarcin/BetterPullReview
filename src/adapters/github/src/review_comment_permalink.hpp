@@ -29,6 +29,9 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief Compile only current-head right-side publication, including the 64 KiB
 	/// wire-body bound. A second code permalink in the prose is ambiguous.
+	/// \details RFC-BPR-0089, [[BPR-1706]]. On a commit-filtered diff the link
+	/// names the line at the filter's commit on the endpoint's side, and a
+	/// left endpoint is admitted; the anchor's side must be the endpoint's.
 	[[nodiscard]] auto compile_review_permalink_body(
 		const review_permalink_source& aSource,
 		const core::source_line_ref&   aAnchor,

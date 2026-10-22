@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1699"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Mark all comments read and all from one author",
+  "created": "2026-10-21T16:39:27.008123+00:00",
+  "base": "8ad0e0d44a5ebe0326b70b1ad9f449b79ce09320"
+}

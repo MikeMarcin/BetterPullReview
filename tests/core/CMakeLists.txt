@@ -906,6 +906,14 @@ bpr_enable_hardening(test_generated_files)
 bpr_enable_warnings(test_generated_files)
 bpr_add_network_isolated_test(NAME core_generated_files COMMAND test_generated_files)
 
+# RFC-BPR-0089 M4: where a comment on a commit-filtered diff goes, and which
+# threads are marked on it (AC07, AC08).
+bpr_add_executable(test_filtered_comment filtered_comment_tests.cpp)
+target_link_libraries(test_filtered_comment PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_filtered_comment)
+bpr_enable_warnings(test_filtered_comment)
+bpr_add_network_isolated_test(NAME core_filtered_comment COMMAND test_filtered_comment)
+
 bpr_add_executable(test_review_preparation review_preparation_tests.cpp)
 target_link_libraries(test_review_preparation PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_preparation)
@@ -1140,6 +1148,15 @@ target_link_libraries(test_review_comment_range PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_comment_range)
 bpr_enable_warnings(test_review_comment_range)
 bpr_add_network_isolated_test(NAME core_review_comment_range COMMAND test_review_comment_range)
+
+# [[RFC-BPR-0090]] M1. Suggest change on the selected head lines: the range it
+# opens on, the editable span, the plan GitHub receives, the composed body,
+# rebuilding a kept draft, Convert's text and carrying to a newer head.
+bpr_add_executable(test_pull_request_suggestion pull_request_suggestion_tests.cpp)
+target_link_libraries(test_pull_request_suggestion PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_pull_request_suggestion)
+bpr_enable_warnings(test_pull_request_suggestion)
+bpr_add_network_isolated_test(NAME core_pull_request_suggestion COMMAND test_pull_request_suggestion)
 
 # [[BPR-1345]]. Start a review: the pending mark, the lock a submitted review
 # holds, and the review that carries pending drafts as its line comments.

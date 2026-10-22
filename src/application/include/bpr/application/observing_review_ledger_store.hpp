@@ -28,6 +28,7 @@ namespace bpr::application {
 		[[nodiscard]] auto commit(const receipt_persistence_request& aRequest) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto load(const core::file_identity& aFile) -> std::expected<std::optional<core::file_receipt>, ledger_store_failure> override;
 		[[nodiscard]] auto store_conversation_receipt(const core::conversation_receipt& aReceipt) -> std::expected<void, ledger_store_failure> override;
+		[[nodiscard]] auto store_conversation_receipts(std::span<const core::conversation_receipt> aReceipts) -> std::expected<void, ledger_store_failure> override;
 		[[nodiscard]] auto load_conversation_receipts() -> std::expected<std::vector<core::conversation_receipt>, ledger_store_failure> override;
 		[[nodiscard]] auto store_note(const local_note_record& aNote, std::optional<local_note_revision> aExpectedRevision = std::nullopt) -> std::expected<local_note_record, local_note_failure> override;
 		[[nodiscard]] auto erase_note(local_note_id aNote, local_note_revision aExpectedRevision) -> std::expected<void, local_note_failure> override;

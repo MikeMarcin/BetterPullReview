@@ -210,6 +210,15 @@ namespace bpr::qt {
 		publicationControls->addWidget(Members.Suggestion);
 		publicationControls->addStretch();
 		layout->insertLayout(2, publicationControls);
+		// RFC-BPR-0089 M4. Directly above Publish, in the status line's own
+		// type: a placement is read before the comment is published.
+		Members.TargetNotice = new QLabel{ this };
+		Members.TargetNotice->setObjectName(QStringLiteral("reviewFilteredTarget"));
+		Members.TargetNotice->setAccessibleName(QStringLiteral("Where this comment goes"));
+		Members.TargetNotice->setWordWrap(true);
+		Members.TargetNotice->setTextFormat(Qt::PlainText);
+		Members.TargetNotice->hide();
+		layout->insertWidget(2, Members.TargetNotice);
 
 		Members.MarkRead = make_action(
 			this, tr("Mark read"), QStringLiteral("reviewMarkRead"));
@@ -502,6 +511,36 @@ namespace bpr::qt {
 	void review_draft_editor::describe_target(const QString& aDescription)
 	{
 		Members.TargetLabel->setText(aDescription);
+	}
+
+	void review_draft_editor::present_target_notice(const QString& aText, const bool aBlocksPublication)
+	{
+		const auto blocks = aBlocksPublication && !aText.isEmpty();
+		if (Members.TargetNotice->text() == aText && Members.PublishBlocked == blocks) {
+			return;
+		}
+		Members.TargetNotice->setText(aText);
+		Members.TargetNotice->setVisible(!aText.isEmpty());
+		Members.PublishBlocked = blocks;
+		refresh_enablement();
+		if (Members.PresentationObserver) {
+			Members.PresentationObserver();
+		}
+	}
+
+	auto review_draft_editor::target_notice() const noexcept -> QLabel*
+	{
+		return Members.TargetNotice;
+	}
+
+	auto review_draft_editor::target_notice_text() const -> QString
+	{
+		return Members.TargetNotice->text();
+	}
+
+	auto review_draft_editor::target_notice_blocks() const noexcept -> bool
+	{
+		return Members.PublishBlocked;
 	}
 
 	void review_draft_editor::emit_draft(
@@ -1172,7 +1211,7 @@ namespace bpr::qt {
 		const auto supportedTarget = Members.ShownDraft && core::supported_comment_target(Members.ShownDraft->Anchor.Side);
 		const auto retry           = revisionReady && Members.RetryPublication && Members.ShownDraft && Members.ShownDraft->State == core::review_draft_state::publishing;
 		Members.Publish->setText(retry ? tr("Retry publication") : tr("Publish"));
-		Members.Publish->setEnabled((drafting || retry) && supportedTarget && !Members.Revisioned.Candidate);
+		Members.Publish->setEnabled((drafting || retry) && supportedTarget && !Members.Revisioned.Candidate && (retry || !Members.PublishBlocked));
 		Members.Discard->setEnabled(drafting);
 		Members.Body->setReadOnly(!drafting);
 		Members.Body->setVisible(Members.ShownDraft.has_value() || Members.Revisioned.Candidate.has_value());
@@ -1181,6 +1220,7 @@ namespace bpr::qt {
 		Members.TargetLabel->setVisible(!Members.TargetLabel->text().isEmpty());
 		const auto unavailable = tr("No editable draft is selected. Return to an open pull request and select a current-head line.");
 		Members.Publish->setToolTip(retry ? tr("Retry this exact publication identity; already transmitted work is reconciled.") : !drafting ? unavailable
+										: Members.PublishBlocked                                                                             ? Members.TargetNotice->text()
 										: supportedTarget                                                                                    ? tr("Publish this draft comment.")
 																																			 : tr("This draft's line cannot take a comment. Your draft text is kept."));
 		Members.Discard->setToolTip(drafting ? tr("Discard this local draft.") : unavailable);

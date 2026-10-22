@@ -7,6 +7,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_conversation.hpp"
 
@@ -525,7 +526,7 @@ namespace bpr::qt {
 	auto conversation_cards_view::thread_menu(const std::string& aIdentity) -> QMenu*
 	{
 		const auto at = std::ranges::find(Cards, aIdentity, &thread_card::Id);
-		if (at == Cards.end() || (at->Draft && at->UnsentReply.has_value())) {
+		if (at == Cards.end() || (at->Draft && (at->UnsentReply.has_value() || at->MovedSuggestion))) {
 			return nullptr;
 		}
 		if (at->Draft) {
@@ -614,6 +615,21 @@ namespace bpr::qt {
 			connect(copy, &QAction::triggered, menu, [body = card.Posts.front().Body] {
 				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
 					clipboard->setText(body);
+				}
+			});
+		}
+		// [[BPR-1699]]. Mark all from the thread's author as read, for a
+		// thread someone else started (a spammy bot's, typically). It reaches
+		// past this thread, so it stands apart from the thread's own items.
+		if (!card.Posts.empty() && !card.Posts.front().Mine && !card.Posts.front().Author.isEmpty()) {
+			menu->addSeparator();
+			const auto  login  = card.Posts.front().Author;
+			auto* const author = add_author_read_action(*menu, login, unread_post_count_from(login), ReadStateKnown, false);
+			author->setEnabled(author->isEnabled() && static_cast<bool>(AuthorReadDispatch));
+			connect(author, &QAction::triggered, menu, [this, chosen = login.toStdString()] {
+				const auto dispatch = AuthorReadDispatch;
+				if (dispatch) {
+					dispatch(chosen);
 				}
 			});
 		}
@@ -882,6 +898,44 @@ namespace bpr::qt {
 	auto conversation_cards_view::kept_reply_identity(const core::review_draft_id aDraft) -> std::string
 	{
 		return std::string{ draft_card_id } + ":reply:" + std::to_string(aDraft.value());
+	}
+
+	void conversation_cards_view::set_moved_suggestions(std::vector<moved_suggestion_card> aMoved)
+	{
+		if (MovedSuggestions == aMoved) {
+			return;
+		}
+		forget_measurements_if([](const std::string& aId) { return aId.starts_with(std::string{ draft_card_id } + ":moved:"); });
+		MovedSuggestions = std::move(aMoved);
+		relayout();
+	}
+
+	auto conversation_cards_view::moved_suggestion_identity(const core::review_draft_id aDraft) -> std::string
+	{
+		return std::string{ draft_card_id } + ":moved:" + std::to_string(aDraft.value());
+	}
+
+	auto conversation_cards_view::moved_suggestion_notice(const moved_suggestion_card& aMoved) -> QString
+	{
+		const auto lines = [](const std::uint32_t aFirst, const std::uint32_t aLast) {
+			return aFirst == aLast ? tr("line %1").arg(aLast + 1U) : tr("lines %1–%2").arg(aFirst + 1U).arg(aLast + 1U);
+		};
+		const auto& draft   = aMoved.Draft;
+		const auto  written = tr("Written on %1 at %2.").arg(aMoved.EarlierHead, lines(draft.StartLine.value_or(draft.Anchor.Line), draft.Anchor.Line));
+		const auto& move    = aMoved.Move;
+		if (move.Carry.has_value()) {
+			return tr("%1 Those lines are unchanged here, at %2.").arg(written, lines(move.Carry->first, move.Carry->second));
+		}
+		switch (move.Refusal) {
+		case core::suggestion_head_move_refusal::changed_where_edited:
+			return tr("%1 The file changed where it was edited, so it is not carried. Copy the change to write it again.").arg(written);
+		case core::suggestion_head_move_refusal::second_block:
+			return tr("%1 Its words hold a suggestion of their own, so it does not open in the code. Copy the change to write it again.").arg(written);
+		case core::suggestion_head_move_refusal::lines_unknown:
+		case core::suggestion_head_move_refusal::none:
+			break;
+		}
+		return tr("%1 Its lines could not be compared with this head, so it is not carried. Copy the change to write it again.").arg(written);
 	}
 
 	void conversation_cards_view::set_viewer_login(const QString& aLogin)
@@ -1285,6 +1339,25 @@ namespace bpr::qt {
 		return count;
 	}
 
+	auto conversation_cards_view::unread_post_count_from(const QString& aLogin) const -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (const auto& card : Cards) {
+			if (card.Draft) {
+				continue;
+			}
+			count += static_cast<std::size_t>(std::ranges::count_if(card.Posts, [&aLogin](const card_post& aPost) {
+				return aPost.Unread && !aPost.Mine && aPost.Author.compare(aLogin, Qt::CaseInsensitive) == 0;
+			}));
+		}
+		return count;
+	}
+
+	void conversation_cards_view::set_author_read_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		AuthorReadDispatch = std::move(aDispatch);
+	}
+
 	auto conversation_cards_view::line_marks(const core::diff_side aSide) const -> std::vector<thread_line_mark>
 	{
 		auto marks = std::map<std::uint32_t, thread_line_mark>{ };
@@ -1305,15 +1378,19 @@ namespace bpr::qt {
 				}
 				const auto posts = card.Posts.size();
 				// [[BPR-1212]] slice 1. A draft on several lines names them.
-				const auto lines = card.FirstLine.has_value() ? QStringLiteral("Lines %1–%2").arg(*card.FirstLine).arg(*card.Line)
-															  : QStringLiteral("Line %1").arg(*card.Line);
-				if (card.Draft && card.FirstLine.has_value() && *card.FirstLine > 0U) {
-					mark.FirstLine = *card.FirstLine - 1U;
+				// [[BPR-1721]]. So does a published thread on several,
+				// from GitHub's `start_line`: it read as one line before.
+				const auto first = thread_first_line(card);
+				const auto lines = first.has_value() ? QStringLiteral("Lines %1–%2").arg(*first).arg(*card.Line)
+													 : QStringLiteral("Line %1").arg(*card.Line);
+				if (first.has_value() && *first > 0U) {
+					mark.FirstLine = *first - 1U;
 				}
 				mark.Description = card.Writing                  ? QStringLiteral("%1: your draft, being written").arg(lines)
 					: card.Draft && card.UnsentReply.has_value() ? QStringLiteral("%1: your reply, not sent").arg(lines)
+					: card.Draft && card.MovedSuggestion         ? QStringLiteral("%1: your suggestion from an earlier head").arg(lines)
 					: card.Draft                                 ? QStringLiteral("%1: your draft").arg(lines)
-																 : QStringLiteral("Line %1: %2 %3").arg(*card.Line).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
+																 : QStringLiteral("%1: %2 %3").arg(lines).arg(posts).arg(posts == 1U ? QStringLiteral("post") : QStringLiteral("posts"));
 				if (card.UnreadCount > 0U) {
 					mark.Description += QStringLiteral(", %1 new").arg(card.UnreadCount);
 				}
@@ -1910,6 +1987,40 @@ namespace bpr::qt {
 			}
 			Cards.push_back(std::move(card));
 		}
+		// [[BPR-1733]]. My kept suggestions from an earlier head of this file,
+		// each at the lines it is carried to, or at its own.
+		for (const auto& moved : MovedSuggestions) {
+			if (PullRequestComments || Scope != cards_scope::this_file || !CurrentComparison.has_value() || moved.Comparison != *CurrentComparison) {
+				continue;
+			}
+			const auto& draft    = moved.Draft;
+			auto        card     = thread_card{ };
+			card.Id              = moved_suggestion_identity(draft.Id);
+			card.Kind            = QStringLiteral("Draft");
+			card.Draft           = true;
+			card.MovedSuggestion = true;
+			card.Carryable       = moved.Move.Carry.has_value();
+			card.Change          = QString::fromStdString(moved.Move.Change);
+			card.Notice          = moved_suggestion_notice(moved);
+			card.Side            = core::diff_side::right;
+			const auto first     = moved.Move.Carry ? moved.Move.Carry->first : draft.StartLine.value_or(draft.Anchor.Line);
+			const auto last      = moved.Move.Carry ? moved.Move.Carry->second : draft.Anchor.Line;
+			card.Line            = last + 1U;
+			if (first < last) {
+				card.FirstLine = first + 1U;
+			}
+			const auto mark = feedback_body_mark_of(draft.Body);
+			card.Posts.push_back(card_post{
+				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
+				.Body         = text(draft.Body),
+				.Mine         = true,
+				.Label        = mark.Label,
+				.Emphasis     = mark.Emphasis,
+				.Name         = feedback_post_name(tr("Your suggestion from %1").arg(moved.EarlierHead), mark),
+				.HeaderLength = mark.Label.has_value() ? header_length_of(draft.Body) : 0,
+			});
+			Cards.push_back(std::move(card));
+		}
 		auto order = std::size_t{ 0U };
 		for (auto& card : Cards) {
 			card.ProjectionOrder = order++;
@@ -2034,10 +2145,20 @@ namespace bpr::qt {
 		if (OpenCard->label_controls() != nullptr) {
 			bind_reference(*OpenCard->label_controls());
 		}
-		const auto id    = card.Id;
-		const auto words = card.UnsentReply.has_value() && card.Draft && !card.Posts.empty() ? card.Posts.front().Body : QString{ };
-		OpenCard->Action = [this, id, words](const card_action aAction) {
+		const auto id     = card.Id;
+		const auto words  = card.UnsentReply.has_value() && card.Draft && !card.Posts.empty() ? card.Posts.front().Body : QString{ };
+		const auto change = card.MovedSuggestion ? card.Change : QString{ };
+		OpenCard->Action  = [this, id, words, change](const card_action aAction) {
 			switch (aAction) {
+			case card_action::copy_change:
+				// [[BPR-1733]]. The suggestion's lines, as its block holds them.
+				if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr && !change.isEmpty()) {
+					clipboard->setText(change);
+				}
+				if (ActionDispatch) {
+					ActionDispatch(card_action::copy_change, id);
+				}
+				return;
 			case card_action::copy_reply:
 				// [[BPR-1374]]. The kept reply's words, as written; nothing
 				// else changes.
@@ -2143,6 +2264,16 @@ namespace bpr::qt {
 			const auto dispatch = ActionDispatch;
 			if (dispatch) {
 				dispatch(card_action::show_in_threads, aPost);
+			}
+		};
+		// [[BPR-1699]]. A post's Mark all from its author as read.
+		OpenCard->AuthorUnread = [this](const QString& aLogin) -> std::optional<std::size_t> {
+			return ReadStateKnown ? std::optional{ unread_post_count_from(aLogin) } : std::nullopt;
+		};
+		OpenCard->AuthorReadRequested = [this](const QString& aLogin) {
+			const auto dispatch = AuthorReadDispatch;
+			if (dispatch) {
+				dispatch(aLogin.toStdString());
 			}
 		};
 		// [[BPR-1581]]. A card rebuilt while an arrival is marked carries it.
@@ -2595,6 +2726,7 @@ namespace bpr::qt {
 			const auto whole = QStringLiteral("Pending in your review");
 			// [[BPR-1374]]. My kept reply was never sent, and says so.
 			const auto words = aCard.UnsentReply.has_value()                      ? QStringLiteral("Not sent")
+				: aCard.MovedSuggestion                                           ? QStringLiteral("Earlier head")
 				: !aCard.Pending                                                  ? QStringLiteral("Draft")
 				: right - left - smallMetrics.horizontalAdvance(whole) - 20 >= 90 ? whole
 																				  : QStringLiteral("Pending");
@@ -2664,7 +2796,9 @@ namespace bpr::qt {
 		}
 		aPainter.setFont(bold);
 		aPainter.setPen(colours.Ink);
-		const auto who = aCard.Draft ? (aCard.UnsentReply.has_value() ? QStringLiteral("Your reply") : QStringLiteral("Your note")) : (root.Mine ? QStringLiteral("you") : root.Author);
+		const auto who = aCard.Draft ? (aCard.UnsentReply.has_value() ? QStringLiteral("Your reply") : aCard.MovedSuggestion ? QStringLiteral("Your suggestion")
+																															 : QStringLiteral("Your note"))
+									 : (root.Mine ? QStringLiteral("you") : root.Author);
 		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter,
 						  QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left)));
 		// [[BPR-1374]]. What became of the thread a reply answers, whole,
@@ -2886,7 +3020,8 @@ namespace bpr::qt {
 		}
 		// [[BPR-1374]]. My kept reply opens in place, like a thread, where its
 		// words and what can be done with them are; it is not the editor's.
-		if (Cards[aCard].Draft && Cards[aCard].UnsentReply.has_value()) {
+		// [[BPR-1733]]. So does my suggestion from an earlier head.
+		if (Cards[aCard].Draft && (Cards[aCard].UnsentReply.has_value() || Cards[aCard].MovedSuggestion)) {
 			const auto chosen = Cards[aCard].Id;
 			Current           = chosen;
 			if (aOpen && Open != chosen) {

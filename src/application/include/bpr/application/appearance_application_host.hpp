@@ -17,6 +17,9 @@ namespace bpr::application {
 	/// Existing composition creates a private preferences owner; a shared owner may be
 	/// supplied to attach another window without creating another durable store.
 	/// Appearance gestures never enter the classifier or invalidate its token cache.
+	/// The one classification input among the settings, the known C++ namespaces
+	/// ([[BPR-1714]]), keys classifications rather than invalidating them: a
+	/// changed list asks under a new key, and an earlier list's entries age out.
 	///
 	/// Public operations and inspection are confined to the supplied decision
 	/// lane. Effect work runs on the effect executor and posts immutable terminals
@@ -73,6 +76,8 @@ namespace bpr::application {
 		void apply(core::typography_settings aTypography);
 		/// \brief [[BPR-1336]]. Steps the comparison's zoom; see the preferences host.
 		void step_code_zoom(core::code_zoom_step aStep);
+		/// \brief [[BPR-1714]]. Applies one known-namespace list; see the preferences host.
+		void apply(core::known_namespaces aNamespaces);
 		/// \brief Imports one local document into a preview candidate.
 		///
 		/// \details The effect reads through the bounded document port, calls the
@@ -86,8 +91,16 @@ namespace bpr::application {
 		/// \brief Resets one durable group; `palette` resets the named variant only.
 		void reset(appearance_reset_scope aScope, core::appearance_variant aVariant);
 		// Answers from the retained cache when the key is present and runs the
-		// classification port only when it is not.
+		// classification port only when it is not. The key is the one
+		// `classification_key` gives for it, so a C++ blob is classified, cached
+		// and published under the known namespaces in effect ([[BPR-1714]]).
 		void classify(token_span_cache_key aKey);
+		/// \brief [[BPR-1714]]. The key `aKey`'s blob is classified under now.
+		///
+		/// \details `aKey` with the canonical known-namespace list in effect when it
+		/// names the C++ definition, and unchanged otherwise. A publication whose key
+		/// is not this answers for a list that is no longer in effect.
+		[[nodiscard]] auto classification_key(token_span_cache_key aKey) const -> token_span_cache_key;
 		/// \brief [[BPR-1558]]. Retires the classifications in flight and nothing
 		/// else; settings, import and export work continue. A later request for
 		/// the same key is submitted afresh instead of joining a retired one.
@@ -107,7 +120,8 @@ namespace bpr::application {
 		[[nodiscard]] auto last_rejections() const noexcept
 			-> std::span<const core::typography_rejection>;
 		// Null when the key is absent. The retained value is immutable and shared,
-		// so a caller can compare identity across an appearance change.
+		// so a caller can compare identity across an appearance change. Read under
+		// `classification_key(aKey)`, as `classify` submits it.
 		[[nodiscard]] auto cached(const token_span_cache_key& aKey) const
 			-> shared_token_spans;
 		[[nodiscard]] auto cached_classifications() const noexcept -> std::size_t;

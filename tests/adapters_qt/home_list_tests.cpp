@@ -1,4 +1,5 @@
 #include "../support/window_system_mouse.hpp"
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_panel.hpp"
@@ -9,6 +10,8 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QFont>
+#include <QFontMetrics>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -18,6 +21,7 @@
 #include <QPalette>
 #include <QPixmap>
 #include <QProxyStyle>
+#include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
@@ -1745,6 +1749,153 @@ namespace {
 		}
 	}
 
+	/// \brief The rows the verdict course and its renders draw.
+	[[nodiscard]] auto verdict_queue() -> std::vector<core::queue_item>
+	{
+		constexpr auto now  = std::int64_t{ 1'792'540'800 };
+		const auto     make = [](const std::int64_t aNumber, const bucket aBucket, std::string aTitle, std::string aAuthor, const core::queue_change_facts& aChange) {
+			auto row         = item(aNumber, aBucket, 0U, std::move(aTitle));
+			row.Ref.Account  = default_login;
+			row.Membership   = aBucket == bucket::initial_review_requested ? core::queue_membership{ .Role = core::github_role::requested_reviewer } : core::queue_membership{ .Role = core::github_role::reviewer, .Reviewed = true };
+			row.Facts.Author = std::move(aAuthor);
+			row.Facts.Change = aChange;
+			return row;
+		};
+		constexpr auto day = std::int64_t{ 86'400 };
+		return core::ordered_queue(std::vector{
+			make(4121, bucket::initial_review_requested, "Cache the parsed config between reloads", "mira-k", { .OpenedAt = now - (2 * day), .Additions = 212U, .Deletions = 37U, .Comments = 3U }),
+			make(4108, bucket::changed_since_my_review, "Retry the token refresh once before failing", "jt-okafor", { .OpenedAt = now - (9 * day), .Additions = 88U, .Deletions = 14U, .Comments = 11U }),
+			make(4097, bucket::quiet, "Move the queue store to schema 12", "lena-v", { .OpenedAt = now - (4 * day), .Additions = 640U, .Deletions = 102U, .Comments = 6U }),
+			make(4090, bucket::quiet, "Drop the legacy diff renderer", "sam-r", { .OpenedAt = now - (12 * day), .Additions = 31U, .Deletions = 1'408U, .Comments = 19U }),
+			make(4083, bucket::quiet, "Document the release checklist", "mira-k", { .OpenedAt = now - day, .Additions = 54U, .Deletions = 0U, .Comments = 2U }),
+		});
+	}
+
+	/// \brief Renders the verdict rows in light and dark, wide and narrow.
+	void render_verdict_rows(const std::vector<core::queue_item>& aQueue, const QString& aRenderPath)
+	{
+		if (aRenderPath.isEmpty()) {
+			return;
+		}
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, "light" }, std::pair{ core::appearance_mode::dark, "dark" } }) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			for (const auto& [width, size] : { std::pair{ 720, "wide" }, std::pair{ 430, "narrow" } }) {
+				home_fixture home;
+				home.List.setPalette(profile.derive(QApplication::palette()));
+				home.List.set_state_colours(qt::home_state_colours_for(profile));
+				home.List.resize(width, 560);
+				home.Source.apply(aQueue);
+				home.Source.set_now(std::int64_t{ 1'792'540'800 });
+				home.List.set_queue_status(true, true);
+				home.List.show();
+				settle(200);
+				const auto path = QString{ aRenderPath }.replace(QStringLiteral(".png"), QStringLiteral("-verdict-%1-%2.png").arg(QString::fromLatin1(size), QString::fromLatin1(name)));
+				expect(home.List.grab().save(path), "the verdict render is saved");
+			}
+		}
+	}
+
+	/// [[BPR-1718]]. The reviewer's own last verdict on a row.
+	void test_my_review_verdict_on_rows(const QString& aRenderPath)
+	{
+		using verdict        = core::my_review_verdict;
+		constexpr auto at    = std::int64_t{ 1'792'300'000 };
+		auto           queue = verdict_queue();
+		const auto     set   = [&queue](const std::int64_t aNumber, const core::queue_my_review& aReview) {
+			std::ranges::find(queue, aNumber, [](const core::queue_item& aItem) { return aItem.Ref.Number; })->Facts.MyReview = aReview;
+		};
+		set(4108, { .Verdict = verdict::approved, .SubmittedAt = at, .NewCommits = true });
+		set(4097, { .Verdict = verdict::approved, .SubmittedAt = at });
+		set(4090, { .Verdict = verdict::changes_requested, .SubmittedAt = at });
+		set(4083, { .Verdict = verdict::commented, .SubmittedAt = at });
+
+		auto profile = qt::appearance_profile{ };
+		profile.select_mode(core::appearance_mode::light);
+		for (const auto width : { 720, 430, 360, 300 }) {
+			const auto   where = " (" + std::to_string(width) + " wide)";
+			home_fixture home;
+			home.List.setPalette(profile.derive(QApplication::palette()));
+			home.List.set_state_colours(qt::home_state_colours_for(profile));
+			home.List.resize(width, 900);
+			home.Source.apply(queue);
+			home.Source.set_now(std::int64_t{ 1'792'540'800 });
+			home.List.set_queue_status(true, true);
+			home.List.show();
+			settle(200);
+
+			auto* const needs     = home.List.state_view(qt::home_group::needs_you);
+			auto* const following = home.List.state_view(qt::home_group::following);
+			auto* const delegate  = home.List.row_delegate();
+			expect(identities_of(*needs) == QStringList{ QStringLiteral("octo/app#4121"), QStringLiteral("octo/app#4108") }
+					   && identities_of(*following) == QStringList{ QStringLiteral("octo/app#4083"), QStringLiteral("octo/app#4090"), QStringLiteral("octo/app#4097") },
+				   "sections and order are unchanged: approved is in Following, an approval with new commits is Changed" + where);
+			const auto requested = needs->model()->index(0, 0);
+			const auto stale     = needs->model()->index(1, 0);
+			const auto commented = following->model()->index(0, 0);
+			const auto approved  = following->model()->index(2, 0);
+			expect(delegate->verdict_rect(option_for(*needs, requested), requested).isEmpty() && requested.data(qt::home_row_role::verdict).toString().isEmpty(),
+				   "a row I have not reviewed has no chip" + where);
+			const auto font = needs->font();
+			for (const auto& [view, index, words] : { std::tuple{ needs, stale, QStringLiteral("Approved · new commits") }, std::tuple{ following, approved, QStringLiteral("Approved") },
+													  std::tuple{ following, following->model()->index(1, 0), QStringLiteral("Changes requested") },
+													  std::tuple{ following, commented, QStringLiteral("Commented") } }) {
+				const auto option = option_for(*view, index);
+				const auto chip   = delegate->verdict_rect(option, index);
+				const auto row    = view->visualRect(index);
+				expect(index.data(qt::home_row_role::verdict).toString() == words, "the row's chip says " + words.toStdString() + where);
+				expect(!chip.isEmpty() && row.contains(chip), "the chip is drawn inside its row" + where);
+				auto side = font;
+				if (side.pointSizeF() > 0.0) {
+					side.setPointSizeF(side.pointSizeF() * 0.92);
+				}
+				expect(chip.width() >= QFontMetrics{ side }.horizontalAdvance(words) + 12, "the chip is complete, never elided" + where);
+				const auto reason = delegate->reason_rect(option, index);
+				expect(!reason.isEmpty() && !chip.intersects(reason) && !chip.intersects(delegate->facts_rect(option, index)), "the chip leaves the reason word and the facts their own place" + where);
+				expect(!chip.intersects(delegate->draft_rect(option, index)) && chip.top() > row.top() + qt::home_row_delegate::vertical_padding, "the chip leads the second line, under the title" + where);
+				const auto lines = delegate->line_texts(option, index).join(QString{ });
+				expect(lines.contains(index.data(qt::home_row_role::title).toString().split(QLatin1Char{ ' ' }).front()) && lines.contains(QStringLiteral("octo/app")) && !lines.contains(words),
+					   "the row's text wraps beside the chip and the chip's words are not in it" + where);
+				expect(index.data(Qt::AccessibleTextRole).toString().endsWith(index.data(qt::home_row_role::verdict_tip).toString()) && index.data(qt::home_row_role::verdict_tip).toString().startsWith(QStringLiteral("You ")),
+					   "the accessible name ends with the chip's sentence" + where);
+
+				// The tooltip is the sentence over the chip, and none elsewhere.
+				// Through the viewport, as a hover delivers it: anchored under the chip.
+				auto over = QHelpEvent{ QEvent::ToolTip, chip.center(), view->viewport()->mapToGlobal(chip.center()) };
+				QApplication::sendEvent(view->viewport(), &over);
+				const auto* const shown = qobject_cast<const QLabel*>(qt::anchored_tooltip());
+				expect(shown != nullptr && shown->isVisible() && shown->text() == index.data(qt::home_row_role::verdict_tip).toString(), "hovering the chip says the sentence" + where);
+				const auto anchor = QRect{ view->viewport()->mapToGlobal(chip.topLeft()), chip.size() };
+				expect(shown->geometry() == qt::anchored_tooltip_geometry(anchor, shown->size(), shown->screen()->availableGeometry()),
+					   "the tooltip is anchored to the chip, not to the pointer" + where);
+				const auto away = QPoint{ row.right() - (row.width() / 3), row.top() + 4 };
+				auto       off  = QHelpEvent{ QEvent::ToolTip, away, view->viewport()->mapToGlobal(away) };
+				QApplication::sendEvent(view->viewport(), &off);
+				expect(qt::anchored_tooltip() == nullptr || !qt::anchored_tooltip()->isVisible(), "the rest of the row has no verdict tooltip" + where);
+			}
+			const auto staleTip = stale.data(qt::home_row_role::verdict_tip).toString();
+			expect(staleTip.startsWith(QStringLiteral("You approved this on ")) && staleTip.endsWith(QStringLiteral("New commits were pushed after it.")), "the stale approval's sentence says so" + where);
+
+			// The approval's mark is in the theme's accepted ink; the stale one's is not.
+			const auto colours = qt::home_state_colours_for(profile);
+			const auto inked   = [&home, &colours](const QAbstractItemView& aView, const QRect& aChip) {
+				const auto image  = home.List.grab().toImage();
+				const auto ratio  = image.devicePixelRatio();
+				const auto origin = aView.viewport()->mapTo(&home.List, aChip.topLeft());
+				auto       count  = 0;
+				for (auto y = static_cast<int>(origin.y() * ratio); y < static_cast<int>((origin.y() + aChip.height()) * ratio); ++y) {
+					for (auto x = static_cast<int>(origin.x() * ratio); x < static_cast<int>((origin.x() + (aChip.height() * 1.5)) * ratio); ++x) {
+						count += close_to(image.pixelColor(x, y), colours.Added, 40) ? 1 : 0;
+					}
+				}
+				return count;
+			};
+			expect(inked(*following, delegate->verdict_rect(option_for(*following, approved), approved)) > 3, "an approval's check is in the accepted ink" + where);
+			expect(inked(*needs, delegate->verdict_rect(option_for(*needs, stale), stale)) == 0, "an approval with new commits after it has a quiet check" + where);
+		}
+		render_verdict_rows(queue, aRenderPath);
+	}
+
 	// A6 and A7: an empty ready queue is one sentence whatever the view asks for.
 	void test_an_empty_queue_is_one_sentence_in_every_grouping()
 	{
@@ -1940,6 +2091,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1365]]. The open review is quiet; Home shows one selection.
 	test_change_facts_keep_their_own_column();
 	test_the_open_review_is_quiet_and_never_the_selection(renderPath);
+	test_my_review_verdict_on_rows(renderPath);
 
 	std::cout << "home-list-tests:pass\n";
 	return EXIT_SUCCESS;

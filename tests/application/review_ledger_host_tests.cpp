@@ -103,6 +103,26 @@ namespace {
 			return { };
 		}
 
+		/// [[BPR-1699]]. All of them or none, as one transaction is.
+		auto store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			if (const auto failure = take_failure()) {
+				Log->emplace_back("conversation-batch-refused");
+				return std::unexpected(*failure);
+			}
+			Log->emplace_back("conversation-batch-stored");
+			++ConversationBatches;
+			for (const auto& receipt : aReceipts) {
+				std::erase_if(ConversationReceipts, [&receipt](const core::conversation_receipt& aStored) {
+					return aStored.Conversation == receipt.Conversation;
+				});
+				ConversationReceipts.push_back(receipt);
+			}
+			return { };
+		}
+		std::size_t ConversationBatches = 0U;
+
 		auto load_conversation_receipts() -> std::expected<
 			std::vector<core::conversation_receipt>,
 			application::ledger_store_failure> override
@@ -504,6 +524,11 @@ namespace {
 			pass();
 			return Target->store_conversation_receipt(aReceipt);
 		}
+		auto store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts) -> std::expected<void, application::ledger_store_failure> override
+		{
+			pass();
+			return Target->store_conversation_receipts(aReceipts);
+		}
 		auto load_conversation_receipts() -> std::expected<std::vector<core::conversation_receipt>, application::ledger_store_failure> override
 		{
 			pass();
@@ -692,6 +717,13 @@ namespace {
 		{
 			auto got = answer<void>{ };
 			Host.mark_conversation_unread(aThread, into(got));
+			return settled(got);
+		}
+		auto mark_all(const std::vector<application::conversation_thread_observation>& aThreads, const core::conversation_read_scope aScope = { })
+			-> std::expected<core::conversation_bulk_read, application::ledger_store_failure>
+		{
+			auto got = answer<core::conversation_bulk_read>{ };
+			Host.mark_conversations_read(aThreads, aScope, into(got));
 			return settled(got);
 		}
 		/// Loads first, as a caller that has never observed would.
@@ -1361,6 +1393,65 @@ namespace {
 			   "Mark read reads it again");
 	}
 
+	/// [[BPR-1699]]. A bulk Mark read is one batch through the store:
+	/// a refused batch keeps nothing, a committed one survives a new host,
+	/// a repeat writes nothing, and one author's mark leaves the rest new.
+	void test_bulk_mark_read_is_one_atomic_commit()
+	{
+		auto       log    = event_log{ };
+		auto       store  = recording_store{ log };
+		auto       rigged = rig{ store, log };
+		const auto bot    = core::review_author_of("coderabbitai[bot]");
+		const auto human  = core::review_author_of("tbutler");
+		const auto post   = [](const std::uint64_t aId, const core::review_author_id aAuthor) {
+			return core::conversation_post_observation{ .Comment = core::review_comment_id{ aId }, .Edit = core::comment_edit_version{ aId + 100U }, .Author = aAuthor };
+		};
+		const auto threads = std::vector<application::conversation_thread_observation>{
+			{ .Conversation = core::review_conversation_id{ 81U }, .Posts = { post(1U, bot) } },
+			{ .Conversation = core::review_conversation_id{ 82U }, .Posts = { post(2U, bot), post(3U, human) } },
+			{ .Conversation = core::review_conversation_id{ 83U }, .Posts = { post(4U, human) } },
+		};
+		const auto fresh = rigged.observe_conversations(threads);
+		expect(fresh && fresh->UnreadThreads == 3U, "the fixture starts with three new conversations");
+
+		// A refused batch: no receipt is stored or kept, the read state is
+		// as it was, and the answer says why.
+		const auto writes = rigged.Host.statistics().ConversationWrites;
+		store.fail_next(application::ledger_store_failure::unavailable);
+		const auto refused = rigged.mark_all(threads);
+		expect(!refused && refused.error() == application::ledger_store_failure::unavailable, "a refused batch answers its failure");
+		expect(store.ConversationReceipts.empty() && store.ConversationBatches == 0U && rigged.Host.statistics().ConversationWrites == writes + 1U,
+			   "one batch was attempted and nothing was stored");
+		expect(rigged.observe_conversations(threads) == fresh, "nothing is kept: every conversation is as new as before");
+
+		// One author: the bot's posts, up to the first post by anyone else.
+		const auto byBot = rigged.mark_all(threads, { .Author = bot });
+		expect(byBot && byBot->MarkedPosts == 2U && byBot->Receipts.size() == 2U && store.ConversationBatches == 1U && store.ConversationReceipts.size() == 2U,
+			   "the bot's two posts are read in one batch of two receipts");
+		const auto afterBot = rigged.observe_conversations(threads);
+		expect(afterBot && afterBot->UnreadThreads == 2U && afterBot->Threads[0].Conversation == core::review_conversation_id{ 82U }
+				   && afterBot->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 3U } }
+				   && afterBot->Threads[1].Conversation == core::review_conversation_id{ 83U },
+			   "the person's answer and their own thread stay new at once, from the kept receipts");
+
+		// Everything, then again: the repeat reaches no store.
+		const auto all = rigged.mark_all(threads);
+		expect(all && all->MarkedPosts == 2U && store.ConversationBatches == 2U && rigged.observe_conversations(threads)->Threads.empty(),
+			   "Mark all as read reads the rest in one more batch");
+		const auto batches = store.ConversationBatches;
+		const auto again   = rigged.mark_all(threads);
+		expect(again && again->Receipts.empty() && store.ConversationBatches == batches, "a repeated mark writes nothing");
+
+		// The durable result survives a new host over the same store.
+		auto restarted = rig{ store, log };
+		expect(restarted.observe_conversations(threads)->Threads.empty(), "the bulk mark is read back after a restart");
+		auto later = threads;
+		later[0].Posts.push_back(post(5U, bot));
+		const auto next = restarted.observe_conversations(later);
+		expect(next && next->UnreadThreads == 1U && next->Threads[0].UnreadPosts == std::vector{ core::review_comment_id{ 5U } } && next->Threads[0].SeenBefore,
+			   "the bot's next post is new: the mark muted nothing");
+	}
+
 	void test_receipt_action_projection_contains_only_core_legal_changes()
 	{
 		auto receipt       = seeded_receipt();
@@ -1368,8 +1459,12 @@ namespace {
 		receipt.Accepted   = true;
 		const auto actions = application::project_file_receipt_actions(receipt);
 
+		// [[BPR-1701]]. Seen is reached, so its slot carries the inverse
+		// gesture, as Accept's does: Mark unseen.
 		expect(actions.Receipt == receipt
-				   && !actions.Actions[0].Enabled
+				   && actions.Actions[0].Enabled
+				   && actions.Actions[0].Command.Kind
+					   == core::file_receipt_command_kind::mark_unread
 				   && actions.Actions[1].Enabled
 				   && actions.Actions[1].Command.Kind
 					   == core::file_receipt_command_kind::mark_read
@@ -1378,6 +1473,58 @@ namespace {
 					   == core::file_receipt_command_kind::revoke_acceptance
 				   && !actions.Actions[3].Enabled,
 			   "the four compact slots carry the inverse gestures and core legality");
+	}
+
+	/// [[BPR-1701]]. Seen and Read each toggle, as Accept does, and what
+	/// they leave is what a later host reads back from the store: taking Read
+	/// off leaves the file seen, taking Seen off leaves it unread, and
+	/// acceptance stays through both.
+	void test_seen_and_read_toggle_and_round_trip_through_the_store()
+	{
+		using kind  = core::file_receipt_command_kind;
+		auto log    = event_log{ };
+		auto store  = recording_store{ log };
+		auto writer = std::make_unique<rig>(store, log);
+		writer->Host.retain(seeded_receipt());
+
+		const auto take = [&writer](const std::size_t aSlot, const kind aExpected) {
+			const auto  projected = application::project_file_receipt_actions(writer->Host.retained());
+			const auto& action    = projected.Actions[aSlot];
+			expect(action.Enabled && action.Command.Kind == aExpected, "the slot offers the expected toggle");
+			const auto outcome = writer->submit(action.Command);
+			expect(outcome.Rejection == core::file_receipt_rejection::none && outcome.Changed, "the toggle is a durable change");
+			return outcome.Receipt;
+		};
+		const auto reread = [&store, &log](const core::file_receipt& aExpected) {
+			auto       reader = rig{ store, log };
+			const auto loaded = reader.load_receipt(aExpected.File);
+			return loaded.has_value() && loaded->has_value() && **loaded == aExpected;
+		};
+
+		static_cast<void>(take(1U, kind::mark_read));
+		const auto accepted = take(2U, kind::accept);
+		expect(accepted.Read == core::file_read_state::read && accepted.Accepted && reread(accepted), "a read, accepted file is durable");
+
+		const auto notRead = take(1U, kind::unmark_read);
+		expect(notRead.Read == core::file_read_state::seen && notRead.Accepted && store.Committed == notRead,
+			   "taking Read off commits a seen file that is still accepted");
+		expect(reread(notRead), "another host reads the file back as seen and accepted");
+
+		const auto unseen = take(0U, kind::mark_unread);
+		expect(unseen.Read == core::file_read_state::unread && unseen.Accepted && reread(unseen),
+			   "taking Seen off commits an unread file that is still accepted, and it reads back so");
+
+		static_cast<void>(take(2U, kind::revoke_acceptance));
+		const auto seenAgain = take(0U, kind::mark_seen);
+		expect(seenAgain.Read == core::file_read_state::seen && !seenAgain.Accepted, "Seen checks again");
+		const auto readAgain = take(1U, kind::mark_read);
+		const auto seenOnly  = take(1U, kind::unmark_read);
+		expect(readAgain.Read == core::file_read_state::read && seenOnly.Read == core::file_read_state::seen && reread(seenOnly),
+			   "Read checks and unchecks again, and the store holds the last one");
+		const auto cleared = take(0U, kind::mark_unread);
+		expect(cleared == core::file_receipt{ .File = seenOnly.File, .Material = seenOnly.Material } && reread(cleared),
+			   "Seen unchecked on an unaccepted file leaves a receipt with nothing on it");
+		writer.reset();
 	}
 
 	void test_hostile_note_competitors_are_bounded_before_projection()
@@ -2053,8 +2200,10 @@ auto main() -> int
 	test_material_load_failure_is_typed_and_changes_nothing();
 	test_agent_sessions_validate_admit_and_load_through_the_host();
 	test_receipt_action_projection_contains_only_core_legal_changes();
+	test_seen_and_read_toggle_and_round_trip_through_the_store();
 	test_conversation_read_state_loads_once_and_marks_read_through_the_store();
 	test_conversation_marks_unread_through_the_store();
+	test_bulk_mark_read_is_one_atomic_commit();
 	test_singleton_conversations_seen_before_and_restart();
 	test_a_held_store_operation_leaves_the_decision_lane_free();
 	test_admission_is_bounded();

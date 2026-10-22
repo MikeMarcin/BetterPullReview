@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1713"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A line clicked while a kept tab reloads",
+  "created": "2026-10-21T21:15:26.826664+00:00",
+  "base": "183237d580021930e773f6464e5876743bfba721"
+}

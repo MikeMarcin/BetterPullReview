@@ -112,8 +112,17 @@ namespace bpr::adapters::github::detail {
 			const auto& request   = endpoint.request();
 			const auto& key       = aSource.Comparison;
 			const auto& authority = request.WorkbenchAuthority;
-			const auto& commit    = request.Diff.Comparison.Right.Commit;
-			if (!application::valid(authority) || endpoint.side() != core::diff_side::right || !key.RightBlob || *key.RightBlob != endpoint.blob()
+			// RFC-BPR-0089, [[BPR-1706]]. A commit-filtered diff's side is the
+			// file at the filter's commit on that side, not at the comparison's
+			// right anchor (the head): its permalink names that commit. Only a
+			// filtered diff's left side has a permalink.
+			const auto  right = endpoint.side() == core::diff_side::right;
+			const auto& blob  = right ? key.RightBlob : key.LeftBlob;
+			if (!right && !key.Filter) {
+				return std::nullopt;
+			}
+			const auto& commit = key.Filter ? (right ? key.Filter->Right : key.Filter->Left) : request.Diff.Comparison.Right.Commit;
+			if (!application::valid(authority) || !blob || *blob != endpoint.blob()
 				|| key.File != request.File.File || key.RightAnchor != request.Diff.Comparison.Right.Identity
 				|| key.LeftAnchor != request.Diff.Comparison.Left.Identity || key.Authority != request.Diff.Authority
 				|| key.Options != request.Diff.OptionsDigest || key.Algorithm != request.Diff.Algorithm
@@ -223,7 +232,7 @@ namespace bpr::adapters::github::detail {
 	auto compile_review_permalink_body(const review_permalink_source& aSource, const core::source_line_ref& aAnchor, const std::string_view aProse) -> std::optional<std::string>
 	{
 		const auto prefix = source_url_prefix(aSource);
-		if (!application::valid(aSource.Target) || !prefix || !valid_prose(aProse) || aAnchor.Side != core::diff_side::right
+		if (!application::valid(aSource.Target) || !prefix || !valid_prose(aProse) || aAnchor.Side != aSource.Endpoint->side()
 			|| aAnchor.Comparison != core::comparison_digest(aSource.Comparison) || aAnchor.Line >= aSource.LineCount
 			|| aSource.Endpoint->request().Diff.Comparison.Right.Commit != aSource.Target.Semantic.ExpectedHead) {
 			return std::nullopt;
@@ -261,7 +270,7 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 		return parsed_review_permalink{
-			.Anchor = { .Comparison = core::comparison_digest(aSource.Comparison), .Side = core::diff_side::right, .Line = line - 1U },
+			.Anchor = { .Comparison = core::comparison_digest(aSource.Comparison), .Side = aSource.Endpoint->side(), .Line = line - 1U },
 			.Prose  = std::string{ prose },
 		};
 	}

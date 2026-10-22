@@ -120,6 +120,27 @@ namespace bpr::core {
 	/// \details The view paints by these, so its cells are the editor's columns.
 	[[nodiscard]] auto text_clusters(std::string_view aContent, std::uint32_t aTabWidth) -> std::vector<text_cluster>;
 
+	/// \brief [[RFC-BPR-0090]]. The only lines an edit may change: from line
+	/// `First` to the line before the last `After` lines.
+	/// \details Only the selected lines are editable in pull request review
+	/// (owner, 2026-10-21). The span runs from the start of the first line to
+	/// the end of the last line's text; everything before it, the last line's
+	/// ending and everything after it are fixed. Both counts are fixed too, so
+	/// the range grows and shrinks with the line breaks inside it.
+	struct editable_lines
+	{
+		std::uint64_t First                                    = 0;
+		std::uint64_t After                                    = 0;
+		auto          operator<=>(const editable_lines&) const = default;
+	};
+
+	/// \brief Why the last edit changed nothing.
+	enum class suggestion_edit_refusal : std::uint8_t {
+		none,
+		/// It would have changed a fixed byte outside the editable lines.
+		fixed_text,
+	};
+
 	struct suggestion_text_state
 	{
 		/// Never empty: an empty text is one empty line.
@@ -134,7 +155,9 @@ namespace bpr::core {
 		/// The column each caret aims for while Up and Down move it, kept
 		/// across lines too short to reach it; empty after any other gesture.
 		std::vector<std::uint64_t> Goals;
-		auto                       operator<=>(const suggestion_text_state&) const = default;
+		/// The editable lines, when only some are; every step of undo has them.
+		std::optional<editable_lines> Editable;
+		auto                          operator<=>(const suggestion_text_state&) const = default;
 	};
 
 	enum class text_motion : std::uint8_t {
@@ -263,6 +286,19 @@ namespace bpr::core {
 		/// \brief An editor over exact bytes, with one caret at the start.
 		explicit suggestion_text_editor(std::string_view aText = { }, std::uint32_t aTabWidth = default_suggestion_tab_width);
 
+		/// \brief [[RFC-BPR-0090]]. Only lines `aFirst` to `aLast` may change
+		/// from now on; the history starts again.
+		/// \details The carets may still go anywhere, select and copy. A text
+		/// edit with a caret wholly outside the lines, or whose result would
+		/// change a fixed byte, is refused whole (`last_refusal`). A selection
+		/// that reaches into fixed text is clipped to the span first, so a
+		/// triple-clicked last line is replaced without its line break. Select
+		/// All selects the span.
+		void set_editable_lines(std::uint64_t aFirst, std::uint64_t aLast);
+		/// \brief The first and last editable lines now, when only some are.
+		[[nodiscard]] auto editable_range() const -> std::optional<std::pair<std::uint64_t, std::uint64_t>>;
+		/// \brief Why the last `apply` changed nothing, when a fixed byte stopped it.
+		[[nodiscard]] auto last_refusal() const noexcept -> suggestion_edit_refusal;
 		/// \brief How Enter indents from now on; the text is unchanged.
 		void               set_indentation(text_indentation aIndentation);
 		[[nodiscard]] auto indentation() const noexcept -> const text_indentation&;
@@ -304,7 +340,8 @@ namespace bpr::core {
 		std::vector<suggestion_text_state> Undo;
 		std::vector<suggestion_text_state> Redo;
 		/// The last edit was a single typed character that later typing may join.
-		bool Typing = false;
+		bool                    Typing  = false;
+		suggestion_edit_refusal Refusal = suggestion_edit_refusal::none;
 	};
 
 	/// \brief Splits exact bytes into lines with their endings.

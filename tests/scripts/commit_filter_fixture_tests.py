@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""RFC-BPR-0089. commit-filter-v1, commit-filter-attributes-v1 and
-commit-filter-split-v1 are exactly what their builder writes.
+"""RFC-BPR-0089. commit-filter-v1, commit-filter-attributes-v1,
+commit-filter-split-v1 and commit-filter-comment-v1 are exactly what their
+builder writes.
 
 The builder runs into a scratch root. Metadata equals the committed bytes;
 Git validates each pack and its complete object inventory equals the committed
@@ -30,8 +31,9 @@ VARIANTS = {
     "commit_filter_v1": ("commit-filter-v1", []),
     "commit_filter_attributes_v1": ("commit-filter-attributes-v1", ["--attributes"]),
     "commit_filter_split_v1": ("commit-filter-split-v1", ["--split"]),
+    "commit_filter_comment_v1": ("commit-filter-comment-v1", ["--comment"]),
 }
-FILES = {"commit-filter-v1": 98, "commit-filter-attributes-v1": 98, "commit-filter-split-v1": 99}
+FILES = {"commit-filter-v1": 98, "commit-filter-attributes-v1": 98, "commit-filter-split-v1": 99, "commit-filter-comment-v1": 99}
 BASE_PLACEHOLDER = "1" * 40
 HEAD_PLACEHOLDER = "2" * 40
 

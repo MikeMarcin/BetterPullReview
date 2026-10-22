@@ -529,6 +529,14 @@ namespace bpr::adapters::logging {
 				State->drop();
 				return status_type::dropped;
 			}
+			// [[BPR-1722]]. A known ending is exactly its line too, and a
+			// record carries an ending or an unknown reason, never both.
+			if (aEvent.ReviewEnding
+				&& (aEvent.ReviewSubmission || !core::valid(*aEvent.ReviewEnding) || aEvent.Operation != application::diagnostic_operation::review_submission || aEvent.GithubFailure.index() != 0U || aEvent.EpochFailure.index() != 0U
+					|| aEvent.Summary.State != application::diagnostic_summary_state::sanitized || aEvent.Summary.text() != core::describe(*aEvent.ReviewEnding))) {
+				State->drop();
+				return status_type::dropped;
+			}
 			// [[BPR-1680]]. A discovery line's detail is exactly a discovery
 			// diagnosis, so it can name no host, repository or account.
 			if (aEvent.Operation == application::diagnostic_operation::discovery
@@ -554,8 +562,8 @@ namespace bpr::adapters::logging {
 
 				static constexpr quill::MacroMetadata metadata{ "", "", "{}", nullptr, quill::LogLevel::Info, quill::MacroMetadata::Event::Log };
 				const auto                            githubFailure = aEvent.GithubFailure.index() != 0U;
-				const auto                            failureDomain = aEvent.ReviewSubmission ? std::string_view{ "review_submission" } : githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation")
-																																						: domains[aEvent.EpochFailure.index()];
+				const auto                            failureDomain = aEvent.ReviewSubmission || aEvent.ReviewEnding ? std::string_view{ "review_submission" } : githubFailure ? (aEvent.GithubFailure.index() == 1U ? "github" : "validation")
+																																											   : domains[aEvent.EpochFailure.index()];
 				const auto                            failure       = aEvent.ReviewSubmission ? core::name(aEvent.ReviewSubmission->Reason)
 					: githubFailure                                                           ? std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.GithubFailure)
 																							  : std::visit([](auto aFailure) { return failure_name(aFailure); }, aEvent.EpochFailure);
@@ -721,7 +729,7 @@ namespace bpr::adapters::logging {
 			std::lock_guard lock{ Mutex };
 			refresh_context();
 			flush();
-			application::diagnostic_export_capture result{ Session, Sequence, { } };
+			application::diagnostic_export_capture result{ Session, Sequence, { }, BPR_DIAGNOSTIC_BUILD };
 			if (aIncludeRecent) {
 				result.Recent.reserve(Recent.size());
 				for (const auto& item : Recent) {

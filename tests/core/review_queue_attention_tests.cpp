@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -379,6 +380,49 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1718]]. The reviewer's standing verdict, its staleness and
+	/// its dismissal, from their submitted reviews oldest first.
+	void test_my_standing_review_verdict()
+	{
+		using verdict  = core::my_review_verdict;
+		const auto rev = [](const verdict aState, const std::int64_t aAt, const std::optional<bool> aOnHead = true) {
+			return core::my_submitted_review{ .State = aState, .SubmittedAt = aAt, .OnHead = aOnHead };
+		};
+		const auto of = [](const std::vector<core::my_submitted_review>& aReviews) { return core::my_review_for(aReviews); };
+
+		expect(of({ }) == core::queue_my_review{ }, "no review read is no verdict");
+		expect(of({ rev(verdict::approved, 100) }) == core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = 100, .NewCommits = false },
+			   "an approval on the current head is approved, with its time");
+		expect(of({ rev(verdict::approved, 100, false) }) == core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = 100, .NewCommits = true },
+			   "an approval of an earlier head has new commits after it");
+		expect(!of({ rev(verdict::approved, 100, std::nullopt) }).NewCommits, "an unknown commit says nothing about new commits");
+		expect(of({ rev(verdict::approved, 100, false), rev(verdict::commented, 200) }) == core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = 100, .NewCommits = true },
+			   "a later comment keeps the approval standing, and its staleness is the approval's own");
+		expect(of({ rev(verdict::commented, 50), rev(verdict::changes_requested, 100) }).Verdict == verdict::changes_requested, "a change request replaces a comment");
+		expect(of({ rev(verdict::approved, 100), rev(verdict::changes_requested, 200) }) == core::queue_my_review{ .Verdict = verdict::changes_requested, .SubmittedAt = 200 },
+			   "the latest verdict wins");
+		expect(of({ rev(verdict::changes_requested, 100), rev(verdict::approved, 200) }).Verdict == verdict::approved, "an approval after a change request is approved");
+		expect(of({ rev(verdict::commented, 70, false) }) == core::queue_my_review{ .Verdict = verdict::commented, .SubmittedAt = 70, .NewCommits = true },
+			   "comments alone are commented, and can be overtaken by commits");
+		expect(of({ rev(verdict::commented, 70), rev(verdict::commented, 90, false) }).SubmittedAt == std::optional<std::int64_t>{ 90 }, "the latest of several comments is the one said");
+
+		// Dismissal: never approved.
+		const auto dismissed = of({ rev(verdict::approved, 100), rev(verdict::dismissed, 150, false) });
+		expect(dismissed == core::queue_my_review{ .Verdict = verdict::dismissed, .SubmittedAt = 150, .NewCommits = false },
+			   "a dismissed review after an approval is dismissed, never approved, and has no staleness");
+		expect(of({ rev(verdict::dismissed, 100), rev(verdict::commented, 150) }) == core::queue_my_review{ .Verdict = verdict::commented, .SubmittedAt = 150 },
+			   "a comment after a dismissal is what was last said");
+		expect(of({ rev(verdict::commented, 50), rev(verdict::dismissed, 100) }).Verdict == verdict::dismissed, "a comment before a dismissal does not outlast it");
+		expect(of({ rev(verdict::dismissed, 100), rev(verdict::approved, 200) }).Verdict == verdict::approved, "approving again after a dismissal is approved");
+		expect(of({ core::my_submitted_review{ .State = verdict::approved } }) == core::queue_my_review{ .Verdict = verdict::approved }, "an unread time is no time");
+
+		auto names = std::vector<std::string_view>{ };
+		for (const auto value : { verdict::none, verdict::commented, verdict::changes_requested, verdict::approved, verdict::dismissed }) {
+			names.push_back(core::name(value));
+		}
+		std::ranges::sort(names);
+		expect(std::ranges::adjacent_find(names) == names.end() && std::ranges::none_of(names, &std::string_view::empty), "every verdict has its own name");
+	}
 } // namespace
 
 auto main() -> int
@@ -404,6 +448,7 @@ auto main() -> int
 	test_the_order_is_total_whatever_order_the_host_supplies();
 	test_ordering_is_repeatable();
 	test_the_reason_travels_with_the_item();
+	test_my_standing_review_verdict();
 
 	std::cout << "review-queue-attention-tests:pass\n";
 	return EXIT_SUCCESS;

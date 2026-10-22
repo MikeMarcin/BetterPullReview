@@ -46,6 +46,23 @@ namespace bpr::app {
 		void materialize_draft(core::revisioned_review_draft, core::revisioned_review_draft_command, draft_completion);
 		/// [[BPR-1345]]. Every command in one store transaction, or none.
 		void change_drafts(std::vector<core::revisioned_review_draft_command>, draft_completion);
+		/// \brief [[BPR-1733]]. A kept suggestion written on another head of
+		/// this pull request than the one bound, and that head.
+		struct earlier_suggestion
+		{
+			core::revisioned_review_draft Draft;
+			core::git_commit_oid          Head;
+		};
+		using earlier_completion = std::function<void(std::vector<earlier_suggestion>)>;
+		/// \brief [[BPR-1733]]. Every kept suggestion of this pull request on
+		/// another head than the one bound: a draft still being written whose
+		/// body is one suggestion (`core::decide_suggestion_head_move`). Read on
+		/// the store's lane; answers on the decision lane, with none when the
+		/// store refuses or the binding moved meanwhile.
+		void earlier_suggestions(earlier_completion);
+		/// \brief [[BPR-1733]]. Deletes one of them at the revision shown, once
+		/// it is carried. Answers on the decision lane whether it was deleted.
+		void discard_earlier_suggestion(core::review_draft_id, std::uint64_t aRevision, std::function<void(bool)>);
 		void settle_review_comments(std::string aKey, bool aPublished, std::optional<core::review_submission_proposal>);
 		/// [[BPR-1245]]. Records the draft as it stands on this lane, after every draft change
 		/// already queued, as one reviewer revision that History then shows; answers on the decision lane.

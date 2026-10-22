@@ -22,6 +22,7 @@ add_library(
         src/device_authorization_transition.cpp
         src/xdiff_line_matcher.cpp
         src/cpp_identifier_context.cpp
+        src/known_namespaces.cpp
         src/diff_compute.cpp
         src/diff_intraline.cpp
 		src/diff_interaction.cpp
@@ -30,6 +31,7 @@ add_library(
         src/comparison_preparation.cpp
         src/commit_filter.cpp
         src/generated_files.cpp
+        src/filtered_comment.cpp
         src/header_source_navigation.cpp
         src/diff_transition.cpp
         src/document_tabs.cpp
@@ -118,6 +120,7 @@ add_library(
         src/feedback_workshop_candidate.cpp
         src/suggestion_applicability.cpp
         src/suggestion_draft.cpp
+        src/pull_request_suggestion.cpp
         src/review_comment_range.cpp
         src/review_tour_reconciliation.cpp
     src/review_tour_revision.cpp

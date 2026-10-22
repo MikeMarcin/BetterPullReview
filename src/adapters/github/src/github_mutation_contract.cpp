@@ -920,6 +920,16 @@ namespace bpr::adapters::github::detail {
 		/// each are 6,200 values, over the ordinary 4,096.
 		constexpr auto list_preflight_limits = json_preflight_limits{ .Values = maximum_review_mutation_list_values };
 
+		/// \brief [[BPR-1706]]. The source a file comment's permalink names: the
+		/// right document, or for a commit-filtered diff's left line the core
+		/// placed as a file comment, the left one.
+		[[nodiscard]] auto permalink_source(const application::review_mutation_source_binding& aSource, const application::review_mutation_target_binding& aTarget,
+											const core::diff_side aSide) -> review_permalink_source
+		{
+			const auto left = aSource.Placement == core::review_placement::unresolvable_line && aSide == core::diff_side::left;
+			return { .Target = aTarget, .Endpoint = left ? aSource.LeftEndpoint : aSource.Endpoint, .Comparison = aSource.Comparison, .LineCount = aSource.LineCount };
+		}
+
 		[[nodiscard]] auto publication_body(const application::review_mutation_request& aRequest) -> std::optional<std::string>
 		{
 			if (aRequest.Representation == core::review_publication_representation::native_line) {
@@ -932,11 +942,8 @@ namespace bpr::adapters::github::detail {
 				|| core::classify_review_body(aRequest.Proposal.Body) != core::review_body_compatibility::portable) {
 				return std::nullopt;
 			}
-			return compile_review_permalink_body({ .Target     = aRequest.LiveBinding->Target,
-												   .Endpoint   = aRequest.Source->Endpoint,
-												   .Comparison = aRequest.Source->Comparison,
-												   .LineCount  = aRequest.Source->LineCount },
-												 aRequest.Proposal.Anchor, aRequest.Proposal.Body);
+			return compile_review_permalink_body(permalink_source(*aRequest.Source, aRequest.LiveBinding->Target, aRequest.Proposal.Anchor.Side), aRequest.Proposal.Anchor,
+												 aRequest.Proposal.Body);
 		}
 
 		[[nodiscard]] auto mutation_body(const application::review_mutation_request& aRequest) -> std::string
@@ -955,9 +962,10 @@ namespace bpr::adapters::github::detail {
 			auto       object = comment_submission_json{
 				.Body     = aRequest.Proposal.Body,
 				.CommitId = commit.view(),
-				.Line     = static_cast<std::uint64_t>(binding.Anchor.Semantic.Line) + 1U,
-				.Path     = binding.Anchor.Path,
-				.Side     = side,
+				// RFC-BPR-0089 M4. A filtered diff's line the host placed.
+				.Line = static_cast<std::uint64_t>(application::remote_line(binding.Anchor)) + 1U,
+				.Path = binding.Anchor.Path,
+				.Side = side,
 			};
 			if (aRequest.Proposal.StartLine) {
 				object.StartLine = static_cast<std::uint64_t>(*aRequest.Proposal.StartLine) + 1U;
@@ -1301,16 +1309,27 @@ namespace bpr::adapters::github::detail {
 			const auto  expectedBody = publication_body(aExpected);
 			if ((aResponse.SubjectType && *aResponse.SubjectType != "line" && !fileSubject)
 				|| (fileSubject && !valid_file_subject_metadata(aResponse))
-				|| (!fileSubject && !aResponse.Line)) {
+				|| (aResponse.OriginalLine && (*aResponse.OriginalLine == 0U || *aResponse.OriginalLine > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
+			// RFC-BPR-0089 M4. A comment written on an earlier commit at a line
+			// a later one changed is outdated from the start (measured on
+			// BPR-Test #116): GitHub keeps `commit_id` there and reports no
+			// `line`. It is ours by the commit and line it was written at. Any
+			// other outdated comment, anyone's, is well formed and not ours.
+			const auto earlier = binding.Anchor.Commit != binding.Target.Semantic.ExpectedHead;
+			if (!fileSubject && !aResponse.Line && !earlier) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			const auto writtenCommit = earlier ? core::parse_git_commit_oid(aResponse.OriginalCommitId.value_or(std::string{ })) : commit;
+			const auto writtenLine   = earlier ? aResponse.OriginalLine : aResponse.Line;
 			// [[BPR-1212]]. A range is ours only with its exact first line on
 			// the same side; a single line only without one, so a range ending
 			// at the same line with the same text is never taken for it.
 			const auto expectedStart = aExpected.Proposal.StartLine ? std::optional<std::uint64_t>{ static_cast<std::uint64_t>(*aExpected.Proposal.StartLine) + 1U } : std::nullopt;
-			if (aResponse.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
+			if (aResponse.Path != binding.Anchor.Path || writtenCommit != std::optional{ binding.Anchor.Commit }
 				|| fileSubject != wantsFile || !expectedBody || aResponse.Body != *expectedBody
-				|| (!fileSubject && (aResponse.Side != expectedSide || *aResponse.Line - 1U != binding.Anchor.Semantic.Line))
+				|| (!fileSubject && (aResponse.Side != expectedSide || !writtenLine || *writtenLine - 1U != application::remote_line(binding.Anchor)))
 				|| (!fileSubject && (aResponse.StartLine != expectedStart || (expectedStart ? aResponse.StartSide != expectedSide : aResponse.StartSide.has_value())))
 				|| aResponse.User.Id != binding.ActingIdentity.DatabaseId
 				|| aResponse.User.NodeId != binding.ActingIdentity.NodeId
@@ -2854,6 +2873,46 @@ namespace bpr::adapters::github::detail {
 		return off_hunk_unsupported_contract{ .Resource = "PullRequestReviewComment", .Field = "pull_request_review_thread.line", .Code = "custom", .Message = "could not be resolved", .RecordedDesignatedScope = true };
 	}
 
+	auto refusal_names_unplaceable_line(const std::string_view aBody) -> bool
+	{
+		auto       envelope = diagnostic_json_object{ };
+		const auto body     = std::string{ aBody };
+		if (body.size() > 4096U || !json_preflight{ body }.run() || glz::read<review_json_options{ }>(envelope, body)) {
+			return false;
+		}
+		const auto found = envelope.find("errors");
+		if (found == envelope.end()) {
+			return false;
+		}
+		const auto unplaceable = [](std::string aText) {
+			std::ranges::transform(aText, aText.begin(), [](const unsigned char aValue) { return static_cast<char>(std::tolower(aValue)); });
+			return std::ranges::any_of(std::array<std::string_view, 3>{ "line must be part of the diff", "line could not be resolved", "diff hunk can't be blank" },
+									   [&aText](const std::string_view aWords) { return aText.find(aWords) != std::string::npos; });
+		};
+		auto texts = std::vector<std::string>{ };
+		if (!glz::read<review_json_options{ }>(texts, found->second.str)) {
+			return texts.size() <= 8U && std::ranges::any_of(texts, unplaceable);
+		}
+		auto errors = std::vector<diagnostic_json_object>{ };
+		if (glz::read<review_json_options{ }>(errors, found->second.str) || errors.size() > 8U) {
+			return false;
+		}
+		return std::ranges::any_of(errors, [&unplaceable](const diagnostic_json_object& aError) {
+			const auto message = aError.find("message");
+			auto       text    = std::string{ };
+			if (message == aError.end() || glz::read<review_json_options{ }>(text, message->second.str)) {
+				return false;
+			}
+			// GitHub's single-comment form names the field apart from the words.
+			const auto field = aError.find("field");
+			auto       named = std::string{ };
+			if (field != aError.end() && !glz::read<review_json_options{ }>(named, field->second.str) && named.ends_with("line")) {
+				text = "line " + text;
+			}
+			return unplaceable(std::move(text));
+		});
+	}
+
 	auto definitive_off_hunk_unsupported(const review_mutation_wire_response& aResponse,
 										 const review_mutation_wire_request& aRequest, const off_hunk_unsupported_contract& aContract) -> bool
 	{
@@ -3060,6 +3119,11 @@ namespace bpr::adapters::github::detail {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
 			if (review.State == "DISMISSED" || !review.User || !review.Body || !review.CommitId) {
+				// [[BPR-1715]]. One that could be the request's own is
+				// not proof that the request created nothing.
+				if (!review.User || review.User->Id == aExpected.ActingIdentity.DatabaseId || review.User->Login == aExpected.ActingIdentity.Login) {
+					result.UncertainReviews.emplace_back(review.Id);
+				}
 				continue;
 			}
 			const auto exact = review_observation(review_response_json{
@@ -3073,6 +3137,7 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 		std::ranges::sort(result.ReviewIds);
+		std::ranges::sort(result.UncertainReviews);
 		if (std::ranges::adjacent_find(result.ReviewIds) != result.ReviewIds.end()) {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
@@ -3352,9 +3417,11 @@ namespace bpr::adapters::github::detail {
 
 	namespace {
 		/// \brief [[BPR-1560]]. Whether the comment sits on a LEFT line.
+		/// [[BPR-1706]]. A left line published as a file comment names no LEFT line.
 		[[nodiscard]] auto publishes_left(const application::review_mutation_request& aRequest) noexcept -> bool
 		{
-			return !aRequest.Proposal.ReplyToThread && aRequest.Proposal.Anchor.Side == core::diff_side::left;
+			return !aRequest.Proposal.ReplyToThread && aRequest.Proposal.Anchor.Side == core::diff_side::left
+				&& !(aRequest.Source && aRequest.Source->Placement == core::review_placement::unresolvable_line);
 		}
 	}
 
@@ -3638,7 +3705,7 @@ namespace bpr::adapters::github::detail {
 			auto        anchor    = std::string{ "bpr-capability-anchor-v1" };
 			append_fingerprint_text(anchor, digest_hex(canonical_authority_fingerprint(*aRequest.LiveBinding)));
 			append_fingerprint_text(anchor, aRequest.LiveBinding->Anchor.Path);
-			append_fingerprint_integer(anchor, aRequest.LiveBinding->Anchor.Semantic.Line);
+			append_fingerprint_integer(anchor, application::remote_line(aRequest.LiveBinding->Anchor));
 			append_fingerprint_oid(anchor, aRequest.LiveBinding->Anchor.Commit);
 			return { .Profile = authority.Profile, .ProfileRevision = authority.ProfileRevision, .Host = authority.Host, .Hostname = authority.Hostname, .ServerContract = authority.ServerContract, .Actor = aConfig.ActingIdentity, .RepositoryDatabaseId = aConfig.Target.RepositoryDatabaseId, .RepositoryNodeId = aConfig.Target.RepositoryNodeId, .ClassifierRevision = off_hunk_classifier_revision, .FreshnessGeneration = aConfig.CredentialContext.IdentityGeneration.value(), .AnchorDigest = text_digest(anchor) };
 		}
@@ -3841,13 +3908,31 @@ namespace bpr::adapters::github::detail {
 		// on the head's path. It has no permalink form, so its source is held
 		// to the same comparison, head and line count directly, and it never
 		// falls back to a file comment.
-		const auto onBase      = aRequest.Proposal.Anchor.Side == core::diff_side::left && !aRequest.Proposal.ReplyToThread;
-		const auto sourceFound = onBase
+		// [[BPR-1706]]. A commit-filtered diff's line GitHub resolves nowhere is
+		// a file comment from the start, at the head's path with commit_id =
+		// head, its permalink naming the line at the diff's commit on its side.
+		const auto unresolvable = source.Placement == core::review_placement::unresolvable_line;
+		const auto onBase       = aRequest.Proposal.Anchor.Side == core::diff_side::left && !aRequest.Proposal.ReplyToThread;
+		const auto sourceFound  = onBase && !unresolvable
 			? aRequest.Representation == core::review_publication_representation::native_line && source.Endpoint
 				&& aRequest.Proposal.Anchor.Comparison == core::comparison_digest(source.Comparison) && aRequest.Proposal.Anchor.Line < source.LineCount
 				&& source.Endpoint->request().Diff.Comparison.Right.Commit == Configuration.Target.Semantic.ExpectedHead
-			: compile_review_permalink_body({ .Target = Configuration.Target, .Endpoint = source.Endpoint, .Comparison = source.Comparison, .LineCount = source.LineCount }, aRequest.Proposal.Anchor, "Source validation").has_value();
-		if (!source.Endpoint || source.Placement > core::review_placement::off_hunk
+			: compile_review_permalink_body(permalink_source(source, Configuration.Target, aRequest.Proposal.Anchor.Side), aRequest.Proposal.Anchor, "Source validation").has_value();
+		// RFC-BPR-0089 M4. A line the host placed is a commit-filtered diff's,
+		// published natively as one line: on the head, or on that diff's own
+		// right commit, which the epoch host authorized as a commit of the
+		// pull request's first-parent chain.
+		const auto& anchor   = aRequest.LiveBinding->Anchor;
+		const auto  placedOk = !anchor.RemoteLine
+			|| (source.Comparison.Filter && source.Placement == core::review_placement::legacy_line
+				&& aRequest.Representation == core::review_publication_representation::native_line && !aRequest.Proposal.StartLine
+				&& !aRequest.Proposal.ReplyToThread
+				&& (anchor.Commit == Configuration.Target.Semantic.ExpectedHead
+					|| (anchor.Semantic.Side == core::diff_side::right && source.Comparison.Filter->Right == anchor.Commit)));
+		const auto unresolvableOk = !unresolvable
+			|| (source.Comparison.Filter && !anchor.RemoteLine && anchor.Commit == Configuration.Target.Semantic.ExpectedHead
+				&& aRequest.Representation == core::review_publication_representation::native_line && !aRequest.Proposal.StartLine && !aRequest.Proposal.ReplyToThread);
+		if (!source.Endpoint || source.Placement > core::review_placement::unresolvable_line || !placedOk || !unresolvableOk
 			|| source.Comparison.Authority.Profile != authority.Profile || source.Comparison.Authority.ProfileRevision.value() != authority.ProfileRevision.value()
 			|| source.Comparison.Authority.Account != authority.Account || source.Endpoint->path().generic_string() != aRequest.LiveBinding->Anchor.Path
 			|| !sourceFound) {
@@ -3874,7 +3959,7 @@ namespace bpr::adapters::github::detail {
 			const auto evidence    = PublicationCapabilities.lookup(capability_key(Configuration, aRequest), publication_now());
 			const auto observation = core::review_publication_observation{ .Placement         = source.Placement,
 																		   .Capability        = evidence ? evidence->State : core::off_hunk_creation_capability::unknown,
-																		   .Body              = aRequest.Proposal.StartLine || onBase ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
+																		   .Body              = aRequest.Proposal.StartLine || (onBase && !unresolvable) ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
 																		   .State             = current ? current->State : publication_state::initial,
 																		   .Eligible          = true,
 																		   .CapabilityCurrent = evidence.has_value() };
@@ -3895,6 +3980,17 @@ namespace bpr::adapters::github::detail {
 				if (plan.Action == action::admit_unsupported_evidence) {
 					next.State         = publication_state::unsupported_evidence_admitted;
 					next.Authorization = { .Source = application::review_fallback_authorization_source::scoped_evidence, .ContractDigest = evidence->ContractDigest, .ScopeDigest = capability_scope_digest(aRequest, Configuration), .Generation = capability_key(Configuration, aRequest).FreshnessGeneration, .ObservedAt = evidence->ObservedAt, .ExpiresAt = evidence->ExpiresAt };
+				} else if (plan.Action == action::admit_unresolvable_line) {
+					// [[BPR-1706]]. The admission binds the exact file comment it
+					// authorizes and the authority it is written under.
+					auto file           = aRequest;
+					file.Representation = representation::file_comment_with_permalink;
+					const auto wire     = compile_review_comment_request(file, Configuration.Target.ServerContract);
+					if (!wire) {
+						return publication_failure(application::review_mutation_failure::incompatible_body);
+					}
+					next.State         = publication_state::unresolvable_line_admitted;
+					next.Authorization = { .Source = application::review_fallback_authorization_source::unresolvable_line, .ContractDigest = canonical_write_fingerprint(*wire), .ScopeDigest = canonical_authority_fingerprint(*aRequest.LiveBinding) };
 				} else {
 					const auto baseline = reconcile(aRequest, aStop);
 					if (!baseline) {
@@ -3916,7 +4012,9 @@ namespace bpr::adapters::github::detail {
 				if (!ownsPrepared) {
 					continue;
 				}
-			} else if (plan.Action == action::fallback_attempt && (current->State == publication_state::native_definitively_unsupported || current->State == publication_state::unsupported_evidence_admitted)) {
+			} else if (plan.Action == action::fallback_attempt
+					   && (current->State == publication_state::native_definitively_unsupported || current->State == publication_state::unsupported_evidence_admitted
+						   || current->State == publication_state::unresolvable_line_admitted)) {
 				if (const auto exact = observe_exact(aStop, publishes_left(aRequest)); !exact) {
 					result.Result = std::unexpected(exact.error());
 					return result;
@@ -4130,7 +4228,10 @@ namespace bpr::adapters::github::detail {
 				|| !application::valid(*aRequest.LiveBinding)
 				|| aRequest.Representation != core::review_publication_representation::native_line
 				|| aRequest.LiveBinding->Target != Configuration.Target
-				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity
+				// RFC-BPR-0089 M4. A placed line is published only from its
+				// filtered diff's source, through the logical journal.
+				|| (aRequest.LiveBinding->Anchor.RemoteLine && (!aRequest.Source || aRequest.Proposal.ReplyToThread))) {
 				return failure(application::review_mutation_failure::undesignated_target);
 			}
 			const auto wire = compile_review_comment_request(

@@ -39,7 +39,9 @@ namespace bpr::application {
 		void accepted_position(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_position& aPosition);
 		/// \brief [[BPR-1131]]. Retains the window's accepted document tabs for its
 		/// current accepted destination, persisted with its reading.
-		void               accepted_tabs(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_tabs& aTabs);
+		void accepted_tabs(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_tabs& aTabs);
+		/// \brief RFC-BPR-0089 ([[BPR-1688]]). The window's commit and file filters.
+		void               accepted_filters(core::bpr_window_context aContext, const core::window_review_destination& aDestination, const core::window_review_filters& aFilters);
 		void               close(core::bpr_window_context aContext);
 		[[nodiscard]] auto window_quiescent(core::bpr_window_context aContext) const noexcept -> bool;
 		/// Explicit recovery reloads revision authority; preserves trusted pending records, never retries conflict blindly.

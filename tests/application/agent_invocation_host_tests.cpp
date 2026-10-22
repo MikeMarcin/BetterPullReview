@@ -349,6 +349,13 @@ namespace {
 			return { };
 		}
 
+		[[nodiscard]] auto store_conversation_receipts(std::span<const core::conversation_receipt>)
+			-> std::expected<void, application::ledger_store_failure> override
+		{
+			Touched.emplace_back("store_conversation_receipts");
+			return { };
+		}
+
 		[[nodiscard]] auto load_conversation_receipts() -> std::expected<
 			std::vector<core::conversation_receipt>,
 			application::ledger_store_failure> override

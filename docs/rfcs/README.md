@@ -650,11 +650,29 @@ qualification remains a separate obligation.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0089](RFC-BPR-0089-commit-scoped-review-and-generated-files.md) | Filter a pull request's review by its commits and set generated files aside | Proposed | RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0007, RFC-BPR-0022, RFC-BPR-0029 |
+| [RFC-BPR-0089](RFC-BPR-0089-commit-scoped-review-and-generated-files.md) | Filter a pull request's review by its commits and set generated files aside | Auto-Verified | Closed 2026-10-21 by [BPR-1708](../issues/60-done/BPR-1708-close-rfc-0089.md): fixture courses through the shipped composition and live courses and measurements on MikeMarcin/BPR-Test #109 to #118. Depends on RFC-BPR-0003, RFC-BPR-0004, RFC-BPR-0007, RFC-BPR-0022, RFC-BPR-0029 |
 
 Drafted 2026-10-20 from the owner's report of a change, its regeneration and
 follow-ups in separate commits. Revision r2 (2026-10-21) follows the owner's
 direction: a Commits tab beside Status whose multi-select context-menu filters
 drive the file tree and navigation. Revision r3 records the owner's answers to
 Q1 to Q4 (2026-10-21, session recorded on the RFC); no owner question remains
-open. Design only; nothing is implemented.
+open. Implemented in M1 to M4 and BPR-1688. A filtered line GitHub cannot
+resolve is refused before Publish rather than offered RFC-BPR-0022's file
+comment (BPR-1706); Windows and Linux are unmeasured.
+
+## Suggest change in pull request review
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0090](RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md) | Suggest change edits the selected head lines in place in pull request review | Auto-Verified | Closed 2026-10-21 by [BPR-1730](../issues/60-done/BPR-1730-close-rfc-0090.md): fixture courses through the shipped composition, the live course and Commit suggestion measurement on MikeMarcin/BPR-Test #123 and the owner's look on a frozen build; Carry at a newer head on fixtures, accepted by the owner. Depends on RFC-BPR-0022, RFC-BPR-0023, RFC-BPR-0055, RFC-BPR-0089 |
+
+Drafted 2026-10-21 as RFC-DRAFT-0025 from the owner's report that pull
+request review lacked the local project's in-pane Suggest change
+([BPR-1723](../issues/60-done/BPR-1723-in-pane-suggest-change-for-pull-requests.md)).
+Revision r2 records the owner's answers to Q1 to Q5 (session
+`e5387830d18edd8d541b96e47ecbd9cb`, closed): only the selected lines are
+editable, one suggestion per Suggest change, an unplaceable change is marked
+and offered Convert to file comment, one pane shows the head file while
+editing, and the drawer no longer prefills a block.
+[Import](assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md).

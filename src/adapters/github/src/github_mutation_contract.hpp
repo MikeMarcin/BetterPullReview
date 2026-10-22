@@ -205,6 +205,14 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_request&  aRequest,
 		const off_hunk_unsupported_contract& aContract) -> bool;
 
+	/// \brief [[BPR-1715]]. Whether GitHub's refusal of a review says a
+	/// comment's line cannot be placed in the pull request's diff: an
+	/// `errors` entry, a string or an object's `message`, that reads "line
+	/// must be part of the diff", "line could not be resolved" or "diff hunk
+	/// can't be blank". Bounded; any other body is false. Nothing of the body
+	/// leaves this function.
+	[[nodiscard]] auto refusal_names_unplaceable_line(std::string_view aBody) -> bool;
+
 	struct review_mutation_target_observation
 	{
 		application::review_mutation_target_binding Target;
@@ -254,6 +262,10 @@ namespace bpr::adapters::github::detail {
 	{
 		std::vector<application::review_database_id> ReviewIds;
 		std::vector<review_submission_observation>   ExactReviews;
+		/// [[BPR-1715]]. Submitted reviews that cannot be told apart
+		/// from the request's: no author, or mine with no body or commit, or
+		/// mine (or no one's) dismissed. Sorted.
+		std::vector<application::review_database_id> UncertainReviews;
 	};
 	/// \brief [[BPR-0657]]. The exact thread state the server answered with.
 	struct review_thread_resolution_observation

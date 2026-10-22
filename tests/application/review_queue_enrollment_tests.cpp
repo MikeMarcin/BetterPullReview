@@ -1790,6 +1790,93 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	/// [[BPR-1718]]. My standing verdict comes from a retained read's
+	/// submitted reviews, notices new commits and a dismissal, outlives an
+	/// open and survives the store.
+	void test_my_review_verdict_from_retained_reads()
+	{
+		using verdict = core::my_review_verdict;
+		auto fixture  = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Requested = true } } } };
+		fixture.Discovery.adopt(discovery_session());
+		const auto review = [](const std::uint64_t aId, const std::string_view aAuthor, const application::github_review_state aState, const char aCommit, const std::optional<std::int64_t> aAt) {
+			return application::personal_discovery_review{ .DatabaseId = aId, .Author = application::github_actor_id{ std::string{ aAuthor } }, .State = aState, .Commit = application::commit_oid{ std::string(40U, aCommit) }, .SubmittedAt = aAt };
+		};
+		using state      = application::github_review_state;
+		auto approved    = metadata_row(17U);
+		approved.Reviews = {
+			review(1U, "U_reviewer", state::commented, 'a', 1'792'000'000),
+			review(2U, "U_reviewer", state::approved, 'a', 1'792'100'000),
+			review(3U, "U_someone", state::changes_requested, 'a', 1'792'150'000),
+			review(4U, "U_reviewer", state::commented, 'a', 1'792'200'000),
+			review(5U, "U_reviewer", state::pending, 'a', std::nullopt),
+		};
+		fixture.Provider.answer(fixture.Provider.rows({ approved }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.MyReview == core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = 1'792'100'000 },
+			   "my approval stands through my later comment; another reviewer's change request and my pending review are not mine to count");
+		expect(fixture.item(17)->Bucket == core::attention_bucket::quiet && core::home_section_for(*fixture.item(17)) == core::home_queue_section::following,
+			   "the approved pull request stays in Following");
+
+		fixture.Discovery.refresh();
+		auto moved    = approved;
+		moved.HeadOid = application::commit_oid{ std::string(40U, 'b') };
+		fixture.Provider.answer(fixture.Provider.rows({ moved }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.MyReview == core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = 1'792'100'000, .NewCommits = true }
+				   && fixture.item(17)->Bucket == core::attention_bucket::changed_since_my_review,
+			   "commits pushed after the approval are new commits, and the row is Changed as before");
+
+		// An open rebuilds the row's facts without reading reviews; the verdict stays.
+		fixture.Refresh.Observation = { .Ref = ref(17), .Author = "author", .Role = core::github_role::none, .Title = "Pull request 17" };
+		fixture.Queue.refresh(ref(17), { .ReviewedByMe = true, .HeadMovedSinceMyReview = true, .Known = true });
+		fixture.settle();
+		expect(fixture.item(17)->Facts.MyReview.Verdict == verdict::approved && fixture.item(17)->Facts.MyReview.NewCommits, "an open keeps the verdict the retained read decided");
+		const auto durable = fixture.record(17);
+		expect(durable && durable->LastFacts.MyReview == fixture.item(17)->Facts.MyReview, "the private record keeps it");
+		const auto encoded = application::encode_queue_facts(durable->LastFacts);
+		const auto decoded = encoded ? application::decode_queue_facts(*encoded) : std::nullopt;
+		expect(encoded && encoded->starts_with("3;") && decoded && decoded->MyReview == durable->LastFacts.MyReview && decoded->Change == durable->LastFacts.Change,
+			   "the store's codec carries the verdict across a restart as version 3");
+
+		fixture.Discovery.refresh();
+		auto dismissed    = approved;
+		dismissed.Reviews = { review(2U, "U_reviewer", state::dismissed, 'a', 1'792'100'000) };
+		fixture.Provider.answer(fixture.Provider.rows({ dismissed }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.MyReview == core::queue_my_review{ .Verdict = verdict::dismissed, .SubmittedAt = 1'792'100'000 }, "a dismissed approval is never approved");
+
+		fixture.Discovery.refresh();
+		auto none    = approved;
+		none.Reviews = { review(3U, "U_someone", state::approved, 'a', 1'792'150'000) };
+		fixture.Provider.answer(fixture.Provider.rows({ none }));
+		fixture.settle();
+		expect(fixture.item(17)->Facts.MyReview == core::queue_my_review{ }, "a read with none of my reviews leaves no verdict");
+		const auto plain = application::encode_queue_facts(fixture.record(17)->LastFacts);
+		expect(plain && plain->starts_with("2;"), "a row with no verdict keeps its version 2 bytes");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
+	void test_my_review_codec_refuses_malformed_version_three()
+	{
+		auto facts         = core::queue_item_facts{ .Title = "Mine", .Author = "octocat" };
+		facts.MyReview     = { .Verdict = core::my_review_verdict::changes_requested, .SubmittedAt = 0, .NewCommits = false };
+		const auto encoded = application::encode_queue_facts(facts).value_or(std::string{ });
+		const auto decoded = application::decode_queue_facts(encoded);
+		expect(encoded.starts_with("3;") && encoded.ends_with("1:21:01:0") && decoded && decoded->MyReview == facts.MyReview,
+			   "a verdict is three fields after the change facts, and time zero is a known time");
+		const auto body = encoded.substr(2U, encoded.size() - 2U - std::string{ "1:21:01:0" }.size());
+		expect(!application::decode_queue_facts("3;" + body), "version 3 without its verdict fields is refused");
+		expect(!application::decode_queue_facts("3;" + body + "1:01:01:0"), "version 3 never stores no verdict");
+		expect(!application::decode_queue_facts("3;" + body + "1:51:01:0"), "an unknown verdict is refused");
+		expect(!application::decode_queue_facts("3;" + body + "1:30:1:2"), "new commits is a flag");
+		expect(!application::decode_queue_facts("2;" + body + "1:30:1:0"), "version 2 never carries a verdict");
+		const auto unread = application::decode_queue_facts("3;" + body + "1:30:1:1");
+		expect(unread && unread->MyReview == core::queue_my_review{ .Verdict = core::my_review_verdict::approved, .NewCommits = true }, "an unread time reads back as unread");
+		facts.MyReview.SubmittedAt = -1;
+		expect(!application::encode_queue_facts(facts), "a submission before the epoch is refused");
+	}
+
 	void test_change_facts_codec_reads_version_one()
 	{
 		auto       facts   = core::queue_item_facts{ .Title = "Old", .Author = "octocat" };
@@ -3112,6 +3199,8 @@ auto main() -> int
 	test_retained_summary_limit_keeps_complete_metadata();
 	test_change_facts_merge_and_persist();
 	test_change_facts_codec_reads_version_one();
+	test_my_review_verdict_from_retained_reads();
+	test_my_review_codec_refuses_malformed_version_three();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();
 	test_draft_metadata_retains_only_accepted_exact_account_facts();

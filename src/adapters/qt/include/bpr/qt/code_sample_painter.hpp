@@ -197,8 +197,10 @@ namespace bpr::qt {
 	/// normal ink, and each classified token, read from the block's layout
 	/// formats (`apply_syntax_format_ranges`), in its own colour. Either moves
 	/// only as far as `core::readable_emphasis_foreground` needs to stay
-	/// readable on the fill. The token selections are foreground only, so the
-	/// fill, the source and the unchanged part of a token are untouched. Apply
+	/// readable on the fill. Each token selection repeats the fill under its
+	/// ink, because Qt does not paint a foreground-only selection over text an
+	/// earlier selection drew ([[BPR-1709]]); the fill is the one already
+	/// there, so the source and the unchanged part of a token are untouched. Apply
 	/// a block's syntax formats before calling this. The comparison panes and
 	/// Line details ([[BPR-1334]]) both mark a change through here, so a token
 	/// reads in one colour on both.

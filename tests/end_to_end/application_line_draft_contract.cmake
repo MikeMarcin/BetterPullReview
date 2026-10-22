@@ -11,6 +11,11 @@ cmake_minimum_required(VERSION 4.4.2)
 # suggestion block with the caret at its last line; Publish sends GitHub's
 # start_line, line, start_side and side to the fixture server; with no line
 # selected, Return opens nothing and the status line says how to select one.
+# [[BPR-1721]]: three right lines dragged with the mouse, a right-click
+# inside them and the menu's "Add comment on lines a–b", each delivered to the
+# window as the platform delivers it, open the drawer draft on all three; its
+# Publish sends start_line and line, and the thread the conversations then
+# show is on all three lines (the seventh and eighth evidence digits).
 # [[BPR-1212]] v002: once the epoch host answers that the file's base is the
 # merge base's version, Return on a base line in a hunk opens its draft on the
 # left, and its Publish sends side LEFT with the base line and no range.
@@ -69,7 +74,7 @@ foreach(bpr_variant IN ITEMS plain cancel-first-base-numbering stale-base-number
     foreach(marker IN ITEMS
         PUBLIC_PATH_OK
         LABEL_AUTHORING_OK
-        LINE_DRAFT_EVIDENCE:111111
+        LINE_DRAFT_EVIDENCE:11111111
         BASE_LINE_DRAFT_EVIDENCE:1111
     )
         string(FIND "${probe_output}" "${marker}" found)

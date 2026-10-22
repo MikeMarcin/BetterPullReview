@@ -746,6 +746,25 @@ removed on resolution or withdrawal) and writes it to the diagnostics log as a
 counts-only `github.review_submission` event. It never decides publication;
 an unknown outcome stays unknown and sends nothing.
 
+What GitHub answered the POST is kept with the attempt too ([[BPR-1715]]):
+schema 7 `submission_post` holds the answer (success, an error status's class,
+or none) and when it was recorded. The transmission witness writes "no
+answer" before the POST may leave and refuses the POST when it cannot, so an
+attempt with no answer kept never left; migration from schema 6 gives every
+possibly sent unresolved attempt "no answer" at time zero. The answer is read
+the same way from either transport: the GitHub CLI reports an HTTP error as
+an answer with that status, the native transport as an error carrying it.
+When no review GitHub lists can be the attempt (no new exact review, or only
+ones holding a different number of comments, and no new review of mine
+without an author, body or commit, or dismissed), `core::definitely_unpublished`
+decides from the kept answer whether it was definitely not published: a 4xx
+answer at once, no answer kept at once, and no definite answer (none, a
+redirect or a server error) once `review_submission_settle_delay_ms`, ten
+minutes, have passed since it was recorded. A success answer never settles
+this way. A settled attempt is withdrawn and its held drafts are released,
+unchanged, so Submit can carry them again; Check status and a restart apply
+the same rule.
+
 The compose page says why in one plain line under "Review status is unknown"
 ([[BPR-1541]]). The core picks the line (`core::notice`): the reason, comment
 counts only for a comment mismatch, and the status class only for an HTTP
@@ -1131,3 +1150,115 @@ height without rebuilding the card or model, moving focus, or changing the locke
 publication state.
 
 Whole-review reconciliation settles retained comments from the complete durable account/PR scope, including earlier heads absent from the editable projection. Core requires the original held key, draft identity and revision, head, path, side, range and exact body; the host also checks the proposal actor and target against the store scope. Restore discovers held review keys before filtering the current head, so a restart can retry a failed local settlement through the existing read-only publication lookup. No new publication grant is created.
+
+## Comments from a commit-filtered diff (RFC-BPR-0089 M4)
+
+A commit-filtered diff's sides are two commits of the pull request's
+first-parent chain, not the merge base and the head GitHub's own diff has.
+`core::place_filtered_comment` decides where GitHub is told to put a new
+comment on such a diff (owner decision Q1), from host-supplied facts: the
+accepted head, the merge base GitHub names, the accepted first-parent chain
+and four line correspondences the epoch host computes
+(`resolve_filtered_comment_lines`): the diff's right document against the
+head's, the merge base's against the right document, the merge base's against the
+head's, and the diff's left document against the merge base's. Each is the review's own diff engine with
+exact whitespace, reduced to the runs of lines it leaves unchanged.
+
+- A right-side line unchanged at the head is published at the head, at the
+  head's line, as any other comment is, when that line lies within three
+  lines of a change of the merge base to the head: GitHub resolves a line at
+  the head only there (BPR-Test #117 refused head line 12 of a moved line with
+  422). Otherwise it is a file comment (below).
+- Otherwise it is published on the diff's right commit at its own line, when
+  that line lies within three lines of a change of the merge base to that
+  commit: GitHub resolves a commit's line only there and refuses others with
+  422 (measured on BPR-Test #116). GitHub keeps such a comment on that commit,
+  outdated, from the moment it is written, which the editor says before
+  Publish. Otherwise it is a file comment (below).
+- A left-side line is GitHub's `LEFT` line at the head when the merge base
+  has it unchanged and it lies inside a hunk of the merge base to the head on
+  that side. Otherwise it is a file comment.
+- [[BPR-1706]]. A line GitHub resolves nowhere as a line comment
+  (`filtered_comment_placement::file_comment`, with the reason in `Refusal`)
+  is published as RFC-BPR-0022's file comment with a permalink, after the
+  editor says why and that Publish adds a comment on the file. The comment is
+  written at the head (`commit_id` the head, the head's path, `subject_type:
+  file`), and its permalink names the line at the diff's own commit on its
+  side: the right document's commit for a right-side line, the left
+  document's for a left-side one. BPR-Test #119 measured that GitHub takes a
+  file comment at the head for a path the pull request changes, shows it on
+  Files changed and current, and renders a permalink to any of the
+  repository's commits as that line's code. A file comment on an earlier
+  commit is moved to the head by GitHub (`original_commit_id` kept), and one
+  on a commit that did not change the path, or on the base, is refused with
+  422 (`pull_request_review_thread.path` "could not be resolved"), so the head
+  is the only `commit_id` used.
+- A range is published only where no line moves (a right side that is the
+  head, or a left side that is the merge base). A reply keeps RFC-BPR-0089
+  M1's rule: the diff's right side must be the head.
+
+The mutation host repeats the decision from the source observation's facts,
+never from Qt, before any effect. A side that is not a commit of the accepted
+chain, lines not yet read, and every refusal are `unsupported` before a write.
+A placement that moves the line binds `review_mutation_anchor_binding`'s
+`RemoteLine` (and, for an earlier commit, its `Commit`); `valid` and the
+coordinator admit a commit other than the head only for such a right-side
+placement, and the provider only from a filtered source whose right commit is
+that commit, natively, with no range, no reply and no file-comment fallback
+(`legacy_line` placement). The recovery journal writes record version 3 for a
+child with a remote line; every other record keeps its bytes, and the
+side-less legacy table refuses one.
+
+A file-comment placement binds the anchor at the head with no remote line
+and marks its source `unresolvable_line`, the one `review_placement` that is
+not provider evidence: the core decided it from the correspondences against
+the hunk rule GitHub was measured to apply. A left-side one also carries the
+left document (`review_mutation_source_binding::LeftEndpoint`) for its
+permalink. `core::plan_review_publication` admits such a line straight to the
+file comment, from the initial state only and never with a native child
+(`admit_unresolvable_line`, journal state `unresolvable_line_admitted`, the
+last of each enumeration so stored values keep their meaning). The admission
+is RFC-BPR-0022's third first-attempt authorization, beside the native
+rejection and scoped evidence: `review_fallback_authorization_source::
+unresolvable_line`, binding the exact file-comment wire request and the
+authority, with no freshness window. From it the existing fallback child,
+witness, GET-only reconciliation and duplicate replay apply unchanged; a
+suggestion is refused before any write, as a fallback always refuses it. The
+provider reads no merge base for a left line published this way, since it
+names no `LEFT` line. Start a review refuses such a line: a review's comments
+are line comments, and it is published on its own.
+
+The permalink codec names a filtered diff's line at the filter's commit on
+the endpoint's side (before, it named the head with the filtered line). The
+window projects permalinks only for an unfiltered diff, so such a file
+comment is a file-level conversation, on Whole PR too, where its permalink is
+not the head's line.
+
+GitHub's answer for an earlier commit reports no `line`. Such a comment is
+ours by `original_commit_id` and `original_line`; anyone's outdated comment in
+a reconciliation list is a well-formed comment that is not ours, as
+`parse_review_comment_collection` already read it (before, one outdated
+comment refused the whole list). A recorded GraphQL comment may name `commit`
+and `originalCommit` (`{oid}`), as the live query asks.
+
+Threads on a filtered diff are marked by `core::filtered_thread_line`: a
+right-side thread whose `commit_id` or `original_commit_id` is the diff's
+right commit, at its current or original line; a `LEFT` thread only when the
+diff's left commit is the merge base. Every other line thread of the file
+stays in the conversation drawer (`selected_comparison_mismatch`). A refresh
+that keeps the review and its head keeps the chain's filtered-read
+authorization under the new snapshot, so the reread after each publication
+reads the same filtered diffs.
+
+[[BPR-1707]]. A refresh accepts the pull request again and then resolves the
+same comparison. Until it lands, `core::filter_comparison_in_force` keeps the
+accepted comparison in force for the filter, because it is still the one on
+screen; a comparison the reviewer chose since applies once it is resolved.
+Before, the filter had no comparison in that window. The filtered file set
+lapsed to the whole pull request and came back, and each change made the
+workbench observe again and retire the chosen file. A commit-filter gesture
+made then was refused as if the comparison were suspended. When a kept diff's
+refreshed publication is adopted without being presented again, the window
+asks again for its filtered line facts under the new request. Before, the
+placement waited on the previous request's answer until another file was
+chosen and this one again.

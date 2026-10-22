@@ -94,6 +94,58 @@ namespace bpr::core {
 		return "quiet";
 	}
 
+	auto name(const my_review_verdict aVerdict) noexcept -> std::string_view
+	{
+		switch (aVerdict) {
+		case my_review_verdict::commented:
+			return "commented";
+		case my_review_verdict::changes_requested:
+			return "changes requested";
+		case my_review_verdict::approved:
+			return "approved";
+		case my_review_verdict::dismissed:
+			return "dismissed";
+		case my_review_verdict::none:
+			break;
+		}
+		return "none";
+	}
+
+	auto my_review_for(const std::span<const my_submitted_review> aReviews) noexcept -> queue_my_review
+	{
+		// The latest approval, change request or dismissal, and the latest
+		// comment-only review. A comment never displaces a verdict: GitHub
+		// keeps an approval standing through later comments.
+		const my_submitted_review* verdict = nullptr;
+		const my_submitted_review* comment = nullptr;
+		for (const auto& review : aReviews) {
+			switch (review.State) {
+			case my_review_verdict::approved:
+			case my_review_verdict::changes_requested:
+			case my_review_verdict::dismissed:
+				verdict = &review;
+				comment = nullptr;
+				break;
+			case my_review_verdict::commented:
+				comment = &review;
+				break;
+			case my_review_verdict::none:
+				break;
+			}
+		}
+		// A dismissed verdict stands for nothing, so a comment after it is
+		// what the reviewer last said.
+		const auto* const standing = verdict == nullptr || (verdict->State == my_review_verdict::dismissed && comment != nullptr) ? comment : verdict;
+		if (standing == nullptr) {
+			return { };
+		}
+		return {
+			.Verdict     = standing->State,
+			.SubmittedAt = standing->SubmittedAt,
+			.NewCommits  = standing->State != my_review_verdict::dismissed && standing->OnHead == false,
+		};
+	}
+
 	auto explanation(const attention_bucket aBucket) noexcept -> std::string_view
 	{
 		switch (aBucket) {

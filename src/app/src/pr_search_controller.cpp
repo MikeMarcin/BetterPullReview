@@ -13,8 +13,9 @@ namespace bpr::app {
 		, Execution{ aCorpus, aEngine }
 		, Host{ aDecisions, aEffects, Execution, *this }
 	{
-		Panel.Activate = [this](auto aIndex) { activate(aIndex); };
-		Panel.Select   = [this](auto aIndex) { static_cast<void>(Host.select_match(aIndex)); };
+		Panel.Activate         = [this](auto aIndex) { activate(aIndex); };
+		Panel.ActivateInNewTab = [this](auto aIndex) { activate(aIndex, result_tab::new_tab); };
+		Panel.Select           = [this](auto aIndex) { static_cast<void>(Host.select_match(aIndex)); };
 		// [[BPR-1504]]. A current match the side filter hides moves to the next shown one.
 		Panel.SideFilterChanged = [this](auto aFilter) {
 			const auto projection = Host.projection();
@@ -32,6 +33,7 @@ namespace bpr::app {
 	pr_search_controller::~pr_search_controller()
 	{
 		Panel.Activate          = { };
+		Panel.ActivateInNewTab  = { };
 		Panel.Select            = { };
 		Panel.SideFilterChanged = { };
 	}
@@ -111,7 +113,7 @@ namespace bpr::app {
 		}
 		return std::nullopt;
 	}
-	void pr_search_controller::activate(std::uint32_t aIndex)
+	void pr_search_controller::activate(std::uint32_t aIndex, const result_tab aTab)
 	{
 		cancel_reveal();
 		const auto projection = Host.projection();
@@ -134,7 +136,7 @@ namespace bpr::app {
 		}
 		static_cast<void>(Host.select_match(aIndex));
 		const auto readingGeneration = ReadingGeneration;
-		const auto tab               = OpenFile(*current, *entry);
+		const auto tab               = OpenFile(*current, *entry, aTab);
 		if (!tab || readingGeneration != ReadingGeneration || ReadingGeneration == std::numeric_limits<std::uint64_t>::max()) {
 			return;
 		}

@@ -56,7 +56,7 @@ foreach(marker IN ITEMS
     PUBLIC_PATH_OK
     LABEL_AUTHORING_OK
     LABEL_AUTHORING_EVIDENCE:11111111111111111111
-    LINE_DRAFT_EVIDENCE:111111
+    LINE_DRAFT_EVIDENCE:11111111
 )
     string(FIND "${probe_output}" "${marker}" found)
     if(found EQUAL -1)

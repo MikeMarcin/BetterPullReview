@@ -8,7 +8,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::core {
 
@@ -37,6 +39,19 @@ namespace bpr::core {
 		byte_span Span;
 		auto      operator==(const source_search_range&) const -> bool = default;
 	};
+	/// \brief RFC-BPR-0089 ([[BPR-1688]]). One file of a commit-filtered
+	/// review's Find in files: its path, and the two commits its filtered diff
+	/// reads when they are not the comparison's own. A split file names its
+	/// first diff's left commit and its last diff's right.
+	struct source_search_filtered_file
+	{
+		std::string                            Path;
+		std::optional<filtered_diff_endpoints> Endpoints;
+		auto                                   operator==(const source_search_filtered_file&) const -> bool = default;
+	};
+	/// Files one filtered search may name: the host's changed-entry bound.
+	inline constexpr std::size_t maximum_source_search_filtered_files = 10'000U;
+
 	/// \brief Binds one search to the active tab's exact pair and corpus generation.
 	/// \details CatalogueGeneration identifies the host's catalogue for this pair,
 	/// not the latest remote epoch. A refresh which leaves this scope valid is a no-op.
@@ -50,8 +65,17 @@ namespace bpr::core {
 		std::optional<source_search_range>    Selection;
 		source_search_target                  Target = source_search_target::right;
 		std::optional<source_search_document> Document;
-		auto                                  operator==(const source_search_scope&) const -> bool = default;
+		/// RFC-BPR-0089 ([[BPR-1688]]). While a filter leaves files out of the
+		/// review, Find in files searches exactly the host's list of this many
+		/// files, each at its filtered diff's commits; a different list is a new
+		/// `CatalogueGeneration`. Absent: every changed file of the pair.
+		std::optional<std::uint32_t> FilteredFiles;
+		auto                         operator==(const source_search_scope&) const -> bool = default;
 	};
+	/// \brief RFC-BPR-0089 ([[BPR-1688]]). Checks a filtered search's list
+	/// against its scope: the count the scope names, sorted by unique bounded
+	/// path, each filtered diff's commits of the pair's object format.
+	[[nodiscard]] auto valid(const source_search_scope& aScope, const std::vector<source_search_filtered_file>& aFiles) noexcept -> bool;
 
 	struct source_search_options
 	{

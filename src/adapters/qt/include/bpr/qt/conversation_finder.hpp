@@ -221,6 +221,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-1582]]. Where the row menu's Mark as read and Mark as
 		/// unread go.
 		void set_read_dispatch(finder_read_dispatch aDispatch);
+		/// \brief [[BPR-1699]]. Where the row menu's Mark All from an
+		/// author as Read goes, with the GitHub login, and how many of that
+		/// author's posts on the pull request are new; without a count the
+		/// rows' own posts are counted.
+		void set_author_read_dispatch(std::function<void(const std::string&)> aDispatch, std::function<std::size_t(const QString&)> aUnreadCount = { });
 		/// \brief [[BPR-1584]]. How wide the rows grow on a wide page.
 		void               set_reading_width(core::reading_width aWidth);
 		[[nodiscard]] auto reading_width() const noexcept -> core::reading_width;
@@ -264,6 +269,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1582]]. Mark as read or Mark as unread, as the
 		/// thread's read state decides, while the menu is open.
 		[[nodiscard]] auto read_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1699]]. Mark All from the row's or the picked
+		/// post's author as Read, while the menu is open; none for my post.
+		[[nodiscard]] auto author_read_action() const noexcept -> QAction*;
 		/// \brief Opens the row menu for one row at a point of the list's
 		/// viewport, the post under the point picked when it is a bead.
 		void popup_row_menu(const std::string& aRowKey, QPoint aPosition);
@@ -363,13 +371,16 @@ namespace bpr::qt {
 		QPointer<QAction>          OpenReview;
 		QPointer<QAction>          OpenDiscuss;
 		QPointer<QAction>          ReadAction;
+		QPointer<QAction>          AuthorReadAction;
 		std::string                MenuRow;
 		std::optional<std::size_t> MenuBead;
 
-		finder_pick_dispatch  PickDispatch;
-		finder_read_dispatch  ReadDispatch;
-		core::reading_width   ReadingWidth = core::default_reading_width;
-		std::function<void()> LeaveDispatch;
+		finder_pick_dispatch                       PickDispatch;
+		finder_read_dispatch                       ReadDispatch;
+		std::function<void(const std::string&)>    AuthorReadDispatch;
+		std::function<std::size_t(const QString&)> AuthorUnreadCount;
+		core::reading_width                        ReadingWidth = core::default_reading_width;
+		std::function<void()>                      LeaveDispatch;
 
 		QWidget*        Bar          = nullptr;
 		QLineEdit*      Search       = nullptr;

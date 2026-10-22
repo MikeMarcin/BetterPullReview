@@ -1,3 +1,7 @@
+# BPR-1694 combined integration over reviewed main b9a74b63a and release 0f52c515e.
+# All main feature reviews below are retained. Additional pinned-source difference
+# is exactly the retained complete_on_lane/observe_on_lane calls and the guarded
+# pending-tab reading gesture, reviewed on BPR-1694; no mutation branch change.
 # BPR-1694 scoped reseal (2026-10-21), over matching a023d1d81 / 3a1ee98c0.
 # Retained initial refusals precede this renewal. The composition's tab
 # completion and line observation use explicit on-lane host entry points, so
@@ -9,6 +13,185 @@
 # Arbitrary-thread entry points still post; the core validates request identity.
 # No provider, credential, grant, mutation, publication or source-inventory
 # change. Full/manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1715]] follow-up reseal (2026-10-21) over last matching main
+# 683147056, linear. Pinned-scope change: github_application.cpp's
+# BUILD_TESTING --start-review-course probe expects the refusal sentence
+# BPR-1715 gave a review GitHub refused ("Not published: GitHub refused this
+# review.") instead of the older "Review was not published."; one test
+# expectation and its comment. No product path, credential, grant, provider
+# selection, publication, mutation, ledger write or source-inventory change.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1733]] reseal (2026-10-22) over last matching main 0986da0ff,
+# linear. Pinned-scope change: a kept suggestion from an earlier head is
+# carried to the new head or its change copied, on this card's own commit.
+# Inside the manifest, github_application.cpp remembers the head and path
+# each comparison it showed was read at, reads the private store's kept
+# suggestions on other heads (private_review_workflow.cpp's
+# earlier_suggestions, a read), asks the epoch host for the file's lines at
+# the earlier head and the head (resolve_head_move_lines), presents what the
+# core decides, and once the carried draft is saved deletes the earlier one
+# in the store at the revision shown (discard_earlier_suggestion). Its
+# BUILD_TESTING label-authoring probe follows RFC-BPR-0090: Shift+Return on a
+# range opens the lines in the head pane, the probe types its change there
+# and publishes the core's composed body. No review mutation, publication
+# path, credential, grant, provider selection, ledger write or
+# source-inventory change. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1721 note below
+# is renaming its [[BPR-PENDING-AB]] comment tags to [[BPR-1721]]; no code change.
+# [[BPR-1721]] reseal (2026-10-21) over last matching main cb5679683,
+# linear. Pinned-scope change: a comment on a selection shows its lines, on
+# this card's own commit. Inside the manifest only github_application.cpp
+# changed, in the label-authoring probe's --line-draft-course: three phases
+# drag three right lines through QWindowSystemInterface, right-click inside
+# them, click the popup's "Add comment on lines a-b", publish the draft and
+# read the thread the conversations show back. No product path, credential,
+# grant, provider selection, publication, mutation, ledger write or
+# source-inventory change. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1720 note below
+# is renaming its [[BPR-PENDING-AA]] comment tags to [[BPR-1720]]; no code change.
+# [[BPR-1720]] reseal (2026-10-21) over last matching main ae867c2db,
+# linear. Pinned-scope change: Help > About BetterPullReview, on this card's
+# own commit. The source inventory gains src/about_desktop.cpp and .hpp, in
+# both lists: make_about_menu builds the page's facts (compiled version and
+# configuration, the commit cmake/BprBuildIdentity.cmake records, the running
+# Qt and system) and opens its two links through the core's named reference
+# pages and the existing system browser opener, and its two installed legal
+# documents with the platform viewer only while each is a regular file.
+# profile_desktop.cpp makes the menu and attaches it to each window's bar and
+# the empty desktop's, after the updater. No review mutation, publication,
+# credential, grant, provider selection or ledger change. Only the manifest
+# pin changes; the full-application and mutation 16d135419 pins stay exact.
+# [[BPR-1718]] note (2026-10-21) over last matching main ad6908848: no
+# reseal. The only src/app change is the BUILD_TESTING fixture server
+# (github_public_path_fixture.cpp, outside the manifest): its batched Home
+# review nodes answer submittedAt and its REST review submitted_at, for Home's
+# verdict chip. No pinned-scope file changed; full, manifest and mutation
+# 16d135419 pins stay exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1715 note below
+# is renaming its [[BPR-PENDING-Y]] comment tags to [[BPR-1715]]; no code change.
+# [[BPR-1715]] reseal (2026-10-21) over the BPR-1714 upkeep note below,
+# linear. Pinned-scope change: a whole review GitHub refused, or one an earlier
+# version left unknown, settles as not published and gives its held drafts
+# back, on this card's own commit. Inside the manifest: github_application.cpp's
+# Discard review deletes only the drafts the review carries, at the revisions
+# and head it carries them; review_submission_workflow.cpp gives a review frozen
+# on an earlier revision no comment of the current one, starts a new review in
+# place of a frozen one that keeps nothing, carries the comments pending now
+# after a refusal, says why GitHub refused a review when its answer reads that
+# a line cannot be placed, and says Discard deletes the summary only; the
+# fixture adds a GitHub CLI-shaped 422 with GitHub's review words and a dropped
+# review. The settling is the GitHub
+# adapter's session and the core's definitely_unpublished, outside src/app. No
+# credential, grant, provider selection or source-inventory change. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1714 note below
+# is renaming its [[BPR-PENDING-W]] comment tags to [[BPR-1714]]; no code change.
+# [[BPR-1714]] reseal (2026-10-21) over the [[BPR-1707]] commit below,
+# linear. Pinned-scope change: the known C++ namespaces setting, on this
+# card's own commit. Inside the manifest only github_application.cpp changed:
+# the appearance dispatch routes apply_known_namespaces_intent to the host and
+# reports invalid_known_namespaces to the Settings panel; a Namespaces
+# presentation invalidation asks again for the C++ spans of the comparison on
+# screen (reclassify_shown_comparison, which binds its blob reads again); and
+# adopt_classification drops a span publication whose key is not the host's
+# classification_key for it, without releasing the binding the newer request
+# reads through. No credential, grant, provider selection, publication,
+# mutation, ledger write or source-inventory change. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1707]] reseal (2026-10-21) over the [[BPR-1706]] commit below, linear.
+# Pinned-scope change: a reread after publishing keeps the chosen file and a
+# filter gesture during a refresh applies, on this card's own commit. Inside
+# the manifest only github_application.cpp changed: the commit filter's
+# comparison comes from core::filter_comparison_in_force, which keeps the
+# accepted comparison while a refresh resolves the same request again, and a
+# kept diff's refreshed publication asks again for its filtered line facts
+# under the new request. No credential, grant, provider selection,
+# publication, mutation or source-inventory change. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1706]] reseal (2026-10-21) over last matching main 7435c6901, linear.
+# Pinned-scope change: a commit-filtered diff's line GitHub resolves nowhere
+# as a line comment is published as RFC-BPR-0022's file comment, on this
+# card's own commit. Inside the manifest only github_application.cpp changed:
+# the editor's filtered placement names a file comment's own commit (the
+# diff's left commit for a left line), and Start a review refuses such a line
+# before asking the mutation host, which refuses it too. The publication path
+# is the existing one: the mutation host re-decides the placement before any
+# effect, and the provider admits the file comment through the core's
+# admit_unresolvable_line with no native attempt. No credential, grant,
+# provider selection or source-inventory change. Full and manifest pins bind
+# these bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1712 note below
+# is renaming its [[BPR-PENDING-T]] comment tags to [[BPR-1712]]; no code change.
+# [[BPR-1712]] reseal (2026-10-21) over last matching main 6e8d0834f,
+# linear. Pinned-scope change: Find in files' result menu opens a result in a
+# new tab, on this card's own commit. Inside the manifest github_application.cpp
+# and pr_search_controller.cpp/.hpp changed: the controller's file opener takes
+# a result_tab (the active tab or a new one); the composition's opener applies
+# the core's open_in_new_tab_intent and then activate_tab_intent on the tab it
+# added (open_search_result_in_new_tab), and a tab a result opened keeps the
+# search bound to the tab it was bound to (SearchOpening, SearchOpeningBinding
+# and SearchCreatedBinding generalize SearchOpeningNoTab), so the results and
+# the existing reveal stay. No credential, grant, provider selection,
+# publication, mutation, ledger write or source-inventory change. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
+# RFC-BPR-0089 M4 and [[BPR-1688]] reseal (2026-10-21) over last matching main
+# ab1698599, linear. Pinned-scope change: comments from commit-filtered diffs,
+# filtered Find in files and the window's kept filters, on this milestone's
+# own commit. Inside the manifest only github_application.cpp changed: the
+# window asks the epoch host for a filtered diff's line facts, hands the
+# core's placement (head line, or the diff's earlier commit after the
+# editor's warning, or a refusal before Publish) to the editor and to the
+# mutation host's source observation, places review threads on a filtered
+# diff with core::filtered_thread_line, refuses a placed line in a pending
+# review, composes the mutation host for the new workbench generation after a
+# filter gesture, binds Find in files to the filtered set, and keeps and
+# restores the window's commit and file filters through the restoration host.
+# The publication path is the existing one: the mutation host re-decides the
+# placement from host facts before any effect, and a commit outside the
+# accepted chain is refused before any write. No credential, grant or
+# provider selection change. The BUILD_TESTING commit-filter-comment-v1
+# fixture adds one host-label case, its enum and evidence fields
+# (github_application_fixture_access.hpp) and its descriptor and wire
+# (github_public_path_fixture.cpp), outside the manifest. Full and manifest
+# pins bind these bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1702 note below
+# is renaming its [[BPR-PENDING-Q]] comment tag to [[BPR-1702]]; no code change.
+# [[BPR-1702]] reseal (2026-10-21) over last matching main 1694a7f37,
+# linear. Pinned-scope change: a read file the reviewer leaves returns to the
+# Files drawer, on this card's own commit. Inside the manifest only
+# github_application.cpp changed, in clear_diff_selection: when the retained
+# receipt it drops had withheld its file from the actionable order, it asks the
+# workbench host's existing retain_actionability to restore that file, as an
+# observation without the receipt would answer. No credential, grant, provider
+# selection, publication, mutation, ledger write or source-inventory change.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1701 note below
+# is renaming its [[BPR-PENDING-P]] comment tag to [[BPR-1701]]; no code change.
+# [[BPR-1701]] reseal (2026-10-21) over last matching main 0b10fa71a,
+# linear. Pinned-scope change: Seen and Read uncheck from the review bar, on
+# this card's own commit. Inside the manifest only github_application.cpp
+# changed, in one condition of the --review-ledger-composition-probe
+# automation course: an automatically seen file's Seen action is now checked and offers
+# Mark unseen, so the probe requires it checked rather than disabled. No
+# product composition, credential, grant, provider selection, publication,
+# mutation or source-inventory change. Full and manifest pins bind these
+# bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-21): the only src/app change since the BPR-1699 note below
+# is renaming its [[BPR-PENDING-M]] comment tags to [[BPR-1699]]; no code change.
+# [[BPR-1699]] reseal (2026-10-21) over last matching main d8a3f6b97,
+# linear. Pinned-scope change: Mark all comments as read, and all from one
+# author, on this card's own commit. Inside the manifest only
+# github_application.cpp changed: a post's read observation carries its
+# author's identity (core::review_author_of over the login), and the window's
+# Mark All Comments as Read and Mark all from <login> as read reach one new
+# composition method that observes every conversation of the accepted
+# snapshot, hands them to the review ledger host's mark_conversations_read,
+# and publishes the read state once the batch is durable. No credential,
+# grant, provider selection, publication, mutation or source-inventory change;
+# read state is the private ledger's and nothing reaches GitHub. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # RFC-BPR-0089 M3 reseal (2026-10-21) over last matching 8e73e5cb3 ([[BPR-1693]],
 # on main ef5939561), linear. Pinned-scope change: M3's split per-commit diffs
 # and force-push rematch, on this milestone's own commit. Inside the manifest
@@ -1822,7 +2005,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"94f887d46b9a87a3fcd16e59101713efdc0816e4dd27ec35ef798b510bb24bf3"
+		"cfa6a65e7319128774bcf858bfbc6ccbca89956d248e66a714a8bb201da929c1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -1849,6 +2032,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
 		"main.cpp"
+		"src/about_desktop.cpp"
+		"src/about_desktop.hpp"
 		"src/command_line.cpp"
 		"src/designated_live_macos_supervisor.cpp"
 		"src/designated_live_macos_supervisor_identity.cpp"
@@ -1927,6 +2112,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "include/bpr/app/release_update_desktop.hpp"
         "include/bpr/app/worker_executor.hpp"
         "main.cpp"
+        "src/about_desktop.cpp"
+        "src/about_desktop.hpp"
         "src/command_line.cpp"
         "src/cycle_cli.cpp"
         "src/cycle_cli.hpp"
@@ -2042,7 +2229,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "219d7de0a2a9aa61abc33d837119df197a46182bceef805764533c1b726bce79"
+        "129a37c08d3c94f1589475f5b5b6c2d77487a3013e268fa053bf4d7ad85ac9a5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

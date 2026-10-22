@@ -5,6 +5,7 @@
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -114,6 +115,19 @@ namespace bpr::qt {
 			return { };
 		}
 
+		/// [[BPR-1717]]. Says what the export limits left out; empty when nothing was.
+		auto limited(const core::release_diagnostic_snapshot& aSnapshot) -> QString
+		{
+			if (aSnapshot.LimitOmittedRecords == 0U && aSnapshot.UnreadFiles == 0U) {
+				return { };
+			}
+			if (aSnapshot.UnreadFiles == 0U) {
+				return QStringLiteral("\nKept the newest records. %1 older records were left out to fit the export size limit.").arg(aSnapshot.LimitOmittedRecords);
+			}
+			return QStringLiteral("\nKept the newest records. %1 older records and %2 older log files were left out to fit the export size limit.")
+				.arg(aSnapshot.LimitOmittedRecords)
+				.arg(aSnapshot.UnreadFiles);
+		}
 		auto selection_text(const application::release_maintenance_projection& aProjection) -> QString
 		{
 			if (!aProjection.State.Prepared) {
@@ -134,20 +148,22 @@ namespace bpr::qt {
 					}
 					const auto range = snapshot->Sessions == 0U ? QStringLiteral("No dated records") : QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->FirstUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs) + QStringLiteral(" to ") + QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->LastUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs);
 					return QStringLiteral("%1 · %2 · %3 sessions · %4 records · %5 bytes\n%8\nCategories: %9\n%6 records omitted · %7 recent-context records · %10 records with capture-time identity omissions.")
-						.arg(snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Identifying details") : QStringLiteral("Anonymized"))
-						.arg(snapshot->Options.Scope == core::diagnostic_export_scope::current_session ? QStringLiteral("current session") : QStringLiteral("retained sessions"))
-						.arg(snapshot->Sessions)
-						.arg(snapshot->Records)
-						.arg(snapshot->Bytes)
-						.arg(snapshot->OmittedRecords)
-						.arg(snapshot->RecentRecords)
-						.arg(range, categories.isEmpty() ? QStringLiteral("none") : categories.join(QStringLiteral(", ")))
-						.arg(snapshot->CaptureRedactedRecords);
+							   .arg(snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Identifying details") : QStringLiteral("Anonymized"))
+							   .arg(snapshot->Options.Scope == core::diagnostic_export_scope::current_session ? QStringLiteral("current session") : QStringLiteral("retained sessions"))
+							   .arg(snapshot->Sessions)
+							   .arg(snapshot->Records)
+							   .arg(snapshot->Bytes)
+							   .arg(snapshot->OmittedRecords)
+							   .arg(snapshot->RecentRecords)
+							   .arg(range, categories.isEmpty() ? QStringLiteral("none") : categories.join(QStringLiteral(", ")))
+							   .arg(snapshot->CaptureRedactedRecords)
+						+ limited(*snapshot);
 				}
 				return QStringLiteral("%1 metadata records · %2 bytes · %3 records omitted. Free text, paths, identities, source, comments, credentials and crash memory are excluded.")
-					.arg(snapshot->Records)
-					.arg(snapshot->Bytes)
-					.arg(snapshot->OmittedRecords);
+						   .arg(snapshot->Records)
+						   .arg(snapshot->Bytes)
+						   .arg(snapshot->OmittedRecords)
+					+ limited(*snapshot);
 			}
 			if (const auto* inventory = std::get_if<core::release_maintenance_inventory>(&selection)) {
 				return QStringLiteral("Prepared inventory: %1 exact local entries, including any credential bindings and database sidecars. Confirmation applies only to this inventory.").arg(inventory->Entries);
@@ -457,10 +473,17 @@ namespace bpr::qt {
 		chooser->setFileMode(QFileDialog::AnyFile);
 		chooser->setSupportedSchemes({ QStringLiteral("file") });
 		chooser->setOption(QFileDialog::DontConfirmOverwrite);
-		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.txt)"));
-		chooser->setDefaultSuffix(QStringLiteral("txt"));
+		// [[BPR-1725]]. A ZIP archive holding the text, which the
+		// preview shows; the archive's one entry keeps the `.txt` name.
+		chooser->setNameFilter(QStringLiteral("Diagnostic export (*.zip)"));
+		chooser->setDefaultSuffix(QStringLiteral("zip"));
 		chooser->setDirectory(QString::fromStdString(*aDirectory));
-		chooser->selectFile(QStringLiteral("BetterPullReview-diagnostics.txt"));
+		// [[BPR-1722]]. Named for when it was taken and by which
+		// version, so saved exports need no renaming and sort by time.
+		const auto now = QDateTime::currentDateTime();
+		chooser->selectFile(QString::fromStdString(core::diagnostic_export_file_name(
+			{ .Year = now.date().year(), .Month = static_cast<unsigned>(now.date().month()), .Day = static_cast<unsigned>(now.date().day()), .Hour = static_cast<unsigned>(now.time().hour()), .Minute = static_cast<unsigned>(now.time().minute()) },
+			QCoreApplication::applicationVersion().toStdString())));
 		Dialog = chooser;
 		connect(chooser, &QDialog::finished, this, [this, chooser, aIntent](int aResult) {
 			Dialog.clear();

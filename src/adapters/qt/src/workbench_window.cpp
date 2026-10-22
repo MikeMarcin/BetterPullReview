@@ -1946,6 +1946,9 @@ namespace bpr::qt {
 			step->setObjectName(aName);
 			step->setText(aAccessible);
 			step->setAccessibleName(aAccessible);
+			// [[BPR-1701]]. Seen and Read are checked buttons, as Accept's
+			// retained action is.
+			step->setCheckable(true);
 			step->setEnabled(false);
 			connect(step, &QToolButton::clicked, this, [this, aIndex] { take_progress_step(aIndex); });
 			return step;
@@ -2131,7 +2134,15 @@ namespace bpr::qt {
 		// follower-scroll coupling, and no synthetic alignment rows.
 		ComparisonSurface = new diff_workbench{ CentreSurface };
 		ComparisonSurface->set_source_find_changed([this] { update_source_find_actions(); });
-		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane() }) {
+		// [[BPR-1724]]. Comment names the lines a drag or a Shift-click
+		// selects, which change no selected line; once a turn, not per move.
+		auto* const commentTarget = new QTimer{ this };
+		commentTarget->setSingleShot(true);
+		commentTarget->setInterval(0);
+		connect(commentTarget, &QTimer::timeout, this, [this] { update_comment_target(); });
+		// [[BPR-1724]]. The one-pane comparison has the same menu.
+		for (auto* pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane(), ComparisonSurface->unified_pane() }) {
+			connect(pane, &QPlainTextEdit::selectionChanged, commentTarget, qOverload<>(&QTimer::start));
 			pane->setContextMenuPolicy(Qt::CustomContextMenu);
 			connect(pane, &QWidget::customContextMenuRequested, this, [this, pane](const QPoint& aPosition) {
 				auto* const menu = code_context_menu(pane, aPosition);
@@ -2403,6 +2414,14 @@ namespace bpr::qt {
 			connect(scrollbar, &QScrollBar::valueChanged, this, [this](int) { consider_mark_read_when_fully_seen(); });
 			connect(scrollbar, &QScrollBar::rangeChanged, this, [this](int, int) { consider_mark_read_when_fully_seen(); });
 		}
+		// [[BPR-1699]]. A thread's or a post's Mark all from its author
+		// as read goes where Mark All Comments as Read does, with the login.
+		ConversationPanel->cards()->set_author_read_dispatch([this](const std::string& aLogin) {
+			const auto dispatch = ConversationsReadDispatch;
+			if (dispatch) {
+				dispatch(aLogin);
+			}
+		});
 		ConversationPanel->cards()->set_action_dispatch(
 			[this](const card_action aAction, const std::string& aIdentity) {
 				// [[BPR-1046]]. A reply still waiting for its comparison is
@@ -2439,7 +2458,23 @@ namespace bpr::qt {
 				case card_action::defect:
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
 					break;
+				case card_action::convert_draft:
+					convert_pane_suggestion();
+					break;
+				case card_action::carry_suggestion:
+					carry_moved_suggestion(aIdentity);
+					break;
+				case card_action::copy_change:
+					// [[BPR-1733]]. The note copied the change itself.
+					statusBar()->showMessage(tr("Copied the suggested lines."), 4000);
+					break;
 				case card_action::publish_draft:
+					// [[RFC-BPR-0090]]. A held suggestion goes nowhere until it
+					// is converted or deleted.
+					if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt; shown.has_value() && HeldSuggestions.contains(shown->Id)) {
+						statusBar()->showMessage(HeldSuggestions.at(shown->Id).Reason, 10000);
+						break;
+					}
 					// [[BPR-1212]]. Publish posts this one comment now; the
 					// drawer closes the composer once the draft is published.
 					if (ReviewEditor != nullptr && ReviewEditor->publish_action()->isEnabled()) {
@@ -2470,6 +2505,10 @@ namespace bpr::qt {
 					leave_drawer_draft(false);
 					break;
 				case card_action::review_draft:
+					if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt; shown.has_value() && HeldSuggestions.contains(shown->Id)) {
+						statusBar()->showMessage(HeldSuggestions.at(shown->Id).Reason, 10000);
+						break;
+					}
 					// [[BPR-1345]]. Start a review, or Add review comment: the
 					// draft stays as written, pending in the review, and the
 					// composer closes on it. Nothing is published.
@@ -2859,6 +2898,15 @@ namespace bpr::qt {
 				ConversationUnreadDispatch(aThread);
 			}
 		});
+		// [[BPR-1699]]. Mark All from an author as Read, from a row.
+		Finder->set_author_read_dispatch(
+			[this](const std::string& aLogin) {
+				const auto dispatch = ConversationsReadDispatch;
+				if (dispatch) {
+					dispatch(aLogin);
+				}
+			},
+			[this](const QString& aLogin) { return ConversationPanel->cards()->unread_post_count_from(aLogin); });
 		// [[BPR-1356]]. The notice that says which filters a pick cleared
 		// goes once the reviewer changes one.
 		ConversationPanel->set_discuss_filters_changed([this] {
@@ -3011,6 +3059,19 @@ namespace bpr::qt {
 			if (PendingCommentDeleteDispatch) {
 				PendingCommentDeleteDispatch(aComment.Draft, aComment.DraftRevision);
 			}
+		});
+		// [[RFC-BPR-0090]]. Convert on a held suggestion (owner, Q3): the
+		// comment is opened at its line, and converted there once it shows.
+		ReviewSubmissionEditor->set_pending_convert([this](const core::review_submission_comment& aComment) {
+			if (!HeldSuggestions.contains(aComment.Draft)) {
+				return;
+			}
+			PendingConvert = aComment.Draft;
+			if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->Id == aComment.Draft) {
+				present_inline_draft();
+				return;
+			}
+			open_pending_comment(aComment, core::workbench_thread_destination::review);
 		});
 		ReviewSubmissionEditor->set_discard_observer([this] {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
@@ -8183,11 +8244,97 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
+		settle_carried_suggestion(aDrafts);
 		ConversationPanel->cards()->set_saved_drafts(std::move(aDrafts), std::move(aReplies));
 		apply_thread_marks();
 		if (changed && ConversationPanel->cards()->writing_draft()) {
 			present_inline_draft();
 		}
+	}
+
+	void workbench_window::present_filtered_comment(const bool aFiltered, std::optional<filtered_comment_presentation> aPlacement)
+	{
+		FilteredComments  = aFiltered;
+		FilteredPlacement = aFiltered ? std::move(aPlacement) : std::nullopt;
+		present_filtered_notice();
+		update_comment_target();
+		present_inline_draft();
+	}
+
+	auto workbench_window::filtered_comment_notice() const -> std::pair<QString, bool>
+	{
+		using placement = core::filtered_comment_placement;
+		using refusal   = core::filtered_comment_refusal;
+		if (!FilteredComments || ComparisonSurface == nullptr) {
+			return { };
+		}
+		const auto selection = ComparisonSurface->selection();
+		if (!selection.has_value() || comment_reply_thread().has_value()) {
+			return { };
+		}
+		if (!FilteredPlacement || FilteredPlacement->Selection != selection->PreferredLine) {
+			return { tr("Working out where GitHub puts a comment on this line…"), true };
+		}
+		const auto& target = FilteredPlacement->Target;
+		const auto  line   = static_cast<qulonglong>(target.Line) + 1U;
+		switch (target.Placement) {
+		case placement::head:
+			if (target.Line == selection->PreferredLine.Line) {
+				return { };
+			}
+			return { target.Side == core::diff_side::left ? tr("Goes on base line %1, where GitHub counts this line in the merge base.").arg(line)
+														  : tr("Goes on the head at line %1, where this line is now.").arg(line),
+					 false };
+		case placement::earlier_commit:
+			return { tr("Goes on commit %1, where this line was written. A later commit changed it, so GitHub shows this comment as outdated: in the conversation, not in Files changed.")
+						 .arg(FilteredPlacement->Commit),
+					 false };
+		case placement::file_comment: {
+			// [[BPR-1706]]. Why GitHub takes no line comment here, then what
+			// Publish does instead.
+			const auto why = target.Refusal == refusal::base_line_changed ? tr("This line changed after the merge base, where GitHub counts base lines, so GitHub can't attach a comment to it.")
+				: target.Refusal == refusal::not_on_commit
+				? tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so GitHub can't attach a comment to it.").arg(FilteredPlacement->Commit)
+				: tr("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it.");
+			return { tr("%1 Publish adds a comment on the file instead, linking to line %2 of commit %3.").arg(why).arg(line).arg(FilteredPlacement->Commit), false };
+		}
+		case placement::refused:
+			break;
+		}
+		switch (target.Refusal) {
+		case refusal::lines_pending:
+			return { tr("Working out where GitHub puts a comment on this line…"), true };
+		case refusal::range:
+			return { tr("A range can be commented on only where this diff's side is the pull request's own. Comment on one line."), true };
+		case refusal::not_on_commit:
+			return { tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so no comment can go there. Comment on it in the whole pull request instead.")
+						 .arg(FilteredPlacement->Commit),
+					 true };
+		case refusal::base_line_changed:
+			return { tr("This line changed after the merge base, where GitHub counts base lines. Comment on a right-side line instead."), true };
+		case refusal::outside_github_diff:
+			return { tr("This line is unchanged at the head, where GitHub shows no change near it, so no line comment can go there. Comment on a changed line instead."), true };
+		case refusal::outside_pull_request:
+			return { tr("This diff's commits are not the pull request's own, so nothing can be published on it."), true };
+		case refusal::lines_unavailable:
+		case refusal::none:
+			break;
+		}
+		return { tr("Where this line is at the head could not be read. Comment on it in the whole pull request instead."), true };
+	}
+
+	auto workbench_window::filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&
+	{
+		return FilteredPlacement;
+	}
+
+	void workbench_window::present_filtered_notice()
+	{
+		if (ReviewEditor == nullptr) {
+			return;
+		}
+		const auto [text, blocks] = filtered_comment_notice();
+		ReviewEditor->present_target_notice(text, blocks);
 	}
 
 	void workbench_window::set_thread_marks_suspended(const bool aSuspended)
@@ -8596,6 +8743,43 @@ namespace bpr::qt {
 	void workbench_window::set_conversation_unread_dispatch(conversation_read_dispatch aDispatch)
 	{
 		ConversationUnreadDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_conversations_read_dispatch(conversations_read_dispatch aDispatch)
+	{
+		ConversationsReadDispatch = std::move(aDispatch);
+		update_new_comment_group();
+	}
+
+	auto workbench_window::mark_all_comments_read_action() const noexcept -> QAction*
+	{
+		return MarkAllCommentsRead;
+	}
+
+	void workbench_window::present_conversations_read(const std::optional<conversations_read_result> aResult, const std::optional<std::string>& aAuthor)
+	{
+		// [[BPR-1699]]. The counts and badges have already moved with
+		// the read state; this says what the gesture did, once it is durable.
+		const auto who = aAuthor.has_value() ? QString::fromStdString(*aAuthor) : QString{ };
+		if (!aResult.has_value()) {
+			statusBar()->showMessage(tr("Your read state could not be saved, so no comment was marked read. Try again."), 10000);
+			return;
+		}
+		const auto comments = [](const std::uint32_t aCount) {
+			return aCount == 1U ? QStringLiteral("1 comment") : QStringLiteral("%1 comments").arg(aCount);
+		};
+		auto said = QString{ };
+		if (aResult->Marked == 0U) {
+			said = who.isEmpty() ? tr("Nothing on this pull request is new.") : tr("Nothing %1 wrote is new.").arg(who);
+		} else {
+			said = who.isEmpty() ? tr("Marked %1 as read.").arg(comments(aResult->Marked)) : tr("Marked %1 from %2 as read.").arg(comments(aResult->Marked), who);
+		}
+		if (aResult->Kept != 0U) {
+			said += QLatin1Char(' ')
+				+ (aResult->Kept == 1U ? tr("1 more stays new: it follows a reply from someone else that you have not read.")
+									   : tr("%1 more stay new: they follow a reply from someone else that you have not read.").arg(aResult->Kept));
+		}
+		statusBar()->showMessage(said, 10000);
 	}
 
 	void workbench_window::update_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
@@ -9060,6 +9244,10 @@ namespace bpr::qt {
 		}
 		const auto& unread = ConversationPanel->cards()->unread_conversations_in_navigation_order();
 		NextNewCommentAction->setEnabled(!unread.empty());
+		// [[BPR-1699]]. Offered while anything on the pull request is new.
+		if (MarkAllCommentsRead != nullptr) {
+			MarkAllCommentsRead->setEnabled(!unread.empty() && static_cast<bool>(ConversationsReadDispatch));
+		}
 		// A refresh may retain the drawer's visual anchor without a selected
 		// file. Only standalone diff presentation falls back to that anchor.
 		const auto file       = LastWorkbenchContext.has_value()
@@ -9123,24 +9311,63 @@ namespace bpr::qt {
 		const auto  key       = [this](const QAction* const aAction) {
 			return presented_key(aAction);
 		};
+		// [[BPR-1700]]. The tooltip names the three verdicts the review
+		// page offers, so the command says what it is for in every state.
 		const auto compose = keptDraft
-			? QStringLiteral("Compose review (%1)\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
-			: QStringLiteral("Compose review (%1)").arg(key(ComposeReviewAction));
+			? QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
+			: QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.").arg(key(ComposeReviewAction));
 		ComposeReviewAction->setToolTip(compose);
 		ComposeReviewAction->setStatusTip(compose);
 		update_comment_target();
-		if (ReviewBar == nullptr) {
+		present_compose_entry();
+	}
+
+	void workbench_window::present_compose_entry()
+	{
+		if (ComposeReviewAction == nullptr || ReviewBar == nullptr) {
 			return;
 		}
-		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeReviewAction)); button != nullptr) {
-			button->setAccessibleName(QStringLiteral("Compose review"));
-			button->setAccessibleDescription(keptDraft
-												 ? QStringLiteral("Open the review page; a review draft is kept for this pull request")
-												 : QStringLiteral("Open the review page without submitting"));
-			if (button->property(strip_style::mark_property).toBool() != keptDraft) {
-				button->setProperty(strip_style::mark_property, keptDraft);
-				button->update();
-			}
+		auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(ComposeReviewAction));
+		if (button == nullptr) {
+			return;
+		}
+		// [[BPR-1700]]. The owner, 2026-10-21: "I think the compose review
+		// button is a little too subtle when there's not a active review. It
+		// might be difficult for the uninitiated to find out how to approve a
+		// review." With no review in progress it says what it is for, beside
+		// its pencil, on the accent's edge. While a review is in progress the
+		// chip before it leads, and it is the plain icon again. It only ever
+		// opens the review page; the verdict is chosen there.
+		const auto& shown      = ReviewSubmissionEditor != nullptr ? ReviewSubmissionEditor->shown_draft() : std::optional<core::review_submission_draft>{ };
+		const auto  keptDraft  = shown.has_value() && core::kept(*shown);
+		const auto  inProgress = PendingReviewComments > 0U || HeldReviewComments > 0U;
+		const auto  worded     = !inProgress && ComposeReviewWords != compose_words::none;
+		// The bar's presenter takes its words from the action's icon text; the
+		// menus keep the command's own name. Where the bar is short of room
+		// the words keep Approve, the verdict a newcomer looks for.
+		const auto words = !worded                       ? tr("Compose review")
+			: ComposeReviewWords == compose_words::brief ? tr("Approve…")
+														 : tr("Approve or comment…");
+		if (ComposeReviewAction->iconText() != words) {
+			ComposeReviewAction->setIconText(words);
+		}
+		const auto style = worded ? Qt::ToolButtonTextBesideIcon : Qt::ToolButtonIconOnly;
+		if (button->toolButtonStyle() != style) {
+			button->setToolButtonStyle(style);
+		}
+		// Its name keeps the command's and, with no review in progress, holds
+		// the words it shows, also when the bar is too narrow for them.
+		button->setAccessibleName(inProgress ? tr("Compose review") : tr("Compose review: approve or comment"));
+		button->setAccessibleDescription(keptDraft
+											 ? tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request; a review draft is kept for this pull request")
+											 : tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request"));
+		if (button->property(strip_style::mark_property).toBool() != keptDraft) {
+			button->setProperty(strip_style::mark_property, keptDraft);
+			button->update();
+		}
+		if (button->property(strip_style::lead_property).toBool() == inProgress) {
+			button->setProperty(strip_style::lead_property, !inProgress);
+			button->update();
 		}
 	}
 
@@ -9184,6 +9411,13 @@ namespace bpr::qt {
 		const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
 		if (!discuss && ComparisonSurface != nullptr) {
 			if (const auto selection = ComparisonSurface->selection(); selection.has_value()) {
+				// [[BPR-1724]]. Comment takes several selected lines on
+				// one side together, and says so.
+				if (const auto range = ComparisonSurface->line_draft_range(); range.has_value() && range->first.Side == range->second.Side && range->first.Line != range->second.Line) {
+					return tr("Co&mment on lines %1–%2…")
+						.arg(static_cast<qulonglong>(std::min(range->first.Line, range->second.Line)) + 1U)
+						.arg(static_cast<qulonglong>(std::max(range->first.Line, range->second.Line)) + 1U);
+				}
 				return tr("Co&mment on line %1…").arg(static_cast<qulonglong>(selection->PreferredLine.Line) + 1U);
 			}
 		}
@@ -9208,7 +9442,13 @@ namespace bpr::qt {
 		// [[BPR-1212]]. A new comment on a base line is GitHub's `side: LEFT`,
 		// counted in the merge base's version of the file. A reply goes to
 		// its thread, wherever it was drafted from.
-		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value()) {
+		// RFC-BPR-0089 M4. On a commit-filtered diff the host's core places
+		// the line; its refusal is the reason, its pending answer is not one.
+		if (const auto [notice, blocks] = filtered_comment_notice(); blocks && FilteredPlacement && FilteredPlacement->Target.Refusal != core::filtered_comment_refusal::lines_pending
+			&& selection && FilteredPlacement->Selection == selection->PreferredLine) {
+			return say(notice, tr("Cannot comment on this line here"));
+		}
+		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value() && !FilteredComments) {
 			return say(tr("GitHub counts base lines in the merge base's version of this file, and this comparison's base is not known to match it. Comment on a right-side line, or reply to an existing thread."),
 					   tr("This file's base is not GitHub's"));
 		}
@@ -9268,6 +9508,13 @@ namespace bpr::qt {
 		}
 		if (const auto thread = comment_reply_thread(); thread.has_value()) {
 			reply_to_thread(*thread, true);
+			return;
+		}
+		// [[BPR-1724]]. Several selected lines take one comment on all
+		// of them, through the path Return and Add comment take; it opened the
+		// selected line's own draft.
+		if (const auto range = ComparisonSurface != nullptr ? ComparisonSurface->line_draft_range() : std::nullopt; range.has_value() && range->first != range->second) {
+			static_cast<void>(comment_on_selected_lines(false));
 			return;
 		}
 		static_cast<void>(begin_new_comment(false));
@@ -9741,9 +9988,12 @@ namespace bpr::qt {
 			ConversationPanel->present_notice(tr("Finish or cancel the reply on this line first; a new comment starts once it is gone."));
 			return false;
 		}
-		// Suggest change starts as a block holding the selected lines
-		// exactly; a draft with words keeps them and gains the block.
-		if (aSuggestion && !ReviewEditor->body_editor()->isReadOnly()
+		const auto inReview = Modality != nullptr && Modality->current() == review_modality::review && !showing_home() && CompositionPage == nullptr;
+		// [[RFC-BPR-0090]]. In Review, Suggest change writes the change in the
+		// code and the drawer never prefills a block (owner, Q5). Elsewhere no
+		// code shows, so the full composer starts as a block holding the
+		// selected lines exactly; a draft with words keeps them and gains it.
+		if (aSuggestion && !inReview && !ReviewEditor->body_editor()->isReadOnly()
 			&& core::classify_review_body(ReviewEditor->body_editor()->toPlainText().toStdString()) != core::review_body_compatibility::requires_line_subject) {
 			if (const auto lines = draft_source_lines(); lines.has_value()) {
 				const auto fence = QString::fromStdString(core::suggestion_fence_body(*lines));
@@ -9752,7 +10002,6 @@ namespace bpr::qt {
 				CompositionCaret = static_cast<int>(ReviewEditor->body_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' }));
 			}
 		}
-		const auto inReview = Modality != nullptr && Modality->current() == review_modality::review && !showing_home() && CompositionPage == nullptr;
 		if (!inReview || ReviewEditor->body_editor()->isReadOnly()) {
 			// Discuss, or a draft whose kept text is in conflict: the full
 			// composer, where Reload and Reapply are.
@@ -9790,7 +10039,268 @@ namespace bpr::qt {
 		}
 		CompositionCaret = -1;
 		apply_thread_marks();
+		// [[RFC-BPR-0090]]. The draft's lines open for writing in the head pane;
+		// a kept suggestion opens there again however it is opened, and the
+		// keyboard stays with its words.
+		if (aSuggestion) {
+			static_cast<void>(begin_pane_suggestion());
+		} else if (!PaneSuggestion.has_value() || PaneSuggestion->Anchor != draft->Anchor) {
+			if (core::split_suggestion_body(ReviewEditor->body_editor()->toPlainText().toStdString()).has_value()) {
+				static_cast<void>(begin_pane_suggestion(false));
+			}
+		}
 		return true;
+	}
+
+	auto workbench_window::suggestion_range_reason(const core::comment_range_decision& aDecision, QString* const aWords) const -> QString
+	{
+		const auto refuse = [aWords](QString aFull, QString aShort) {
+			if (aWords != nullptr) {
+				*aWords = std::move(aShort);
+			}
+			return aFull;
+		};
+		const auto* const result = ComparisonSurface != nullptr ? ComparisonSurface->current_result().get() : nullptr;
+		if (result == nullptr) {
+			return refuse(tr("Wait for the comparison to load, then select a line."), tr("The comparison is loading"));
+		}
+		const auto first    = core::source_line_ref{ .Comparison = aDecision.Anchor.Comparison, .Side = aDecision.Anchor.Side, .Line = aDecision.StartLine.value_or(aDecision.Anchor.Line) };
+		const auto decision = core::decide_suggestion_range(result->Alignment, first, aDecision.Anchor, !RightConversationEndpointCurrent);
+		switch (decision.Refusal) {
+		case core::suggestion_range_refusal::none:
+			return { };
+		case core::suggestion_range_refusal::base_side:
+			return refuse(tr("Suggest change replaces lines on the right, head side. A base line takes a comment."), tr("Suggest change: head side only"));
+		case core::suggestion_range_refusal::outside_changed_region:
+			return refuse(tr("GitHub takes a suggestion only on lines inside a changed region. Select a line within a hunk, or add a comment here instead."),
+						  tr("Suggestions need a changed region"));
+		case core::suggestion_range_refusal::filtered_range:
+			return refuse(tr("This comparison's right side is an earlier commit than the head, where GitHub takes a comment on one line only. Select one line to suggest a change."),
+						  tr("One line on an earlier commit"));
+		case core::suggestion_range_refusal::comment_range:
+			break;
+		}
+		return refuse(tr("GitHub takes a suggestion on several lines only inside one changed region. Select lines within one hunk, or a single line."),
+					  tr("Lines must be in one changed region"));
+	}
+
+	auto workbench_window::begin_pane_suggestion(const bool aFocusCode) -> bool
+	{
+		if (ReviewEditor == nullptr || ComparisonSurface == nullptr) {
+			return false;
+		}
+		const auto& draft  = ReviewEditor->shown_draft();
+		const auto& result = ComparisonSurface->current_result();
+		if (!draft.has_value() || draft->ReplyToThread.has_value() || draft->shared() || ReviewEditor->body_editor()->isReadOnly() || !result
+			|| draft->Anchor.Comparison != result->Alignment.Digest || draft->Anchor.Side != core::diff_side::right || !result->RightDocument.has_value()) {
+			return false;
+		}
+		const auto first = draft->StartLine.value_or(draft->Anchor.Line);
+		const auto last  = draft->Anchor.Line;
+		const auto bytes = std::string{ result->RightDocument->Bytes.begin(), result->RightDocument->Bytes.end() };
+		auto       all   = core::split_text_lines(bytes);
+		if (first > last || last >= all.size()) {
+			return false;
+		}
+		auto original = std::vector<core::text_line>{ all.begin() + first, all.begin() + last + 1U };
+		// A kept suggestion opens with its block; any other words stay words.
+		const auto body    = ReviewEditor->body_editor()->toPlainText().toStdString();
+		auto       rebuilt = core::rebuild_suggestion_span(body, original, true);
+		auto       state   = pane_suggestion{ .Anchor = draft->Anchor, .StartLine = draft->StartLine, .Original = original };
+		auto       span    = std::optional<std::vector<core::text_line>>{ };
+		if (rebuilt.Refusal == core::suggestion_rebuild_refusal::none) {
+			state.Prose = QString::fromStdString(rebuilt.Prose);
+			span        = std::move(rebuilt.Lines);
+		} else {
+			state.Prose    = QString::fromStdString(body);
+			state.OwnBlock = core::classify_review_body(body) == core::review_body_compatibility::requires_line_subject;
+		}
+		const auto words  = first == last ? tr("line %1").arg(last + 1U) : tr("lines %1–%2").arg(first + 1U).arg(last + 1U);
+		const auto only   = first == last ? tr("Only line %1 is in this suggestion. Esc ends the edit.").arg(last + 1U)
+										  : tr("Only lines %1–%2 are in this suggestion. Esc ends the edit.").arg(first + 1U).arg(last + 1U);
+		auto       accent = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr ? ConversationPanel->cards()->accent() : palette().color(QPalette::Highlight);
+		auto       wash   = accent;
+		wash.setAlphaF(0.14F);
+		// The link is the drawer's from now on; an edit opened earlier ends first.
+		PaneSuggestion.reset();
+		auto* const editor = ComparisonSurface->begin_head_edit(diff_workbench::head_edit_request{
+			.First     = first,
+			.Last      = last,
+			.Span      = std::move(span),
+			.EmptyNote = tr("Deletes %1").arg(words),
+			.Wash      = wash,
+			.Edge      = accent,
+			.Flash     = accent.darker(135),
+			.Changed   = [this] { compose_pane_suggestion(); },
+			.Ended =
+				[this] {
+					if (PaneSuggestion.has_value()) {
+						PaneSuggestion->Open = false;
+					}
+					// The drawer shows the kept change once the edit has gone.
+					QTimer::singleShot(0, this, [this] { present_inline_draft(); });
+				},
+		});
+		if (editor == nullptr) {
+			statusBar()->showMessage(tr("This file is too large to edit in place. Write the change in the comment as a suggestion block instead."), 10000);
+			return false;
+		}
+		state.Open      = true;
+		PaneSuggestion  = std::move(state);
+		editor->Refused = [this, only] { statusBar()->showMessage(only, 6000); };
+		editor->Escaped = [this] {
+			end_pane_suggestion();
+			return true;
+		};
+		statusBar()->showMessage(tr("Suggesting a change to %1. Type it in the code; Esc ends the edit.").arg(words), 6000);
+		present_inline_draft();
+		if (aFocusCode) {
+			editor->setFocus(Qt::OtherFocusReason);
+		} else if (auto* const field = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr ? ConversationPanel->cards()->draft_editor() : nullptr; field != nullptr) {
+			field->setFocus(Qt::OtherFocusReason);
+		}
+		// [[BPR-1733]]. Opened on a carried suggestion's lines: it takes its body.
+		if (Carrying.has_value() && !Carrying->Written && PaneSuggestion->Anchor == Carrying->Anchor) {
+			write_carried_suggestion();
+		}
+		return true;
+	}
+
+	void workbench_window::end_pane_suggestion()
+	{
+		if (PaneSuggestion.has_value() && PaneSuggestion->Open && ComparisonSurface != nullptr) {
+			ComparisonSurface->end_head_edit();
+		}
+		if (PaneSuggestion.has_value()) {
+			PaneSuggestion->Open = false;
+		}
+	}
+
+	void workbench_window::release_pane_suggestion()
+	{
+		end_pane_suggestion();
+		PaneSuggestion.reset();
+	}
+
+	auto workbench_window::pane_suggestion_plan() const -> std::optional<core::pull_request_suggestion_plan>
+	{
+		if (!PaneSuggestion.has_value() || ReviewEditor == nullptr) {
+			return std::nullopt;
+		}
+		const auto prose = PaneSuggestion->Prose.toStdString();
+		const auto first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+		auto       input = core::pull_request_suggestion_input{ .First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Prose = prose };
+		// On a commit-filtered diff, where the host's core puts a comment on
+		// the anchor line (RFC-BPR-0089 Q1); not yet known is not placed.
+		if (FilteredComments) {
+			input.Filtered = FilteredPlacement.has_value() && FilteredPlacement->Selection == PaneSuggestion->Anchor
+				? FilteredPlacement->Target
+				: core::filtered_comment_target{ .Placement = core::filtered_comment_placement::refused, .Refusal = core::filtered_comment_refusal::lines_pending };
+		}
+		auto* const editor = PaneSuggestion->Open && ComparisonSurface != nullptr ? ComparisonSurface->head_editor() : nullptr;
+		if (editor != nullptr) {
+			const auto range = editor->model().editable_range();
+			if (!range.has_value()) {
+				return std::nullopt;
+			}
+			const auto& lines = editor->model().state().Lines;
+			input.Edited      = std::span{ lines }.subspan(static_cast<std::size_t>(range->first), static_cast<std::size_t>(range->second - range->first + 1U));
+			return core::plan_pull_request_suggestion(input);
+		}
+		// Closed: the change the draft keeps, from its body's last block, so
+		// words holding a block of their own never lose the code's.
+		const auto split = core::split_suggestion_body(ReviewEditor->body_editor()->toPlainText().toStdString());
+		const auto kept  = split.has_value() ? core::rebuild_suggestion_span(core::compose_suggestion_body({ }, split->Block), PaneSuggestion->Original, true) : core::suggestion_rebuild{ };
+		input.Edited     = split.has_value() && kept.Refusal == core::suggestion_rebuild_refusal::none ? std::span<const core::text_line>{ kept.Lines }
+																									   : std::span<const core::text_line>{ PaneSuggestion->Original };
+		return core::plan_pull_request_suggestion(input);
+	}
+
+	auto workbench_window::suggestion_hold(const core::pull_request_suggestion_plan& aPlan) const -> std::pair<QString, QString>
+	{
+		if (!aPlan.Changed || aPlan.placeable() || !PaneSuggestion.has_value()) {
+			return { };
+		}
+		const auto line   = PaneSuggestion->Anchor.Line + 1U;
+		const auto commit = FilteredPlacement.has_value() ? FilteredPlacement->Commit : QString{ };
+		switch (aPlan.Reason) {
+		case core::suggestion_placement_reason::changed_after_commit:
+			return { tr("Line %1 changed after commit %2. GitHub shows a comment here as outdated, so it cannot apply a suggestion.").arg(line).arg(commit),
+					 tr("Convert to a comment on %1").arg(commit) };
+		case core::suggestion_placement_reason::unresolvable_line:
+			return { tr("GitHub can't attach a comment to line %1 on any commit, so it cannot apply a suggestion here.").arg(line), tr("Convert to file comment") };
+		case core::suggestion_placement_reason::not_placed: {
+			const auto [notice, blocks] = filtered_comment_notice();
+			static_cast<void>(blocks);
+			return { notice.isEmpty() ? tr("Working out where GitHub puts a comment on this line…") : notice, QString{ } };
+		}
+		case core::suggestion_placement_reason::none:
+			break;
+		}
+		return { };
+	}
+
+	void workbench_window::convert_pane_suggestion()
+	{
+		const auto plan = pane_suggestion_plan();
+		if (!plan.has_value() || !plan->Changed || ReviewEditor == nullptr || ReviewEditor->body_editor()->isReadOnly()) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->Anchor != PaneSuggestion->Anchor) {
+			return;
+		}
+		auto original = std::vector<std::string>{ };
+		for (const auto& line : PaneSuggestion->Original) {
+			original.push_back(line.Content);
+		}
+		const auto first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+		const auto last  = PaneSuggestion->Anchor.Line;
+		const auto text  = core::convert_suggestion_to_text(PaneSuggestion->Prose.toStdString(), first, last, original, plan->Block);
+		const auto id    = draft->Id;
+		// The draft is text from now on: the link to the code ends with it.
+		release_pane_suggestion();
+		HeldSuggestions.erase(id);
+		ReviewEditor->body_editor()->setPlainText(QString::fromStdString(text));
+		present_held_suggestions();
+		statusBar()->showMessage(first == last ? tr("Your words and the change are now a comment on line %1.").arg(last + 1U)
+											   : tr("Your words and the change are now a comment on lines %1–%2.").arg(first + 1U).arg(last + 1U),
+								 6000);
+		present_inline_draft();
+	}
+
+	void workbench_window::present_held_suggestions()
+	{
+		if (ReviewSubmissionEditor == nullptr) {
+			return;
+		}
+		// The reading amber, deep enough to read as text on either variant.
+		auto ink = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr ? ConversationPanel->cards()->marker() : QColor{ };
+		if (ink.isValid()) {
+			ink = palette().color(QPalette::Window).lightness() < 128 ? ink.lighter(125) : ink.darker(155);
+		}
+		auto held = std::map<core::review_draft_id, review_submission_editor::held_comment>{ };
+		for (const auto& [id, suggestion] : HeldSuggestions) {
+			held.emplace(id, review_submission_editor::held_comment{ .Reason = suggestion.Reason, .Convert = suggestion.Convert, .Ink = ink });
+		}
+		ReviewSubmissionEditor->set_held_comments(std::move(held));
+	}
+
+	void workbench_window::compose_pane_suggestion()
+	{
+		const auto plan = pane_suggestion_plan();
+		if (!plan.has_value() || ReviewEditor == nullptr || ReviewEditor->body_editor()->isReadOnly()) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->Anchor != PaneSuggestion->Anchor) {
+			return;
+		}
+		const auto body = QString::fromStdString(plan->Body);
+		if (ReviewEditor->body_editor()->toPlainText() != body) {
+			ReviewEditor->body_editor()->setPlainText(body);
+		}
+		present_inline_draft();
 	}
 
 	auto workbench_window::decide_selected_lines(QString& aReason, QString* const aShort) const -> std::optional<core::comment_range_decision>
@@ -9860,6 +10370,13 @@ namespace bpr::qt {
 			statusBar()->showMessage(tr("Suggest change replaces lines on the right, head side. A base line takes a comment: Add comment, or Return."), 10000);
 			return false;
 		}
+		// [[RFC-BPR-0090]]. And the lines must be ones GitHub can suggest on.
+		if (aSuggestion) {
+			if (const auto why = suggestion_range_reason(*decision); !why.isEmpty()) {
+				statusBar()->showMessage(why, 10000);
+				return false;
+			}
+		}
 		// The draft composes on the range's last line, which GitHub anchors
 		// it to.
 		const auto selected = ComparisonSurface->selection().has_value() && ComparisonSurface->selection()->PreferredLine == decision->Anchor;
@@ -9923,11 +10440,9 @@ namespace bpr::qt {
 			statusBar()->showMessage(tr("This draft cannot take several lines now. Select one line, or settle the draft's retained text first."), 10000);
 			return false;
 		}
-		const auto opened = begin_new_comment(pending.Suggestion);
-		if (opened) {
-			statusBar()->clearMessage();
-		}
-		return opened;
+		// The wait's message goes first, so what opening says stays.
+		statusBar()->clearMessage();
+		return begin_new_comment(pending.Suggestion);
 	}
 
 	auto workbench_window::add_comment_action() const noexcept -> QAction*
@@ -9943,21 +10458,11 @@ namespace bpr::qt {
 	auto workbench_window::code_context_menu(QPlainTextEdit* const aPane, const QPoint aPosition) -> QMenu*
 	{
 		// [[BPR-1212]]. A right-click outside the selection selects its line
-		// first, as a click would; the menu then names it.
+		// first, as a click would; the menu then names it. Inside the selected
+		// lines it keeps them all. [[BPR-1724]]. The workbench reads the
+		// line from the pane, so one pane's rows give the line they show.
 		if (ComparisonSurface != nullptr && aPane != nullptr) {
-			const auto  side      = aPane == ComparisonSurface->left_pane() ? core::diff_side::left : core::diff_side::right;
-			const auto  block     = aPane->cursorForPosition(aPosition).blockNumber();
-			const auto& selection = ComparisonSurface->selection();
-			// [[BPR-1212]] slice 1. Inside the selected lines keeps them all.
-			const auto range  = ComparisonSurface->line_draft_range();
-			const auto line   = static_cast<std::uint32_t>(std::max(block, 0));
-			const auto inside = selection.has_value() && selection->PreferredLine.Side == side
-				&& (selection->PreferredLine.Line == line
-					|| (range.has_value() && range->first.Side == side && range->second.Side == side
-						&& line >= std::min(range->first.Line, range->second.Line) && line <= std::max(range->first.Line, range->second.Line)));
-			if (block >= 0 && !inside) {
-				static_cast<void>(ComparisonSurface->select_conversation_line(side, static_cast<std::uint32_t>(block)));
-			}
+			static_cast<void>(ComparisonSurface->select_line_for_menu(aPane, aPosition));
 		}
 		update_comment_target();
 		auto* const menu = new QMenu{ aPane != nullptr ? static_cast<QWidget*>(aPane) : this };
@@ -9966,12 +10471,19 @@ namespace bpr::qt {
 		const auto& selection = ComparisonSurface != nullptr ? ComparisonSurface->selection() : std::nullopt;
 		if (selection.has_value()) {
 			// [[BPR-1212]] slice 1. "Lines a–b" when the selection covers several.
-			const auto  range   = ComparisonSurface->line_draft_range();
-			const auto  first   = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
-			const auto  last    = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
-			const auto  base    = selection->PreferredLine.Side == core::diff_side::left;
-			auto* const caption = menu->addAction(first == last ? (base ? tr("Base line %1") : tr("Line %1")).arg(first + 1U)
-																: (base ? tr("Base lines %1–%2") : tr("Lines %1–%2")).arg(first + 1U).arg(last + 1U));
+			const auto range = ComparisonSurface->line_draft_range();
+			const auto first = range.has_value() ? std::min(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
+			const auto last  = range.has_value() ? std::max(range->first.Line, range->second.Line) : selection->PreferredLine.Line;
+			const auto base  = selection->PreferredLine.Side == core::diff_side::left;
+			// [[BPR-1724]]. One pane's rows can start on one side and end
+			// on the other; the caption names each end's own side.
+			const auto  mixed   = range.has_value() && range->first.Side != range->second.Side;
+			const auto  heading = mixed ? (range->first.Side == core::diff_side::left ? tr("Base line %1 to line %2") : tr("Line %1 to base line %2"))
+											  .arg(range->first.Line + 1U)
+											  .arg(range->second.Line + 1U)
+				: first == last         ? (base ? tr("Base line %1") : tr("Line %1")).arg(first + 1U)
+										: (base ? tr("Base lines %1–%2") : tr("Lines %1–%2")).arg(first + 1U).arg(last + 1U);
+			auto* const caption = menu->addAction(heading);
 			caption->setObjectName(QStringLiteral("codeContextMenuCaption"));
 			caption->setEnabled(false);
 			// [[BPR-1335]]. The line's thread, reachable without its marker.
@@ -10032,9 +10544,8 @@ namespace bpr::qt {
 		// A suggestion replaces head lines; a base line takes a comment only.
 		auto suggestReason = reason;
 		auto suggestWords  = words;
-		if (suggestReason.isEmpty() && decision.has_value() && decision->Anchor.Side != core::diff_side::right) {
-			suggestReason = tr("Suggest change replaces lines on the right, head side. A base line takes a comment.");
-			suggestWords  = tr("Suggest change: head side only");
+		if (suggestReason.isEmpty() && decision.has_value()) {
+			suggestReason = suggestion_range_reason(*decision, &suggestWords);
 		}
 		const auto several = decision.has_value() && decision->StartLine.has_value();
 		for (auto* const action : { AddCommentAction, SuggestChangeAction }) {
@@ -10042,12 +10553,21 @@ namespace bpr::qt {
 			action->setEnabled(why.isEmpty());
 			action->setToolTip(!why.isEmpty()                   ? why
 								   : action == AddCommentAction ? (several ? tr("Write a comment on these lines, in the drawer beside the code") : tr("Write a comment on this line, in the drawer beside the code"))
-								   : several                    ? tr("Suggest new text for these lines: a suggestion block GitHub can apply")
-																: tr("Suggest new text for this line: a suggestion block GitHub can apply"));
+								   : several                    ? tr("Write new text for these lines in the code: a suggestion GitHub can apply")
+																: tr("Write new text for this line in the code: a suggestion GitHub can apply"));
 			action->setStatusTip(action->toolTip());
+			// [[BPR-1721]]. An item that takes several lines names them,
+			// as the core decided them, so a range is seen before it is chosen.
+			auto text = action->text();
+			if (several && why.isEmpty()) {
+				const auto first = *decision->StartLine + 1U;
+				const auto last  = decision->Anchor.Line + 1U;
+				text             = decision->Anchor.Side == core::diff_side::left ? tr("%1 on base lines %2–%3").arg(text).arg(first).arg(last)
+																				  : tr("%1 on lines %2–%3").arg(text).arg(first).arg(last);
+			}
 			// The menu's item shows the code's key; it is the menu's own, so
 			// no window shortcut ever claims Return.
-			auto* const item = new QAction{ action->icon(), action->text(), menu };
+			auto* const item = new QAction{ action->icon(), text, menu };
 			item->setObjectName(action->objectName());
 			item->setShortcuts(shortcut_keys(action == AddCommentAction ? shortcut_command::add_comment : shortcut_command::suggest_change));
 			item->setShortcutContext(Qt::WidgetShortcut);
@@ -10121,6 +10641,8 @@ namespace bpr::qt {
 	{
 		// [[BPR-1212]]. Esc keeps a written draft at its line and drops an
 		// empty one; Discard drops it through the editor's own Discard.
+		// [[RFC-BPR-0090]]. The head pane's edit ends with the drawer draft.
+		release_pane_suggestion();
 		if (ReviewEditor != nullptr && ReviewEditor->discard_action()->isEnabled()
 			&& (aDiscard || ReviewEditor->body_editor()->toPlainText().trimmed().isEmpty())
 			&& !ReviewEditor->body_editor()->toPlainText().isEmpty()) {
@@ -10171,6 +10693,15 @@ namespace bpr::qt {
 			|| (WritingAnchor.has_value() && draft->Anchor != *WritingAnchor)) {
 			return;
 		}
+		// [[RFC-BPR-0090]]. While the head pane holds the block, the field holds
+		// the words, and the body is the core's composition of the two.
+		if (PaneSuggestion.has_value() && PaneSuggestion->Anchor == draft->Anchor) {
+			if (PaneSuggestion->Prose != aText) {
+				PaneSuggestion->Prose = aText;
+				compose_pane_suggestion();
+			}
+			return;
+		}
 		if (ReviewEditor->body_editor()->toPlainText() != aText) {
 			ReviewEditor->body_editor()->setPlainText(aText);
 		}
@@ -10183,13 +10714,67 @@ namespace bpr::qt {
 		}
 		auto* const cards = ConversationPanel->cards();
 		const auto& draft = ReviewEditor->shown_draft();
-		const auto  body  = ReviewEditor->body_editor()->toPlainText();
+		// [[RFC-BPR-0090]]. Finish your review's Convert, once its draft shows:
+		// the text the window planned for it, at the same lines.
+		if (PendingConvert.has_value() && draft.has_value() && draft->Id == *PendingConvert && !ReviewEditor->body_editor()->isReadOnly()) {
+			const auto id = *std::exchange(PendingConvert, std::nullopt);
+			if (PaneSuggestion.has_value() && PaneSuggestion->Anchor == draft->Anchor) {
+				convert_pane_suggestion();
+				return;
+			}
+			if (const auto found = HeldSuggestions.find(id); found != HeldSuggestions.end()) {
+				const auto text = QString::fromStdString(found->second.Body);
+				HeldSuggestions.erase(found);
+				present_held_suggestions();
+				ReviewEditor->body_editor()->setPlainText(text);
+				return;
+			}
+		}
+		const auto body = ReviewEditor->body_editor()->toPlainText();
 		// The notes hold the accepted draft, so a draft left in the drawer
 		// is its note at once; while it is written this lays nothing out.
 		cards->set_draft(draft, ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr ? std::optional{ ComparisonSurface->current_result()->Alignment.Digest } : std::nullopt);
 		// What a suggestion block changes, against the exact head lines.
 		auto change = std::optional<core::suggested_change>{ };
-		if (draft.has_value() && core::classify_review_body(body.toStdString()) == core::review_body_compatibility::requires_line_subject) {
+		// [[RFC-BPR-0090]]. Linked to the head pane's edit: the words in the
+		// field, and what the code's change does under them.
+		const auto linked = PaneSuggestion.has_value() && draft.has_value() && PaneSuggestion->Anchor == draft->Anchor;
+		auto       hold   = std::pair<QString, QString>{ };
+		if (linked) {
+			// No change yet says to type it in the code.
+			const auto plan = pane_suggestion_plan();
+			change          = plan.has_value() && plan->Changed ? plan->Change : core::suggested_change{ .Fenced = true };
+			// [[RFC-BPR-0090]] Q3. A suggestion GitHub cannot apply is held,
+			// marked, and offered Convert; Finish your review holds it too.
+			if (plan.has_value()) {
+				hold = suggestion_hold(*plan);
+			}
+			const auto wasHeld = HeldSuggestions.contains(draft->Id);
+			if (!hold.first.isEmpty() && plan.has_value()) {
+				auto original = std::vector<std::string>{ };
+				for (const auto& line : PaneSuggestion->Original) {
+					original.push_back(line.Content);
+				}
+				HeldSuggestions[draft->Id] = held_suggestion{
+					.Reason  = hold.first,
+					.Convert = hold.second,
+					.Body    = core::convert_suggestion_to_text(PaneSuggestion->Prose.toStdString(), PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line), PaneSuggestion->Anchor.Line,
+																original, plan->Block),
+				};
+			} else {
+				HeldSuggestions.erase(draft->Id);
+			}
+			if (wasHeld != HeldSuggestions.contains(draft->Id) || !hold.first.isEmpty()) {
+				present_held_suggestions();
+			}
+			// The range's edge reads amber while GitHub cannot apply it.
+			if (auto* const head = PaneSuggestion->Open && ComparisonSurface != nullptr ? ComparisonSurface->head_editor() : nullptr; head != nullptr) {
+				auto edge = hold.first.isEmpty() ? cards->accent() : cards->marker();
+				auto wash = edge;
+				wash.setAlphaF(0.14F);
+				head->set_range_colours(wash, edge, edge.darker(135));
+			}
+		} else if (draft.has_value() && core::classify_review_body(body.toStdString()) == core::review_body_compatibility::requires_line_subject) {
 			if (const auto lines = draft_source_lines(); lines.has_value()) {
 				if (auto decided = core::suggested_change_of(body.toStdString(), *lines); decided.Fenced) {
 					change = std::move(decided);
@@ -10254,6 +10839,10 @@ namespace bpr::qt {
 			cards->end_draft();
 			apply_thread_marks();
 		}
+		// [[RFC-BPR-0090]]. The head pane's edit is the shown draft's, or ends.
+		if (PaneSuggestion.has_value() && (!draft.has_value() || draft->shared() || draft->ReplyToThread.has_value() || draft->Anchor != PaneSuggestion->Anchor)) {
+			release_pane_suggestion();
+		}
 		if (!draft.has_value() || draft->shared() || draft->ReplyToThread.has_value()) {
 			cards->present_draft(std::nullopt);
 			return;
@@ -10261,15 +10850,24 @@ namespace bpr::qt {
 		// [[BPR-1329]]. What the last Publish came to comes first: publishing,
 		// or why it did not happen. Otherwise, why Publish is unavailable.
 		auto notice = ReviewEditor->publication_status();
+		// RFC-BPR-0089 M4. Then where the comment goes, read before Publish.
+		if (notice.isEmpty()) {
+			notice = ReviewEditor->target_notice_text();
+		}
 		if (notice.isEmpty() && !ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
 			notice = ReviewEditor->publish_action()->toolTip();
 		}
+		if (!hold.first.isEmpty()) {
+			notice = hold.first;
+		}
 		cards->present_draft(draft_composer_presentation{
-			.Body        = body,
-			.Publishable = ReviewEditor->publish_action()->isEnabled(),
+			.Body        = linked ? PaneSuggestion->Prose : body,
+			.Publishable = ReviewEditor->publish_action()->isEnabled() && hold.first.isEmpty(),
 			.Editable    = !ReviewEditor->body_editor()->isReadOnly(),
 			.Lines       = words,
 			.Change      = std::move(change),
+			.InCode      = linked,
+			.Convert     = hold.second,
 			.Notice      = notice,
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),
@@ -10298,6 +10896,8 @@ namespace bpr::qt {
 		const auto shown = PendingReviewComments > 0U || held;
 		if (ReviewChipAction->isVisible() != shown) {
 			ReviewChipAction->setVisible(shown);
+			// [[BPR-1700]]. Compose review is the plain icon beside the chip.
+			present_compose_entry();
 			apply_strip_width();
 		}
 		if (FinishReviewAction != nullptr) {
@@ -10323,6 +10923,89 @@ namespace bpr::qt {
 	void workbench_window::set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
 	{
 		PendingCommentDeleteDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_carried_suggestion_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
+	{
+		CarriedSuggestionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_moved_suggestions(std::vector<moved_suggestion_card> aMoved)
+	{
+		MovedSuggestions = aMoved;
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_moved_suggestions(std::move(aMoved));
+			apply_thread_marks();
+		}
+	}
+
+	void workbench_window::carry_moved_suggestion(const std::string& aIdentity)
+	{
+		// [[BPR-1733]]. Suggest change on the lines the core carried it to,
+		// as a hand would choose them; the draft opened there takes its body.
+		const auto        moved  = std::ranges::find_if(MovedSuggestions, [&aIdentity](const moved_suggestion_card& aMoved) {
+			return conversation_cards_view::moved_suggestion_identity(aMoved.Draft.Id) == aIdentity;
+		});
+		const auto* const result = ComparisonSurface != nullptr ? ComparisonSurface->current_result().get() : nullptr;
+		if (moved == MovedSuggestions.end() || !moved->Move.Carry.has_value() || result == nullptr || result->Alignment.Digest != moved->Comparison) {
+			statusBar()->showMessage(tr("This suggestion cannot be carried now. Copy the change to write it again."), 10000);
+			return;
+		}
+		const auto [first, last] = *moved->Move.Carry;
+		const auto anchor        = core::source_line_ref{ .Comparison = moved->Comparison, .Side = core::diff_side::right, .Line = last };
+		// The lines must be ones GitHub takes a suggestion on at this head too.
+		if (const auto why = suggestion_range_reason(core::comment_range_decision{ .Anchor = anchor, .StartLine = first < last ? std::optional{ first } : std::nullopt }); !why.isEmpty()) {
+			statusBar()->showMessage(why, 10000);
+			return;
+		}
+		Carrying = carried_suggestion{
+			.From      = moved->Draft.Id,
+			.Revision  = moved->Revision,
+			.Anchor    = anchor,
+			.StartLine = first < last ? std::optional{ first } : std::nullopt,
+			.Body      = moved->Draft.Body,
+		};
+		const auto selected = ComparisonSurface->selection().has_value() && ComparisonSurface->selection()->PreferredLine == anchor;
+		if (!selected && !ComparisonSurface->select_conversation_line(core::diff_side::right, last)) {
+			Carrying.reset();
+			statusBar()->showMessage(tr("Select a line of this comparison."), 10000);
+			return;
+		}
+		PendingLineComment = pending_line_comment{ .Anchor = anchor, .StartLine = Carrying->StartLine, .Suggestion = true };
+		if (!resume_line_comment() && PendingLineComment.has_value()) {
+			statusBar()->showMessage(tr("Opening the suggestion on its lines…"), line_comment_wait_ms);
+			QTimer::singleShot(line_comment_wait_ms, this, [this, anchor] { report_line_comment_wait(anchor); });
+		}
+	}
+
+	void workbench_window::write_carried_suggestion()
+	{
+		if (!Carrying.has_value() || Carrying->Written || ReviewEditor == nullptr || !PaneSuggestion.has_value() || PaneSuggestion->Anchor != Carrying->Anchor) {
+			return;
+		}
+		Carrying->Written = true;
+		// The body goes through the draft's own edit path, so the new draft
+		// is saved as any typed one is; the edit then opens on its block.
+		ReviewEditor->body_editor()->setPlainText(QString::fromStdString(Carrying->Body));
+		static_cast<void>(begin_pane_suggestion(true));
+		statusBar()->showMessage(tr("Carried to this head. The draft from the earlier head is deleted once this one is saved."), 6000);
+	}
+
+	void workbench_window::settle_carried_suggestion(const std::vector<core::review_comment_draft>& aDrafts)
+	{
+		if (!Carrying.has_value() || !Carrying->Written) {
+			return;
+		}
+		const auto saved = std::ranges::any_of(aDrafts, [this](const core::review_comment_draft& aDraft) {
+			return aDraft.Id != Carrying->From && aDraft.Anchor == Carrying->Anchor && aDraft.StartLine == Carrying->StartLine && aDraft.Body == Carrying->Body;
+		});
+		if (!saved) {
+			return;
+		}
+		const auto carried = *std::exchange(Carrying, std::nullopt);
+		if (CarriedSuggestionDispatch) {
+			CarriedSuggestionDispatch(carried.From, carried.Revision);
+		}
 	}
 
 	void workbench_window::confirm_delete_drawer_draft()
@@ -13180,6 +13863,11 @@ namespace bpr::qt {
 		auto page = QString{ };
 		switch (aPage) {
 		case core::reference_page::conventional_comments: page = QStringLiteral("conventionalcomments.org"); break;
+		// Help › About opens these itself ([[BPR-1720]]); named here so
+		// the switch stays whole.
+		case core::reference_page::game_core_tech:    page = QStringLiteral("gamecoretech.com"); break;
+		case core::reference_page::source_repository: page = QStringLiteral("github.com/MikeMarcin/BetterPullReview"); break;
+		case core::reference_page::product_site:      page = QStringLiteral("betterpullreview.com"); break;
 		}
 		QString message;
 		switch (result) {
@@ -15161,7 +15849,17 @@ namespace bpr::qt {
 			// The selection authority names the picked post itself, as a
 			// revealed comment always has; its thread stays the one open.
 			if (const auto post = ConversationPanel->model()->index_for_id(pick.Post); post.isValid()) {
+				// [[BPR-1698]]. The pick reveals its line itself, once.
+				// Choosing moves the code only through the view's current
+				// change, and a long file's comparison is adopted turns after
+				// it is published, from the surface's selection observer,
+				// whose guard drops that change: the file opened where its
+				// own selection put it, not at the thread's line. An
+				// unchanged current row sends no change either.
+				const auto applying = std::exchange(ApplyingConversationAnchor, true);
 				ConversationPanel->choose(post);
+				ApplyingConversationAnchor = applying;
+				synchronize_selected_conversation(post);
 			}
 			// [[BPR-1581]]. The post's arrival is marked, as in Discuss, and a
 			// move from Discuss leaves the keyboard on the notes.
@@ -16835,6 +17533,10 @@ namespace bpr::qt {
 		if (ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(true);
 		}
+		// [[BPR-1700]]. Without Compose review's words, so the floor is
+		// the bar with its icon, as before they were added.
+		ComposeReviewWords = compose_words::none;
+		present_compose_entry();
 		remeasure();
 		const auto inset = ReviewBar->isVisible() ? std::max(0, width() - ReviewBar->width()) : 0;
 		const auto floor = std::max(platform_floor_width, ReviewBar->sizeHint().width() + inset);
@@ -16849,7 +17551,17 @@ namespace bpr::qt {
 		if (ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(false);
 		}
+		// [[BPR-1700]]. Compose review's words shorten first, to
+		// "Approve…", the verdict a newcomer looks for, and that goes last of
+		// all, after the dates, the positions' words and the steps' names.
+		ComposeReviewWords = compose_words::full;
+		present_compose_entry();
 		remeasure();
+		if (ReviewBar->sizeHint().width() > available) {
+			ComposeReviewWords = compose_words::brief;
+			present_compose_entry();
+			remeasure();
+		}
 		if (ReviewBar->sizeHint().width() > available) {
 			EpochSelectors->set_comparing_dates_shown(false);
 			remeasure();
@@ -16866,6 +17578,11 @@ namespace bpr::qt {
 		}
 		if (ReviewBar->sizeHint().width() > available && ProgressTrack != nullptr) {
 			ProgressTrack->set_compact(true);
+			remeasure();
+		}
+		if (ReviewBar->sizeHint().width() > available) {
+			ComposeReviewWords = compose_words::none;
+			present_compose_entry();
 			remeasure();
 		}
 	}
@@ -17122,7 +17839,7 @@ namespace bpr::qt {
 		PullRequestMenu->setObjectName(QStringLiteral("workbenchPullRequestMenu"));
 		PullRequestMenu->setAccessibleName(QStringLiteral("Pull Request"));
 		PullRequestMenu->setAccessibleDescription(
-			QStringLiteral("Open the pull request on GitHub, or keep it or its repository in my queue; nothing changes on GitHub"));
+			QStringLiteral("Open the pull request on GitHub, keep it or its repository in my queue, or mark its comments read; nothing changes on GitHub"));
 		FollowPullRequest = PullRequestMenu->addAction(QStringLiteral("&Follow"));
 		FollowPullRequest->setObjectName(QStringLiteral("followPullRequestAction"));
 		FollowPullRequest->setCheckable(true);
@@ -17150,6 +17867,21 @@ namespace bpr::qt {
 			RepositoryPendingGesture       = ++RepositoryGesture;
 			RepositoryDisplayedDestination = QueueProjection.Session;
 			RepositoryAdditionDispatch({ .Gesture = RepositoryPendingGesture, .Destination = RepositoryDisplayedDestination, .Text = ref->Repository });
+		});
+		// [[BPR-1699]]. Mark All Comments as Read: my read state for
+		// every comment on the open pull request, in one durable change.
+		// Like Follow it is local; GitHub is not told.
+		PullRequestMenu->addSeparator();
+		MarkAllCommentsRead = PullRequestMenu->addAction(QStringLiteral("&Mark All Comments as Read"));
+		MarkAllCommentsRead->setObjectName(QStringLiteral("markAllCommentsReadAction"));
+		MarkAllCommentsRead->setStatusTip(QStringLiteral("Mark every comment on this pull request as read. Only your own read state changes; nothing changes on GitHub."));
+		MarkAllCommentsRead->setToolTip(MarkAllCommentsRead->statusTip());
+		MarkAllCommentsRead->setEnabled(false);
+		connect(MarkAllCommentsRead, &QAction::triggered, this, [this] {
+			const auto dispatch = ConversationsReadDispatch;
+			if (dispatch) {
+				dispatch(std::nullopt);
+			}
 		});
 
 		ViewMenu = PrimaryMenuBar->addMenu(QStringLiteral("&View"));
@@ -18579,7 +19311,11 @@ namespace bpr::qt {
 					return QStringLiteral("&Seen");
 				case core::file_receipt_command_kind::mark_read:
 					return QStringLiteral("&Read");
+				// [[BPR-1701]]. Seen's inverse, which takes Read off too,
+				// and Read's, which leaves the file seen.
 				case core::file_receipt_command_kind::mark_unread:
+					return QStringLiteral("Mark u&nseen");
+				case core::file_receipt_command_kind::unmark_read:
 					return QStringLiteral("Mark &unread");
 				case core::file_receipt_command_kind::accept:
 					return QStringLiteral("&Accept");
@@ -18602,14 +19338,30 @@ namespace bpr::qt {
 						: index == 2U ? Receipt->Receipt.Accepted
 									  : Receipt->Receipt.Excluded);
 			action->setChecked(checked);
+			const auto purpose = [&] {
+				switch (kind) {
+				case core::file_receipt_command_kind::mark_seen:
+					return QStringLiteral("Mark this file seen.");
+				case core::file_receipt_command_kind::mark_unread:
+					return QStringLiteral("Mark this file unseen. Read comes off with it.");
+				case core::file_receipt_command_kind::mark_read:
+					return QStringLiteral("Mark this file read.");
+				case core::file_receipt_command_kind::unmark_read:
+					return QStringLiteral("Mark this file unread. It stays seen.");
+				case core::file_receipt_command_kind::accept:
+					return QStringLiteral("Accept this file privately.");
+				case core::file_receipt_command_kind::revoke_acceptance:
+					return QStringLiteral("Revoke private acceptance for this file.");
+				case core::file_receipt_command_kind::exclude:
+				case core::file_receipt_command_kind::include:
+					break;
+				}
+				return QStringLiteral("Update private progress for the selected exact file material.");
+			}();
 			describe_action(
 				action,
 				projected != nullptr && projected->Enabled && !LedgerUnavailable,
-				index == 2U
-					? kind == core::file_receipt_command_kind::revoke_acceptance
-						? QStringLiteral("Revoke private acceptance for this file.")
-						: QStringLiteral("Accept this file privately.")
-					: QStringLiteral("Update private progress for the selected exact file material."),
+				purpose,
 				index == 2U && Receipt.has_value() && Receipt->Receipt.Excluded && !LedgerUnavailable
 					? QStringLiteral("Include this file from Private progress before accepting it.")
 					: disabled);
@@ -18681,28 +19433,33 @@ namespace bpr::qt {
 
 	auto workbench_window::progress_step_offered(const std::size_t aIndex) const -> bool
 	{
-		// [[BPR-1578]]. A step only moves the file forward: Seen marks an
-		// unread file seen and Read marks a file read. A step already reached
-		// does nothing, so the track never un-reads a file; Mark unread stays
-		// in the private-progress menu. The command is the one the core
-		// projected for that action, never one the track makes up.
+		// [[BPR-1578]]. The command is the one the core projected for that
+		// action, never one the track makes up. [[BPR-1701]]. The owner,
+		// 2026-10-21: "In the toolbar I can uncheck accepted by clicking the
+		// accepted button. I should be able to do the same for read and
+		// seen." A step not reached checks it (Mark seen, Mark read); a step
+		// reached unchecks it (Mark unseen, Mark unread), as Accept toggles to
+		// Revoke. An excluded file still rests the track.
 		if (LedgerUnavailable || !Receipt.has_value() || Receipt->Receipt.Excluded || aIndex >= Receipt->Actions.size()) {
 			return false;
 		}
-		const auto& action = Receipt->Actions[aIndex];
-		const auto  wanted = aIndex == progress_track::seen_step ? core::file_receipt_command_kind::mark_seen : core::file_receipt_command_kind::mark_read;
-		const auto  passed = aIndex == progress_track::seen_step ? Receipt->Receipt.Read != core::file_read_state::unread
-																 : Receipt->Receipt.Read == core::file_read_state::read;
-		return action.Enabled && action.Command.Kind == wanted && !passed;
+		const auto& action  = Receipt->Actions[aIndex];
+		const auto  kind    = action.Command.Kind;
+		const auto  stepped = aIndex == progress_track::seen_step
+			? kind == core::file_receipt_command_kind::mark_seen || kind == core::file_receipt_command_kind::mark_unread
+			: kind == core::file_receipt_command_kind::mark_read || kind == core::file_receipt_command_kind::unmark_read;
+		return action.Enabled && stepped;
 	}
 
 	void workbench_window::take_progress_step(const std::size_t aIndex)
 	{
-		if (aIndex == progress_track::seen_step || aIndex == progress_track::read_step) {
-			if (progress_step_offered(aIndex)) {
-				dispatch_receipt(aIndex);
-			}
+		if ((aIndex == progress_track::seen_step || aIndex == progress_track::read_step) && progress_step_offered(aIndex)) {
+			dispatch_receipt(aIndex);
+			return;
 		}
+		// A checkable step toggles itself on a click. The receipt decides its
+		// checked state, so a click that dispatched nothing puts it back.
+		update_progress_track();
 	}
 
 	void workbench_window::update_progress_track()
@@ -18730,14 +19487,21 @@ namespace bpr::qt {
 			const auto offered = progress_step_offered(aIndex);
 			const auto reached = aIndex == progress_track::seen_step ? shown.Seen : shown.Read;
 			aStep->setEnabled(offered);
+			// [[BPR-1701]]. Checked is the saved receipt's fact, so a
+			// screen reader hears it too, and a click waits for persistence.
+			aStep->setChecked(reached);
 			const auto tip = !shown.Live ? unavailable : reached ? aDone
 																 : aOffer;
 			aStep->setToolTip(tip);
 			aStep->setStatusTip(tip);
 			aStep->setAccessibleDescription(tip);
 		};
-		describe(SeenStepButton, progress_track::seen_step, QStringLiteral("This file is seen."), QStringLiteral("Mark this file seen."));
-		describe(ReadStepButton, progress_track::read_step, QStringLiteral("This file is read. Mark unread is in Private progress."), QStringLiteral("Mark this file read."));
+		describe(SeenStepButton,
+				 progress_track::seen_step,
+				 shown.Read ? QStringLiteral("This file is seen. Click to mark it unseen, which clears Read too.")
+							: QStringLiteral("This file is seen. Click to mark it unseen."),
+				 QStringLiteral("Mark this file seen."));
+		describe(ReadStepButton, progress_track::read_step, QStringLiteral("This file is read. Click to mark it unread; it stays seen."), QStringLiteral("Mark this file read."));
 	}
 
 	void workbench_window::update_drawer_action(

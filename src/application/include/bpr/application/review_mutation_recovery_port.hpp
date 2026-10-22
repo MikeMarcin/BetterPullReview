@@ -61,9 +61,15 @@ namespace bpr::application {
 		bool                            Inserted = false;
 	};
 
+	/// \details [[BPR-1706]]. `unresolvable_line` is a first-attempt admission
+	/// of a commit-filtered diff's line the core placed where GitHub resolves
+	/// no line comment. It binds the exact file-comment wire request and the
+	/// authority, and like a native rejection it carries no freshness window:
+	/// it was decided from exact facts, not from a capability cache.
 	enum class review_fallback_authorization_source : std::uint8_t { none,
 																	 native_rejection,
-																	 scoped_evidence };
+																	 scoped_evidence,
+																	 unresolvable_line };
 	/// \brief Durable proof of non-creation or first-attempt scoped evidence admission.
 	struct review_fallback_authorization
 	{

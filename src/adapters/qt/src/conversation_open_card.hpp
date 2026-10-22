@@ -266,6 +266,12 @@ namespace bpr::qt {
 		std::function<void(const std::string&)> ShowInDiscussRequested;
 		/// \brief [[BPR-1586]]. The same post, to show in Threads.
 		std::function<void(const std::string&)> ShowInThreadsRequested;
+		/// \brief [[BPR-1699]]. How many posts a login wrote that are
+		/// new, over the pull request; none while the read state is unknown.
+		std::function<std::optional<std::size_t>(const QString&)> AuthorUnread;
+		/// \brief [[BPR-1699]]. A post's body menu's Mark all from its
+		/// author as read, with the login.
+		std::function<void(const QString&)> AuthorReadRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -309,8 +315,14 @@ namespace bpr::qt {
 		note_button*             Publish         = nullptr;
 		/// [[BPR-1345]]. Start a review, Add review comment, or on a pending
 		/// draft Update review comment; and where the draft stands.
-		note_button*       ReviewAction = nullptr;
-		note_button*       SplitAction  = nullptr;
+		note_button* ReviewAction = nullptr;
+		note_button* SplitAction  = nullptr;
+		/// [[RFC-BPR-0090]]. Convert, shown in the sending buttons' place
+		/// while GitHub cannot apply the suggestion; and whether the change
+		/// written in the code is content even when the field is empty.
+		note_button*       ConvertAction = nullptr;
+		QString            ConvertWords;
+		bool               CodeChange   = false;
 		QBoxLayout*        DraftActions = nullptr;
 		QWidget*           Privacy      = nullptr;
 		draft_review_state Review       = draft_review_state::none;

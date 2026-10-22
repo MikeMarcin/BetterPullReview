@@ -5,6 +5,7 @@
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/filtered_comment.hpp"
 #include "bpr/core/review_publication_policy.hpp"
 
 #include <chrono>
@@ -40,6 +41,10 @@ namespace bpr::application {
 		review_mutation_acting_identity  ActingIdentity;
 		review_mutation_source_material  Material;
 		core::review_placement           Placement = core::review_placement::unknown;
+		/// RFC-BPR-0089 M4. For a commit-filtered diff: the facts the core
+		/// places a comment on it from (owner decision Q1), from the accepted
+		/// commit list and the lines the epoch host read. Absent otherwise.
+		std::optional<core::filtered_comment_source> Filtered;
 	};
 
 	/// \brief Reads current bounded source facts on the host's decision lane without effects.

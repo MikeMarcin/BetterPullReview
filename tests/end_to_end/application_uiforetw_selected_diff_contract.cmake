@@ -410,7 +410,11 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 	endif()
 	# [[BPR-1129]]. The review bar reads, from its left, the comparison's menu,
 	# the file pair, the change pair and private progress; Compose review and
-	# Comment close its right, after a flexible gap.
+	# Comment close its right, after a flexible gap. [[BPR-1700]]: with no
+	# review in progress Compose review's words take that gap's room as far as
+	# they fit ("Approve…" at 1280, 35 pixels from private progress on macOS),
+	# so the gap is bound by the bar's own group separation, 8 pixels, rather
+	# than by the 100 pixels an icon left.
 	math(EXPR bar_right_gap
 		"${review_bar_rect_in_window_width} - ${comment_rect_in_bar_right}")
 	math(EXPR bar_gap_width
@@ -424,7 +428,7 @@ foreach(profile IN ITEMS light dark high-contrast-light high-contrast-dark)
 			OR private_progress_rect_in_bar_right GREATER compose_review_rect_in_bar_x
 			OR compose_review_rect_in_bar_right GREATER comment_rect_in_bar_x
 			OR bar_right_gap GREATER 20
-			OR bar_gap_width LESS 100)
+			OR bar_gap_width LESS 8)
 		message(FATAL_ERROR
 			"UIforETW ${profile} review bar order/edges/gap drifted"
 		)

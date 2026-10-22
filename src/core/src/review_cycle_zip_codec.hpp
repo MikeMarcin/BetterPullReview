@@ -11,6 +11,7 @@
 /// \brief The review bundle's zlib codec, behind a header without zlib.
 /// \details [[BPR-1435]]. zlib is built with `Z_PREFIX`, whose macros rename
 /// names such as `inflate`; only `review_cycle_zip_codec.cpp` includes it.
+/// [[BPR-1725]] admits its raw deflate for the diagnostics export.
 namespace bpr::core::zip_codec {
 	/// \brief The ZIP checksum (CRC-32/ISO-HDLC) of `aBytes`.
 	[[nodiscard]] auto checksum(std::string_view aBytes) noexcept -> std::uint32_t;
@@ -18,6 +19,10 @@ namespace bpr::core::zip_codec {
 	/// exactly `aExpectedBytes`; nothing when it is corrupt, truncated or
 	/// would produce more. Bytes after the final block are ignored.
 	[[nodiscard]] auto inflate_raw(std::span<const std::uint8_t> aStream, std::uint64_t aExpectedBytes) -> std::optional<std::string>;
+	/// \brief [[BPR-1725]]. One raw deflate stream (RFC 1951) of
+	/// `aBytes` at zlib's level 6, its default; the same bytes always give
+	/// the same stream from this pinned zlib. Nothing when zlib refuses.
+	[[nodiscard]] auto deflate_raw(std::string_view aBytes) -> std::optional<std::string>;
 }
 
 #endif

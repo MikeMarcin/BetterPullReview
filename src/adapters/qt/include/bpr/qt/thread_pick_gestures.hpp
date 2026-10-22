@@ -6,6 +6,7 @@
 #include <QString>
 #include <Qt>
 
+#include <cstddef>
 #include <optional>
 
 class QAction;
@@ -42,6 +43,15 @@ namespace bpr::qt {
 	/// default. Its items show the keys the row reads itself.
 	[[nodiscard]] auto make_thread_row_menu(QWidget* aParent, const QString& aObjectName, const QString& aAccessibleName, const QString& aReviewTip,
 											const QString& aDiscussTip, bool aShowThreads) -> thread_row_menu;
+
+	/// \brief [[BPR-1699]]. Adds "Mark all from <login> as read" to a
+	/// thread's or a post's menu, in the menu's own case.
+	///
+	/// \details One menu item per author, the GitHub login as written (an
+	/// app's with its `[bot]`). It is offered disabled, and its tooltip says
+	/// why, until the read state is known or while nothing that author wrote
+	/// on the pull request is new. The caller connects what it does.
+	[[nodiscard]] auto add_author_read_action(QMenu& aMenu, const QString& aLogin, std::size_t aUnread, bool aReadStateKnown, bool aTitleCase) -> QAction*;
 } // namespace bpr::qt
 
 #endif

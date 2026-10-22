@@ -166,6 +166,36 @@ namespace bpr::core {
 		auto operator<=>(const filter_comparison&) const = default;
 	};
 
+	/// \brief [[BPR-1707]]. What the window knows of its comparison while it
+	/// may be resolving it again.
+	struct filter_comparison_reading
+	{
+		/// The comparison the window accepted last, still the one on screen.
+		std::optional<filter_comparison> Accepted;
+		/// A resolution of the comparison is in flight.
+		bool Resolving = false;
+		/// That resolution asks for the comparison already accepted (a
+		/// refresh), not one the reviewer chose since.
+		bool SameRequest = false;
+
+		auto operator<=>(const filter_comparison_reading&) const = default;
+	};
+
+	/// \brief [[BPR-1707]]. The comparison a commit filter applies to.
+	///
+	/// \details A refresh accepts the pull request again and then resolves
+	/// the same comparison. Until it lands the accepted comparison is the one
+	/// on screen, so the filter keeps applying to it: the filtered file set
+	/// does not lapse to the whole pull request and come back (which retired
+	/// the reviewer's chosen file), and a gesture made meanwhile is decided
+	/// against it instead of being refused as suspended. A comparison the
+	/// reviewer chose since applies once it is resolved, as before.
+	[[nodiscard]] constexpr auto filter_comparison_in_force(const filter_comparison_reading& aReading) noexcept
+		-> std::optional<filter_comparison>
+	{
+		return !aReading.Resolving || aReading.SameRequest ? aReading.Accepted : std::nullopt;
+	}
+
 	/// \brief Why a filter does not apply to the current comparison.
 	enum class commit_filter_suspension : std::uint8_t {
 		none,

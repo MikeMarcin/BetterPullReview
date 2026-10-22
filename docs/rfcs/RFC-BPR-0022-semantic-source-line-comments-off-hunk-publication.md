@@ -505,6 +505,10 @@ The invariants are:
    only when this logical publication has no native attempt; it records the
    placement and capability evidence on the parent without inventing a rejected
    native child. A cache lookup alone cannot authorize a resumed publication.
+   RFC-BPR-0089 adds a third, for commit-filtered diffs only ([[BPR-1706]]):
+   a first-attempt admission of a line the core placed where GitHub resolves
+   no line comment, measured on BPR-Test #116, #117 and #119. Its permalink
+   names the filtered diff's own commit; it has no native child.
 3. While a native outcome is indeterminate there is no transition to
    `fallback_prepared`. A fully received exact non-creation rejection may
    authoritatively resolve a transmission witness through the classifier;

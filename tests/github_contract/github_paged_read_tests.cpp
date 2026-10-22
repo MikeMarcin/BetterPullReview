@@ -4179,7 +4179,9 @@ namespace {
 	/// [[BPR-1680]]. One alias of Home's batched query, as GitHub answers it:
 	/// two reviews (one pending), a code-owner team and the viewer asked, a
 	/// failed and a running check run and an erroring commit status.
-	[[nodiscard]] auto home_pull(const std::uint32_t aNumber, const std::uint64_t aReviewTotal = 2U) -> fixture_object
+	/// [[BPR-1718]]. `aSubmittedAt` is the approval's `submittedAt`; empty
+	/// leaves the key out, as no server answering the query does.
+	[[nodiscard]] auto home_pull(const std::uint32_t aNumber, const std::uint64_t aReviewTotal = 2U, const std::string_view aSubmittedAt = "2026-10-14T16:20:00Z") -> fixture_object
 	{
 		const auto number     = std::to_string(aNumber);
 		const auto connection = [](const fixture_array& aNodes, const std::uint64_t aTotal) {
@@ -4189,8 +4191,11 @@ namespace {
 			return fixture_object{ { "__typename", std::string{ aType } }, { "login", std::string{ aLogin } }, { "id", std::string{ aId } } };
 		};
 		auto       reviews  = fixture_array{ };
-		const auto approved = fixture_object{ { "databaseId", 900U + aNumber }, { "state", "APPROVED" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", fixture_object{ { "oid", std::string{ head_oid } } } }, { "comments", fixture_object{ { "totalCount", 2U } } } };
-		const auto pending  = fixture_object{ { "databaseId", 950U + aNumber }, { "state", "PENDING" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", nullptr }, { "comments", fixture_object{ { "totalCount", 3U } } } };
+		auto       approved = fixture_object{ { "databaseId", 900U + aNumber }, { "state", "APPROVED" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", fixture_object{ { "oid", std::string{ head_oid } } } }, { "comments", fixture_object{ { "totalCount", 2U } } } };
+		const auto pending  = fixture_object{ { "databaseId", 950U + aNumber }, { "state", "PENDING" }, { "submittedAt", nullptr }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", nullptr }, { "comments", fixture_object{ { "totalCount", 3U } } } };
+		if (!aSubmittedAt.empty()) {
+			approved.insert_or_assign("submittedAt", std::string{ aSubmittedAt });
+		}
 		reviews.emplace_back(approved);
 		reviews.emplace_back(pending);
 		auto       requests = fixture_array{ };
@@ -4291,6 +4296,10 @@ namespace {
 					   && row.Reviews[0].State == application::github_review_state::approved && row.Reviews[0].Commit == application::commit_oid{ std::string{ head_oid } }
 					   && row.Reviews[1].State == application::github_review_state::pending && !row.Reviews[1].Commit,
 				   "submitted-review evidence is the reviews' own");
+			// [[BPR-1718]]. 2026-10-14T16:20:00Z, in seconds; a pending review has none.
+			expect(row.Reviews[0].SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !row.Reviews[1].SubmittedAt,
+				   "each review says when it was submitted, from the same query");
+			expect(transport.Requests.front().Wire.Body.contains("nodes{databaseId state submittedAt author"), "the query asks for when each review was submitted");
 			expect(row.ReviewersAwaited == 2U && row.RequestsViewer && row.Waiting.Requests == std::optional<std::uint32_t>{ 2U }
 					   && row.Waiting.CodeOwners == std::vector<std::string>{ "@octo-org/owners" } && row.Waiting.RequiredReview == true
 					   && row.Waiting.MergeBlocked == true && row.Waiting.ChecksKnown
@@ -4337,6 +4346,14 @@ namespace {
 			expect(!result && discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::authentication
 					   && transport.count(read_operation::get_pull_request) == 0U,
 				   "a failure of the whole session fails the read without the REST reads");
+		}
+		for (const auto submitted : { std::string_view{ }, std::string_view{ "14 October 2026" } }) {
+			auto transport = discovery_fixture_transport{ };
+			rest(transport);
+			transport.Home    = [submitted](const github_wire_request&) { return home_response({ home_pull(17U, 2U, submitted), home_pull(18U) }); };
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
+				   "a review without a readable submission time is not the answer asked for, and the batch is read the REST way");
 		}
 		{
 			auto transport = discovery_fixture_transport{ };
@@ -4474,7 +4491,10 @@ namespace {
 					}
 					return success_response(fixture_json(reviews), "<" + std::string{ root } + "/repos/octo-org/review-repository/pulls/17/reviews?page=2&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
 				}
-				return success_response(fixture_json(fixture_array{ retained_review(101U) }));
+				// [[BPR-1718]]. A submitted review says when, as GitHub's REST does.
+				auto approved = retained_review(101U);
+				approved.insert_or_assign("submitted_at", "2026-10-14T16:20:00Z");
+				return success_response(fixture_json(fixture_array{ approved }));
 			};
 			const auto server             = enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28;
 			auto       request            = discovery_request(reason::retained, server);
@@ -4485,6 +4505,8 @@ namespace {
 					   && result->Rows.front().ReviewersAwaited == 2U && result->Rows.front().Waiting.Requests == 2U && result->Rows.front().Reviews.size() == 101U
 					   && result->Rows.front().Reviews.back().State == application::github_review_state::approved,
 				   "retained Home read carries title, current head and complete ordered review evidence");
+			expect(result->Rows.front().Reviews.back().SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !result->Rows.front().Reviews.front().SubmittedAt,
+				   "[[BPR-1718]] a REST review's submitted_at is when it was submitted; a review without one has none");
 			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
 					   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
 				   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");

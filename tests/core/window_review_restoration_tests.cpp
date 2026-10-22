@@ -275,9 +275,52 @@ namespace {
 		expect(policy.accepted_read(context(1), other, 6) && !policy.records()[0].Tabs && policy.recent()[1].Tabs == tabs,
 			   "moving to another pull request drops the window's tabs and keeps the entry's");
 	}
+	/// RFC-BPR-0089 ([[BPR-1688]]). The window's commit and file filters are
+	/// kept with its destination and its recently viewed entry, and Resume
+	/// brings them back; what a hidden commit changes is never kept.
+	void test_filters_follow_the_review()
+	{
+		auto filters = window_review_filters{ };
+		filters.Commits.Hidden.push_back({ .Oid = *parse_git_commit_oid(std::string(40U, '3')), .Headline = "Follow-ups", .Author = "author", .Changes = std::nullopt });
+		filters.Files.Hidden = { "gen/a.txt", "src/b.cpp" };
+		expect(valid(filters), "hidden commits and filtered paths are valid filters");
+		auto broken                      = filters;
+		broken.Commits.Hidden[0].Changes = std::vector<filter_path_change>{ };
+		expect(!valid(broken), "filters that keep what a hidden commit changes are refused");
+		broken              = filters;
+		broken.Files.Hidden = { "src/b.cpp", "gen/a.txt" };
+		expect(!valid(broken), "unsorted file filters are refused");
+		broken = filters;
+		broken.Files.Hidden.assign(maximum_window_review_filter_paths + 1U, "a");
+		expect(!valid(broken), "file filters past the bound are refused");
+
+		window_review_restoration policy{ default_bpr_profile_id, { context(1), context(2) }, { "github.com" } };
+		const auto                actions = policy.load({ }, { });
+		static_cast<void>(policy.mark_window_ready(context(2)));
+		static_cast<void>(policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" }));
+		expect(!policy.accepted_filters(context(1), destination(), filters), "filters cannot invent a destination");
+		expect(policy.accepted_read(context(1), destination(), 5) && policy.accepted_filters(context(1), destination(), filters)
+				   && policy.records()[0].Filters == filters && policy.recent()[0].Filters == filters,
+			   "accepted filters attach to the window's destination and its recently viewed entry");
+		expect(!policy.accepted_filters(context(1), destination(), filters), "the same filters again change nothing");
+		broken                           = filters;
+		broken.Commits.Hidden[0].Changes = std::vector<filter_path_change>{ };
+		expect(!policy.accepted_filters(context(1), destination(), broken), "invalid filters are refused");
+		expect(!policy.accepted_filters(context(1, 3), destination(), filters), "a stale window generation cannot save filters");
+		auto other   = destination();
+		other.Number = pull_request_number{ 28 };
+		expect(!policy.accepted_filters(context(1), other, filters), "filters for another destination are refused");
+		const auto resumed = policy.open_recent(context(2), 0);
+		expect(resumed.Opens.size() == 1 && resumed.Opens[0].Filters == filters, "Resume carries the filters to the window that asked");
+		expect(policy.accepted_read(context(1), other, 6) && !policy.records()[0].Filters && policy.recent()[1].Filters == filters,
+			   "moving to another pull request drops the window's filters and keeps the entry's");
+		expect(policy.accepted_read(context(1), destination(), 7) && policy.recent()[0].Filters == filters,
+			   "viewing the entry again keeps its filters");
+	}
 }
 int main()
 {
+	test_filters_follow_the_review();
 	test_recently_viewed_list();
 	test_recent_account_identity();
 	test_selection_and_exact_readiness();

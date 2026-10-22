@@ -40,6 +40,14 @@ namespace bpr::application {
 		}
 		return result;
 	}
+	auto observing_review_ledger_store::store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts) -> std::expected<void, ledger_store_failure>
+	{
+		auto result = Store->store_conversation_receipts(aReceipts);
+		if (result) {
+			notify(ledger_change{ .Domain = ledger_change_domain::conversation });
+		}
+		return result;
+	}
 	auto observing_review_ledger_store::load_conversation_receipts() -> std::expected<std::vector<core::conversation_receipt>, ledger_store_failure>
 	{
 		return Store->load_conversation_receipts();

@@ -6,6 +6,7 @@
 #include "bpr/qt/code_sample_painter.hpp"
 
 #include <QAbstractScrollArea>
+#include <QColor>
 #include <QElapsedTimer>
 #include <QFont>
 #include <QHash>
@@ -28,7 +29,9 @@ class QKeyEvent;
 class QMenu;
 class QMouseEvent;
 class QPaintEvent;
+class QPainter;
 class QResizeEvent;
+class QWheelEvent;
 
 namespace bpr::qt {
 	/// \brief A fixed-pitch code font: the platform's fixed font, falling
@@ -152,6 +155,64 @@ namespace bpr::qt {
 		/// \brief Copies every selection to the clipboard.
 		void copy();
 
+		/// \brief [[RFC-BPR-0090]]. Only lines `aFirst` to `aLast` may change
+		/// (`core::suggestion_text_editor::set_editable_lines`); the rest reads.
+		void set_editable_lines(std::uint64_t aFirst, std::uint64_t aLast);
+		/// \brief [[RFC-BPR-0090]]. Whether the vertical position comes from
+		/// outside: no vertical bar, and `set_vertical_offset` places the text.
+		/// \details The head pane's edit follows the comparison's shared
+		/// scroll, so the comparison stays the one thing that scrolls. A wheel
+		/// goes to `Wheeled` and keeping the caret in view goes to `Reveal`.
+		void               set_external_scroll(bool aExternal);
+		[[nodiscard]] auto external_scroll() const noexcept -> bool;
+		/// \brief How far line 0's top is above the viewport's top, in pixels.
+		void               set_vertical_offset(qreal aPixels);
+		[[nodiscard]] auto vertical_offset() const -> qreal;
+		/// \brief The height of one row, the review panes' pitch for the font.
+		[[nodiscard]] auto line_height() const noexcept -> qreal;
+		/// \brief [[RFC-BPR-0090]]. A number gutter of `aWidth` pixels at the
+		/// left, which numbers a line with `aNumber`'s text (empty for none),
+		/// right-aligned `aPadding` from its edge, in `aFont`. Zero removes it.
+		struct gutter_presentation
+		{
+			int                                   Width   = 0;
+			int                                   Padding = 0;
+			QFont                                 Font;
+			QColor                                Background;
+			QColor                                Text;
+			std::function<QString(std::uint64_t)> Number;
+		};
+		void set_gutter(gutter_presentation aGutter);
+		/// \brief [[RFC-BPR-0090]]. A full-row fill behind a line, or none.
+		void set_row_fill(std::function<std::optional<QColor>(std::uint64_t)> aFill);
+		/// \brief [[RFC-BPR-0090]]. The editable lines' wash, the edge drawn
+		/// down the gutter beside them, and the edge's colour while a refused
+		/// edit flashes it.
+		void set_range_colours(const QColor& aWash, const QColor& aEdge, const QColor& aFlash);
+		/// \brief [[RFC-BPR-0090]]. The ground the lines outside the editable
+		/// range, and the space below the last line, sit on; their ink fades
+		/// toward it as far as the text floor allows (`core::read_only_code_ink`).
+		/// An invalid colour, the default, keeps every line on the code's ground.
+		void set_read_only_ground(const QColor& aGround);
+		/// \brief [[RFC-BPR-0090]]. What an editable range left as one empty
+		/// line says on that line ("Deletes lines 12–14"), or nothing.
+		void set_empty_range_note(QString aNote);
+		/// \brief Whether the editable lines' edge is flashing after a refusal.
+		[[nodiscard]] auto flashing() const noexcept -> bool;
+
+		/// \brief [[RFC-BPR-0090]]. Called when an edit was refused because it
+		/// would change a fixed byte.
+		std::function<void()> Refused;
+		/// \brief [[RFC-BPR-0090]]. Escape with nothing to collapse: returns
+		/// whether it was taken.
+		std::function<bool()> Escaped;
+		/// \brief [[RFC-BPR-0090]]. With external scroll: a wheel over the
+		/// view, which the owner scrolls by.
+		std::function<void(QWheelEvent*)> Wheeled;
+		/// \brief [[RFC-BPR-0090]]. With external scroll: the primary caret's
+		/// line left the visible rows, and the owner should bring it back.
+		std::function<void(std::uint64_t)> Reveal;
+
 		/// \brief Called after every change of the text.
 		std::function<void()> Changed;
 		/// \brief Called after any caret or selection moved.
@@ -182,8 +243,15 @@ namespace bpr::qt {
 		void focusOutEvent(QFocusEvent* aEvent) override;
 		auto focusNextPrevChild(bool aNext) -> bool override;
 		void changeEvent(QEvent* aEvent) override;
+		void wheelEvent(QWheelEvent* aEvent) override;
 
 	private:
+		class number_gutter;
+		/// The pixels of line 0's top above the viewport's top.
+		[[nodiscard]] auto top_offset() const -> qreal;
+		void               place_gutter();
+		void               paint_gutter(QPainter& aPainter, const QRect& aArea);
+		[[nodiscard]] auto in_editable_lines(std::uint64_t aLine) const -> bool;
 		void               copy_selection(bool aCut);
 		void               paste();
 		void               update_scrollbars();
@@ -197,6 +265,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto column_x(std::uint64_t aColumn) const -> qreal;
 		[[nodiscard]] auto syntax_of(std::uint64_t aLine) const -> const QList<QTextLayout::FormatRange>*;
 		[[nodiscard]] auto selection_ink(const QColor& aColour, const QColor& aFill) const -> QColor;
+		/// [[RFC-BPR-0090]]. The ink of a colour on a read-only line, on `ReadOnlyGround`.
+		[[nodiscard]] auto read_only_ink(const QColor& aColour) const -> QColor;
 		/// Remembers what a press selected, for a drag with the button held.
 		void hold(core::selection_unit aUnit);
 
@@ -240,6 +310,19 @@ namespace bpr::qt {
 		/// The ink of each colour on the selection fill, for the fill in `InkFill`.
 		mutable QHash<QRgb, QColor> SelectionInk;
 		mutable QRgb                InkFill = 0U;
+		/// [[RFC-BPR-0090]]. The head pane's presentation, unset on the cycle page.
+		bool                                                External       = false;
+		qreal                                               ExternalOffset = 0.0;
+		gutter_presentation                                 Gutter;
+		QWidget*                                            GutterWidget = nullptr;
+		std::function<std::optional<QColor>(std::uint64_t)> RowFill;
+		QColor                                              RangeWash;
+		QColor                                              RangeEdge;
+		QColor                                              RangeFlash;
+		QString                                             EmptyRangeNote;
+		QColor                                              ReadOnlyGround;
+		mutable QHash<QRgb, QColor>                         ReadOnlyInk;
+		QElapsedTimer                                       Flash;
 	};
 }
 

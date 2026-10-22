@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "70969a87f39a3d1d9290d8ceb9b4f611cfca4402cea9943d79ac5efb47e2017e",
+      "sha256": "9c8f863f32f0cd969f5d84b43f62a9197d790851f41136a4f47d57f7a6e28663",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -344,6 +344,46 @@
           "environment": [
             "QT_SCALE_FACTOR=1.0",
             "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_compose_review_entry_scale_100",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--compose-review-entry",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--compose-review-entry"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_compose_review_entry_scale_100",
+          "selector": "--compose-review-entry",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
+          ]
+        },
+        {
+          "name": "qt_compose_review_entry_scale_200",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--compose-review-entry",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--compose-review-entry"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "correctness",
+          "resource": "qt_compose_review_entry_scale_200",
+          "selector": "--compose-review-entry",
+          "environment": [
+            "QT_SCALE_FACTOR=2.0",
+            "BPR_EXPECTED_QT_SCALE=2.0"
           ]
         },
         {
@@ -939,7 +979,7 @@
     },
     {
       "source": "tests/adapters_qt/diff_workbench_tests.cpp",
-      "sha256": "b2e16ad40957f696c6dd3b7f4ba05d8f361f7a62daf2732e2372e8574153f3cb",
+      "sha256": "38c89d6916f3c99e5fc87386107ce7f08a0e83b0d1f387289f44817e5566a280",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -1104,11 +1144,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "d64cde7953f3bec02bd9660612ddfe540ce1568e83cd105cc01004a562dba0cb"
+          "sha256": "6cf16bcfbb665c72c5c0475c8b99b9866b0fdea75cec998076997dffef2efbb4"
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
-          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+          "sha256": "7d4b28575a7b0d95a4e0946b1f9ab4f6cf6a33f1d0731eb51404470a51596cf8"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1120,7 +1160,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+          "sha256": "fd0bee7b431ffd844ff05bd063870ec485ba80d1abd7f1e7d48c7e32a0a2ce82"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1209,7 +1249,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "d64cde7953f3bec02bd9660612ddfe540ce1568e83cd105cc01004a562dba0cb"
+          "sha256": "6cf16bcfbb665c72c5c0475c8b99b9866b0fdea75cec998076997dffef2efbb4"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1225,7 +1265,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+          "sha256": "fd0bee7b431ffd844ff05bd063870ec485ba80d1abd7f1e7d48c7e32a0a2ce82"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1247,7 +1287,7 @@
     },
     {
       "source": "tests/end_to_end/review_submission_composition_public_path.cpp",
-      "sha256": "bea8b8bff9d099300d29873cbfc36195aeae64cc5f1719bc839726fa4402f042",
+      "sha256": "5281821b3a7d17f346e5dec385791499b1f488cc0649f3b44b11ac81fd395ed1",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",
@@ -1317,11 +1357,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "d64cde7953f3bec02bd9660612ddfe540ce1568e83cd105cc01004a562dba0cb"
+          "sha256": "6cf16bcfbb665c72c5c0475c8b99b9866b0fdea75cec998076997dffef2efbb4"
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
-          "sha256": "4f342cd0da3ccc2ea39610bcb2ffaeed72be0fc1ac397eaa9f0513052760cdfb"
+          "sha256": "7d4b28575a7b0d95a4e0946b1f9ab4f6cf6a33f1d0731eb51404470a51596cf8"
         },
         {
           "path": "tests/end_to_end/cli_publication_course.hpp",
@@ -1337,7 +1377,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+          "sha256": "fd0bee7b431ffd844ff05bd063870ec485ba80d1abd7f1e7d48c7e32a0a2ce82"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1389,11 +1429,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+          "sha256": "fd0bee7b431ffd844ff05bd063870ec485ba80d1abd7f1e7d48c7e32a0a2ce82"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "d64cde7953f3bec02bd9660612ddfe540ce1568e83cd105cc01004a562dba0cb"
+          "sha256": "6cf16bcfbb665c72c5c0475c8b99b9866b0fdea75cec998076997dffef2efbb4"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1437,11 +1477,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "266f3189d3c6ae18c747c55cced1b425d40b64c0bb9f112e020d796e8782020f"
+          "sha256": "fd0bee7b431ffd844ff05bd063870ec485ba80d1abd7f1e7d48c7e32a0a2ce82"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "d64cde7953f3bec02bd9660612ddfe540ce1568e83cd105cc01004a562dba0cb"
+          "sha256": "6cf16bcfbb665c72c5c0475c8b99b9866b0fdea75cec998076997dffef2efbb4"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1455,7 +1495,7 @@
     },
     {
       "source": "tests/end_to_end/profile_window_review_restoration_public_path_tests.cpp",
-      "sha256": "db5c56b0aa9f1ce1071fdf967ae45f36a71dfb455b524137d2a51002a7d06ac3",
+      "sha256": "1ec85e8cb3d76ae0e856dcf57c67a03d3ed02f91896d95875bb1339ad3a0900b",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",
@@ -1464,7 +1504,7 @@
       "unset_environment": [
         "BPR_KEPT_GRANT_CAPTURE_DIR"
       ],
-      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged. BPR-1694 failure diagnostics print only after an existing deadline or durable-position mismatch; they add no process, output artifact, successful-path observation, gesture or timing change. The normal native Windows composed course passes with these diagnostics and both production repairs.",
+      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged. BPR-1694 failure diagnostics print only after an existing deadline or durable-position mismatch; they add no process, output artifact, successful-path observation, gesture or timing change. The normal native Windows composed course passes with these diagnostics and both production repairs. Combined-main integration preserves the unique enabled first menu action and failure-only diagnostics; changed app source is only the retained lane/gesture repair over reviewed main. Scheduling, outputs, commands and deadlines remain unchanged.",
       "rows": [
         {
           "name": "application_profile_window_review_restoration_public_path",
@@ -1490,11 +1530,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "94f887d46b9a87a3fcd16e59101713efdc0816e4dd27ec35ef798b510bb24bf3"
+          "sha256": "cfa6a65e7319128774bcf858bfbc6ccbca89956d248e66a714a8bb201da929c1"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "d64cde7953f3bec02bd9660612ddfe540ce1568e83cd105cc01004a562dba0cb"
+          "sha256": "6cf16bcfbb665c72c5c0475c8b99b9866b0fdea75cec998076997dffef2efbb4"
         },
         {
           "path": "tests/support/test_expectation.hpp",

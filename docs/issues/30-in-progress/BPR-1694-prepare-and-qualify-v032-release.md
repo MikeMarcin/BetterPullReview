@@ -314,3 +314,21 @@ batch and its landing gates, reconcile the retained reading blocker with the
 landed source, then freeze one clean combined revision before fresh native
 Release/Debug qualification and the remaining artifact, source, security,
 legal and native-trust obligations.
+
+## Combined release resumed
+
+The owner confirmed that the in-flight work has landed and instructed the
+release process to resume. Integration takes shared main
+`b9a74b63a2ef7ae4edbf997a7291592214673b2a` in full, including RFC-BPR-0090,
+and retains the release repairs through `0f52c515e`. The app-source merge was
+reviewed against that main: its only added differences are the two explicit
+on-lane tab calls and the guarded pending-tab reading gesture already reviewed
+above. Main's feature and publication reviews remain recorded in the contract;
+the mutation digest stays unchanged. The restoration fixture preserves both
+the unique enabled menu-action check and its first position. Only its reviewed
+ownership family is renewed; other stale families retain exclusive scheduling.
+
+The cheap composition inventory and hostile-bypass control, nine ownership
+controls, documentation and whitespace checks pass. The prior Windows reading
+failure remains an open integration obligation until the combined source is
+validated; no old-candidate pass or exception qualifies the new bundle.

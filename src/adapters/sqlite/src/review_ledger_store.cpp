@@ -3,7 +3,9 @@
 #include "review_ledger_database.hpp"
 #include "state_directory.hpp"
 
+#include <algorithm>
 #include <limits>
+#include <span>
 #include <system_error>
 #include <utility>
 
@@ -97,6 +99,21 @@ namespace bpr::adapters::sqlite {
 						application::ledger_store_failure::invalid_record);
 				}
 				auto stored = Database.store_conversation_receipt(Scope, aReceipt);
+				if (!stored) {
+					return std::unexpected(translate(stored.error()));
+				}
+				return { };
+			}
+
+			auto store_conversation_receipts(const std::span<const core::conversation_receipt> aReceipts)
+				-> std::expected<void, application::ledger_store_failure> override
+			{
+				if (aReceipts.size() > application::maximum_conversation_receipts
+					|| !std::ranges::all_of(aReceipts, [](const core::conversation_receipt& aReceipt) { return application::valid(aReceipt); })) {
+					return std::unexpected(
+						application::ledger_store_failure::invalid_record);
+				}
+				auto stored = Database.store_conversation_receipts(Scope, aReceipts);
 				if (!stored) {
 					return std::unexpected(translate(stored.error()));
 				}

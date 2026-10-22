@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1701"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Seen and Read uncheck like Accepted",
+  "created": "2026-10-21T17:08:20.350217+00:00",
+  "base": "588e692b481392975cd4b08d2cf7bd1b0a8e11ff"
+}

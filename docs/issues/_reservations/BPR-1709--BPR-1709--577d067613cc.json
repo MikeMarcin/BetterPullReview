@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1709"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Keep a changed comment green in a dark intraline mark",
+  "created": "2026-10-21T19:28:49.022091+00:00",
+  "base": "4f9789a5249dc4a2d0cc645c1461c7d17813f26c"
+}

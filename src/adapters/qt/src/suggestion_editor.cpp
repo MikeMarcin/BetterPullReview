@@ -19,10 +19,13 @@
 #include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QPaintEvent>
 #include <QPainter>
 #include <QScrollBar>
 #include <QStyleHints>
 #include <QTextDocument>
+#include <QTimer>
+#include <QWheelEvent>
 
 #include <algorithm>
 #include <array>
@@ -251,6 +254,35 @@ namespace bpr::qt {
 		}
 	}
 
+	/// [[RFC-BPR-0090]]. The number gutter the head pane's edit draws in the
+	/// view's left margin, where the review pane draws its own.
+	class suggestion_editor::number_gutter final : public QWidget
+	{
+	public:
+		explicit number_gutter(suggestion_editor& aOwner)
+			: QWidget{ &aOwner }
+			, Owner{ aOwner }
+		{
+			setObjectName(QStringLiteral("suggestionEditorLineNumbers"));
+			setAttribute(Qt::WA_OpaquePaintEvent);
+		}
+
+	protected:
+		void paintEvent(QPaintEvent* const aEvent) override
+		{
+			auto painter = QPainter{ this };
+			Owner.paint_gutter(painter, aEvent->rect());
+		}
+
+	private:
+		suggestion_editor& Owner;
+	};
+
+	namespace {
+		/// How long a refused edit's flash of the editable lines' edge lasts.
+		constexpr auto refusal_flash_ms = 450;
+	}
+
 	auto suggestion_code_font() -> QFont
 	{
 		return fixed_pitch_code_font(QFontDatabase::systemFont(QFontDatabase::FixedFont));
@@ -362,6 +394,7 @@ namespace bpr::qt {
 		if (Variant != aVariant) {
 			Variant = aVariant;
 			SelectionInk.clear();
+			ReadOnlyInk.clear();
 			viewport()->update();
 		}
 	}
@@ -459,6 +492,12 @@ namespace bpr::qt {
 
 	void suggestion_editor::scroll_to_line(const std::uint64_t aLine)
 	{
+		if (External) {
+			if (Reveal) {
+				Reveal(aLine);
+			}
+			return;
+		}
 		update_scrollbars();
 		verticalScrollBar()->setValue(static_cast<int>(std::min<std::uint64_t>(aLine, static_cast<std::uint64_t>(verticalScrollBar()->maximum()))));
 		viewport()->update();
@@ -466,7 +505,165 @@ namespace bpr::qt {
 
 	auto suggestion_editor::first_visible_line() const -> std::uint64_t
 	{
-		return static_cast<std::uint64_t>(std::max(verticalScrollBar()->value(), 0));
+		const auto lines = static_cast<qreal>(Editor.state().Lines.size());
+		return static_cast<std::uint64_t>(std::clamp(std::floor(top_offset() / RowHeight), 0.0, std::max(0.0, lines - 1.0)));
+	}
+
+	auto suggestion_editor::top_offset() const -> qreal
+	{
+		return External ? ExternalOffset : static_cast<qreal>(verticalScrollBar()->value()) * RowHeight;
+	}
+
+	void suggestion_editor::set_editable_lines(const std::uint64_t aFirst, const std::uint64_t aLast)
+	{
+		Editor.set_editable_lines(aFirst, aLast);
+		viewport()->update();
+		if (GutterWidget != nullptr) {
+			GutterWidget->update();
+		}
+	}
+
+	void suggestion_editor::set_external_scroll(const bool aExternal)
+	{
+		if (External == aExternal) {
+			return;
+		}
+		External = aExternal;
+		setVerticalScrollBarPolicy(aExternal ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+		update_scrollbars();
+		viewport()->update();
+	}
+
+	auto suggestion_editor::external_scroll() const noexcept -> bool
+	{
+		return External;
+	}
+
+	void suggestion_editor::set_vertical_offset(const qreal aPixels)
+	{
+		if (!External || ExternalOffset == aPixels) {
+			return;
+		}
+		ExternalOffset = aPixels;
+		viewport()->update();
+		if (GutterWidget != nullptr) {
+			GutterWidget->update();
+		}
+	}
+
+	auto suggestion_editor::vertical_offset() const -> qreal
+	{
+		return top_offset();
+	}
+
+	auto suggestion_editor::line_height() const noexcept -> qreal
+	{
+		return RowHeight;
+	}
+
+	void suggestion_editor::set_gutter(gutter_presentation aGutter)
+	{
+		Gutter = std::move(aGutter);
+		if (Gutter.Width > 0 && GutterWidget == nullptr) {
+			GutterWidget = new number_gutter{ *this };
+		}
+		setViewportMargins(std::max(0, Gutter.Width), 0, 0, 0);
+		if (GutterWidget != nullptr) {
+			GutterWidget->setVisible(Gutter.Width > 0);
+		}
+		place_gutter();
+	}
+
+	void suggestion_editor::place_gutter()
+	{
+		if (GutterWidget == nullptr) {
+			return;
+		}
+		const auto area = contentsRect();
+		GutterWidget->setGeometry(QRect{ area.left(), area.top(), std::max(0, Gutter.Width), viewport()->height() });
+		GutterWidget->update();
+	}
+
+	void suggestion_editor::set_row_fill(std::function<std::optional<QColor>(std::uint64_t)> aFill)
+	{
+		RowFill = std::move(aFill);
+		viewport()->update();
+	}
+
+	void suggestion_editor::set_range_colours(const QColor& aWash, const QColor& aEdge, const QColor& aFlash)
+	{
+		RangeWash  = aWash;
+		RangeEdge  = aEdge;
+		RangeFlash = aFlash;
+		viewport()->update();
+		if (GutterWidget != nullptr) {
+			GutterWidget->update();
+		}
+	}
+
+	void suggestion_editor::set_read_only_ground(const QColor& aGround)
+	{
+		if (ReadOnlyGround != aGround) {
+			ReadOnlyGround = aGround;
+			ReadOnlyInk.clear();
+			viewport()->update();
+		}
+	}
+
+	auto suggestion_editor::read_only_ink(const QColor& aColour) const -> QColor
+	{
+		if (const auto found = ReadOnlyInk.constFind(aColour.rgba()); found != ReadOnlyInk.cend()) {
+			return *found;
+		}
+		const auto channel = [](const QColor& aSource) {
+			return core::appearance_color{ static_cast<std::uint8_t>(aSource.red()), static_cast<std::uint8_t>(aSource.green()), static_cast<std::uint8_t>(aSource.blue()), 255U };
+		};
+		const auto ink = core::read_only_code_ink(channel(aColour), channel(ReadOnlyGround), Variant);
+		return *ReadOnlyInk.insert(aColour.rgba(), QColor{ ink.Red, ink.Green, ink.Blue });
+	}
+
+	void suggestion_editor::set_empty_range_note(QString aNote)
+	{
+		if (EmptyRangeNote != aNote) {
+			EmptyRangeNote = std::move(aNote);
+			viewport()->update();
+		}
+	}
+
+	auto suggestion_editor::flashing() const noexcept -> bool
+	{
+		return Flash.isValid() && Flash.elapsed() < refusal_flash_ms;
+	}
+
+	auto suggestion_editor::in_editable_lines(const std::uint64_t aLine) const -> bool
+	{
+		const auto range = Editor.editable_range();
+		return range.has_value() && range->first <= aLine && aLine <= range->second;
+	}
+
+	void suggestion_editor::paint_gutter(QPainter& aPainter, const QRect& aArea)
+	{
+		aPainter.fillRect(aArea, Gutter.Background.isValid() ? Gutter.Background : palette().color(QPalette::Window));
+		const auto& state = Editor.state();
+		const auto  first = first_visible_line();
+		const auto  last  = std::min<std::uint64_t>(state.Lines.size(), first + static_cast<std::uint64_t>(visible_rows()) + 2U);
+		aPainter.setFont(Gutter.Font);
+		aPainter.setPen(Gutter.Text.isValid() ? Gutter.Text : palette().color(QPalette::WindowText));
+		const auto width = static_cast<qreal>(Gutter.Width);
+		const auto edge  = flashing() ? RangeFlash : RangeEdge;
+		const auto bar   = flashing() ? 5.0 : 3.0;
+		for (auto line = first; line < last; ++line) {
+			const auto top = static_cast<qreal>(line) * RowHeight - top_offset();
+			if (Gutter.Number) {
+				const auto number = Gutter.Number(line);
+				if (!number.isEmpty()) {
+					aPainter.drawText(QRectF{ 0.0, top, width - static_cast<qreal>(Gutter.Padding), RowHeight }, Qt::AlignRight | Qt::AlignVCenter, number);
+				}
+			}
+			if (edge.isValid() && in_editable_lines(line)) {
+				aPainter.fillRect(QRectF{ width - bar, top, bar, RowHeight }, edge);
+			}
+		}
 	}
 
 	auto suggestion_editor::apply(const core::suggestion_edit& aEdit) -> bool
@@ -481,6 +678,24 @@ namespace bpr::qt {
 		const auto edited  = edit && changed && Editor.text() != before;
 		if (edited) {
 			measure_lines();
+		}
+		// [[RFC-BPR-0090]]. A refused edit changes nothing and says so: the
+		// editable lines' edge flashes once.
+		if (!changed && Editor.last_refusal() == core::suggestion_edit_refusal::fixed_text) {
+			Flash.start();
+			viewport()->update();
+			if (GutterWidget != nullptr) {
+				GutterWidget->update();
+			}
+			QTimer::singleShot(refusal_flash_ms + 20, this, [this] {
+				viewport()->update();
+				if (GutterWidget != nullptr) {
+					GutterWidget->update();
+				}
+			});
+			if (Refused) {
+				Refused();
+			}
 		}
 		if (changed) {
 			update_scrollbars();
@@ -551,7 +766,7 @@ namespace bpr::qt {
 	{
 		const auto& state   = Editor.state();
 		const auto  visible = visible_rows();
-		verticalScrollBar()->setRange(0, std::max(0, static_cast<int>(state.Lines.size()) - visible));
+		verticalScrollBar()->setRange(0, External ? 0 : std::max(0, static_cast<int>(state.Lines.size()) - visible));
 		verticalScrollBar()->setPageStep(visible);
 		auto widest = WidestLine;
 		for (const auto& caret : state.Carets) {
@@ -568,7 +783,13 @@ namespace bpr::qt {
 		const auto& head    = Editor.state().Carets[Editor.state().Primary].Head;
 		const auto  visible = visible_rows();
 		const auto  line    = static_cast<int>(head.Line);
-		if (line < verticalScrollBar()->value()) {
+		if (External) {
+			// The owner scrolls; the caret's row must be wholly in view.
+			const auto top = static_cast<qreal>(head.Line) * RowHeight - top_offset();
+			if ((top < 0.0 || top + RowHeight > static_cast<qreal>(viewport()->height())) && Reveal) {
+				Reveal(head.Line);
+			}
+		} else if (line < verticalScrollBar()->value()) {
 			verticalScrollBar()->setValue(line);
 		} else if (line >= verticalScrollBar()->value() + visible) {
 			verticalScrollBar()->setValue(line - visible + 1);
@@ -584,7 +805,7 @@ namespace bpr::qt {
 
 	auto suggestion_editor::cell_rectangle(const core::text_point& aPoint) const -> QRectF
 	{
-		const auto top = (static_cast<qreal>(aPoint.Line) - static_cast<qreal>(verticalScrollBar()->value())) * RowHeight;
+		const auto top = static_cast<qreal>(aPoint.Line) * RowHeight - top_offset();
 		return { column_x(aPoint.Column), top, ColumnWidth, RowHeight };
 	}
 
@@ -597,8 +818,8 @@ namespace bpr::qt {
 	auto suggestion_editor::point_at(const QPoint& aPosition) const -> core::text_point
 	{
 		const auto lines  = static_cast<int>(Editor.state().Lines.size());
-		const auto row    = static_cast<int>(std::floor(static_cast<qreal>(aPosition.y()) / RowHeight));
-		const auto line   = std::clamp(verticalScrollBar()->value() + row, 0, lines - 1);
+		const auto row    = static_cast<int>(std::floor((static_cast<qreal>(aPosition.y()) + top_offset()) / RowHeight));
+		const auto line   = std::clamp(row, 0, lines - 1);
 		const auto offset = std::max<qreal>(0.0, (static_cast<qreal>(aPosition.x()) - column_x(0U)) / ColumnWidth);
 		const auto at     = core::text_point{ static_cast<std::uint64_t>(line), static_cast<std::uint64_t>(std::floor(offset)) };
 		// [[BPR-1438]]. Inside a wide cluster, the nearer of its edges. A tab
@@ -624,9 +845,29 @@ namespace bpr::qt {
 		const auto& state   = Editor.state();
 		const auto  first   = first_visible_line();
 		const auto  last    = std::min<std::uint64_t>(state.Lines.size(), first + static_cast<std::uint64_t>(visible_rows()) + 2U);
-		const auto  top     = [&](const std::uint64_t aLine) { return static_cast<qreal>(aLine - first) * RowHeight; };
+		const auto  offset  = top_offset();
+		const auto  top     = [&](const std::uint64_t aLine) { return static_cast<qreal>(aLine) * RowHeight - offset; };
 		painter.setFont(CodeFont);
-		painter.fillRect(viewport()->rect(), palette().base());
+		// [[RFC-BPR-0090]]. With a read-only ground, everything but the
+		// editable lines sits on it: the code that cannot change reads as set
+		// back, beside the range's own ground, wash and edge.
+		const auto dimmed = ReadOnlyGround.isValid() && Editor.editable_range().has_value();
+		painter.fillRect(viewport()->rect(), dimmed ? QBrush{ ReadOnlyGround } : palette().base());
+		// [[RFC-BPR-0090]]. The head's row fills, then the editable lines' wash.
+		for (auto line = first; line < last; ++line) {
+			const auto row = QRectF{ 0.0, top(line), static_cast<qreal>(viewport()->width()), RowHeight };
+			if (dimmed && in_editable_lines(line)) {
+				painter.fillRect(row, palette().base());
+			}
+			if (RowFill) {
+				if (const auto fill = RowFill(line); fill.has_value()) {
+					painter.fillRect(row, *fill);
+				}
+			}
+			if (RangeWash.isValid() && in_editable_lines(line)) {
+				painter.fillRect(row, RangeWash);
+			}
+		}
 
 		// [[BPR-1156]]. Selections: the solid `Highlight` every text box in
 		// the window selects with, under the glyphs. A selection ends at the
@@ -683,8 +924,9 @@ namespace bpr::qt {
 			runPoints.clear();
 		};
 		for (auto line = first; line < last; ++line) {
-			const auto  y       = top(line) + Ascent;
-			const auto& content = state.Lines[line].Content;
+			const auto  y        = top(line) + Ascent;
+			const auto& content  = state.Lines[line].Content;
+			const auto  readOnly = dimmed && !in_editable_lines(line);
 			// The colour of each UTF-16 unit, the first range in the list that
 			// covers a unit winning, as a search in list order would choose.
 			unitColours.assign(content.size() + 1U, text);
@@ -716,7 +958,8 @@ namespace bpr::qt {
 				const auto  column = cluster.Column;
 				const auto& role   = unitColours[std::min(at, unitColours.size() - 1U)];
 				const auto  inside = std::ranges::any_of(spans, [column](const auto& aSpan) { return aSpan.first <= column && column < aSpan.second; });
-				const auto  colour = inside ? selection_ink(role, selection) : role;
+				const auto  colour = inside ? selection_ink(role, selection) : readOnly ? read_only_ink(role)
+																						: role;
 				// [[BPR-1432]]. A lone CR is content, shown as its symbol.
 				const auto  glyph  = content[cluster.Offset] == '\r' ? QString{ QChar{ lone_carriage_return_symbol } } : source;
 				auto        origin = QPointF{ column_x(column), y };
@@ -754,6 +997,18 @@ namespace bpr::qt {
 			}
 		}
 		flush();
+		// [[RFC-BPR-0090]]. An editable range left as one empty line says
+		// what it does, in the placeholder's ink, past the caret's cell.
+		if (const auto range = Editor.editable_range();
+			!EmptyRangeNote.isEmpty() && range.has_value() && range->first == range->second && state.Lines[range->first].Content.empty() && range->first >= first && range->first < last) {
+			auto note = CodeFont;
+			note.setItalic(true);
+			painter.save();
+			painter.setFont(note);
+			painter.setPen(palette().placeholderText().color());
+			painter.drawText(QPointF{ column_x(2U), top(range->first) + Ascent }, EmptyRangeNote);
+			painter.restore();
+		}
 		painter.setPen(text);
 		// Carets, and the IME composition at the primary one.
 		const auto caretColour = hasFocus() ? palette().text().color() : palette().placeholderText().color();
@@ -778,7 +1033,7 @@ namespace bpr::qt {
 		// Escape collapses before it can cancel what the editor is part of.
 		if (aEvent->type() == QEvent::ShortcutOverride) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
-			if (key->key() == Qt::Key_Escape && collapsible()) {
+			if (key->key() == Qt::Key_Escape && (collapsible() || Escaped)) {
 				aEvent->accept();
 				return true;
 			}
@@ -849,6 +1104,9 @@ namespace bpr::qt {
 		if (aEvent->key() == Qt::Key_Escape) {
 			if (collapsible()) {
 				apply(core::collapse_carets{ });
+				return;
+			}
+			if (Escaped && Escaped()) {
 				return;
 			}
 			aEvent->ignore();
@@ -1046,6 +1304,17 @@ namespace bpr::qt {
 	{
 		QAbstractScrollArea::resizeEvent(aEvent);
 		update_scrollbars();
+		place_gutter();
+	}
+
+	void suggestion_editor::wheelEvent(QWheelEvent* aEvent)
+	{
+		if (External && Wheeled) {
+			Wheeled(aEvent);
+			aEvent->accept();
+			return;
+		}
+		QAbstractScrollArea::wheelEvent(aEvent);
 	}
 
 	void suggestion_editor::focusInEvent(QFocusEvent* aEvent)

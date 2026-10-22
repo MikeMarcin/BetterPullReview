@@ -22,6 +22,16 @@ repositories**. **Observer rules** (in **Home & queue**) add other pull
 requests to your queue by repository, author or path. Both are local: nothing
 changes on GitHub.
 
+## Appearance
+
+**Appearance > Syntax > C++ namespaces** lists the names that read as
+namespaces before `::` in C++, even where a file does not declare them. It
+starts as `std`, which brings the namespaces the standard puts in it
+(`std::chrono`, `std::ranges` and the rest). Add your own, such as `Qt` or
+`boost`, separated by commas or spaces, and write a nested one as
+`boost::asio`. A class or enum a file declares with the same name still reads
+as a class there. Open files recolour when you press Return or leave the field.
+
 ## Notifications
 
 A notification carries only the repository, pull-request number, attention

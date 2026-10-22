@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1698"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A pick into a long unopened file reveals its line",
+  "created": "2026-10-21T16:24:12.249158+00:00",
+  "base": "37dd473f4d0c428cd73957b292d355a414d7336b"
+}

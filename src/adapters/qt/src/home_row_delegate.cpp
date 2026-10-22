@@ -1,5 +1,6 @@
 #include "bpr/qt/home_row_delegate.hpp"
 
+#include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QAbstractItemView>
@@ -7,6 +8,7 @@
 #include <QBrush>
 #include <QFont>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QIcon>
 #include <QList>
 #include <QPainter>
@@ -56,6 +58,11 @@ namespace bpr::qt {
 		constexpr auto tag_pad_x  = 6;
 		constexpr auto tag_pad_y  = 1;
 		constexpr auto tag_radius = 3.0;
+		/// [[BPR-1718]]. Between the verdict chip's mark and its word.
+		constexpr auto verdict_mark_gap = 4;
+		/// The least room, in average characters, the second line keeps beside
+		/// the verdict chip before the chip takes a line of its own.
+		constexpr auto verdict_beside_characters = 12;
 		/// [[BPR-0783]]. The one host a chip never repeats.
 		constexpr auto default_host = QLatin1StringView{ "github.com" };
 		/// Between a login and the host it is not on by default.
@@ -147,12 +154,54 @@ namespace bpr::qt {
 			return { };
 		}
 
+		/// [[BPR-1718]]. The verdict chip's mark: a check for an approval,
+		/// a plus over a minus for a change request, the comment bubble for
+		/// comments only.
+		void draw_verdict_mark(QPainter& aPainter, const QRect& aRect, const core::my_review_verdict aVerdict, const QColor& aInk)
+		{
+			if (aRect.isEmpty()) {
+				return;
+			}
+			if (aVerdict == core::my_review_verdict::commented) {
+				draw_home_comment_mark(aPainter, aRect, aInk);
+				return;
+			}
+			aPainter.save();
+			aPainter.setRenderHint(QPainter::Antialiasing, true);
+			const auto side   = static_cast<qreal>(std::min(aRect.width(), aRect.height()));
+			const auto stroke = std::max(qreal{ 1.25 }, side / 6.5);
+			const auto box    = QRectF{ aRect.topLeft(), QSizeF{ side, side } }.adjusted(stroke / 2.0, stroke / 2.0, -stroke / 2.0, -stroke / 2.0);
+			aPainter.setPen(QPen{ aInk, stroke, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter.setBrush(Qt::NoBrush);
+			if (aVerdict == core::my_review_verdict::approved) {
+				auto check = QPainterPath{ };
+				check.moveTo(box.left(), box.top() + (box.height() * 0.55));
+				check.lineTo(box.left() + (box.width() * 0.36), box.bottom() - (box.height() * 0.08));
+				check.lineTo(box.right(), box.top() + (box.height() * 0.1));
+				aPainter.drawPath(check);
+			} else if (aVerdict == core::my_review_verdict::changes_requested) {
+				const auto centre = box.center().x();
+				const auto arm    = box.width() * 0.3;
+				const auto plus   = box.top() + (box.height() * 0.3);
+				aPainter.drawLine(QPointF{ centre - arm, plus }, QPointF{ centre + arm, plus });
+				aPainter.drawLine(QPointF{ centre, plus - arm }, QPointF{ centre, plus + arm });
+				aPainter.drawLine(QPointF{ centre - arm, box.bottom() }, QPointF{ centre + arm, box.bottom() });
+			}
+			aPainter.restore();
+		}
+
+		/// \brief Lays a text out at a width. `aLead` is room kept at the start
+		/// of the first line only, for a chip the line begins with
+		/// ([[BPR-1718]]); `aLeadHeight` is that chip's height, which the
+		/// first line is centred on and the second starts below.
 		[[nodiscard]] auto lay_out(
 			QTextLayout&                           aLayout,
 			const QString&                         aText,
 			const QFont&                           aFont,
 			const int                              aWidth,
-			const QList<QTextLayout::FormatRange>& aFormats) -> int
+			const QList<QTextLayout::FormatRange>& aFormats,
+			const int                              aLead       = 0,
+			const int                              aLeadHeight = 0) -> int
 		{
 			aLayout.setText(aText);
 			aLayout.setFont(aFont);
@@ -162,10 +211,19 @@ namespace bpr::qt {
 			aLayout.setFormats(aFormats);
 			aLayout.beginLayout();
 			auto height = qreal{ 0.0 };
+			auto first  = true;
 			for (auto line = aLayout.createLine(); line.isValid(); line = aLayout.createLine()) {
-				line.setLineWidth(static_cast<qreal>(aWidth));
-				line.setPosition(QPointF{ 0.0, height });
-				height += line.height();
+				if (first && aLead > 0) {
+					line.setLineWidth(static_cast<qreal>(std::max(1, aWidth - aLead)));
+					const auto inset = std::max(qreal{ 0.0 }, (static_cast<qreal>(aLeadHeight) - line.height()) / 2.0);
+					line.setPosition(QPointF{ static_cast<qreal>(aLead), inset });
+					height = std::max(static_cast<qreal>(aLeadHeight), inset + line.height());
+				} else {
+					line.setLineWidth(static_cast<qreal>(aWidth));
+					line.setPosition(QPointF{ 0.0, height });
+					height += line.height();
+				}
+				first = false;
 			}
 			aLayout.endLayout();
 			return static_cast<int>(std::ceil(height));
@@ -195,6 +253,10 @@ namespace bpr::qt {
 				// [[BPR-1365]]. The review this window has open says so in a word.
 				Tag   = aIndex.data(home_row_role::reviewing).toBool() ? home_reviewing_text() : QString{ };
 				Draft = aIndex.data(home_row_role::draft).toBool() ? QStringLiteral("Draft") : QString{ };
+				// [[BPR-1718]]. My verdict leads the second line in a chip.
+				Verdict      = aIndex.data(home_row_role::verdict).toString();
+				VerdictState = static_cast<core::my_review_verdict>(aIndex.data(home_row_role::verdict_state).toInt());
+				VerdictStale = aIndex.data(home_row_role::verdict_stale).toBool();
 				// [[BPR-1357]]. The row a pull request is being opened from says
 				// so in place of why it is listed, behind a mark, and offers
 				// Cancel or Retry while its hover action is hidden.
@@ -316,8 +378,24 @@ namespace bpr::qt {
 				// mark as tall as that line: it is what the reviewer is waiting on.
 				const auto& secondFont = Opening ? aOption.font : SideFont;
 				MarkExtent             = Opening ? QFontMetrics{ aOption.font }.height() : 0;
-				SecondIndent           = Opening ? MarkExtent + open_mark_gap : 0;
-				SecondHeight           = Second.isEmpty() ? 0 : lay_out(SecondLayout, Second, secondFont, std::max(1, TextWidth - SecondIndent), secondFormats);
+				// [[BPR-1718]]. The verdict chip begins the line, and the
+				// line wraps back under it to the row's left edge, so a narrow row
+				// keeps its width for the text; the opening row's line replaces
+				// the whole second line.
+				if (Opening) {
+					Verdict.clear();
+				}
+				VerdictMark   = Verdict.isEmpty() || VerdictState == core::my_review_verdict::dismissed ? 0 : sideMetrics.capHeight() + 2;
+				VerdictWidth  = Verdict.isEmpty() ? 0 : sideMetrics.horizontalAdvance(Verdict) + (tag_pad_x * 2) + (VerdictMark > 0 ? VerdictMark + verdict_mark_gap : 0);
+				VerdictHeight = Verdict.isEmpty() ? 0 : SideLineHeight + (tag_pad_y * 2);
+				// A row too narrow to begin its line beside the chip gives the
+				// chip a line of its own, with the text below at the full width.
+				VerdictStacked        = VerdictWidth > 0 && TextWidth - VerdictWidth - open_mark_gap < sideMetrics.averageCharWidth() * verdict_beside_characters;
+				SecondIndent          = Opening ? MarkExtent + open_mark_gap : 0;
+				const auto lead       = VerdictWidth > 0 && !VerdictStacked ? VerdictWidth + open_mark_gap : 0;
+				const auto secondText = Second.isEmpty() ? 0 : lay_out(SecondLayout, Second, secondFont, std::max(1, TextWidth - SecondIndent), secondFormats, lead, lead > 0 ? VerdictHeight : 0);
+				SecondTextOffset      = VerdictStacked && secondText > 0 ? VerdictHeight + home_row_delegate::line_gap : 0;
+				SecondHeight          = VerdictStacked ? SecondTextOffset + std::max(secondText, secondText > 0 ? 0 : VerdictHeight) : std::max(VerdictHeight, secondText);
 
 				// A row whose second line is empty still makes room for its history.
 				const auto secondExtent = std::max(SecondHeight, HistoryWidth == 0 ? 0 : FactsLineHeight);
@@ -330,12 +408,14 @@ namespace bpr::qt {
 				TotalHeight = RowHeight + (has_hairline(aIndex) ? home_row_delegate::hairline : 0);
 				ContentTop  = ((RowHeight - content) / 2) + home_row_delegate::vertical_padding;
 				SecondTop   = ContentTop + FirstHeight + home_row_delegate::line_gap;
+				// [[BPR-1718]]. Below the verdict chip when it has a line of its own.
+				SecondTextTop = SecondTop + SecondTextOffset;
 				// Each fact shares a baseline with the line it is about.
 				const auto baseline = [this](const QTextLayout& aLayout, const int aTop) {
-					return aLayout.lineCount() > 0 ? aTop + static_cast<int>(std::lround(aLayout.lineAt(0).ascent())) - FactsAscent : aTop;
+					return aLayout.lineCount() > 0 ? aTop + static_cast<int>(std::lround(aLayout.lineAt(0).y() + aLayout.lineAt(0).ascent())) - FactsAscent : aTop;
 				};
 				SizeTop    = baseline(FirstLayout, ContentTop);
-				HistoryTop = baseline(SecondLayout, SecondTop);
+				HistoryTop = baseline(SecondLayout, SecondTextTop);
 			}
 
 			row_layout(const row_layout&)                    = delete;
@@ -361,7 +441,7 @@ namespace bpr::qt {
 					const auto left  = line.cursorToX(start);
 					const auto right = line.cursorToX(end);
 					result |= QRectF{ static_cast<qreal>(TextLeft) + std::min(left, right),
-									  static_cast<qreal>(SecondTop) + line.y(),
+									  static_cast<qreal>(SecondTextTop) + line.y(),
 									  std::abs(right - left),
 									  line.height() }
 								  .toAlignedRect();
@@ -436,6 +516,18 @@ namespace bpr::qt {
 			int         TotalHeight    = 0;
 			int         ContentTop     = 0;
 			int         SecondTop      = 0;
+
+			// [[BPR-1718]]. My verdict's chip and where the second line's
+			// text starts below it when the chip takes a line of its own.
+			QString                 Verdict;
+			core::my_review_verdict VerdictState     = core::my_review_verdict::none;
+			bool                    VerdictStale     = false;
+			bool                    VerdictStacked   = false;
+			int                     VerdictMark      = 0;
+			int                     VerdictWidth     = 0;
+			int                     VerdictHeight    = 0;
+			int                     SecondTextOffset = 0;
+			int                     SecondTextTop    = 0;
 		};
 	} // namespace
 
@@ -720,9 +812,39 @@ namespace bpr::qt {
 			}
 			aPainter->setPen(lineInk);
 			layout.SecondLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft + layout.SecondIndent), static_cast<qreal>(layout.SecondTop) });
-		} else if (!layout.Second.isEmpty()) {
-			aPainter->setPen(quiet);
-			layout.SecondLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft), static_cast<qreal>(layout.SecondTop) });
+		} else {
+			if (!layout.Verdict.isEmpty()) {
+				// [[BPR-1718]]. My verdict: a thin neutral outline, as the
+				// Draft chip's; the mark in the accepted or defect ink while the
+				// verdict is on the current head, else quiet. A selected row
+				// keeps the style's selected ink.
+				const auto chip      = QRect{ layout.TextLeft, layout.SecondTop, layout.VerdictWidth, layout.VerdictHeight };
+				const auto current   = !layout.VerdictStale && !selected;
+				const auto accepted  = Colours.Added.isValid() ? Colours.Added : ink;
+				const auto defect    = Colours.Removed.isValid() ? Colours.Removed : ink;
+				const auto markInk   = current && layout.VerdictState == core::my_review_verdict::approved ? accepted
+					: current && layout.VerdictState == core::my_review_verdict::changes_requested         ? defect
+																										   : quiet;
+				const auto dismissed = layout.VerdictState == core::my_review_verdict::dismissed;
+				aPainter->save();
+				aPainter->setRenderHint(QPainter::Antialiasing, true);
+				aPainter->setPen(QPen{ selected ? ink : colours.color(group, QPalette::PlaceholderText), 1.0 });
+				aPainter->setBrush(Qt::NoBrush);
+				aPainter->drawRoundedRect(QRectF{ chip }.adjusted(0.5, 0.5, -0.5, -0.5), tag_radius, tag_radius);
+				auto left = chip.left() + tag_pad_x;
+				if (layout.VerdictMark > 0) {
+					draw_verdict_mark(*aPainter, QRect{ left, chip.top() + ((chip.height() - layout.VerdictMark) / 2), layout.VerdictMark, layout.VerdictMark }, layout.VerdictState, markInk);
+					left += layout.VerdictMark + verdict_mark_gap;
+				}
+				aPainter->setFont(layout.SideFont);
+				aPainter->setPen(dismissed ? quiet : ink);
+				aPainter->drawText(QRect{ left, chip.top(), std::max(0, chip.right() + 1 - tag_pad_x - left), chip.height() }, Qt::AlignLeft | Qt::AlignVCenter, layout.Verdict);
+				aPainter->restore();
+			}
+			if (!layout.Second.isEmpty()) {
+				aPainter->setPen(quiet);
+				layout.SecondLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft + layout.SecondIndent), static_cast<qreal>(layout.SecondTextTop) });
+			}
 		}
 		aPainter->setFont(layout.SideFont);
 		aPainter->setPen(quiet);
@@ -849,6 +971,34 @@ namespace bpr::qt {
 		initStyleOption(&option, aIndex);
 		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
 		return layout.Draft.isEmpty() ? QRect{ } : QRect{ option.rect.left() + layout.TextLeft, option.rect.top() + layout.ContentTop, layout.DraftWidth, layout.DraftHeight };
+	}
+
+	auto home_row_delegate::verdict_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect
+	{
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open };
+		return layout.Verdict.isEmpty() ? QRect{ } : QRect{ option.rect.left() + layout.TextLeft, option.rect.top() + layout.SecondTop, layout.VerdictWidth, layout.VerdictHeight };
+	}
+
+	auto home_row_delegate::helpEvent(QHelpEvent* const aEvent, QAbstractItemView* const aView, const QStyleOptionViewItem& aOption, const QModelIndex& aIndex)
+		-> bool
+	{
+		// [[BPR-1718]]. The verdict's sentence right under its chip, and
+		// nowhere else on the row ([[BPR-1354]]: every tooltip sits next to
+		// what it names).
+		if (aEvent != nullptr && aView != nullptr && aEvent->type() == QEvent::ToolTip && aIndex.isValid()) {
+			const auto tip  = aIndex.data(home_row_role::verdict_tip).toString();
+			const auto chip = tip.isEmpty() ? QRect{ } : verdict_rect(aOption, aIndex);
+			if (chip.contains(aEvent->pos())) {
+				show_anchored_tooltip(*aView->viewport(), chip, tip);
+				return true;
+			}
+			if (!chip.isEmpty()) {
+				hide_anchored_tooltip();
+			}
+		}
+		return QStyledItemDelegate::helpEvent(aEvent, aView, aOption, aIndex);
 	}
 
 	auto home_row_delegate::facts_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> QRect

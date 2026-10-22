@@ -58,11 +58,31 @@ offers exactly the reworded commit as the same change, applies nothing until
 the course chooses it, keeps the identical-material receipt, and after the
 choice hides the reworded commit in C3's place.
 
+With `--comment` (RFC-BPR-0089 M4, AC07) the shape also carries
+`src/notes.txt`, 30 lines shaped as BPR-Test #116: C1 edits its lines 5, 15
+and 25, and C3 inserts two lines at its top and edits C1's lines 5 and 25
+again. The course runs `--course filtered-comment`: with C3 hidden it selects
+C1's lines 15, 5 and 10, and with only C3 shown the left side's lines 15, 10
+and 13, writing where the composition's core places a comment on each and what
+the editor says before Publish. This script checks each placement against Git
+(a line unchanged at the head goes there at the head's line when it lies inside
+a hunk of the merge base to the head; a line C3 changed goes on C1, with
+the warning; BPR-1706: a line GitHub resolves nowhere as a line comment, as
+GitHub refused BPR-Test #117's with 422, and a base line C1 changed, go as a
+file comment at the head whose permalink names the line at the diff's commit),
+then publishes exactly those placements through gh, because a
+tests-enabled composition holds no publication grant, and checks what GitHub
+answered: `commit_id` = head at the mapped line, `commit_id` = C1 kept,
+outdated, for the changed line, and a current file subject at the head for a
+file comment. After the refresh the course writes the
+markers: the C1 thread on C1's diff and not the head's, and on Whole PR the
+head's threads and not C1's. `--cleanup` resolves every thread it made.
+
 Run by hand on macOS. It stops when `X-RateLimit-Remaining` falls below 500,
 and `--cleanup` closes its pull request and deletes its branches:
 
     python3 tests/end_to_end/rfc0089_commit_filter_live_course.py \\
-        --build build/dev --work DIR --prefix rfc0089-live [--generated | --force-push] [--cleanup | --close N]
+        --build build/dev --work DIR --prefix rfc0089-live [--generated | --force-push | --comment] [--cleanup | --close N]
 """
 
 from __future__ import annotations
@@ -92,6 +112,11 @@ def run(*command: str, cwd: Path | None = None, check: bool = True, env: dict | 
     if check and result.returncode != 0:
         raise RuntimeError(f"{' '.join(command[:4])} failed: {result.stderr.strip()[:400]}")
     return result.stdout
+
+
+def line_of(entry: dict) -> int:
+    """The one-based line a placement names."""
+    return entry["target_line"] + 1
 
 
 def remaining() -> int:
@@ -150,6 +175,7 @@ class Course:
         self.commits: dict[str, str] = {}
         self.touch: dict[str, list[str]] = {}
         self.failures: list[str] = []
+        self.posted: list[dict] = []
 
     def git(self, *arguments: str) -> str:
         return run("git", "-c", "user.name=Michael Marcin", "-c", "user.email=mike.marcin@gmail.com", *arguments, cwd=self.repo).strip()
@@ -158,6 +184,10 @@ class Course:
         target = self.repo / self.prefix / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("\n".join(lines) + "\n")
+
+    def insert(self, relative: str, lines: list[str]) -> None:
+        target = self.repo / self.prefix / relative
+        target.write_text("\n".join(lines + target.read_text().splitlines()) + "\n")
 
     def edit(self, relative: str, line: int, text: str) -> None:
         target = self.repo / self.prefix / relative
@@ -180,6 +210,8 @@ class Course:
         self.git("switch", "-q", "--detach", "origin/main")
         for name in ("a", "b", "c", "version"):
             self.write(f"src/{name}.txt", [f"{name} line {n}" for n in range(1, 31)])
+        if self.arguments.comment:
+            self.write("src/notes.txt", [f"notes line {n}" for n in range(1, 31)])
         for index in range(GENERATED):
             self.write(f"gen/{index:04}.txt", [f"// generated {index:04} v1"] + [f"gen {index:04} row {n}" for n in range(1, 21)])
         if self.arguments.generated:
@@ -194,6 +226,9 @@ class Course:
         self.edit("src/b.txt", 5, "b line 5 C1")
         self.edit("src/version.txt", 1, "version 2 (C1)")
         self.write("src/new.txt", ["new line 1 C1", "new line 2 C1"])
+        if self.arguments.comment:
+            for line in (5, 15, 25):
+                self.edit("src/notes.txt", line, f"notes line {line} C1")
         self.commit("C1", f"{self.prefix}: C1 source change")
         for index in range(GENERATED):
             self.edit(f"gen/{index:04}.txt", 1, f"// generated {index:04} v2")
@@ -205,6 +240,10 @@ class Course:
         self.edit("src/version.txt", 25, "version line 25 C3")
         for index in range(5):
             self.edit(f"gen/{index:04}.txt", 15, f"gen {index:04} row 14 C3")
+        if self.arguments.comment:
+            self.edit("src/notes.txt", 5, "notes line 5 C3")
+            self.edit("src/notes.txt", 25, "notes line 25 C3")
+            self.insert("src/notes.txt", ["inserted 1 C3", "inserted 2 C3"])
         self.commit("C3", f"{self.prefix}: C3 source and generated")
         self.git("push", "-q", "origin", f"{self.commits['C3']}:refs/heads/{self.head_branch}")
         url = run("gh", "pr", "create", "-R", REPOSITORY, "-B", self.base, "-H", self.head_branch, "-t", f"RFC-BPR-0089 commit filter live course ({self.prefix})",
@@ -409,6 +448,161 @@ class Course:
             print(f"      {fact}")
         self.failures.extend(f"force push: {fact}" for fact in facts)
 
+    def text_at(self, commit: str, path: str) -> list[str]:
+        return run("git", "show", f"{commit}:{path}", cwd=self.repo).splitlines()
+
+    def unchanged(self, left: list[str], right: list[str]) -> dict[int, int]:
+        """Each left line the diff leaves unchanged, mapped to its right line."""
+        import difflib
+        mapping: dict[int, int] = {}
+        for block in difflib.SequenceMatcher(a=left, b=right, autojunk=False).get_matching_blocks():
+            for offset in range(block.size):
+                mapping[block.a + offset] = block.b + offset
+        return mapping
+
+    def changed_near(self, base: list[str], right: list[str], line: int, side: str = "RIGHT") -> bool:
+        """Whether a line of one side lies within three lines of a change of
+        base to right on that side: inside a hunk of GitHub's diff."""
+        import difflib
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(a=base, b=right, autojunk=False).get_opcodes():
+            low, high = (j1, j2) if side == "RIGHT" else (i1, i2)
+            if tag != "equal" and low - 3 <= line < high + 3:
+                return True
+        return False
+
+    def expected_placement(self, entry: dict) -> tuple[int, int, str | None, int]:
+        """(placement, refusal, commit, target line) the core must decide: owner decision Q1.
+        BPR-1706: a line GitHub resolves nowhere is a file comment (3) whose
+        permalink names the line at the diff's own commit on its side, with
+        the reason as its refusal."""
+        path = f"{self.prefix}/src/notes.txt"
+        head, fork = self.commits["C3"], self.commits["M0"]
+        left, right, line = entry["left"], entry["right"], entry["line"]
+        if entry["side"] == "RIGHT":
+            if right == head:
+                return 0, 0, head, line
+            at_head = self.unchanged(self.text_at(right, path), self.text_at(head, path))
+            if line in at_head:
+                # GitHub resolves a line at the head only inside a hunk of the
+                # merge base to the head (BPR-Test #117 refused one outside).
+                if self.changed_near(self.text_at(fork, path), self.text_at(head, path), at_head[line]):
+                    return 0, 0, head, at_head[line]
+                return 3, 7, right, line
+            if self.changed_near(self.text_at(fork, path), self.text_at(right, path), line):
+                return 1, 0, right, line
+            return 3, 5, right, line
+        if left == fork:
+            return 0, 0, head, line
+        at_base = self.unchanged(self.text_at(left, path), self.text_at(fork, path))
+        if line not in at_base:
+            return 3, 6, left, line
+        if self.changed_near(self.text_at(fork, path), self.text_at(head, path), at_base[line], "LEFT"):
+            return 0, 0, head, at_base[line]
+        return 3, 7, left, line
+
+    def post(self, course: subprocess.Popen) -> None:
+        """Waits at the course's `at-post`, checks each placement against Git,
+        publishes exactly the placed ones through gh, checks GitHub's answer,
+        and lets the course go."""
+        at = self.root / "at-post"
+        for _ in range(1800):
+            if at.exists() or course.poll() is not None:
+                break
+            time.sleep(1)
+        if not at.exists():
+            raise RuntimeError("the course never reached the post step")
+        path = f"{self.prefix}/src/notes.txt"
+        head, c1 = self.commits["C3"], self.commits["C1"]
+        placements = [json.loads(text) for text in (self.root / "filtered-comment.jsonl").read_text().splitlines() if text.strip()]
+        placements = [entry for entry in placements if entry["kind"] == "placement"]
+        if len(placements) != 6:
+            self.failures.append(f"the course wrote {len(placements)} placements, not 6")
+        self.posted = []
+        for entry in placements:
+            name = f"{entry['scenario']} {entry['side']} {entry['line'] + 1}"
+            want = self.expected_placement(entry)
+            got = (entry["placement"], entry["refusal"], entry["commit"], entry["target_line"])
+            facts = []
+            if got[:2] != want[:2] or (want[0] != 2 and got[2:] != want[2:]):
+                facts.append(f"placed {got}, git says {want}")
+            if want[0] == 1 and not (entry["notice"].startswith(f"Goes on commit {c1[:7]}") and "outdated" in entry["notice"] and not entry["blocks"]):
+                facts.append(f"the warning before Publish reads {entry['notice']!r}")
+            if want[0] == 2 and not entry["blocks"]:
+                facts.append(f"a refused line does not block Publish: {entry['notice']!r}")
+            if want[0] == 3 and (entry["blocks"] or not entry["notice"].endswith(f"Publish adds a comment on the file instead, linking to line {line_of(entry)} of commit {want[2][:7]}.")):
+                facts.append(f"the note before Publish reads {entry['notice']!r}")
+            if want[0] == 0 and want[3] != entry["line"] and f"line {want[3] + 1}" not in entry["notice"]:
+                facts.append(f"the note before Publish reads {entry['notice']!r}")
+            print(f"  {'MATCH' if not facts else 'DIFFERS'} placement {name}: {('head', 'earlier commit', 'refused', 'file comment')[got[0]]} line {got[3] + 1}; notice {entry['notice']!r}")
+            self.failures.extend(f"placement {name}: {fact}" for fact in facts)
+            if facts or want[0] == 2:
+                continue
+            body = f"RFC-BPR-0089 M4 live course ({self.prefix}): {name}."
+            if want[0] == 3:
+                # BPR-1706, as the provider writes it: a file comment at the
+                # head whose permalink names the line at the diff's commit.
+                body = f"https://github.com/{REPOSITORY}/blob/{entry['commit']}/{path}#L{line_of(entry)}\n\n{body}"
+                payload = json.dumps({"body": body, "commit_id": head, "path": path, "subject_type": "file"})
+            else:
+                payload = json.dumps({"body": body, "commit_id": entry["commit"], "path": path, "line": entry["target_line"] + 1, "side": entry["target_side"]})
+            answer = subprocess.run(["gh", "api", "-X", "POST", f"repos/{REPOSITORY}/pulls/{self.pull}/comments", "--input", "-"], input=payload, capture_output=True, text=True)
+            if answer.returncode != 0:
+                self.failures.append(f"GitHub refused {name}: {(answer.stdout + answer.stderr)[:300]}")
+                continue
+            comment = json.loads(answer.stdout)
+            self.posted.append({"name": name, "placement": want[0], "id": comment["node_id"], "line": entry["target_line"]})
+            facts = []
+            if want[0] == 0 and (comment["commit_id"] != head or comment["line"] != entry["target_line"] + 1 or comment["side"] != entry["target_side"]):
+                facts.append(f"GitHub answered commit {comment['commit_id'][:12]} line {comment['line']} side {comment['side']}")
+            if want[0] == 1 and (comment["commit_id"] != c1 or comment["line"] is not None or comment["original_line"] != entry["target_line"] + 1 or comment["original_commit_id"] != c1):
+                facts.append(f"GitHub answered commit {comment['commit_id'][:12]} line {comment['line']} original {comment['original_commit_id'][:12]}/{comment['original_line']}")
+            if want[0] == 3 and (comment.get("subject_type") != "file" or comment["commit_id"] != head or comment["original_commit_id"] != head or comment["body"] != body):
+                facts.append(f"GitHub answered subject {comment.get('subject_type')} commit {comment['commit_id'][:12]} original {comment['original_commit_id'][:12]}")
+            print(f"  {'MATCH' if not facts else 'DIFFERS'} published {name}: commit_id {comment['commit_id'][:12]} line {comment['line']} "
+                  f"original {comment['original_commit_id'][:12]}/{comment['original_line']} side {comment['side']}")
+            self.failures.extend(f"published {name}: {fact}" for fact in facts)
+        threads = self.threads()
+        for posted in self.posted:
+            outdated = next((thread["isOutdated"] for thread in threads if any(c["id"] == posted["id"] for c in thread["comments"]["nodes"])), None)
+            if outdated is None or outdated != (posted["placement"] == 1):
+                self.failures.append(f"{posted['name']}: GitHub's thread isOutdated={outdated}")
+            else:
+                print(f"  MATCH thread {posted['name']}: isOutdated={outdated}")
+        (self.root / "go-post").write_text("go\n")
+
+    def threads(self) -> list[dict]:
+        query = """query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){pullRequest(number:$n){reviewThreads(first:100){nodes{
+          id isResolved isOutdated line originalLine diffSide comments(first:5){nodes{id}}}}}}}"""
+        answer = json.loads(run("gh", "api", "graphql", "-F", f"o={OWNER}", "-F", f"r={NAME}", "-F", f"n={self.pull}", "-f", f"query={query}"))
+        return answer["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+
+    def check_comment(self) -> None:
+        lines = [json.loads(text) for text in (self.root / "filtered-comment.jsonl").read_text().splitlines() if text.strip()]
+        marks = {line["scenario"]: line for line in lines if line["kind"] == "marks"}
+        on_head = sorted(posted["line"] for posted in self.posted if posted["placement"] == 0 and "RIGHT" in posted["name"])
+        on_c1 = sorted(posted["line"] for posted in self.posted if posted["placement"] == 1)
+        hidden, whole = marks.get("hide-last"), marks.get("whole")
+        facts = []
+        if hidden is None or whole is None:
+            facts.append(f"markers not written: {sorted(marks)}")
+        else:
+            if not set(on_c1) <= set(hidden["right"]) or set(on_head) & set(hidden["right"]):
+                facts.append(f"C1's diff marks right {hidden['right']}: want C1's {on_c1}, none of the head's {on_head}")
+            if not set(on_head) <= set(whole["right"]) or set(on_c1) & set(whole["right"]):
+                facts.append(f"Whole PR marks right {whole['right']}: want the head's {on_head}, none of C1's {on_c1}")
+            # A file comment (BPR-1706) is a file thread: it marks no line.
+            based = sorted(posted["line"] for posted in self.posted if "LEFT" in posted["name"] and posted["placement"] == 0)
+            if not set(based) <= set(whole["left"]):
+                facts.append(f"Whole PR marks left {whole['left']}: want {based}")
+        print(f"  {'MATCH' if not facts else 'DIFFERS'} markers: C1's diff {hidden and hidden['right']}, Whole PR right {whole and whole['right']} left {whole and whole['left']}")
+        self.failures.extend(f"markers: {fact}" for fact in facts)
+
+    def resolve_threads(self) -> None:
+        mutation = "mutation($id:ID!){resolveReviewThread(input:{threadId:$id}){thread{isResolved}}}"
+        for thread in self.threads():
+            if not thread["isResolved"]:
+                run("gh", "api", "graphql", "-f", f"id={thread['id']}", "-f", f"query={mutation}", check=False)
+
     def generated_states(self, paths: list[str]) -> dict[str, str]:
         answered = subprocess.run(["git", "check-attr", "--source", self.commits["C3"], "-z", "linguist-generated", "--", *paths],
                                   cwd=self.repo, capture_output=True, check=True).stdout.decode().split("\0")
@@ -466,17 +660,19 @@ class Course:
         guard()
         log = self.work / "course.log"
         started = time.time()
-        chosen = "generated" if self.arguments.generated else "force-push" if self.arguments.force_push else "commit-filter"
+        chosen = "generated" if self.arguments.generated else "force-push" if self.arguments.force_push else "filtered-comment" if self.arguments.comment else "commit-filter"
         command = [str(Path(self.arguments.build).resolve() / "tests/end_to_end/live_second_account_course"), "--course", chosen,
                    "--root", str(self.root), "--pull", str(self.pull)]
         if self.arguments.force_push:
             # A file only C2 changes: its Whole PR material is the same before and after the push.
             command += ["--path", f"{prefix}/gen/0010.txt"]
+        if self.arguments.comment:
+            command += ["--path", f"{prefix}/src/notes.txt"]
         with log.open("w") as written:
             process = subprocess.Popen(command, stdout=written, stderr=subprocess.STDOUT, text=True, env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
-            if self.arguments.force_push:
+            if self.arguments.force_push or self.arguments.comment:
                 try:
-                    self.force_push(process)
+                    self.force_push(process) if self.arguments.force_push else self.post(process)
                 except Exception:
                     process.kill()
                     raise
@@ -484,7 +680,7 @@ class Course:
         output = log.read_text()
         print(f"course: exit {returncode} in {time.time() - started:.0f}s (log {log})", flush=True)
         for line in output.splitlines():
-            if line.startswith(("commit-filter:", "generated:", "force-push:", "live-second-account-course", "login:", "checkpoint:")):
+            if line.startswith(("commit-filter:", "generated:", "force-push:", "filtered-comment:", "live-second-account-course", "login:", "checkpoint:")):
                 print("  " + line[:300])
         if returncode != 0:
             self.failures.append("the course failed")
@@ -498,6 +694,8 @@ class Course:
                 self.check_force_push()
             else:
                 self.failures.append("the course wrote no force-push.jsonl")
+        elif self.arguments.comment:
+            self.check_comment()
         elif self.arguments.generated:
             if (self.root / "generated.jsonl").exists():
                 self.check_generated()
@@ -509,6 +707,7 @@ class Course:
 
     def cleanup(self) -> None:
         if self.pull:
+            self.resolve_threads()
             run("gh", "pr", "close", "-R", REPOSITORY, str(self.pull), check=False)
         for branch in (self.head_branch, self.base):
             run("git", "push", "-q", "origin", "--delete", branch, cwd=self.repo, check=False)
@@ -522,6 +721,7 @@ def main() -> int:
     parser.add_argument("--cleanup", action="store_true")
     parser.add_argument("--generated", action="store_true", help="BPR-1692: commit linguist-generated rules in the base and run the generated course")
     parser.add_argument("--force-push", action="store_true", help="RFC-BPR-0089 M3: hide C3, force-push it reworded, and check the rematch offer")
+    parser.add_argument("--comment", action="store_true", help="RFC-BPR-0089 M4: place comments on filtered diffs, publish them and check GitHub and the markers")
     parser.add_argument("--close", type=int, help="only close this earlier run's pull request and delete the prefix's branches")
     arguments = parser.parse_args()
     course = Course(arguments)

@@ -7,8 +7,11 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QContextMenuEvent>
+#include <QGuiApplication>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMenu>
 #include <QMouseEvent>
@@ -17,9 +20,11 @@
 #include <QPushButton>
 #include <QTextEdit>
 #include <QToolButton>
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -395,6 +400,30 @@ auto main(int argc, char** argv) -> int
 	const auto rowsShown = editor.pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
 	const auto deletes   = editor.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
 	expect(rowsShown.size() == 2 && deletes.size() == 2, "each pending comment is a row with its own Delete");
+	{
+		// [[BPR-1715]]. While a submission may hold its comments, no row
+		// offers Delete, and a Delete asked for anyway asks nothing.
+		auto held        = finishing;
+		held.State       = core::review_submission_state::submitting;
+		held.Attempt     = core::review_submission_attempt_id{ 1U };
+		auto waiting     = finish;
+		waiting.Draft    = held;
+		waiting.Controls = core::controls(held);
+		editor.present(waiting);
+		QApplication::processEvents();
+		const auto heldDeletes = editor.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"));
+		expect(heldDeletes.size() == 2 && std::ranges::none_of(heldDeletes, [](const QToolButton* aButton) { return aButton->isVisibleTo(aButton->window()) || aButton->isEnabled(); }),
+			   "the rows of a review awaiting GitHub's answer offer no Delete");
+		auto asked = false;
+		editor.set_pending_delete([&](const core::review_submission_comment&) { asked = true; });
+		heldDeletes.front()->click();
+		QApplication::processEvents();
+		expect(!asked && editor.delete_confirmation() == nullptr, "and no Delete question opens for a held comment");
+		editor.set_pending_delete({ });
+		editor.present(finish);
+		QApplication::processEvents();
+		expect(std::ranges::all_of(heldDeletes, [](const QToolButton* aButton) { return aButton->isEnabled(); }), "a review being written offers Delete again");
+	}
 	for (auto* row : rowsShown) {
 		const auto box = QRect{ row->mapTo(&editor, QPoint{ }), row->size() };
 		expect(editor.rect().contains(box) && !row->toolTip().isEmpty() && row->focusPolicy() == Qt::StrongFocus, "each row fits the page, takes focus, and its tooltip names the whole comment");
@@ -461,17 +490,22 @@ auto main(int argc, char** argv) -> int
 			   && opened[1].second == core::workbench_thread_destination::review && opened[2].second == core::workbench_thread_destination::discuss,
 		   "Shift+double click opens in Discuss; Return in Review; Shift+Return in Discuss");
 	{
-		// The row menu: Open in Review, Open in Discuss, Show in Threads.
+		// The row menu: Open in Review, Open in Discuss, Show in Threads; then,
+		// apart, Copy ([[BPR-1719]]).
 		auto menuEvent = QContextMenuEvent{ QContextMenuEvent::Mouse, rowsShown.at(0)->rect().center(), rowsShown.at(0)->mapToGlobal(rowsShown.at(0)->rect().center()) };
 		QApplication::sendEvent(rowsShown.at(0), &menuEvent);
-		auto* const menu = rowsShown.at(0)->findChild<QMenu*>(QStringLiteral("wholeReviewPendingMenu"));
-		auto        said = QStringList{ };
-		for (const auto* action : menu != nullptr ? menu->actions() : QList<QAction*>{ }) {
-			said.push_back(action->text());
+		auto* const menu    = rowsShown.at(0)->findChild<QMenu*>(QStringLiteral("wholeReviewPendingMenu"));
+		auto        said    = QStringList{ };
+		auto*       threads = static_cast<QAction*>(nullptr);
+		for (auto* const action : menu != nullptr ? menu->actions() : QList<QAction*>{ }) {
+			said.push_back(action->isSeparator() ? QStringLiteral("|") : action->text());
+			if (action->text() == QStringLiteral("Show in Threads")) {
+				threads = action;
+			}
 		}
-		expect(said == QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads") } && menu->defaultAction() == menu->actions().front(),
-			   "the row menu offers Open in Review, Open in Discuss and Show in Threads, as a thread row's does");
-		menu->actions().back()->trigger();
+		expect(said == QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads"), QStringLiteral("|"), QStringLiteral("Copy") } && menu->defaultAction() == menu->actions().front() && threads != nullptr,
+			   "the row menu offers Open in Review, Open in Discuss and Show in Threads, as a thread row's does, then Copy");
+		threads->trigger();
 		menu->close();
 		expect(opened.size() == 4U && opened[3].first == first && opened[3].second == core::workbench_thread_destination::threads, "Show in Threads goes to Threads");
 	}
@@ -500,6 +534,247 @@ auto main(int argc, char** argv) -> int
 	question->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm"))->click();
 	QApplication::processEvents();
 	expect(deleted.size() == 1U && deleted.front() == first && intents.size() == beforeRows, "Delete comment deletes exactly that comment, through the window");
+
+	// [[RFC-BPR-0090]] Q3. A held suggestion says why under its row, offers
+	// Convert beside Delete, and keeps every verdict and Submit back until it
+	// is gone.
+	{
+		auto                         heldIntents = std::vector<qt::review_submission_editor_intent>{ };
+		auto                         converted   = std::vector<core::review_draft_id>{ };
+		qt::review_submission_editor held{ [&](qt::review_submission_editor_intent aIntent) { heldIntents.push_back(std::move(aIntent)); } };
+		held.set_pending_convert([&](const core::review_submission_comment& aComment) { converted.push_back(aComment.Draft); });
+		auto suggestion    = first;
+		suggestion.Draft   = core::review_draft_id{ 21U };
+		suggestion.Line    = 432U;
+		suggestion.Body    = "```suggestion\n\treturn clamp(scale);\n```";
+		auto carrying      = finishing;
+		carrying.Comments  = { first, suggestion };
+		auto heldShown     = finish;
+		heldShown.Draft    = carrying;
+		heldShown.Controls = core::controls(carrying);
+		heldShown.Prepared = core::prepare_review_decision(carrying, { });
+		held.resize(560, 760);
+		held.show();
+		held.present(heldShown);
+		QApplication::processEvents();
+		auto* const verdict = held.disposition_button(core::review_disposition::comment);
+		const auto  free    = verdict->isEnabled();
+		held.set_held_comments({ { suggestion.Draft, { .Reason = QStringLiteral("Line 433 changed after commit 9b2e41c. GitHub shows a comment here as outdated, so it cannot apply a suggestion."), .Convert = QStringLiteral("Convert to a comment on 9b2e41c") } } });
+		QApplication::processEvents();
+		const auto reasons  = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
+		const auto converts = held.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingConvert"));
+		expect(reasons.size() == 1 && reasons.front()->text().startsWith(QStringLiteral("Line 433 changed after commit 9b2e41c")) && reasons.front()->isVisible() && converts.size() == 1
+				   && converts.front()->text() == QStringLiteral("Convert to a comment on 9b2e41c") && converts.front()->isVisible(),
+			   "the held suggestion's row says why and offers Convert; the other comment's row does not");
+		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 suggestion GitHub cannot apply is held. Convert it or delete it first."),
+			   "every verdict waits while a suggestion is held, and says why");
+		const auto before = heldIntents.size();
+		held.submit_action()->trigger();
+		QApplication::processEvents();
+		expect(std::ranges::none_of(std::span{ heldIntents }.subspan(before), [](const qt::review_submission_editor_intent& aIntent) {
+				   return aIntent.Command.Kind == core::review_submission_command_kind::begin_submit;
+			   }),
+			   "Submit by its key sends nothing while a suggestion is held");
+		converts.front()->click();
+		QApplication::processEvents();
+		expect(converted == std::vector<core::review_draft_id>{ suggestion.Draft }, "Convert asks the window to convert exactly that comment");
+		held.set_held_comments({ });
+		QApplication::processEvents();
+		// Relisted rows go once the event loop deletes them; they are hidden at once.
+		const auto stillHeld = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
+		expect(verdict->isEnabled() == free && std::ranges::none_of(stillHeld, [](const QLabel* aLabel) { return aLabel->isVisible(); }),
+			   "once nothing is held the rows say nothing more and the verdicts are as they were");
+	}
+
+	// [[BPR-1719]]. Several pending comments are selected with Shift,
+	// Command (Ctrl) and Select All, and copied in the page's order: each its
+	// file and lines, then the whole comment. Selecting and copying change
+	// nothing, and a review awaiting GitHub's answer copies the same way.
+	{
+		auto                         pickIntents = std::vector<qt::review_submission_editor_intent>{ };
+		auto                         pickDeleted = 0;
+		auto                         pickOpened  = std::vector<std::pair<core::review_submission_comment, core::workbench_thread_destination>>{ };
+		qt::review_submission_editor picker{ [&](qt::review_submission_editor_intent aIntent) { pickIntents.push_back(std::move(aIntent)); } };
+		picker.set_pending_delete([&](const core::review_submission_comment&) { ++pickDeleted; });
+		picker.set_pending_open([&](const core::review_submission_comment& aComment, const core::workbench_thread_destination aDestination) { pickOpened.emplace_back(aComment, aDestination); });
+		auto third           = first;
+		third.Draft          = core::review_draft_id{ 9U };
+		third.Path           = "src/engine/scale.hpp";
+		third.Line           = 13U;
+		third.StartLine      = 11U;
+		third.Body           = "suggestion: make it constexpr\n```suggestion\nconstexpr auto scale = 0.01;\n```\n";
+		auto carrying        = finishing;
+		carrying.Comments    = { first, range, third };
+		auto shownPicker     = finish;
+		shownPicker.Draft    = carrying;
+		shownPicker.Controls = core::controls(carrying);
+		shownPicker.Prepared = core::prepare_review_decision(carrying, { });
+		picker.resize(560, 760);
+		picker.show();
+		picker.present(shownPicker);
+		QApplication::processEvents();
+		const auto pickRows = picker.pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
+		expect(pickRows.size() == 3, "the picker lists three pending comments");
+		auto* const clipboard = QGuiApplication::clipboard();
+		const auto  copied    = [&](QWidget* aRow) {
+			clipboard->setText(QStringLiteral("(nothing copied)"));
+			auto claim = QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_C, Qt::ControlModifier };
+			claim.ignore();
+			QApplication::sendEvent(aRow, &claim);
+			auto copyKey = QKeyEvent{ QEvent::KeyPress, Qt::Key_C, Qt::ControlModifier };
+			QApplication::sendEvent(aRow, &copyKey);
+			QApplication::processEvents();
+			return std::pair{ claim.isAccepted(), clipboard->text() };
+		};
+		const auto clickRow = [](QWidget* aRow, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+			const auto point = QPointF{ aRow->rect().center() };
+			auto       down  = QMouseEvent{ QEvent::MouseButtonPress, point, aRow->mapToGlobal(point), Qt::LeftButton, Qt::LeftButton, aModifiers };
+			auto       up    = QMouseEvent{ QEvent::MouseButtonRelease, point, aRow->mapToGlobal(point), Qt::LeftButton, Qt::NoButton, aModifiers };
+			QApplication::sendEvent(aRow, &down);
+			QApplication::sendEvent(aRow, &up);
+			QApplication::processEvents();
+		};
+		const auto keyOn = [](QWidget* aRow, const int aKey, const Qt::KeyboardModifiers aModifiers = Qt::NoModifier) {
+			auto event = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+			QApplication::sendEvent(aRow, &event);
+			QApplication::processEvents();
+		};
+		const auto firstText = QStringLiteral("src/engine/renderer.cpp:431\nquestion: Where does 0.01 come from?\nIt looks arbitrary.");
+		// The range on the base side, its whole long body, its last line
+		// breaks dropped.
+		auto rangeBody = QString::fromStdString(range.Body);
+		while (rangeBody.endsWith(QLatin1Char{ '\n' })) {
+			rangeBody.chop(1);
+		}
+		const auto rangeText = QStringLiteral("src/engine/renderer.cpp:434-435 (LEFT)\n") + rangeBody;
+		const auto thirdText = QStringLiteral("src/engine/scale.hpp:12-14\nsuggestion: make it constexpr\n```suggestion\nconstexpr auto scale = 0.01;\n```");
+		const auto all       = firstText + QStringLiteral("\n\n") + rangeText + QStringLiteral("\n\n") + thirdText;
+		expect(rangeBody.size() > 1'000 && rangeBody.endsWith(QStringLiteral("instead of loading it each time.")), "the range's comment is long, and copied untruncated");
+
+		clickRow(pickRows.at(0));
+		const auto [claimed, one] = copied(pickRows.at(0));
+		expect(claimed && one == firstText, "a plain click selects one row, and Command-C copies its file, line and whole comment");
+		clickRow(pickRows.at(2), Qt::ShiftModifier);
+		expect(copied(pickRows.at(2)).second == all, "Shift-click selects through to that row, and Copy writes every comment in the page's order, a blank line between");
+		clickRow(pickRows.at(1), Qt::ControlModifier);
+		expect(copied(pickRows.at(1)).second == firstText + QStringLiteral("\n\n") + thirdText, "Command-click (Ctrl-click) takes a row out of the selection");
+		clickRow(pickRows.at(1), Qt::ControlModifier);
+		expect(copied(pickRows.at(1)).second == all, "and puts it back");
+		clickRow(pickRows.at(1));
+		expect(copied(pickRows.at(1)).second == rangeText, "a plain click selects that row alone again");
+		keyOn(pickRows.at(1), Qt::Key_Down, Qt::ShiftModifier);
+		expect(pickRows.at(2)->hasFocus() && copied(pickRows.at(2)).second == rangeText + QStringLiteral("\n\n") + thirdText, "Shift+Down extends the selection to the next row");
+		keyOn(pickRows.at(2), Qt::Key_Up, Qt::ShiftModifier);
+		keyOn(pickRows.at(1), Qt::Key_Up, Qt::ShiftModifier);
+		expect(pickRows.at(0)->hasFocus() && copied(pickRows.at(0)).second == firstText + QStringLiteral("\n\n") + rangeText, "Shift+Up extends it upwards from where it started");
+		keyOn(pickRows.at(0), Qt::Key_Down);
+		expect(pickRows.at(1)->hasFocus() && copied(pickRows.at(1)).second == rangeText, "a plain arrow moves to the next row and selects it alone");
+		{
+			auto claim = QKeyEvent{ QEvent::ShortcutOverride, Qt::Key_A, Qt::ControlModifier };
+			claim.ignore();
+			QApplication::sendEvent(pickRows.at(1), &claim);
+			keyOn(pickRows.at(1), Qt::Key_A, Qt::ControlModifier);
+			expect(claim.isAccepted() && copied(pickRows.at(1)).second == all, "Command-A (Ctrl+A) selects every row, ahead of any window shortcut");
+		}
+		// Return and a double click still open the focused row, one comment.
+		keyOn(pickRows.at(1), Qt::Key_Return);
+		expect(pickOpened.size() == 1U && pickOpened.back().first == range && pickOpened.back().second == core::workbench_thread_destination::review, "Return opens the focused row's comment in Review, whatever is selected");
+
+		// The menu: the menu key and Shift+F10 open it on the focused row,
+		// with Copy after the opening items; inside the selection it keeps it.
+		const auto menuOf = [](QWidget* aRow) {
+			auto* menu = static_cast<QMenu*>(nullptr);
+			for (auto* const candidate : aRow->findChildren<QMenu*>(QStringLiteral("wholeReviewPendingMenu"))) {
+				if (candidate->isVisible()) {
+					menu = candidate;
+				}
+			}
+			return menu;
+		};
+		const auto menuWords = [](const QMenu* aMenu) {
+			auto said = QStringList{ };
+			for (const auto* action : aMenu != nullptr ? aMenu->actions() : QList<QAction*>{ }) {
+				if (!action->isSeparator()) {
+					said.push_back(action->text());
+				}
+			}
+			return said;
+		};
+		const auto copyIn = [](const QMenu* aMenu) -> QAction* {
+			for (auto* const action : aMenu != nullptr ? aMenu->actions() : QList<QAction*>{ }) {
+				if (action->objectName() == QStringLiteral("wholeReviewPendingCopy")) {
+					return action;
+				}
+			}
+			return nullptr;
+		};
+		const auto expectedWords = QStringList{ QStringLiteral("Open in Review"), QStringLiteral("Open in Discuss"), QStringLiteral("Show in Threads"), QStringLiteral("Copy") };
+		keyOn(pickRows.at(1), Qt::Key_Menu);
+		auto* menu = menuOf(pickRows.at(1));
+		expect(menu != nullptr && menuWords(menu) == expectedWords && copyIn(menu)->isEnabled() && copyIn(menu)->shortcut() == QKeySequence{ QKeySequence::Copy },
+			   "the menu key opens the row's menu, its Copy showing the platform's Copy key");
+		clipboard->setText(QString{ });
+		copyIn(menu)->trigger();
+		menu->close();
+		QApplication::processEvents();
+		expect(clipboard->text() == all, "the menu's Copy copies the whole selection the menu opened inside");
+		keyOn(pickRows.at(2), Qt::Key_F10, Qt::ShiftModifier);
+		menu = menuOf(pickRows.at(2));
+		expect(menu != nullptr && menuWords(menu) == expectedWords, "Shift+F10 opens the same menu");
+		menu->close();
+		QApplication::processEvents();
+		// A right-click outside the selection selects that row alone.
+		clickRow(pickRows.at(0));
+		{
+			auto right = QContextMenuEvent{ QContextMenuEvent::Mouse, pickRows.at(2)->rect().center(), pickRows.at(2)->mapToGlobal(pickRows.at(2)->rect().center()) };
+			QApplication::sendEvent(pickRows.at(2), &right);
+			menu = menuOf(pickRows.at(2));
+			expect(menu != nullptr && copyIn(menu) != nullptr, "a right-click opens the menu with Copy");
+			clipboard->setText(QString{ });
+			copyIn(menu)->trigger();
+			menu->close();
+			QApplication::processEvents();
+			expect(clipboard->text() == thirdText && picker.selected_pending() == std::vector{ third }, "a right-click outside the selection selects and copies that row alone");
+		}
+
+		// While GitHub's answer is unknown the comments are held: no Delete,
+		// and they still select and copy, so the review can be kept.
+		auto held        = carrying;
+		held.State       = core::review_submission_state::submitting;
+		held.Attempt     = core::review_submission_attempt_id{ 1U };
+		auto waiting     = shownPicker;
+		waiting.Draft    = held;
+		waiting.Controls = core::controls(held);
+		waiting.Status   = QStringLiteral("Review status is unknown. Check status.");
+		picker.present(waiting);
+		QApplication::processEvents();
+		const auto heldRows = picker.pending_list()->findChildren<QAbstractButton*>(QStringLiteral("wholeReviewPendingOpen"));
+		expect(heldRows.size() == 3, "a held review still lists its comments");
+		keyOn(heldRows.at(0), Qt::Key_A, Qt::ControlModifier);
+		expect(copied(heldRows.at(0)).second == all, "a review awaiting GitHub's answer copies every held comment, with its text");
+		expect(std::ranges::none_of(picker.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete")), [](const QToolButton* aButton) { return aButton->isVisibleTo(aButton->window()); }),
+			   "and its pickRows still offer no Delete");
+
+		// A refreshed list (a comment edited elsewhere) keeps each comment's
+		// selection by its draft, and copies the new words.
+		clickRow(heldRows.at(0));
+		clickRow(heldRows.at(1), Qt::ControlModifier);
+		auto edited             = held;
+		edited.Comments[1].Body = "nit: now constexpr.";
+		edited.Comments[1].DraftRevision += 1U;
+		auto refreshed  = waiting;
+		refreshed.Draft = edited;
+		picker.present(refreshed);
+		QApplication::processEvents();
+		expect(picker.selected_pending() == std::vector{ edited.Comments[0], edited.Comments[1] } && picker.pending_copy_text() == firstText + QStringLiteral("\n\nsrc/engine/renderer.cpp:434-435 (LEFT)\nnit: now constexpr."),
+			   "a refreshed list keeps each comment's selection and copies its current words");
+		held = edited;
+
+		// Nothing changed: no command, no delete, no other opening, and the
+		// page shows the draft it was given.
+		expect(pickIntents.empty() && pickDeleted == 0 && pickOpened.size() == 1U && picker.shown_draft() == held && picker.delete_confirmation() == nullptr && picker.discard_confirmation() == nullptr,
+			   "selecting and copying send no command, delete nothing and open nothing");
+	}
 
 	// [[BPR-1345]] v002. Each verdict submits at once as itself. A page whose
 	// dispatch is the workflow's: it applies the command and presents again.

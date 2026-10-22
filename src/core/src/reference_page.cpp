@@ -10,6 +10,12 @@ namespace bpr::core {
 		switch (aPage) {
 		case reference_page::conventional_comments:
 			return reference_page_destination{ .Hostname = "conventionalcomments.org", .Path = "/" };
+		case reference_page::game_core_tech:
+			return reference_page_destination{ .Hostname = "gamecoretech.com", .Path = "/" };
+		case reference_page::source_repository:
+			return reference_page_destination{ .Hostname = "github.com", .Path = "/MikeMarcin/BetterPullReview" };
+		case reference_page::product_site:
+			return reference_page_destination{ .Hostname = "betterpullreview.com", .Path = "/" };
 		}
 		return std::unexpected(markdown_link_result::refused);
 	}

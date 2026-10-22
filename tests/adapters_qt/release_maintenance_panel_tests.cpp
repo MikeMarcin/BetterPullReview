@@ -8,14 +8,17 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QDateTime>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStackedWidget>
@@ -346,11 +349,25 @@ namespace {
 		test.Panel->action(command::export_diagnostics)->trigger();
 		expect(!test.Panel->findChild<QFileDialog*>() && test.Host.state().Prepared == frozen, "no eligible directory opens no arbitrary picker and keeps exact preview");
 		expect(test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceStatus"))->text().contains(QStringLiteral("try Save again")), "directory refusal offers retry beside Save");
-		test.Directory = QDir::tempPath().toStdString();
+		test.Directory     = QDir::tempPath().toStdString();
+		const auto version = QCoreApplication::applicationVersion();
+		QCoreApplication::setApplicationVersion(QStringLiteral("9.8.7"));
+		const auto before = QDateTime::currentDateTime();
 		test.Panel->action(command::export_diagnostics)->trigger();
+		const auto            after   = QDateTime::currentDateTime();
 		QPointer<QFileDialog> chooser = test.Panel->findChild<QFileDialog*>();
+		QCoreApplication::setApplicationVersion(version);
 		expect(chooser && chooser->isVisible() && chooser->directory().absolutePath() == QDir::tempPath(), "retry supplies the admitted explicit directory");
-		expect(chooser->selectedFiles().front().endsWith(QStringLiteral("/BetterPullReview-diagnostics.txt")) && !chooser->testOption(QFileDialog::DontUseNativeDialog), "existing suggestion and native dialog selection remain");
+		// [[BPR-1722]]. The suggestion is named for the local minute it
+		// was offered and the version, and has no colon.
+		const auto suggested = QFileInfo{ chooser->selectedFiles().front() }.fileName();
+		const auto named     = [](const QDateTime& aAt) { return QStringLiteral("BetterPullReview-diagnostics-") + aAt.toString(QStringLiteral("yyyy-MM-dd-HHmm")) + QStringLiteral("-9.8.7.zip"); };
+		expect(QRegularExpression{ QStringLiteral("^BetterPullReview-diagnostics-[0-9]{4}-[0-9]{2}-[0-9]{2}-[0-9]{4}-9\\.8\\.7\\.zip$") }.match(suggested).hasMatch() && (suggested == named(before) || suggested == named(after)) && !suggested.contains(QLatin1Char{ ':' }),
+			   "the suggestion holds the local date, time and version");
+		// [[BPR-1725]]. The file is a ZIP archive holding the text.
+		expect(chooser->nameFilters() == QStringList{ QStringLiteral("Diagnostic export (*.zip)") } && chooser->defaultSuffix() == QStringLiteral("zip"),
+			   "the save offers a .zip archive");
+		expect(!chooser->testOption(QFileDialog::DontUseNativeDialog), "native dialog selection remains");
 		chooser->reject();
 		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 		expect(test.Host.state().Prepared == frozen && test.Panel->findChild<QPlainTextEdit*>(QStringLiteral("releaseMaintenancePreview"))->toPlainText() == bytes, "picker cancellation retains frozen bytes");

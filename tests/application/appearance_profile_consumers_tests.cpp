@@ -465,9 +465,95 @@ namespace {
 		expect(first.is_quiescent() && second.is_quiescent() && third.is_quiescent(), "all preference consumers quiesce");
 	}
 
+	/// [[BPR-1714]]. The known namespaces are a profile preference and the
+	/// classification's one reviewer input: a changed list keys C++ afresh,
+	/// leaves every other language's spans alone, and is refused whole when any
+	/// entry is not a namespace name.
+	void test_known_namespaces_key_cpp_classifications()
+	{
+		profile_harness                          h;
+		counting_classifier                      ca, cb;
+		recording_projections                    pa, pb;
+		application::appearance_application_host first{ h.Preferences, ca, h.Effects, h.Lane, pa, core::application_session_id{ 51U } };
+		application::appearance_application_host second{ h.Preferences, cb, h.Effects, h.Lane, pb, core::application_session_id{ 52U } };
+		first.classify(key(7U));
+		first.classify(key(8U, "Python"));
+		h.settle();
+		const auto cpp    = first.cached(key(7U));
+		const auto python = first.cached(key(8U, "Python"));
+		expect(cpp && python && ca.Requests.size() == 2U && ca.Requests.front().Key.Namespaces == core::known_namespaces{ },
+			   "the default list keys C++ under std alone");
+
+		const auto listed    = core::known_namespaces{ .Names = { "std", "Qt", "boost::asio" } };
+		const auto canonical = core::known_namespaces{ .Names = { "Qt", "boost::asio", "std" } };
+		first.apply(listed);
+		h.settle();
+		expect(first.settings().Namespaces == listed && second.settings().Namespaces == listed && h.Settings.Stored->Namespaces == listed,
+			   "an accepted list fans out to the profile's windows and persists as written");
+		const auto& change = *pa.Published.back().Presentation;
+		expect(change.Namespaces == listed && !change.Palettes && !change.Typography && !change.Resolution && !change.Dif,
+			   "a list change carries only the namespace domain");
+		expect(pb.Published.back().Presentation->Namespaces == listed, "every window of the profile is told");
+		expect(first.classification_key(key(7U)).Namespaces == canonical && first.classification_key(key(8U, "Python")) == key(8U, "Python"),
+			   "C++ is keyed under the canonical list and no other language reads it");
+		expect(!first.cached(key(7U)), "the old list's C++ spans are never served under the new list");
+		expect(first.cached(key(8U, "Python")) == python, "no other language is keyed away");
+		first.classify(key(7U));
+		first.classify(key(8U, "Python"));
+		h.settle();
+		expect(ca.Requests.size() == 3U && ca.Requests.back().Key.Namespaces == canonical,
+			   "C++ is classified again under the new list and Python answers from the cache");
+		expect(cb.Requests.empty(), "another window classifies nothing it was not asked for");
+
+		const auto hits = first.cache_hits();
+		first.apply(core::known_namespaces{ .Names = { "boost::asio", "std", "Qt" } });
+		h.settle();
+		first.classify(key(7U));
+		h.settle();
+		expect(ca.Requests.size() == 3U && first.cache_hits() == hits + 1U,
+			   "a reordered list shares the canonical identity and reparses nothing");
+		first.apply(core::known_namespaces{ });
+		h.settle();
+		expect(first.cached(key(7U)) == cpp, "an earlier list answers from the spans cached under it");
+
+		const auto stores = h.Settings.Stores;
+		first.apply(core::known_namespaces{ .Names = { "std", "3d", "std" } });
+		h.settle();
+		expect(first.settings().Namespaces == core::known_namespaces{ } && h.Settings.Stores == stores,
+			   "a list with a refused entry changes and stores nothing");
+		expect(pa.Failed.back().Failure == application::appearance_host_failure::invalid_known_namespaces
+				   && pa.Failed.back().NamespaceRejections
+					   == std::vector<core::known_namespace_rejection>{ { .Index = 1U, .Problem = core::known_namespace_problem::leading_digit },
+																		{ .Index = 2U, .Problem = core::known_namespace_problem::duplicate } },
+			   "every refused entry is named by its position");
+
+		first.apply(listed);
+		h.settle();
+		first.reset(application::appearance_reset_scope::known_namespaces, core::appearance_variant::light);
+		h.settle();
+		expect(first.settings().Namespaces == core::known_namespaces{ } && h.Settings.Stored->Namespaces == core::known_namespaces{ }
+				   && first.settings().Typography == base_settings().Typography,
+			   "Reset restores std alone, persists it and keeps every other domain");
+
+		h.Settings.Stored->Namespaces = core::known_namespaces{ .Names = { "Qt", "9" } };
+		first.restore();
+		h.settle();
+		expect(first.settings().Namespaces == core::known_namespaces{ } && pa.Failed.back().Failure == application::appearance_host_failure::invalid_known_namespaces,
+			   "a durable list the core refuses is refused whole");
+		h.Settings.Stored->Namespaces = core::known_namespaces{ .Names = { "Qt" } };
+		first.restore();
+		h.settle();
+		expect(first.settings().Namespaces == core::known_namespaces{ .Names = { "Qt" } } && pa.Published.back().Presentation->Namespaces == core::known_namespaces{ .Names = { "Qt" } },
+			   "a durable legal list is adopted and published");
+		first.shutdown();
+		second.shutdown();
+		h.settle();
+		expect(first.is_quiescent() && second.is_quiescent(), "both windows quiesce");
+	}
 }
 int main()
 {
+	test_known_namespaces_key_cpp_classifications();
 	test_dif_profile_preferences_and_failure_fanout();
 	test_shared_preferences_independent_windows();
 	test_transient_results_target_only_live_origin();

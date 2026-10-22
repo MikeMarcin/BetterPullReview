@@ -208,6 +208,38 @@ same path. The badge clears when the existing ledger reports a durable read;
 selection alone, passive refresh and unrelated cards do not advance a read
 cursor. The private result survives restart.
 
+**Mark all as read** ([[BPR-1699]], the owner, 2026-10-21: "We have
+some automated review bots that are very spammy on reviews. I think I want
+the ability to Mark all comments as read and Mark all comments from a
+particular user as read."). The Pull Request menu's **Mark All Comments as
+Read** reads every comment on the open pull request: file threads,
+pull-request comments and review summaries. It is offered while anything is
+new. **Mark all from coderabbitai[bot] as read** reads one author's comments,
+named by the login as GitHub writes it (an app's with its `[bot]`; logins
+compare without case, and `name` and `name[bot]` are two accounts). A
+thread's menu (More, a right click, the menu key, Shift+F10) offers it for
+the author of the thread's first post, a post's body menu for that post's
+author, and Threads' row menu, as **Mark All from coderabbitai[bot] as Read**,
+for the post under the pointer or else the thread's first post. My own posts
+are never new, so nothing offers me. Each is offered disabled, its tooltip
+saying why, until the read state is known or while nothing that author wrote
+is new; enabled, its tooltip counts that author's new comments. The core
+decides (`core::mark_conversations_read`) over every conversation at once,
+against the stored receipts, and the ledger host commits the receipts it
+changes in one transaction: all are read or none are. The counts, the
+badges, the Status drawer's lines, Next new comment and the actions
+themselves follow the committed state at once; the status bar then says what
+was marked ("Marked 12 comments from coderabbitai[bot] as read."). A refused
+change marks nothing and says so: "Your read state could not be saved, so no
+comment was marked read. Try again." Read is a cursor through each
+conversation, so one author's mark never passes a newer post by someone else
+that I have not read: in a thread where a person answered the bot, the
+answer stays new, and so does any later post of the bot's there, which the
+status bar counts ("2 more stay new: they follow a reply from someone else
+that you have not read."). The mark is of the comments shown now; whatever
+the author posts later is new as usual, and nothing is muted. Read state is
+private to the profile's review ledger: nothing reaches GitHub.
+
 
 As built ([[BPR-1293]]): the page is `conversation_finder`, which reads the
 forest the Comments drawer reads, the ledger's read state and [[BPR-1087]]'s
@@ -311,10 +343,28 @@ owner's choice of 2026-10-17 after two rounds of designs): Seen, Read and
 last cell, on one accent rail parted from the Changes rail by a gap. The step
 the file has reached is solid in the accent, or in the acceptance green once
 accepted, when Accept reads **Accepted**; steps still to come are in full ink,
-and the step still to take shows the acceptance green's tick. A step only
-moves the file forward: Seen marks an unread file seen and Read marks it read;
-a step already reached does nothing, so the track never un-reads a file (Mark
-unread stays in the menu). An excluded file rests the track, its chevron cell
+and the step still to take shows the acceptance green's tick. Every step is a
+toggle, as Accept always was ([[BPR-1701]], the owner, 2026-10-21: "In
+the toolbar I can uncheck accepted by clicking the accepted button. I should
+be able to do the same for read and seen"; this replaces BPR-1578's rule that
+a step already reached does nothing). Seen and Read are checked buttons, and
+a screen reader hears them as checked. Seen marks an unread file seen. On a
+seen file it marks the file unseen, which clears Read too, because Read
+implies Seen. Read marks a file read, which marks it seen as well, and on a read file takes
+Read off and leaves the file seen. Neither touches acceptance: an accepted
+file stays accepted and done when Seen or Read comes off, as revoking
+acceptance leaves how far the file was read. Each step's tooltip and
+accessible description say what a click does ("This file is read. Click to
+mark it unread; it stays seen."). A step waits for the saved receipt before
+it changes, as Accept does. The menu offers the same two inverses by name:
+its Seen item reads **Mark unseen** on a seen file and its Read item **Mark
+unread** on a read file. Seen still comes back by itself: a file marked
+unseen stays unseen while it is shown, and the next time it is opened
+(another file and back, a tab, or a return from Overview or Discuss) it is
+marked seen again, as opening an unread file always is. With "when fully
+seen", a window marks a file read at the end once for its material, so Read
+taken off is not put back. There is no key for unchecking, as Option-A never revokes.
+An excluded file rests the track, its chevron cell
 carrying the excluded mark. The track's last width yield shows Seen and Read
 as marks alone; their names stay in their tooltips and accessible names.
 Accept is the named one-click file action, and the menu button's tooltip names
@@ -335,8 +385,20 @@ non-Latin layout whose A key types another letter does not offer it.
 Opening or seeing
 a file does not accept it. At the bar's right
 are **Compose review** (Option-R, Alt+R) and **Comment**
-(Option-C, Alt+C) as icons whose tooltips name the command and its key. Compose
-review carries an amber mark while a review draft is kept. Review details is
+(Option-C, Alt+C), whose tooltips name the command and its key. Comment is an
+icon. With no review in progress Compose review says what it is for:
+"Approve or comment…" beside its pencil, its edge in the accent and its face
+the bar's own, so a reviewer new to the window finds where the whole pull
+request is approved, sent back or commented on ([[BPR-1700]]; the owner,
+2026-10-21: "I think the compose review button is a little too subtle when
+there's not a active review"). Its accessible name is "Compose review: approve
+or comment", and its tooltip names Approve, Request changes and Comment. It
+only opens the review: the verdict is chosen there. While a review is in
+progress the chip below leads and Compose review is its plain icon. As the
+window narrows its words shorten first, to "Approve…" (it shows at 1280 beside
+the comparison's dates and the positions). "Approve…" is the review bar's last
+yield, and the pencil and its edge stay after it, so the floor is unchanged.
+Compose review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
 Pull Request menu. Compose review opens the whole-review summary in Discuss,
 beside the conversations (owner's Q3 answer on [[BPR-1212]]: "A: move to
@@ -452,7 +514,8 @@ not a computed merge base; which base Whole PR should compare from is
 its status row. Each tab keeps an exact file, comparison and semantic reading
 position. Clicking a file or using previous/next file changes the active tab;
 Cmd-click (Ctrl-click elsewhere) and **Open in New Tab** open a background tab
-on the window's comparison. **Duplicate Tab** and the strip's **+** copy and
+on the window's comparison; from Find in files the new tab becomes active,
+so its result shows. **Duplicate Tab** and the strip's **+** copy and
 activate the exact view. Names elide from the left, retain enough path to tell
 same-named files apart, and expose the full path in the tooltip. A tab with its
 own comparison carries a date pill and names the pair accessibly. When the
@@ -842,7 +905,9 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   needs only #number; under Organization it needs name#number. Each queue row
   names its author beside that identity, including the viewer's own PRs; the
   login uses ordinary text ink. Assistive text keeps the full identity and
-  author. Recently viewed stores no author. [[BPR-1407]]: a queue row's right holds
+  author. Recently viewed stores no author. A queue row I have reviewed begins
+  its second line with my verdict ([My review on Home rows](#my-review-on-home-rows)).
+  [[BPR-1407]]: a queue row's right holds
   a column of facts, each on the line it is about: "+1,204 / −318" beside
   the first line, "21d" and a comment icon with "14" beside the second in
   its quiet ink. Tabular figures line the column up from row to row; the
@@ -1544,6 +1609,7 @@ never invents enabled state.
 | Show the selected thread in Review, from Discuss ([[BPR-1581]]) | `Ctrl+Alt+2` (⌥⌘2) |
 | Show the selected thread's row in Threads, from Review ([[BPR-1586]]) | `Ctrl+Alt+4` (⌥⌘4) |
 | In Threads' list, the cursor's row menu ([[BPR-1356]]) | `Menu`, `Shift+F10` |
+| In Finish your review's pending comments: select more; select every comment; copy the selected with their files and lines; the row menu ([[BPR-1719]]) | Shift-click, Cmd-click (Ctrl-click), `Shift+Up` / `Shift+Down`; `Ctrl+A` (⌘A); `Ctrl+C` (⌘C); `Menu`, `Shift+F10` |
 | Zoom In on the comparison's code ([[BPR-1336]]) | `Ctrl+=` or `Ctrl++` (⌘= or ⌘+); Ctrl+wheel (⌘-scroll) or pinch out over the code |
 | Zoom Out on the comparison's code ([[BPR-1336]]) | `Ctrl+-` (⌘−); Ctrl+wheel (⌘-scroll) or pinch in over the code |
 | Actual Size: the comparison's code at Code size ([[BPR-1336]], [[BPR-1535]]) | `Ctrl+0` (⌘0) |
@@ -1642,6 +1708,25 @@ query or file filter. Escape returns source focus while retaining PR results;
 Close cancels pending query/filter work and restores the prior drawer tab and
 collapse state. Counts, scope, invalid input and coverage share accessible
 wording. See the [source search contract](../architecture/source-search.md).
+
+The results take an extended selection ([[BPR-1712]]). Shift or Cmd (Ctrl
+elsewhere) with a click, and Shift with an arrow, select more results and open
+none; Cmd+A (Ctrl+A) selects every row. Unlike Files, Cmd-click here selects
+rather than opening a tab. A plain click, an arrow, Return and F4 still act on
+the one current result. Cmd+C (Ctrl+C) copies the selected results as plain
+text, one line each in the list's order: `path:line: text`, with the path and
+one-based line of the side the row shows (Right when both carry the match) and
+the snippet as the row draws it. A selected file row stands for all of its
+shown results, once each. A right-click, the menu key or Shift+F10 opens a
+result's menu: **Open**, **Open in New Tab**, **Copy** and **Copy Path**
+(**Copy Paths** across several files). A right-click inside the selection keeps
+it; outside, it selects that row. Open in New Tab puts the result's file in a
+tab of its own after the active one, makes that tab active and selects the
+result's span once the file has loaded, as every result's reveal does. The tab
+it came from keeps its file, and the results stay without another search. On a
+file row, Open and Open in New Tab go to the file's first shown result. The
+list reads Cmd+C and Cmd+A itself, ahead of any window shortcut, and its
+accessible description names these keys.
 
 The command opens the unique closest same-basename opposite-family file through
 ordinary exact file selection, replacing the active tab's file and retaining its
@@ -1817,7 +1902,16 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   keeps itself in view through the shared comparison scroll, never by
   scrolling one pane alone. The mouse and the keyboard share one selection: a
   click selects a line, a drag or Shift-click selects lines in the pane's own
-  text selection, and Shift+Up and Shift+Down extend either. The selected
+  text selection, and Shift+Up and Shift+Down extend either. A drag whose
+  pointer ends on an empty line takes that line; a selection that only
+  reaches the start of a line with text stops above it ([[BPR-1724]]).
+  The line numbers select as GitHub's do: a click on a number selects its
+  line, a Shift-click extends the selection to it, and a drag over the
+  numbers selects the lines it crosses, whole, and gives the code the
+  keyboard. A click on a thread's tinted number still opens the thread, and
+  Shift on it extends the selection. The "+" keeps its column at the number
+  and code boundary: a press there, even in the number's padding before the
+  "+" is drawn, adds a comment and never selects ([[BPR-1724]]). The selected
   line wears the current-line band and extended lines the pane's text
   selection. A text selection is the top layer: it is filled solid in the
   theme's selection colour over the line's band, the selected line's wash and
@@ -1843,9 +1937,12 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   comment, GitHub's `side: LEFT`, only once the epoch host has answered that
   the comparison's base document is the merge base's version of the file,
   which GitHub numbers `LEFT` lines in, and only inside a hunk; Suggest change
-  stays on the head side ([[BPR-1212]] v002). A refusal opens nothing and says
+  stays on the head side ([[BPR-1212]] v002), and takes one line only inside a
+  hunk and no range on a commit-filtered diff whose right side is not the head
+  (`core::decide_suggestion_range`, [[RFC-BPR-0090]]). A refusal opens nothing and says
   why in the status line: a base line whose numbering is not known to be
-  GitHub's, a base line outside every hunk, a suggestion on a base line, lines
+  GitHub's, a base line outside every hunk, a suggestion on a base line or on
+  a line outside every hunk, lines
   on two sides, lines outside one hunk, or, with no line selected, "Select a
   line first: click it, or move to it with Up and Down while the code has
   focus." Otherwise the range's last line is selected, its draft takes the
@@ -1853,18 +1950,29 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   in the drawer; when the line was selected just now its draft may arrive a
   moment later, and the status line says "Opening a draft on line N…" until it
   does, or why none came. Return always starts on the selection, so Return on
-  one line narrows a range draft ending there; Alt+C keeps reopening the
-  line's draft as it is.
+  one line narrows a range draft ending there; Alt+C on one line keeps
+  reopening the line's draft as it is. On several selected lines Alt+C takes
+  Return's path and starts one draft on all of them, and Comment says "Comment
+  on lines a–b…" ([[BPR-1724]]); a thread the reviewer picked is still
+  answered.
 - The code's right-click ([[BPR-1212]] v002). A right-click on any line
   selects it first, without a left click before it, unless it is inside the
   selection, which it keeps, with its selected line. The menu is headed "Line
   N", "Lines a–b" or "Base line N" and offers Add comment (Return) and Suggest
-  change (Shift+Return). A line selected by the right-click is not refused for
-  a draft still on its way. An item that cannot apply is unavailable, and a
+  change (Shift+Return). On several lines the items name them, "Add comment
+  on lines a–b" or "on base lines a–b" ([[BPR-1721]]). A right-click on
+  a line number opens the same menu for that line. The one-pane comparison
+  has the same menu, on its code and its numbers, for the line each row
+  shows: an unchanged or added row is its head line, and a removed row its
+  base line, which takes Add comment only with GitHub's numbering and never
+  Suggest change. Rows dragged across a removed and an added line are on two
+  sides, so the menu is headed "Base line a to line b" and says "Select lines
+  on one side" ([[BPR-1724]]). A line selected by the
+  right-click is not refused for a draft still on its way. An item that cannot apply is unavailable, and a
   row under the items says why in a few words ("This file's base is not
   GitHub's", "Base lines need a changed region", "Suggest change: head side
-  only", "Lines must be in one changed region"), with the full reason as its
-  tooltip.
+  only", "Suggestions need a changed region", "Lines must be in one changed
+  region"), with the full reason as its tooltip.
 - The lower pane is **Line details** ([[BPR-1334]]), RFC-BPR-0005's Beyond
   Compare–inspired line-over-line pane. It shows the current line twice, full
   width: the base version above the head version, each with its line number
@@ -2020,7 +2128,9 @@ open pull request's two local gestures: **Follow**, checked while the queue
 keeps it because it is followed, and **Save Repository**, offered while its
 repository is not saved for the account. Neither reaches GitHub; a pull
 request opened by link is only Recently viewed until one of them is used,
-and one read signed out offers neither. **View** holds the line-number toggle, the
+and one read signed out offers neither. After a separator it holds **Mark
+All Comments as Read** ([[BPR-1699]]), offered while anything on the
+pull request is new; it too changes only my private read state. **View** holds the line-number toggle, the
 one-pane toggle, Line Details ([[BPR-1334]]), Hide Drawers ([[BPR-1295]]) and, after a separator, Settings…. The bar was added by
 BPR-0457 because the owner asked for a "view menu option" and, offered the
 choice between a real menu bar and a checkable entry in the existing toolbar
@@ -2109,6 +2219,83 @@ The line-number entry is disabled until a pull request is open, because
 line-number visibility is workbench-surface state and an inactive workbench
 disables every workbench command. A reader who opens **View** on a freshly
 launched window sees the entry greyed.
+
+### About BetterPullReview
+
+**Help > About BetterPullReview** ([[BPR-1720]]; owner, 2026-10-21:
+"We need an about page. We can take inspiration fom the AllTheThings about
+page and copy it's GCT logo") is Help's last item. Its About role puts it first
+in the macOS application menu, above Check for Updates…; on Windows and Linux
+it ends Help under a rule. Every workbench window's bar and the resident
+desktop bar carry it, and it works on both: a window's page is that window's
+child and takes its theme, following a change to it, and the empty desktop
+shows one page of its own in the system's colours. Like Keyboard Shortcuts it
+is non-modal, the item again raises the same page, and Esc or Close hides it.
+
+The page follows AllTheThings' About window: one centred column under the
+maker's mark. From the top:
+
+- **The Game Core Tech logo** on its own dark plate, 176 logical pixels square
+  with rounded corners and a hairline edge in the text colour, which shows in a
+  dark theme where the plate would otherwise sink into the window. The mark is
+  the owner's own and is this project's asset
+  ([`src/adapters/qt/assets/about`](../../src/adapters/qt/assets/about/README.md)).
+  Its only source is a 1254-pixel PNG, so the page carries a 640-pixel master
+  and scales it once, with area averaging, to the exact device size: one image
+  pixel to each device pixel at 1x, 2x and between.
+- **BetterPullReview**, at 1.75 times the window font, demibold; **Version
+  0.14.0** under it; and the build line, "Commit 0123456789 from 2026-10-21":
+  the first ten hex digits of the commit the build was made from and that
+  commit's date, with ", with local changes" when tracked files differed. Its
+  tooltip is the whole commit. A tree that is not its own checkout says "No
+  commit is recorded for this build". The commit's date is used rather than
+  the build's, so two builds of one commit say the same.
+  `cmake/BprBuildIdentity.cmake` records the three facts on every build and
+  rewrites its header only when one changes.
+- **Copy version info** puts a bug report's facts on the clipboard, one a
+  line: `BetterPullReview 0.14.0`, `Commit: <whole commit> (<date>)`,
+  `Configuration:`, `Qt:` (the runtime's) and `System:` (product and
+  architecture). The button reads "Copied" for two seconds without changing
+  width, and assistive technology hears "Version info copied".
+- The application's own two links side by side: **betterpullreview.com**,
+  the product's site, first, then **Source code**
+  (github.com/MikeMarcin/BetterPullReview). Under them **Made by Game Core
+  Tech**, with **gamecoretech.com** under the credit (owner amendment,
+  2026-10-21, once betterpullreview.com was live). The three are the core's
+  named reference pages `product_site`, `source_repository` and
+  `game_core_tech`, opened through the system browser opener as every
+  reference page is; the page holds no address.
+- After a rule, the terms: "© 2026 BetterPullReview contributors. Released
+  under the MIT License." and "Qt 6.12.0 is used under the GNU LGPL version 3;
+  you may replace it.", with the running Qt's version. Then
+  **Third-party notices** and **Corresponding source**, which open the
+  installed `THIRD-PARTY-NOTICES.txt` and `SOURCE-OFFERS.txt` in the system's
+  viewer; the offer names this release's source asset and how to rebuild and
+  replace Qt and xdiff. The composition looks for both where a release
+  installs them (`Contents/Resources/ThirdParty` in a macOS bundle,
+  `ThirdParty` beside the executable elsewhere) and opens one only while it is
+  a regular file there. A build made from source has neither, so the two links
+  give way to "Built from source, so no notices or source offer are
+  installed."
+- **Close**, the default button.
+
+A link or document that does not open says so on the page, under the terms:
+"The browser could not open github.com/MikeMarcin/BetterPullReview. Open that
+address yourself.", "There is no browser to open gamecoretech.com with.", or
+"The third-party notices did not open. They are in <folder>.". The line goes
+when a link next opens.
+
+Close has the keyboard when the page opens, and Return closes. Tab goes to
+betterpullreview.com, Source code, gamecoretech.com, Copy version info,
+Third-party notices, Corresponding source and back to Close, each with the
+window's focus ring; Space activates the focused one. Every control has an accessible name and the
+logo is named "Game Core Tech logo". Secondary lines use the theme's
+placeholder text, and links its link colour, lightened where needed to read at
+4.5:1. The column's width comes from the font, so the page is alike at every
+scale. `qt_about_window_scale_{100,200}` covers the content, the copy, the
+links and documents through fake host actions, the menu item, the keyboard,
+the logo's device size, a theme change while open, and contrast in Light, Dark
+and both High Contrast themes.
 
 ### The empty desktop
 
@@ -2381,7 +2568,43 @@ close and return to the PR"); a refusal or an unknown answer keeps the page
 with its words. Discard review asks first in the shared question, naming how
 many pending comments it deletes ("Discard your review and its N pending
 comments?"); confirmed, it deletes every pending comment of the review and its
-summary, and the page closes. A finished review, submitted or discarded, is
+summary, and the page closes.
+
+The pending comments take an extended selection ([[BPR-1719]], the
+owner: "multi select comments and copy to clipboard to get the file line and
+full comment for all selected"). A plain click selects one row and opens
+nothing, as before; Shift with a click selects from the last row picked to
+that one; Cmd-click (Ctrl-click elsewhere) adds a row or takes it out; Up and
+Down go row to row and select the row they reach, and with Shift they select
+more; Cmd+A (Ctrl+A) selects every row. A selected row has a firmer wash than
+the pointer's and a bar in the highlight colour at its leading edge, apart from
+the focus ring. Cmd+C (Ctrl+C), and **Copy** after a separator in the row menu
+(right-click, the menu key or Shift+F10), copy the selected comments as plain
+text in the page's order, or the focused row's comment when none is selected.
+Each comment is a header line, then the whole comment as written, with its
+trailing line breaks dropped, and a blank line between comments:
+
+```text
+src/engine/renderer.cpp:431
+question: Where does 0.01 come from?
+It looks arbitrary.
+
+src/engine/renderer.cpp:434-435 (LEFT)
+nit: scale could be constexpr.
+```
+
+The header is the full path and the one-based line, or `start-end` for a
+range, with " (LEFT)" for a comment on the base side. A review carries only
+line comments, so no row is a file comment or a reply. The summary is not part
+of the list and is copied from its own field. A right-click inside the
+selection keeps it; outside, it selects that row alone. Return, a double click
+and the menu's openings still act on the one row they are on, and Tab, the
+rows' names and Delete are unchanged. The rows read Cmd+C and Cmd+A ahead of
+any window shortcut, and a row's accessible description says whether it is
+selected and names the keys. Selecting and copying send no command and change
+no draft. They work while GitHub's answer is unknown and the rows offer no
+Delete, so the held comments of a review that cannot be confirmed can be kept
+elsewhere. A refreshed list keeps each comment's selection. A finished review, submitted or discarded, is
 never the next one: the next review starts at once with its own comments.
 Return in the field is a new line. Esc keeps a
 written draft as its dashed note and drops an empty one, and focus returns to
@@ -2390,10 +2613,39 @@ several lines (selected with Shift and the arrows, a drag or a Shift-click)
 says "Lines a–b" in its header and the bracket spans all of them; one on the
 base side says "Base line N". A right-click outside the selection selects its
 line first, and the menu, headed "Line N", "Lines a–b" or "Base line N",
-offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour stop. Suggest change starts the draft as a
-```` ```suggestion ```` block holding the selected lines exactly, the caret
-at the end of its last line, set monospaced and unwrapped, and shows what the
-block changes as it is edited. Neither key nor item acts on lines the core
+offers Add comment (↩) and Suggest change (⇧↩) above Copy and Add tour stop,
+named for the lines when there are several ("Add comment on lines a–b").
+A published thread on several lines, GitHub's `start_line` to `line`, says
+"a–b" in its header and "Lines a–b" in its mark's description, and its open
+wash and bar span all of them, its edge mark on the last
+([[BPR-1721]]). Suggest change writes the change in the code
+([[RFC-BPR-0090]]; the owner's Q1 and Q5, 2026-10-21): the head pane becomes
+the Review Cycles editor over the whole head file, at the pane's geometry, and
+only the selected lines are editable, washed blue with a blue edge down the
+gutter beside them; the caret is at the end of the last one. The editor
+follows the comparison's scroll, and a wheel over it scrolls the comparison.
+An edit that would change any other byte is refused whole, the edge flashes
+once and the status line says "Only lines a–b are in this suggestion. Esc
+ends the edit." Enter and pasted lines grow the range, the rows below moving
+down and a new row unnumbered, and emptying it leaves one row that says
+"Deletes lines a–b". Ribbons that touch or follow the range are dimmed while
+it is edited. In one pane the edit shows the head file alone, over the
+interleaved rows, until it ends. The drawer field holds the reviewer's words
+only, never a block, and "What it changes" shows the code's change under them;
+the draft's body is the core's composition of the words and the block. Esc
+in the code ends the edit and keeps the change, and the field keeps holding
+the words; opening the kept draft again (Suggest change, its card, Return or
+Comment) opens its change in the code. Typed back to the original, the draft
+is a plain comment of its words. On a commit-filtered diff a suggestion whose
+line changed after the diff's commit, or that GitHub resolves on no commit,
+is held (owner's Q3): the range turns the reading amber, the card says why,
+and Add single comment and Start a review give way to "Convert to a comment
+on `<commit>`" or "Convert to file comment", which writes the words and the
+change, as a ```` ```diff ```` block, as text on the same lines. Finish your
+review lists a held suggestion with its reason and the same Convert, and
+waits to be submitted until none is held. Outside Review,
+where no code shows, the full composer still starts as a
+```` ```suggestion ```` block holding the selected lines exactly. Neither key nor item acts on lines the core
 refuses together, Suggest change does not act on the base side, and the menu
 says why in a row under the items. Maximize (Command+Shift+M) opens the
 same draft in Discuss, where the full composer lives: the conversations narrow
@@ -2743,3 +2995,51 @@ contract is admitted; the UI does not infer support from host name or version.
 ## Draft status on Home
 
 [RFC-BPR-0067](../rfcs/RFC-BPR-0067-home-draft-pull-requests.md) adds a neutral outlined **Draft** chip immediately before a draft PR’s identity/title in every queue section and Recently viewed. It uses the row’s native font and selection ink, remains complete while the identity/title wrap, and adds no action or keyboard stop. Accessible row text says draft pull request before its identity. Only last accepted exact-authority metadata establishes it: ready removes it, unknown (including older stored entries) has no chip, and cached rows retain it under existing freshness reporting. Account chips, Reviewing, attention, actions, opening and authored section placement retain their behavior.
+
+## My review on Home rows
+
+[[BPR-1718]] (the owner, 2026-10-21: "On the home page I would like to
+know if I have approved a PR. Right now they go to following and I don't
+really know that I took action."). A queue row whose pull request I have
+reviewed leads its second line with a **verdict chip**: my latest review's
+verdict, in the second line's font, in a thin neutral outline with the Draft
+chip's small radius. Its mark and word are:
+
+| My latest review | Chip |
+|---|---|
+| Approved, on the current head | a check in the theme's accepted ink, "Approved" |
+| Changes requested, on the current head | a plus over a minus in the theme's defect ink, "Changes requested" |
+| Comments only | a speech bubble in quiet ink, "Commented" |
+| Any of these, with commits pushed after it | the mark in quiet ink, and " · new commits" after the word ("Approved · new commits") |
+| Dismissed, with nothing after it | no mark, "Review dismissed" in quiet ink |
+
+The word says the verdict without colour. The mark's colour is a second,
+narrow exception to colour meaning state on Home, in the same accepted and
+defect inks as lines added and removed. A selected row keeps the style's
+selected ink. The chip is complete and never elided. The second line's text
+begins beside it and wraps back under it to the row's left edge, so a narrow
+row keeps its whole width for the text. A row with room for fewer than twelve
+characters beside the chip gives the chip a line of its own, with the text
+below it. It adds no action and no keyboard stop. Hovering it shows "You
+approved this on 14 Oct 2026." ("You requested changes on…", "You commented on
+this on…"). With new commits the tooltip adds "New commits were pushed after
+it." A dismissed review says "Your review from 14 Oct 2026 was dismissed." The
+row's accessible name ends with the same sentences. With no submission time
+read, the date is left out ("You approved this.").
+
+The core decides the verdict (`core::my_review_for`) from my submitted reviews
+in the order GitHub returns them. A comment-only review never replaces an
+approval or a change request: GitHub keeps the earlier verdict standing. The
+latest of Approved, Changes requested and Dismissed wins. A dismissed review
+leaves no verdict, so it never shows as approved, and a comment after the
+dismissal shows as Commented. Pending reviews are not mine to count until
+they are submitted. "New commits" means the verdict's own review names a
+commit other than the current head. An unknown commit says nothing. The
+retained read that already supplies Home's submitted-review evidence
+(`ListHomePullRequests`, or the REST reviews) supplies the verdict too. It
+adds `submittedAt` to the batched query and no request. The verdict is stored
+with the row's other facts (queue facts version 3) and survives a restart.
+Opening the pull request keeps it, and the next retained read replaces it.
+Sections are unchanged. An approved pull request with nothing new stays in
+Following, and one with new commits is still "Changed" in Needs me, carrying
+"Approved · new commits".

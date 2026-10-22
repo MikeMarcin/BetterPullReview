@@ -1085,8 +1085,10 @@ namespace bpr::adapters::syntax {
 			}
 			++LexicalPasses;
 			auto result = collect(aRequest, definition->Name, text, aStop, std::move(answer));
-			if (definition->Name == "C++" && result.Status == application::syntax_classification_status::available) {
-				result.Status = core::refine_cpp_identifiers(*bytes, result.Spans, aRequest.MaximumSpans, aStop);
+			if (definition->Name == application::cpp_syntax_definition_name && result.Status == application::syntax_classification_status::available) {
+				// [[BPR-1714]]. The key's known namespaces, which are what the
+				// spans are cached under.
+				result.Status = core::refine_cpp_identifiers(*bytes, result.Spans, aRequest.MaximumSpans, aStop, aRequest.Key.Namespaces);
 			}
 			return result;
 		}

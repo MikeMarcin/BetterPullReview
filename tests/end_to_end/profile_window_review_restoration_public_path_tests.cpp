@@ -659,6 +659,7 @@ auto main(int aArgc, char** aArgv) -> int
 				}
 			}
 			expect(openInNewTab != nullptr && openInNewTab->text() == QStringLiteral("Open in New Tab") && openInNewTab->isEnabled(), "file menu offers enabled Open in New Tab");
+			expect(menu->actions().front() == openInNewTab, "Open in New Tab is first");
 			openInNewTab->trigger();
 			wait_for([&] { return strip->tabs().size() == 2U; }, "Open in New Tab adds one background view");
 			expect(strip->tabs()[0].Active && reading(*first) == original, "background open preserves active reading");

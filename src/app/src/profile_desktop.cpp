@@ -1,4 +1,5 @@
 #include "bpr/app/profile_desktop.hpp"
+#include "about_desktop.hpp"
 #include "bpr/adapters/sqlite/profile_registry_store.hpp"
 #include "bpr/adapters/sqlite/release_update_recovery_store.hpp"
 #include "bpr/app/worker_executor.hpp"
@@ -765,6 +766,10 @@ namespace bpr::app {
 				if (Updater) {
 					Updater->attach(*DesktopMenu);
 				}
+				// [[BPR-1720]]. After the updater, so About ends Help.
+				if (About) {
+					About->attach(*DesktopMenu);
+				}
 				DesktopMenu->set_dispatch(
 					[weak = weak_from_this()](application::profile_management_intent aIntent) {if (const auto self=weak.lock();self && !self->Quitting){ self->dispatch(std::move(aIntent));
 } },
@@ -977,6 +982,9 @@ namespace bpr::app {
 			if (Updater) {
 				Updater->attach(*presented);
 			}
+			if (About) {
+				About->attach(*presented->menuBar());
+			}
 			const auto weak = weak_from_this();
 			presented->installEventFilter(this);
 			presented->set_profile_management_dispatch(
@@ -1005,6 +1013,7 @@ namespace bpr::app {
 		{
 			RegistryRoot = aRuntime.desktop_registry_root();
 			Updater      = release_update_desktop::start_native(RegistryRoot);
+			About        = make_about_menu();
 			Scratch      = aRuntime.desktop_scratch();
 			Registry     = adapters::sqlite::make_profile_registry_store(RegistryRoot);
 			Management   = std::make_unique<qt::profile_management_window>();
@@ -1531,6 +1540,7 @@ namespace bpr::app {
 		std::unique_ptr<qt::profile_management_window>                              Management;
 		std::unique_ptr<qt::desktop_menu_bar>                                       DesktopMenu;
 		std::unique_ptr<release_update_desktop>                                     Updater;
+		std::unique_ptr<qt::about_menu>                                             About;
 		unsigned                                                                    UpdateAccountPoll = 0U;
 		std::map<core::bpr_profile_id, runtime_entry>                               Runtimes;
 		std::map<core::bpr_profile_id, maintenance_entry>                           Maintenance;

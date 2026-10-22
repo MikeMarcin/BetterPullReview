@@ -78,6 +78,11 @@ namespace bpr::qt {
 		label_key,
 		thread_open_review,
 		thread_open_discuss,
+		/// [[BPR-1719]]. Finish your review's pending comments: select
+		/// more with Shift and an arrow, select them all, copy the selected.
+		extend_pending_comments,
+		select_pending_comments,
+		copy_pending_comments,
 
 		find,
 		find_next,
@@ -89,6 +94,10 @@ namespace bpr::qt {
 		query_previous,
 		query_whole_word,
 		query_in_selection,
+		/// [[BPR-1712]]. Find in files' results: copy the selected ones.
+		copy_results,
+		/// [[BPR-1712]]. Find in files' results: select every row.
+		select_results,
 
 		files_drawer,
 		comments_drawer,

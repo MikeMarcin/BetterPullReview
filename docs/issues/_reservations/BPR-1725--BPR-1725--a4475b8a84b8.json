@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1725"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A diagnostics export saves as a zip",
+  "created": "2026-10-21T23:59:53.363874+00:00",
+  "base": "5b025df6f22b75b5e5053e25aa96baf5e052523f"
+}

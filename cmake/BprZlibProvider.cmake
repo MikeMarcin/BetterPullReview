@@ -2,8 +2,10 @@ include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
 
 # [[BPR-1435]]. zlib for the functional core's review-bundle reader, one of the
-# owner-approved core libraries (2026-10-13). Only the raw-inflate and
-# checksum sources are compiled: no gz* file I/O, no deflate, no upstream build.
+# owner-approved core libraries (2026-10-13). Only the raw-inflate, checksum
+# and, since [[BPR-1725]], raw-deflate sources are compiled: no gz* file
+# I/O, no compress/uncompress helpers, no upstream build. The owner admitted
+# deflate on 2026-10-21 for the diagnostics export's `.zip`.
 # Z_PREFIX renames every symbol to z_*, so this copy can never be confused with
 # the system zlib that LibArchive links on macOS.
 function(bpr_acquire_zlib)
@@ -46,9 +48,11 @@ function(bpr_acquire_zlib)
         STATIC
             "${source}/adler32.c"
             "${source}/crc32.c"
+            "${source}/deflate.c"
             "${source}/inffast.c"
             "${source}/inflate.c"
             "${source}/inftrees.c"
+            "${source}/trees.c"
             "${source}/zutil.c"
     )
     add_library(BetterPullReview::ZLib ALIAS better_pull_review_zlib)

@@ -734,6 +734,19 @@ namespace bpr::core {
 			: white;
 	}
 
+	namespace {
+		/// `aColour` with every channel scaled by one factor so its largest
+		/// becomes `aPeak`: the same hue and saturation at another brightness.
+		[[nodiscard]] auto scaled_to_peak(const appearance_color aColour, const std::uint32_t aPeak) noexcept -> appearance_color
+		{
+			const auto largest = std::uint32_t{ std::max({ aColour.Red, aColour.Green, aColour.Blue }) };
+			const auto scale   = [largest, aPeak](const std::uint8_t aChannel) {
+				return static_cast<std::uint8_t>(((std::uint32_t{ aChannel } * aPeak) + (largest / 2U)) / largest);
+			};
+			return appearance_color{ scale(aColour.Red), scale(aColour.Green), scale(aColour.Blue), aColour.Alpha };
+		}
+	} // namespace
+
 	auto readable_emphasis_foreground(
 		const appearance_color aSyntax, const appearance_color aFill,
 		const appearance_variant aVariant) noexcept -> appearance_color
@@ -750,8 +763,26 @@ namespace bpr::core {
 		const auto     adjustedMinimum    = std::min(
 			contrast_ratio_hundredths(target, aFill),
 			std::max(text_contrast_minimum_hundredths, minimum + adjustmentHeadroom));
+		// [[BPR-1709]]. Toward white the ink first brightens along its own
+		// hue, as far as its largest channel can go, and only then tints:
+		// blending straight toward white drains the hue, and a green comment
+		// on a selected row's mark read as white. Toward black, compositing
+		// only lowers the value, which already keeps hue and saturation.
+		constexpr auto white    = appearance_color{ 255U, 255U, 255U, 255U };
+		constexpr auto fullPeak = std::uint32_t{ 255U };
+		auto           from     = aSyntax;
+		const auto     largest  = std::uint32_t{ std::max({ aSyntax.Red, aSyntax.Green, aSyntax.Blue }) };
+		if (target == white && largest > 0U) {
+			for (auto peak = largest + 1U; peak <= fullPeak; ++peak) {
+				const auto candidate = scaled_to_peak(aSyntax, peak);
+				if (contrast_ratio_hundredths(candidate, aFill) >= adjustedMinimum) {
+					return candidate;
+				}
+			}
+			from = scaled_to_peak(aSyntax, fullPeak);
+		}
 		for (auto alpha = std::uint16_t{ 1U }; alpha <= 255U; ++alpha) {
-			const auto candidate = composited(target, aSyntax, static_cast<std::uint8_t>(alpha));
+			const auto candidate = composited(target, from, static_cast<std::uint8_t>(alpha));
 			if (contrast_ratio_hundredths(candidate, aFill) >= adjustedMinimum) {
 				return candidate;
 			}
@@ -783,6 +814,14 @@ namespace bpr::core {
 		const appearance_variant aVariant) noexcept -> appearance_color
 	{
 		return reaching_floor(aSyntax, aFill, minimum_contrast_hundredths(contrast_kind::text, aVariant));
+	}
+
+	auto read_only_code_ink(
+		const appearance_color aSyntax, const appearance_color aGround,
+		const appearance_variant aVariant) noexcept -> appearance_color
+	{
+		const auto faded = composited(aGround, aSyntax, read_only_code_fade_alpha(aVariant));
+		return reaching_floor(faded, aGround, minimum_contrast_hundredths(contrast_kind::text, aVariant));
 	}
 
 	namespace {

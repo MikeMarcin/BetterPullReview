@@ -440,3 +440,33 @@ as news. `home_section_for` places an ignored item in `ignored`, and
 persists the deltas in the queue store's `home_ignore` table (schema 11),
 keyed by host, account, repository and number. Qt only projects the result.
 Nothing changes on GitHub.
+
+## Owner amendment: my review on Home rows — 2026-10-21
+
+The owner asked on 2026-10-21: "On the home page I would like to know if I
+have approved a PR. Right now they go to following and I don't really know
+that I took action." [[BPR-1718]] builds it.
+
+A queue row whose pull request I have reviewed leads its second line with a
+verdict chip: "Approved", "Changes requested", "Commented" or "Review
+dismissed", with " · new commits" when commits were pushed after the verdict's
+review. The chip uses the Draft chip's thin neutral outline. Its mark is a
+check in the accepted ink, a plus over a minus in the defect ink or a speech
+bubble in quiet ink, and goes quiet once new commits arrive. This is a second,
+narrow exception to colour meaning state on Home, beside lines added and
+removed. The word carries the meaning without colour. The chip's tooltip and
+the row's accessible name say "You approved this on <date>." and its
+counterparts. The [workbench specification](../ux/workbench-specification.md#my-review-on-home-rows)
+holds the full wording.
+
+The core owns the decision. `core::my_review_for` reads my submitted reviews
+in GitHub's order. Approved, Changes requested and Dismissed replace one
+another, and a comment-only review replaces none of them. A dismissed review
+leaves no verdict, so it never shows as approved. Staleness is the verdict
+review's commit against the current head. The host reads the verdict from the
+retained read Home already makes (`ListHomePullRequests` adds `submittedAt`
+to its review nodes, and the REST reviews carry `submitted_at`). It adds no
+request. The verdict is kept with the row's stored facts. Section rules,
+attention buckets, notifications, ordering and counts are unchanged: an
+approved pull request with nothing new stays in Following, and one with new
+commits stays in Needs me as Changed.

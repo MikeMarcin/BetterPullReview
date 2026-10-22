@@ -9,8 +9,14 @@ namespace bpr::app {
 	class pr_search_controller final : public application::source_search_projection_port
 	{
 	public:
+		/// \brief [[BPR-1712]]. The tab a result opens in: the active one,
+		/// or one of its own (the result menu's Open in New Tab).
+		enum class result_tab : std::uint8_t {
+			active,
+			new_tab,
+		};
 		using scope_supplier   = std::function<std::optional<core::source_search_scope>()>;
-		using open_file        = std::function<std::optional<core::document_tab_id>(const core::source_search_scope&, const application::source_corpus_entry&)>;
+		using open_file        = std::function<std::optional<core::document_tab_id>(const core::source_search_scope&, const application::source_corpus_entry&, result_tab)>;
 		using tab_supplier     = std::function<std::optional<core::document_tab_id>()>;
 		using reveal_validator = std::function<bool(const core::source_search_scope&, core::file_identity, const std::string&, const core::source_match_location&)>;
 		pr_search_controller(qt::source_search_panel& aPanel, qt::diff_workbench& aSurface, application::source_corpus_port& aCorpus, const core::source_regex_engine& aEngine, application::decision_executor& aDecisions, application::effect_executor& aEffects, scope_supplier aScope, open_file aOpen, reveal_validator aValidate, tab_supplier aTab);
@@ -18,7 +24,7 @@ namespace bpr::app {
 		void               open();
 		void               dispatch(qt::source_find_gesture aGesture);
 		void               navigate(core::change_navigation_direction aDirection);
-		void               activate(std::uint32_t aIndex);
+		void               activate(std::uint32_t aIndex, result_tab aTab = result_tab::active);
 		void               observe_scope();
 		void               cancel_reveal();
 		void               reset();

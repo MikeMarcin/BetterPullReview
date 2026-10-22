@@ -22,6 +22,14 @@ splits it into C1's and C3's own diffs. Its pack also holds `C3r`, C3 reworded
 on the same parent and tree: the course serves it as the next push, a force
 push whose new head carries exactly C3's change. Files changed is 99 files.
 
+With `--comment` it writes commit-filter-comment-v1 instead (RFC-BPR-0089 M4):
+the same chain with one more file, `src/notes.txt`, of 30 lines, shaped as
+BPR-Test #116 where GitHub was measured. C1 changes its lines 5, 15 and 25; C3
+inserts two lines at its top and changes C1's lines 5 and 25 again. With C3
+hidden, a comment on C1's line 15 goes to the head's line 17 and one on C1's
+line 5 goes to C1. Its review threads hold one written on C1 at line 25,
+outdated, and one at the head's line 17. Files changed is 99 files.
+
 With `--attributes` it writes commit-filter-attributes-v1 instead ([[BPR-1692]]):
 the same chain, whose merge base also commits a root `.gitattributes` marking
 `gen/** linguist-generated` and a nested `gen/.gitattributes` returning
@@ -34,10 +42,12 @@ request, so its Files changed is the same 98 files and the head's rules mark
     build_commit_filter_fixture.py --root <dir>    writes all three under <dir>
     build_commit_filter_fixture.py --attributes [--root <dir> | <out.json>]
     build_commit_filter_fixture.py --split [--root <dir> | <out.json>]
+    build_commit_filter_fixture.py --comment [--root <dir> | <out.json>]
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import subprocess
@@ -61,7 +71,60 @@ VARIANTS = {
     "plain": {"name": "commit-filter-v1", "repository": "commit-filter", "number": 89},
     "attributes": {"name": "commit-filter-attributes-v1", "repository": "commit-filter-attributes", "number": 1692},
     "split": {"name": "commit-filter-split-v1", "repository": "commit-filter-split", "number": 893},
+    "comment": {"name": "commit-filter-comment-v1", "repository": "commit-filter-comment", "number": 894},
 }
+# RFC-BPR-0089 M4. The file a comment is written on with C3 hidden.
+NOTES_PATH = "src/notes.txt"
+
+
+def comment_threads(commits: dict[str, str]) -> dict:
+    """RFC-BPR-0089 M4. Two threads already on src/notes.txt, as GitHub
+    reports them: one written on C1 at its line 25, which C3 changed, so GitHub
+    keeps it on C1, outdated; and one written at the head at line 17."""
+    def thread(identity: str, written: str, current: str | None, line: int | None, original: int) -> dict:
+        post = {
+            "id": f"PRRC_m4_{identity}",
+            "bodyText": f"Already here: {identity}.",
+            "path": NOTES_PATH,
+            "line": line,
+            "originalLine": original,
+            "outdated": line is None,
+            "author": {"login": "fixture-author", "id": "U_fixture-author"},
+            "replyTo": None,
+            "commit": {"oid": current or written},
+            "originalCommit": {"oid": written},
+        }
+        return {
+            "id": f"PRRT_m4_{identity}",
+            "isResolved": False,
+            "isOutdated": line is None,
+            "viewerCanResolve": True,
+            "viewerCanUnresolve": False,
+            "subjectType": "LINE",
+            "path": NOTES_PATH,
+            "diffSide": "RIGHT",
+            "line": line,
+            "originalLine": original,
+            "comments": {"totalCount": 1, "nodes": [post], "pageInfo": {"hasNextPage": False, "endCursor": cursor(post["id"])}},
+        }
+    nodes = [thread("on_c1", commits["C1"], None, None, 25), thread("at_head", commits["C3"], commits["C3"], 17, 17)]
+    return {"nodes": nodes, "pageInfo": {"endCursor": cursor(nodes[-1]["id"]), "hasNextPage": False}, "totalCount": len(nodes)}
+
+
+def cursor(text: str) -> str:
+    return base64.b64encode(f"cursor:{text}".encode("ascii")).decode("ascii")
+
+
+def notes(stage: str) -> str:
+    lines = [f"notes line {n}" for n in range(1, 31)]
+    if stage != "M":
+        for line in (5, 15, 25):
+            lines[line - 1] = f"notes line {line} C1"
+    if stage == "C3":
+        lines[4] = "notes line 5 C3"
+        lines[24] = "notes line 25 C3"
+        lines = ["inserted 1 C3", "inserted 2 C3"] + lines
+    return "".join(f"{line}\n" for line in lines)
 # RFC-BPR-0089 M3. The file every commit changes, so hiding C2 splits it.
 SPLIT_PATH = "src/version.txt"
 VERSION = {
@@ -103,6 +166,8 @@ def snapshot(stage: str, variant: str = "plain") -> dict[str, str]:
         files.update(ATTRIBUTES)
     if variant == "split":
         files[SPLIT_PATH] = VERSION[stage]
+    if variant == "comment":
+        files[NOTES_PATH] = notes(stage)
     return files
 
 
@@ -182,17 +247,19 @@ def verify(result: dict, repository: str, commits: dict[str, str], variant: str 
         if marked != expected or states.get("gen/item_007.txt") != "unset":
             failures.append(f"the head's rules must mark {len(expected)} files and unset gen/item_007.txt: {len(marked)} marked")
     extra = {SPLIT_PATH} if split else set()
-    if len(result["files"]) != GENERATED + 2 + len(extra):
-        failures.append(f"Whole PR must list {GENERATED + 2 + len(extra)} files, not {len(result['files'])}")
+    # RFC-BPR-0089 M4. The notes file C1 and C3 change and C2 does not.
+    ends = extra | ({NOTES_PATH} if variant == "comment" else set())
+    if len(result["files"]) != GENERATED + 2 + len(ends):
+        failures.append(f"Whole PR must list {GENERATED + 2 + len(ends)} files, not {len(result['files'])}")
     touched = {
         stage: set(git(repository, "diff", "--name-only", f"{commits[stage]}^", commits[stage]).splitlines())
         for stage in ("C1", "C2", "C3")
     }
-    if touched["C1"] != {"src/app.cpp", "src/generator.in", *extra}:
+    if touched["C1"] != {"src/app.cpp", "src/generator.in", *ends}:
         failures.append(f"C1 must change exactly the source: {sorted(touched['C1'])}")
     if touched["C2"] - extra != {f"gen/item_{index:03}.txt" for index in range(GENERATED)} or not extra <= touched["C2"]:
         failures.append("C2 must regenerate exactly the generated files")
-    if touched["C3"] != {"src/app.cpp", *(f"gen/item_{index:03}.txt" for index in HAND_EDITED), *extra}:
+    if touched["C3"] != {"src/app.cpp", *(f"gen/item_{index:03}.txt" for index in HAND_EDITED), *ends}:
         failures.append(f"C3 must touch the source and the hand-edited files: {sorted(touched['C3'])}")
     if split:
         # The force push carries exactly C3's change: same parent, same tree.
@@ -212,7 +279,7 @@ def main() -> int:
     source = Path(__file__).resolve().parents[1]
     arguments = sys.argv[1:]
     variant = "plain"
-    if arguments[:1] in (["--attributes"], ["--split"]):
+    if arguments[:1] in (["--attributes"], ["--split"], ["--comment"]):
         variant = arguments[0][2:]
         arguments = arguments[1:]
     name = VARIANTS[variant]["name"]
@@ -241,6 +308,11 @@ def main() -> int:
     (fixture / "objects.pack").write_bytes(objects)
     subprocess.run([sys.executable, str(source / "scripts/build_recorded_pull_request_contract.py"), str(recording),
                     str(root / "tests/fixtures/github/contracts/v1" / name)], check=True, capture_output=True)
+    if variant == "comment":
+        threads = root / "tests/fixtures/github/contracts/v1" / name / "responses/review_threads.json"
+        document = json.loads(threads.read_text(encoding="utf-8"))
+        document["data"]["repository"]["pullRequest"]["reviewThreads"] = comment_threads(commits)
+        threads.write_text(json.dumps(document, indent="\t", sort_keys=True) + "\n", encoding="utf-8", newline="\n")
     print("COMMIT_FILTER_FIXTURE_OK:" + ":".join(f"{stage}={sha}" for stage, sha in commits.items()) + f":{len(objects)}")
     return 0
 

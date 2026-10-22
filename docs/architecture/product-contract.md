@@ -152,7 +152,8 @@ BetterPullReview is implemented as a deterministic functional core inside an imp
 
 Settings → Storage & privacy provides a local diagnostic preview/export and
 explicit diagnostic cleanup/profile purge. Diagnostic export saves only the
-exact previewed classified metadata to a new local file; it uploads nothing.
+exact previewed classified metadata to a new local file, a `.zip` archive
+whose one entry is that text; it uploads nothing.
 The readable log and external OS crash reports have separate privacy limits.
 
 Help → Diagnostics opens the same profile Settings while signed out. Help also

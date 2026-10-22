@@ -15,10 +15,10 @@ namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto valid_observation(const review_publication_observation& aObservation) noexcept -> bool
 		{
-			return aObservation.Placement <= review_placement::off_hunk
+			return aObservation.Placement <= review_placement::unresolvable_line
 				&& aObservation.Capability <= off_hunk_creation_capability::unsupported
 				&& aObservation.Body <= review_body_compatibility::requires_line_subject
-				&& aObservation.State <= review_publication_state::rejected;
+				&& aObservation.State <= review_publication_state::unresolvable_line_admitted;
 		}
 
 		[[nodiscard]] auto fallback(const review_publication_observation& aObservation, const review_publication_action aAction) noexcept -> review_publication_decision
@@ -41,6 +41,16 @@ namespace bpr::core {
 		using state          = review_publication_state;
 		using action         = review_publication_action;
 		using representation = review_publication_representation;
+		// [[BPR-1706]]. GitHub resolves an unresolvable line nowhere, so it
+		// never has a native child to prepare or post: it is admitted
+		// straight to the file comment, and only from the initial state.
+		const auto unresolvable = aObservation.Placement == review_placement::unresolvable_line;
+		if (unresolvable && aObservation.State == state::initial) {
+			return fallback(aObservation, action::admit_unresolvable_line);
+		}
+		if (unresolvable && aObservation.State == state::native_prepared) {
+			return { .Diagnostic = review_publication_diagnostic::invalid_observation };
+		}
 		switch (aObservation.State) {
 		case state::initial:
 			if (aObservation.Placement == review_placement::off_hunk
@@ -55,6 +65,7 @@ namespace bpr::core {
 			return { .Action = action::reconcile_native, .Representation = representation::native_line };
 		case state::native_definitively_unsupported:
 		case state::unsupported_evidence_admitted:
+		case state::unresolvable_line_admitted:
 		case state::fallback_prepared:
 			return fallback(aObservation, action::fallback_attempt);
 		case state::fallback_possibly_transmitted:
@@ -105,8 +116,13 @@ namespace bpr::core {
 				return state::native_definitively_unsupported;
 			}
 			break;
+		case event::admit_unresolvable_line:
+			if (current == state::initial && plan_review_publication(aObservation).Action == review_publication_action::admit_unresolvable_line) {
+				return state::unresolvable_line_admitted;
+			}
+			break;
 		case event::prepare_fallback:
-			if ((current == state::native_definitively_unsupported || current == state::unsupported_evidence_admitted)
+			if ((current == state::native_definitively_unsupported || current == state::unsupported_evidence_admitted || current == state::unresolvable_line_admitted)
 				&& plan_review_publication(aObservation).Action == review_publication_action::fallback_attempt) {
 				return state::fallback_prepared;
 			}

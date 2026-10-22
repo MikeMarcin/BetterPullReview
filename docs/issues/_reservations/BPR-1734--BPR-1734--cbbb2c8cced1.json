@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1734"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "One-pane selection repaint past the longest line",
+  "created": "2026-10-22T04:36:46.350931+00:00",
+  "base": "d9ea547a60adc155fe2d1e1694e61653fdc9e754"
+}

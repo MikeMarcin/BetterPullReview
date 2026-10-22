@@ -288,6 +288,60 @@ namespace bpr::qt {
 			return { };
 		}
 
+		/// \brief [[BPR-1714]]. Why one entry is not a namespace name, after its quoted text.
+		[[nodiscard]] auto namespace_problem_text(const core::known_namespace_problem aProblem) -> QString
+		{
+			switch (aProblem) {
+			case core::known_namespace_problem::empty_part:
+				return QStringLiteral("has nothing on one side of ::");
+			case core::known_namespace_problem::invalid_character:
+				return QStringLiteral("has a character a namespace name cannot hold");
+			case core::known_namespace_problem::leading_digit:
+				return QStringLiteral("starts a name with a digit");
+			case core::known_namespace_problem::keyword:
+				return QStringLiteral("uses a C++ keyword as a name");
+			case core::known_namespace_problem::too_long:
+				return QStringLiteral("is longer than %1 characters").arg(core::maximum_known_namespace_bytes);
+			case core::known_namespace_problem::duplicate:
+				return QStringLiteral("is listed twice");
+			case core::known_namespace_problem::too_many:
+				return QStringLiteral("is past the limit of %1 namespaces").arg(core::maximum_known_namespaces);
+			}
+			return QStringLiteral("is not a namespace name");
+		}
+
+		/// \brief The first character of `aEntry` a namespace name cannot hold, if any.
+		/// \details Only wording: the core has already refused the entry, and this
+		/// says which character to change, so "my-lib" reads as having "-".
+		[[nodiscard]] auto offending_character(const std::string& aEntry) -> QString
+		{
+			const auto text = QString::fromUtf8(aEntry.data(), static_cast<qsizetype>(aEntry.size()));
+			for (auto at = qsizetype{ 0 }; at < text.size(); ++at) {
+				const auto unit = text[at].unicode();
+				if ((unit >= u'a' && unit <= u'z') || (unit >= u'A' && unit <= u'Z') || (unit >= u'0' && unit <= u'9') || unit == u'_') {
+					continue;
+				}
+				if (unit == u':' && at + 1 < text.size() && text[at + 1] == u':') {
+					++at;
+					continue;
+				}
+				const auto length = text[at].isHighSurrogate() && at + 1 < text.size() ? 2 : 1;
+				return text.mid(at, length);
+			}
+			return { };
+		}
+
+		/// \brief One entry as the problem line quotes it: shortened when long.
+		[[nodiscard]] auto quoted_entry(const std::string& aEntry) -> QString
+		{
+			constexpr auto shown = qsizetype{ 32 };
+			auto           text  = QString::fromUtf8(aEntry.data(), static_cast<qsizetype>(aEntry.size()));
+			if (text.size() > shown) {
+				text = text.left(shown) + QStringLiteral("\u2026");
+			}
+			return QStringLiteral("\"%1\"").arg(text);
+		}
+
 		[[nodiscard]] auto reason_text(const core::typography_reason aReason)
 			-> QString
 		{
@@ -738,6 +792,76 @@ namespace bpr::qt {
 			});
 		colours.Body->addWidget(Colours);
 		page->addWidget(colours.Frame);
+
+		// ── Syntax. [[BPR-1714]]: the C++ namespaces a reviewer names as known.
+		// One row and the line that names a refused entry, under the field it
+		// answers, in the page's own text role (BPR-1301: the placeholder role
+		// read below 4.5:1).
+		auto syntax = make_card(
+			this, QStringLiteral("Syntax"), QStringLiteral("appearanceSyntaxCard"));
+		auto* const syntaxReset = make_header_button(
+			syntax.Frame,
+			QStringLiteral("Reset"),
+			QStringLiteral("Reset C++ namespaces"),
+			QStringLiteral("appearanceSyntaxReset"));
+		syntaxReset->setToolTip(QStringLiteral("Puts the list back to std alone."));
+		syntaxReset->setAccessibleDescription(syntaxReset->toolTip());
+		syntax.Header->addWidget(syntaxReset);
+		QObject::connect(syntaxReset, &QPushButton::clicked, this, [this] {
+			// Uncorrected text goes too: a reset of the list already in effect
+			// publishes nothing that would replace it.
+			NamespacesHeld = false;
+			show_namespace_problems({ }, { });
+			KnownNamespaces->setText(QString::fromStdString(core::join_known_namespaces(AdoptedSettings.Namespaces)));
+			dispatch_reset(application::appearance_reset_scope::known_namespaces);
+		});
+		auto* const syntaxRows   = new QWidget{ syntax.Frame };
+		auto* const syntaxColumn = new QVBoxLayout{ syntaxRows };
+		syntaxColumn->setContentsMargins(0, 0, 0, 0);
+		syntaxColumn->setSpacing(0);
+		KnownNamespaces = new QLineEdit{ syntaxRows };
+		KnownNamespaces->setObjectName(QStringLiteral("appearanceKnownNamespaces"));
+		KnownNamespaces->setAccessibleName(QStringLiteral("C++ namespaces"));
+		KnownNamespaces->setPlaceholderText(QStringLiteral("For example std, Qt, boost::asio"));
+		KnownNamespaces->setClearButtonEnabled(true);
+		KnownNamespaces->setMaxLength(static_cast<int>(core::maximum_known_namespaces * (core::maximum_known_namespace_bytes + 2U)));
+		KnownNamespaces->setMinimumWidth(KnownNamespaces->fontMetrics().averageCharWidth() * 36);
+		const auto namespacesRow = add_row(
+			*syntaxColumn,
+			syntaxRows,
+			QStringLiteral("appearanceKnownNamespacesRow"),
+			QStringLiteral("C++ namespaces"),
+			QStringLiteral(
+				"Names that colour as namespaces before ::, as if each file declared "
+				"them. Separate them with commas or spaces, and write a nested one as "
+				"boost::asio. std brings the namespaces the standard puts in it, such "
+				"as std::chrono and std::ranges. A class a file declares with the same "
+				"name still reads as a class."),
+			KnownNamespaces);
+		NamespaceConsequence = namespacesRow.Glyph->consequence();
+		NamespaceProblem     = new QLabel{ syntaxRows };
+		NamespaceProblem->setObjectName(QStringLiteral("appearanceKnownNamespacesProblem"));
+		NamespaceProblem->setAccessibleName(QStringLiteral("C++ namespaces problem"));
+		NamespaceProblem->setTextFormat(Qt::PlainText);
+		NamespaceProblem->setWordWrap(true);
+		NamespaceProblem->setForegroundRole(QPalette::WindowText);
+		NamespaceProblem->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		NamespaceProblem->setContentsMargins(0, 0, 0, row_inset / 2);
+		NamespaceProblem->hide();
+		syntaxColumn->addWidget(NamespaceProblem);
+		syntax.Body->addWidget(syntaxRows);
+		page->addWidget(syntax.Frame);
+		// Return and leaving the field both apply, as the other rows apply at once.
+		QObject::connect(KnownNamespaces, &QLineEdit::editingFinished, this, [this] {
+			commit_known_namespaces();
+		});
+		// Corrected text stops naming the problem as soon as it is legal.
+		QObject::connect(KnownNamespaces, &QLineEdit::textEdited, this, [this](const QString& aText) {
+			if (NamespaceProblem->isVisible()
+				&& core::validate_known_namespaces(core::split_known_namespaces(aText.toStdString())).empty()) {
+				show_namespace_problems({ }, { });
+			}
+		});
 
 		// ── Dif. RFC-BPR-0031's B3 controls, in the new row language.
 		auto dif = make_card(
@@ -1410,6 +1534,80 @@ namespace bpr::qt {
 		}
 	}
 
+	void appearance_settings_panel::commit_known_namespaces()
+	{
+		const auto offered    = core::split_known_namespaces(KnownNamespaces->text().toStdString());
+		const auto rejections = core::validate_known_namespaces(offered);
+		if (!rejections.empty()) {
+			++Statistics.NamespaceRefusals;
+			NamespacesHeld = true;
+			show_namespace_problems(offered, rejections);
+			return;
+		}
+		NamespacesHeld = false;
+		show_namespace_problems({ }, { });
+		if (offered == AdoptedSettings.Namespaces) {
+			// The same list, perhaps spaced differently: show it as it is kept.
+			KnownNamespaces->setText(QString::fromStdString(core::join_known_namespaces(offered)));
+			return;
+		}
+		if (Dispatch) {
+			++Statistics.NamespaceGestures;
+			Dispatch(application::apply_known_namespaces_intent{ .Namespaces = offered });
+		}
+	}
+
+	void appearance_settings_panel::show_namespace_problems(
+		const core::known_namespaces&                          aOffered,
+		const std::span<const core::known_namespace_rejection> aRejections)
+	{
+		if (aRejections.empty()) {
+			NamespaceProblem->clear();
+			NamespaceProblem->hide();
+			KnownNamespaces->setAccessibleDescription(NamespaceConsequence);
+			return;
+		}
+		// The first three by name, then how many more, so a pasted list of
+		// strangers cannot push the page down a screen.
+		constexpr auto named = std::size_t{ 3U };
+		auto           parts = QStringList{ };
+		for (const auto& rejection : aRejections.first(std::min(named, aRejections.size()))) {
+			const auto entry     = rejection.Index < aOffered.Names.size() ? aOffered.Names[rejection.Index] : std::string{ };
+			const auto character = rejection.Problem == core::known_namespace_problem::invalid_character ? offending_character(entry) : QString{ };
+			parts.push_back(character.isEmpty()
+								? QStringLiteral("%1 %2").arg(quoted_entry(entry), namespace_problem_text(rejection.Problem))
+								: QStringLiteral("%1 has \"%2\", which a namespace name cannot hold").arg(quoted_entry(entry), character));
+		}
+		auto text = QStringLiteral("Not saved. %1.").arg(parts.join(QStringLiteral("; ")));
+		if (aRejections.size() > named) {
+			text += QStringLiteral(" %1 more %2 not namespace names.")
+						.arg(aRejections.size() - named)
+						.arg(aRejections.size() - named == 1U ? QStringLiteral("entry is") : QStringLiteral("entries are"));
+		}
+		NamespaceProblem->setText(text);
+		NamespaceProblem->show();
+		KnownNamespaces->setAccessibleDescription(text + QLatin1Char(' ') + NamespaceConsequence);
+	}
+
+	void appearance_settings_panel::report(
+		const std::span<const core::known_namespace_rejection> aRejections)
+	{
+		++Statistics.Rejections;
+		++Statistics.NamespaceRefusals;
+		NamespacesHeld = !aRejections.empty();
+		show_namespace_problems(core::split_known_namespaces(KnownNamespaces->text().toStdString()), aRejections);
+	}
+
+	auto appearance_settings_panel::known_namespaces_editor() const noexcept -> QLineEdit*
+	{
+		return KnownNamespaces;
+	}
+
+	auto appearance_settings_panel::known_namespaces_problem() const noexcept -> QLabel*
+	{
+		return NamespaceProblem;
+	}
+
 	void appearance_settings_panel::dispatch_reset(
 		const application::appearance_reset_scope aScope)
 	{
@@ -1598,7 +1796,18 @@ namespace bpr::qt {
 		Ligatures->setChecked(record.Typography.Code.Ligatures);
 		SyntaxBold->setChecked(record.Typography.Code.SyntaxBold);
 		SyntaxItalic->setChecked(record.Typography.Code.SyntaxItalic);
-		Echoing = false;
+		// [[BPR-1714]]. Text the reviewer is still correcting stays until
+		// they correct it or the list in effect moves under it.
+		const auto shown = QString::fromStdString(core::join_known_namespaces(record.Namespaces));
+		if (!NamespacesHeld || ShownNamespaces != record.Namespaces) {
+			NamespacesHeld = false;
+			show_namespace_problems({ }, { });
+			if (KnownNamespaces->text() != shown) {
+				KnownNamespaces->setText(shown);
+			}
+		}
+		ShownNamespaces = record.Namespaces;
+		Echoing         = false;
 		refresh_colours();
 		refresh_preview_bar();
 	}

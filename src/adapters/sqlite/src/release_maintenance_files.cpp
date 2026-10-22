@@ -5,17 +5,22 @@
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/profile_data_reset.hpp"
+#include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/sha256.hpp"
 #include "storage_internal.hpp"
 
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <chrono>
+#include <ctime>
 #include <exception>
 #include <iterator>
 #include <limits>
 #include <memory>
 #include <random>
+#include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 #if !defined(_WIN32)
@@ -50,6 +55,29 @@ namespace bpr::adapters::sqlite {
 			if (aStop.stop_requested()) {
 				fail(reason::cancelled);
 			}
+		}
+		/// \brief [[BPR-1725]]. A saved export's bytes: the frozen text
+		/// as the one deflated entry of a ZIP archive named for the file,
+		/// dated now by the local clock.
+		auto archive(std::string_view aFileName, std::string_view aText) -> std::string
+		{
+			const auto seconds = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+			std::tm    local{ };
+#ifdef _WIN32
+			const bool converted = ::localtime_s(&local, &seconds) == 0;
+#else
+			const bool converted = ::localtime_r(&seconds, &local) != nullptr;
+#endif
+			auto time = core::diagnostic_export_local_time{ };
+			if (converted && local.tm_mon >= 0 && local.tm_mday >= 0 && local.tm_hour >= 0 && local.tm_min >= 0 && local.tm_sec >= 0) {
+				time = { .Year   = local.tm_year + 1900,
+						 .Month  = static_cast<unsigned>(local.tm_mon) + 1U,
+						 .Day    = static_cast<unsigned>(local.tm_mday),
+						 .Hour   = static_cast<unsigned>(local.tm_hour),
+						 .Minute = static_cast<unsigned>(local.tm_min),
+						 .Second = static_cast<unsigned>(std::min(local.tm_sec, 59)) };
+			}
+			return core::diagnostic_export_archive(aFileName, aText, time);
 		}
 		auto safe_relative(std::string_view aPath) -> bool
 		{
@@ -867,13 +895,14 @@ namespace bpr::adapters::sqlite {
 					}
 					cancelled(aStop);
 					static std::atomic<std::uint64_t> sequence{ 0U };
-					temporary = ".bpr-export-" + std::to_string(::getpid()) + "-" + std::to_string(sequence.fetch_add(1U));
-					file      = descriptor{ ::openat(Parent.Value, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600) };
+					const auto                        zipped = archive(Name, aBytes);
+					temporary                                = ".bpr-export-" + std::to_string(::getpid()) + "-" + std::to_string(sequence.fetch_add(1U));
+					file                                     = descriptor{ ::openat(Parent.Value, temporary.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600) };
 					if (file.Value < 0) {
 						temporary.clear();
 						fail(reason::io_failure);
 					}
-					write_all(file.Value, aBytes);
+					write_all(file.Value, zipped);
 					cancelled(aStop);
 					if (!still_owned()) {
 						fail(reason::selection_changed);
@@ -1342,8 +1371,10 @@ namespace bpr::adapters::sqlite {
 					cancelled(aStop);
 					static std::atomic<std::uint64_t> sequence{ 0U };
 					const auto                        temporary = ".bpr-export-" + std::to_string(::GetCurrentProcessId()) + "-" + std::to_string(sequence.fetch_add(1U));
+					const auto                        utf8      = Name.u8string();
+					const auto                        zipped    = archive({ reinterpret_cast<const char*>(utf8.data()), utf8.size() }, aBytes);
 					file                                        = create_private_file(Parent.Value, temporary);
-					write_all(file.Value, aBytes);
+					write_all(file.Value, zipped);
 					cancelled(aStop);
 					if (!still_owned()) {
 						fail(reason::selection_changed);
@@ -1377,7 +1408,17 @@ namespace bpr::adapters::sqlite {
 			}
 		};
 #endif
-		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop, std::string_view aSession = { }) -> std::string
+		struct diagnostic_input
+		{
+			std::string   Bytes;
+			std::uint32_t UnreadFiles = 0U;
+		};
+		/// \brief [[BPR-1717]]. Reads the newest log files that fit the input limit, oldest first.
+		/// \details A session file is named for a random session identity, so name order is no
+		/// order at all. Files are taken newest first by modification time, and once one does not
+		/// fit every older file is left unread and counted, rather than failing the export or
+		/// losing the running session's file.
+		auto read_diagnostic_files(native_handle aRoot, std::stop_token aStop, std::string_view aSession = { }) -> diagnostic_input
 		{
 			if (!inspect(aRoot, "logs")) {
 				return { };
@@ -1385,14 +1426,27 @@ namespace bpr::adapters::sqlite {
 			auto               logs = open_directory(aRoot, "logs");
 			std::vector<entry> entries;
 			scan(logs.Value, "logs", scope::clear, entries, aStop);
-			std::ranges::sort(entries, { }, &entry::Path);
-			std::string bytes;
-			std::size_t inputBytes = 0U;
+			if (!aSession.empty()) {
+				std::erase_if(entries, [prefix = std::string{ "session-" } + std::string{ aSession } + "-"](const entry& aItem) { return !leaf(aItem.Path).starts_with(prefix); });
+			}
+			std::ranges::sort(entries, [](const entry& aLeft, const entry& aRight) {
+				return std::tie(aRight.Modified, aRight.ModifiedNano, aLeft.Path) < std::tie(aLeft.Modified, aLeft.ModifiedNano, aRight.Path);
+			});
+			diagnostic_input result;
+			std::size_t      admitted = 0U;
+			std::size_t      planned  = 0U;
+			while (admitted < entries.size() && entries[admitted].Size <= application::release_diagnostic_input_limit - planned) {
+				planned += static_cast<std::size_t>(entries[admitted].Size);
+				++admitted;
+			}
+			result.UnreadFiles = static_cast<std::uint32_t>(entries.size() - admitted);
+			entries.resize(admitted);
+			// Read newest first, so a running session's file is never refused for
+			// having grown since the scan; joined oldest first.
+			std::vector<std::string> parts;
+			std::size_t              inputBytes = 0U;
 			for (const auto& item : entries) {
 				cancelled(aStop);
-				if (!aSession.empty() && !leaf(item.Path).starts_with(std::string{ "session-" } + std::string{ aSession } + "-")) {
-					continue;
-				}
 				auto part = read_file(logs.Value, leaf(item.Path), application::release_diagnostic_input_limit - inputBytes);
 				inputBytes += part.size();
 				// Count original input even when discarding a tail. One empty line is
@@ -1401,9 +1455,35 @@ namespace bpr::adapters::sqlite {
 					part.resize(part.rfind('\n') + 1U);
 					part.push_back('\n');
 				}
-				bytes += part;
+				parts.push_back(std::move(part));
 			}
-			return bytes;
+			// Each part is released once joined, so the join holds about one
+			// copy of the input rather than two.
+			result.Bytes.reserve(inputBytes + parts.size());
+			for (auto part = parts.rbegin(); part != parts.rend(); ++part) {
+				result.Bytes += *part;
+				std::string{ }.swap(*part);
+			}
+			return result;
+		}
+		/// \brief [[BPR-1722]]. Now, with the local offset from UTC, for the
+		/// export's header; a time zone the C library cannot convert gives
+		/// offset zero.
+		auto export_stamp() -> application::diagnostic_export_stamp
+		{
+			const auto now     = std::chrono::system_clock::now();
+			const auto utcMs   = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+			const auto seconds = std::chrono::system_clock::to_time_t(now);
+			std::tm    local{ };
+#ifdef _WIN32
+			const bool converted = ::localtime_s(&local, &seconds) == 0;
+			const auto asUtc     = converted ? ::_mkgmtime(&local) : static_cast<std::time_t>(-1);
+#else
+			const bool converted = ::localtime_r(&seconds, &local) != nullptr;
+			const auto asUtc     = converted ? ::timegm(&local) : static_cast<std::time_t>(-1);
+#endif
+			const auto offset = asUtc == static_cast<std::time_t>(-1) ? std::int64_t{ 0 } : (static_cast<std::int64_t>(asUtc) - static_cast<std::int64_t>(seconds)) / 60;
+			return { .UtcMs = utcMs > 0 ? static_cast<std::uint64_t>(utcMs) : 0U, .OffsetMinutes = static_cast<std::int32_t>(offset) };
 		}
 		auto export_namespace() -> std::string
 		{
@@ -1668,14 +1748,15 @@ namespace bpr::adapters::sqlite {
 				} else if (aContext.ExportOptions.IncludeRecent || aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session) {
 					fail(reason::unavailable);
 				}
-				const auto bytes    = read_diagnostic_files(self.RootHandle.Value, aStop,
+				const auto input    = read_diagnostic_files(self.RootHandle.Value, aStop,
 															aContext.ExportOptions.Scope == core::diagnostic_export_scope::current_session ? std::string_view{ capture.Session } : std::string_view{ });
 				auto       document = aContext.ExportOptions.Policy == core::diagnostic_export_policy::metadata
-					? application::prepare_release_diagnostics(bytes, revision)
-					: application::prepare_diagnostic_export(bytes, revision, aContext.ExportOptions, capture, export_namespace());
+					? application::prepare_release_diagnostics(input.Bytes, revision)
+					: application::prepare_diagnostic_export(input.Bytes, revision, aContext.ExportOptions, capture, export_namespace(), input.UnreadFiles, export_stamp());
 				if (!document) {
 					fail(document.error());
 				}
+				document->Descriptor.UnreadFiles = input.UnreadFiles;
 				if (aContext.ExportOptions.Policy == core::diagnostic_export_policy::anonymized) {
 					document->Bytes += insights_storage_export(self.Root);
 					if (document->Bytes.size() > core::release_diagnostic_byte_limit) {

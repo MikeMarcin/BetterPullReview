@@ -452,6 +452,12 @@ embedded in the app, installer or per-user archive.
   mislabelled MIT.
 - A correction to generated metadata needs fresh packages. Never update an old
   signed runtime or its inventory in place.
+- Help › About opens `THIRD-PARTY-NOTICES.txt` and `SOURCE-OFFERS.txt` from
+  this directory (`installed_legal_folder` in `src/app/src/about_desktop.cpp`)
+  and shows the commit the build was made from, which
+  `cmake/BprBuildIdentity.cmake` records. Packaging builds from a clean
+  checkout, so a release's About names its producer commit with no local
+  changes.
 
 ### xdiff, a dynamically linked LGPL library
 

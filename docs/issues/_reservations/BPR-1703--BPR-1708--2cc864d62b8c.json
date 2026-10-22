@@ -1,0 +1,15 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1703",
+    "BPR-1704",
+    "BPR-1705",
+    "BPR-1706",
+    "BPR-1707",
+    "BPR-1708"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0089 M4 and closeout cards",
+  "created": "2026-10-21T19:03:26.345072+00:00",
+  "base": "a7a61518fbc85324b6629f3bf4ec0a75e654c5c3"
+}

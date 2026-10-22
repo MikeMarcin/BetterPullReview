@@ -14,6 +14,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/hex.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/event_loop_metrics.hpp"
@@ -22,6 +23,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/markdown_image_decoder.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_release_update.hpp"
@@ -1101,6 +1103,7 @@ namespace bpr::app {
 			case detail::github_public_path_fixture::commit_filter_v1:
 			case detail::github_public_path_fixture::commit_filter_attributes_v1:
 			case detail::github_public_path_fixture::commit_filter_split_v1:
+			case detail::github_public_path_fixture::commit_filter_comment_v1:
 				return {
 					.Profile = core::host_profile_id{ 1U },
 					.Host    = core::git_host_id{ 1U },
@@ -7115,6 +7118,7 @@ namespace bpr::app {
 			}
 			Profile->ReviewRestoration->complete_restore(DraftWindow, pending.Request,
 														 aSuccess ? std::expected<void, core::window_review_failure>{ } : std::unexpected(core::window_review_failure::unavailable));
+			retain_filters();
 		}
 		void advance_reading_restoration()
 		{
@@ -7246,7 +7250,62 @@ namespace bpr::app {
 				SearchCreatedTab.reset();
 				SearchCreatedComparison.reset();
 			}
-			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, (SearchOpeningNoTab || SearchCreatedTab) ? std::nullopt : tabs.Active);
+			// [[BPR-1712]]. While a result opens, and while the tab it
+			// opened is active, the search keeps the tab it was bound to, so
+			// the results and the result's reveal stay.
+			auto bound = tabs.Active;
+			if (SearchOpening) {
+				bound = SearchOpeningBinding;
+			} else if (SearchCreatedTab) {
+				bound = SearchCreatedBinding;
+			}
+			return EpochHost->bind_source_search(workbench_authority(*LastAcceptedHandoff), pair, bound,
+												 pair == *EpochHost->state().AcceptedComparison ? filtered_search_files() : std::nullopt);
+		}
+		/// \brief RFC-BPR-0089 ([[BPR-1688]]). While a filter leaves files out of
+		/// the review, Find in files searches the files it lists, each at its
+		/// filtered diff's commits (a split file from its first diff's left to
+		/// its last diff's right); files set aside as generated are not searched.
+		[[nodiscard]] auto filtered_search_files() const -> std::optional<std::vector<core::source_search_filtered_file>>
+		{
+			const auto files = CommitFilter.files();
+			if (!files) {
+				return std::nullopt;
+			}
+			auto result = std::vector<core::source_search_filtered_file>{ };
+			result.reserve(files->Files.size());
+			for (const auto& file : files->Files) {
+				auto entry = core::source_search_filtered_file{ .Path = file.Record.Path, .Endpoints = file.Filter };
+				if (file.Split && !file.Segments.empty()) {
+					entry.Endpoints = core::filtered_diff_endpoints{ .Left = file.Segments.front().Endpoints.Left, .Right = file.Segments.back().Endpoints.Right };
+				}
+				result.push_back(std::move(entry));
+			}
+			std::ranges::sort(result, { }, &core::source_search_filtered_file::Path);
+			result.erase(std::ranges::unique(result, { }, &core::source_search_filtered_file::Path).begin(), result.end());
+			return result;
+		}
+		/// \brief [[BPR-1712]]. Find in files' Open in New Tab: the
+		/// result's file in a tab of its own after the active one, which it
+		/// then makes active so the result's line can be shown. The core's
+		/// Open in New Tab and tab activation decide both; at the tab limit
+		/// nothing opens.
+		void open_search_result_in_new_tab(const core::file_identity& aFile)
+		{
+			auto before = std::vector<core::document_tab_id>{ };
+			for (const auto& tab : TabHost->state().Tabs) {
+				before.push_back(tab.Id);
+			}
+			const auto active = TabHost->state().Active;
+			TabHost->apply(core::open_in_new_tab_intent{ .File = aFile });
+			if (!active) {
+				return;
+			}
+			const auto& tabs  = TabHost->state().Tabs;
+			const auto  added = std::ranges::find_if(tabs, [&](const core::document_tab& aTab) { return std::ranges::find(before, aTab.Id) == before.end(); });
+			if (added != tabs.end()) {
+				TabHost->apply(core::activate_tab_intent{ .Tab = added->Id });
+			}
 		}
 		auto register_search_open() -> bool
 		{
@@ -7859,6 +7918,7 @@ namespace bpr::app {
 				return;
 			}
 			PendingRestoration        = aRequest;
+			RestoringFilters          = aRequest.Filters ? std::optional{ std::pair{ aRequest.Destination, *aRequest.Filters } } : std::nullopt;
 			ReadingRestoration        = aRequest.Position ? std::optional{ core::window_reading_restoration{ *aRequest.Position } } : std::nullopt;
 			ReadingFailed             = false;
 			ReadingRestoreUnavailable = false;
@@ -7895,6 +7955,8 @@ namespace bpr::app {
 					Profile->ReviewRestoration->accepted_read(DraftWindow, destination, std::max<qint64>(0, QDateTime::currentSecsSinceEpoch()));
 					Profile->ReviewRestoration->accepted_title(destination, std::string_view{ snapshot->PullRequest.Title }.substr(0, core::maximum_recent_review_title));
 					Profile->ReviewRestoration->accepted_draft(destination, snapshot->PullRequest.Draft);
+					// [[BPR-1688]]. The destination may be known after its review.
+					retain_filters();
 					// [[BPR-1365]]. Which recent entry is open moved with it.
 					if (opened) {
 						publish_recent();
@@ -8272,11 +8334,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::string& aKey, application::review_submission_publication aPublication, const std::optional<application::review_submission_request>& aRequest) {
 					settle_review_comments(aKey, aPublication, aRequest);
 				},
-				[this] { discard_review_comments(); });
+				[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 			ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
+			Window->set_carried_suggestion_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { discard_carried_suggestion(aDraft, aRevision); });
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(core::revisioned_review_draft_command{ .Command = std::move(aCommand) });
@@ -8339,6 +8402,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::string& aThread) { mark_conversation_read(aThread); });
 			Window->set_conversation_unread_dispatch(
 				[this](const std::string& aThread) { mark_conversation_unread(aThread); });
+			Window->set_conversations_read_dispatch(
+				[this](const std::optional<std::string>& aAuthor) { mark_conversations_read(aAuthor); });
 
 			Window->set_queue_rule_dispatch(
 				[this](application::queue_rule_intent aIntent) {
@@ -9211,12 +9276,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			TabHost  = std::make_unique<application::document_tab_host>(
 				DecisionLane, *TabPorts, *TabPorts,
 				[this](const core::window_review_tabs& aTabs) { retain_tabs(aTabs); });
-			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry) -> std::optional<core::document_tab_id> {
+			PrFind = std::make_unique<pr_search_controller>(*Window->pr_search(), *Window->comparison_surface(), *EpochHost, SourceRegex, ReviewerDecisions, Profile->SearchEffects, [this] { return pr_search_scope(); }, [this](const core::source_search_scope& aScope, const application::source_corpus_entry& aEntry, const pr_search_controller::result_tab aTab) -> std::optional<core::document_tab_id> {
                 if(pr_search_scope()!=std::optional{aScope}){return {};}
                 cancel_review_navigation();cancel_restoration(false);abandon_tab_load();
                 SearchOpenFile=std::pair{aScope,aEntry};static_cast<void>(register_search_open());
-                observe_tab_reading();SearchOpeningNoTab=!TabHost->state().Active;TabHost->apply(core::open_in_active_tab_intent{.File=aEntry.File});
-                if(SearchOpeningNoTab){SearchCreatedTab=TabHost->state().Active;SearchCreatedComparison=aScope.Comparison;}SearchOpeningNoTab=false;return TabHost->state().Active; }, [this](const core::source_search_scope& aScope, core::file_identity aFile, const std::string& aPath, const core::source_match_location& aLocation) {
+                observe_tab_reading();
+                const auto before=TabHost->state().Active;
+                SearchOpening=true;SearchOpeningBinding=aScope.Tab;
+                if(aTab==pr_search_controller::result_tab::new_tab){open_search_result_in_new_tab(aEntry.File);}else{TabHost->apply(core::open_in_active_tab_intent{.File=aEntry.File});}
+                if(TabHost->state().Active && TabHost->state().Active!=before){SearchCreatedTab=TabHost->state().Active;SearchCreatedComparison=aScope.Comparison;SearchCreatedBinding=aScope.Tab;}
+                SearchOpening=false;return TabHost->state().Active; }, [this](const core::source_search_scope& aScope, core::file_identity aFile, const std::string& aPath, const core::source_match_location& aLocation) {
                 if(!SelectedDiffPublication || SelectedDiffPublication->Request.Diff.Authority!=aScope.Authority || SelectedDiffPublication->Request.Diff.Comparison!=aScope.Comparison || SelectedDiffPublication->Key.File!=aFile){return false;}
                 const auto& endpoint=aLocation.Side==core::diff_side::left?SelectedDiffPublication->LeftEndpoint:SelectedDiffPublication->RightEndpoint;
                 if(!endpoint || endpoint->blob()!=aLocation.Blob || endpoint->side()!=aLocation.Side){return false;}
@@ -9323,8 +9392,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					adopt_classification(aSpans);
 				});
 			AppearanceProjections.set_presentation_sink(
-				[this](const application::appearance_presentation_invalidation&
-					   /*aInvalidation*/) { adopt_appearance_settings(); });
+				[this](const application::appearance_presentation_invalidation& aInvalidation) {
+					adopt_appearance_settings();
+					// [[BPR-1714]]. The known namespaces are a classification
+					// input: the C++ on screen asks again under the new list.
+					if (aInvalidation.Namespaces.has_value()) {
+						reclassify_shown_comparison();
+					}
+				});
 			AppearanceProjections.set_palette_adoption_sink(
 				[this](const application::palette_adoption_publication&) {
 					adopt_appearance_settings(true);
@@ -10435,6 +10510,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const core::comparison_pair& aComparison,
 			const core::diff_side        aSide) const -> bool
 		{
+			// RFC-BPR-0089 M4. A commit-filtered diff's threads and comments are
+			// placed on it by the core, on either side.
+			if (selected_diff_filtered() && aComparison == SelectedDiffPublication->Request.Diff.Comparison) {
+				return true;
+			}
 			// [[BPR-1212]]. GitHub's `LEFT` lines count the merge base's
 			// version of the file; the left side is current only for the
 			// selected comparison whose left document is known to be that.
@@ -10462,7 +10542,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// asked about; the recorded base only when it named none.
 		[[nodiscard]] auto base_numbering_request() const -> std::optional<application::github_base_numbering_request>
 		{
-			if (!SelectedDiffPublication || !WindowRead || !WindowRead->accepted_snapshot()) {
+			// RFC-BPR-0089 M4. A commit-filtered diff's base lines are placed in
+			// the merge base by the core, not asked about here.
+			if (!SelectedDiffPublication || !WindowRead || !WindowRead->accepted_snapshot() || selected_diff_filtered()) {
 				return std::nullopt;
 			}
 			const auto& selected   = *SelectedDiffPublication;
@@ -10506,6 +10588,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		[[nodiscard]] auto base_numbered_as_github() const -> bool
 		{
+			if (selected_diff_filtered()) {
+				return true;
+			}
 			if (!BaseNumbering || BaseNumbering->Status != application::github_base_numbering_status::same) {
 				return false;
 			}
@@ -10616,7 +10701,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const application::github_review_thread_record& aThread) const
 			-> std::optional<core::source_line_ref>
 		{
-			if (aThread.Subject != application::github_review_thread_subject::line
+			if (aThread.Subject != application::github_review_thread_subject::line || selected_diff_filtered()
 				|| aThread.Outdated || !aThread.Line.has_value()
 				|| *aThread.Line == 0U || aThread.Path.empty()
 				|| !SelectedDiffPublication.has_value() || Window == nullptr
@@ -11853,6 +11938,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto replies = core::decide_reply_drafts(drafts, reply_threads());
 			Window->present_saved_drafts(std::move(drafts), std::move(replies));
 			publish_review_comments(saved);
+			// [[BPR-1733]]. A carried or deleted suggestion leaves its note.
+			present_moved_suggestions();
 		}
 
 		/// \brief [[BPR-1374]]. The accepted snapshot's review threads, as the
@@ -12161,18 +12248,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				editor->present(application::review_mutation_failure::undesignated_target);
 				return false;
 			}
-			auto proposal          = core::review_publication_proposal{ };
-			proposal.Draft         = ReviewDraft->Id;
-			proposal.Anchor        = ReviewDraft->Anchor;
-			proposal.Body          = editor->body_text();
-			proposal.StartLine     = ReviewDraft->StartLine;
-			auto request           = application::review_mutation_publication_request{ };
-			request.Proposal       = std::move(proposal);
-			request.Selection      = *SelectedSemanticSelection;
-			request.SelectedDiff   = *SelectedDiffPublication;
+			auto proposal        = core::review_publication_proposal{ };
+			proposal.Draft       = ReviewDraft->Id;
+			proposal.Anchor      = ReviewDraft->Anchor;
+			proposal.Body        = editor->body_text();
+			proposal.StartLine   = ReviewDraft->StartLine;
+			auto request         = application::review_mutation_publication_request{ };
+			request.Proposal     = std::move(proposal);
+			request.Selection    = *SelectedSemanticSelection;
+			request.SelectedDiff = *SelectedDiffPublication;
+			// [[BPR-1706]]. A review's comments are line comments; the host
+			// refuses a filtered line GitHub cannot take as one, and this says why.
+			if (const auto& filtered = Window->filtered_comment_placement();
+				filtered && filtered->Selection == request.Selection.PreferredLine && filtered->Target.Placement == core::filtered_comment_placement::file_comment) {
+				editor->present_publication_refusal(QStringLiteral("GitHub can't attach a comment to this line, so it goes on the file and is published on its own, not in a review. Use Publish."));
+				return false;
+			}
 			const auto destination = ReviewMutationHost->comment_destination(request);
 			if (!destination) {
 				editor->present(destination.error());
+				return false;
+			}
+			// RFC-BPR-0089 M4. A review's comments go at the head at their own
+			// lines; a filtered diff's line placed elsewhere is published alone.
+			if (destination->RemoteLine) {
+				editor->present_publication_refusal(QStringLiteral("A comment placed off this filtered diff's own line or commit is published on its own, not in a review. Use Publish."));
 				return false;
 			}
 			auto mark = core::review_pending_mark{ };
@@ -12292,14 +12392,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// review, in one durable write (owner, discard-review v001: "Discard
 		/// review should delete all the review comments"). A draft a
 		/// submission holds is never pending, so it is never deleted here.
-		void discard_review_comments()
+		/// [[BPR-1715]]. The review's drafts are the ones it carries:
+		/// each at the revision it carries, pending at the review's head. A
+		/// draft written on another revision, or changed since, is kept.
+		void discard_review_comments(const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead)
 		{
 			if (Closing || !SharedDrafts) {
 				return;
 			}
 			auto commands = std::vector<core::revisioned_review_draft_command>{ };
 			for (const auto& saved : SharedDrafts->recovery_snapshot()) {
-				if (!core::pending_in_review(saved.Draft)) {
+				const auto carried = std::ranges::any_of(aCarried, [&saved](const core::review_submission_comment& aComment) {
+					return aComment.Draft == saved.Draft.Id && aComment.DraftRevision == saved.Revision;
+				});
+				if (!carried || !core::pending_in_review(saved.Draft) || saved.Draft.InReview->Head != aHead) {
 					continue;
 				}
 				auto command             = core::revisioned_review_draft_command{ };
@@ -12474,7 +12580,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		[[nodiscard]] auto conversation_source() const -> std::optional<application::review_permalink_source>
 		{
 			if (!WindowRead || !WindowRead->accepted_snapshot() || !LastAcceptedHandoff
-				|| !SelectedDiffPublication || !ReviewSourceMaterial || !ReviewSourceMaterial->RightLines
+				|| !SelectedDiffPublication || selected_diff_filtered() || !ReviewSourceMaterial || !ReviewSourceMaterial->RightLines
 				|| ReviewSourceMaterial->Key != SelectedDiffPublication->Key || !EpochHost
 				|| EpochHost->context(SelectedDiffPublication->Request.WorkbenchAuthority)
 					!= std::optional{ SelectedDiffPublication->Request.Diff }) {
@@ -12530,6 +12636,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					placed                               = aUpdate;
 					placed->PullRequest                  = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), std::move(source));
 					placed->PullRequest->MarkdownContext = PublishedMarkdownContext;
+					place_filtered_threads(*placed->PullRequest);
+				} else if (selected_diff_filtered()) {
+					ReviewCommentPlacement.clear();
+					placed = aUpdate;
+					place_filtered_threads(*placed->PullRequest);
 				} else {
 					// [[BPR-1387]]. With no selected source, placement returns the
 					// host's original projection. Reuse it without copying and
@@ -12552,6 +12663,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Closing && Window && WindowRead && WindowRead->accepted_snapshot()) {
 				auto projection            = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
 				projection.MarkdownContext = PublishedMarkdownContext;
+				place_filtered_threads(projection);
 				Window->publish(application::github_presentation_update{
 					.PullRequest              = std::move(projection),
 					.PreserveWindowNavigation = true });
@@ -12584,6 +12696,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Material       = *ReviewSourceMaterial,
 				// Full-file alignment is not a provider patch-domain observation.
 				.Placement = core::review_placement::unknown,
+				.Filtered  = SelectedDiffPublication->Key.Filter ? filtered_comment_source() : std::nullopt,
 			};
 		}
 
@@ -13402,6 +13515,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else {
 				refresh_agent_private_context_choices();
 			}
+			present_filtered_comment();
 		}
 
 		void observe_review_selection(
@@ -14143,6 +14257,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Edit    = core::comment_edit_version{ durable_identity_half(core::sha256(body), 8U) },
 				.Mine    = aComment.Author.has_value() && !aViewer.empty()
 					&& aComment.Author->Login == aViewer,
+				// [[BPR-1699]]. Who wrote it, for Mark all from them as read.
+				.Author = aComment.Author.has_value() ? core::review_author_of(aComment.Author->Login) : core::review_author_id{ },
 			};
 		}
 
@@ -14197,24 +14313,66 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		application::commit_filter_model                                                                                  CommitFilter;
 		bool                                                                                                              CommitFilterWanted = false;
 		std::optional<std::tuple<core::git_host_id, core::github_account_id, core::repository_id, core::pull_request_id>> CommitFilterReview;
-		std::uint64_t                                                                                                     CommitFilterPublications = 0U;
+		/// [[BPR-1688]]. The filtered review as a window's destination names it,
+		/// and the filters a restoration brings back for its destination until
+		/// that review is adopted.
+		std::optional<std::tuple<core::repository_locator, core::pull_request_number, core::github_account_id>> CommitFilterDestination;
+		std::optional<std::pair<core::window_review_destination, core::window_review_filters>>                  RestoringFilters;
+		std::uint64_t                                                                                           CommitFilterPublications = 0U;
+		/// RFC-BPR-0089 M4. The lines last asked for a filtered diff's comments,
+		/// and the answer.
+		std::optional<application::filtered_comment_lines_request>     FilteredCommentLinesAsked;
+		std::optional<application::filtered_comment_lines_observation> FilteredCommentLines;
+		/// [[BPR-1733]]. Each comparison this window showed a file on, with the
+		/// commit its right side was read at and the file's path there: what a
+		/// kept suggestion on that comparison can be carried from.
+		struct shown_comparison
+		{
+			core::file_comparison_digest Digest;
+			core::git_commit_oid         Head;
+			std::string                  Path;
+		};
+		static constexpr std::size_t  maximum_shown_comparisons = 512U;
+		std::vector<shown_comparison> ShownComparisons;
+		/// [[BPR-1733]]. The lines asked for a kept suggestion from an earlier
+		/// head, and the answers, refusals included.
+		static constexpr std::size_t                          maximum_head_move_answers = 256U;
+		std::vector<application::head_move_lines_request>     HeadMoveLinesAsked;
+		std::vector<application::head_move_lines_observation> HeadMoveLines;
+		/// [[BPR-1733]]. The kept suggestions the private store holds on other
+		/// heads of this pull request than the accepted one, as last read.
+		std::vector<private_review_workflow::earlier_suggestion> EarlierSuggestions;
+		/// [[BPR-1707]]. The comparison request the accepted comparison was
+		/// last resolved for: a resolution asking for it again is a refresh.
+		std::optional<core::comparison_selection> SettledFilterRequest;
 
 		/// \brief The comparison the filter applies to, by its two commits.
-		[[nodiscard]] auto commit_filter_comparison() const -> std::optional<core::filter_comparison>
+		/// \details [[BPR-1707]]. While a refresh resolves the same comparison
+		/// again, the core keeps the accepted one in force, so the filtered set
+		/// does not lapse and come back and a gesture made meanwhile applies.
+		[[nodiscard]] auto commit_filter_comparison() -> std::optional<core::filter_comparison>
 		{
 			if (EpochHost == nullptr) {
 				return std::nullopt;
 			}
-			const auto& state = EpochHost->state();
-			if (!state.AcceptedComparison.has_value() || state.PendingComparison.has_value()) {
-				return std::nullopt;
+			const auto& state     = EpochHost->state();
+			const auto  resolving = state.PendingComparison.has_value();
+			if (state.AcceptedComparison.has_value() && !resolving) {
+				SettledFilterRequest = state.RequestedSelection;
 			}
-			const auto* named = std::get_if<core::named_comparison_selection>(&state.RequestedSelection);
-			return core::filter_comparison{
-				.WholePullRequest = named != nullptr && named->Alias == core::named_comparison::whole_pr,
-				.Left             = state.AcceptedComparison->Left.Commit,
-				.Right            = state.AcceptedComparison->Right.Commit,
-			};
+			// The accepted comparison was resolved for the settled request.
+			const auto& request  = resolving && SettledFilterRequest ? *SettledFilterRequest : state.RequestedSelection;
+			const auto* named    = std::get_if<core::named_comparison_selection>(&request);
+			auto        accepted = state.AcceptedComparison.has_value()
+				? std::optional{ core::filter_comparison{
+					  .WholePullRequest = named != nullptr && named->Alias == core::named_comparison::whole_pr,
+					  .Left             = state.AcceptedComparison->Left.Commit,
+					  .Right            = state.AcceptedComparison->Right.Commit,
+				  } }
+				: std::nullopt;
+			return core::filter_comparison_in_force({ .Accepted    = std::move(accepted),
+													  .Resolving   = resolving,
+													  .SameRequest = SettledFilterRequest == std::optional{ state.RequestedSelection } });
 		}
 
 		/// \brief Adopts an accepted review into the filter before the
@@ -14225,18 +14383,58 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto review = std::tuple{ aHandoff.Host, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
 			if (CommitFilterReview != std::optional{ review }) {
 				CommitFilter.clear();
-				CommitFilterWanted = false;
-				CommitFilterReview = review;
+				CommitFilterWanted   = false;
+				CommitFilterReview   = review;
+				SettledFilterRequest = std::nullopt;
 				// RFC-BPR-0089 M2. The review's marks, when the ledger has them.
 				adopt_generated_marks();
 			}
 			if (aSnapshot.has_value()) {
 				CommitFilter.adopt(*aSnapshot);
 			}
+			CommitFilterDestination = std::tuple{ aHandoff.Locator, aHandoff.Number, aHandoff.Account };
+			// [[BPR-1688]]. A restored window brings back its filters with the
+			// review: a hidden commit the pull request no longer has is named
+			// as after a force push.
+			if (RestoringFilters && filter_destination(RestoringFilters->first)) {
+				static_cast<void>(CommitFilter.restore(RestoringFilters->second.Commits));
+				static_cast<void>(CommitFilter.restore_files(RestoringFilters->second.Files));
+				RestoringFilters.reset();
+			}
 			CommitFilter.adopt_comparison(commit_filter_comparison());
 			const auto files = CommitFilter.files();
 			static_cast<void>(WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt));
 			publish_commit_filter();
+			retain_filters();
+		}
+
+		[[nodiscard]] auto filter_destination(const core::window_review_destination& aDestination) const -> bool
+		{
+			return CommitFilterDestination == std::optional{ std::tuple{ aDestination.Repository, aDestination.Number, aDestination.Account } };
+		}
+
+		/// \brief [[BPR-1688]]. Keeps the window's commit and file filters with
+		/// its accepted destination, as its tabs are kept. What a hidden commit
+		/// changes is not kept: the chain's trees record it again.
+		void retain_filters()
+		{
+			if (Closing || ReadingRestoreUnavailable || !ReadingDestination || !Profile->ReviewRestoration || !filter_destination(*ReadingDestination)) {
+				return;
+			}
+			if (RestoringFilters) {
+				if (PendingRestoration || filter_destination(RestoringFilters->first)) {
+					return;
+				}
+				RestoringFilters.reset();
+			}
+			if (PendingRestoration) {
+				return;
+			}
+			auto filters = core::window_review_filters{ .Commits = CommitFilter.state(), .Files = CommitFilter.file_filter() };
+			for (auto& hidden : filters.Commits.Hidden) {
+				hidden.Changes.reset();
+			}
+			static_cast<void>(Profile->ReviewRestoration->accepted_filters(DraftWindow, *ReadingDestination, filters));
 		}
 
 		void publish_commit_filter()
@@ -14323,12 +14521,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto files   = CommitFilter.files();
 			const auto changed = WorkbenchReview.filter(files ? std::optional{ files->Files } : std::nullopt);
 			publish_commit_filter();
+			retain_filters();
+			// [[BPR-1688]]. Find in files searches the filtered set: a new set
+			// is a new scope.
+			if (PrFind) {
+				PrFind->observe_scope();
+			}
 			if (!changed) {
 				return;
 			}
 			cancel_preparation();
 			if (WorkbenchHost != nullptr && LastAcceptedHandoff) {
 				WorkbenchHost->observe(workbench_authority(*LastAcceptedHandoff));
+				// RFC-BPR-0089 M4. Observing the new file set starts a new
+				// workbench generation; the publication host is bound to one, as
+				// after a refresh, or every comment under a filter is refused.
+				compose_review_mutation(*LastAcceptedHandoff);
 			}
 			publish_overview();
 		}
@@ -14399,6 +14607,388 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			Window->present_split_diff(std::move(parts));
+		}
+
+		/// \brief RFC-BPR-0089 M4. The merge base GitHub counts `LEFT` lines in:
+		/// the one it named for the snapshot, or the recorded base when it named
+		/// none ([[BPR-1560]]).
+		[[nodiscard]] auto filtered_merge_base() const -> std::optional<core::git_commit_oid>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			return core::parse_git_commit_oid(snapshot.MergeBaseAvailability == application::github_merge_base_availability::available && snapshot.MergeBaseOid
+												  ? snapshot.MergeBaseOid->value()
+												  : snapshot.PullRequest.BaseOid.value());
+		}
+
+		/// \brief RFC-BPR-0089 M4. Whether the diff on screen is commit filtered.
+		[[nodiscard]] auto selected_diff_filtered() const noexcept -> bool
+		{
+			return SelectedDiffPublication.has_value() && SelectedDiffPublication->Key.Filter.has_value();
+		}
+
+		/// \brief RFC-BPR-0089 M4. What the epoch host reads for comments on the
+		/// filtered diff on screen: the file at its commits, the head and the
+		/// merge base, by the paths the review names there.
+		[[nodiscard]] auto filtered_comment_lines_request() const -> std::optional<application::filtered_comment_lines_request>
+		{
+			if (!selected_diff_filtered() || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot    = *WindowRead->accepted_snapshot();
+			const auto& publication = *SelectedDiffPublication;
+			const auto  head        = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			const auto  mergeBase   = filtered_merge_base();
+			if (!head || !mergeBase) {
+				return std::nullopt;
+			}
+			const auto text = [](const std::filesystem::path& aPath) {
+				const auto bytes = aPath.generic_u8string();
+				return std::string{ bytes.begin(), bytes.end() };
+			};
+			const auto right    = text(publication.RightPath.value_or(publication.LeftPath.value_or(publication.Request.File.CurrentPath)));
+			const auto left     = publication.LeftPath ? text(*publication.LeftPath) : right;
+			const auto headPath = text(publication.Request.File.CurrentPath);
+			// The merge base names the file as GitHub's whole diff does.
+			const auto whole    = std::ranges::find(snapshot.Files, headPath, &application::github_file_record::Path);
+			const auto basePath = whole != snapshot.Files.end() && whole->PreviousPath ? *whole->PreviousPath : headPath;
+			return application::filtered_comment_lines_request{
+				.WorkbenchAuthority = publication.Request.WorkbenchAuthority,
+				.Head               = *head,
+				.MergeBase          = *mergeBase,
+				.Key                = publication.Key,
+				.LeftPath           = left,
+				.RightPath          = right,
+				.HeadPath           = headPath,
+				.BasePath           = basePath,
+			};
+		}
+
+		/// \brief RFC-BPR-0089 M4. The facts the core places a comment on the
+		/// filtered diff on screen from: the accepted chain and, once read, the
+		/// lines. A read that failed leaves every correspondence absent.
+		[[nodiscard]] auto filtered_comment_source() const -> std::optional<core::filtered_comment_source>
+		{
+			const auto  request = filtered_comment_lines_request();
+			const auto* graph   = CommitFilter.graph();
+			if (!request || graph == nullptr) {
+				return std::nullopt;
+			}
+			auto source = core::filtered_comment_source{
+				.Head      = request->Head,
+				.MergeBase = request->MergeBase,
+				.Diff      = *request->Key.Filter,
+				.Chain     = graph->Chain,
+				.Fork      = graph->Fork,
+				.Lines     = std::nullopt,
+			};
+			if (FilteredCommentLines && FilteredCommentLines->Request == *request) {
+				source.Lines = FilteredCommentLines->Status == application::filtered_comment_lines_status::resolved ? FilteredCommentLines->Lines
+																													: core::filtered_comment_lines{ };
+			}
+			return source;
+		}
+
+		/// \brief RFC-BPR-0089 M4. Asks once per filtered diff for the lines a
+		/// placement needs; a diff whose sides are GitHub's own needs none. A
+		/// refusal is an answer: nothing can be placed off GitHub's diff.
+		void request_filtered_comment_lines()
+		{
+			if (Closing || EpochHost == nullptr) {
+				return;
+			}
+			const auto source  = filtered_comment_source();
+			auto       request = filtered_comment_lines_request();
+			if (!source || !request || !core::filtered_comment_needs_lines(*source) || FilteredCommentLinesAsked == request) {
+				return;
+			}
+			FilteredCommentLinesAsked = request;
+			FilteredCommentLines.reset();
+			if (!EpochHost->resolve_filtered_comment_lines(*request, [this](const application::filtered_comment_lines_observation& aObservation) {
+					if (Closing || FilteredCommentLinesAsked != std::optional{ aObservation.Request }) {
+						return;
+					}
+					FilteredCommentLines = aObservation;
+					present_filtered_comment();
+				})) {
+				FilteredCommentLines = application::filtered_comment_lines_observation{ .Request = *request, .Status = application::filtered_comment_lines_status::unauthorized, .Lines = { } };
+			}
+		}
+
+		/// \brief [[BPR-1733]]. A kept suggestion written on an earlier head of
+		/// the file shown, and the request for its lines there and here.
+		struct moved_candidate
+		{
+			core::revisioned_review_draft        Saved;
+			application::head_move_lines_request Request;
+		};
+
+		/// \brief [[BPR-1733]]. The file shown's path at its right commit.
+		[[nodiscard]] auto shown_right_path() const -> std::string
+		{
+			const auto& publication = *SelectedDiffPublication;
+			const auto  bytes       = publication.RightPath.value_or(publication.LeftPath.value_or(publication.Request.File.CurrentPath)).generic_u8string();
+			return std::string{ bytes.begin(), bytes.end() };
+		}
+
+		/// \brief [[BPR-1733]]. Every kept suggestion on an earlier head of the
+		/// file shown that this window read that head's comparison of: on the
+		/// same path, or the path the file had before the pull request moved it.
+		[[nodiscard]] auto moved_candidates() const -> std::vector<moved_candidate>
+		{
+			auto candidates = std::vector<moved_candidate>{ };
+			if (!SelectedDiffPublication || SelectedDiffPublication->Key.Filter || !SharedDrafts || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return candidates;
+			}
+			const auto& publication = *SelectedDiffPublication;
+			const auto  head        = core::parse_git_commit_oid(WindowRead->accepted_snapshot()->PullRequest.HeadOid.value());
+			if (!head || publication.Request.Diff.Comparison.Right.Commit != *head) {
+				return candidates;
+			}
+			const auto  digest   = core::comparison_digest(publication.Key);
+			const auto  path     = shown_right_path();
+			const auto& files    = WindowRead->accepted_snapshot()->Files;
+			const auto  whole    = std::ranges::find(files, path, &application::github_file_record::Path);
+			const auto  previous = whole != files.end() && whole->PreviousPath ? *whole->PreviousPath : path;
+			// The drafts the store keeps on other heads, and any the shared
+			// owner still holds on another comparison.
+			auto kept = std::vector<core::revisioned_review_draft>{ };
+			for (const auto& earlier : EarlierSuggestions) {
+				kept.push_back(earlier.Draft);
+			}
+			for (auto& saved : SharedDrafts->recovery_snapshot()) {
+				if (std::ranges::none_of(kept, [&saved](const core::revisioned_review_draft& aKept) { return aKept.Draft.Id == saved.Draft.Id; })) {
+					kept.push_back(std::move(saved));
+				}
+			}
+			for (auto& saved : kept) {
+				const auto& draft = saved.Draft;
+				if (draft.Anchor.Comparison == digest || !core::decide_suggestion_head_move(draft, std::nullopt).has_value()) {
+					continue;
+				}
+				const auto earlier = std::ranges::find(ShownComparisons, draft.Anchor.Comparison, &shown_comparison::Digest);
+				if (earlier == ShownComparisons.end() || earlier->Head == *head || (earlier->Path != path && earlier->Path != previous)) {
+					continue;
+				}
+				candidates.push_back(moved_candidate{
+					.Saved   = std::move(saved),
+					.Request = application::head_move_lines_request{
+						.WorkbenchAuthority = publication.Request.WorkbenchAuthority,
+						.Head               = *head,
+						.EarlierHead        = earlier->Head,
+						.Key                = publication.Key,
+						.EarlierPath        = earlier->Path,
+						.HeadPath           = path,
+					},
+				});
+			}
+			return candidates;
+		}
+
+		/// \brief [[BPR-1733]]. Reads the kept suggestions the private store
+		/// holds on other heads, then asks for their lines (`ask_head_move_lines`).
+		void observe_head_moves()
+		{
+			if (Closing) {
+				return;
+			}
+			// The store's suggestions on other heads are read again each time,
+			// so one carried or deleted elsewhere is not offered.
+			if (PrivateReview && PrivateDraftsReady) {
+				PrivateReview->earlier_suggestions([this, owner = SharedDrafts](std::vector<private_review_workflow::earlier_suggestion> aEarlier) {
+					if (Closing || owner != SharedDrafts) {
+						return;
+					}
+					EarlierSuggestions = std::move(aEarlier);
+					ask_head_move_lines();
+				});
+			}
+			ask_head_move_lines();
+		}
+
+		/// \brief [[BPR-1733]]. Remembers the head and path the comparison
+		/// shown was read at, asks once for each candidate's lines, and
+		/// presents what each offers.
+		void ask_head_move_lines()
+		{
+			if (Closing) {
+				return;
+			}
+			if (SelectedDiffPublication && !SelectedDiffPublication->Key.Filter) {
+				const auto digest = core::comparison_digest(SelectedDiffPublication->Key);
+				std::erase_if(ShownComparisons, [&digest](const shown_comparison& aShown) { return aShown.Digest == digest; });
+				ShownComparisons.push_back(shown_comparison{ .Digest = digest, .Head = SelectedDiffPublication->Request.Diff.Comparison.Right.Commit, .Path = shown_right_path() });
+				if (ShownComparisons.size() > maximum_shown_comparisons) {
+					ShownComparisons.erase(ShownComparisons.begin());
+				}
+			}
+			for (const auto& candidate : moved_candidates()) {
+				if (EpochHost == nullptr || std::ranges::find(HeadMoveLinesAsked, candidate.Request) != HeadMoveLinesAsked.end()) {
+					continue;
+				}
+				if (HeadMoveLinesAsked.size() >= maximum_head_move_answers) {
+					HeadMoveLinesAsked.clear();
+					HeadMoveLines.clear();
+				}
+				HeadMoveLinesAsked.push_back(candidate.Request);
+				const auto asked = EpochHost->resolve_head_move_lines(candidate.Request, [this](const application::head_move_lines_observation& aObservation) {
+					if (Closing || std::ranges::find(HeadMoveLinesAsked, aObservation.Request) == HeadMoveLinesAsked.end()) {
+						return;
+					}
+					HeadMoveLines.push_back(aObservation);
+					present_moved_suggestions();
+				});
+				// A refusal is an answer: nothing is carried, and the change can be copied.
+				if (!asked) {
+					HeadMoveLines.push_back(application::head_move_lines_observation{ .Request = candidate.Request, .Status = application::head_move_lines_status::unauthorized, .Lines = std::nullopt });
+				}
+			}
+			present_moved_suggestions();
+		}
+
+		/// \brief [[BPR-1733]]. Tells the window what each kept suggestion from
+		/// an earlier head of the file shown offers here, as the core decides it
+		/// from the host's answer; one still being read waits for it.
+		void present_moved_suggestions()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto moved = std::vector<qt::moved_suggestion_card>{ };
+			for (const auto& candidate : moved_candidates()) {
+				const auto answer = std::ranges::find(HeadMoveLines, candidate.Request, &application::head_move_lines_observation::Request);
+				if (answer == HeadMoveLines.end()) {
+					continue;
+				}
+				const auto lines    = answer->Status == application::head_move_lines_status::resolved ? answer->Lines : std::nullopt;
+				const auto decision = core::decide_suggestion_head_move(candidate.Saved.Draft, lines);
+				if (!decision) {
+					continue;
+				}
+				const auto hex = core::canonical_hex(candidate.Request.EarlierHead);
+				moved.push_back(qt::moved_suggestion_card{
+					.Draft       = candidate.Saved.Draft,
+					.Revision    = candidate.Saved.Revision,
+					.Comparison  = core::comparison_digest(candidate.Request.Key),
+					.EarlierHead = QString::fromStdString(std::string{ hex.view().substr(0U, 7U) }),
+					.Move        = *decision,
+				});
+			}
+			Window->present_moved_suggestions(std::move(moved));
+		}
+
+		/// \brief [[BPR-1733]]. The draft a carried suggestion came from goes,
+		/// at the revision its note showed, once the carried one is saved.
+		/// Nothing is published.
+		void discard_carried_suggestion(const core::review_draft_id aDraft, const std::uint64_t aRevision)
+		{
+			if (Closing || !SharedDrafts) {
+				return;
+			}
+			// Kept by the store on another head: deleted there.
+			if (PrivateReview && std::ranges::any_of(EarlierSuggestions, [aDraft](const private_review_workflow::earlier_suggestion& aEarlier) { return aEarlier.Draft.Draft.Id == aDraft; })) {
+				PrivateReview->discard_earlier_suggestion(aDraft, aRevision, [this, owner = SharedDrafts](bool) {
+					if (!Closing && owner == SharedDrafts) {
+						observe_head_moves();
+					}
+				});
+				return;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, aDraft);
+			if (!read.Accepted || read.Accepted->Revision != aRevision || !core::decide_suggestion_head_move(read.Accepted->Draft, std::nullopt).has_value()) {
+				return;
+			}
+			auto command             = core::revisioned_review_draft_command{ };
+			command.Command          = core::review_draft_command{ .Id = aDraft, .Kind = core::review_draft_command_kind::discard };
+			command.ExpectedRevision = aRevision;
+			command.Scope            = read.Accepted->Scope;
+			change_review_drafts({ std::move(command) }, [](bool) { });
+		}
+
+		/// \brief RFC-BPR-0089 M4 (owner decision Q1). Tells the window where a
+		/// comment on the selected line of the filtered diff on screen goes, so
+		/// the editor says so before Publish.
+		void present_filtered_comment()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (!selected_diff_filtered()) {
+				Window->present_filtered_comment(false, std::nullopt);
+				return;
+			}
+			auto placement = std::optional<qt::filtered_comment_presentation>{ };
+			if (SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine.Comparison == core::comparison_digest(SelectedDiffPublication->Key)) {
+				if (const auto source = filtered_comment_source()) {
+					const auto& line   = SelectedSemanticSelection->PreferredLine;
+					const auto  target = core::place_filtered_comment(*source, line.Side, line.Line, std::nullopt);
+					// [[BPR-1706]]. A file comment's permalink names its own
+					// side's commit, which on the left is not the diff's right.
+					const auto hex = core::canonical_hex(target.Placement == core::filtered_comment_placement::file_comment ? target.Commit : source->Diff.Right);
+					placement      = qt::filtered_comment_presentation{
+						.Selection = line,
+						.Target    = target,
+						.Commit    = QString::fromUtf8(hex.view().substr(0U, 7U)),
+					};
+				}
+			}
+			Window->present_filtered_comment(true, std::move(placement));
+		}
+
+		/// \brief RFC-BPR-0089 M4. On a commit-filtered diff, each of its
+		/// file's line threads is marked where the core places it on that diff,
+		/// and drawn current there; every other line thread of the file stays in
+		/// the conversation drawer, its anchor on no side of this diff.
+		void place_filtered_threads(application::github_pull_request_projection& aProjection) const
+		{
+			if (!selected_diff_filtered() || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto mergeBase = filtered_merge_base();
+			if (!mergeBase) {
+				return;
+			}
+			const auto& endpoints = *SelectedDiffPublication->Key.Filter;
+			const auto& file      = SelectedDiffPublication->Request.File.File;
+			auto        placed    = std::map<std::string, std::optional<std::uint32_t>>{ };
+			for (const auto& thread : WindowRead->accepted_snapshot()->ReviewThreads) {
+				if (thread.Subject != application::github_review_thread_subject::line || core::file_identity_of(thread.Path) != file
+					|| thread.DiffSide == application::github_diff_side::uninitialized) {
+					continue;
+				}
+				const auto root   = std::ranges::find_if(thread.Comments, [](const application::github_review_comment_record& aComment) { return !aComment.ReplyTo.has_value(); });
+				const auto anchor = core::filtered_thread_anchor{
+					.Side           = thread.DiffSide == application::github_diff_side::left ? core::diff_side::left : core::diff_side::right,
+					.Line           = thread.Line,
+					.OriginalLine   = thread.OriginalLine,
+					.Commit         = root != thread.Comments.end() ? core::parse_git_commit_oid(root->Observation.Commit) : std::nullopt,
+					.OriginalCommit = root != thread.Comments.end() ? core::parse_git_commit_oid(root->Observation.OriginalCommit) : std::nullopt,
+				};
+				const auto line = core::filtered_thread_line(anchor, endpoints, *mergeBase);
+				placed.emplace("review-thread:" + std::string{ thread.Thread.value() }, line);
+				for (const auto& comment : thread.Comments) {
+					placed.emplace("review-comment:" + std::string{ comment.Comment.value() }, line);
+				}
+			}
+			for (auto& node : aProjection.Conversations) {
+				const auto found = placed.find(node.Id);
+				if (found == placed.end()) {
+					continue;
+				}
+				if (!found->second) {
+					node.AnchorAvailability = application::github_conversation_anchor_availability::selected_comparison_mismatch;
+					continue;
+				}
+				const auto line = *found->second + 1U;
+				if (node.Line != std::optional{ line }) {
+					node.StartLine.reset();
+				}
+				node.Line               = line;
+				node.AnchorAvailability = application::github_conversation_anchor_availability::current;
+				node.Outdated           = false;
+			}
 		}
 
 		/// \brief RFC-BPR-0089 M2. "Hide files these commits changed".
@@ -14802,6 +15392,79 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					if (unseen.has_value()) {
 						refresh_queue_unseen(*unseen);
 					}
+				}));
+		}
+
+		/// \brief [[BPR-1699]]. Every conversation of the accepted
+		/// snapshot, as the read state observes them.
+		[[nodiscard]] auto accepted_read_conversations() const
+			-> std::optional<std::vector<application::conversation_thread_observation>>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto& viewer   = snapshot.Viewer.Login;
+			auto        threads  = std::vector<application::conversation_thread_observation>{ };
+			threads.reserve(snapshot.ReviewThreads.size() + snapshot.Reviews.size() + snapshot.IssueComments.size());
+			for (const auto& thread : snapshot.ReviewThreads) {
+				auto& observation        = threads.emplace_back();
+				observation.Conversation = core::review_conversation_id{ defect_identity(thread_identity(thread)).Conversation };
+				for (const auto& comment : thread.Comments) {
+					if (!comment.Deleted) {
+						observation.Posts.push_back(post_observation(comment, viewer));
+					}
+				}
+			}
+			const auto appendPost = [&](const auto& aPost) {
+				threads.push_back(application::conversation_thread_observation{
+					.Conversation = core::review_conversation_id{ defect_identity(comment_projection_id(aPost)).Conversation },
+					.Posts        = { post_observation(aPost, viewer) },
+				});
+			};
+			for (const auto& review : snapshot.Reviews) {
+				appendPost(review);
+			}
+			for (const auto& comment : snapshot.IssueComments) {
+				if (!comment.Deleted) {
+					appendPost(comment);
+				}
+			}
+			return threads;
+		}
+
+		/// \brief [[BPR-1699]]. Mark all comments as read, or all from
+		/// one author: the core decides over every conversation of the pull
+		/// request, the ledger host commits the receipts it changes as one
+		/// durable change, and the read state is presented once that is
+		/// durable. Local only: nothing reaches GitHub.
+		void mark_conversations_read(const std::optional<std::string>& aAuthor)
+		{
+			if (Closing || ReviewLedgerHost == nullptr || Window == nullptr) {
+				return;
+			}
+			const auto scope = core::conversation_read_scope{
+				.Author = aAuthor.has_value() ? core::review_author_of(*aAuthor) : core::review_author_id{ },
+			};
+			auto threads = accepted_read_conversations();
+			if (!threads.has_value() || (aAuthor.has_value() && scope.Author == core::review_author_id{ })) {
+				return;
+			}
+			ReviewLedgerHost->mark_conversations_read(
+				std::move(*threads),
+				scope,
+				ledger_answer([this, aAuthor](const std::expected<core::conversation_bulk_read, application::ledger_store_failure>& aRead) {
+					if (Window == nullptr) {
+						return;
+					}
+					if (!aRead.has_value()) {
+						Window->present_conversations_read(std::nullopt, aAuthor);
+						return;
+					}
+					if (const auto unseen = publish_read_state(); unseen.has_value()) {
+						refresh_queue_unseen(*unseen);
+					}
+					Window->present_conversations_read(qt::conversations_read_result{ .Marked = aRead->MarkedPosts, .Kept = aRead->KeptPosts }, aAuthor);
 				}));
 		}
 
@@ -15432,6 +16095,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				CommitFilter.clear();
 				CommitFilterWanted = false;
 				CommitFilterReview.reset();
+				CommitFilterDestination.reset();
 				publish_commit_filter();
 			}
 			if (auto authority = WorkbenchReview.invalidate(aInvalidation);
@@ -18285,6 +18949,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AutoSeenPresentedRequest.reset();
 			ReviewSourceMaterial.reset();
 			present_split_strip();
+			present_filtered_comment();
 			// [[BPR-1387]]. Clearing a displayed source removes its permalink
 			// placement. Initial PR setup has no source and already published
 			// the host's conversations, so it owes no second full publication.
@@ -18294,9 +18959,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewLedgerHost) {
 				ReviewLedgerHost->retain({ });
 			}
+			// [[BPR-1702]]. The order withholds only the retained receipt's
+			// file, and only while that receipt says it needs nothing. Once the
+			// receipt goes, the file's material is unknown and it is actionable
+			// again, as a new observation would answer, so the host restores it
+			// now. Without this a read file the reviewer left stayed out of the
+			// Files drawer, and Enter on its Overview row opened nothing.
+			auto released = std::optional<std::pair<application::workbench_pull_request_authority, core::file_identity>>{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
+				if (ReviewLedgerReceipt.has_value() && ReviewLedgerAuthority.has_value()
+					&& !core::actionable(core::reason_for(core::actionability_input{ .Receipt = *ReviewLedgerReceipt }))) {
+					released.emplace(*ReviewLedgerAuthority, ReviewLedgerReceipt->File);
+				}
 				ReviewLedgerReceipt.reset();
+			}
+			if (released.has_value() && WorkbenchHost != nullptr) {
+				WorkbenchHost->retain_actionability(released->first, WorkbenchReview.receipt_owner(released->second), true);
 			}
 			if (Window != nullptr) {
 				Window->set_conversation_endpoint_placement(false, false);
@@ -18429,6 +19108,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// numbering is checked against the adopted request here,
 					// where its kept answer normally still holds.
 					observe_base_numbering();
+					// [[BPR-1707]]. So are a commit-filtered diff's line facts,
+					// which the epoch host answers only under the current
+					// request: before, the placement waited on the old answer
+					// until another file was chosen and this one again.
+					request_filtered_comment_lines();
+					present_filtered_comment();
+					observe_head_moves();
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
 					LastSelectedDiff = aPublication;
@@ -18441,11 +19127,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SelectedDiffRequest = request;
 			}
 			SelectedDiffPublication = aPublication;
-			// RFC-BPR-0089 M1. A thread's line is GitHub's, on the head and the
-			// base; a commit-filtered diff's sides are other commits, so its
-			// threads stay in the conversation drawer, unmarked (M4 marks them).
-			Window->set_thread_marks_suspended(aPublication.Key.Filter.has_value());
+			// RFC-BPR-0089 M4. A commit-filtered diff's threads are marked where
+			// the core places them on it (`place_filtered_threads`).
+			Window->set_thread_marks_suspended(false);
 			present_split_strip();
+			request_filtered_comment_lines();
+			present_filtered_comment();
+			observe_head_moves();
 			request_diff(
 				aPublication.Key,
 				aPublication.Request.Diff.Comparison,
@@ -18762,6 +19450,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// \brief [[BPR-1714]]. Asks again for the C++ spans of the
+		/// comparison on screen, under the known namespaces now in effect.
+		///
+		/// \details The panes keep the colours they have until the answer
+		/// arrives, and say the colours are coming. A list in effect before
+		/// answers from the cache at once; a new one is classified. Only C++
+		/// reads the list, so no other language is asked again.
+		void reclassify_shown_comparison()
+		{
+			if (Closing || Window == nullptr || AppearanceHost == nullptr || SyntaxBlobs == nullptr) {
+				return;
+			}
+			auto* const surface = Window->comparison_surface();
+			if (surface == nullptr || !surface->current_context().has_value()) {
+				return;
+			}
+			const auto context = *surface->current_context();
+			auto       wanted  = std::vector<std::pair<core::diff_side, application::token_span_cache_key>>{ };
+			for (const auto side : { core::diff_side::left, core::diff_side::right }) {
+				const auto& blob = side == core::diff_side::left ? context.Key.LeftBlob : context.Key.RightBlob;
+				if (!blob.has_value()) {
+					continue;
+				}
+				const auto known = std::ranges::find_if(ClassifiedDefinitions, [&blob](const auto& aEntry) {
+					return aEntry.first == *blob;
+				});
+				if (known == ClassifiedDefinitions.end() || known->second.Name != application::cpp_syntax_definition_name) {
+					continue;
+				}
+				wanted.emplace_back(side, application::token_span_cache_key{ .Blob = *blob, .Definition = known->second });
+			}
+			if (wanted.empty()) {
+				return;
+			}
+			// The reads end with each answer, so they are bound again.
+			SyntaxBlobs->register_comparison(context);
+			for (const auto& [side, key] : wanted) {
+				surface->await_syntax(side);
+			}
+			for (auto& [side, key] : wanted) {
+				AppearanceHost->classify(std::move(key));
+			}
+		}
+
 		/// \brief Remembers which definition a blob was classified against.
 		///
 		/// \details Bounded and insert-if-absent for the same reason as the blob
@@ -18872,7 +19604,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// because the binding's lifetime is the classification's rather than
 			// this adoption's, and a dropped adoption still ends the read.
 			// BPR-0390.
-			if (SyntaxBlobs != nullptr) {
+			//
+			// [[BPR-1714]]. Except for an answer under a known-namespace
+			// list no longer in effect: the request for the current list may
+			// still need the same binding, and its own answer releases it.
+			const auto stale = AppearanceHost != nullptr && AppearanceHost->classification_key(aSpans.Key) != aSpans.Key;
+			if (SyntaxBlobs != nullptr && !stale) {
 				SyntaxBlobs->release_blob(aSpans.Key.Blob);
 			}
 			// [[BPR-1344]]. The classifier's blob read was reviewer epoch work
@@ -18890,6 +19627,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto* const surface = Window->comparison_surface();
 			const auto& context = surface->current_context();
 			if (!context) {
+				++DroppedClassifications;
+				return;
+			}
+			// [[BPR-1714]]. Spans for a known-namespace list no longer in
+			// effect are stale: an answer for the current list replaces them
+			// or already has.
+			if (stale) {
 				++DroppedClassifications;
 				return;
 			}
@@ -19017,6 +19761,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					} else if constexpr (std::is_same_v<intent, application::reset_appearance_intent>) {
 						AppearanceHost->reset(aValue.Scope, variant);
+					} else if constexpr (std::is_same_v<intent, application::apply_known_namespaces_intent>) {
+						AppearanceHost->apply(std::move(aValue.Namespaces));
 					} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
 						// The theme on screen, built-in colours included. The
 						// record holds only what a reviewer customised, so
@@ -19140,6 +19886,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					break;
 				case application::appearance_host_failure::palette_contrast_rejected:
 					panel->report(aFailure.ContrastRejections);
+					break;
+				case application::appearance_host_failure::invalid_known_namespaces:
+					panel->report(aFailure.NamespaceRejections);
 					break;
 				case application::appearance_host_failure::unknown_appearance_mode:
 				case application::appearance_host_failure::invalid_dif_preferences:
@@ -20032,6 +20781,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_keyboard_range,
 				awaiting_range_prefilled,
 				awaiting_range_published,
+				// [[BPR-1721]]. A dragged selection, a right-click inside
+				// it and Add comment, as a mouse delivers them to the window.
+				awaiting_mouse_range,
+				awaiting_mouse_range_opened,
+				awaiting_mouse_range_published,
 				// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
 				awaiting_base_numbering,
 				// [[BPR-1570]]. A refresh that keeps the file comes first.
@@ -20044,11 +20798,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				failed,
 			};
 			detail::label_authoring_probe_evidence Evidence;
-			/// [[BPR-1212]]. The range's first line and the block Shift+Return
-			/// should start it with, and whether the course is only the
-			/// line-draft phases (`--line-draft-course`).
+			/// [[BPR-1212]]. The range's first line and the body its suggestion
+			/// is published with, and whether the course is only the
+			/// line-draft phases (`--line-draft-course`). [[RFC-BPR-0090]]:
+			/// Shift+Return opens the lines for writing in the head pane and
+			/// the drawer prefills nothing (owner, Q5), so the course types
+			/// its change there, once (`RangeTyped`).
 			std::optional<std::uint32_t> RangeStart;
 			std::string                  Prefill;
+			bool                         RangeTyped = false;
+			/// [[BPR-1721]]. The dragged range's first line, and whether
+			/// the drag has been made and the menu's item chosen.
+			std::optional<std::uint32_t> MouseRangeStart;
+			bool                         MouseDragged  = false;
+			std::size_t                  Waited        = 0U;
 			bool                         LineDraftOnly = false;
 			/// Whether this phase's key went to the pane; the drawer draft
 			/// may open a turn later, once the drawer shows.
@@ -20528,7 +21291,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::optional<std::pair<core::source_search_scope, application::source_corpus_entry>> SearchOpenFile;
 		/// [[BPR-1693]]. A set-aside file asked for, until a comparison context retains it.
 		std::optional<application::workbench_file_observation_entry> SetAsideOpenFile;
-		bool                                                         SearchOpeningNoTab      = false;
+		bool                                                         SearchOpening = false;
+		std::optional<core::document_tab_id>                         SearchOpeningBinding;
+		std::optional<core::document_tab_id>                         SearchCreatedBinding;
 		bool                                                         SearchComparisonGesture = false;
 		std::optional<core::document_tab_id>                         SearchCreatedTab;
 		std::optional<core::comparison_pair>                         SearchCreatedComparison;
@@ -28183,9 +28948,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1506]]. The ordinary file gesture made Seen durable before
 			// any receipt action. A late receipt for another file, material or
 			// request generation must not submit a command, even if unread.
+			// [[BPR-1701]]. Seen reached is checked and offers Mark unseen.
 			const auto durable = ledger->cached_receipt(probe.File);
 			if (retained.Read != core::file_read_state::seen || retained.Accepted || retained.Excluded
-				|| window->seen_action()->isEnabled() || progressMark() != "Private progress: seen"
+				|| !window->seen_action()->isChecked() || progressMark() != "Private progress: seen"
 				|| !durable || !*durable || **durable != retained) {
 				return fail();
 			}
@@ -30476,11 +31242,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.KeyboardRangeSelected) {
 				return fail("keyboard-range-not-selected");
 			}
-			const auto lines = core::suggestion_source_lines(*compared->RightDocument, start, start + 2U);
+			auto lines = core::suggestion_source_lines(*compared->RightDocument, start, start + 2U);
 			if (!lines) {
 				return fail("no-prefill");
 			}
-			probe.Prefill      = core::suggestion_fence_body(*lines);
+			// [[RFC-BPR-0090]]. The change typed at the end of the last line,
+			// as the core composes a suggestion with no words.
+			lines->back() += " // probe";
+			probe.Prefill      = core::compose_suggestion_body("", *lines);
+			probe.RangeTyped   = false;
 			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
 			probe.Anchor       = core::source_line_ref{ compared->Alignment.Digest, core::diff_side::right, start + 2U };
 			paneKey(*right, Qt::Key_Return, Qt::ShiftModifier);
@@ -30491,25 +31261,40 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto& draft  = implementation->ReviewDraft;
 			const auto  start  = probe.RangeStart.value_or(0U);
 			auto* const writer = cards->writing_draft() ? cards->draft_editor() : nullptr;
+			auto* const head   = window->comparison_surface()->head_editor();
 			note("draft=" + (draft ? std::to_string(draft->Anchor.Line) + ":" + (draft->StartLine ? std::to_string(*draft->StartLine) : std::string{ "-" }) : std::string{ "-" })
-				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " status=" + window->statusBar()->currentMessage().toStdString());
-			if (!draft || !probe.Anchor || draft->Anchor != *probe.Anchor || draft->Body != probe.Prefill || writer == nullptr || writer->toPlainText().toStdString() != probe.Prefill
-				|| text().toStdString() != probe.Prefill || !editor->publish_action()->isEnabled()) {
+				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " pane=" + std::to_string(head != nullptr ? 1 : 0) + " typed=" + std::to_string(probe.RangeTyped ? 1 : 0)
+				 + " status=" + window->statusBar()->currentMessage().toStdString());
+			// [[RFC-BPR-0090]]. Shift+Return opens the three lines for writing
+			// in the head pane, with the caret at the end of the last, and the
+			// drawer holds the words, none yet. The change is typed there.
+			if (!probe.RangeTyped) {
+				if (!draft || !probe.Anchor || draft->Anchor != *probe.Anchor || draft->StartLine != std::optional{ start } || writer == nullptr || head == nullptr
+					|| head->model().editable_range() != std::optional{ std::pair<std::uint64_t, std::uint64_t>{ start, start + 2U } }) {
+					return result::pending;
+				}
+				if (!writer->toPlainText().isEmpty() || !head->apply(core::insert_text{ .Text = " // probe" })) {
+					return fail("suggestion-not-in-the-pane words=" + writer->toPlainText().toStdString());
+				}
+				probe.RangeTyped = true;
+				return result::pending;
+			}
+			if (!draft || draft->Anchor != *probe.Anchor || draft->Body != probe.Prefill || writer == nullptr || head == nullptr || !editor->publish_action()->isEnabled()) {
 				return result::pending;
 			}
 			// The drawer names the lines, the gutter's blue bracket spans them,
-			// and the caret is at the end of the block's last line.
+			// the drawer holds no block, and the body is the core's composition.
 			const auto& marks                  = window->comparison_surface()->line_marks(core::diff_side::right);
 			const auto  bracket                = std::ranges::any_of(marks, [start](const qt::diff_line_mark& aMark) {
 				return aMark.Writing && aMark.Line == start + 2U && aMark.FirstLine == std::optional<std::uint32_t>{ start };
 			});
 			probe.Evidence.SuggestionPrefilled = draft->StartLine == start && !draft->ReplyToThread && cards->open_card() != nullptr
-				&& cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U) && bracket
-				&& writer->textCursor().position() == writer->toPlainText().lastIndexOf(QLatin1Char{ '\n' }) && markState() == "native";
+				&& cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U) && bracket && writer->toPlainText().isEmpty()
+				&& markState() == "native";
 			render("drawer-range-suggestion");
 			if (!probe.Evidence.SuggestionPrefilled) {
-				return fail("suggestion-not-prefilled caret=" + std::to_string(writer->textCursor().position()) + " mark=" + markState()
-							+ " bracket=" + std::to_string(bracket ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
+				return fail("suggestion-not-in-the-pane words=" + writer->toPlainText().toStdString() + " mark=" + markState() + " bracket=" + std::to_string(bracket ? 1 : 0)
+							+ " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
 			}
 			// The drawer draft's own Publish.
 			auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
@@ -30535,6 +31320,171 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& mutations.LastSide == "RIGHT" && mutations.LastLine == start + 3U && mutations.LastStartLine == start + 1U && mutations.LastStartSide == std::optional<std::string>{ "RIGHT" };
 			if (!probe.Evidence.RangePublishedExact) {
 				return fail("range-not-published-exact");
+			}
+			probe.Phase = state_type::phase::awaiting_mouse_range;
+			return result::pending;
+		}
+		// [[BPR-1721]]. The owner's course: several right lines selected
+		// by a drag, a right-click inside the selection, and Add comment on
+		// the menu the window opens, each delivered to the window as the
+		// platform delivers it, with the event loop turning between them.
+		// The draft takes all the lines, and its Publish sends them.
+		case state_type::phase::awaiting_mouse_range: {
+			if (cards->writing_draft() && cards->draft_editor() != nullptr) {
+				paneKey(*cards->draft_editor(), Qt::Key_Escape, Qt::NoModifier);
+				return result::pending;
+			}
+			// The range's publication refreshes the conversations first, and the
+			// kept tab revalidates; a line chosen before that lands is replaced
+			// by the tab's remembered one ([[BPR-1713]]).
+			if (!window->github_refresh_action()->isEnabled() || window->github_status_text() != "Pull request ready."
+				|| implementation->WorkbenchHost->outstanding_requests() != 0U || implementation->RereadOwed || implementation->RereadQueued
+				|| implementation->WindowRead->state().PendingPullRequest.has_value() || implementation->TabAdvanceQueued || implementation->TabLoad.has_value()
+				|| implementation->RefreshKeptTabView) {
+				return result::pending;
+			}
+			auto* const surface  = window->comparison_surface();
+			const auto& compared = surface->current_result();
+			if (!compared || !compared->RightDocument) {
+				return fail("no-comparison");
+			}
+			// Three right lines in one hunk with no thread on any, the last
+			// with text for the drag to end in.
+			if (!probe.MouseRangeStart) {
+				const auto hunks = core::github_review_hunks(compared->Alignment, core::diff_side::right);
+				for (const auto& hunk : hunks) {
+					for (auto start = hunk.Begin; start + 2U < hunk.End && !probe.MouseRangeStart; ++start) {
+						auto unthreaded = !surface->right_pane()->document()->findBlockByNumber(static_cast<int>(start + 2U)).text().isEmpty();
+						for (auto line = start; line < start + 3U && unthreaded; ++line) {
+							unthreaded = surface->select_conversation_line(core::diff_side::right, line) && window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0;
+						}
+						if (unthreaded) {
+							probe.MouseRangeStart = start;
+						}
+					}
+				}
+				if (!probe.MouseRangeStart) {
+					return fail("no-free-mouse-range");
+				}
+				// Somewhere else first, so the drag is what selects the lines.
+				static_cast<void>(surface->select_conversation_line(core::diff_side::right, *probe.MouseRangeStart + 3U));
+				return result::pending;
+			}
+			const auto  start = *probe.MouseRangeStart;
+			auto* const right = surface->right_pane();
+			// A point in the window on a line's code, or at its end.
+			const auto point = [window, surface, right](const std::uint32_t aLine, const bool aEnd) {
+				const auto row    = surface->line_rect(core::diff_side::right, aLine);
+				const auto inPane = right->viewport()->mapFrom(surface, row.center());
+				return right->viewport()->mapTo(window, QPoint{ aEnd ? right->viewport()->width() - 4 : 40, inPane.y() });
+			};
+			const auto mouse = [window](const QPoint aAt, const QEvent::Type aType, const Qt::MouseButton aButton, const Qt::MouseButtons aHeld) {
+				QCursor::setPos(window->mapToGlobal(aAt));
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+					window->windowHandle(), QPointF{ aAt }, QPointF{ window->mapToGlobal(aAt) }, aHeld, aButton, aType, Qt::NoModifier);
+				QCoreApplication::processEvents();
+			};
+			if (!probe.MouseDragged) {
+				const auto from = point(start, false);
+				const auto to   = point(start + 2U, true);
+				mouse(from, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+				mouse(from, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
+				mouse((from + to) / 2, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+				mouse(to, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+				mouse(to, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+				probe.MouseDragged = true;
+				return result::pending;
+			}
+			const auto range = surface->line_draft_range();
+			note("start=" + std::to_string(start) + " range=" + (range ? std::to_string(range->first.Line) + "-" + std::to_string(range->second.Line) : std::string{ "-" })
+				 + " selected=" + (surface->selection() ? std::to_string(surface->selection()->PreferredLine.Line) : std::string{ "-" }));
+			if (!range || range->first.Line != start || range->second.Line != start + 2U) {
+				return fail("drag-did-not-select-the-lines");
+			}
+			// The right-click: the window opens its menu as a popup.
+			const auto inside = point(start + 1U, false);
+			mouse(inside, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+			mouse(inside, QEvent::MouseButtonPress, Qt::RightButton, Qt::RightButton);
+			auto* const menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+			if (menu == nullptr || menu->objectName() != QStringLiteral("codeContextMenu") || menu->windowHandle() == nullptr) {
+				return fail("right-click-opened-no-code-menu");
+			}
+			const auto corner = QPointF{ 1.0, 1.0 };
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+				menu->windowHandle(), corner, QPointF{ menu->mapToGlobal(corner) }, Qt::NoButton, Qt::RightButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			const auto actions = menu->actions();
+			const auto found   = std::ranges::find_if(actions, [](const QAction* aAction) { return aAction->objectName() == QStringLiteral("addCommentAction"); });
+			const auto label   = QStringLiteral("Add comment on lines %1–%2").arg(start + 1U).arg(start + 3U);
+			note("start=" + std::to_string(start) + " item=" + (found != actions.end() ? (*found)->text().toStdString() : std::string{ "-" })
+				 + " kept=" + std::to_string(right->textCursor().hasSelection() ? 1 : 0));
+			if (found == actions.end() || !(*found)->isEnabled() || (*found)->text() != label) {
+				return fail("add-comment-not-on-the-lines");
+			}
+			// The item, clicked on the popup as a hand does.
+			const auto centre = QPointF{ menu->actionGeometry(*found).center() };
+			const auto global = QPointF{ menu->mapToGlobal(centre) };
+			QCursor::setPos(global.toPoint());
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(menu->windowHandle(), centre, global, Qt::NoButton, Qt::NoButton, QEvent::MouseMove, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(menu->windowHandle(), centre, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(menu->windowHandle(), centre, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_mouse_range_opened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_mouse_range_opened: {
+			const auto  start  = probe.MouseRangeStart.value_or(0U);
+			const auto& draft  = implementation->ReviewDraft;
+			auto* const writer = cards->writing_draft() ? cards->draft_editor() : nullptr;
+			const auto  words  = QStringLiteral("question: Do these three lines need the same guard?");
+			note("draft=" + (draft ? std::to_string(draft->Anchor.Line) + ":" + (draft->StartLine ? std::to_string(*draft->StartLine) : std::string{ "-" }) : std::string{ "-" })
+				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" })
+				 + " status=" + window->statusBar()->currentMessage().toStdString());
+			if (writer == nullptr || !draft || draft->Anchor.Line != start + 2U) {
+				return ++probe.Waited < 2'000U ? result::pending : fail("mouse-range-not-opened");
+			}
+			if (writer->toPlainText() != words) {
+				writer->setPlainText(words);
+				return result::pending;
+			}
+			if (draft->Body != words.toStdString() || !editor->publish_action()->isEnabled()) {
+				return result::pending;
+			}
+			probe.Waited                    = 0U;
+			probe.Evidence.MouseRangeOpened = draft->StartLine == std::optional<std::uint32_t>{ start } && draft->Anchor.Side == core::diff_side::right && !draft->ReplyToThread
+				&& cards->open_card() != nullptr && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U);
+			render("drawer-mouse-range");
+			if (!probe.Evidence.MouseRangeOpened) {
+				return fail("mouse-range-draft-not-on-the-lines");
+			}
+			auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+			if (publish == nullptr || !publish->isEnabled()) {
+				return fail("no-drawer-publish");
+			}
+			probe.Prefill      = words.toStdString();
+			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
+			publish->click();
+			probe.Phase = state_type::phase::awaiting_mouse_range_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_mouse_range_published: {
+			const auto mutations = implementation->Fixture->review_mutation_evidence();
+			const auto start     = probe.MouseRangeStart.value_or(0U);
+			note("native=" + std::to_string(mutations.NativePosts) + " line=" + std::to_string(mutations.LastLine.value_or(0U)) + " start=" + std::to_string(mutations.LastStartLine.value_or(0U)));
+			// The thread it makes, once the conversations are read again, is on
+			// all three lines, as GitHub has it.
+			const auto words  = QString::fromStdString(probe.Prefill);
+			const auto thread = std::ranges::find_if(cards->cards(), [&words](const qt::thread_card& aCard) { return !aCard.Draft && !aCard.Posts.empty() && aCard.Posts.front().Body == words; });
+			if (implementation->PendingReviewMutation.has_value() || mutations.NativePosts == probe.NativeBefore || thread == cards->cards().end()) {
+				return result::pending;
+			}
+			probe.Evidence.MouseRangePublishedExact = mutations.NativePosts == probe.NativeBefore + 1U && !mutations.LastFile && mutations.LastBody == probe.Prefill && mutations.LastPath == path
+				&& mutations.LastSide == "RIGHT" && mutations.LastLine == start + 3U && mutations.LastStartLine == start + 1U && mutations.LastStartSide == std::optional<std::string>{ "RIGHT" }
+				&& thread->Line == std::optional<std::uint32_t>{ start + 3U } && qt::thread_first_line(*thread) == std::optional<std::uint32_t>{ start + 1U };
+			if (!probe.Evidence.MouseRangePublishedExact) {
+				return fail("mouse-range-not-published-exact");
 			}
 			probe.Phase = state_type::phase::awaiting_base_numbering;
 			return result::pending;
@@ -32430,9 +33380,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return ++probe.Waited < 400U ? result::pending : fail("refusal-not-settled");
 			}
 			// [[BPR-1345]] v003. A refusal keeps the page open, with its words.
+			// [[BPR-1715]]. GitHub's refusal of the review is said as one.
 			probe.Evidence.RefusedKept = now.front().Draft.Body == words[0].toStdString() && now.front().Draft.Anchor.Line == probe.Lines.front()
 				&& now.front().Draft.InReview->Submission.empty() && finishPage() != nullptr && summary->confirmed_submissions() == 0U
-				&& summary->status_label()->text().startsWith(QStringLiteral("Review was not published."));
+				&& summary->status_label()->text().startsWith(QStringLiteral("Not published: GitHub refused this review."));
 			if (!probe.Evidence.RefusedKept) {
 				return fail("refusal-lost-the-draft");
 			}

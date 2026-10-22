@@ -177,7 +177,7 @@ namespace bpr::application {
 		if (completeBinding
 			&& (!valid(*TargetBinding) || !valid(*ActingIdentityBinding)
 				|| !valid(*aAnchor) || aAnchor->Semantic != aProposal.Anchor
-				|| aAnchor->Commit != TargetBinding->Semantic.ExpectedHead)) {
+				|| !admitted_anchor_commit(*aAnchor, TargetBinding->Semantic.ExpectedHead))) {
 			++Statistics.RefusedBeforeSubmit;
 			return failed(review_mutation_failure::undesignated_target);
 		}

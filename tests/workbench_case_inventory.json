@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "70969a87f39a3d1d9290d8ceb9b4f611cfca4402cea9943d79ac5efb47e2017e",
+  "source_sha256": "9c8f863f32f0cd969f5d84b43f62a9197d790851f41136a4f47d57f7a6e28663",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -9,6 +9,7 @@
     ],
     "--current-file-unread-badge": [
       "test_unread_badge_follows_only_the_current_file",
+      "test_mark_all_comments_read_moves_every_count_at_once",
       "test_read_state_reaches_the_gutter_and_the_strip",
       "test_the_right_tray_holds_comments_and_notes_tabs",
       "test_the_right_tray_tabs_keep_their_names_while_they_fit"
@@ -105,11 +106,22 @@
       "test_home_view_menu_and_its_gestures"
     ],
     "--line-draft": [
+      "test_a_full_width_selection_repaints_to_the_edge",
       "test_return_in_the_code_starts_a_draft_on_the_selection",
       "test_right_click_on_any_line_and_on_base_lines",
+      "test_a_selection_takes_a_range_comment_from_its_menu",
       "test_discuss_restore_top_right_and_whole_privacy_note",
       "test_the_review_chip_counts_the_review_and_opens_finish",
-      "test_the_plus_on_a_pull_request_without_threads_opens_its_draft"
+      "test_the_plus_on_a_pull_request_without_threads_opens_its_draft",
+      "test_one_pane_has_the_code_menu",
+      "test_one_pane_suggest_change_shows_the_head_file",
+      "test_suggestion_dims_the_read_only_code",
+      "test_a_suggestion_from_an_earlier_head_is_carried_or_copied",
+      "test_the_pane_edit_takes_the_editor_gestures",
+      "test_a_held_suggestion_is_converted_and_a_kept_one_reopens",
+      "test_line_numbers_select_lines",
+      "test_a_drag_onto_an_empty_line_takes_it",
+      "test_comment_takes_the_selected_lines"
     ],
     "--conversation-reveal": [
       "test_discard_and_back_keep_the_comments_drawer",
@@ -127,7 +139,8 @@
       "test_a_reply_waits_for_its_threads_own_comparison",
       "test_defect_queue_navigation_and_semantic_dispatch",
       "test_thread_defect_menus_badges_and_navigation",
-      "test_threads_finds_and_picks_into_review"
+      "test_threads_finds_and_picks_into_review",
+      "test_a_pick_into_a_long_unopened_file_reveals_its_line"
     ],
     "--overview": [
       "test_overview_refuses_a_hand_opened_drawer_and_says_so",
@@ -144,6 +157,7 @@
       "test_pending_rows_open_their_comments_like_threads",
       "test_tour_retarget_key_reaches_only_the_outline",
       "test_compose_review_marks_a_kept_draft",
+      "test_compose_review_says_approve_or_comment_with_no_review",
       "test_settings_collection_limit_keeps_accepted_models_and_recovery_actions",
       "test_settings_share_only_offered_agent_context_and_maintenance_actions",
       "test_all_four_primary_actions_follow_one_core_projection",
@@ -206,6 +220,7 @@
       "test_selection_synchronisation_and_restart_persistence",
       "test_read_state_reaches_the_gutter_and_the_strip",
       "test_unread_badge_follows_only_the_current_file",
+      "test_mark_all_comments_read_moves_every_count_at_once",
       "test_the_right_tray_holds_comments_and_notes_tabs",
       "test_the_right_tray_tabs_keep_their_names_while_they_fit",
       "test_discuss_uses_main_content_and_open_in_code_returns_to_read",
@@ -252,6 +267,14 @@
       "test_threads_finds_and_picks_into_review",
       "test_threads_opens_a_thread_in_discuss",
       "test_a_large_file_leaves_the_widget_count_bounded"
+    ],
+    "--compose-review-sheet": [
+      "render_compose_review_entry_sheet"
+    ],
+    "--compose-review-entry": [
+      "test_compose_review_marks_a_kept_draft",
+      "test_compose_review_says_approve_or_comment_with_no_review",
+      "render_compose_review_entry_sheet"
     ]
   }
 }

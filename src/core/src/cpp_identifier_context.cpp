@@ -1,6 +1,7 @@
 #include "bpr/core/cpp_identifier_context.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <limits>
 #include <optional>
@@ -40,6 +41,19 @@ namespace bpr::core {
 				|| aRole == role::syntax_number;
 		}
 
+		/// \brief The namespaces ISO C++ nests in `std`, and the literal ones.
+		///
+		/// \details [[BPR-1710]]. `std` is the namespace the language itself
+		/// names ([namespace.std]) and a program may not add to it, so this set is
+		/// closed by the standard rather than guessed. They come with `std`
+		/// whenever the known-namespace list declares it ([[BPR-1714]]),
+		/// predeclared as if the blob declared them, so its own declarations, `::std` and a `struct
+		/// std` resolve by the ordinary lookup; an unlisted scope under `std`
+		/// (`std::string::npos`) is a library class and keeps the grammar's role.
+		/// The inline literal namespaces sit under `std` and `std::literals`.
+		constexpr auto StandardNamespaces = std::array<std::string_view, 15U>{ "chrono", "execution", "experimental", "filesystem", "linalg", "literals", "meta", "numbers", "placeholders", "pmr", "ranges", "regex_constants", "rel_ops", "this_thread", "views" };
+		constexpr auto LiteralNamespaces  = std::array<std::string_view, 4U>{ "chrono_literals", "complex_literals", "string_literals", "string_view_literals" };
+
 		struct token
 		{
 			std::uint32_t Offset      = 0U;
@@ -63,6 +77,9 @@ namespace bpr::core {
 			symbol_kind   Kind    = symbol_kind::unknown;
 			std::uint32_t Child   = NoIndex;
 			bool          Defined = false;
+			/// A known namespace no declaration in the blob has confirmed
+			/// ([[BPR-1714]]); the blob's own class or enum replaces it.
+			bool Predeclared = false;
 		};
 
 		enum class directive : std::uint8_t {
@@ -105,12 +122,13 @@ namespace bpr::core {
 		class cpp_context final
 		{
 		public:
-			cpp_context(const std::string_view aText, const std::stop_token aStop)
+			cpp_context(const std::string_view aText, const std::stop_token aStop, const known_namespaces& aNamespaces)
 				: Text{ aText }
 				, Stop{ aStop }
 				, Roles(aText.size(), role::syntax_normal)
 			{
 				Scopes.emplace_back();
+				predeclare(aNamespaces);
 			}
 
 			[[nodiscard]] auto refine(token_span_list& aSpans, const std::size_t aMaximumSpans)
@@ -282,30 +300,156 @@ namespace bpr::core {
 				return index;
 			}
 
-			[[nodiscard]] auto declare_scope(const std::uint32_t aParent, const std::size_t aName,
+			[[nodiscard]] auto declare_scope(const std::uint32_t aParent, const std::string_view aName,
 											 const symbol_kind aKind, const bool aDefined) -> std::uint32_t
 			{
-				auto found = Scopes[aParent].Symbols.find(word(aName));
+				auto found = Scopes[aParent].Symbols.find(aName);
 				if (found != Scopes[aParent].Symbols.end()) {
 					auto& existing = found->second;
+					// [[BPR-1714]]. A known namespace is evidence only where the
+					// blob gives none: its own class or enum of that name wins in the
+					// scope that declares it, enumerators and members included.
+					if (existing.Predeclared && aKind != symbol_kind::name_space) {
+						const auto child = new_scope(aParent, aKind == symbol_kind::enumeration);
+						Scopes[aParent].Symbols.insert_or_assign(aName, symbol{ .Kind = aKind, .Child = child, .Defined = aDefined });
+						return child;
+					}
 					if (existing.Kind == aKind && (aKind == symbol_kind::name_space || !existing.Defined)) {
-						existing.Defined = aDefined || existing.Defined;
+						existing.Defined     = aDefined || existing.Defined;
+						existing.Predeclared = false;
 						return existing.Child;
 					}
 					existing.Kind = symbol_kind::unknown;
 					return new_scope(aParent, aKind == symbol_kind::enumeration);
 				}
 				const auto child = new_scope(aParent, aKind == symbol_kind::enumeration);
-				Scopes[aParent].Symbols.emplace(word(aName), symbol{ .Kind = aKind, .Child = child, .Defined = aDefined });
+				Scopes[aParent].Symbols.emplace(aName, symbol{ .Kind = aKind, .Child = child, .Defined = aDefined });
 				return child;
+			}
+
+			/// \brief Declares one known namespace under `aParent`, before the blob is read.
+			[[nodiscard]] auto predeclare_scope(const std::uint32_t aParent, const std::string_view aName) -> std::uint32_t
+			{
+				const auto child                           = declare_scope(aParent, aName, symbol_kind::name_space, false);
+				Scopes[aParent].Symbols[aName].Predeclared = true;
+				return child;
+			}
+
+			/// \brief Declares the known namespaces before the blob is read ([[BPR-1714]]).
+			/// \details Every segment of a legal entry is a namespace, nested in the one
+			/// before it; a refused entry declares nothing. Declared in the global scope
+			/// as if the blob had, so the blob's own `struct Qt` or `::Qt` resolves by
+			/// the ordinary lookup. The segments view the caller's list, which outlives
+			/// this context. At most `maximum_known_namespaces` entries are read.
+			void predeclare(const known_namespaces& aNamespaces)
+			{
+				auto read     = std::size_t{ 0U };
+				auto standard = false;
+				for (const auto& name : aNamespaces.Names) {
+					if (read == maximum_known_namespaces) {
+						return;
+					}
+					++read;
+					if (check_known_namespace(name)) {
+						continue;
+					}
+					auto scope = std::uint32_t{ 0U };
+					auto rest  = std::string_view{ name };
+					for (auto first = true;; first = false) {
+						const auto split   = rest.find("::");
+						const auto segment = rest.substr(0U, split);
+						scope              = predeclare_scope(scope, segment);
+						if (first && segment == "std" && !standard) {
+							standard = true;
+							predeclare_standard_namespaces(scope);
+						}
+						if (split == std::string_view::npos) {
+							break;
+						}
+						rest.remove_prefix(split + 2U);
+					}
+				}
+			}
+
+			/// \brief The namespaces ISO C++ nests in `std`, under it ([[BPR-1710]]).
+			void predeclare_standard_namespaces(const std::uint32_t aStandard)
+			{
+				const auto standard = aStandard;
+				auto       literals = standard;
+				for (const auto name : StandardNamespaces) {
+					const auto child = predeclare_scope(standard, name);
+					if (name == "ranges") {
+						static_cast<void>(predeclare_scope(child, "views"));
+					}
+					literals = name == "literals" ? child : literals;
+				}
+				for (const auto literal : LiteralNamespaces) {
+					static_cast<void>(predeclare_scope(standard, literal));
+					static_cast<void>(predeclare_scope(literals, literal));
+				}
 			}
 
 			void paint(const std::size_t aAt, const role aRole)
 			{
 				const auto& item = Tokens[aAt];
 				const auto  old  = Roles[item.Offset];
-				if (old == role::syntax_normal || old == role::syntax_macro || old == role::syntax_type || old == role::syntax_function) {
+				// The grammar paints a whole `std::` chain built-in; only a namespace,
+				// never an inferred role, replaces that (no language type precedes `::`).
+				if (old == role::syntax_normal || old == role::syntax_macro || old == role::syntax_type || old == role::syntax_function
+					|| (old == role::syntax_builtin && aRole == role::syntax_namespace)) {
 					std::fill_n(Roles.begin() + item.Offset, item.Length, aRole);
+				}
+			}
+
+			void paint_namespace(const std::size_t aAt)
+			{
+				paint(aAt, role::syntax_namespace);
+				separate(aAt);
+			}
+
+			/// A `::` the grammar's built-in chain covered is an operator, as elsewhere.
+			void separate(const std::size_t aAt)
+			{
+				if (word(aAt + 1U) == "::" && Roles[Tokens[aAt + 1U].Offset] == role::syntax_builtin) {
+					std::fill_n(Roles.begin() + Tokens[aAt + 1U].Offset, Tokens[aAt + 1U].Length, role::syntax_operator);
+				}
+			}
+
+			/// \brief Records every segment of a using-directive's or a namespace
+			/// alias target's name as a namespace ([[BPR-1710]]).
+			/// \details Only a namespace may be named there and a class cannot
+			/// enclose one. A known segment keeps its identity: a namespace is
+			/// entered, anything else ends the record rather than being overridden.
+			void nominate_namespaces(std::size_t aAt, const std::uint32_t aScope)
+			{
+				const auto global = word(aAt) == "::";
+				if (global) {
+					++aAt;
+				}
+				auto scope   = global ? 0U : aScope;
+				auto parents = !global;
+				auto known   = true;
+				while (identifier(aAt)) {
+					if (Stop.stop_requested()) {
+						return;
+					}
+					paint_namespace(aAt);
+					Tokens[aAt].Declaration = true;
+					if (known) {
+						const auto found = find_symbol(scope, word(aAt), parents);
+						if (!found) {
+							scope = declare_scope(scope, word(aAt), symbol_kind::name_space, false);
+						} else if (found->Kind == symbol_kind::name_space && found->Child != NoIndex) {
+							scope = found->Child;
+						} else {
+							known = false;
+						}
+						parents = false;
+					}
+					if (word(aAt + 1U) != "::") {
+						return;
+					}
+					aAt += 2U;
 				}
 			}
 
@@ -335,9 +479,10 @@ namespace bpr::core {
 					names.push_back(at);
 				}
 				if (word(at + 1U) == "=") {
-					paint(names.front(), role::syntax_namespace);
+					paint_namespace(names.front());
 					Tokens[names.front()].Declaration = true;
 					Scopes[aScope].Symbols.insert_or_assign(word(names.front()), symbol{ .Kind = symbol_kind::namespace_alias });
+					nominate_namespaces(at + 2U, aScope);
 					return;
 				}
 				if (word(at + 1U) != "{") {
@@ -345,9 +490,9 @@ namespace bpr::core {
 				}
 				auto parent = aScope;
 				for (const auto name : names) {
-					paint(name, role::syntax_namespace);
+					paint_namespace(name);
 					Tokens[name].Declaration = true;
-					parent                   = declare_scope(parent, name, symbol_kind::name_space, true);
+					parent                   = declare_scope(parent, word(name), symbol_kind::name_space, true);
 				}
 				Opens[at + 1U] = parent;
 			}
@@ -366,7 +511,14 @@ namespace bpr::core {
 				while (word(at) == "[" && Tokens[at].Match != NoIndex) {
 					at = Tokens[at].Match + 1U;
 				}
-				const auto name = identifier(at) ? std::optional{ at } : std::nullopt;
+				auto name = identifier(at) ? std::optional{ at } : std::nullopt;
+				// `struct std::hash<Key> {` names a member of a scope declared elsewhere:
+				// its qualifier is a use and nothing is declared here [[BPR-1711]].
+				const auto qualified = name && word(at + 1U) == "::";
+				while (name && word(*name + 1U) == "::" && identifier(*name + 2U) && !Stop.stop_requested()) {
+					name = *name + 2U;
+				}
+				at = name.value_or(at);
 				if (name) {
 					paint(*name, role::syntax_type);
 					Tokens[*name].Declaration = true;
@@ -383,7 +535,7 @@ namespace bpr::core {
 					return;
 				}
 				const auto kind  = enumeration ? symbol_kind::enumeration : symbol_kind::type;
-				const auto child = name ? declare_scope(aScope, *name, kind, word(at) == "{") : new_scope(aScope, enumeration);
+				const auto child = name && !qualified ? declare_scope(aScope, word(*name), kind, word(at) == "{") : new_scope(aScope, enumeration);
 				if (word(at) == "{") {
 					Opens[at] = child;
 				}
@@ -414,22 +566,6 @@ namespace bpr::core {
 					if (looks_like_declarator(at)) {
 						Scopes[aScope].Symbols.insert_or_assign(word(at), symbol{ });
 					}
-				}
-			}
-
-			void using_namespace(const std::size_t aAt)
-			{
-				auto at = aAt + 2U;
-				if (word(at) == "::") {
-					++at;
-				}
-				while (identifier(at)) {
-					paint(at, role::syntax_namespace);
-					Tokens[at].Declaration = true;
-					if (word(at + 1U) != "::") {
-						break;
-					}
-					at += 2U;
 				}
 			}
 
@@ -525,7 +661,7 @@ namespace bpr::core {
 						--parentheses;
 					}
 					if (text == "using" && word(at + 1U) == "namespace") {
-						using_namespace(at);
+						nominate_namespaces(at + 2U, current);
 					} else if (text == "namespace" && !(at > 0U && word(at - 1U) == "using")) {
 						namespace_declaration(at, current);
 					} else if ((text == "enum" || text == "class" || text == "struct" || text == "union")
@@ -589,15 +725,27 @@ namespace bpr::core {
 			void classify_chain(const std::size_t aFirst, const std::size_t aLast)
 			{
 				const auto global = aFirst > 0U && word(aFirst - 1U) == "::";
-				auto       found  = aFirst > 0U && (word(aFirst - 1U) == "." || word(aFirst - 1U) == "->")
-					? std::optional<symbol>{ }
-					: find_symbol(global ? 0U : Tokens[aFirst].Scope, word(aFirst), !global);
+				// After `.` or `->` only a namespace resolves. A class declares none, so a
+				// namespace there scopes a base (`p->std::exception::what()`) or starts a
+				// trailing return type, which shares the token (`-> std::vector<int>`) [[BPR-1711]].
+				const auto member = aFirst > 0U && (word(aFirst - 1U) == "." || word(aFirst - 1U) == "->");
+				const auto kept   = [member](const std::optional<symbol>& aFound) {
+					return member && aFound && aFound->Kind != symbol_kind::name_space && aFound->Kind != symbol_kind::namespace_alias ? std::nullopt : aFound;
+				};
+				auto found = kept(find_symbol(global ? 0U : Tokens[aFirst].Scope, word(aFirst), !global));
+				// Once a namespace qualifies the chain, every later separator the
+				// grammar's built-in chain covered is an operator too.
+				auto qualified = false;
 				for (auto at = aFirst; at <= aLast; at += 2U) {
 					if (Stop.stop_requested()) {
 						return;
 					}
+					if (qualified && at < aLast) {
+						separate(at);
+					}
 					if (found && (found->Kind == symbol_kind::name_space || found->Kind == symbol_kind::namespace_alias)) {
-						paint(at, role::syntax_namespace);
+						paint_namespace(at);
+						qualified = true;
 					} else if (found && found->Kind == symbol_kind::member && at == aLast) {
 						paint(at, role::syntax_enum_member);
 					} else if (at < aLast || (found && (found->Kind == symbol_kind::enumeration || found->Kind == symbol_kind::type))) {
@@ -607,7 +755,7 @@ namespace bpr::core {
 					}
 					if (at < aLast) {
 						found = found && found->Child != NoIndex && found->Kind != symbol_kind::unknown
-							? find_symbol(found->Child, word(at + 2U), false)
+							? kept(find_symbol(found->Child, word(at + 2U), false))
 							: std::nullopt;
 					}
 				}
@@ -691,8 +839,9 @@ namespace bpr::core {
 	}
 
 	auto refine_cpp_identifiers(const std::string_view aText, token_span_list& aSpans,
-								const std::size_t aMaximumSpans, const std::stop_token aStop) -> syntax_classification_status
+								const std::size_t aMaximumSpans, const std::stop_token aStop,
+								const known_namespaces& aNamespaces) -> syntax_classification_status
 	{
-		return cpp_context{ aText, aStop }.refine(aSpans, aMaximumSpans);
+		return cpp_context{ aText, aStop, aNamespaces }.refine(aSpans, aMaximumSpans);
 	}
 }

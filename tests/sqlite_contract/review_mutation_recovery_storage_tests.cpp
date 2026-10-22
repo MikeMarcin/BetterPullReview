@@ -363,6 +363,42 @@ namespace {
 		expect(!(*store)->admit(legacy), "the side-less legacy table refuses a base-side anchor");
 	}
 
+	// RFC-BPR-0089 M4. A commit-filtered diff's comment placed off its own
+	// line keeps its remote line and commit across a restart: its record is
+	// written as version 3, while every other record keeps its bytes. The
+	// legacy table, which has no column for it, refuses it.
+	void test_a_placed_publication_keeps_its_remote_line()
+	{
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "logical journal opens");
+		const auto version = [&directory](const std::string& aKey) {
+			return query_text(database_path(directory), "SELECT hex(substr(record,1,8)) FROM logical_publication WHERE publication_key='" + aKey + "'");
+		};
+		auto placed                       = publication();
+		placed.Key                        = std::string(64U, '7');
+		placed.LegacyKey                  = std::string(64U, '8');
+		placed.Native->IdempotencyKey     = application::review_publication_child_key(placed.Key, core::review_publication_representation::native_line);
+		placed.Native->Anchor.RemoteLine  = 41U;
+		auto earlier                      = placed;
+		earlier.Key                       = std::string(64U, '9');
+		earlier.LegacyKey                 = std::string(64U, 'a');
+		earlier.Native->IdempotencyKey    = application::review_publication_child_key(earlier.Key, core::review_publication_representation::native_line);
+		earlier.Native->Anchor.Commit     = core::git_commit_oid{ core::git_hash_algorithm::sha1, std::array<std::uint8_t, 32>{ 0x25U } };
+		earlier.Native->Anchor.RemoteLine = earlier.Native->Anchor.Semantic.Line;
+		expect((*store)->advance_publication(std::nullopt, placed).has_value() && (*store)->advance_publication(std::nullopt, earlier).has_value(),
+			   "placed parents are admitted");
+		expect(version(placed.Key) == "0300000000000000" && version(earlier.Key) == "0300000000000000", "a placed record is written as version 3");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(placed.Key).value() == placed && (*store)->load_publication(earlier.Key).value() == earlier,
+			   "after a restart each child keeps its remote line and commit");
+		auto legacy              = record();
+		legacy.IdempotencyKey    = std::string(64U, 'b');
+		legacy.Anchor.RemoteLine = 3U;
+		expect(!(*store)->admit(legacy), "the legacy table refuses a remote line");
+	}
+
 	void test_evidence_admission_and_legacy_conflicts()
 	{
 		using state = core::review_publication_state;
@@ -390,6 +426,47 @@ namespace {
 		value.Native->IdempotencyKey = application::review_publication_child_key(value.Key, core::review_publication_representation::native_line);
 		expect(!(*store)->advance_publication(std::nullopt, value), "old unresolved native row bars a new parent");
 	}
+	/// [[BPR-1706]]. An unresolvable filtered line's admission is the parent's
+	/// own first-attempt authorization: no native child before or after, no
+	/// freshness window, and it survives a restart, left side and all.
+	void test_an_unresolvable_line_admission_survives_a_restart()
+	{
+		using state  = core::review_publication_state;
+		using source = application::review_fallback_authorization_source;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		auto                value = publication();
+		value.Native.reset();
+		value.State                       = state::unresolvable_line_admitted;
+		value.Authorization               = { .Source = source::unresolvable_line, .ContractDigest = { 3 }, .ScopeDigest = { 4 } };
+		auto windowed                     = value;
+		windowed.Authorization.Generation = 1U;
+		windowed.Authorization.ObservedAt = 100U;
+		windowed.Authorization.ExpiresAt  = 400U;
+		expect(!application::valid(windowed), "an unresolvable line's admission carries no freshness window");
+		auto withNative                   = value;
+		withNative.Native                 = record();
+		withNative.Native->IdempotencyKey = application::review_publication_child_key(value.Key, core::review_publication_representation::native_line);
+		expect(!application::valid(withNative), "it never has a native child");
+		auto mislabelled                 = value;
+		mislabelled.Authorization.Source = source::scoped_evidence;
+		expect(!application::valid(mislabelled), "nor is it scoped evidence");
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "the admission is a first attempt");
+		auto next                           = value;
+		next.State                          = state::fallback_prepared;
+		next.Fallback                       = fallback_child(value);
+		next.Fallback->Anchor.Semantic.Side = core::diff_side::left;
+		expect((*store)->advance_publication(value, next).has_value(), "it permits exactly its file comment, here on a left line");
+		auto native          = value;
+		native.State         = state::native_prepared;
+		native.Native        = withNative.Native;
+		native.Authorization = { };
+		expect(!(*store)->advance_publication(next, native), "a prepared file comment never turns native");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(value.Key).value() == next, "after a restart the file comment and its admission are loaded exactly");
+	}
+
 	void test_logical_capacity_and_stale_compare_exchange()
 	{
 		temporary_directory directory;
@@ -423,11 +500,42 @@ namespace {
 		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect((*store)->admit(record()).has_value(), "v3 native input admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store && user_version(database_path(directory)) == 6 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
+		expect(store && user_version(database_path(directory)) == 7 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
 		auto submission = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
 		expect(submission.has_value(), "whole-review journal remains compatible after migration");
+	}
+
+	// [[BPR-1715]]. Version 7 keeps a whole review's POST answer. A version 6
+	// journal migrates without touching the source-line journal: a possibly
+	// sent comment and a logical publication read back exactly, and no
+	// source-line attempt gains a whole review's answer.
+	void test_version_six_migration_keeps_the_source_line_journal()
+	{
+		temporary_directory directory;
+		expect(directory.Private, "the recovery root becomes owner-private");
+		auto store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value(), "v6 fixture opens");
+		const auto prepared = record();
+		expect((*store)->admit(prepared).has_value(), "v6 source-line attempt admitted");
+		const auto sent = (*store)->mark_possibly_transmitted(prepared.IdempotencyKey, prepared.RequestFingerprint);
+		expect(sent.has_value() && sent->Transmission == application::review_mutation_recovery_transmission::possibly_transmitted,
+			   "v6 source-line attempt is possibly sent");
+		const auto value = publication();
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "v6 logical publication admitted");
+		store->reset();
+		execute_sql(database_path(directory), "DROP TABLE submission_post; PRAGMA user_version = 6; UPDATE recovery_meta SET schema_format = 6;");
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value() && user_version(database_path(directory)) == 7
+				   && query_text(database_path(directory), "SELECT schema_format FROM recovery_meta WHERE singleton = 1") == "7",
+			   "v6 migrates to v7");
+		expect((*store)->load(prepared.IdempotencyKey).value() == *sent, "v6 possibly sent source-line attempt is kept exactly");
+		expect((*store)->load_publication(value.Key).value() == value, "v6 logical publication is kept exactly");
+		expect(query_text(database_path(directory), "SELECT count(*) FROM submission_post") == "0",
+			   "no source-line attempt gains a whole review's POST answer");
+		expect(adapters::sqlite::make_review_submission_recovery_store(configuration(directory)).has_value(),
+			   "the whole-review journal opens the migrated database");
 	}
 
 	void test_durable_unresolved_and_success_reopen()
@@ -549,7 +657,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 7",
+				   "PRAGMA user_version = 8",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -598,8 +706,8 @@ namespace {
 			candidate.LegacyKey = std::string(64U, alias);
 			expect(!(*migrated)->advance_publication(std::nullopt, candidate), "migrated unresolved and succeeded aliases cannot admit another publication");
 		}
-		expect(user_version(database_path(directory)) == 6,
-			   "version-one migration commits schema version four");
+		expect(user_version(database_path(directory)) == 7,
+			   "version-one migration commits the current schema version");
 	}
 
 	void test_version_two_migration_preserves_anchored_rows()
@@ -610,11 +718,11 @@ namespace {
 		const auto expected = record();
 		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
 		anchored->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
 		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
-		expect(sibling.has_value() && user_version(database_path(directory)) == 6, "submission factory migrates exact v2 database to v4");
+		expect(sibling.has_value() && user_version(database_path(directory)) == 7, "submission factory migrates exact v2 database to the current version");
 		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(anchored.has_value(), "source-line factory opens shared v4 schema");
+		expect(anchored.has_value(), "source-line factory opens the shared current schema");
 		const auto loaded = (*anchored)->load(expected.IdempotencyKey);
 		expect(loaded && *loaded && **loaded == expected, "v2 anchored data preserved through sibling migration");
 	}
@@ -720,8 +828,11 @@ auto main() -> int
 try {
 	test_logical_publication_transitions_and_restart();
 	test_a_base_side_publication_keeps_its_side();
+	test_a_placed_publication_keeps_its_remote_line();
 	test_evidence_admission_and_legacy_conflicts();
+	test_an_unresolvable_line_admission_survives_a_restart();
 	test_version_three_keeps_both_journals();
+	test_version_six_migration_keeps_the_source_line_journal();
 	test_logical_capacity_and_stale_compare_exchange();
 	test_durable_unresolved_and_success_reopen();
 	test_schema_identity_is_fail_closed_and_credential_free();

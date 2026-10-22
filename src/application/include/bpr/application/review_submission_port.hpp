@@ -12,6 +12,14 @@ namespace bpr::application {
 															  indeterminate,
 															  published };
 
+	/// \brief [[BPR-1715]]. What GitHub's refusal of a review says, as
+	/// far as it is read: nothing (not refused, or not known), the review
+	/// refused, or a comment on a line GitHub cannot place in the diff.
+	/// GitHub's answer names no comment, so none is named here.
+	enum class review_submission_refusal : std::uint8_t { none,
+														  review,
+														  unplaceable_line };
+
 	/// \brief Retains complete request correlation even when no receipt is available.
 	struct review_submission_result
 	{
@@ -23,6 +31,8 @@ namespace bpr::application {
 		/// [[BPR-1540]]. Why an indeterminate result is unknown, as the host
 		/// established it; none for any other result.
 		std::optional<core::review_submission_unknown_diagnosis> Unknown;
+		/// [[BPR-1715]]. For a review GitHub refused, what its answer said.
+		review_submission_refusal Refusal = review_submission_refusal::none;
 	};
 
 	/// \brief Executes or reconciles one immutable whole-review attempt.

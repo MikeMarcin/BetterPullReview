@@ -6,6 +6,7 @@
 
 #include <QAbstractItemModel>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QLocale>
 #include <QPersistentModelIndex>
 #include <QString>
@@ -18,6 +19,7 @@
 #include <optional>
 #include <span>
 #include <string_view>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -875,6 +877,58 @@ namespace {
 		expect(model.data(model.index(1, 0), qt::home_row_role::age).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::comments).toString().isEmpty() && model.data(model.index(1, 0), qt::home_row_role::size).toString() == QStringLiteral("+9 / \u22120"), "zero removed is a known count");
 	}
 
+	/// [[BPR-1718]]. My verdict's words on the chip, in a sentence for its
+	/// tooltip and the row's accessible name, and nothing without one.
+	void test_my_review_verdict_text()
+	{
+		using verdict      = core::my_review_verdict;
+		constexpr auto at  = std::int64_t{ 1'791'994'800 };
+		const auto     day = QLocale{ }.toString(QDateTime::fromSecsSinceEpoch(at).date(), QStringLiteral("d MMM yyyy"));
+		expect(day.contains(QStringLiteral("2026")) && day.size() >= 10, "the date names its day, month and year");
+		const auto cases = std::array{
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = at }, QStringLiteral("Approved"), QStringLiteral("You approved this on %1.").arg(day) },
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::approved, .SubmittedAt = at, .NewCommits = true }, QStringLiteral("Approved \u00b7 new commits"),
+						QStringLiteral("You approved this on %1. New commits were pushed after it.").arg(day) },
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::changes_requested, .SubmittedAt = at }, QStringLiteral("Changes requested"), QStringLiteral("You requested changes on %1.").arg(day) },
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::commented, .SubmittedAt = at }, QStringLiteral("Commented"), QStringLiteral("You commented on this on %1.").arg(day) },
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::dismissed, .SubmittedAt = at }, QStringLiteral("Review dismissed"), QStringLiteral("Your review from %1 was dismissed.").arg(day) },
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::approved }, QStringLiteral("Approved"), QStringLiteral("You approved this.") },
+			std::tuple{ core::queue_my_review{ .Verdict = verdict::dismissed }, QStringLiteral("Review dismissed"), QStringLiteral("Your review was dismissed.") },
+			std::tuple{ core::queue_my_review{ }, QString{ }, QString{ } },
+		};
+		for (const auto& [review, chip, sentence] : cases) {
+			expect(qt::home_verdict_text(review) == chip, "the chip's words: " + chip.toStdString());
+			expect(qt::home_verdict_sentence(review) == sentence, "the sentence: " + sentence.toStdString());
+		}
+		expect(!qt::home_verdict_text({ .Verdict = verdict::dismissed, .NewCommits = true }).contains(QStringLiteral("new commits")), "a dismissed review has no new commits");
+
+		qt::review_landing_model model;
+		auto                     mine = item(7, core::attention_bucket::quiet, { .Reviewed = true });
+		mine.Facts                    = { .Title = "Cache the parsed config", .Draft = true };
+		mine.Facts.MyReview           = { .Verdict = verdict::approved, .SubmittedAt = at };
+		auto other                    = item(8, core::attention_bucket::quiet, { .Followed = true });
+		other.Facts.Title             = "Nobody reviewed";
+		model.apply(std::array{ mine, other });
+		const auto first = model.index(0, 0);
+		expect(model.data(first, qt::home_row_role::verdict).toString() == QStringLiteral("Approved")
+				   && model.data(first, qt::home_row_role::verdict_state).toInt() == static_cast<int>(verdict::approved)
+				   && !model.data(first, qt::home_row_role::verdict_stale).toBool()
+				   && model.data(first, qt::home_row_role::verdict_tip).toString() == QStringLiteral("You approved this on %1.").arg(day),
+			   "the row answers the chip's words, its verdict, its staleness and its tooltip");
+		expect(model.data(first, Qt::AccessibleTextRole).toString() == QStringLiteral("Draft pull request; octo/app#7 Cache the parsed config. You approved this on %1.").arg(day),
+			   "the row's accessible name ends with the verdict, after its identity and title");
+		const auto second = model.index(1, 0);
+		expect(model.data(second, qt::home_row_role::verdict).toString().isEmpty() && model.data(second, qt::home_row_role::verdict_tip).toString().isEmpty()
+				   && model.data(second, Qt::AccessibleTextRole).toString() == QStringLiteral("octo/app#8 Nobody reviewed"),
+			   "a row without a verdict draws and says none");
+		auto changed = std::vector<int>{ };
+		QObject::connect(&model, &QAbstractItemModel::dataChanged, [&changed](const QModelIndex& aTop) { changed.push_back(aTop.row()); });
+		mine.Facts.MyReview.NewCommits = true;
+		model.apply_item(mine);
+		expect(changed == std::vector{ 0 } && model.data(first, qt::home_row_role::verdict).toString() == QStringLiteral("Approved \u00b7 new commits") && model.data(first, qt::home_row_role::verdict_stale).toBool(),
+			   "new commits change only that row");
+	}
+
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -898,6 +952,7 @@ auto main(int argc, char** argv) -> int
 	test_waiting_blockers_and_quiet_filters();
 	test_restored_partial_check_reason_is_last_known();
 	test_change_facts_text();
+	test_my_review_verdict_text();
 	test_change_facts_rows_and_their_clock();
 
 	std::cout << "review-landing-model-tests:pass\n";

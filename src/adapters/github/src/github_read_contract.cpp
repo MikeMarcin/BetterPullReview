@@ -428,7 +428,7 @@ namespace bpr::adapters::github::detail {
 		/// and whether more follow, so a longer one is read the REST way.
 		constexpr std::string_view home_pull_request_fragment = "fragment HomePullRequest on PullRequest{id number title isDraft state createdAt additions deletions headRefOid baseRefOid baseRefName"
 																" author{__typename login ... on Node{id}} comments{totalCount}"
-																" reviews(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId state author{__typename login ... on Node{id}} commit{oid} comments{totalCount}}}"
+																" reviews(first:50){totalCount pageInfo{hasNextPage} nodes{databaseId state submittedAt author{__typename login ... on Node{id}} commit{oid} comments{totalCount}}}"
 																" reviewRequests(first:50){totalCount pageInfo{hasNextPage} nodes{id asCodeOwner requestedReviewer{__typename ... on User{id login} ... on Team{id name slug organization{login}}}}}"
 																" mergeStateStatus reviewDecision autoMergeRequest{enabledAt}"
 																" commits(last:1){nodes{commit{oid statusCheckRollup{contexts(first:50){totalCount pageInfo{hasNextPage}"
@@ -1375,6 +1375,18 @@ namespace bpr::adapters::github::detail {
 				if (const auto found = std::ranges::find(keys, optional); found != keys.end()) {
 					const auto value = json_member(json_object(aValue), optional);
 					if (!json_is_null(value) && !valid_line(value)) {
+						return false;
+					}
+					keys.erase(found);
+				}
+			}
+			// RFC-BPR-0089 M4. The commit a comment is on and the one it was
+			// written at, each GitHub's `{oid}`, as the live query asks.
+			for (const auto optional : { std::string_view{ "commit" }, std::string_view{ "originalCommit" } }) {
+				if (const auto found = std::ranges::find(keys, optional); found != keys.end()) {
+					const auto value = json_member(json_object(aValue), optional);
+					if (!json_is_null(value)
+						&& (!json_is_object(value) || !has_exact_keys(json_object(value), { "oid" }) || !nonempty_string(json_member(json_object(value), "oid")))) {
 						return false;
 					}
 					keys.erase(found);

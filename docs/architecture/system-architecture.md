@@ -228,6 +228,16 @@ store but are hidden until a newly accepted read creates an account-bound entry;
 the current login never claims the old rows. Anonymous rows keep their anonymous
 identity. Comparison anchors, source/cache scopes, positions and document-tab
 payloads are unchanged. The ten-entry bound remains shared by the profile.
+RFC-BPR-0089's version-seven store ([[BPR-1688]]) adds one `review_filters`
+row per record or Recent entry that has filters: the hidden commits, each with
+its headline and author so a commit a force push removed can still be named,
+and the paths file filters hide, in a versioned binary payload. What a hidden
+commit changes is never stored; the chain's trees record it again. The
+composition retains the window's filters with its accepted destination
+whenever they change, and a Resume or startup restoration hands them to the
+commit filter when the review is adopted. A restored hidden commit the pull
+request no longer has is shown as after a force push. Versions one to six
+migrate transactionally with no filters.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 
@@ -549,6 +559,14 @@ whether a suitable library should be allowed instead.
   sha1collisiondetection, HACL* generated SHA-2, rapidfuzz-cpp, dtl, RE2/Abseil
   and Git xdiff. Approval of one use does not admit arbitrary APIs from a
   library or its transitive dependencies.
+- zlib 1.3.2 is built from its pinned archive with `Z_PREFIX`, and only
+  `review_cycle_zip_codec.cpp` includes it. Its raw inflate and CRC-32 read
+  review bundles ([[BPR-1435]]). Its raw deflate (`deflate.c`, `trees.c`) is
+  approved by the owner on 2026-10-21 for one use: compressing the diagnostics
+  export into its single-entry `.zip` ([[BPR-1725]]). No gz* file I/O,
+  `compress`/`uncompress` helpers or other zlib API is adopted. The ZIP
+  container is the core's own minimal writer (`write_cycle_zip`); no ZIP
+  library is adopted, and LibArchive stays a macOS update-staging reader.
 - SHA-1 retains collision detection. Unkeyed SHA-256 uses CommonCrypto on macOS,
   CNG on Windows and HACL as the portable backend (RFC-BPR-0080 r4,
   [[BPR-1617]]). Native types/APIs stay private to `sha256_commoncrypto.cpp`

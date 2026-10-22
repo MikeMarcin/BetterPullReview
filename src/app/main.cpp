@@ -5015,7 +5015,8 @@ namespace {
 				   << evidence.TrackedOnlyByGesture << evidence.RelabelKeptDefect << evidence.ResolveOnlyEvidence << evidence.TourStopLabelled << '\n';
 			// [[BPR-1212]]. The keyboard line cursor and Return in the code.
 			stream << "LINE_DRAFT_EVIDENCE:" << evidence.LeftLineRefused << evidence.SingleLineOpenedPlain << evidence.KeyboardRangeSelected
-				   << evidence.SuggestionPrefilled << evidence.RangePublishedExact << evidence.NoLineExplained << '\n';
+				   << evidence.SuggestionPrefilled << evidence.RangePublishedExact << evidence.NoLineExplained << evidence.MouseRangeOpened
+				   << evidence.MouseRangePublishedExact << '\n';
 			// [[BPR-1212]] v002. A comment on a base line, as `side: LEFT`.
 			stream << "BASE_LINE_DRAFT_EVIDENCE:" << evidence.BaseNumberedKnown << evidence.BaseNumberingKept << evidence.BaseLineOpened << evidence.BasePublishedLeft << '\n';
 			stream << "LABEL_AUTHORING_DIAGNOSTIC:" << QString::fromStdString(aRun.LabelAuthoringDiagnostic) << '\n';

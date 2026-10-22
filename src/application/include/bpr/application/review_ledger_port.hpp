@@ -13,6 +13,7 @@
 #include <expected>
 #include <functional>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -256,6 +257,15 @@ namespace bpr::application {
 		/// conversation of this review.
 		[[nodiscard]] virtual auto store_conversation_receipt(
 			const core::conversation_receipt& aReceipt)
+			-> std::expected<void, ledger_store_failure> = 0;
+
+		/// \brief [[BPR-1699]]. Commits these conversation receipts
+		/// together, each replacing the one it names, or none of them.
+		///
+		/// \details One bulk Mark read is one durable change: a failure part
+		/// way leaves every receipt as it was.
+		[[nodiscard]] virtual auto store_conversation_receipts(
+			std::span<const core::conversation_receipt> aReceipts)
 			-> std::expected<void, ledger_store_failure> = 0;
 
 		/// \brief Reads every conversation receipt of this review.

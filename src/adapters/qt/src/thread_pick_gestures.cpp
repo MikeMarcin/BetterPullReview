@@ -50,4 +50,18 @@ namespace bpr::qt {
 		}
 		return result;
 	}
+
+	auto add_author_read_action(QMenu& aMenu, const QString& aLogin, const std::size_t aUnread, const bool aReadStateKnown, const bool aTitleCase) -> QAction*
+	{
+		auto* const action = aMenu.addAction(aTitleCase ? QStringLiteral("Mark All from %1 as Read").arg(aLogin) : QStringLiteral("Mark all from %1 as read").arg(aLogin));
+		action->setObjectName(QStringLiteral("markAuthorReadAction"));
+		action->setEnabled(aReadStateKnown && aUnread != 0U);
+		const auto tip = !aReadStateKnown ? QStringLiteral("Read state is not available yet.")
+			: aUnread == 0U               ? QStringLiteral("Nothing %1 wrote on this pull request is new.").arg(aLogin)
+			: aUnread == 1U               ? QStringLiteral("Mark the new comment %1 wrote on this pull request as read. Only your own read state changes.").arg(aLogin)
+										  : QStringLiteral("Mark the %1 new comments %2 wrote on this pull request as read. Only your own read state changes.").arg(aUnread).arg(aLogin);
+		action->setToolTip(tip);
+		action->setStatusTip(tip);
+		return action;
+	}
 } // namespace bpr::qt

@@ -20,6 +20,7 @@ class QAbstractButton;
 class QCheckBox;
 class QComboBox;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 class QSpinBox;
 
@@ -39,12 +40,16 @@ namespace bpr::qt {
 		std::size_t PaletteCancels   = 0U;
 		std::size_t ThemeImports     = 0U;
 		std::size_t SuppressedEchoes = 0U;
+		/// [[BPR-1714]]. Known-namespace lists offered to the host, and
+		/// lists refused before or after offering, each naming why.
+		std::size_t NamespaceGestures = 0U;
+		std::size_t NamespaceRefusals = 0U;
 
 		auto operator<=>(const appearance_settings_panel_statistics&) const
 			= default;
 	};
 
-	/// \brief RFC-BPR-0034's Appearance page: Theme, Type, Colours, and Dif.
+	/// \brief RFC-BPR-0034's Appearance page: Theme, Type, Colours, Syntax and Dif.
 	///
 	/// \details [[BPR-0790]]. The lede, then cards. Each card's header carries its
 	/// name and, at the right, its Reset; a card body is rows in the shared row
@@ -61,6 +66,12 @@ namespace bpr::qt {
 	/// anything is previewed. Dif keeps the mascot's visibility, its motion and the
 	/// explanation of what the system asked for, which RFC-BPR-0031's B3 requires to
 	/// remain applied, migrated, persisted and resettable from real controls.
+	/// Syntax holds the known C++ namespaces ([[BPR-1714]]): one field of
+	/// names separated by commas or spaces, `std` until the reviewer changes it,
+	/// applied when they press Return or leave the field. The core splits and
+	/// judges the text; an entry it refuses is named under the field with the
+	/// reason, the text stays for the reviewer to correct, and nothing is offered
+	/// until every entry is a namespace name.
 	///
 	/// Every committed control shows what the host last published through `adopt`,
 	/// and every gesture leaves as an existing `application::appearance_intent`;
@@ -181,6 +192,11 @@ namespace bpr::qt {
 		/// \brief Shows the core contrast findings without substituting colours.
 		void report(
 			std::span<const application::appearance_contrast_rejection> aRejections);
+		/// \brief [[BPR-1714]]. Names each entry the host refused, under the field.
+		///
+		/// \details The indices are the offered list's; the field keeps the text it
+		/// was offered from so the reviewer can correct it.
+		void report(std::span<const core::known_namespace_rejection> aRejections);
 		void report_theme_document_unavailable();
 		void report_theme_export(bool aSucceeded);
 		/// \brief Dispatches a path selected by Qt; this widget never opens it.
@@ -220,6 +236,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto ligatures_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_bold_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto syntax_italic_switch() const noexcept -> QCheckBox*;
+		/// \brief [[BPR-1714]]. The Syntax card's known C++ namespaces field.
+		[[nodiscard]] auto known_namespaces_editor() const noexcept -> QLineEdit*;
+		/// \brief The line under the field naming refused entries; hidden when none.
+		[[nodiscard]] auto known_namespaces_problem() const noexcept -> QLabel*;
 		[[nodiscard]] auto import_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto export_button() const noexcept -> QPushButton*;
 		/// \brief The bar at the Colours card's foot, or nothing.
@@ -252,6 +272,11 @@ namespace bpr::qt {
 		/// Exclusivity is therefore kept here, where that case can be expressed.
 		void choose_tab_width(std::uint32_t aWidth);
 		void dispatch_reset(application::appearance_reset_scope aScope);
+		/// \brief Judges the field's text and offers it when every entry is legal.
+		void commit_known_namespaces();
+		/// \brief Shows, or with no rejections hides, the refused entries of `aOffered`.
+		void show_namespace_problems(const core::known_namespaces&                    aOffered,
+									 std::span<const core::known_namespace_rejection> aRejections);
 		void dispatch_palette_commit();
 		void dispatch_palette_cancel();
 		void select_theme_file();
@@ -307,23 +332,32 @@ namespace bpr::qt {
 		/// The 2, 4, 8 segment, in that order; an entry is absent when the core's
 		/// own bounds do not admit that width.
 		std::array<QAbstractButton*, 3U> TabWidths{ };
-		QComboBox*                       WhiteSpace     = nullptr;
-		QComboBox*                       CodeZoom       = nullptr;
-		QCheckBox*                       Ligatures      = nullptr;
-		QCheckBox*                       SyntaxBold     = nullptr;
-		QCheckBox*                       SyntaxItalic   = nullptr;
-		QPushButton*                     ImportButton   = nullptr;
-		QPushButton*                     ExportButton   = nullptr;
-		QCheckBox*                       DifVisibility  = nullptr;
-		QComboBox*                       MotionSelector = nullptr;
-		QLabel*                          MotionStatus   = nullptr;
-		core::dif_resolution             MotionResolution;
-		QWidget*                         ColoursCard     = nullptr;
-		QWidget*                         PreviewBar      = nullptr;
-		QLabel*                          PreviewBarLabel = nullptr;
-		QPushButton*                     KeepChanges     = nullptr;
-		QPushButton*                     CancelChanges   = nullptr;
-		QLabel*                          Status          = nullptr;
+		QComboBox*                       WhiteSpace       = nullptr;
+		QComboBox*                       CodeZoom         = nullptr;
+		QCheckBox*                       Ligatures        = nullptr;
+		QCheckBox*                       SyntaxBold       = nullptr;
+		QCheckBox*                       SyntaxItalic     = nullptr;
+		QLineEdit*                       KnownNamespaces  = nullptr;
+		QLabel*                          NamespaceProblem = nullptr;
+		/// \brief The consequence the field always carries, before any problem.
+		QString NamespaceConsequence;
+		/// \brief The text under the field names refused entries the reviewer has
+		/// not corrected yet, so an unrelated adoption leaves their text alone.
+		bool NamespacesHeld = false;
+		/// \brief The list the field last showed from an adoption.
+		core::known_namespaces ShownNamespaces;
+		QPushButton*           ImportButton   = nullptr;
+		QPushButton*           ExportButton   = nullptr;
+		QCheckBox*             DifVisibility  = nullptr;
+		QComboBox*             MotionSelector = nullptr;
+		QLabel*                MotionStatus   = nullptr;
+		core::dif_resolution   MotionResolution;
+		QWidget*               ColoursCard     = nullptr;
+		QWidget*               PreviewBar      = nullptr;
+		QLabel*                PreviewBarLabel = nullptr;
+		QPushButton*           KeepChanges     = nullptr;
+		QPushButton*           CancelChanges   = nullptr;
+		QLabel*                Status          = nullptr;
 
 		std::optional<core::appearance_palette> PreviewPalette;
 		std::optional<core::appearance_palette> PendingPreview;

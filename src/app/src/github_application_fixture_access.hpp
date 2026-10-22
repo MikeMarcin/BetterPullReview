@@ -142,6 +142,10 @@ namespace bpr::app::detail {
 		/// which all three commits change, and a next push that rewords C3 on
 		/// the same parent and tree; see `scripts/build_commit_filter_fixture.py --split`.
 		commit_filter_split_v1,
+		/// RFC-BPR-0089 M4. commit_filter_v1's chain with `src/notes.txt`, shaped
+		/// as BPR-Test #116 for comments on a filtered diff; see
+		/// `scripts/build_commit_filter_fixture.py --comment`.
+		commit_filter_comment_v1,
 	};
 
 	/// \brief Reports whether the named fixture serves a second head.
@@ -595,6 +599,10 @@ namespace bpr::app::detail {
 		/// received: none when it sent no `start_line` or `start_side`.
 		std::optional<std::uint32_t> LastStartLine;
 		std::optional<std::string>   LastStartSide;
+		/// RFC-BPR-0089 M4. The last created comment's `commit_id` as
+		/// received, and how many named a commit other than the head.
+		std::string LastCommit;
+		std::size_t EarlierCommitPosts = 0U;
 
 		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};
@@ -883,6 +891,14 @@ namespace bpr::app::detail {
 		/// the block, `line` the last line, `start_line` the first, and both
 		/// sides RIGHT.
 		bool RangePublishedExact = false;
+		/// [[BPR-1721]]. Three right lines selected by a drag, a
+		/// right-click inside them and the menu's "Add comment on lines a–b",
+		/// delivered to the window as a mouse delivers them, opened the drawer
+		/// draft on all three: anchored to the last, starting at the first.
+		bool MouseRangeOpened = false;
+		/// Its Publish sent GitHub's multi-line fields for those lines, and
+		/// the thread the conversations then show is on all three.
+		bool MouseRangePublishedExact = false;
 		/// With no line selected, Return opened nothing and the status line
 		/// said how to select one.
 		bool NoLineExplained = false;

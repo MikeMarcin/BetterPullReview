@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1702"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "A read file left returns to the Files drawer",
+  "created": "2026-10-21T18:46:32.848117+00:00",
+  "base": "775ab3b0f420d11d5e542a1b4c25d50eb9f5e8b6"
+}

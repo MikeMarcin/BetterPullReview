@@ -23,7 +23,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 6 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 7 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -117,6 +117,15 @@ namespace bpr::adapters::sqlite {
 							  "pages INTEGER NOT NULL CHECK(pages BETWEEN 0 AND 65535),"
 							  "PRIMARY KEY(scope_id,idempotency_key),"
 							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
+			// [[BPR-1715]]. What GitHub answered an attempt's POST:
+			// written as no answer before it may leave, then with the answer.
+			std::string_view{ "CREATE TABLE submission_post("
+							  "scope_id INTEGER NOT NULL,idempotency_key TEXT NOT NULL,"
+							  "answer INTEGER NOT NULL CHECK(answer BETWEEN 1 AND 3),"
+							  "post_class INTEGER NOT NULL CHECK(post_class BETWEEN 0 AND 5),"
+							  "recorded_utc_ms INTEGER NOT NULL CHECK(recorded_utc_ms >= 0),"
+							  "PRIMARY KEY(scope_id,idempotency_key),"
+							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -167,6 +176,18 @@ namespace bpr::adapters::sqlite {
 			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
 			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
 			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
+		};
+		constexpr std::array RecoverySchemaVersion7{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_post" }, RecoverySchema[9] },
 			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
 		};
 		[[nodiscard]] auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>;
@@ -501,6 +522,8 @@ namespace bpr::adapters::sqlite {
 				// the right, so a base-side anchor is refused rather than
 				// recovered onto the other side.
 				if (!application::valid(aRecord) || aRecord.Anchor.Semantic.Side != core::diff_side::right
+					// RFC-BPR-0089 M4. Nor a remote line, which it has no column for.
+					|| aRecord.Anchor.RemoteLine.has_value()
 					|| !aRecord.BaselineExactCommentIds.has_value()
 					|| aRecord.Transmission
 						!= application::review_mutation_recovery_transmission::prepared
@@ -979,13 +1002,21 @@ namespace bpr::adapters::sqlite {
 		// [[BPR-1212]]. A publication record is version 1 while every child is
 		// on the right, byte for byte as before, and version 2 once a child is
 		// on the base side, which then writes each child's side after its line.
+		// RFC-BPR-0089 M4. Version 3 once a child carries a remote line (a
+		// commit-filtered diff's line the host placed), which then writes each
+		// child's side and its remote line after its line.
 		constexpr auto     publication_record_version   = std::uint64_t{ 1U };
 		constexpr auto     publication_record_version_2 = std::uint64_t{ 2U };
+		constexpr auto     publication_record_version_3 = std::uint64_t{ 3U };
 		[[nodiscard]] auto base_side_child(const std::optional<application::review_mutation_recovery_record>& aChild) noexcept -> bool
 		{
 			return aChild.has_value() && aChild->Anchor.Semantic.Side != core::diff_side::right;
 		}
-		void encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild, const bool aSided)
+		[[nodiscard]] auto remote_line_child(const std::optional<application::review_mutation_recovery_record>& aChild) noexcept -> bool
+		{
+			return aChild.has_value() && aChild->Anchor.RemoteLine.has_value();
+		}
+		void encode_child(submission_writer& aOut, const std::optional<application::review_mutation_recovery_record>& aChild, const bool aSided, const bool aRemote)
 		{
 			aOut.integer(aChild.has_value() ? 1U : 0U);
 			if (!aChild) {
@@ -1002,6 +1033,10 @@ namespace bpr::adapters::sqlite {
 			if (aSided) {
 				aOut.integer(static_cast<std::uint64_t>(c.Anchor.Semantic.Side));
 			}
+			if (aRemote) {
+				aOut.integer(c.Anchor.RemoteLine.has_value() ? 1U : 0U);
+				aOut.integer(c.Anchor.RemoteLine.value_or(0U));
+			}
 			aOut.oid(c.Anchor.Commit);
 			aOut.integer(static_cast<std::uint64_t>(c.Transmission));
 			aOut.integer(static_cast<std::uint64_t>(c.State));
@@ -1016,7 +1051,7 @@ namespace bpr::adapters::sqlite {
 				aOut.integer(static_cast<std::uint64_t>(c.Receipt->Representation));
 			}
 		}
-		auto decode_child(submission_reader& aIn, const bool aSided) -> std::optional<application::review_mutation_recovery_record>
+		auto decode_child(submission_reader& aIn, const bool aSided, const bool aRemote) -> std::optional<application::review_mutation_recovery_record>
 		{
 			if (aIn.bounded(1U) == 0U) {
 				return std::nullopt;
@@ -1032,6 +1067,13 @@ namespace bpr::adapters::sqlite {
 			c.Anchor.Semantic.Line       = static_cast<std::uint32_t>(aIn.bounded(4294967295U));
 			if (aSided) {
 				c.Anchor.Semantic.Side = static_cast<core::diff_side>(aIn.bounded(static_cast<std::uint64_t>(core::diff_side::right)));
+			}
+			if (aRemote) {
+				const auto present = aIn.bounded(1U) != 0U;
+				const auto line    = static_cast<std::uint32_t>(aIn.bounded(4294967295U));
+				if (present) {
+					c.Anchor.RemoteLine = line;
+				}
 			}
 			c.Anchor.Commit  = aIn.oid();
 			c.Transmission   = static_cast<application::review_mutation_recovery_transmission>(aIn.bounded(2U));
@@ -1052,8 +1094,10 @@ namespace bpr::adapters::sqlite {
 		auto encode_publication(const application::review_publication_recovery_record& aRecord) -> std::vector<std::uint8_t>
 		{
 			submission_writer out;
-			const auto        sided = base_side_child(aRecord.Native) || base_side_child(aRecord.Fallback);
-			out.integer(sided ? publication_record_version_2 : publication_record_version);
+			const auto        remote = remote_line_child(aRecord.Native) || remote_line_child(aRecord.Fallback);
+			const auto        sided  = remote || base_side_child(aRecord.Native) || base_side_child(aRecord.Fallback);
+			out.integer(remote ? publication_record_version_3 : sided ? publication_record_version_2
+																	  : publication_record_version);
 			out.text(aRecord.Key);
 			out.text(aRecord.LegacyKey);
 			out.digest(aRecord.Fingerprint);
@@ -1065,34 +1109,39 @@ namespace bpr::adapters::sqlite {
 			out.integer(auth.Generation);
 			out.integer(auth.ObservedAt);
 			out.integer(auth.ExpiresAt);
-			encode_child(out, aRecord.Native, sided);
-			encode_child(out, aRecord.Fallback, sided);
+			encode_child(out, aRecord.Native, sided, remote);
+			encode_child(out, aRecord.Fallback, sided, remote);
 			return out.Bytes;
 		}
 		auto decode_publication(const std::span<const std::uint8_t> aBytes) -> std::optional<application::review_publication_recovery_record>
 		{
 			submission_reader in{ aBytes };
 			const auto        version = in.integer();
-			if (version != publication_record_version && version != publication_record_version_2) {
+			if (version != publication_record_version && version != publication_record_version_2 && version != publication_record_version_3) {
 				return std::nullopt;
 			}
-			const auto                                      sided = version == publication_record_version_2;
+			const auto                                      remote = version == publication_record_version_3;
+			const auto                                      sided  = remote || version == publication_record_version_2;
 			application::review_publication_recovery_record result;
-			result.Key          = in.text(64U);
-			result.LegacyKey    = in.text(64U);
-			result.Fingerprint  = in.digest();
-			result.State        = static_cast<core::review_publication_state>(in.bounded(9U));
+			result.Key         = in.text(64U);
+			result.LegacyKey   = in.text(64U);
+			result.Fingerprint = in.digest();
+			// [[BPR-1706]]. The unresolvable line's state and admission are the
+			// last of each; an earlier reader refuses them, so no version moves.
+			result.State        = static_cast<core::review_publication_state>(in.bounded(static_cast<std::uint64_t>(core::review_publication_state::unresolvable_line_admitted)));
 			auto& auth          = result.Authorization;
-			auth.Source         = static_cast<application::review_fallback_authorization_source>(in.bounded(2U));
+			auth.Source         = static_cast<application::review_fallback_authorization_source>(in.bounded(static_cast<std::uint64_t>(application::review_fallback_authorization_source::unresolvable_line)));
 			auth.ContractDigest = in.digest();
 			auth.ScopeDigest    = in.digest();
 			auth.Generation     = in.integer();
 			auth.ObservedAt     = in.integer();
 			auth.ExpiresAt      = in.integer();
-			result.Native       = decode_child(in, sided);
-			result.Fallback     = decode_child(in, sided);
-			// Version 2 is written only for a base-side child.
-			if (sided && !base_side_child(result.Native) && !base_side_child(result.Fallback)) {
+			result.Native       = decode_child(in, sided, remote);
+			result.Fallback     = decode_child(in, sided, remote);
+			// Version 2 is written only for a base-side child, version 3 only
+			// for a child with a remote line.
+			if (remote ? !remote_line_child(result.Native) && !remote_line_child(result.Fallback)
+					   : sided && !base_side_child(result.Native) && !base_side_child(result.Fallback)) {
 				return std::nullopt;
 			}
 			return in.done() && application::valid(result) ? std::optional{ std::move(result) } : std::nullopt;
@@ -1620,6 +1669,33 @@ namespace bpr::adapters::sqlite {
 				});
 			}
 
+			auto note_post(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const core::review_submission_post_record& aPost) -> std::expected<void, failure> override
+			{
+				std::scoped_lock lock{ Mutex };
+				if (!core::valid(aPost)) {
+					return std::unexpected(failure::conflict);
+				}
+				return transaction<void>([&]() -> std::expected<void, failure> {
+					auto loaded = load_locked(aKey);
+					if (!loaded) {
+						return std::unexpected(loaded.error());
+					}
+					if (!*loaded || (**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved
+						|| (**loaded).Transmission != application::review_mutation_recovery_transmission::possibly_transmitted) {
+						return std::unexpected(failure::conflict);
+					}
+					auto upsert = detail::prepare(Database,
+												  "INSERT INTO submission_post(scope_id,idempotency_key,answer,post_class,recorded_utc_ms) VALUES(?1,?2,?3,?4,?5) "
+												  "ON CONFLICT(scope_id,idempotency_key) DO UPDATE SET answer=excluded.answer,post_class=excluded.post_class,recorded_utc_ms=excluded.recorded_utc_ms");
+					if (!upsert || !scope_key(upsert->Value, 1, aKey) || ::sqlite3_bind_int64(upsert->Value, 3, static_cast<std::int64_t>(aPost.Answer)) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 4, aPost.StatusClass) != SQLITE_OK || ::sqlite3_bind_int64(upsert->Value, 5, aPost.RecordedUtcMs) != SQLITE_OK
+						|| ::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					return { };
+				});
+			}
+
 			auto withdraw(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<void, failure> override
 			{
 				std::scoped_lock lock{ Mutex };
@@ -1642,7 +1718,7 @@ namespace bpr::adapters::sqlite {
 					if ((**loaded).RequestFingerprint != aFingerprint || (**loaded).State != application::review_mutation_recovery_state::unresolved || (**loaded).Receipt) {
 						return std::unexpected(failure::conflict);
 					}
-					for (const auto* statement : { "DELETE FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
+					for (const auto* statement : { "DELETE FROM submission_unknown WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_post WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_baseline WHERE scope_id = ?1 AND idempotency_key = ?2", "DELETE FROM submission_attempt WHERE scope_id = ?1 AND idempotency_key = ?2 AND state = 0" }) {
 						auto erase = detail::prepare(Database, statement);
 						if (!erase || !scope_key(erase->Value, 1, aKey) || ::sqlite3_step(erase->Value) != SQLITE_DONE) {
 							return std::unexpected(failure::unavailable);
@@ -1810,6 +1886,25 @@ namespace bpr::adapters::sqlite {
 				} else if (noted != SQLITE_DONE) {
 					return std::unexpected(failure::unavailable);
 				}
+				// [[BPR-1715]]. What GitHub answered its POST, if recorded.
+				auto post = detail::prepare(Database, "SELECT answer,post_class,recorded_utc_ms FROM submission_post WHERE scope_id = ?1 AND idempotency_key = ?2");
+				if (!post || !scope_key(post->Value, 1, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto answered = ::sqlite3_step(post->Value);
+				if (answered == SQLITE_ROW) {
+					const auto answer = ::sqlite3_column_int64(post->Value, 0);
+					const auto klass  = ::sqlite3_column_int64(post->Value, 1);
+					if (answer < 1 || answer > 3 || klass < 0 || klass > 5) {
+						return std::unexpected(failure::integrity_failure);
+					}
+					value.Post = core::review_submission_post_record{ .Answer = static_cast<core::review_submission_post_answer>(answer), .StatusClass = static_cast<std::uint8_t>(klass), .RecordedUtcMs = ::sqlite3_column_int64(post->Value, 2) };
+					if (::sqlite3_step(post->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::integrity_failure);
+					}
+				} else if (answered != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
 				if (!application::valid(value)) {
 					return std::unexpected(failure::integrity_failure);
 				}
@@ -1842,7 +1937,7 @@ namespace bpr::adapters::sqlite {
 							return created;
 						}
 					}
-					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,6)")) {
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,7)")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				} else {
@@ -1854,7 +1949,8 @@ namespace bpr::adapters::sqlite {
 						: *version == 3                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion3)
 						: *version == 4                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion4)
 						: *version == 5                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion5)
-																													 : validate_schema(aDatabase, RecoverySchemaVersion6);
+						: *version == 6                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion6)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion7);
 					if (!schema) {
 						return schema;
 					}
@@ -1873,14 +1969,22 @@ namespace bpr::adapters::sqlite {
 					if (*version < 6 && !detail::execute(aDatabase, RecoverySchema[8])) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 6 WHERE singleton = 1")) {
+					// [[BPR-1715]]. An attempt that may have been sent before
+					// answers were kept had no answer kept, long enough ago.
+					if (*version < 7
+						&& (!detail::execute(aDatabase, RecoverySchema[9])
+							|| !detail::execute(aDatabase, "INSERT INTO submission_post(scope_id,idempotency_key,answer,post_class,recorded_utc_ms) "
+														   "SELECT scope_id,idempotency_key,3,0,0 FROM submission_baseline JOIN submission_attempt USING(scope_id,idempotency_key) WHERE transmission = 1 AND state = 0"))) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 7 WHERE singleton = 1")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				}
-				if (!detail::execute(aDatabase, "PRAGMA user_version = 6")) {
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 7")) {
 					return std::unexpected(detail::failure::unavailable);
 				}
-				return validate_schema(aDatabase, RecoverySchemaVersion6);
+				return validate_schema(aDatabase, RecoverySchemaVersion7);
 			};
 			const auto migrated = migrate();
 			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {

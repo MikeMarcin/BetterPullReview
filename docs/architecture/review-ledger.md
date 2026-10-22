@@ -53,6 +53,9 @@ and store together. Receipt-driven filtering reobserves actionability without
 replacing the workbench authority or its selected comparison. When selected
 material changes, the core reopens its receipt and the same-process refresh
 returns that file to the actionable order without detaching the rendered diff.
+Only the shown file's receipt can withhold it, so leaving a read or excluded
+file for another returns it to the order and the Files drawer at once
+([[BPR-1702]]).
 
 The review bar's named Accept button ([[BPR-1507]]) presents the same acceptance
 `QAction` as the private-progress menu. Its command, enablement, checked state
@@ -401,7 +404,12 @@ has none.
 
 The read progression is `unread → seen → read`. A weaker claim is absorbed
 rather than treated as a regression — marking a read file seen leaves it read —
-but it stays legal and reports no change. Only an explicit mark-unread reopens.
+but it stays legal and reports no change. Only an explicit command moves it
+back ([[BPR-1701]]): `mark_unread` (Mark unseen, Seen's inverse) returns it
+to `unread`, and `unmark_read` (Mark unread, Read's inverse) takes a read file
+back to `seen` and leaves any other file as it is. Read implies Seen, so taking
+Seen off clears Read too. Neither changes acceptance or exclusion, just as
+revoking acceptance leaves the progression where it was.
 
 Opening a pull-request file records Seen automatically after its exact selected
 comparison is successfully presented and its material receipt is observed
@@ -409,7 +417,8 @@ comparison is successfully presented and its material receipt is observed
 before submitting the ordinary core-decided durable command. Failed or superseded
 loading records nothing; preparing nearby files in the background records nothing.
 Material loaded under Home or Overview stays unread until the comparison is shown
-in Review. An explicit Mark unread stays until the next open.
+in Review. An explicit Mark unseen stays until the next open, and an
+explicit Mark unread leaves the file seen.
 The accepted projection follows persistence. Reopening an already Seen or Read
 material needs no write, and opening never accepts or verifies a file.
 

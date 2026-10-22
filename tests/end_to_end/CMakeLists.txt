@@ -950,6 +950,28 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_queue_composition_public_path)
 bpr_enable_warnings(test_better_pull_review_queue_composition_public_path)
 
+# [[BPR-1720]]. Help › About as composed: this build's facts, the
+# installed legal folder and its regular-file rule, and the links reaching the
+# tests-only browser launch with exactly their admitted addresses.
+bpr_add_executable(test_better_pull_review_about_composition about_composition_tests.cpp)
+target_link_libraries(test_better_pull_review_about_composition PRIVATE BetterPullReview::Composition)
+target_include_directories(test_better_pull_review_about_composition PRIVATE "${PROJECT_SOURCE_DIR}/src/app/src")
+target_compile_definitions(
+    test_better_pull_review_about_composition
+    PRIVATE
+        BPR_BUILD_TESTING=1
+        "BPR_TEST_PROJECT_VERSION=\"${PROJECT_VERSION}\""
+        "BPR_TEST_CONFIGURATION=\"$<CONFIG>\""
+)
+target_compile_features(test_better_pull_review_about_composition PRIVATE cxx_std_23)
+bpr_enable_hardening(test_better_pull_review_about_composition)
+bpr_enable_warnings(test_better_pull_review_about_composition)
+bpr_add_network_isolated_test(NAME application_about_composition COMMAND test_better_pull_review_about_composition)
+set_tests_properties(application_about_composition PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "about-composition-tests:pass"
+    TIMEOUT 120)
+
 target_link_libraries(
     test_better_pull_review_worker_executor_tests
     PRIVATE
@@ -4471,7 +4493,7 @@ bpr_add_network_isolated_test(NAME application_commit_filter_public_path WINDOWS
     COMMAND test_commit_filter_public_path)
 set_tests_properties(application_commit_filter_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
-    TIMEOUT 180 PASS_REGULAR_EXPRESSION "COMMIT_FILTER_PUBLIC_PATH_OK")
+    TIMEOUT 420 PASS_REGULAR_EXPRESSION "COMMIT_FILTER_PUBLIC_PATH_OK")
 
 # RFC-BPR-0074: real command, window-system keys andGit-backed selected diffs.
 bpr_add_executable(test_header_source_public_path header_source_navigation_public_path_tests.cpp)

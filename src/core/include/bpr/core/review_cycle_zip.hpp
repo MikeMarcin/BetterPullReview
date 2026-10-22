@@ -15,7 +15,9 @@
 /// touched, and nothing is extracted anywhere.
 /// \details The writer emits stored (uncompressed) members with fixed
 /// timestamps and UTF-8 names, so the same members always give the same
-/// bytes. The reader accepts stored and deflated members from any producer,
+/// bytes. [[BPR-1725]]: it can instead deflate each member with the
+/// pinned zlib and stamp a given time, still the same bytes for the same
+/// members and options. The reader accepts stored and deflated members from any producer,
 /// and refuses before inflating anything: multi-disk and ZIP64 archives,
 /// encryption, other methods, links, directories and other special entries,
 /// names that are not UTF-8, overlapping or out-of-order member data, and any
@@ -63,8 +65,23 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto stable_name(cycle_zip_problem aValue) noexcept -> std::string_view;
 
-	/// \brief A deterministic archive of stored members, in the order given.
-	[[nodiscard]] auto write_cycle_zip(std::span<const cycle_zip_member> aMembers) -> std::string;
+	/// \brief [[BPR-1725]]. How `write_cycle_zip` writes its members.
+	struct cycle_zip_write_options
+	{
+		/// Deflate each member, keeping one stored when deflate would not
+		/// make it smaller.
+		bool Deflate = false;
+		/// Every member's MS-DOS modification time and date; the default is
+		/// 1980-01-01 00:00:00, the earliest the format holds.
+		std::uint16_t DosTime = 0U;
+		std::uint16_t DosDate = 0x21U;
+		/// Every member's Unix permission bits, as a regular file.
+		std::uint16_t Mode = 0644U;
+	};
+
+	/// \brief A deterministic archive of the members, in the order given:
+	/// stored and dated 1980-01-01 unless the options say otherwise.
+	[[nodiscard]] auto write_cycle_zip(std::span<const cycle_zip_member> aMembers, const cycle_zip_write_options& aOptions = { }) -> std::string;
 	/// \brief Every member of an untrusted archive, in directory order, or
 	/// the first problem found. Nothing is returned in part.
 	[[nodiscard]] auto read_cycle_zip(std::span<const std::uint8_t> aArchive, const cycle_zip_limits& aLimits = { }) -> std::expected<std::vector<cycle_zip_member>, cycle_zip_problem>;

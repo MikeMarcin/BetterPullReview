@@ -48,8 +48,14 @@ namespace bpr::adapters::syntax {
 	/// names and transparent `extern "C"` blocks (BPR-1474). Revision 8 reads
 	/// template argument lists: `getComponent<Type>()` names a function and a
 	/// type, a template name used as a type is a type, and a single capital is
-	/// a type where a PascalCase word would be (BPR-1559).
-	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 8U;
+	/// a type where a PascalCase word would be (BPR-1559). Revision 9 reads
+	/// namespace qualifiers: `std` and the namespaces the standard nests in
+	/// it, every segment of a using-directive and of a namespace alias's
+	/// target, and their uses, are namespaces (BPR-1710). Revision 10 resolves
+	/// a namespace after `.` and `->`, which also begins a trailing return type
+	/// (`-> std::vector<int>`), and lets a qualified class head (`struct
+	/// std::hash<Key> {`) declare nothing (BPR-1711).
+	inline constexpr std::uint32_t cpp_identifier_heuristic_revision = 10U;
 
 	/// \brief Supplies the complete bytes of one blob.
 	///

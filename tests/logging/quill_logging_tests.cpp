@@ -2,6 +2,8 @@
 #include "../support/diagnostic_files.hpp"
 #include "../support/diagnostic_json.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
+#include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
@@ -19,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -139,6 +142,93 @@ namespace {
 		expect(bytes.find("canary") == std::string::npos && bytes.find("xxxxxxxx") == std::string::npos, "malformed and oversized source is absent from retained diagnostics");
 	}
 
+	/// [[BPR-1717]]. An export taken while a session runs holds that
+	/// session's records up to the moment of export, behind older sessions
+	/// that fill the export's limits. Before, the exporter read files in name
+	/// order and kept the first records, so a running session whose random
+	/// identity sorted later was left out entirely.
+	void live_session_export(const std::filesystem::path& aRoot)
+	{
+		using namespace bpr;
+		using status = application::diagnostic_log_status;
+		{
+			adapters::logging::quill_log older{ aRoot };
+			for (unsigned index = 1U; index <= 700U; ++index) {
+				expect(older.record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::response_received, .Request = index, .HttpStatus = 200U }) == status::available, "an older session's record is admitted");
+				if (index % 40U == 0U) {
+					expect(older.flush_for_export(false).has_value(), "the older session drains as it goes");
+				}
+			}
+			older.close();
+		}
+		const auto olderFiles = tests::diagnostic_files(aRoot);
+		expect(olderFiles.size() == 1U, "the older session wrote one file");
+		// The lowest possible name, an hour old: read first by name, never by age.
+		const auto renamed = aRoot / "logs/session-00000000000000000000000000000000-00000001.jsonl";
+		std::filesystem::rename(olderFiles.front(), renamed);
+		std::filesystem::last_write_time(renamed, std::filesystem::last_write_time(renamed) - std::chrono::hours{ 1 });
+
+		auto live = std::make_shared<adapters::logging::quill_log>(aRoot);
+		for (unsigned index = 1U; index <= 30U; ++index) {
+			expect(live->record({ .Operation = application::diagnostic_operation::pull_request, .Outcome = application::diagnostic_outcome::response_received, .Request = index, .HttpStatus = 418U }) == status::available, "a live session's record is admitted");
+		}
+		auto diagnosis             = core::review_submission_unknown_diagnosis{ };
+		diagnosis.Reason           = core::review_submission_unknown_reason::review_not_listed;
+		diagnosis.PostAnswer       = core::review_submission_post_answer::no_answer;
+		diagnosis.CommentsExpected = 2U;
+		diagnosis.PagesRead        = 1U;
+		auto       event           = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::failed };
+		const auto text            = core::describe(diagnosis);
+		std::ranges::copy(text, event.Summary.Text.begin());
+		event.Summary.Size     = static_cast<std::uint16_t>(text.size());
+		event.Summary.State    = application::diagnostic_summary_state::sanitized;
+		event.ReviewSubmission = diagnosis;
+		expect(live->record(event) == status::available, "the live session's review submission is admitted");
+		// [[BPR-1722]]. A later Check status found it refused.
+		const auto ending    = core::review_submission_ending_diagnosis{ .Ending = core::review_submission_ending::refused, .Run = core::review_submission_run::check, .PostAnswer = core::review_submission_post_answer::error_status, .PostStatusClass = 4U, .Refusal = core::review_submission_ending_refusal::unplaceable_line, .Comments = 2U };
+		auto       ended     = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::failed };
+		const auto endedText = core::describe(ending);
+		std::ranges::copy(endedText, ended.Summary.Text.begin());
+		ended.Summary.Size  = static_cast<std::uint16_t>(endedText.size());
+		ended.Summary.State = application::diagnostic_summary_state::sanitized;
+		ended.ReviewEnding  = ending;
+		expect(live->record(ended) == status::available, "the live session's review submission ending is admitted");
+		std::string liveSession;
+		for (const auto& path : tests::diagnostic_files(aRoot)) {
+			if (path != renamed) {
+				liveSession = path.filename().string().substr(8U, 32U);
+			}
+		}
+		expect(liveSession.size() == 32U, "the live session has its own file");
+
+		auto lease = adapters::sqlite::acquire_profile_runtime_lease(aRoot);
+		expect(lease.has_value(), "the profile lease is admitted beside the live logger");
+		adapters::sqlite::release_maintenance_files files{ aRoot, *lease, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U }, nullptr, live };
+		core::release_maintenance_context           context{ files.authority(), core::request_id{ 1U }, core::release_maintenance_generation{ 1U }, core::release_maintenance_command::preview_diagnostics, { } };
+		context.ExportOptions.Policy = core::diagnostic_export_policy::anonymized;
+		// No close and no explicit flush: preparation drains the live session itself.
+		const auto prepared = files.prepare(context, { });
+		expect(prepared.has_value(), "a live export prepares");
+		const auto  preview     = std::string{ (*prepared)->preview() };
+		const auto  descriptor  = std::get<core::release_diagnostic_snapshot>((*prepared)->selection());
+		std::size_t liveRecords = 0U;
+		for (auto found = preview.find("\"http_status\":418,"); found != std::string::npos; found = preview.find("\"http_status\":418,", found + 1U)) {
+			++liveRecords;
+		}
+		expect(liveRecords == 30U, "every live record is in the export");
+		expect(preview.contains("\"op\":\"github.review_submission\"") && preview.contains("\"detail\":\"" + text + "\"")
+				   && preview.contains("\"failure_domain\":\"review_submission\",\"failure\":\"review_not_listed\""),
+			   "with its review submission's reason and counts");
+		expect(preview.contains("\"detail\":\"" + endedText + "\"") && preview.contains("\"failure_domain\":\"review_submission\",\"failure\":\"none\""),
+			   "and its ending, as exactly its counts-only line");
+		expect(!preview.contains(liveSession), "and no session identity survives anonymization");
+		// [[BPR-1722]]. Under the raised limits both sessions fit whole;
+		// over them the oldest are left out (application_release_maintenance).
+		expect(descriptor.LimitOmittedRecords == 0U && descriptor.OmittedRecords == 0U && descriptor.Sessions == 2U && preview.contains("\"limit_keeps\":\"newest\""), "both sessions fit the export whole");
+		expect(preview.contains("\"sequence\":700,") && preview.contains("\"sequence\":1,") && preview.contains("\"sequence\":100,"), "the older session's oldest records are kept too");
+		live->close();
+	}
+
 	void stress_loss_reporting(const std::filesystem::path& aRoot)
 	{
 		using namespace bpr;
@@ -215,6 +305,7 @@ try {
 	structured_record_contract(private_root(root / "structured"));
 	hostile_summary_limits(private_root(root / "limits"));
 	stress_loss_reporting(private_root(root / "stress"));
+	live_session_export(private_root(root / "live-export"));
 	{
 		adapters::logging::quill_log log{ root, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 		expect(log.status() == status::available, "available local sink");
@@ -267,6 +358,27 @@ try {
 			auto misplaced      = event;
 			misplaced.Operation = application::diagnostic_operation::pull_request;
 			expect(log.record(misplaced) == status::dropped, "a reason rides only its own operation");
+			// [[BPR-1722]]. A known ending: exactly its own line, on its own operation, never with a reason.
+			const auto ending = core::review_submission_ending_diagnosis{ .Ending = core::review_submission_ending::published, .PostAnswer = core::review_submission_post_answer::success, .PostStatusClass = 2U, .Comments = 3U };
+			auto       ended  = application::diagnostic_event{ .Operation = application::diagnostic_operation::review_submission, .Outcome = application::diagnostic_outcome::succeeded, .HttpStatus = 200U };
+			const auto line   = core::describe(ending);
+			std::ranges::copy(line, ended.Summary.Text.begin());
+			ended.Summary.Size  = static_cast<std::uint16_t>(line.size());
+			ended.Summary.State = application::diagnostic_summary_state::sanitized;
+			ended.ReviewEnding  = ending;
+			expect(log.record(ended) == status::available, "a review submission ending reaches the real log");
+			auto forged            = ended;
+			forged.Summary.Text[0] = 'X';
+			expect(log.record(forged) == status::dropped, "an ending whose detail is anything but its own line never enters the log");
+			auto both             = ended;
+			both.ReviewSubmission = diagnosis;
+			expect(log.record(both) == status::dropped, "a record carries an ending or a reason, never both");
+			auto elsewhere      = ended;
+			elsewhere.Operation = application::diagnostic_operation::pull_request;
+			expect(log.record(elsewhere) == status::dropped, "an ending rides only its own operation");
+			auto impossible               = ended;
+			impossible.ReviewEnding->Stop = core::review_submission_stop::cancelled;
+			expect(log.record(impossible) == status::dropped, "an invalid ending never enters the log");
 		}
 		{
 			// [[BPR-1680]]. A Home discovery read's end: its counts and
