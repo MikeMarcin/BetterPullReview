@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0091 owner decision D1 and answer Q9 A.
+/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092 owner decision D1 and answer Q9 A.
 /// The review skill's front matter, the offer of a newer built-in version, and
 /// the review brief's bounds, without any file but the shipped skill.
 

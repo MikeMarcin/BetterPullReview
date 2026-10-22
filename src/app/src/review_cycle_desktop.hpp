@@ -122,7 +122,7 @@ namespace bpr::app {
 		/// keeping the installed adapter: a course points them at its own
 		/// executables. Nothing changes where no adapter is installed.
 		void set_send_profiles(std::vector<core::agent_profile> aProfiles);
-		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. The profile setup saved
+		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. The profile setup saved
 		/// is offered first; the others keep their order. Absent, the order is
 		/// the one given.
 		void prefer_send_profile(std::optional<core::agent_profile_id> aProfile);

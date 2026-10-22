@@ -486,7 +486,7 @@ namespace {
 		expect(counted.Runs == runs, "and nothing is started");
 	}
 
-	/// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. The shipped bare `codex` through
+	/// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. The shipped bare `codex` through
 	/// the real launcher: alone it never starts, which is the defect; through
 	/// `located_agent_process` the codex found on a scratch PATH runs with
 	/// Codex's exact launch. The plain-text harness with no program chosen

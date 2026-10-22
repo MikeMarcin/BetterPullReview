@@ -416,7 +416,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. A review request's brief crosses
+	/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. A review request's brief crosses
 	/// whole after every version-two field, counted and with its cuts stated;
 	/// a launch without one writes no brief line.
 	void test_the_brief_crosses_after_the_version_two_fields()

@@ -95,7 +95,7 @@ namespace bpr::application {
 		core::pull_request_authority Authority;
 		core::agent_session          Session;
 		std::filesystem::path        ParentDirectory;
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. The working tree of the
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. The working tree of the
 		/// reviewer's linked clone whose history the workspace borrows, read
 		/// only, through Git's alternates. Absent: the workspace holds only
 		/// what the application's own copy gives it, as before.

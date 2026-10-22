@@ -109,7 +109,7 @@ namespace bpr::application {
 		/// operation it is refused whole, as an operation riding on another
 		/// gesture is.
 		std::optional<core::supplement_feedback_guidance> FeedbackGuidance;
-		/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. The review brief, already within
+		/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief, already within
 		/// its bounds (`core::bound_review_brief`); absent for a launch that is
 		/// not a review request. The host sets its workspace kind once the
 		/// workspace is made.
@@ -566,7 +566,7 @@ namespace bpr::application {
 		const core::agent_revision_binding& aObserved,
 		core::agent_run_id                  aExpectedRun = { }) -> agent_run_result;
 
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091 Q3 A. The two runs of one
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092 Q3 A. The two runs of one
 	/// setup check: the agent's own status command and its `--version`.
 	struct agent_status_launches
 	{

@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace bpr::adapters::workspace {
-	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0091 owner decision D2. Looks in
+	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 owner decision D2. Looks in
 	/// each listed folder for clones, by metadata alone.
 	///
 	/// \details Each folder itself and its directories down to

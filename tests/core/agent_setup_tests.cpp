@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091. The agent setup's rows, its
+/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092. The agent setup's rows, its
 /// choice without asking, the status check's effect and the step order.
 
 #include "bpr/core/agent_setup.hpp"

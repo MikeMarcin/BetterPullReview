@@ -133,7 +133,7 @@ namespace bpr::core {
 	[[nodiscard]] auto claude_search_candidates(std::string_view aPathVariable, std::span<const std::string> aUsualFolders, agent_wrapper_platform aPlatform)
 		-> std::vector<claude_search_candidate>;
 
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5 (owner, 2026-10-22). The
+	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). The
 	/// programs a launch with no saved path looks for. The plain-text harness
 	/// is not one: it runs only a program path the reviewer chose.
 	enum class agent_program : std::uint8_t {

@@ -10,7 +10,7 @@
 #include <vector>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0091 owner decision D2. The most of
+	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 owner decision D2. The most of
 	/// a `.git/config` the discovery reads.
 	inline constexpr std::size_t maximum_clone_config_bytes = 64U * 1024U;
 	/// \brief The most remotes one clone's configuration is read for.

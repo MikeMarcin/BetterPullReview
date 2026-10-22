@@ -3,16 +3,16 @@ schema: "implement-rfc.card.v1"
 id: "BPR-PENDING-AQ6"
 title: "The Agent tab sets up an agent in place, in every state of the frames"
 status: "Backlog"
-rfcs: ["RFC-BPR-0091"]
+rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-PENDING-AQ2", "BPR-PENDING-AQ3", "BPR-PENDING-AQ4", "BPR-PENDING-AQ5"]
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"RFC-BPR-0091 adoption, 2026-10-22 (owner answer Q1 A)","related_cards":["BPR-PENDING-AN","BPR-1594"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0091's design frames","requested_skill":"frontend-design","milestone":"RFC-BPR-0091 M6"}
+metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22 (owner answer Q1 A)","related_cards":["BPR-PENDING-AN","BPR-1594"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0092's design frames","requested_skill":"frontend-design","milestone":"RFC-BPR-0092 M6"}
 ---
 
 # BPR-PENDING-AQ6: The Agent tab sets up an agent in place, in every state of the frames
 
-RFC-BPR-0091 M6 ([RFC](../../rfcs/RFC-BPR-0091-agent-first-run-setup.md#milestones)), owner answer Q1 A.
+RFC-BPR-0092 M6 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#milestones)), owner answer Q1 A.
 
 ## Scope
 

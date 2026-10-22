@@ -4,11 +4,17 @@ Imported 2026-10-22 on the lane `worktree-agent-a7c9be9edf974a7e8`, based on
 local `main` at `92162efed`, which holds the draft as committed in
 `c47ad93e6`, `996f560ba` and `cb22d35be`.
 
+Renumbered 2026-10-22 from RFC-BPR-0091 to RFC-BPR-0092 when the lane was
+rebased onto `main` at `4e318b625`: RFC-BPR-0091 had landed there first, for
+comment reactions and resolving conversations. The rebased slices are
+`863c756da` (AQ1), `8489edf3c` (AQ2), `869385850` (AQ3), `859217b08` (AQ4) and
+`c35021cde` (AQ5); their cards and reseal notes name these identities.
+
 ## Mapping
 
 | Draft | Live | Note |
 |---|---|---|
-| `RFC-DRAFT-0026` (r2) | [RFC-BPR-0091](../RFC-BPR-0091-agent-first-run-setup.md) (r3) | Revised to the owner's answers to Q1 to Q9 and to [[BPR-1738]]'s sparse workspace before adoption; the draft is kept here unchanged as provenance. |
+| `RFC-DRAFT-0026` (r2) | [RFC-BPR-0092](../RFC-BPR-0092-agent-first-run-setup.md) (r3) | Revised to the owner's answers to Q1 to Q9 and to [[BPR-1738]]'s sparse workspace before adoption; the draft is kept here unchanged as provenance. |
 | Proposed card `BPR-PENDING-AN` | `docs/issues/60-done/BPR-PENDING-AN-set-up-an-agent-the-first-time.md` | The phase 1 card, done with the answers recorded. |
 | Plan card 1 (core and Codex) | BPR-PENDING-AQ1 | |
 | Plan card 5 (application setup host) | BPR-PENDING-AQ2 | Ordered second, as the coordinator directed. |
@@ -18,7 +24,7 @@ local `main` at `92162efed`, which holds the draft as committed in
 | Plan card 6 (Qt setup) | BPR-PENDING-AQ6 | With the remaining Settings rows from plan card 7. |
 | Plan card 8 (documentation) | BPR-PENDING-AQ7 | |
 | Plan card 8 (frozen build and look) | BPR-PENDING-AQ8 | |
-| (none) | BPR-PENDING-AQ9 | Closeout card for RFC-BPR-0091. |
+| (none) | BPR-PENDING-AQ9 | Closeout card for RFC-BPR-0092. |
 | Design frames v1 r2 | `docs/design/BPR-PENDING-AN-agent-setup-v1/` | Kept as the questions' evidence and the adopted design. |
 
 Card IDs are provisional (`BPR-PENDING-AN`, `AQ1` to `AQ9`). They are

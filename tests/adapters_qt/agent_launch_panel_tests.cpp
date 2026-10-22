@@ -118,7 +118,7 @@ namespace {
 			"and nothing else left the surface");
 	}
 
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. The profile setup saved is
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. The profile setup saved is
 	/// selected when offered, and again when the profiles are offered anew.
 	void test_the_saved_profile_is_preferred()
 	{

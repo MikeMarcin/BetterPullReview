@@ -4078,7 +4078,7 @@ namespace {
 		require(adapter->cleanup_agent_workspace(*borrowed, { }).has_value(), "and it cleans up");
 	}
 
-	/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. A workspace that borrows a linked
+	/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. A workspace that borrows a linked
 	/// clone's history: one alternates line naming the clone's objects, only
 	/// what the clone lacks copied from the cache, nothing written to the clone,
 	/// no remote, and a clone that is not a repository refused.

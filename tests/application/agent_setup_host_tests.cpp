@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091 M2. The setup host on manual
+/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092 M2. The setup host on manual
 /// lanes and fake ports: detection starts no process (Q2), the bounded status
 /// check reaches the setup state from scripted answers (Q3 A), Stop and a
 /// timeout end it, and the choice is kept.

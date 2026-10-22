@@ -8,7 +8,7 @@
 #include <string>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. What setup keeps for one
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. What setup keeps for one
 	/// application profile. Identities and paths only: there is no field a
 	/// credential, token or environment value could occupy.
 	struct agent_setup_preferences

@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091. The agent a setup row offers,
+	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092. The agent a setup row offers,
 	/// as a reviewer names it.
 	///
 	/// \details Owner, 2026-10-22, Q4 accepted: the Agent tab says Claude Code
@@ -196,7 +196,7 @@ namespace bpr::core {
 		std::vector<agent_setup_row> Rows;
 		std::optional<setup_agent>   Chosen;
 		/// The repository has a linked clone or a recorded choice of the
-		/// private copy (RFC-BPR-0091 Repository).
+		/// private copy (RFC-BPR-0092 Repository).
 		bool        RepositoryChosen = false;
 		setup_check AgentCheck;
 		setup_check WorkspaceCheck;

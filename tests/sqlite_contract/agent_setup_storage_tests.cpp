@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AQ2]], RFC-BPR-0091. A profile's agent setup preferences:
+// [[BPR-PENDING-AQ2]], RFC-BPR-0092. A profile's agent setup preferences:
 // defaults before any write, a restart reads them back, refused values are not
 // written, an identity mismatch is refused, and the file is owner-private.
 #include "../support/test_expectation.hpp"

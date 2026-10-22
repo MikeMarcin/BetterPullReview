@@ -21,7 +21,7 @@ namespace bpr::core {
 	///
 	/// \details Version two replaces the partial file/defect vocabulary with
 	/// exact receipt, defect-history, selection, and session records. Version
-	/// three ([[BPR-PENDING-AQ5]], RFC-BPR-0091) adds the review brief and the
+	/// three ([[BPR-PENDING-AQ5]], RFC-BPR-0092) adds the review brief and the
 	/// review skill's text and changes no version-two field. A reader must
 	/// refuse an unsupported version rather than guessing at field meaning.
 	inline constexpr std::uint32_t agent_supplement_schema_version = 3U;
@@ -167,7 +167,7 @@ namespace bpr::core {
 		auto operator<=>(const supplement_feedback_guidance&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0091. The review brief's bounds.
+	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief's bounds.
 	inline constexpr std::size_t maximum_brief_title_bytes       = 1024U;
 	inline constexpr std::size_t maximum_brief_description_bytes = 16U * 1024U;
 	inline constexpr std::size_t maximum_brief_branch_bytes      = 1024U;

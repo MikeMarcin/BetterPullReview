@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0091 owner decision D2. Reading a
+/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 owner decision D2. Reading a
 /// clone's remotes from `.git/config` text, normalizing their URLs without
 /// user information, matching a pull request's repository and ordering the
 /// matches, without any file.

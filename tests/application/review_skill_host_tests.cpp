@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0091 owner decision D1 and answer Q9 A.
+/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092 owner decision D1 and answer Q9 A.
 /// The review skill host on manual lanes with a memory store: the built-in
 /// default, the first edit making the copy with its base version and digest,
 /// a refused save keeping nothing, Restore default saving a copy first and

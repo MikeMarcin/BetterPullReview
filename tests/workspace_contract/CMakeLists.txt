@@ -329,7 +329,7 @@ endif()
 bpr_enable_warnings(test_review_cycle_send)
 bpr_add_network_isolated_test(NAME review_cycle_send WINDOWS_UNCONTAINED COMMAND test_review_cycle_send)
 
-# [[BPR-PENDING-AQ3]]. RFC-BPR-0091 D2: the clone folder scan on real folders.
+# [[BPR-PENDING-AQ3]]. RFC-BPR-0092 D2: the clone folder scan on real folders.
 bpr_add_executable(test_clone_folder_scan clone_folder_scan_tests.cpp)
 target_link_libraries(test_clone_folder_scan PRIVATE BetterPullReview::AdapterWorkspace BetterPullReview::AdapterSQLite)
 bpr_enable_hardening(test_clone_folder_scan)

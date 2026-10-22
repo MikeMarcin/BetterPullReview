@@ -1828,7 +1828,7 @@ namespace bpr::application {
 				return *this;
 			}
 		};
-		/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. The review brief's wire form, after
+		/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief's wire form, after
 		/// every version-two field. Each collection is counted, and each cut is
 		/// stated, so a reader never has to guess what a missing line meant.
 		template <typename TSink>

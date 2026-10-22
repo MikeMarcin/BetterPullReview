@@ -156,7 +156,7 @@ namespace {
 			   "every Windows candidate is a path a wrapper could be: an absolute .exe");
 	}
 
-	/// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5 (owner, 2026-10-22). Codex is
+	/// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). Codex is
 	/// looked for as Claude is, in its own folders and by its own name.
 	void test_codex_search_order()
 	{

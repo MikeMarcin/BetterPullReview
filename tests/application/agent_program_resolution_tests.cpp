@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. The one place a Codex or
+/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. The one place a Codex or
 /// plain-text harness launch is given an absolute program: saved path first,
 /// then the found `codex`, the harness never searched for, without any
 /// process or file.

@@ -1666,7 +1666,7 @@ namespace {
 } // namespace
 
 namespace {
-	/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. The brief names the workspace that
+	/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The brief names the workspace that
 	/// was actually made: borrowed history, the private copy or a snapshot.
 	void test_the_brief_names_the_workspace_that_was_made()
 	{
@@ -1691,7 +1691,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Check it works. The workspace probe
+	/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Check it works. The workspace probe
 	/// makes and removes the workspace an Ask would make, admits no session,
 	/// starts no process, answers on the decision lane and holds quiescence
 	/// until it does; a failure comes back with its reason.

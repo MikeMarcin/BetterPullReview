@@ -702,7 +702,7 @@ not claimed. [Import](assets/reactions-and-resolve-v1.LIVE_IMPORT.md).
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0091](RFC-BPR-0091-agent-first-run-setup.md) | Set up an agent the first time the Agent tab opens | In Progress | RFC-BPR-0003, RFC-BPR-0011, RFC-BPR-0012, RFC-BPR-0060, RFC-BPR-0085 |
+| [RFC-BPR-0092](RFC-BPR-0092-agent-first-run-setup.md) | Set up an agent the first time the Agent tab opens | In Progress | RFC-BPR-0003, RFC-BPR-0011, RFC-BPR-0012, RFC-BPR-0060, RFC-BPR-0085 |
 
 Drafted 2026-10-22 as RFC-DRAFT-0026 from the owner's request for setup UX
 the first time the Agent tab opens

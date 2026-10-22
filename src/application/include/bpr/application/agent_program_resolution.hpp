@@ -15,7 +15,7 @@
 #include <string_view>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. Finds a program a launch
+	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. Finds a program a launch
 	/// with no saved path runs, by the agent adapter, each time it is asked:
 	/// an absolute path to an executable regular file, or nothing. Nothing here
 	/// reads the environment or touches a file.
@@ -51,7 +51,7 @@ namespace bpr::application {
 		std::string        PlainText;
 	};
 
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5 (owner, 2026-10-22). The
+	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). The
 	/// one place a Codex or plain-text harness launch is given an absolute
 	/// program.
 	///

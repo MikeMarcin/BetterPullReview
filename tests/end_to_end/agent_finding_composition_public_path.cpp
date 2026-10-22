@@ -409,7 +409,7 @@ auto main(int argc, char** argv) -> int
 		report_failure("arguments", "expected=<course> <canary>");
 		return EXIT_FAILURE;
 	}
-	// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. The codex-found course is the
+	// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. The codex-found course is the
 	// positive course with no fixture executable: the Codex profile names the
 	// shipped bare `codex`, and the only `codex` is the canary, put on the
 	// course's own search PATH under that name. A shipped build that hands the

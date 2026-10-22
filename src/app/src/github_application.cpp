@@ -322,7 +322,7 @@ namespace bpr::app {
 
 	namespace {
 #if defined(BPR_AGENT_INTEGRATIONS)
-		/// [[BPR-PENDING-AQ5]], RFC-BPR-0091 D1. Writes the edited review skill
+		/// [[BPR-PENDING-AQ5]], RFC-BPR-0092 D1. Writes the edited review skill
 		/// to a new file in Downloads (else Documents or home) before Restore
 		/// default or Use version N removes it, and names the file. Never
 		/// replaces a file that is already there.
@@ -8864,7 +8864,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (AgentProcessProbe != nullptr) {
 				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
-				// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. Codex and the plain-text
+				// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. Codex and the plain-text
 				// harness get an absolute program here, in front of the Claude
 				// wrapper, so a shipped build starts them.
 				LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
@@ -9317,7 +9317,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 				});
-			// [[BPR-PENDING-AQ2]], RFC-BPR-0091 M2. The profile's agent setup:
+			// [[BPR-PENDING-AQ2]], RFC-BPR-0092 M2. The profile's agent setup:
 			// its saved choice and programs, detection when setup shows (Q2) and
 			// the bounded status check (Q3 A) on a launcher and lane of its own.
 			AgentSetupStore    = adapters::sqlite::make_agent_setup_store(ApplicationDataRoot);
@@ -9345,7 +9345,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 			}
 			AgentSetup->load();
-			// [[BPR-PENDING-AQ3]], RFC-BPR-0091 D2. The profile's clone folders
+			// [[BPR-PENDING-AQ3]], RFC-BPR-0092 D2. The profile's clone folders
 			// and each repository's remembered clone, read by metadata alone.
 			CloneLinkStore = adapters::sqlite::make_clone_link_store(ApplicationDataRoot);
 			{
@@ -9365,7 +9365,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			CloneLinks->load();
 			observe_clone_repository();
-			// [[BPR-PENDING-AQ5]], RFC-BPR-0091 D1. The review skill: the
+			// [[BPR-PENDING-AQ5]], RFC-BPR-0092 D1. The review skill: the
 			// built-in default until the profile edits it.
 			ReviewSkillStore = adapters::sqlite::make_review_skill_store(ApplicationDataRoot);
 			{
@@ -11422,7 +11422,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
-		/// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5 (owner, 2026-10-22). Finds the
+		/// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). Finds the
 		/// `codex` a Codex launch with no saved program runs, exactly as
 		/// `locate_claude` finds `claude`: this application's own `PATH` and
 		/// home folder as they are when asked, and Codex's usual folders.
@@ -11448,7 +11448,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
-		/// [[BPR-PENDING-AQ3]], RFC-BPR-0091 D2. The repository of the review
+		/// [[BPR-PENDING-AQ3]], RFC-BPR-0092 D2. The repository of the review
 		/// now open, for its remembered clone.
 		void observe_clone_repository()
 		{
@@ -11467,10 +11467,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			CloneLinks->observe_repository(std::move(repository));
 		}
 
-		/// [[BPR-PENDING-AQ2]], RFC-BPR-0091. What setup decided reaches the
+		/// [[BPR-PENDING-AQ2]], RFC-BPR-0092. What setup decided reaches the
 		/// window: the saved or chosen agent is the one the Agent tab and Send to
 		/// Agent offer first.
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. The linked clone a review's
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. The linked clone a review's
 		/// workspace borrows history from: the observed repository's serving
 		/// link, never for tool-free writing and never the private copy.
 		[[nodiscard]] auto linked_history_clone(const bool aWritingOnly) const -> std::optional<std::filesystem::path>
@@ -11486,7 +11486,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 														  view.Linked->Path.size() } };
 		}
 
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Check it works. One Check runs the
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Check it works. One Check runs the
 		/// agent's own status command and makes, then removes, the workspace an
 		/// Ask would make for the review on screen.
 		void check_agent_setup()
@@ -18718,7 +18718,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			observation.CurrentDraft = current_agent_draft_observation();
-			// [[BPR-PENDING-AQ5]], RFC-BPR-0091. A review request carries the
+			// [[BPR-PENDING-AQ5]], RFC-BPR-0092. A review request carries the
 			// brief: what the reviewer can read on GitHub about this pull
 			// request, bounded, and the review skill's text (Q9 A). A comment
 			// workshop press and a writing request are not review requests.

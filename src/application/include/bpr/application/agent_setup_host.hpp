@@ -70,7 +70,7 @@ namespace bpr::application {
 		agent_setup_sink   Publish;
 	};
 
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091 M2. The host half of agent
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092 M2. The host half of agent
 	/// setup: detection, the bounded status check and the saved choice.
 	///
 	/// \details State lives on the decision lane. Detection (Q2) reads file
@@ -109,10 +109,10 @@ namespace bpr::application {
 		/// adapter inspected it; empty clears it. Answers on the decision lane.
 		void set_program(core::setup_agent aAgent, std::string aPath, std::function<void(std::optional<core::agent_wrapper_refusal>)> aAnswered = { });
 		void set_codex_protocol(core::codex_protocol_choice aChoice);
-		/// RFC-BPR-0091 Repository: the repository has a linked clone or a
+		/// RFC-BPR-0092 Repository: the repository has a linked clone or a
 		/// recorded choice of the private copy.
 		void set_repository_chosen(bool aChosen);
-		/// RFC-BPR-0091 Check it works: the worktree row's result.
+		/// RFC-BPR-0092 Check it works: the worktree row's result.
 		void set_workspace_check(core::setup_check aCheck);
 		/// Asks for setup again: the chosen agent stays selected, the checks
 		/// start over and detection runs again.

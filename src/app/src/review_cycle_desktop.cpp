@@ -362,7 +362,7 @@ namespace bpr::app {
 		SendLauncher = std::make_unique<adapters::agent::agent_process_launcher>();
 		SendClaude   = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper,
 																			 std::move(aLocateClaude));
-		// [[BPR-PENDING-AQ1]], RFC-BPR-0091 Q5. A Codex or plain-text harness
+		// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. A Codex or plain-text harness
 		// send runs the program the window's launches run.
 		SendProcesses = std::make_unique<application::located_agent_process>(*SendClaude, std::move(aPrograms), &adapters::agent::inspect_claude_process_wrapper,
 																			 std::move(aLocatePrograms));

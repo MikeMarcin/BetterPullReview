@@ -91,7 +91,7 @@ namespace bpr::qt {
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
 		void offer_profiles(std::span<const core::agent_profile> aProfiles);
-		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. The profile setup saved:
+		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. The profile setup saved:
 		/// selected now when offered, and whenever profiles are offered again.
 		/// Absent, the first offered profile is selected, as before.
 		void prefer_profile(std::optional<core::agent_profile_id> aProfile);

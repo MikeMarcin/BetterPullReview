@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0091 M3 (owner decision D2). The
+/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 M3 (owner decision D2). The
 /// clone link host on manual lanes with scripted reads: discovery in the
 /// listed folders, choosing a folder, the private copy, a link checked again
 /// and found moved, folders and suggestions, and forgetting.

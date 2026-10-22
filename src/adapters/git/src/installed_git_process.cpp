@@ -4426,7 +4426,7 @@ namespace bpr::adapters::git {
 					return fail(initialized.error());
 				}
 
-				// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. With a linked clone the
+				// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. With a linked clone the
 				// workspace borrows that clone's history read-only, through
 				// Git's alternates list: one line naming the clone's objects
 				// folder. Nothing is written to the clone, and the workspace has
