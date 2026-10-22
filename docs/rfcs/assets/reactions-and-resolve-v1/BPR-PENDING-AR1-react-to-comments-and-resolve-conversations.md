@@ -54,3 +54,37 @@ for the owner to amend.
 ## Acceptance
 
 RA01 to RA08 of RFC-DRAFT-0027.
+
+## Progress (2026-10-22)
+
+Built on branch `worktree-agent-aab81f7a773163494` over main `3ddfbc5f8`.
+Steps 1 to 6 are done except the owner's look (RA08), which waits in a fresh
+attended-review session on a frozen build of the branch head.
+
+- **RA01.** `github_paged_read` (`test_reaction_read`: canonical body, binding,
+  unknown type and content, foreign identity, five-reactor bound, schema
+  without the fields, GHES root, signed out sends nothing) and
+  `github_provider` (`test_reactions_are_read_after_the_snapshot`, a refused
+  read leaves the snapshot whole).
+- **RA02.** `github_mutation_contract` (exact documents, revalidation,
+  tampers, GHES root, the recorded BPR-Test #132 answers) and
+  `gh_cli_transport` (the six fixed documents go by `gh api graphql` with the
+  body on stdin; a changed body and a reply never launch).
+- **RA03.** `core_conversation_reactions`, `core_review_round_trip`,
+  `core_anonymous_public_read`, `application_review_mutation_application_host`.
+- **RA04.** `live_review_mutation_provider`
+  (`test_a_reaction_is_observed_then_written_once`,
+  `test_an_ambiguous_change_is_confirmed_by_reading_it_back`): one read back,
+  never a second write; a state already as asked is not written.
+- **RA05, RA06.** `qt_conversation_cards_view` (chips, picker by mouse and
+  keyboard, Resolve conversation beside Reply, a denied permission, the accent
+  in light and dark); `qt_workbench_window_scale_{100,125,200}` and
+  `qt_composed_github_scale_{100,125,200}` pass.
+- **RA07.** `application_threaded_reply_contract` now runs `--reaction-probe`
+  on github-com and ghes-3.18 (`REACTION_EVIDENCE:11111111`). Live:
+  `tests/scripts/reaction_live_course.py` on BPR-Test #132 (closed, branch
+  deleted), owner and `MikeMarcinTest`, 28 owner requests, REST
+  `X-RateLimit-Remaining` 4980 to 4955.
+- **Gates.** clang-format 22 check, clang-tidy on every changed translation
+  unit (no finding on a changed line), the documentation gate, the
+  round-trip composition and command-registry reseals.
