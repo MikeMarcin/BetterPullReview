@@ -494,10 +494,23 @@ namespace bpr::app {
 		ChooseSave = std::move(aChooser);
 	}
 
+	void review_cycle_desktop::prefer_send_profile(const std::optional<core::agent_profile_id> aProfile)
+	{
+		if (PreferredSendProfile == aProfile) {
+			return;
+		}
+		PreferredSendProfile = aProfile;
+		set_send_profiles(SendProfiles);
+	}
+
 	void review_cycle_desktop::set_send_profiles(std::vector<core::agent_profile> aProfiles)
 	{
 		if (!Sender || !SendLane) {
 			return;
+		}
+		SendProfiles = aProfiles;
+		if (PreferredSendProfile) {
+			std::ranges::stable_partition(aProfiles, [preferred = *PreferredSendProfile](const core::agent_profile& aProfile) { return aProfile.Id == preferred; });
 		}
 		Host->set_send_environment({
 			.Profiles    = std::move(aProfiles),

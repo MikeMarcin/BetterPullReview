@@ -213,6 +213,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # merge-base contract; the Windows station has not measured it yet.
     "commit_filter_fixture_contract": "git-reference-parent-denied",
     "sqlite_markdown_image_disk_cache": "ancestor-control-denied",
+    # [[BPR-PENDING-AQ2]]. The agent setup store opens under the same retained
+    # ancestor walk as its siblings.
+    "sqlite_agent_setup_storage": "unmeasured (registered on macOS)",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now
     # measured ([[BPR-1631]]).

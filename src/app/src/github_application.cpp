@@ -1,5 +1,6 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/adapters/process_support/process_supervision.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
@@ -97,6 +98,7 @@
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/adapters/mcp/mcp_context_helper.hpp"
 	#include "bpr/application/agent_program_resolution.hpp"
+	#include "bpr/application/agent_setup_host.hpp"
 	#include "bpr/application/claude_process_wrapper.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
@@ -8789,6 +8791,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					core::git_host_id{ 2U },
 					core::built_in_agent_host_kind::explicit_ghes),
 			};
+			// [[BPR-PENDING-AQ2]]. Setup's rows carry the same policy.
+			AgentPolicies = agentPolicies;
 	#if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
 				const auto external = std::ranges::find(
@@ -9282,6 +9286,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 				});
+			// [[BPR-PENDING-AQ2]], RFC-BPR-0091 M2. The profile's agent setup:
+			// its saved choice and programs, detection when setup shows (Q2) and
+			// the bounded status check (Q3 A) on a launcher and lane of its own.
+			AgentSetupStore    = adapters::sqlite::make_agent_setup_store(ApplicationDataRoot);
+			AgentSetupLauncher = std::make_unique<adapters::agent::agent_process_launcher>();
+			AgentSetupLane     = std::make_unique<worker_executor>();
+			{
+				auto dependencies          = application::agent_setup_dependencies{ };
+				dependencies.Store         = AgentSetupStore.get();
+				dependencies.Process       = AgentSetupLauncher.get();
+				dependencies.Locate        = locate_agent_program();
+				dependencies.Inspect       = &adapters::agent::inspect_claude_process_wrapper;
+				dependencies.ClaudeWrapper = ClaudeWrapperSource;
+				dependencies.Programs      = AgentProgramSource;
+				dependencies.Parent        = [](const std::string& aName) -> std::optional<std::string> {
+					if (!qEnvironmentVariableIsSet(aName.c_str())) {
+						return std::nullopt;
+					}
+					return qEnvironmentVariable(aName.c_str()).toStdString();
+				};
+				dependencies.Profiles = core::built_in_agent_profiles();
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Checks   = AgentSetupLane.get();
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
+				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
+			}
+			AgentSetup->load();
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
@@ -11350,6 +11382,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto home = QDir::toNativeSeparators(QDir::homePath()).toStdString();
 				return adapters::agent::locate_agent_program(aProgram, path, std::string_view{ home });
 			};
+		}
+
+		/// [[BPR-PENDING-AQ2]], RFC-BPR-0091. What setup decided reaches the
+		/// window: the saved or chosen agent is the one the Agent tab and Send to
+		/// Agent offer first.
+		void present_agent_setup(const application::agent_setup_projection& aProjection)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto chosen  = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
+			const auto profile = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
+			Window->agent_panel()->prefer_profile(profile);
+			if (CycleDesktop) {
+				CycleDesktop->prefer_send_profile(profile);
+			}
 		}
 #endif
 		void cancel_writing()
@@ -18330,6 +18378,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				state.ApplicationSession, authority, observedBinding);
 			AgentHost->observe(
 				state.ApplicationSession, authority, observedBinding);
+			if (AgentSetup) {
+				// [[BPR-PENDING-AQ2]]. Setup's rows carry this review's host
+				// policy, the same the agent host decides by.
+				AgentSetup->observe_policy(core::policy_for_host(AgentPolicies, authority.Host));
+			}
 			refresh_agent_private_context_choices();
 			if (ChatHost != nullptr) {
 				// Recorded, never retargeted. The chat host presents itself
@@ -20829,6 +20882,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ClaudeWrapperEditor) {
 				ClaudeWrapperEditor->shutdown();
 			}
+			if (AgentSetup) {
+				AgentSetup->shutdown();
+			}
 #endif
 			if (TourHost) {
 				TourHost->shutdown();
@@ -20940,6 +20996,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (CycleDesktop && !CycleDesktop->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)
 				|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
+				|| (AgentSetup && !AgentSetup->is_quiescent())
 #endif
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
@@ -21968,9 +22025,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-PENDING-AQ1]]. The Codex and plain-text harness programs this
 		/// window's profile saved, and the port that gives those launches an
 		/// absolute program.
-		std::shared_ptr<application::agent_program_source>  AgentProgramSource = std::make_shared<application::agent_program_source>();
+		std::shared_ptr<application::agent_program_source> AgentProgramSource = std::make_shared<application::agent_program_source>();
+		/// [[BPR-PENDING-AQ2]]. The host policies the agent host decides by,
+		/// kept so setup's rows carry the same verdicts.
+		std::vector<core::agent_host_policy>                AgentPolicies;
 		std::unique_ptr<application::located_agent_process> LocatedProcess;
 		std::unique_ptr<application::claude_wrapper_editor> ClaudeWrapperEditor;
+		/// [[BPR-PENDING-AQ2]]. The profile's agent setup: its store, the
+		/// check's own launcher and lane, and the host. Declared in that order
+		/// so the host goes first.
+		std::unique_ptr<application::agent_setup_store_port>     AgentSetupStore;
+		std::unique_ptr<adapters::agent::agent_process_launcher> AgentSetupLauncher;
+		std::unique_ptr<worker_executor>                         AgentSetupLane;
+		std::unique_ptr<application::agent_setup_host>           AgentSetup;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

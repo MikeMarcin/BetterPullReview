@@ -2752,5 +2752,106 @@ namespace bpr::application {
 		}
 		return aResult;
 	}
+
+	namespace {
+		/// The longest output of a status or version run that is read.
+		constexpr std::size_t maximum_status_output_bytes = 16U * 1024U;
+
+		[[nodiscard]] auto status_output(const agent_run_result& aResult) -> std::string
+		{
+			auto text = std::string{ };
+			for (const auto& event : aResult.Events) {
+				if (text.size() + event.Text.size() + 1U > maximum_status_output_bytes) {
+					break;
+				}
+				text += event.Text;
+				text += '\n';
+			}
+			return text;
+		}
+
+		/// The first word of the output that reads as a version: a digit, then
+		/// letters, digits, `.`, `+` and `-`, bounded.
+		[[nodiscard]] auto version_word(const std::string_view aOutput) -> std::string
+		{
+			auto position = std::size_t{ 0U };
+			while (position < aOutput.size()) {
+				while (position < aOutput.size() && (aOutput[position] == ' ' || aOutput[position] == '\n' || aOutput[position] == '\t' || aOutput[position] == '\r')) {
+					++position;
+				}
+				const auto begin = position;
+				while (position < aOutput.size() && aOutput[position] != ' ' && aOutput[position] != '\n' && aOutput[position] != '\t' && aOutput[position] != '\r') {
+					++position;
+				}
+				const auto word  = aOutput.substr(begin, position - begin);
+				const auto plain = !word.empty() && word.size() <= core::maximum_agent_version_bytes && word.front() >= '0' && word.front() <= '9'
+					&& std::ranges::all_of(word, [](const char aCharacter) {
+						   return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z')
+							   || aCharacter == '.' || aCharacter == '+' || aCharacter == '-';
+					   });
+				if (plain) {
+					return std::string{ word };
+				}
+			}
+			return { };
+		}
+	} // namespace
+
+	auto build_agent_status_launches(const core::setup_agent aAgent, const core::agent_profile& aProfile, std::string aProgram, const environment_reader& aParent)
+		-> std::optional<agent_status_launches>
+	{
+		if (aAgent == core::setup_agent::plain_text_harness || aProgram.empty() || core::setup_agent_of(aProfile.Protocol) != aAgent) {
+			return std::nullopt;
+		}
+		auto status       = agent_launch_request{ };
+		status.Protocol   = core::agent_protocol::external_terminal;
+		status.Session    = core::agent_session_id{ 1U };
+		status.Executable = std::move(aProgram);
+		status.Arguments  = aAgent == core::setup_agent::claude_code ? std::vector<std::string>{ "auth", "status", "--json" } : std::vector<std::string>{ "login", "status" };
+		// Not a review: no workspace, no context, an empty folder of its own.
+		status.WritingOnly = true;
+		status.Environment = materialize_agent_environment(aProfile, aParent);
+		auto version       = status;
+		version.Arguments  = { "--version" };
+		auto launches      = agent_status_launches{ };
+		launches.Status    = std::move(status);
+		launches.Version   = std::move(version);
+		return launches;
+	}
+
+	auto decode_agent_status(const core::setup_agent aAgent, const agent_run_result& aStatus, const agent_run_result& aVersion) -> core::agent_status_check
+	{
+		auto       check = core::agent_status_check{ };
+		const auto ran   = [](const agent_run_result& aResult) {
+			return aResult.Outcome == agent_run_outcome::success || aResult.Outcome == agent_run_outcome::nonzero_exit;
+		};
+		if (!ran(aStatus)) {
+			return check;
+		}
+		const auto output = status_output(aStatus);
+		if (aAgent == core::setup_agent::claude_code) {
+			// `claude auth status` answers JSON by default: {"loggedIn": ...}.
+			auto parsed = bounded_json_parser{ output }.parse();
+			if (parsed && parsed->Kind == json_kind::object_value) {
+				const auto found = std::ranges::find(parsed->Members, std::string_view{ "loggedIn" }, &json_member::Name);
+				if (found != parsed->Members.end() && found->Value.Kind == json_kind::boolean_value) {
+					check.Status = found->Value.Boolean ? core::agent_status::signed_in : core::agent_status::not_signed_in;
+				}
+			}
+		} else if (aAgent == core::setup_agent::codex) {
+			// `codex login status` says "Logged in ..." and exits 0, or "Not
+			// logged in" and exits nonzero; it may write either stream.
+			const auto said = output + aStatus.StandardError.substr(0U, std::min(aStatus.StandardError.size(), maximum_status_output_bytes));
+			if (said.find("Not logged in") != std::string::npos) {
+				check.Status = core::agent_status::not_signed_in;
+			} else if (aStatus.Outcome == agent_run_outcome::success && said.find("Logged in") != std::string::npos) {
+				check.Status = core::agent_status::signed_in;
+			}
+		}
+		if (check.Status == core::agent_status::signed_in && ran(aVersion)) {
+			check.Version = version_word(status_output(aVersion));
+		}
+		return check;
+	}
 #endif
 } // namespace bpr::application

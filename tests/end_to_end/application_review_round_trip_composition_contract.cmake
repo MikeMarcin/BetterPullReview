@@ -1,3 +1,22 @@
+# [[BPR-PENDING-AQ2]] reseal (2026-10-22) over the BPR-PENDING-AQ1 reseal
+# below (067c49fdb), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0091 M2 (owner answers Q2 and Q3 A of 2026-10-22):
+# github_application.cpp, agent builds only, composes the profile's agent
+# setup: adapters::sqlite::make_agent_setup_store over the application data
+# root (agent-setup.sqlite3: the chosen agent, the Codex and plain-text harness
+# programs and Codex's protocol; no credential column), a launcher and worker
+# lane of its own, and application::agent_setup_host, which reads file
+# metadata to detect agents, runs only the chosen agent's own status command
+# and --version, bounded, with the profile's environment allowlist and no
+# review context, and publishes the saved programs to the window's
+# agent_program_source. The host is given this review's host policy beside the
+# agent host's observe, shut down with the window and counted in quiescence.
+# present_agent_setup prefers the saved profile in the Agent panel and in Send
+# to Agent (review_cycle_desktop.{hpp,cpp}: prefer_send_profile keeps the given
+# profiles and their order, the preferred one first). No grant, target,
+# provider, credential, child environment, mutation or publication path
+# changes; host policy unchanged; no new src/app source. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-PENDING-AQ1]] reseal (2026-10-22) over last matching main 92162efed,
 # linear, on this card's commit. Pinned-scope change, RFC-BPR-0091 Q5 (owner,
 # 2026-10-22): github_application.cpp, agent builds only, puts

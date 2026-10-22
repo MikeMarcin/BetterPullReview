@@ -118,6 +118,27 @@ namespace {
 			"and nothing else left the surface");
 	}
 
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. The profile setup saved is
+	/// selected when offered, and again when the profiles are offered anew.
+	void test_the_saved_profile_is_preferred()
+	{
+		auto       recorded = recorder{ };
+		auto       panel    = qt::agent_launch_panel{ recorded.sink() };
+		const auto shipped  = core::built_in_agent_profiles();
+		const auto claude   = QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value());
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentIndex() == 0, "with none saved the first offered profile is selected, as before");
+		panel.prefer_profile(core::claude_stream_json_profile_id);
+		expect(panel.profile_selector()->currentData() == claude, "an offered saved profile is selected at once");
+		panel.profile_selector()->setCurrentIndex(0);
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == claude, "offered again, the saved profile is the one selected");
+		panel.prefer_profile(std::nullopt);
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentIndex() == 0, "cleared, the first offered profile is selected again");
+		expect(recorded.Intents.empty(), "preferring a profile emits no intent");
+	}
+
 	/// \brief Disclosure comes before the action, not after.
 	void test_the_scope_is_shown_before_launch_is_possible()
 	{
@@ -474,6 +495,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_the_panel_only_emits_intents();
+	test_the_saved_profile_is_preferred();
 	test_the_scope_is_shown_before_launch_is_possible();
 	test_cancellation_is_a_distinct_action();
 	test_existing_checkout_is_off_by_default();

@@ -26,7 +26,7 @@ namespace {
 		expect(profile_data_store_area("epoch-catalog") == area::caches, "the comparison history catalog is a cache");
 		expect(profile_data_store_area("markdown-images") == area::caches, "body images are a cache");
 		expect(profile_data_store_area("review-overviews") == area::caches, "Home's summaries are a cache");
-		for (const auto store : { "appearance-settings", "workbench-settings", "diagnostic-preferences", "window-restoration" }) {
+		for (const auto store : { "appearance-settings", "workbench-settings", "diagnostic-preferences", "agent-setup", "window-restoration" }) {
 			expect(profile_data_store_area(store) == area::settings, "settings stores are settings");
 		}
 		for (const auto store : { "review-ledger", "review-tours", "review-cycles", "review-mutation-recovery" }) {

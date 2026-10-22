@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-PENDING-AQ2"
 title: "The host detects the agents when setup shows, checks the chosen one and keeps the choice"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0091"]
 depends_on: ["BPR-PENDING-AQ1"]
 priority: "P2"

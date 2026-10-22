@@ -91,6 +91,10 @@ namespace bpr::qt {
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
 		void offer_profiles(std::span<const core::agent_profile> aProfiles);
+		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. The profile setup saved:
+		/// selected now when offered, and whenever profiles are offered again.
+		/// Absent, the first offered profile is selected, as before.
+		void prefer_profile(std::optional<core::agent_profile_id> aProfile);
 		/// \brief Offers only opaque current private-context identities, unchecked.
 		void offer_private_context(
 			std::span<const application::local_note_id>    aNotes,
@@ -140,9 +144,11 @@ namespace bpr::qt {
 	private:
 		void update_actions();
 
-		std::function<void()>                          ConfigurationObserver;
-		agent_intent_dispatch                          Dispatch;
-		QComboBox*                                     ProfileSelector        = nullptr;
+		std::function<void()> ConfigurationObserver;
+		agent_intent_dispatch Dispatch;
+		QComboBox*            ProfileSelector = nullptr;
+		/// [[BPR-PENDING-AQ2]]. Selected whenever it is offered.
+		std::optional<core::agent_profile_id>          PreferredProfile;
 		QAction*                                       StartAction            = nullptr;
 		QAction*                                       CancelAction           = nullptr;
 		QAction*                                       ExistingCheckoutAction = nullptr;

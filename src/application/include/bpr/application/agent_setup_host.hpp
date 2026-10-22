@@ -1,0 +1,131 @@
+#ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_HOST_HPP
+#define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_HOST_HPP
+
+#include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_program_resolution.hpp"
+#include "bpr/application/agent_setup_preferences.hpp"
+#include "bpr/application/claude_process_wrapper.hpp"
+#include "bpr/application/port.hpp"
+#include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_setup.hpp"
+
+#include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
+
+namespace bpr::application {
+	/// \brief What the presentation is given, as values.
+	struct agent_setup_projection
+	{
+		core::agent_setup_state State;
+		core::setup_step        Step = core::setup_step::agent;
+		/// The agents a search looked for under the current host's policy;
+		/// the none-found state names these.
+		std::vector<core::setup_agent> Searched;
+		agent_setup_preferences        Preferences;
+		/// Detection has run at least once since setup showed.
+		bool Detected  = false;
+		bool Detecting = false;
+		bool Checking  = false;
+		/// Bounded text for Show details after a failed check: the run's
+		/// outcome name and its last output.
+		std::string CheckDetail;
+		/// Raised by every published change.
+		std::uint64_t Generation = 0U;
+
+		auto operator<=>(const agent_setup_projection&) const = default;
+	};
+
+	using agent_setup_sink = std::function<void(const agent_setup_projection&)>;
+
+	/// \brief The longest a status or version run may take, in milliseconds.
+	inline constexpr int agent_status_timeout_milliseconds = 15'000;
+
+	/// \brief The longest a check's details may be, in bytes.
+	inline constexpr std::size_t maximum_agent_check_detail_bytes = 4U * 1024U;
+
+	/// \brief Everything one setup host uses, named.
+	struct agent_setup_dependencies
+	{
+		agent_setup_store_port* Store = nullptr;
+		/// The check's own process port, never the agent host's.
+		agent_process_port*                                  Process = nullptr;
+		agent_program_locator                                Locate;
+		agent_wrapper_inspector                              Inspect;
+		std::shared_ptr<const claude_process_wrapper_source> ClaudeWrapper;
+		/// Written whenever the saved programs change, so every launch of the
+		/// window runs what setup saved.
+		std::shared_ptr<agent_program_source> Programs;
+		environment_reader                    Parent;
+		std::vector<core::agent_profile>      Profiles;
+		/// Metadata reads and store writes.
+		effect_executor* Effects = nullptr;
+		/// The check's runs, which may take their whole bound: a lane of
+		/// their own, so they never hold up other effects.
+		effect_executor*   Checks   = nullptr;
+		decision_executor* Decision = nullptr;
+		agent_setup_sink   Publish;
+	};
+
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091 M2. The host half of agent
+	/// setup: detection, the bounded status check and the saved choice.
+	///
+	/// \details State lives on the decision lane. Detection (Q2) reads file
+	/// metadata on the effect lane and starts no process: the saved Claude
+	/// wrapper, Codex program and harness program are inspected again, and
+	/// `claude` and `codex` are looked for when none is saved. The check
+	/// (Q3 A) runs the chosen agent's own status command and `--version` on
+	/// the check lane through the host's own process port, each bounded by
+	/// `agent_status_timeout_milliseconds`, with no review context; Stop
+	/// cancels it. The plain-text harness has no status command: its check
+	/// passes when its program can be run. The core decides rows, the choice
+	/// and the step; this host never rewrites a verdict.
+	///
+	/// The choice is saved when the reviewer makes it and when a check of an
+	/// agent setup chose passes. Shut down, then wait for quiescence, before
+	/// the store, the process port or any lane ends.
+	class agent_setup_host final
+	{
+	public:
+		explicit agent_setup_host(agent_setup_dependencies aDependencies);
+		~agent_setup_host();
+		agent_setup_host(const agent_setup_host&)                    = delete;
+		auto operator=(const agent_setup_host&) -> agent_setup_host& = delete;
+
+		/// Reads the stored preferences and publishes the saved programs.
+		void load();
+		/// The current review's host policy; absent when no review is open.
+		void observe_policy(std::optional<core::agent_host_policy> aPolicy);
+		/// Looks for the agents again (Q2, and Look again).
+		void detect();
+		void choose(core::setup_agent aAgent);
+		/// Runs Check it works' agent row.
+		void check();
+		void stop();
+		/// Saves a program path for Codex or the plain-text harness after the
+		/// adapter inspected it; empty clears it. Answers on the decision lane.
+		void set_program(core::setup_agent aAgent, std::string aPath, std::function<void(std::optional<core::agent_wrapper_refusal>)> aAnswered = { });
+		void set_codex_protocol(core::codex_protocol_choice aChoice);
+		/// RFC-BPR-0091 Repository: the repository has a linked clone or a
+		/// recorded choice of the private copy.
+		void set_repository_chosen(bool aChosen);
+		/// RFC-BPR-0091 Check it works: the worktree row's result.
+		void set_workspace_check(core::setup_check aCheck);
+		/// Asks for setup again: the chosen agent stays selected, the checks
+		/// start over and detection runs again.
+		void restart();
+
+		[[nodiscard]] auto projection() const -> agent_setup_projection;
+		void               shutdown() noexcept;
+		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+
+	private:
+		struct implementation;
+		std::shared_ptr<implementation> Implementation;
+	};
+} // namespace bpr::application
+
+#endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_HOST_HPP

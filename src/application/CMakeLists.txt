@@ -142,6 +142,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_comment_workshop_host.cpp
             src/claude_process_wrapper.cpp
             src/agent_program_resolution.cpp
+            src/agent_setup_host.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_realignment.cpp

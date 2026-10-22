@@ -738,3 +738,14 @@ bpr_enable_warnings(test_insights_storage)
 # (Win32 5). The exact measured cause is pinned by the isolation manifest.
 bpr_add_network_isolated_test(NAME sqlite_insights_storage WINDOWS_UNCONTAINED COMMAND test_insights_storage)
 set_tests_properties(sqlite_insights_storage PROPERTIES ENVIRONMENT "TZ=PST8PDT")
+
+# [[BPR-PENDING-AQ2]]. RFC-BPR-0091's agent setup preferences store.
+bpr_add_executable(test_agent_setup_storage agent_setup_storage_tests.cpp)
+target_link_libraries(test_agent_setup_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+bpr_enable_hardening(test_agent_setup_storage)
+if(WIN32)
+    target_link_libraries(test_agent_setup_storage PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_agent_setup_storage)
+bpr_add_network_isolated_test(NAME sqlite_agent_setup_storage WINDOWS_UNCONTAINED COMMAND test_agent_setup_storage)
+set_tests_properties(sqlite_agent_setup_storage PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-storage:pass" TIMEOUT 120)

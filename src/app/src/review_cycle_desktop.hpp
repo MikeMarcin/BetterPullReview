@@ -122,6 +122,10 @@ namespace bpr::app {
 		/// keeping the installed adapter: a course points them at its own
 		/// executables. Nothing changes where no adapter is installed.
 		void set_send_profiles(std::vector<core::agent_profile> aProfiles);
+		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091. The profile setup saved
+		/// is offered first; the others keep their order. Absent, the order is
+		/// the one given.
+		void prefer_send_profile(std::optional<core::agent_profile_id> aProfile);
 		/// \brief Replaces where the account comes from, keeping the catalog.
 		void set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount);
 		/// \brief What this window holds of cycle `aCycle`'s round draft that
@@ -187,6 +191,10 @@ namespace bpr::app {
 		/// [[BPR-1301]]. The supervised launcher, and in front of it the port
 		/// that points a Claude send at the window's profile wrapper.
 		std::unique_ptr<application::agent_process_port> SendLauncher;
+		/// [[BPR-PENDING-AQ2]]. The profiles Send to Agent offers, as given,
+		/// and the one setup saved, offered first.
+		std::vector<core::agent_profile>      SendProfiles;
+		std::optional<core::agent_profile_id> PreferredSendProfile;
 		/// [[BPR-PENDING-AQ1]]. The Claude wrapper's port, in front of which
 		/// `SendProcesses` gives Codex and the plain-text harness a program.
 		std::unique_ptr<application::agent_process_port>     SendClaude;

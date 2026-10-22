@@ -14,6 +14,7 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "appearance-settings" }, area::settings },
 			std::pair{ std::string_view{ "workbench-settings" }, area::settings },
 			std::pair{ std::string_view{ "diagnostic-preferences" }, area::settings },
+			std::pair{ std::string_view{ "agent-setup" }, area::settings },
 			std::pair{ std::string_view{ "window-restoration" }, area::settings },
 			std::pair{ std::string_view{ "review-ledger" }, area::review_data },
 			std::pair{ std::string_view{ "review-tours" }, area::review_data },

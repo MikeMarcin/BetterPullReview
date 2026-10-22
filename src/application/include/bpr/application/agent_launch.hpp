@@ -7,6 +7,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_setup.hpp"
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -559,6 +560,36 @@ namespace bpr::application {
 		const core::agent_session&          aSession,
 		const core::agent_revision_binding& aObserved,
 		core::agent_run_id                  aExpectedRun = { }) -> agent_run_result;
+
+	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0091 Q3 A. The two runs of one
+	/// setup check: the agent's own status command and its `--version`.
+	struct agent_status_launches
+	{
+		agent_launch_request Status;
+		agent_launch_request Version;
+	};
+
+	/// \brief Builds the setup check's launches of `aProgram`, the absolute
+	/// program setup found for `aAgent`.
+	///
+	/// \details `claude auth status --json`, or `codex login status`, and then
+	/// `--version`. Neither carries a question, a supplement or a review: no
+	/// input, no workspace, the profile's own environment allowlist, and an
+	/// empty folder of its own as the working directory, as tool-free writing
+	/// runs. Their output is read as plain lines. Nothing for the plain-text
+	/// harness, which has no status command, or for a profile of another
+	/// agent.
+	[[nodiscard]] auto build_agent_status_launches(core::setup_agent aAgent, const core::agent_profile& aProfile, std::string aProgram, const environment_reader& aParent)
+		-> std::optional<agent_status_launches>;
+
+	/// \brief Decodes what the status run said, at the process boundary.
+	///
+	/// \details Claude answers JSON with a boolean `loggedIn`; Codex says
+	/// "Logged in" and exits zero, or "Not logged in". Anything else, a run
+	/// that did not finish, and a malformed answer are `unreadable`, never
+	/// taken as signed in. A signed-in check keeps the version run's first
+	/// word that reads as a version, bounded, or none.
+	[[nodiscard]] auto decode_agent_status(core::setup_agent aAgent, const agent_run_result& aStatus, const agent_run_result& aVersion) -> core::agent_status_check;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP

@@ -209,11 +209,26 @@ namespace bpr::qt {
 				QString::fromStdString(profile.DisplayName),
 				QVariant::fromValue<qulonglong>(profile.Id.value()));
 		}
-		// A placeholder keeps QComboBox at -1; retain the offered first choice.
+		// A placeholder keeps QComboBox at -1; retain the offered first choice,
+		// or the profile setup saved when it is offered.
 		if (!aProfiles.empty()) {
-			ProfileSelector->setCurrentIndex(0);
+			const auto preferred = PreferredProfile ? ProfileSelector->findData(QVariant::fromValue<qulonglong>(PreferredProfile->value())) : -1;
+			ProfileSelector->setCurrentIndex(preferred >= 0 ? preferred : 0);
 		}
 		update_actions();
+	}
+
+	void agent_launch_panel::prefer_profile(const std::optional<core::agent_profile_id> aProfile)
+	{
+		PreferredProfile = aProfile;
+		if (!aProfile) {
+			return;
+		}
+		const auto index = ProfileSelector->findData(QVariant::fromValue<qulonglong>(aProfile->value()));
+		if (index >= 0 && index != ProfileSelector->currentIndex()) {
+			ProfileSelector->setCurrentIndex(index);
+			update_actions();
+		}
 	}
 
 	void agent_launch_panel::offer(
