@@ -4063,6 +4063,11 @@ namespace bpr::qt {
 		SelectionSink = std::move(aSink);
 		emit_selection();
 	}
+	void diff_workbench::set_line_reselection_sink(line_reselection_sink aSink)
+	{
+		LineReselectionSink = std::move(aSink);
+	}
+
 	void diff_workbench::set_reading_gesture_sink(std::function<void()> aSink)
 	{
 		ReadingGestureSink = std::move(aSink);
@@ -5547,8 +5552,14 @@ namespace bpr::qt {
 		}
 		if (!changed && selected && aReportUnchangedInteraction) {
 			// Choosing the displayed line also supersedes deferred restoration.
+			const auto repeated = Interaction.Selection;
 			emit_reading_gesture();
 			emit_selection_observer(true);
+			if (repeated && repeated == Interaction.Selection && LineReselectionSink) {
+				try {
+					LineReselectionSink(*repeated);
+				} catch (...) { }
+			}
 		}
 		return selected;
 	}

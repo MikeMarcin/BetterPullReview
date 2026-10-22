@@ -1859,6 +1859,12 @@ namespace {
 		auto       externalCalls         = 0U;
 		auto       observerCalls         = 0U;
 		auto       readingGestures       = 0U;
+		auto       reselections          = 0U;
+		auto       repeatedSelection     = std::optional<core::semantic_selection>{ };
+		workbench.set_line_reselection_sink([&](const core::semantic_selection& aSelection) {
+			++reselections;
+			repeatedSelection = aSelection;
+		});
 		workbench.set_reading_gesture_sink([&readingGestures] { ++readingGestures; });
 		workbench.set_selection_sink([&externalCalls](const auto&) {
 			++externalCalls;
@@ -1922,10 +1928,12 @@ namespace {
 		expect(externalCalls == externalBeforeSameLine
 				   && observerCalls == observerBeforeSameLine + 1U
 				   && readingGestures == gesturesBeforeSameLine + 1U,
-			   "an unchanged anchored-line click reports only the Qt-local gesture");
+			   "an unchanged anchored-line click leaves the semantic sink unchanged and reports the Qt-local gesture");
+		expect(reselections == 1U && repeatedSelection == workbench.selection(), "the explicit same-line choice reports its exact selection on the separate gesture sink");
 
 		workbench.scroll_controller()->end();
 		const auto farPosition = workbench.scroll_controller()->position();
+		expect(reselections == 1U, "scrolling is not another choice of the selected line");
 		expect(workbench.reveal_conversation_line(core::diff_side::right, 2U)
 				   && workbench.scroll_controller()->position() < farPosition,
 			   "reselecting the already-selected drawer line still performs the exact reveal");

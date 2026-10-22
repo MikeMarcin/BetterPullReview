@@ -227,6 +227,8 @@ namespace bpr::qt {
 			const std::optional<core::semantic_selection>&,
 			bool)>;
 
+		using line_reselection_sink = std::function<void(const core::semantic_selection&)>;
+
 		explicit diff_workbench(QWidget* aParent = nullptr);
 		~diff_workbench() override;
 
@@ -245,6 +247,9 @@ namespace bpr::qt {
 		void clear(QString aStatus = { });
 		/// \brief Publishes exact semantic selections for application binding.
 		void set_selection_sink(selection_sink aSink);
+		/// \brief Reports an explicit choice of an already selected line.
+		/// \details Restoration and scrolling do not report this gesture.
+		void set_line_reselection_sink(line_reselection_sink aSink);
 		/// \brief Reports explicit reading gestures before the accepted selection sink.
 		void set_reading_gesture_sink(std::function<void()> aSink);
 		/// \brief Observes Qt-local selections without replacing the application sink.
@@ -763,6 +768,7 @@ namespace bpr::qt {
 		std::optional<core::line_detail_input>           CurrentDetail;
 		core::diff_interaction_state                     Interaction;
 		selection_sink                                   SelectionSink;
+		line_reselection_sink                            LineReselectionSink;
 		std::function<void()>                            ReadingGestureSink;
 		std::optional<core::source_line_ref>             RestoredReadingLine;
 		std::optional<core::source_line_ref>             PresentationReadingLine;

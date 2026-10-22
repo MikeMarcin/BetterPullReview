@@ -464,3 +464,35 @@ Focused clang-tidy 22 exposed two pre-existing `std::endl` warnings in this
 fixture's optional case tracing. They now spell the same newline and explicit
 flush separately; trace timing and pipe delivery remain unchanged. Focused tidy
 passes with warnings as errors, and both inventory source seals are renewed.
+
+## A draft after reselecting the retained line
+
+The native start-review failure has matching application and surface selection
+on line 3, no editable draft and no pending work after its publication reread.
+Choosing that unchanged line reports no semantic selection delta, so it never
+retried the missing draft. Failure-only observations and original predicates
+are retained externally.
+
+A separate Qt callback now reports explicit same-line choices, with the exact
+selection copied before feedback and discarded if feedback changed it. The
+existing semantic-selection sink and reading gestures keep their contracts.
+The application invokes its existing draft presenter only for the exact line
+both layers still hold, with no draft, publication, draft operation or tab load
+pending. Scrolling and restoration do not request that retry. No widget gains
+an effect or draft policy. The Qt unit checks the exact gesture and preserves
+the existing assertion that the semantic sink receives no duplicate delta.
+
+A broader reading-gesture retry was rejected: although start-review passed,
+Windows restoration lost the new selected line. That experiment is retained
+externally and was removed before this slice. With the separate callback,
+normal Mac unit, start-review, line-draft and full restoration courses pass
+(8.69, 15.68, 8.62 and 194.25 seconds). Native Windows counterparts pass in
+12.34, 25.72, 14.77 and 295.76 seconds. The normal application image excludes
+the temporary Home geometry trace. App composition source pins are renewed;
+the mutation inventory is unchanged, and its direct-bypass counterexamples
+pass on both hosts. Only the revalidated restoration family's application
+input seal is renewed; other stale families remain exclusive.
+
+This slice does not close Home's separate native selection-colour failure or
+the retained startup timing failure. Complete common-source Release and Debug
+qualification and artifact, trust and publication obligations remain open.

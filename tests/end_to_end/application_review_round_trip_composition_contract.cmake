@@ -2013,7 +2013,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"d3e992ad699f036982c3d507b05fb78ecf70b69adac3d9e7ab336aebbbc3ba8f"
+		"777150d62bc2b381c740dd1ef150be933290577732c54c6693d7778fc5ce7f2c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2237,7 +2237,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "7ee72605c0f6999152db2f6933a9f6b736d236bffb6537c6c16e911329ea890d"
+        "b15421f3cef78d5bc05d15c58923d696ca69908a37afb760f20eb8e4c3ed9c5c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

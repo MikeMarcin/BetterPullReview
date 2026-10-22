@@ -979,7 +979,7 @@
     },
     {
       "source": "tests/adapters_qt/diff_workbench_tests.cpp",
-      "sha256": "38c89d6916f3c99e5fc87386107ce7f08a0e83b0d1f387289f44817e5566a280",
+      "sha256": "3d4bac15c7981d666b34ecf06d8165901f53babcdf48317bd6d1ebdd0ef7a48c",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -1530,7 +1530,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "d3e992ad699f036982c3d507b05fb78ecf70b69adac3d9e7ab336aebbbc3ba8f"
+          "sha256": "777150d62bc2b381c740dd1ef150be933290577732c54c6693d7778fc5ce7f2c"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",

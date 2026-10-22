@@ -8377,6 +8377,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					observe_tab_reading();
 					schedule_tab_presentation();
 				});
+			Window->comparison_surface()->set_line_reselection_sink([this](const core::semantic_selection& aSelection) {
+				// An unused draft can be retired by a reread that keeps its
+				// selected line. Re-choosing that exact line retries the normal
+				// presenter, after tab restoration and pending draft work end.
+				const auto selection = std::optional{ aSelection };
+				if (!Closing && !PendingReviewMutation && !PrivateDraftCommandPending && !PrivateDraftSelectionPending
+					&& !TabLoad && !ReviewDraft && selection == SelectedSemanticSelection
+					&& Window->comparison_surface()->selection() == selection) {
+					present_review_draft(aSelection);
+				}
+			});
 			Window->comparison_surface()->set_reading_gesture_sink([this] {
 				cancel_restoration(false, true);
 				// A line can be chosen on the exact displayed diff before
