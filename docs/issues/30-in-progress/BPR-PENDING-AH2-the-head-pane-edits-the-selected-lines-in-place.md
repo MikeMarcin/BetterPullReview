@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-PENDING-AH2"
 title: "The head pane edits the selected lines in place with the shared editor"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0090"]
 depends_on: ["BPR-PENDING-AH1"]
 priority: "P2"
