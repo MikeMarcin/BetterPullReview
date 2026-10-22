@@ -94,6 +94,11 @@ namespace bpr::qt {
 		saveRepository->setObjectName(QStringLiteral("desktopSavePullRequestRepositoryAction"));
 		saveRepository->setEnabled(false);
 		PullRequestMenu->addSeparator();
+		// BPR-1694: retain BPR-1699's window command when the last window closes.
+		auto* const markAllRead = PullRequestMenu->addAction(QStringLiteral("&Mark All Comments as Read"));
+		markAllRead->setObjectName(QStringLiteral("desktopMarkAllCommentsReadAction"));
+		markAllRead->setEnabled(false);
+		PullRequestMenu->addSeparator();
 		auto* const composeReview = PullRequestMenu->addAction(tr("Compose &review"));
 		composeReview->setObjectName(QStringLiteral("desktopComposeReviewAction"));
 		composeReview->setShortcuts(shortcut_keys(shortcut_command::compose_review));

@@ -398,3 +398,21 @@ destination, reading and retained-object equalities remain. The temporary
 source was restored byte-for-byte before applying this intentional fixture
 repair. Native Windows confirmation and corrected final qualification remain
 pending; no previous failure is converted into a pass.
+
+## Windowless menu parity
+
+The full macOS Qt parity and native last-window-close courses both expose the
+same missing command: the window has BPR-1699's Mark All Comments as Read,
+but the resident desktop bar omitted it. The desktop now retains that exact
+command and separator in the window's order, disabled while no window is open.
+It has no dispatch or shortcut. Existing composition and tour keys remain exact.
+
+Applied the frontend-design skill for this presentation repair, preserving the
+approved native vocabulary, palette, fonts and geometry. This restores the
+existing command contract without introducing a new design. The unit's exact
+order, key and disabled-action checks include the inserted command; all shifted
+action references were updated. Native menu parity passes in 6.65 seconds and
+the complete Qt profile-management unit passes in 0.81 seconds. Focused
+clang-format 22 and clang-tidy 22 with warnings as errors pass. App composition
+pins and mutation policy are unchanged. Final combined native qualification
+and the separate Windows failures remain outstanding.

@@ -507,17 +507,19 @@ namespace {
 		}
 		expect(pullRequest->accessibleDescription().endsWith(QStringLiteral("unavailable while no window is open")),
 			   "and the menu says why none of them acts");
-		expect(pullRequestActions.size() == 9 && pullRequestActions[0]->text() == QStringLiteral("Open on &GitHub")
+		expect(pullRequestActions.size() == 11 && pullRequestActions[0]->text() == QStringLiteral("Open on &GitHub")
 				   && pullRequestActions[0]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+O") }
 				   && pullRequestActions[1]->isSeparator()
 				   && pullRequestActions[2]->text() == QStringLiteral("&Follow")
 				   && pullRequestActions[3]->text() == QStringLiteral("&Save Repository")
 				   && pullRequestActions[4]->isSeparator()
-				   && pullRequestActions[5]->text() == QStringLiteral("Compose &review")
-				   && pullRequestActions[6]->text() == QStringLiteral("Co&mment")
-				   && pullRequestActions[7]->text() == QStringLiteral("Prepare review &tour")
-				   && pullRequestActions[8]->text() == QStringLiteral("Add tour stop"),
-			   "with Open on GitHub, Follow, Save Repository, composition and the review tour");
+				   && pullRequestActions[5]->text() == QStringLiteral("&Mark All Comments as Read")
+				   && pullRequestActions[6]->isSeparator()
+				   && pullRequestActions[7]->text() == QStringLiteral("Compose &review")
+				   && pullRequestActions[8]->text() == QStringLiteral("Co&mment")
+				   && pullRequestActions[9]->text() == QStringLiteral("Prepare review &tour")
+				   && pullRequestActions[10]->text() == QStringLiteral("Add tour stop"),
+			   "with Open on GitHub, Follow, Save Repository, Mark All Comments as Read, composition and the review tour");
 		expect(std::ranges::none_of(pullRequestActions, [](const QAction* const aAction) { return !aAction->isSeparator() && aAction->isEnabled(); }),
 			   "none actionable with no pull request open");
 
@@ -534,9 +536,9 @@ namespace {
 				   && fileActions[2]->text() == QStringLiteral("Close Tab") && !fileActions[2]->isEnabled(),
 			   "File retains Open Project… and Close Tab after Quit, disabled with no window");
 		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
-				   && pullRequestActions[5]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
-				   && pullRequestActions[6]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
-				   && viewActions[18]->shortcut().isEmpty(),
+				   && pullRequestActions[7]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
+				   && pullRequestActions[8]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
+				   && pullRequestActions[5]->shortcut().isEmpty() && viewActions[18]->shortcut().isEmpty(),
 			   "Close Tab and composition retain their keys, and Updates Line claims none");
 #if defined(Q_OS_MACOS)
 		expect(viewActions[24]->shortcut() == QKeySequence{ QStringLiteral("Meta+Tab") }
@@ -547,7 +549,7 @@ namespace {
 				   && viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[5], pullRequestActions[6], pullRequestActions[7], pullRequestActions[8], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
+		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[5], pullRequestActions[7], pullRequestActions[8], pullRequestActions[9], pullRequestActions[10], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
