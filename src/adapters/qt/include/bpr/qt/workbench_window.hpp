@@ -2003,6 +2003,25 @@ namespace bpr::qt {
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
 		/// it would, so the draft a card starts anchors on the thread's line.
 		[[nodiscard]] auto select_thread_line(const std::string& aIdentity) -> bool;
+		/// [[BPR-0657]]. Where a thread's reply would be anchored, as the
+		/// conversation panel holds it.
+		struct thread_reply_anchor
+		{
+			QString                        Path;
+			std::optional<core::diff_side> Side;
+			std::uint64_t                  Line    = 0U;
+			bool                           Current = false;
+			bool                           Known   = false;
+		};
+		[[nodiscard]] auto thread_reply_anchor_of(const std::string& aIdentity) const -> thread_reply_anchor;
+		/// [[BPR-PENDING-AS]]. Says why a thread's reply cannot start, in
+		/// words that are true of it, and offers Show in code when its own
+		/// file would let it.
+		void refuse_thread_reply(const std::string& aIdentity);
+		/// [[BPR-PENDING-AS]]. Takes a reply's refusal back once it may no
+		/// longer be true: a reply starts, a pick opens its thread, Show in
+		/// code is used or the modality changes.
+		void clear_reply_refusal();
 		/// [[BPR-1046]]. Whether the comparison of a current thread's own file
 		/// has been asked for and has not arrived, so its line cannot be
 		/// selected yet but will be.
@@ -2604,9 +2623,13 @@ namespace bpr::qt {
 		void resume_pending_comment_open();
 		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
 		/// cleared, until the reviewer changes one or picks again.
-		bool         ThreadsRevealNotice = false;
-		QVBoxLayout* ConversationLayout  = nullptr;
-		QScrollArea* ComposeReviewPage   = nullptr;
+		bool ThreadsRevealNotice = false;
+		/// [[BPR-PENDING-AS]]. The notice says why a reply was refused. It
+		/// stayed after the thread opened in Review, and said the reviewer
+		/// was not in the code while they were.
+		bool         ReplyRefusalShown  = false;
+		QVBoxLayout* ConversationLayout = nullptr;
+		QScrollArea* ComposeReviewPage  = nullptr;
 		/// [[BPR-1590]]. Finish your review over the surface, and whether it is
 		/// open; the review composer lives in it or in the expanded page.
 		compose_review_sheet* ReviewSheet     = nullptr;

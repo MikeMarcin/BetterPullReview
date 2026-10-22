@@ -783,6 +783,60 @@ namespace {
 			   "an unavailable comparison removes the excerpt");
 	}
 
+	/// [[BPR-PENDING-AS]]. The owner, 2026-10-22: "Much like the code window
+	/// I want to be able to scroll the comments drawer up until only the last
+	/// line is visible." The drawer's End leaves its last note's last line at
+	/// the top and Home goes back; Discuss's feed still ends at its last note.
+	/// An open thread with no line to hang from takes the wheel before the
+	/// code does, however much the code could take.
+	auto test_the_drawer_scrolls_past_its_end() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 600);
+		view.show();
+		view.adopt({ thread("t1", "src/a.cpp", 3U), reply("p1", "t1", "author", "a short post"),
+					 thread("t2", "src/a.cpp", 9U), reply("p2", "t2", "author", "another short post") });
+		QApplication::processEvents();
+		auto* const bar    = view.verticalScrollBar();
+		const auto  line   = view.fontMetrics().lineSpacing();
+		const auto  lowest = std::ranges::max(view.cards(), { }, [](const qt::thread_card& aCard) { return aCard.Rect.bottom(); }).Rect.bottom();
+		expect(lowest < view.viewport()->height() && bar->maximum() == lowest - 2 * line,
+			   "notes shorter than the drawer still scroll until the last note's last line is at the top");
+		const auto press = [&view](const int aKey) {
+			auto key = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(&view, &key);
+			QApplication::processEvents();
+		};
+		press(Qt::Key_End);
+		expect(bar->value() == bar->maximum() && lowest - bar->value() == 2 * line, "End goes to the drawer's end, its last line at the top");
+		press(Qt::Key_Home);
+		expect(bar->value() == 0, "Home goes back to the top");
+
+		// An open thread that hangs from no line (none here: no comparison
+		// places it) moves on the wheel even while the code takes every step.
+		auto forwarded = 0;
+		view.set_scroll_forward([&forwarded](QWheelEvent&) {
+			++forwarded;
+			return true;
+		});
+		view.open_thread("t1");
+		QApplication::processEvents();
+		const auto centre = QPointF{ view.viewport()->rect().center() };
+		auto       wheel  = QWheelEvent{ centre, view.viewport()->mapToGlobal(centre), QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(view.viewport(), &wheel);
+		expect(bar->value() > 0 && forwarded == 0, "the notes take the wheel first for a thread that does not move with the code");
+		for (auto step = 0; step < 100; ++step) {
+			auto more = QWheelEvent{ centre, view.viewport()->mapToGlobal(centre), QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(view.viewport(), &more);
+		}
+		expect(bar->value() == bar->maximum() && forwarded > 0, "and the code only what the notes cannot take");
+
+		view.set_feed(true);
+		view.adopt({ thread("t1", "src/a.cpp", 3U), reply("p1", "t1", "author", "a short post") });
+		QApplication::processEvents();
+		expect(bar->maximum() == 0, "Discuss's feed, shorter than its view, does not scroll");
+	}
+
 	// [[BPR-1270]]. The excerpt is set in the code font the view was handed.
 	auto test_the_excerpt_follows_the_supplied_code_font() -> void
 	{
@@ -2182,6 +2236,7 @@ auto main(int argc, char** argv) -> int
 	test_alternating_widths_keep_both_widths_measured();
 	test_discuss_geometry_refresh_updates_excerpts();
 	test_the_excerpt_follows_the_supplied_code_font();
+	test_the_drawer_scrolls_past_its_end();
 	test_cached_geometry_matches_a_fresh_view();
 	test_a_dispatch_that_relays_out_still_names_the_pressed_thread();
 	test_discuss_new_counts_share_one_column();

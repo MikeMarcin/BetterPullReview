@@ -731,6 +731,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto aligned() const noexcept -> bool;
 		[[nodiscard]] auto closed_measure_of(const thread_card& aCard) const -> const closed_measure*;
 		void               place_cards(bool aForce);
+		/// \brief [[BPR-PENDING-AS]]. Sets the notes' scroll range from the
+		/// content's height. The drawer scrolls past its end as the code
+		/// panes do ([[BPR-1291]]), until only its last note's last line is
+		/// at the top; Discuss's feed ends with its last note at the bottom.
+		void set_scroll_range();
+		/// \brief [[BPR-PENDING-AS]]. Whether the open thread hangs from its
+		/// line, and so moves with the code; true with none open.
+		[[nodiscard]] auto open_thread_hangs() const -> bool;
 		void               place_open_card();
 		void               sync_edges();
 		void               sync_pull_request_edge();
@@ -746,7 +754,10 @@ namespace bpr::qt {
 		/// \brief Brings what is being read in an open thread into view: the
 		/// notes' own overflow in Discuss, the code (which the drawer follows)
 		/// in Review, as a wheel over the notes would.
-		void               reveal_reading(const QRect& aViewportRect);
+		void reveal_reading(const QRect& aViewportRect);
+		/// \brief Brings a control of the open thread into view, or a text's
+		/// caret rather than all of it.
+		void               reveal_focus(QWidget& aWidget);
 		[[nodiscard]] auto card_index(const std::string& aId) const -> std::optional<std::size_t>;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
 		[[nodiscard]] auto to_viewport(QRect aContentRect) const -> QRect;

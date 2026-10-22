@@ -6,6 +6,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
@@ -569,7 +570,7 @@ namespace bpr::qt {
 			action->setToolTip(aEnabled ? action->text() : aReason);
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
-		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card), tr("This thread has no current code anchor. Open its current comparison before replying."));
+		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card), tr("This thread's line isn't in the code shown, so it can't take a reply here."));
 		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
 																   std::ranges::any_of(card.Posts, [](const card_post& aPost) { return !aPost.Mine; }));
 		add(readAction == core::conversation_read_action::mark_read ? card_action::mark_read : card_action::mark_unread,
@@ -2442,9 +2443,7 @@ namespace bpr::qt {
 			// The notes take only what the code cannot give them: the foot of a
 			// thread taller than what is left below its line.
 			ContentHeight = lowest + note_margin;
-			verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
-			verticalScrollBar()->setPageStep(viewport()->height());
-			verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
+			set_scroll_range();
 		} else {
 			auto bottom   = PullRequestComments ? edge_band : 4;
 			auto lastPath = QString{ };
@@ -2463,13 +2462,31 @@ namespace bpr::qt {
 				first  = false;
 			}
 			ContentHeight = bottom + note_margin;
-			verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
-			verticalScrollBar()->setPageStep(viewport()->height());
-			verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
+			set_scroll_range();
 		}
 		place_open_card();
 		sync_edges();
 		viewport()->update();
+	}
+
+	void conversation_cards_view::set_scroll_range()
+	{
+		// [[BPR-PENDING-AS]]. The owner, 2026-10-22: "Much like the code
+		// window I want to be able to scroll the comments drawer up until only
+		// the last line is visible." The furthest position leaves the last
+		// note's last line, and the inset under it, at the top.
+		const auto line    = fontMetrics().lineSpacing();
+		const auto overrun = std::max(0, ContentHeight - viewport()->height());
+		const auto pastEnd = Feed ? 0 : std::max(0, ContentHeight - note_margin - 2 * line);
+		verticalScrollBar()->setRange(0, std::max(overrun, pastEnd));
+		verticalScrollBar()->setPageStep(viewport()->height());
+		verticalScrollBar()->setSingleStep(line);
+	}
+
+	auto conversation_cards_view::open_thread_hangs() const -> bool
+	{
+		const auto open = card_index(Open);
+		return !open.has_value() || Cards[*open].Placed;
 	}
 
 	void conversation_cards_view::place_open_card()
@@ -3009,6 +3026,25 @@ namespace bpr::qt {
 	{
 		QAbstractScrollArea::resizeEvent(aEvent);
 		relayout();
+		// [[BPR-PENDING-AS]]. A notice under the drawer takes its height from
+		// it: the open thread's focused control stays in view rather than
+		// going under the notice, as the Reply field went under a refusal.
+		if (aEvent->size().height() < aEvent->oldSize().height() && OpenCard != nullptr) {
+			if (auto* const focus = QApplication::focusWidget(); focus != nullptr && OpenCard->isAncestorOf(focus)) {
+				reveal_focus(*focus);
+			}
+		}
+	}
+
+	void conversation_cards_view::reveal_focus(QWidget& aWidget)
+	{
+		auto area = QRect{ aWidget.mapTo(viewport(), QPoint{ 0, 0 }), aWidget.size() };
+		if (const auto* const text = qobject_cast<const QTextEdit*>(&aWidget); text != nullptr) {
+			area = QRect{ text->viewport()->mapTo(viewport(), text->cursorRect().topLeft()), text->cursorRect().size() };
+		} else if (const auto* const source = qobject_cast<const QPlainTextEdit*>(&aWidget); source != nullptr) {
+			area = QRect{ source->viewport()->mapTo(viewport(), source->cursorRect().topLeft()), source->cursorRect().size() };
+		}
+		reveal_reading(area);
 	}
 
 	// ------------------------------------------------------------- gestures
@@ -3310,8 +3346,16 @@ namespace bpr::qt {
 		}
 		// The drawer follows the code: move it as a wheel over the notes does.
 		const auto centre = QPointF{ viewport()->rect().center() };
+		const auto before = OpenCard != nullptr ? OpenCard->y() : 0;
 		auto       wheel  = QWheelEvent{ centre, viewport()->mapToGlobal(centre), QPoint{ 0, -move }, QPoint{ 0, -move }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 		wheelEvent(&wheel);
+		// [[BPR-PENDING-AS]]. What the code could not take, near the end of a
+		// short file, the notes' own overflow does: focus on the Reply field
+		// of a thread taller than the drawer left the field out of view.
+		const auto moved = OpenCard != nullptr ? before - OpenCard->y() : 0;
+		if (const auto rest = move - moved; rest != 0 && (rest > 0) == (move > 0)) {
+			verticalScrollBar()->setValue(verticalScrollBar()->value() + rest);
+		}
 	}
 
 	auto conversation_cards_view::focusNextPrevChild(const bool aNext) -> bool
@@ -3414,6 +3458,20 @@ namespace bpr::qt {
 		// notes' own overflow.
 		auto* const bar   = verticalScrollBar();
 		const auto  delta = !aEvent->pixelDelta().isNull() ? aEvent->pixelDelta().y() : aEvent->angleDelta().y() / 8 * 3;
+		if (!open_thread_hangs()) {
+			// [[BPR-PENDING-AS]]. An open thread with no line to hang from (an
+			// outdated one opens among its file's unplaced threads,
+			// [[BPR-1581]]) does not move with the code, so the notes take the
+			// wheel first and the code only what they cannot. The code took
+			// every step of a long file, and the thread never moved.
+			const auto before = bar->value();
+			bar->setValue(before - delta);
+			if (bar->value() == before && ScrollForward) {
+				static_cast<void>(ScrollForward(*aEvent));
+			}
+			aEvent->accept();
+			return;
+		}
 		if (delta > 0 && bar->value() > bar->minimum()) {
 			bar->setValue(bar->value() - delta);
 			aEvent->accept();
@@ -3538,6 +3596,16 @@ namespace bpr::qt {
 		default:
 			break;
 		}
+		// [[BPR-PENDING-AS]]. Home and End, and the platform's document start
+		// and end, go to the notes' top and their end, as in the code panes.
+		const auto edge = document_edge_for(*aEvent);
+		const auto home = edge == document_edge::start || (aEvent->key() == Qt::Key_Home && aEvent->modifiers() == Qt::NoModifier);
+		const auto end  = edge == document_edge::end || (aEvent->key() == Qt::Key_End && aEvent->modifiers() == Qt::NoModifier);
+		if (home || end) {
+			verticalScrollBar()->triggerAction(home ? QAbstractSlider::SliderToMinimum : QAbstractSlider::SliderToMaximum);
+			aEvent->accept();
+			return;
+		}
 		QAbstractScrollArea::keyPressEvent(aEvent);
 	}
 
@@ -3603,14 +3671,7 @@ namespace bpr::qt {
 			// Tab reaching a post's text or control brings it into view.
 			const auto reason = static_cast<QFocusEvent*>(aEvent)->reason();
 			if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason) {
-				auto* const widget = static_cast<QWidget*>(aWatched);
-				auto        area   = QRect{ widget->mapTo(viewport(), QPoint{ 0, 0 }), widget->size() };
-				if (const auto* const text = qobject_cast<const QTextEdit*>(widget); text != nullptr) {
-					area = QRect{ text->viewport()->mapTo(viewport(), text->cursorRect().topLeft()), text->cursorRect().size() };
-				} else if (const auto* const source = qobject_cast<const QPlainTextEdit*>(widget); source != nullptr) {
-					area = QRect{ source->viewport()->mapTo(viewport(), source->cursorRect().topLeft()), source->cursorRect().size() };
-				}
-				reveal_reading(area);
+				reveal_focus(*static_cast<QWidget*>(aWatched));
 			}
 			return false;
 		}

@@ -169,8 +169,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto discuss_summary() const noexcept -> QLabel*;
 		/// \brief [[BPR-0657]]. Says what a thread gesture came to: a refusal
 		/// named before any provider, or the provider's answer. Empty hides it.
-		void               present_notice(const QString& aNotice);
+		void present_notice(const QString& aNotice);
+		/// \brief [[BPR-PENDING-AS]]. The same, with a button after the words
+		/// that does what the refusal needs: one click instead of an
+		/// instruction. Another notice, or an empty one, takes it away.
+		void               present_notice(const QString& aNotice, const QString& aAction, std::function<void()> aDispatch);
 		[[nodiscard]] auto notice_label() const noexcept -> QLabel*;
+		[[nodiscard]] auto notice_action() const noexcept -> QToolButton*;
 		/// \brief Discuss's scope, file and filter row.
 		[[nodiscard]] auto discuss_controls() const noexcept -> QWidget*;
 		/// \brief [[BPR-1089]]. Lists exactly these conversations, the ones an
@@ -244,7 +249,10 @@ namespace bpr::qt {
 		std::function<void()>                ListingCleared;
 		std::function<void()>                DiscussFiltersChanged;
 		void                                 apply_filters();
-		QLabel*                              Notice             = nullptr;
+		QWidget*                             NoticeRow    = nullptr;
+		QLabel*                              Notice       = nullptr;
+		QToolButton*                         NoticeAction = nullptr;
+		std::function<void()>                NoticeDispatch;
 		bool                                 Discuss            = false;
 		bool                                 HasThreads         = false;
 		bool                                 DiscussInitialized = false;

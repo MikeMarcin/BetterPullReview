@@ -115,6 +115,7 @@
 #include <QToolTip>
 #include <QWidget>
 #include <QWindow>
+#include <qpa/qplatformscreen.h>
 #include <qpa/qwindowsysteminterface.h>
 
 #include <QTreeView>
@@ -10989,7 +10990,7 @@ namespace {
 				   && window.comparison_surface()->selection() == selectionBeforeReply
 				   && window.current_modality() == qt::review_modality::discuss
 				   && window.conversation_panel()->notice_label()->text().contains(
-					   QStringLiteral("Open this thread in code")),
+					   QStringLiteral("which isn't the file in the code")),
 			   "Reply refuses an off-file anchor without dispatching or changing the retained code selection");
 
 		// [[BPR-1029]]. The reply's dispatch relays the list out, which rebuilds
@@ -13141,7 +13142,7 @@ namespace {
 			process_events();
 			expect(replies.empty()
 					   && !window.conversation_panel()->notice_label()->text().contains(
-						   QStringLiteral("Open this thread in code")),
+						   QStringLiteral("which isn't the file in the code")),
 				   "Reply waits while its thread's own comparison loads: nothing is named and nothing refused");
 			if (aThreadFileArrives) {
 				arrive(window, threadFile);
@@ -13151,13 +13152,13 @@ namespace {
 						   && replies.front().Selection->PreferredLine.Line == 21U,
 					   "when the thread's comparison arrives its line is selected first, then the thread is named");
 				expect(!window.conversation_panel()->notice_label()->text().contains(
-						   QStringLiteral("Open this thread in code")),
+						   QStringLiteral("which isn't the file in the code")),
 					   "a reply that completes shows no refusal");
 			} else {
 				publish(window, otherFile);
 				expect(replies.empty()
 						   && window.conversation_panel()->notice_label()->text().contains(
-							   QStringLiteral("Open this thread in code")),
+							   QStringLiteral("which isn't the file in the code")),
 					   "a comparison of another file refuses the waiting reply with the notice");
 				publish(window, threadFile);
 				expect(replies.empty(),
@@ -17441,6 +17442,294 @@ namespace {
 				   && surface->source_line_visible(core::diff_side::right, 2'990U),
 			   "a pick into the prepared long file reveals its line too");
 		window.hide();
+	}
+
+	/// [[BPR-PENDING-AS]]. The owner, 2026-10-22: a thread with a long reply,
+	/// opened in Review from Discuss, could not be scrolled to its Reply
+	/// field, and the drawer said "Open this thread in code before replying"
+	/// while the thread was open beside its code. Its clicks, wheel and keys
+	/// go to the window as the platform delivers them. Two courses: a current
+	/// thread, opened by Discuss's line button, which hangs from its line; and
+	/// an outdated one, opened by Discuss's Open in Review among its file's
+	/// unplaced threads ([[BPR-1581]]), whose every wheel step the code took.
+	/// In both the drawer scrolls to the Reply field, and past it until only
+	/// the thread's last line is at the top, as the code panes do
+	/// ([[BPR-1291]]); Page Down, End and Home move the notes, and focus
+	/// reaching the Reply field brings it into view. A refusal is said only
+	/// while it is true, in words true of the thread, and a thread on a file
+	/// that is not in the code is offered Show in code.
+	void test_a_long_thread_from_discuss_scrolls_to_its_reply()
+	{
+		const auto course = [](const bool aOutdated) {
+			const auto stage = [aOutdated](const char* aMessage) {
+				return std::string{ aMessage } + (aOutdated ? " (outdated thread)" : " (current thread)");
+			};
+			auto  state   = core::workbench_interaction_state{ };
+			auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+			auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+				auto projection          = application::workbench_projection{ };
+				projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+				projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+				projection.Commands      = core::project_workbench_commands(state);
+				projection.Refusal       = aRefusal;
+				shown->publish(projection);
+			};
+			qt::workbench_window window{
+				[&](core::workbench_interaction_intent aIntent) {
+					const auto output = core::transition(state, aIntent);
+					publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+				}
+			};
+			shown = &window;
+			window.resize(1'280, 820);
+			window.show();
+			window.activateWindow();
+			process_events();
+			auto replies = std::vector<std::string>{ };
+			window.set_review_reply_dispatch([&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
+			const auto file  = core::file_identity_of("src/file.cpp");
+			const auto other = core::file_identity_of("src/long.cpp");
+			state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+			auto first       = application::workbench_projection{ };
+			first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+			first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = other, .Path = "src/long.cpp" } };
+			first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+			window.publish(first);
+			publish(std::nullopt);
+			const auto node = [aOutdated](std::string aId, std::optional<std::string> aParent, std::string aAuthor, std::string aBody, std::string aPath, std::uint32_t aLine) {
+				auto made               = application::github_conversation_projection{ };
+				made.Id                 = std::move(aId);
+				made.ParentId           = std::move(aParent);
+				made.Kind               = made.ParentId ? application::github_conversation_kind::review_comment : application::github_conversation_kind::review_thread;
+				made.AuthorLogin        = std::move(aAuthor);
+				made.Body               = std::move(aBody);
+				made.Path               = std::move(aPath);
+				made.Line               = aLine;
+				made.DiffSide           = application::github_conversation_diff_side::right;
+				made.AnchorAvailability = aOutdated && made.Path == "src/long.cpp" ? application::github_conversation_anchor_availability::outdated_revision
+																				   : application::github_conversation_anchor_availability::current;
+				made.Outdated           = aOutdated && made.Path == "src/long.cpp";
+				return made;
+			};
+			// Four posts of several paragraphs each: the open thread is
+			// several times the drawer's height.
+			const auto paragraphs = [](const std::string& aSubject) {
+				auto body = std::string{ };
+				for (auto paragraph = 1U; paragraph <= 4U; ++paragraph) {
+					body += "The " + aSubject + " keeps the retained position while the comparison is measured again, and the reader expects the line they were reading to stay where it was. "
+						+ "Paragraph " + std::to_string(paragraph) + " says so at length, so that the post wraps over many lines in a drawer this narrow.\n\n";
+				}
+				return body;
+			};
+			auto pull                   = application::github_pull_request_projection{ };
+			pull.ReviewThreadCount      = 2U;
+			pull.ReviewThreadsAvailable = true;
+			pull.Conversations          = {
+				node("review-thread:near", std::nullopt, { }, { }, "src/file.cpp", 6U),
+				node("review-comment:near-1", "review-thread:near", "tbutler", "on the short file", "src/file.cpp", 6U),
+				node("review-thread:long", std::nullopt, { }, { }, "src/long.cpp", 12U),
+				node("review-comment:long-1", "review-thread:long", "tbutler", "issue: " + paragraphs("first post"), "src/long.cpp", 12U),
+				node("review-comment:long-2", "review-comment:long-1", "jiayin", paragraphs("long reply"), "src/long.cpp", 12U),
+				node("review-comment:long-3", "review-comment:long-1", "tbutler", paragraphs("third post"), "src/long.cpp", 12U),
+				node("review-comment:long-4", "review-comment:long-1", "jiayin", paragraphs("last reply"), "src/long.cpp", 12U),
+			};
+			window.publish(application::github_presentation_update{ .PullRequest = pull });
+			const auto source = [](const std::uint32_t aLines, const std::uint32_t aChanged) {
+				auto text = std::string{ };
+				for (auto line = 0U; line < aLines; ++line) {
+					text += "source line " + std::to_string(line) + '\n';
+				}
+				auto       later = text;
+				const auto was   = "source line " + std::to_string(aChanged) + '\n';
+				later.replace(later.find(was), was.size(), "changed source line " + std::to_string(aChanged) + '\n');
+				return std::pair{ text, later };
+			};
+			auto*      surface = window.comparison_surface();
+			const auto answer  = [&](const core::file_identity aFile, const core::computed_file_diff& aDiff) {
+				state.Navigation = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+				auto moved       = application::workbench_projection{ };
+				moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+				window.publish(moved);
+				window.set_conversation_endpoint_placement(true, true);
+				surface->set_loading(request_context(aDiff));
+				surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(aDiff), .Result = std::make_shared<const core::computed_file_diff>(aDiff) }));
+				window.set_conversation_endpoint_placement(true, true);
+				settle_geometry(*surface, "the answered comparison");
+			};
+			// The outdated course's file is long, so the code has many steps
+			// to take before the notes would get any.
+			const auto [shortText, shortLater] = source(30U, 5U);
+			const auto [longText, longLater]   = source(aOutdated ? 400U : 40U, 11U);
+			const auto shortDiff               = computed_comparison(shortText, shortLater, 0U, file);
+			const auto longDiff                = computed_comparison(longText, longLater, 4U, other);
+			answer(file, shortDiff);
+			window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+			process_events();
+
+			// The platform delivers native pixels, which Qt's own scale (the
+			// 2x run) divides back into points.
+			const auto native = [&window](const QPoint aPoint) {
+				auto* const handle = window.windowHandle();
+				const auto  screen = handle->screen() != nullptr && handle->screen()->handle() != nullptr ? handle->screen()->handle()->devicePixelRatio() : 1.0;
+				return QPointF{ aPoint } * (handle->devicePixelRatio() / screen);
+			};
+			const auto click = [&window, native](QWidget& aWidget) {
+				const auto at     = aWidget.rect().center();
+				const auto local  = native(aWidget.mapTo(&window, at));
+				const auto global = native(aWidget.mapToGlobal(at));
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+					window.windowHandle(), local, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, Qt::NoModifier);
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+					window.windowHandle(), local, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+				process_events();
+			};
+			auto* const cards       = window.conversation_panel()->cards();
+			auto* const notice      = window.conversation_panel()->notice_label();
+			auto* const showInCode  = window.conversation_panel()->notice_action();
+			const auto  noticeShown = [notice] { return notice->isVisibleTo(notice->window()) && !notice->text().isEmpty(); };
+			const auto  offered     = [showInCode] { return showInCode->isVisibleTo(showInCode->window()) && showInCode->text() == QStringLiteral("Show in code"); };
+			const auto  suffix      = QString::fromLatin1(aOutdated ? "-outdated" : "");
+
+			// Discuss, the long thread open there. Its Reply is refused, as
+			// its file is not the one in the code (or its line is in none),
+			// and the words say so.
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			cards->open_thread("review-thread:long");
+			process_events();
+			expect(cards->open_card() != nullptr, stage("Discuss opens the long thread"));
+			auto* replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			expect(replyField != nullptr, stage("the open thread offers Reply in Discuss"));
+			replyField->click();
+			process_events();
+			expect(replies.empty() && noticeShown() && !notice->text().contains(QStringLiteral("before replying")), stage("Discuss refuses the reply in words, not an instruction"));
+			if (aOutdated) {
+				expect(notice->text() == QStringLiteral("This thread's line isn't in the code shown, so it can't take a reply here.") && !offered(),
+					   stage("an outdated thread's refusal says its line is not in the code, and offers nothing that would not help"));
+			} else {
+				expect(notice->text() == QStringLiteral("This thread is on long.cpp, which isn't the file in the code.") && offered(),
+					   stage("a thread on another file says which, and offers Show in code"));
+			}
+			save_render(window, QStringLiteral("long-thread-discuss-refusal") + suffix);
+
+			// Open in Review: the current thread by its line button, the
+			// outdated one by its menu.
+			cards->verticalScrollBar()->setValue(0);
+			process_events();
+			if (aOutdated) {
+				auto* const menu   = cards->thread_menu("review-thread:long");
+				const auto  items  = menu->actions();
+				const auto  review = std::ranges::find_if(items, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
+				expect(review != items.end() && (*review)->isEnabled(), stage("Discuss's menu offers Open in Review"));
+				(*review)->trigger();
+				process_events();
+				delete menu;
+			} else {
+				auto* const lineButton = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+				expect(lineButton != nullptr && lineButton->isVisibleTo(&window), stage("Discuss's line button is shown"));
+				click(*lineButton);
+			}
+			expect(window.current_modality() == qt::review_modality::review, stage("Open in Review enters Review"));
+			answer(other, longDiff);
+			expect(cards->open_thread_id() == "review-thread:long" && cards->open_card() != nullptr, stage("once the long file shows, the thread is open in Review"));
+			expect(!noticeShown(), stage("no refusal is left over once the thread is open in Review"));
+			replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			expect(replyField != nullptr, stage("the open thread offers Reply in Review"));
+			const auto inView = [cards](const QWidget& aWidget) {
+				const auto area = QRect{ aWidget.mapTo(cards->viewport(), QPoint{ 0, 0 }), aWidget.size() };
+				return aWidget.isVisible() && cards->viewport()->rect().contains(area);
+			};
+			expect(cards->open_card()->height() > 2 * cards->viewport()->height() && !inView(*replyField),
+				   stage("the open thread is far taller than the drawer, its Reply field below the view"));
+			save_render(window, QStringLiteral("long-thread-opened") + suffix);
+
+			// The wheel over the posts, as a mouse delivers it.
+			const auto wheel = [&window, cards, native](const int aDelta) {
+				const auto at     = QPoint{ cards->viewport()->width() / 2, cards->viewport()->height() / 2 };
+				const auto local  = native(cards->viewport()->mapTo(&window, at));
+				const auto global = native(cards->viewport()->mapToGlobal(at));
+				QWindowSystemInterface::handleWheelEvent(window.windowHandle(), local, global, QPoint{ }, QPoint{ 0, aDelta });
+				process_events();
+			};
+			for (auto step = 0; step < 80 && !inView(*replyField); ++step) {
+				wheel(-120);
+			}
+			expect(inView(*replyField), stage("the wheel over a long thread scrolls the drawer until its Reply field is in view"));
+			save_render(window, QStringLiteral("long-thread-reply-in-view") + suffix);
+
+			// Past the end, until only the thread's last line is at the top.
+			const auto line     = cards->fontMetrics().lineSpacing();
+			const auto cardFoot = [cards] { return cards->open_card()->mapTo(cards->viewport(), QPoint{ 0, cards->open_card()->height() }).y(); };
+			for (auto more = 0; more < 120; ++more) {
+				wheel(-120);
+			}
+			expect(cardFoot() > 0 && cardFoot() <= 3 * line, stage("the drawer scrolls past its end until only the thread's last line is at the top"));
+			save_render(window, QStringLiteral("long-thread-past-end") + suffix);
+
+			// Back to the top; Page Down from the notes reaches the Reply
+			// field, and End and Home go to the notes' end and top.
+			for (auto back = 0; back < 200; ++back) {
+				wheel(120);
+			}
+			auto* const bar = cards->verticalScrollBar();
+			expect(bar->value() == bar->minimum() && !inView(*replyField), stage("the wheel brings the thread's head back"));
+			cards->setFocus(Qt::OtherFocusReason);
+			process_events();
+			for (auto page = 0; page < 20 && !inView(*replyField); ++page) {
+				deliver_key(window, Qt::Key_PageDown, Qt::NoModifier);
+			}
+			expect(inView(*replyField), stage("Page Down in the notes reaches the Reply field"));
+			deliver_key(window, Qt::Key_Home, Qt::NoModifier);
+			expect(bar->value() == bar->minimum() && !inView(*replyField), stage("Home goes to the notes' top"));
+			deliver_key(window, Qt::Key_End, Qt::NoModifier);
+			expect(bar->value() == bar->maximum() && bar->maximum() > 0, stage("End goes to the notes' end"));
+			deliver_key(window, Qt::Key_Home, Qt::NoModifier);
+			expect(bar->value() == bar->minimum(), stage("and Home back to their top"));
+
+			// Focus reaching the Reply field brings it into view.
+			replyField->setFocus(Qt::TabFocusReason);
+			process_events();
+			expect(replyField->hasFocus() && inView(*replyField), stage("focus reaching the Reply field brings it into view"));
+
+			// Reply, by a click on the field.
+			click(*replyField);
+			if (aOutdated) {
+				expect(replies.empty() && noticeShown() && notice->text() == QStringLiteral("This thread's line isn't in the code shown, so it can't take a reply here.") && !offered(),
+					   stage("an outdated thread's Reply is refused with why, not told to open what is open"));
+				expect(replyField->hasFocus() && inView(*replyField), stage("the refusal's notice takes the drawer's height without covering the Reply field"));
+			} else {
+				expect(replies.size() == 1U && replies.front() == "review-thread:long" && !noticeShown(),
+					   stage("Reply on the thread open beside its code is not refused"));
+				auto* const editor = qobject_cast<QPlainTextEdit*>(QApplication::focusWidget());
+				expect(editor != nullptr && cards->open_card()->isAncestorOf(editor) && inView(*editor), stage("the reply is written in place, focused and in view"));
+			}
+			save_render(window, QStringLiteral("long-thread-replying") + suffix);
+			if (aOutdated) {
+				window.hide();
+				return;
+			}
+
+			// Show in code from Discuss, with the code on another file: one
+			// click opens the thread in Review, and the refusal goes.
+			deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
+			answer(file, shortDiff);
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			cards->open_thread("review-thread:long");
+			process_events();
+			replies.clear();
+			replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			replyField->click();
+			process_events();
+			expect(replies.empty() && noticeShown() && offered(), stage("Discuss refuses the reply again, with Show in code"));
+			click(*showInCode);
+			expect(window.current_modality() == qt::review_modality::review && !noticeShown(), stage("Show in code opens Review, and the refusal goes"));
+			answer(other, longDiff);
+			expect(cards->open_thread_id() == "review-thread:long" && !noticeShown(), stage("and the thread opens beside its line"));
+			window.hide();
+		};
+		course(false);
+		course(true);
 	}
 
 	/// [[BPR-1356]]. Threads opens a thread in Discuss as well as in Review,
@@ -22008,6 +22297,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_thread_defect_menus_badges_and_navigation", &test_thread_defect_menus_badges_and_navigation);
 		runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
 		runCase("test_a_pick_into_a_long_unopened_file_reveals_its_line", &test_a_pick_into_a_long_unopened_file_reveals_its_line);
+		runCase("test_a_long_thread_from_discuss_scrolls_to_its_reply", &test_a_long_thread_from_discuss_scrolls_to_its_reply);
 		if (!listCases) {
 			std::cout << "workbench-conversation-reveal:pass\n";
 		}

@@ -7781,6 +7781,11 @@ namespace bpr::qt {
 			ThreadsReturnFocus = Finder != nullptr && Finder->isAncestorOf(QApplication::focusWidget()) ? nullptr : QApplication::focusWidget();
 		}
 		if (Modality != nullptr) {
+			// [[BPR-PENDING-AS]]. A reply refused in one modality says nothing
+			// about the next.
+			if (Modality->current() != aModality) {
+				clear_reply_refusal();
+			}
 			Modality->adopt(aModality);
 		}
 		// [[BPR-0661]]. "Last used" is the modality chosen while a pull
@@ -11385,44 +11390,56 @@ namespace bpr::qt {
 		}
 	}
 
-	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool
+	auto workbench_window::thread_reply_anchor_of(const std::string& aIdentity) const -> thread_reply_anchor
 	{
-		if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
-			return false;
+		auto anchor = thread_reply_anchor{ };
+		if (ConversationPanel == nullptr) {
+			return anchor;
 		}
 		// The thread's anchor, from the panel's list when it holds the thread.
 		// [[BPR-1133]]. Otherwise from its card: while a line is selected the
 		// list holds only that line's threads, and a card beside the code can
 		// answer a thread on another line.
-		auto path     = QString{ };
-		auto side     = std::optional<core::diff_side>{ };
-		auto oneBased = std::uint64_t{ 0U };
-		auto current  = false;
-		auto root     = ConversationPanel->model()->index_for_id(aIdentity);
+		auto root = ConversationPanel->model()->index_for_id(aIdentity);
 		while (root.isValid() && root.parent().isValid()) {
 			root = root.parent();
 		}
 		if (root.isValid()) {
-			current = root.data(github_conversation_model::anchor_availability_role).toInt()
+			anchor.Known   = true;
+			anchor.Current = root.data(github_conversation_model::anchor_availability_role).toInt()
 				== static_cast<int>(application::github_conversation_anchor_availability::current);
-			path                 = root.data(github_conversation_model::path_role).toString();
+			anchor.Path          = root.data(github_conversation_model::path_role).toString();
 			auto       validLine = false;
 			const auto line      = root.data(github_conversation_model::line_role).toULongLong(&validLine);
-			oneBased             = validLine ? line : 0U;
+			anchor.Line          = validLine ? line : 0U;
 			if (const auto sideValue = root.data(github_conversation_model::diff_side_role); sideValue.isValid()) {
-				side = github_conversation_source_side(sideValue.toInt());
+				anchor.Side = github_conversation_source_side(sideValue.toInt());
 			}
 		} else if (ConversationPanel->cards() != nullptr) {
 			const auto& cards = ConversationPanel->cards()->cards();
 			const auto  card  = std::ranges::find(cards, aIdentity, &thread_card::Id);
 			if (card != cards.end() && !card->Draft) {
-				current  = !card->AnchorUnavailable;
-				path     = card->Path;
-				side     = card->Side;
-				oneBased = card->Line.value_or(0U);
+				anchor.Known   = true;
+				anchor.Current = !card->AnchorUnavailable;
+				anchor.Path    = card->Path;
+				anchor.Side    = card->Side;
+				anchor.Line    = card->Line.value_or(0U);
 			}
 		}
-		const auto context = ComparisonSurface->current_context();
+		return anchor;
+	}
+
+	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool
+	{
+		if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
+			return false;
+		}
+		const auto anchor   = thread_reply_anchor_of(aIdentity);
+		const auto current  = anchor.Current;
+		const auto path     = anchor.Path;
+		const auto side     = anchor.Side;
+		const auto oneBased = anchor.Line;
+		const auto context  = ComparisonSurface->current_context();
 		if (!current || !context.has_value() || path.isEmpty()
 			|| context->Key.File != core::file_identity_of(path.toStdString())) {
 			return false;
@@ -11462,6 +11479,7 @@ namespace bpr::qt {
 
 	void workbench_window::begin_thread_reply(const std::string& aIdentity, const bool aInPlace)
 	{
+		clear_reply_refusal();
 		if (select_thread_line(aIdentity) && ReviewReplyDispatch && ReviewEditor != nullptr) {
 			ReviewReplyDispatch(aIdentity);
 			update_comment_target();
@@ -11484,7 +11502,58 @@ namespace bpr::qt {
 			}
 			return;
 		}
-		ConversationPanel->present_notice(tr("Open this thread in code before replying."));
+		refuse_thread_reply(aIdentity);
+	}
+
+	void workbench_window::refuse_thread_reply(const std::string& aIdentity)
+	{
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		// [[BPR-PENDING-AS]]. The owner, 2026-10-22, of "Open this thread in
+		// code before replying": "I also have no idea what that means I'm on
+		// the code". The words say what is true of this thread, and a thread
+		// on a file that is not in the code gets the click that shows it.
+		const auto anchor  = thread_reply_anchor_of(aIdentity);
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		const auto shown   = context.has_value() && !anchor.Path.isEmpty()
+			&& context->Key.File == core::file_identity_of(anchor.Path.toStdString());
+		ReplyRefusalShown = true;
+		if (anchor.Known && anchor.Current && !anchor.Path.isEmpty() && !shown) {
+			const auto origin = Modality != nullptr && Modality->current() == review_modality::discuss
+				? core::workbench_thread_origin::discuss
+				: core::workbench_thread_origin::review;
+			ConversationPanel->present_notice(
+				tr("This thread is on %1, which isn't the file in the code.").arg(anchor.Path.section(QLatin1Char{ '/' }, -1)),
+				tr("Show in code"),
+				[this, aIdentity, origin] {
+					clear_reply_refusal();
+					static_cast<void>(move_thread(aIdentity, origin, core::workbench_thread_destination::review));
+				});
+			return;
+		}
+		if (anchor.Known && anchor.Current && anchor.Side.has_value() && anchor.Line > 0U) {
+			if (*anchor.Side == core::diff_side::left && !LeftConversationEndpointCurrent) {
+				ConversationPanel->present_notice(tr("This thread is on the pull request's base, and this comparison starts from another commit."));
+				return;
+			}
+			if (*anchor.Side == core::diff_side::right && !RightConversationEndpointCurrent) {
+				ConversationPanel->present_notice(tr("This thread is on the pull request's latest commit, and this comparison ends at another one."));
+				return;
+			}
+		}
+		ConversationPanel->present_notice(tr("This thread's line isn't in the code shown, so it can't take a reply here."));
+	}
+
+	void workbench_window::clear_reply_refusal()
+	{
+		if (!ReplyRefusalShown) {
+			return;
+		}
+		ReplyRefusalShown = false;
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->present_notice(QString{ });
+		}
 	}
 
 	void workbench_window::resume_deferred_reply()
@@ -15967,6 +16036,8 @@ namespace bpr::qt {
 		if (shown && std::ranges::any_of(cards->cards(), [this](const thread_card& aCard) { return aCard.Id == PendingPick->Thread; })) {
 			const auto pick = *PendingPick;
 			PendingPick.reset();
+			// [[BPR-PENDING-AS]]. The thread is open beside its code now.
+			clear_reply_refusal();
 			cards->open_thread_at(pick.Thread, pick.Post);
 			// The selection authority names the picked post itself, as a
 			// revealed comment always has; its thread stays the one open.

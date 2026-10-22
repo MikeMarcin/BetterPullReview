@@ -364,13 +364,36 @@ namespace bpr::qt {
 		Cards = new conversation_cards_view{ loaded };
 		Cards->setMinimumHeight(fontMetrics().lineSpacing() * 6);
 		column->addWidget(Cards, 1);
-		Notice = new QLabel{ loaded };
+		// [[BPR-PENDING-AS]]. The notice's words, and the one click a refusal
+		// can offer after them.
+		NoticeRow = new QWidget{ loaded };
+		NoticeRow->setObjectName(QStringLiteral("conversationNoticeRow"));
+		auto* const noticeLayout = new QHBoxLayout{ NoticeRow };
+		noticeLayout->setContentsMargins(0, 0, 8, 0);
+		noticeLayout->setSpacing(6);
+		Notice = new QLabel{ NoticeRow };
 		Notice->setObjectName(QStringLiteral("conversationNotice"));
 		Notice->setAccessibleName(QStringLiteral("Thread notice"));
 		Notice->setWordWrap(true);
 		Notice->setContentsMargins(8, 4, 8, 4);
 		Notice->hide();
-		column->addWidget(Notice);
+		noticeLayout->addWidget(Notice, 1);
+		auto* const noticeAction = new discuss_tool{ NoticeRow };
+		noticeAction->set_shape(discuss_tool_shape::chip);
+		noticeAction->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		NoticeAction = noticeAction;
+		NoticeAction->setObjectName(QStringLiteral("conversationNoticeAction"));
+		NoticeAction->setFocusPolicy(Qt::StrongFocus);
+		NoticeAction->hide();
+		noticeLayout->addWidget(NoticeAction, 0, Qt::AlignVCenter);
+		connect(NoticeAction, &QToolButton::clicked, this, [this] {
+			const auto dispatch = NoticeDispatch;
+			if (dispatch) {
+				dispatch();
+			}
+		});
+		NoticeRow->hide();
+		column->addWidget(NoticeRow);
 		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
@@ -999,13 +1022,30 @@ namespace bpr::qt {
 
 	void github_conversation_panel::present_notice(const QString& aNotice)
 	{
+		present_notice(aNotice, QString{ }, { });
+	}
+
+	void github_conversation_panel::present_notice(const QString& aNotice, const QString& aAction, std::function<void()> aDispatch)
+	{
+		const auto acting = !aNotice.isEmpty() && !aAction.isEmpty() && static_cast<bool>(aDispatch);
+		NoticeDispatch    = acting ? std::move(aDispatch) : std::function<void()>{ };
 		Notice->setText(aNotice);
 		Notice->setVisible(!aNotice.isEmpty());
+		NoticeAction->setText(acting ? aAction : QString{ });
+		NoticeAction->setAccessibleName(acting ? aAction : QString{ });
+		NoticeAction->setToolTip(acting ? aAction : QString{ });
+		NoticeAction->setVisible(acting);
+		NoticeRow->setVisible(!aNotice.isEmpty());
 	}
 
 	auto github_conversation_panel::notice_label() const noexcept -> QLabel*
 	{
 		return Notice;
+	}
+
+	auto github_conversation_panel::notice_action() const noexcept -> QToolButton*
+	{
+		return NoticeAction;
 	}
 
 	auto github_conversation_panel::discuss_summary() const noexcept -> QLabel*
