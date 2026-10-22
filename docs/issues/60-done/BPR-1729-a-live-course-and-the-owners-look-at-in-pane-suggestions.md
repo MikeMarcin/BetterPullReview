@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1729"
 title: "Publish in-pane suggestions on BPR-Test, measure CRLF, and take the owner's look"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0090"]
 depends_on: ["BPR-1728"]
 priority: "P2"
 platforms: ["mac","win","linux"]
-parked_on: "human-review"
 metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2","milestone":"RFC-BPR-0090 M4","live_pull_request":"MikeMarcin/BPR-Test#123","look_session":{"id":"7dba4a1f1dbf08a0ad93da313b35fbcd","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0090-look-v001","status":"closed 2026-10-22: handed back at event 55, all six accepted, released, handed back and its host stopped"},"wizard_session":{"id":"882aa75a-b47d-49a0-ab01-340f0ca80646","state":"/Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001","status":"complete 2026-10-22: commit-batch acknowledged by the owner, measure recorded by the agent, host stopped through the script"},"frozen_build":{"root":"/Users/jaeger/bpr-rfc0090-in-pane-v001.t2govxlb","status":"removed 2026-10-22 with freeze_attended_build.py remove","commit":"b13164f02fa980ec881a55ce2c4fdd0f5a044bc6","executable_sha256":"34a0eb21f6ed5c8962405acca55c83becd4075c6054a6c85cb73e6f5860c51c0"}}
 acceptance: [{"criterion": "AC1: RFC AC03 (live), with the CRLF measurement recorded", "outcome": "pass", "revision": "a7b8b0f6d8a745d14c9383b328bee81e582817f4", "evidence": {"kind": "command", "command": "python3 /Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001/course/live_course.py publish, then the owner's Commit suggestions (wizard 882aa75a-b47d-49a0-ab01-340f0ca80646), then live_course.py measure", "detail": "BPR-Test #123: the core's five planned suggestions were accepted at their planned lines and read back identical (body, start_line, line, side, path, commit). The owner committed them as one batch: d3eb2ce6b 'Apply suggestions from code review' on head 2cbe94871. At that head rfc-0090/lf.cpp equals the core's edited file byte for byte (20 lines, no CR), and rfc-0090/crlf.cpp equals it byte for byte with CRLF on all 20 lines, including the suggested line 10: GitHub wrote the block's LF line with the file's CRLF ending, as the core expects. The course then closed #123 and deleted both branches."}}, {"criterion": "AC2: RFC AC10, from the owner", "outcome": "pass", "revision": "a7b8b0f6d8a745d14c9383b328bee81e582817f4", "evidence": {"kind": "observation", "detail": "Attended session 7dba4a1f1dbf08a0ad93da313b35fbcd, frozen build of b13164f02 (on main as a7b8b0f6d, which differs only in main's own files), handed back at event 55: the owner accepted all six questions (entry and continuity 7967e7b0, fixed lines 0becd990, growth and deletion 0dcafafd, drawer link 938ce4e6, held suggestion and Convert 98f535ad, one pane b01228b2). Two notes: dim the read-only code outside the range (a refinement, taken in this card), and a stray highlight in one pane after a selection and Esc outside Suggest change (BPR-PENDING-AJ)."}}]
 ---
@@ -114,6 +113,22 @@ variant does not match. `X-RateLimit-Remaining` was 4988 before and 4984
 after; the course's `cleanup` then closed #123 and deleted both branches,
 and the wizard's host was stopped through its script. The frozen root was
 removed with `scripts/freeze_attended_build.py remove`.
+
+## The read-only code set back, 2026-10-22
+
+The drawer-link note, taken as a refinement of the accepted look
+(`d2db849ab`): while a suggestion is edited, the lines outside the range and
+the space below the last line sit on the code gutter's ground, and in light
+and dark their ink fades a quarter of the way toward it, held at the text
+floor (`core::read_only_code_ink`, `core::read_only_code_fade_alpha`). The
+high-contrast variants keep their ink and take only the ground. The range
+keeps the code's ground, its write-blue wash and its rail.
+`test_suggestion_dims_the_read_only_code` checks it in split and one pane in
+all four variants (the ground above, below and past the range, the range's
+own ground, and the ink's floor), and writes the renders the coordinator
+was sent; `core_appearance_contrast` checks the fade and the floor. No new
+look session was opened: it is a small change to an accepted look, sent to
+the coordinator as before and after renders.
 
 ## After the owner
 
