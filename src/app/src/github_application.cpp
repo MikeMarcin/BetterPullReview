@@ -13014,6 +13014,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++ThreadResolutionRefusals;
 				notice(QStringLiteral("This server has not said it resolves threads."));
 				return;
+			case core::thread_resolution_refusal::not_permitted:
+				++ThreadResolutionRefusals;
+				notice(aGesture.Resolve ? QStringLiteral("GitHub does not let you resolve this conversation.")
+										: QStringLiteral("GitHub does not let you unresolve this conversation."));
+				return;
 			case core::thread_resolution_refusal::already_in_state:
 				++ThreadResolutionRefusals;
 				notice(aGesture.Resolve ? QStringLiteral("This thread is already resolved.")

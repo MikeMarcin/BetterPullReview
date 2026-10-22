@@ -312,6 +312,9 @@ namespace bpr::core {
 		anonymous_read,
 		/// The server never said it resolves threads, or said it does not.
 		capability_absent,
+		/// GitHub says this viewer may not resolve (or unresolve) this
+		/// thread: `viewerCanResolve` / `viewerCanUnresolve` is false.
+		not_permitted,
 		/// The thread is already in the state asked for.
 		already_in_state,
 	};
@@ -323,6 +326,10 @@ namespace bpr::core {
 		bool                    AnonymousRead = false;
 		bool                    Resolved      = false;
 		bool                    Resolve       = true;
+		/// GitHub's per-thread permission for the direction asked. True when
+		/// GitHub did not say (an older read), so only a positive denial
+		/// refuses.
+		bool ViewerPermitted = true;
 
 		auto operator<=>(const thread_resolution_input&) const = default;
 	};
@@ -336,6 +343,9 @@ namespace bpr::core {
 		}
 		if (aInput.Capability != github_capability_state::supported) {
 			return thread_resolution_refusal::capability_absent;
+		}
+		if (!aInput.ViewerPermitted) {
+			return thread_resolution_refusal::not_permitted;
 		}
 		if (aInput.Resolved == aInput.Resolve) {
 			return thread_resolution_refusal::already_in_state;

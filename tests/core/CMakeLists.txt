@@ -369,6 +369,24 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_conversation_reactions_core_tests
+    conversation_reactions_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_conversation_reactions_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_conversation_reactions_core_tests)
+bpr_enable_warnings(test_better_pull_review_conversation_reactions_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_conversation_reactions
+    COMMAND test_better_pull_review_conversation_reactions_core_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_defect_workflow_core_tests
     defect_workflow_tests.cpp
 )

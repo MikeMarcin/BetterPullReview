@@ -252,7 +252,7 @@ namespace {
 	// [[BPR-0657]]. A thread resolution is refused, in this order, for an
 	// anonymous read, an absent capability, and a thread already in the
 	// state asked for; otherwise it is allowed.
-	void test_a_thread_resolution_is_refused_for_exactly_three_reasons()
+	void test_a_thread_resolution_is_refused_for_exactly_four_reasons()
 	{
 		using core::decide_thread_resolution;
 		using core::thread_resolution_refusal;
@@ -285,6 +285,17 @@ namespace {
 		unresolveResolved.Resolved = true;
 		expect(decide_thread_resolution(unresolveResolved) == thread_resolution_refusal::none,
 			   "unresolving a resolved thread is allowed");
+		// [[BPR-PENDING-AR1]]. GitHub's per-thread permission.
+		auto denied            = allowed;
+		denied.ViewerPermitted = false;
+		expect(decide_thread_resolution(denied) == thread_resolution_refusal::not_permitted,
+			   "a viewer GitHub does not let resolve the thread is refused");
+		denied.Resolved = true;
+		expect(decide_thread_resolution(denied) == thread_resolution_refusal::not_permitted,
+			   "the permission is asked before the state");
+		denied.Capability = core::github_capability_state::unknown;
+		expect(decide_thread_resolution(denied) == thread_resolution_refusal::capability_absent,
+			   "and after the server's capability");
 	}
 
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
@@ -653,7 +664,7 @@ auto main() -> int
 	test_a_published_comment_is_no_longer_a_draft();
 	test_illegal_commands_carry_their_own_reason();
 	test_a_proposal_exists_only_while_publishing();
-	test_a_thread_resolution_is_refused_for_exactly_three_reasons();
+	test_a_thread_resolution_is_refused_for_exactly_four_reasons();
 	test_an_unchanged_target_publishes();
 	test_a_moved_head_stops_the_publication_until_acknowledged();
 	test_a_changed_target_can_never_be_acknowledged_away();
