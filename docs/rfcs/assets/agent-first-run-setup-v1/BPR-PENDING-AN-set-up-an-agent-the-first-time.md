@@ -84,7 +84,17 @@ attended-review session (its URL is not recorded here). D1 and D2 are not
 asked. The first session, `29049098…`, asked r1's Q1 to Q6, had no answers,
 and was superseded by r2.
 
-The session is recorded here once it opens.
+- Session `349862f0cb991e14b6cb57cf80653c5f`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261022-agent-setup-v002`,
+  source this branch's worktree, loopback host started 2026-10-22, event
+  cursor 27, nine candidates ready and protected, none answered.
+- Candidates `BPR-PENDING-AN-q1-shape`, `-q2-detect`, `-q3-check`,
+  `-q4-names`, `-q5-codex`, `-q6-scope`, `-q7-worktree`, `-q8-source` and
+  `-q9-skill`, revision `agent-setup-v002@996f560ba`. Q1, Q3, Q8 and Q9 are
+  named alternatives; the rest are Accept or Reject.
+- The superseded first session `29049098deb24f47c839771a46b05c4c` (state
+  `…/owner-review-20261022-agent-setup-v001`) has each candidate observed as
+  superseded, all released, and its host stopped through the script.
 
 ## Continuation
 
