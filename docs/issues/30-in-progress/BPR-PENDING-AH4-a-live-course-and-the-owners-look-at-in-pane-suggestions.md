@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-PENDING-AH4"
 title: "Publish in-pane suggestions on BPR-Test, measure CRLF, and take the owner's look"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0090"]
 depends_on: ["BPR-PENDING-AH3"]
 priority: "P2"
