@@ -28,6 +28,17 @@ refusing an off-hunk single comment with 422. The specification keeps the
 production file-comment fallback unavailable until an exact
 unsupported-response contract is admitted, so AC3 is that admission.
 
+### Investigation, 2026-10-22
+
+[[BPR-PENDING-AK]] traces why no fallback fired: RFC-BPR-0022's contract is
+scoped to BPR-Test PR2 alone, production placement is `unknown`, and the
+review path has no fallback. It also shows that a response contract cannot
+serve this card. GitHub refuses a review whole and names no comment, so no
+contract can say which comment to convert (measured on BPR-Test #124). That
+card proposes resting AC1 and AC2 on BPR-1706's measured placement rule,
+applied to the Whole PR diff, instead of the response contract in AC3. The
+acceptance below is unchanged until the owner decides.
+
 ## Acceptance
 
 - AC1: Before Submit or Publish, a carried comment on a line outside every hunk is marked and says GitHub may not place it there.
