@@ -21242,6 +21242,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_reply_published,
 				awaiting_reply_seen,
 				awaiting_resolved,
+				// [[BPR-PENDING-AR1]].
+				awaiting_reopened,
+				awaiting_reactions_read,
+				awaiting_reaction_confirmed,
+				awaiting_reaction_removed,
+				awaiting_picker_reaction,
+				awaiting_reaction_reconciled,
 				passed,
 				failed,
 			};
@@ -21249,7 +21256,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			phase                                 Phase = phase::awaiting_ready;
 			std::string                           Diagnostic;
 			std::optional<std::uint32_t>          ThreadlessLine;
+			int                                   ReadsBeforeRefresh = 0;
 		};
+
 		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
 		// [[BPR-1083]]. One fixture file opened in Review, for an attended look
 		// and for the label-authoring course.
@@ -30489,9 +30498,41 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return advance(state_type::phase::awaiting_native_conversation);
 	}
 
+	namespace {
+		/// [[BPR-PENDING-AR1]]. One post of the open thread, by identity.
+		[[nodiscard]] auto post_view_of(const qt::conversation_cards_view& aCards, const std::string& aPost) -> QWidget*
+		{
+			if (aCards.open_card() == nullptr) {
+				return nullptr;
+			}
+			for (auto* const post : aCards.open_card()->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				if (post->property("postIdentity").toString().toStdString() == aPost) {
+					return post;
+				}
+			}
+			return nullptr;
+		}
+
+		/// [[BPR-PENDING-AR1]]. One reaction's chip under a post of the open thread.
+		[[nodiscard]] auto reaction_chip_of(const qt::conversation_cards_view& aCards, const std::string& aPost, const core::reaction_content aContent) -> QAbstractButton*
+		{
+			auto* const post = post_view_of(aCards, aPost);
+			if (post == nullptr) {
+				return nullptr;
+			}
+			for (auto* const chip : post->findChildren<QAbstractButton*>(QStringLiteral("reactionChip"))) {
+				if (chip->isVisible() && chip->property("reactionContent").toInt() == static_cast<int>(aContent)) {
+					return chip;
+				}
+			}
+			return nullptr;
+		}
+	} // namespace
+
 	auto detail::github_application_fixture_access::exercise_threaded_reply(
 		github_application& aApplication) -> detail::threaded_reply_probe_result
 	{
+
 		using result               = detail::threaded_reply_probe_result;
 		using state_type           = github_application::implementation::threaded_reply_probe_state;
 		auto* const implementation = aApplication.Implementation.get();
@@ -30780,7 +30821,176 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.ThreadResolved = true;
-			probe.Phase                   = state_type::phase::passed;
+			// [[BPR-PENDING-AR1]]. With reactions served, the course goes on:
+			// Unresolve conversation at the thread's end, then reactions.
+			if (!implementation->ReviewMutationHost->capabilities().Reacts) {
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			cards->open_thread(std::string{ threadIdentity });
+			QCoreApplication::processEvents();
+			auto* const reopen = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadResolveConversation")) : nullptr;
+			if (reopen == nullptr || !reopen->isEnabled() || reopen->text() != QStringLiteral("Unresolve conversation")) {
+				return fail("no-unresolve-conversation");
+			}
+			reopen->click();
+			QCoreApplication::processEvents();
+			const auto shown                 = std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id);
+			probe.Evidence.ReopenShownAtOnce = shown != cards->cards().end() && !shown->Resolved && shown->ResolutionPending;
+			if (!probe.Evidence.ReopenShownAtOnce) {
+				return fail("reopen-not-shown-at-once");
+			}
+			probe.Phase = state_type::phase::awaiting_reopened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reopened: {
+			note("completions=" + std::to_string(implementation->ThreadResolutionCompletions) + " failures=" + std::to_string(implementation->ThreadResolutionFailures));
+			if (implementation->ThreadResolutionFailures != 0U || implementation->ThreadResolutionRefusals != 0U) {
+				return fail("reopen-refused-or-failed");
+			}
+			const auto thread = model->index_for_id(threadIdentity);
+			const auto card   = std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id);
+			if (implementation->ThreadResolutionCompletions < 2U || !thread.isValid() || thread.data(qt::github_conversation_model::resolved_role).toBool()
+				|| card == cards->cards().end() || card->Resolved || card->ResolutionPending) {
+				return result::pending;
+			}
+			probe.Evidence.Reopened = true;
+			probe.Phase             = state_type::phase::awaiting_reactions_read;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reactions_read: {
+			const auto post  = std::string{ "review-comment:PRRC_fixture_1" };
+			const auto shown = cards->reactions_of(post);
+			note("read=" + std::to_string(shown.has_value() ? 1 : 0) + " reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount));
+			if (!shown.has_value()) {
+				return result::pending;
+			}
+			const auto* const thumbs     = core::find_reaction_group(*shown, core::reaction_content::thumbs_up);
+			probe.Evidence.ReactionsRead = thumbs != nullptr && thumbs->Count == 2U && !thumbs->ViewerReacted;
+			if (!probe.Evidence.ReactionsRead) {
+				return fail("reactions-not-as-recorded");
+			}
+			cards->open_thread(std::string{ threadIdentity });
+			QCoreApplication::processEvents();
+			auto* const chip = reaction_chip_of(*cards, post, core::reaction_content::thumbs_up);
+			if (chip == nullptr || !chip->isEnabled()) {
+				return fail("no-thumbs-up-chip");
+			}
+			chip->click();
+			QCoreApplication::processEvents();
+			const auto        now        = cards->reactions_of(post);
+			const auto* const pending    = now ? core::find_reaction_group(*now, core::reaction_content::thumbs_up) : nullptr;
+			probe.Evidence.ReactionShown = pending != nullptr && pending->Count == 3U && pending->ViewerReacted && pending->Pending;
+			if (!probe.Evidence.ReactionShown) {
+				return fail("reaction-not-shown-at-once");
+			}
+			probe.Phase = state_type::phase::awaiting_reaction_confirmed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reaction_confirmed:
+		case state_type::phase::awaiting_reaction_removed:
+		case state_type::phase::awaiting_picker_reaction:    {
+			const auto post = std::string{ "review-comment:PRRC_fixture_1" };
+			note("completions=" + std::to_string(implementation->ReactionCompletions) + " failures=" + std::to_string(implementation->ReactionFailures)
+				 + " asked=" + std::to_string(implementation->Fixture->review_mutation_evidence().Reactions));
+			if (implementation->ReactionFailures != 0U) {
+				return fail("reaction-failed");
+			}
+			const auto shown = cards->reactions_of(post);
+			if (!shown.has_value()) {
+				return result::pending;
+			}
+			const auto* const thumbs = core::find_reaction_group(*shown, core::reaction_content::thumbs_up);
+			const auto* const heart  = core::find_reaction_group(*shown, core::reaction_content::heart);
+			if (probe.Phase == state_type::phase::awaiting_reaction_confirmed) {
+				if (implementation->ReactionCompletions < 1U || thumbs == nullptr || thumbs->Pending) {
+					return result::pending;
+				}
+				probe.Evidence.ReactionConfirmed = thumbs->Count == 3U && thumbs->ViewerReacted;
+				if (!probe.Evidence.ReactionConfirmed) {
+					return fail("reaction-not-confirmed");
+				}
+				cards->open_thread(std::string{ threadIdentity });
+				QCoreApplication::processEvents();
+				auto* const chip = reaction_chip_of(*cards, post, core::reaction_content::thumbs_up);
+				if (chip == nullptr) {
+					return fail("no-chip-to-remove");
+				}
+				chip->click();
+				probe.Phase = state_type::phase::awaiting_reaction_removed;
+				return result::pending;
+			}
+			if (probe.Phase == state_type::phase::awaiting_reaction_removed) {
+				if (implementation->ReactionCompletions < 2U || thumbs == nullptr || thumbs->Pending) {
+					return result::pending;
+				}
+				probe.Evidence.ReactionRemoved = thumbs->Count == 2U && !thumbs->ViewerReacted;
+				if (!probe.Evidence.ReactionRemoved) {
+					return fail("reaction-not-removed");
+				}
+				// The picker, by keyboard alone: five steps right is heart.
+				cards->open_thread(std::string{ threadIdentity });
+				QCoreApplication::processEvents();
+				auto* const view  = post_view_of(*cards, post);
+				auto* const react = view != nullptr ? view->findChild<QAbstractButton*>(QStringLiteral("threadPostReact")) : nullptr;
+				if (react == nullptr || react->isHidden()) {
+					return fail("no-add-reaction");
+				}
+				react->click();
+				QCoreApplication::processEvents();
+				auto* picker = static_cast<QWidget*>(nullptr);
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					if (widget->objectName() == QStringLiteral("reactionPicker") && widget->isVisible()) {
+						picker = widget;
+					}
+				}
+				if (picker == nullptr || picker->focusWidget() == nullptr) {
+					return fail("no-picker");
+				}
+				const auto typeKey = [picker](const int aKey) {
+					auto event = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier };
+					QCoreApplication::sendEvent(picker->focusWidget() != nullptr ? picker->focusWidget() : picker, &event);
+				};
+				for (auto step = 0; step < 5; ++step) {
+					typeKey(Qt::Key_Right);
+				}
+				typeKey(Qt::Key_Return);
+				QCoreApplication::processEvents();
+				probe.Phase = state_type::phase::awaiting_picker_reaction;
+				return result::pending;
+			}
+			if (implementation->ReactionCompletions < 3U || heart == nullptr || heart->Pending) {
+				return result::pending;
+			}
+			probe.Evidence.PickerReacted = heart->Count == 1U && heart->ViewerReacted;
+			if (!probe.Evidence.PickerReacted) {
+				return fail("picker-reaction-not-heart");
+			}
+			probe.ReadsBeforeRefresh = implementation->Fixture->evidence().AccountReadCount;
+			if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+				refresh->trigger();
+			} else {
+				return fail("no-refresh");
+			}
+			probe.Phase = state_type::phase::awaiting_reaction_reconciled;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reaction_reconciled: {
+			const auto post  = std::string{ "review-comment:PRRC_fixture_1" };
+			const auto shown = cards->reactions_of(post);
+			note("reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount) + " overlay=" + std::to_string(implementation->ConversationOverlay.Reactions.size()));
+			if (implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh || !implementation->ConversationOverlay.Reactions.empty()
+				|| !shown.has_value()) {
+				return result::pending;
+			}
+			const auto* const thumbs          = core::find_reaction_group(*shown, core::reaction_content::thumbs_up);
+			const auto* const heart           = core::find_reaction_group(*shown, core::reaction_content::heart);
+			probe.Evidence.ReactionReconciled = thumbs != nullptr && thumbs->Count == 2U && !thumbs->ViewerReacted && heart != nullptr && heart->Count == 1U && heart->ViewerReacted
+				&& !heart->Pending;
+			if (!probe.Evidence.ReactionReconciled) {
+				return fail("reaction-not-reconciled");
+			}
+			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		}
 		case state_type::phase::passed:

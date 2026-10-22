@@ -476,7 +476,10 @@ namespace bpr::app::detail {
 		/// [[BPR-0657]]. Whether the fixture's mutation provider resolves
 		/// threads. Off, the composed editor reports the degradation, which
 		/// the round-trip course pins; on, the threaded-reply course resolves.
-		bool                                        ResolvesThreads         = false;
+		bool ResolvesThreads = false;
+		/// [[BPR-PENDING-AR1]]. The fixture answers reactions and its mutation
+		/// provider adds and removes them; off, no course reads any.
+		bool                                        ServesReactions         = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
 		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
@@ -587,6 +590,8 @@ namespace bpr::app::detail {
 		/// resolutions asked of the provider.
 		std::size_t Replies     = 0U;
 		std::size_t Resolutions = 0U;
+		/// [[BPR-PENDING-AR1]]. Reaction changes asked of the provider.
+		std::size_t Reactions = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
 		/// it was a file comment.
@@ -795,6 +800,18 @@ namespace bpr::app::detail {
 		bool ReplyUnderThread = false;
 		bool ResolveAsked     = false;
 		bool ThreadResolved   = false;
+		/// [[BPR-PENDING-AR1]]. With reactions served: Unresolve conversation
+		/// shown at once and settled by GitHub, the recorded reactions read, a
+		/// chip's reaction shown at once, confirmed and removed, a reaction
+		/// chosen in the picker by keyboard, and a later read agreeing.
+		bool ReopenShownAtOnce  = false;
+		bool Reopened           = false;
+		bool ReactionsRead      = false;
+		bool ReactionShown      = false;
+		bool ReactionConfirmed  = false;
+		bool ReactionRemoved    = false;
+		bool PickerReacted      = false;
+		bool ReactionReconciled = false;
 
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};

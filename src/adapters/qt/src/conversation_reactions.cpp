@@ -92,6 +92,28 @@ namespace bpr::qt {
 			}
 
 		protected:
+			void keyPressEvent(QKeyEvent* const aEvent) override
+			{
+				// The picker moves between reactions and chooses on Return;
+				// Space is the button's own press.
+				switch (aEvent->key()) {
+				case Qt::Key_Left:
+				case Qt::Key_Right:
+				case Qt::Key_Up:
+				case Qt::Key_Down:
+				case Qt::Key_Home:
+				case Qt::Key_End:
+				case Qt::Key_Return:
+				case Qt::Key_Enter:
+				case Qt::Key_Escape:
+					aEvent->ignore();
+					return;
+				default:
+					QAbstractButton::keyPressEvent(aEvent);
+					return;
+				}
+			}
+
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
 				auto painter = QPainter{ this };
@@ -403,7 +425,6 @@ namespace bpr::qt {
 			return;
 		case Qt::Key_Return:
 		case Qt::Key_Enter:
-		case Qt::Key_Space:
 			choose(static_cast<core::reaction_content>(Buttons[index]->property("reactionContent").toInt()));
 			return;
 		case Qt::Key_Escape:

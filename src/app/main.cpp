@@ -184,6 +184,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "device-authorization-refresh-course" },
 		bpr::app::command_line_option{ .Name = "device-authorization-orphan-course" },
 		bpr::app::command_line_option{ .Name = "threaded-reply-probe" },
+		bpr::app::command_line_option{ .Name = "reaction-probe" },
 		bpr::app::command_line_option{ .Name = "attended-launch" },
 		bpr::app::command_line_option{ .Name = "public-preview-enabled-course" },
 		bpr::app::command_line_option{ .Name = "public-preview-ghes-course" },
@@ -5004,6 +5005,11 @@ namespace {
 				   << "THREADED_REPLY_EVIDENCE:" << evidence.ReplyDrafted << evidence.ReplyPublished
 				   << evidence.ReplyUnderThread << evidence.ResolveAsked << evidence.ThreadResolved << '\n';
 			stream << "THREADED_REPLY_DIAGNOSTIC:" << QString::fromStdString(aRun.ThreadedReplyDiagnostic) << '\n';
+			if (evidence.ReactionsRead || evidence.Reopened || evidence.ReopenShownAtOnce) {
+				stream << (evidence.ReactionReconciled ? "REACTION_OK\n" : "REACTION_FAILED\n")
+					   << "REACTION_EVIDENCE:" << evidence.ReopenShownAtOnce << evidence.Reopened << evidence.ReactionsRead << evidence.ReactionShown
+					   << evidence.ReactionConfirmed << evidence.ReactionRemoved << evidence.PickerReacted << evidence.ReactionReconciled << '\n';
+			}
 		}
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
@@ -9441,6 +9447,8 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-0657]]. The threaded-reply course refreshes the pull request
 		// after publishing, so the fixture replays its read script.
 		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe");
+		// [[BPR-PENDING-AR1]]. The threaded-reply course goes on to reactions.
+		fixtureOptions.ServesReactions = launch.has("--reaction-probe");
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.
 		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads

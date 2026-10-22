@@ -2119,6 +2119,16 @@ namespace bpr::app::detail {
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			std::vector<QJsonObject>              CreatedReviewThreads;
+			// [[BPR-PENDING-AR1]]. With `--reaction-probe`, the reactions the
+			// fixture answers `ListReactions` with, by comment node, changed by
+			// its mutation provider; the repository and pull request nodes the
+			// recorded answers named, which bind that answer.
+			bool                                          ReactionsServed = false;
+			std::map<std::string, core::reaction_summary> Reactions;
+			std::string                                   RepositoryNode;
+			std::string                                   PullRequestNode;
+			std::size_t                                   ReactionReads = 0U;
+
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
 			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
@@ -2896,6 +2906,41 @@ namespace bpr::app::detail {
 			return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository }, { "nodes", nodes } } } } }.toJson(QJsonDocument::Compact).toStdString();
 		}
 
+		/// [[BPR-PENDING-AR1]]. The fixture's `ListReactions` answer: GitHub's
+		/// eight groups for every comment asked about, as GitHub gives them.
+		[[nodiscard]] auto reactions_response(const fixture_recording_state& aState, const std::vector<std::string>& aNodes) -> std::string
+		{
+			QJsonArray nodes;
+			for (const auto& node : aNodes) {
+				const auto key  = QString::fromStdString(node);
+				const auto type = key.startsWith(QStringLiteral("PRRC_")) ? QStringLiteral("PullRequestReviewComment")
+					: key.startsWith(QStringLiteral("PRR_"))              ? QStringLiteral("PullRequestReview")
+					: key.startsWith(QStringLiteral("IC_"))               ? QStringLiteral("IssueComment")
+																		  : QString{ };
+				if (type.isEmpty()) {
+					nodes.append(QJsonValue{ QJsonValue::Null });
+					continue;
+				}
+				const auto found  = aState.Reactions.find(node);
+				auto       groups = QJsonArray{ };
+				for (const auto content : core::reaction_contents) {
+					const auto* const group = found == aState.Reactions.end() ? nullptr : core::find_reaction_group(found->second, content);
+					auto              who   = QJsonArray{ };
+					if (group != nullptr) {
+						for (const auto& login : group->Reactors) {
+							who.append(QJsonObject{ { "__typename", "User" }, { "login", QString::fromStdString(login) } });
+						}
+					}
+					groups.append(QJsonObject{ { "content", QString::fromUtf8(core::reaction_graphql_name(content).data(), static_cast<qsizetype>(core::reaction_graphql_name(content).size())) },
+											   { "viewerHasReacted", group != nullptr && group->ViewerReacted },
+											   { "reactors", QJsonObject{ { "totalCount", static_cast<qint64>(group == nullptr ? 0U : group->Count) }, { "nodes", who } } } });
+				}
+				nodes.append(QJsonObject{ { "__typename", type }, { "id", key }, { "viewerCanReact", true }, { "reactionGroups", groups } });
+			}
+			const auto repository = QJsonObject{ { "id", QString::fromStdString(aState.RepositoryNode) }, { "pullRequest", QJsonObject{ { "id", QString::fromStdString(aState.PullRequestNode) } } } };
+			return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository }, { "nodes", nodes } } } } }.toJson(QJsonDocument::Compact).toStdString();
+		}
+
 		class fixture_recorded_wire_transport final
 			: public github_wire_transport_port,
 			  public application::git_smart_transport_factory_port
@@ -3019,8 +3064,25 @@ namespace bpr::app::detail {
 					append_rate_limit_headers(response, aRequest.Wire.Operation);
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
 				}
+				// [[BPR-PENDING-AR1]]. Reactions are answered only by the reaction
+				// course, from its own state; every other course reads none.
+				if (aRequest.Wire.Operation == read_operation::list_reactions) {
+					if (!State->ReactionsServed || Role != fixture_transport_role::account || !validate_github_wire_request(State->Profile, aRequest)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
+					}
+					auto body = std::string{ };
+					{
+						const std::scoped_lock lock{ State->Mutex };
+						++State->ReactionReads;
+						body = reactions_response(*State, aRequest.Wire.Semantic.Nodes);
+					}
+					auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Body = std::move(body), .Completeness = page_completeness::complete };
+					append_rate_limit_headers(response, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
+				}
 				// [[BPR-1589]]. No recorded team answers membership.
 				if (aRequest.Wire.Operation == read_operation::get_team_membership) {
+
 					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
 				}
 				if (aRequest.Wire.Operation == read_operation::list_requested_reviewers && !State->PersonalDiscovery) {
@@ -3324,7 +3386,13 @@ namespace bpr::app::detail {
 					}
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				if (State->ReactionsServed && Role == fixture_transport_role::account && response->Status == 200
+					&& (aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::get_pull_request)) {
+					const auto node                                                                                              = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object().value(QStringLiteral("node_id")).toString().toStdString();
+					(aRequest.Wire.Operation == read_operation::get_repository ? State->RepositoryNode : State->PullRequestNode) = node;
+				}
 				if (State->PersonalDiscovery && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+
 					// [[BPR-1379]]. The older snapshot recording omitted fields a
 					// real PR response also supplies to the lightweight Home read.
 					const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body));
@@ -5201,12 +5269,55 @@ namespace bpr::app::detail {
 				};
 			}
 
+			// [[BPR-PENDING-AR1]]. The reaction changes on the next read, and
+			// the answer carries the comment's reactions as GitHub's does.
+			auto set_reaction(
+				const application::review_reaction_request& aRequest,
+				std::stop_token)
+				-> std::expected<application::review_reaction_receipt, application::review_mutation_failure> override
+			{
+				const std::scoped_lock providerLock{ Mutex };
+				++Evidence.Reactions;
+				if (State == nullptr || !State->ReactionsServed) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				if (aRequest.Target != Designated || aRequest.Subject.empty()) {
+					return std::unexpected{ application::review_mutation_failure::undesignated_target };
+				}
+				const std::scoped_lock lock{ State->Mutex };
+				auto&                  summary = State->Reactions[aRequest.Subject];
+				summary.ViewerCanReact         = true;
+				auto group                     = std::ranges::find(summary.Groups, aRequest.Content, &core::reaction_group::Content);
+				if (group == summary.Groups.end()) {
+					summary.Groups.push_back(core::reaction_group{ .Content = aRequest.Content });
+					group = std::prev(summary.Groups.end());
+				}
+				if (aRequest.Add && !group->ViewerReacted) {
+					group->ViewerReacted = true;
+					++group->Count;
+					group->Reactors.insert(group->Reactors.begin(), "octo-reviewer");
+				} else if (!aRequest.Add && group->ViewerReacted) {
+					group->ViewerReacted = false;
+					--group->Count;
+					std::erase(group->Reactors, std::string{ "octo-reviewer" });
+				}
+				summary = core::canonical_reaction_summary(summary).value_or(summary);
+				return application::review_reaction_receipt{
+					.Subject   = aRequest.Subject,
+					.Content   = aRequest.Content,
+					.Reacted   = aRequest.Add,
+					.Reactions = summary,
+					.Written   = true,
+				};
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
 				return {
 					.ResolvesThreads    = ResolvesThreads,
 					.RecordsViewedState = false,
+					.Reacts             = State != nullptr && State->ReactionsServed,
 				};
 			}
 
@@ -5383,7 +5494,17 @@ namespace bpr::app::detail {
 			Recording->RepeatSessions              = aOptions.DeviceRefreshCourse
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
-			Recording->RepeatReads             = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
+			Recording->RepeatReads = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
+			// [[BPR-PENDING-AR1]]. Two others gave the first thread's first post
+			// a thumbs up.
+			Recording->ReactionsServed = aOptions.ServesReactions;
+			if (aOptions.ServesReactions) {
+				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
+					.ViewerCanReact = true,
+					.Groups         = { core::reaction_group{ .Content = core::reaction_content::thumbs_up, .Count = 2U, .Reactors = { "octo-author", "fixture-other-reviewer" } } },
+				};
+			}
+
 			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;
 			Recording->ReviewTourCourse        = aOptions.ReviewTourCourse;
