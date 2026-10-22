@@ -1,24 +1,28 @@
 ---
 id: "RFC-BPR-0090"
 title: "Suggest change edits the selected head lines in place in pull request review"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0022", "RFC-BPR-0023", "RFC-BPR-0055", "RFC-BPR-0089"]
-metadata: {"origin": {"date": "2026-10-21", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1723", "revision": "r2 2026-10-21, owner answers Q1-Q5 recorded", "draft": "docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md", "import": "docs/rfcs/assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": ["docs/design/BPR-1723-in-pane-suggest-v1/index.html", "docs/design/BPR-1723-in-pane-suggest-v2/index.html"], "owner_questions": "Q1-Q5 answered 2026-10-21 in attended session e5387830d18edd8d541b96e47ecbd9cb (closed)"}
+metadata: {"origin": {"date": "2026-10-21", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1723", "revision": "r2 2026-10-21, owner answers Q1-Q5 recorded", "draft": "docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md", "import": "docs/rfcs/assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "closeout": "BPR-1730 (2026-10-21)", "design_frames": ["docs/design/BPR-1723-in-pane-suggest-v1/index.html", "docs/design/BPR-1723-in-pane-suggest-v2/index.html"], "owner_questions": "Q1-Q5 answered 2026-10-21 in attended session e5387830d18edd8d541b96e47ecbd9cb (closed)"}
 ---
 
 # Suggest change edits the selected head lines in place in pull request review
 
-In Progress, revision r2. Adopted from
+Auto-Verified, revision r2, implemented in milestones M1 to M4 and
+[[BPR-1733]] and closed by [[BPR-1730]] on 2026-10-21. Adopted from
 [RFC-DRAFT-0025](assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md)
 ([import record](assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md)) after the
 owner answered its five questions. Card [[BPR-1723]] holds the phase 1
 finding; the milestone cards are listed under [Milestones](#milestones).
-M1 to M3 are implemented; Carry and Copy change at a newer head are
-BPR-1733. M4's live course on BPR-Test #123 published the core's
-planned suggestions, which GitHub took at their lines and returned
-unchanged; GitHub's Commit suggestion on a CRLF file and the owner's look
-are parked on the owner ([checkpoint](../issues/_checkpoints/RFC-BPR-0090-M4/handoff.md)).
+M4's live course on BPR-Test #123 published the core's planned suggestions,
+which GitHub took at their lines and returned unchanged, and GitHub's Commit
+suggestion gave exactly the edited LF and CRLF files; the owner accepted the
+built edit on a frozen build ([checkpoint](../issues/_checkpoints/RFC-BPR-0090-M4/handoff.md)).
+Carry and Copy change at a newer head ([[BPR-1733]]) pass on fixtures across
+a force push; the owner accepted that evidence on 2026-10-21 without a
+BPR-Test run, which the live harness cannot drive. No owner question remains
+open.
 
 ## Problem and grounded current behavior
 

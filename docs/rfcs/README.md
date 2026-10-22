@@ -665,7 +665,7 @@ comment (BPR-1706); Windows and Linux are unmeasured.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0090](RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md) | Suggest change edits the selected head lines in place in pull request review | In Progress | RFC-BPR-0022, RFC-BPR-0023, RFC-BPR-0055, RFC-BPR-0089 |
+| [RFC-BPR-0090](RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md) | Suggest change edits the selected head lines in place in pull request review | Auto-Verified | Closed 2026-10-21 by [BPR-1730](../issues/60-done/BPR-1730-close-rfc-0090.md): fixture courses through the shipped composition, the live course and Commit suggestion measurement on MikeMarcin/BPR-Test #123 and the owner's look on a frozen build; Carry at a newer head on fixtures, accepted by the owner. Depends on RFC-BPR-0022, RFC-BPR-0023, RFC-BPR-0055, RFC-BPR-0089 |
 
 Drafted 2026-10-21 as RFC-DRAFT-0025 from the owner's report that pull
 request review lacked the local project's in-pane Suggest change
