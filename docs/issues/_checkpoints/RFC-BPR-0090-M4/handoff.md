@@ -1,4 +1,4 @@
-# RFC-BPR-0090 checkpoint: M1 to M4 done, Carry (BPR-1733) and the closeout open
+# RFC-BPR-0090 checkpoint: M1 to M4 and Carry built; the closeout waits on BPR-1733's live half
 
 Assignment: record the owner's answers to RFC-DRAFT-0025 (session
 `e5387830d18edd8d541b96e47ecbd9cb`) and the chat clarification of Q1, revise
@@ -25,8 +25,8 @@ refinement, which all keep the product's own palette.
 | M4 live course, CRLF measurement and the owner's look | done: AC1 `dbc6c0f71`, AC2 `ddc878a47` | BPR-1729 |
 | The read-only code set back (owner's drawer-link note) | done, `d2db849ab` | BPR-1729, RFC "The editable range" |
 | One-pane stray highlight (owner's one-pane note) | done, `ad9dbb5f1`; introduced by `d7d95ed0d` (BPR-1533) | BPR-PENDING-AJ |
-| Carry and Copy change at a newer head | open: needs the host's old-to-new head correspondence | BPR-1733 |
-| Closeout | open | BPR-1730 |
+| Carry and Copy change at a newer head | built and passing on fixtures, `fc30dfbdb`; AC1's BPR-Test half open (the live harness writes no draft) | BPR-1733 |
+| Closeout | reconciled: AC01 to AC10 pass, AC08 on fixtures; not closed while BPR-1733 is open | BPR-1730 |
 | Follow-ups | stacked two panes (Q4 note), a durable file-comment subject | BPR-1731, BPR-1732 |
 
 ## Sessions and resources
@@ -40,8 +40,12 @@ refinement, which all keep the product's own palette.
 
 ## Next action
 
-BPR-1733: a host request for a kept suggestion draft's file at its old head
-and the new head, compared as `resolve_filtered_comment_lines` compares a
-filtered diff's sides, delivered to the window, which offers Carry when
-`core::decide_suggestion_carry` maps the range and Copy change otherwise.
-Then the closeout BPR-1730.
+The coordinator decides BPR-1733 AC1's BPR-Test half: an owner wizard on a
+frozen build (write a suggestion on a BPR-Test pull request, the agent pushes
+a commit, the owner carries it), or reading the card's criterion as the
+RFC's AC08, which names no live run. Then BPR-1733 closes, BPR-1730 records
+it and sets RFC-BPR-0090 to Done.
+
+Outside this RFC: `application_start_review_contract` fails on main since
+`7a00adb52` (its probe expects "Review was not published.", the workflow
+says "Not published: GitHub refused this review.").
