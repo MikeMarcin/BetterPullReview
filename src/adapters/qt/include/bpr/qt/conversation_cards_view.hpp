@@ -347,6 +347,9 @@ namespace bpr::qt {
 		QString Lines;
 		/// What the draft's suggestion block changes, when it has one.
 		std::optional<core::suggested_change> Change;
+		/// [[RFC-BPR-0090]]. The change is written in the head pane: `Body`
+		/// is the reviewer's words only, and the block lives in the code.
+		bool InCode = false;
 		/// What the last Publish came to ([[BPR-1329]]), else why Publish is
 		/// unavailable, or empty.
 		QString Notice;

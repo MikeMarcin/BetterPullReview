@@ -48,6 +48,7 @@
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QColor>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -6757,10 +6758,12 @@ namespace {
 		};
 		window.comparison_surface()->set_selection_sink(admit);
 		const auto settle = [&window, &drafts] {
-			const auto edit = std::ranges::find_if(drafts.rbegin(), drafts.rend(), [](const core::review_draft_command& aCommand) {
-				return aCommand.Kind == core::review_draft_command_kind::edit;
+			// The shown draft's own last edit, as the host accepts it.
+			const auto& shown = window.review_editor()->shown_draft();
+			const auto  edit  = std::ranges::find_if(drafts.rbegin(), drafts.rend(), [&shown](const core::review_draft_command& aCommand) {
+				return aCommand.Kind == core::review_draft_command_kind::edit && shown.has_value() && aCommand.Id == shown->Id;
 			});
-			if (edit != drafts.rend() && window.review_editor()->shown_draft().has_value()) {
+			if (edit != drafts.rend() && shown.has_value()) {
 				auto accepted = *window.review_editor()->shown_draft();
 				accepted.Body = edit->Body;
 				window.review_editor()->present(accepted);
@@ -6923,14 +6926,82 @@ namespace {
 		window.suggest_change_action()->trigger();
 		process_events();
 		settle();
-		auto* const change = cards->open_card() != nullptr ? cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftChange")) : nullptr;
-		expect(drawer_writing(window) && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("```suggestion\n\tchanged `line` 12\n```")
-				   && change != nullptr && change->isVisible() && change->accessibleDescription().startsWith(QStringLiteral("Suggests a change to line 13"))
-				   && cards->draft_editor()->textCursor().position() == cards->draft_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' }),
-			   "Suggest change prefills a suggestion block with the line exactly, its tab included, the caret at the end of its last line");
-		cards->draft_editor()->setPlainText(QStringLiteral("```suggestion\n\tchanged `line` 13\n```"));
+		// [[RFC-BPR-0090]]. Suggest change opens the line for writing in the
+		// head pane, and the drawer prefills no block (owner, Q1 and Q5).
+		auto* const head = window.comparison_surface()->head_editor();
+		// The window lost activation to the menu offscreen, so its focus
+		// widget is what holds focus once it is active again.
+		expect(drawer_writing(window) && head != nullptr && head->isVisible() && window.focusWidget() == head && head->geometry() == code->rect()
+				   && window.statusBar()->currentMessage() == QStringLiteral("Suggesting a change to line 13. Type it in the code; Esc ends the edit.")
+				   && head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 12U, 12U }
+				   && head->model().state().Carets.front().Head == core::text_point{ 12U, head->model().line_width(12U) }
+				   && window.review_editor()->body_editor()->toPlainText().isEmpty() && cards->draft_editor()->toPlainText().isEmpty(),
+			   "Suggest change opens line 13 for writing over the head pane, the caret at its end, and the drawer prefills no block");
+		// Keys reach the code through the window, as typing does.
+		const auto type = [&window](const int aKey, const QString& aText) {
+			for (const auto kind : { QEvent::KeyPress, QEvent::KeyRelease }) {
+				QWindowSystemInterface::handleKeyEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), kind, aKey, Qt::NoModifier,
+																									kind == QEvent::KeyPress ? aText : QString{ });
+				QApplication::processEvents();
+			}
+		};
+		// The edit's rows are the head pane's: same pitch, and a row above the
+		// range meets its own.
+		const auto editTop = [&window, head](const std::uint64_t aRow) {
+			return static_cast<qreal>(head->viewport()->mapTo(window.comparison_surface(), QPoint{ 0, qRound(head->cell_rectangle({ aRow, 0U }).top()) }).y());
+		};
+		const auto headTop = [&window](const std::uint32_t aLine) { return static_cast<qreal>(window.comparison_surface()->line_rect(core::diff_side::right, aLine).top()); };
+		expect(std::abs(head->line_height() - window.comparison_surface()->line_rect(core::diff_side::right, 5U).height()) <= 1.0 && std::abs(editTop(5U) - headTop(5U)) <= 1.0,
+			   "the edit keeps the head pane's row pitch, and line 6, above the range, stays where it was");
+		// Enter grows the range by a row; once the range is above the top, the
+		// rows below meet their head rows one row further down the edit.
+		type(Qt::Key_Return, QString{ });
+		expect(head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 12U, 13U }, "Enter at the line's end grows the range to two rows");
+		{
+			const auto pitch = window.comparison_surface()->line_rect(core::diff_side::right, 5U).height();
+			auto       wheel = QWheelEvent{ QPointF{ 10.0, 10.0 }, QPointF{ 10.0, 10.0 }, QPoint{ 0, -pitch * 16 }, QPoint{ 0, -120 * 4 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(head->viewport(), &wheel);
+			process_events();
+		}
+		const auto belowTop = window.comparison_surface()->right_pane()->cursorForPosition(QPoint{ 4, 2 }).blockNumber();
+		expect(belowTop > 13 && std::abs(editTop(21U) - headTop(20U)) <= 1.0,
+			   "a wheel over the edit scrolls the comparison, and with the range above the top, head line 21 is the edit's row 22: " + std::to_string(belowTop));
+		// Enter kept the line's tab; Backspace takes it and then the row.
+		type(Qt::Key_Backspace, QString{ });
+		type(Qt::Key_Backspace, QString{ });
+		expect(head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 12U, 12U } && head->text().find("\tchanged `line` 12\nline 13") != std::string::npos,
+			   "Backspace takes the added row back");
+		type(Qt::Key_Backspace, QString{ });
+		type(Qt::Key_3, QStringLiteral("3"));
 		settle();
-		expect(change->accessibleDescription() == QStringLiteral("What it changes in line 13: removes 1, adds 1."), "editing the block shows what it changes");
+		auto* const change = cards->open_card() != nullptr ? cards->open_card()->findChild<QWidget*>(QStringLiteral("threadDraftChange")) : nullptr;
+		expect(window.review_editor()->body_editor()->toPlainText() == QStringLiteral("```suggestion\n\tchanged `line` 13\n```") && cards->draft_editor()->toPlainText().isEmpty()
+				   && change != nullptr && change->isVisible() && change->accessibleDescription() == QStringLiteral("What it changes in line 13: removes 1, adds 1."),
+			   "typing in the code composes the block, its tab kept; the drawer field holds no block and shows what it changes");
+		// A key on a fixed line changes nothing and says why.
+		const auto edited = head->text();
+		static_cast<void>(head->apply(core::place_caret{ .At = { 5U, 0U } }));
+		type(Qt::Key_X, QStringLiteral("x"));
+		expect(head->text() == edited && head->model().last_refusal() == core::suggestion_edit_refusal::fixed_text && head->flashing()
+				   && window.statusBar()->currentMessage() == QStringLiteral("Only line 13 is in this suggestion. Esc ends the edit."),
+			   "typing on line 6 is refused whole, the range's edge flashes and the status line says only line 13 is in the suggestion");
+		save_render(window, QStringLiteral("compose-pane-suggestion"));
+		// Words go in the drawer; the body is the words, a blank line and the block.
+		cards->draft_editor()->setPlainText(QStringLiteral("Use 13."));
+		settle();
+		expect(window.review_editor()->body_editor()->toPlainText() == QStringLiteral("Use 13.\n\n```suggestion\n\tchanged `line` 13\n```") && cards->draft_editor()->toPlainText() == QStringLiteral("Use 13."),
+			   "the drawer's words and the code's block compose the body");
+		// Esc ends the edit; the drawer still holds only the words.
+		head->setFocus(Qt::OtherFocusReason);
+		type(Qt::Key_Escape, QString{ });
+		settle();
+		expect(window.comparison_surface()->head_editor() == nullptr && drawer_writing(window) && cards->draft_editor()->toPlainText() == QStringLiteral("Use 13.")
+				   && window.review_editor()->body_editor()->toPlainText() == QStringLiteral("Use 13.\n\n```suggestion\n\tchanged `line` 13\n```"),
+			   "Esc ends the edit and keeps the change; the field still holds only the words");
+		cards->draft_editor()->setPlainText(QStringLiteral("Use 13 here."));
+		settle();
+		expect(window.review_editor()->body_editor()->toPlainText() == QStringLiteral("Use 13 here.\n\n```suggestion\n\tchanged `line` 13\n```"),
+			   "words written after the edit closed keep the code's block");
 		save_render(window, QStringLiteral("compose-drawer-suggestion"));
 		// Publish posts this one draft, once, and nothing else did.
 		auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
@@ -11087,16 +11158,23 @@ namespace {
 		key(*right, Qt::Key_Down, Qt::ShiftModifier);
 		key(*right, Qt::Key_Return, Qt::ShiftModifier);
 		settle();
-		const auto block = std::string{ "```suggestion\nline 3\nline 4\nchanged `line` 5\n```" };
+		// [[RFC-BPR-0090]]. The three lines open for writing in the head pane;
+		// the drawer prefills no block (owner, Q1 and Q5).
+		auto* const head = surface->head_editor();
 		expect(ranges() == 1 && accepted && accepted->Draft.Anchor.Line == 5U && accepted->Draft.StartLine == std::optional<std::uint32_t>{ 3U }
-				   && accepted->Draft.Body == block,
-			   "Shift+Return gives the draft on line 6 the first line 4 in one edit, and the block holds lines 4 to 6 exactly");
-		expect(surface->selection() && surface->selection()->PreferredLine.Line == 5U && drawer_writing(window) && !composing(window, page) && message().isEmpty()
-				   && cards->draft_editor()->toPlainText().toStdString() == block
-				   && cards->draft_editor()->textCursor().position() == cards->draft_editor()->toPlainText().lastIndexOf(QLatin1Char{ '\n' })
+				   && accepted->Draft.Body.empty() && head != nullptr && head->hasFocus()
+				   && head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 3U, 5U },
+			   "Shift+Return gives the draft on line 6 the first line 4 in one edit and opens lines 4 to 6 for writing in the head pane");
+		static_cast<void>(head->apply(core::insert_text{ .Text = "!" }));
+		settle();
+		const auto block = std::string{ "```suggestion\nline 3\nline 4\nchanged `line` 5!\n```" };
+		expect(accepted->Draft.Body == block && cards->draft_editor()->toPlainText().isEmpty(), "typing in the code writes the block on lines 4 to 6; the drawer holds no block");
+		expect(surface->selection() && surface->selection()->PreferredLine.Line == 5U && drawer_writing(window) && !composing(window, page)
 				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines 4–6") && bracket(3U, 5U),
-			   "the drawer draft opens on lines 4 to 6 with the caret at the end of the block's last line and the bracket across them");
+			   "the drawer draft is on lines 4 to 6 with the bracket across them");
 		save_render(window, QStringLiteral("line-draft-range-suggestion"));
+		key(*head, Qt::Key_Escape);
+		expect(surface->head_editor() == nullptr && drawer_writing(window), "Esc in the code ends the edit and the drawer keeps the draft");
 
 		// Esc keeps the written draft. Alt+C (Comment) reopens it unchanged.
 		key(*cards->draft_editor(), Qt::Key_Escape);
@@ -11343,10 +11421,13 @@ namespace {
 		auto* menu = rightClick(*right, point(*right, core::diff_side::right, 20U));
 		expect(menu != nullptr && surface->selection() && surface->selection()->PreferredLine == core::source_line_ref{ .Comparison = diff.Alignment.Digest, .Side = core::diff_side::right, .Line = 20U },
 			   "a right-click on a line nobody clicked selects that line");
+		// [[RFC-BPR-0090]]. Line 21 is outside every changed region, where
+		// GitHub takes no suggestion: Suggest change says so.
 		expect(answers == 0 && caption(menu) == QStringLiteral("Line 21") && item(menu, QStringLiteral("addCommentAction")) != nullptr
-				   && item(menu, QStringLiteral("addCommentAction"))->isEnabled() && item(menu, QStringLiteral("suggestChangeAction"))->isEnabled()
-				   && reason(menu).isEmpty(),
-			   "before its draft arrives the menu offers Add comment and Suggest change, enabled, with no reason");
+				   && item(menu, QStringLiteral("addCommentAction"))->isEnabled() && !item(menu, QStringLiteral("suggestChangeAction"))->isEnabled()
+				   && reason(menu) == QStringLiteral("Suggestions need a changed region")
+				   && item(menu, QStringLiteral("suggestChangeAction"))->toolTip().contains(QStringLiteral("inside a changed region")),
+			   "before its draft arrives the menu offers Add comment, and Suggest change on a line outside every changed region is unavailable with its reason");
 		choose(menu, item(menu, QStringLiteral("addCommentAction")));
 		wait_for([&window] { return drawer_writing(window); }, 2000);
 		expect(drawer_writing(window) && accepted && accepted->Draft.Anchor.Line == 20U && cards->open_card()->accessibleName() == QStringLiteral("Your draft on line 21"),
@@ -11367,10 +11448,12 @@ namespace {
 		choose(menu, item(menu, QStringLiteral("suggestChangeAction")));
 		wait_for([&window] { return drawer_writing(window); }, 2000);
 		settle();
+		// [[RFC-BPR-0090]]. The three lines open for writing in the head pane.
 		expect(drawer_writing(window) && accepted && accepted->Draft.Anchor.Line == 5U && accepted->Draft.StartLine == std::optional<std::uint32_t>{ 3U }
-				   && accepted->Draft.Body == "```suggestion\nline 3\nline 4\nchanged `line` 5\n```"
+				   && accepted->Draft.Body.empty() && surface->head_editor() != nullptr
+				   && surface->head_editor()->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 3U, 5U }
 				   && cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines 4–6"),
-			   "Suggest change on the selection starts a block of all three lines on the draft that spans them");
+			   "Suggest change on the selection opens all three lines for writing in the head pane, on the draft that spans them");
 		save_render(window, QStringLiteral("right-click-v002-range-suggestion"));
 		cards->draft_editor()->setPlainText(QString{ });
 		settle();
@@ -11720,14 +11803,15 @@ namespace {
 		key(Qt::Key_Return);
 		expect(ranged(4U, 6U), "Shift+Down twice and Return open the draft on lines 5 to 7");
 
-		// (6) Suggest change on a dragged range fills its block with exactly
-		// the range's lines.
+		// (6) Suggest change on a dragged range opens exactly the range's
+		// lines for writing in the head pane ([[RFC-BPR-0090]]).
 		reset();
 		drag(point(*right, core::diff_side::right, 6U), point(*right, core::diff_side::right, 7U, at::end));
 		menu = rightClick(point(*right, core::diff_side::right, 7U));
 		expect(words(menu, "suggestChangeAction") == QStringLiteral("Suggest change on lines 7–8") && choose(menu, item(menu, QStringLiteral("suggestChangeAction"))) && ranged(6U, 7U)
-				   && accepted->Draft.Body == "```suggestion\nline 6\nline 7\n```",
-			   "Suggest change on a dragged selection starts a block of exactly its lines");
+				   && accepted->Draft.Body.empty() && surface->head_editor() != nullptr
+				   && surface->head_editor()->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 6U, 7U },
+			   "Suggest change on a dragged selection opens exactly its lines for writing");
 		cards->draft_editor()->setPlainText(QString{ });
 		settle();
 
@@ -12056,6 +12140,96 @@ namespace {
 		}
 	};
 
+	/// \brief [[RFC-BPR-0090]] Q4 A. In one pane, Suggest change shows the head
+	/// file alone while the lines are written (the interleaved rows hold no one
+	/// file to type into), and the comparison comes back when the edit ends.
+	void test_one_pane_suggest_change_shows_the_head_file()
+	{
+		auto  course  = line_gesture_course{ true };
+		auto& unified = course.pane();
+		expect(course.Surface->one_pane_enabled() && unified.isVisible(), "the one-pane comparison is shown");
+		course.reset();
+
+		// Line 6 changed, inside its hunk: Suggest change is offered there.
+		auto* const menu = course.right_click(course.right(5U));
+		expect(line_gesture_course::enabled(menu, "suggestChangeAction") && line_gesture_course::choose(menu, "suggestChangeAction") && course.ranged(5U, 5U),
+			   "Suggest change on line 6 in one pane opens its draft");
+		auto* const head  = course.Surface->head_editor();
+		const auto& bytes = course.Surface->current_result()->RightDocument->Bytes;
+		expect(head != nullptr && head->isVisible() && !head->external_scroll() && head->geometry() == unified.rect()
+				   && head->text() == std::string{ bytes.begin(), bytes.end() } && head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 5U, 5U },
+			   "in one pane the edit shows the head file alone over the comparison, scrolling itself, with line 6 editable");
+		static_cast<void>(head->apply(core::insert_text{ .Text = "!" }));
+		course.settle();
+		expect(course.Accepted && course.Accepted->Draft.Body == "```suggestion\nchanged `line` 5!\n```", "typing in the head file writes the suggestion on line 6");
+		save_render(course.Window, QStringLiteral("one-pane-suggestion"));
+		auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QCoreApplication::sendEvent(head, &press);
+		process_events();
+		expect(course.Surface->head_editor() == nullptr && unified.isVisible() && course.Accepted->Draft.Body == "```suggestion\nchanged `line` 5!\n```",
+			   "Esc ends the edit: the interleaved comparison is back and the suggestion kept");
+	}
+
+	/// \brief [[RFC-BPR-0090]] AC02. The head pane's edit is the Review Cycles
+	/// editor: a box across the range, IME composition, undo and paste work
+	/// there through its keys, and a box that reaches past the range is
+	/// refused whole.
+	void test_the_pane_edit_takes_the_editor_gestures()
+	{
+		auto course = line_gesture_course{ false };
+		course.reset();
+		course.drag(course.right(2U), course.right(4U, line_gesture_course::at::code));
+		auto* const menu = course.right_click(course.right(3U));
+		expect(line_gesture_course::choose(menu, "suggestChangeAction") && course.ranged(2U, 4U), "Suggest change on lines 3 to 5 opens their draft");
+		auto* const head = course.Surface->head_editor();
+		expect(head != nullptr && head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 2U, 4U }, "lines 3 to 5 are editable");
+		const auto key = [head](const int aKey, const Qt::KeyboardModifiers aModifiers, const QString& aText = { }) {
+			auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers, aText };
+			QCoreApplication::sendEvent(head, &press);
+			auto release = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers, aText };
+			QCoreApplication::sendEvent(head, &release);
+			process_events();
+		};
+		const auto block = [&course] { return course.Accepted.has_value() ? course.Accepted->Draft.Body : std::string{ }; };
+
+		// A box down the range's first column, then one character on every line.
+		static_cast<void>(head->apply(core::place_caret{ .At = { 2U, 0U } }));
+		key(Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		key(Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		key(Qt::Key_Greater, Qt::NoModifier, QStringLiteral(">"));
+		course.settle();
+		expect(head->model().state().Carets.size() == 3U && block() == "```suggestion\n>line 2\n>line 3\n>line 4\n```",
+			   "Alt+Shift+Down twice makes a caret on each line of the range, and typing writes on all three");
+		// IME composition commits at every caret too.
+		auto composing = QInputMethodEvent{ QStringLiteral("e"), { } };
+		QCoreApplication::sendEvent(head, &composing);
+		expect(head->preedit() == QStringLiteral("e") && block() == "```suggestion\n>line 2\n>line 3\n>line 4\n```",
+			   "the composition shows at the caret and is not yet text");
+		auto committed = QInputMethodEvent{ QString{ }, { } };
+		committed.setCommitString(QString::fromUtf8("\xC3\xA9"));
+		QCoreApplication::sendEvent(head, &committed);
+		course.settle();
+		expect(block() == "```suggestion\n>\xC3\xA9line 2\n>\xC3\xA9line 3\n>\xC3\xA9line 4\n```", "the committed composition is written at every caret");
+		// Undo takes the composition back; paste writes the clipboard at every caret.
+		key(Qt::Key_Z, Qt::ControlModifier);
+		course.settle();
+		// Typing joins one undo step, as in the editor everywhere.
+		expect(block().empty() && head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 2U, 4U }, "Undo takes the typed run back, and with no change the body is empty");
+		QApplication::clipboard()->setText(QStringLiteral("|"));
+		key(Qt::Key_V, Qt::ControlModifier);
+		course.settle();
+		expect(block() == "```suggestion\n|line 2\n|line 3\n|line 4\n```", "Paste writes the clipboard at every caret");
+		// A box that reaches line 6, outside the range, is refused whole.
+		key(Qt::Key_Down, Qt::AltModifier | Qt::ShiftModifier);
+		key(Qt::Key_Exclam, Qt::NoModifier, QStringLiteral("!"));
+		course.settle();
+		expect(head->model().last_refusal() == core::suggestion_edit_refusal::fixed_text && block() == "```suggestion\n|line 2\n|line 3\n|line 4\n```",
+			   "a box that reaches past the range writes nothing");
+		key(Qt::Key_Escape, Qt::NoModifier);
+		key(Qt::Key_Escape, Qt::NoModifier);
+		expect(course.Surface->head_editor() == nullptr, "Esc collapses the carets, then ends the edit");
+	}
+
 	/// \brief [[BPR-1724]] gap 1. The one-pane comparison has the code's
 	/// menu, as split view does, for the line each row shows: a head line, or
 	/// the base line a removed row shows. It had no menu at all.
@@ -12070,8 +12244,11 @@ namespace {
 		auto* menu = course.right_click(course.right(12U));
 		expect(menu != nullptr && line_gesture_course::words(menu, "codeContextMenuCaption") == QStringLiteral("Line 13")
 				   && line_gesture_course::words(menu, "addCommentAction") == QStringLiteral("Add comment") && line_gesture_course::enabled(menu, "addCommentAction")
-				   && line_gesture_course::enabled(menu, "suggestChangeAction") && line_gesture_course::item(menu, "addTourStopAction") != nullptr,
-			   "a right-click in one pane opens the code's menu on the clicked head line, with Add comment, Suggest change and the rest");
+				   && line_gesture_course::item(menu, "suggestChangeAction") != nullptr && !line_gesture_course::enabled(menu, "suggestChangeAction")
+				   && line_gesture_course::words(menu, "codeContextMenuReason") == QStringLiteral("Suggestions need a changed region")
+				   && line_gesture_course::item(menu, "addTourStopAction") != nullptr,
+			   "a right-click in one pane opens the code's menu on the clicked head line, with Add comment, Suggest change and the rest; "
+			   "line 13 is outside the changed region, so Suggest change says why it is unavailable ([[RFC-BPR-0090]])");
 		expect(line_gesture_course::choose(menu, "addCommentAction") && course.ranged(12U, 12U), "Add comment there opens the draft on line 13");
 
 		// Rows 4 to 6 dragged, right-clicked inside: the items name the range.
@@ -21335,6 +21512,8 @@ auto main(int argc, char** argv) -> int
 		runCase("test_the_review_chip_counts_the_review_and_opens_finish", &test_the_review_chip_counts_the_review_and_opens_finish);
 		runCase("test_the_plus_on_a_pull_request_without_threads_opens_its_draft", &test_the_plus_on_a_pull_request_without_threads_opens_its_draft);
 		runCase("test_one_pane_has_the_code_menu", &test_one_pane_has_the_code_menu);
+		runCase("test_one_pane_suggest_change_shows_the_head_file", &test_one_pane_suggest_change_shows_the_head_file);
+		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);

@@ -4,6 +4,7 @@
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/diff_runtime_ports.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/suggestion_text_editing.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/diff_link_map.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
@@ -43,6 +44,7 @@ namespace bpr::qt {
 	class pending_veil;
 	class line_details_pane;
 	class line_details_splitter;
+	class suggestion_editor;
 
 	/// \brief Identifies the Qt-facing source that requested a geometry rebuild.
 	enum class diff_geometry_rebuild_trigger : std::uint32_t {
@@ -305,6 +307,45 @@ namespace bpr::qt {
 		/// -1 or 1) do, extending the selection with `aExtend` as Shift does.
 		/// \returns Whether a line was selected.
 		auto move_line_cursor(int aStep, bool aExtend) -> bool;
+		/// \brief [[RFC-BPR-0090]]. What opens the head pane's in-place edit.
+		struct head_edit_request
+		{
+			/// The zero-based first and last selected head lines.
+			std::uint32_t First = 0U;
+			std::uint32_t Last  = 0U;
+			/// The editable lines' text to start from when a kept draft opens
+			/// again (`core::rebuild_suggestion_span`); none starts from the
+			/// head's own lines.
+			std::optional<std::vector<core::text_line>> Span;
+			/// What the range says when it is left as one empty line.
+			QString EmptyNote;
+			/// The range's wash, its gutter edge, and the edge while a refused
+			/// edit flashes it.
+			QColor Wash;
+			QColor Edge;
+			QColor Flash;
+			/// Told after every change of the text, once the edit has followed it.
+			std::function<void()> Changed;
+			/// Told once when the edit ends, for any reason: `end_head_edit`, a
+			/// new publication, a cleared or reloaded comparison, or a change
+			/// of presentation.
+			std::function<void()> Ended;
+		};
+		/// \brief [[RFC-BPR-0090]]. Makes the selected head lines editable in
+		/// place: the shared editor of Review Cycles over the head pane at its
+		/// geometry, holding the whole head file, with only the selected lines
+		/// editable (owner, Q1). Split, it follows the comparison's scroll and
+		/// the base pane keeps reading beside it; in one pane it shows the
+		/// head file alone (Q4 A). The caret is at the end of the last line.
+		/// \returns The editor, or null with no head document, a head larger
+		/// than the editor's bound, or lines outside it. Any earlier edit ends.
+		auto begin_head_edit(const head_edit_request& aRequest) -> suggestion_editor*;
+		/// \brief Ends the edit; the head pane reads again.
+		void end_head_edit();
+		/// \brief The open edit's editor, or null.
+		[[nodiscard]] auto head_editor() const noexcept -> suggestion_editor*;
+		/// \brief The open edit's selected lines, first and last.
+		[[nodiscard]] auto head_edit_lines() const -> std::optional<std::pair<std::uint32_t, std::uint32_t>>;
 		/// \brief The last polite announcement made for the comparison.
 		[[nodiscard]] auto last_announcement() const noexcept -> const QString&;
 		[[nodiscard]] auto reveal_conversation_line(
@@ -789,6 +830,15 @@ namespace bpr::qt {
 			std::uint32_t   Top  = 0U;
 		};
 		std::optional<held_line> HeldLine;
+		/// [[RFC-BPR-0090]]. The head pane's in-place edit, while one is open.
+		struct head_edit;
+		std::unique_ptr<head_edit> HeadEdit;
+		/// Places the edit's text where the head pane's rows are.
+		void sync_head_edit();
+		/// The edit's line that shows a head line, and the head line an edit's line stands for.
+		[[nodiscard]] auto head_edit_row(std::uint32_t aHeadLine) const -> std::uint64_t;
+		[[nodiscard]] auto head_line_of_edit_row(std::uint64_t aRow) const -> std::uint32_t;
+		void               reveal_head_edit_row(std::uint64_t aRow);
 	};
 } // namespace bpr::qt
 

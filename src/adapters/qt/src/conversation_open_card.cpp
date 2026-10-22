@@ -439,17 +439,20 @@ namespace bpr::qt {
 				setFocusPolicy(Qt::NoFocus);
 			}
 
-			void present(const std::optional<core::suggested_change>& aChange, const QString& aLines)
+			void present(const std::optional<core::suggested_change>& aChange, const QString& aLines, const bool aInCode = false)
 			{
-				if (Change == aChange && Lines == aLines) {
+				if (Change == aChange && Lines == aLines && InCode == aInCode) {
 					return;
 				}
 				Change     = aChange;
 				Lines      = aLines;
+				InCode     = aInCode;
 				auto words = QString{ };
 				if (Change.has_value()) {
 					if (Change->unchanged()) {
-						words = QStringLiteral("Suggests a change to %1. Edit the lines in the block; the change shows here.").arg(Lines.toLower());
+						// [[RFC-BPR-0090]]. Written in the code, the change is typed there.
+						words = InCode ? QStringLiteral("Suggests a change to %1. Type it in the code; the change shows here.").arg(Lines.toLower())
+									   : QStringLiteral("Suggests a change to %1. Edit the lines in the block; the change shows here.").arg(Lines.toLower());
 					} else {
 						words = QStringLiteral("What it changes in %1: removes %2, adds %3.").arg(Lines.toLower()).arg(Change->Removed.size()).arg(Change->Added.size());
 					}
@@ -516,7 +519,9 @@ namespace bpr::qt {
 					painter.setFont(caption);
 					painter.setPen(colours.Faint);
 					painter.drawText(QRect{ 8, y, width() - 16, row }, Qt::AlignLeft | Qt::AlignVCenter,
-									 QFontMetrics{ caption }.elidedText(QStringLiteral("Edit the lines in the block above; the change shows here."), Qt::ElideRight, std::max(0, width() - 16)));
+									 QFontMetrics{ caption }.elidedText(InCode ? QStringLiteral("No change yet. Type it in the code; it shows here.")
+																			   : QStringLiteral("Edit the lines in the block above; the change shows here."),
+																		Qt::ElideRight, std::max(0, width() - 16)));
 					painter.restore();
 					return;
 				}
@@ -553,6 +558,7 @@ namespace bpr::qt {
 			open_card_style                       Style;
 			std::optional<core::suggested_change> Change;
 			QString                               Lines;
+			bool                                  InCode = false;
 		};
 
 		void style_reply_chip(QToolButton& aChip, const open_card_style& aStyle)
@@ -1766,7 +1772,7 @@ namespace bpr::qt {
 			ReplyBox->setPlainText(aDraft->Body);
 			auto cursor = ReplyBox->textCursor();
 			cursor.movePosition(QTextCursor::End);
-			if (aDraft->Change.has_value() && !aDraft->Body.isEmpty()) {
+			if (aDraft->Change.has_value() && !aDraft->InCode && !aDraft->Body.isEmpty()) {
 				if (const auto last = aDraft->Body.lastIndexOf(QLatin1Char{ '\n' }); last > 0) {
 					cursor.setPosition(static_cast<int>(last));
 				}
@@ -1775,25 +1781,29 @@ namespace bpr::qt {
 			Applying = false;
 		}
 		// A suggestion is code: monospaced and unwrapped, as it will apply.
-		const auto fenced = aDraft.has_value() && aDraft->Change.has_value();
+		// [[RFC-BPR-0090]]. Written in the code, the field holds words only.
+		const auto inCode    = aDraft.has_value() && aDraft->InCode;
+		const auto suggested = aDraft.has_value() && (aDraft->Change.has_value() || inCode);
+		const auto fenced    = aDraft.has_value() && aDraft->Change.has_value() && !inCode;
 		ReplyBox->setFont(fenced ? Style.CodeFont : font());
 		ReplyBox->setTabStopDistance(QFontMetricsF{ ReplyBox->font() }.horizontalAdvance(QLatin1Char{ ' ' }) * 4.0);
 		ReplyBox->setLineWrapMode(fenced ? QPlainTextEdit::NoWrap : QPlainTextEdit::WidgetWidth);
 		ReplyBox->setHorizontalScrollBarPolicy(fenced ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
 		const auto lines = aDraft.has_value() && !aDraft->Lines.isEmpty() ? aDraft->Lines : ReplyBox->accessibleName().section(QLatin1Char{ ' ' }, 2, -1);
 		if (aDraft.has_value() && !aDraft->Lines.isEmpty()) {
-			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
-			ReplyBox->setPlaceholderText(fenced ? QStringLiteral("Edit the lines in the block. Say why above it.")
-												: QStringLiteral("Comment on %1. Type : at the start for a label.").arg(aDraft->Lines.toLower()));
+			ReplyBox->setAccessibleName(QStringLiteral("%1 on %2").arg(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Comment"), aDraft->Lines.toLower()));
+			ReplyBox->setPlaceholderText(inCode       ? QStringLiteral("Say why, if you like. The change is written in the code.")
+											 : fenced ? QStringLiteral("Edit the lines in the block. Say why above it.")
+													  : QStringLiteral("Comment on %1. Type : at the start for a label.").arg(aDraft->Lines.toLower()));
 			if (Where != nullptr) {
 				Where->setText(aDraft->Lines);
 				Where->setAccessibleName(QStringLiteral("Show %1").arg(aDraft->Lines.toLower()));
 			}
 		}
 		if (DraftState != nullptr) {
-			static_cast<state_label*>(DraftState)->set_text(fenced ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
+			static_cast<state_label*>(DraftState)->set_text(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
-		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines);
+		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
 		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
 		if (!LastNotice.isEmpty()) {
 			ReplyStatus->setText(LastNotice);

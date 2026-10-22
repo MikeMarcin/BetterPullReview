@@ -7,6 +7,7 @@
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/pending_veil.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/type_preview.hpp"
 
 #include "line_details_splitter.hpp"
@@ -37,6 +38,7 @@
 #include <QPalette>
 #include <QPen>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QRegion>
 #include <QResizeEvent>
@@ -945,6 +947,24 @@ namespace bpr::qt {
 			/// Together they say which line is at the top and how far above the
 			/// viewport edge it starts, which is everything needed to turn a
 			/// per-line document measurement into a scroll origin.
+			/// \brief [[RFC-BPR-0090]]. The first line any of whose row shows.
+			[[nodiscard]] auto top_visible_line() const -> std::optional<std::uint32_t>
+			{
+				const auto block = firstVisibleBlock();
+				return block.isValid() && block.blockNumber() >= 0 ? std::optional{ static_cast<std::uint32_t>(block.blockNumber()) } : std::nullopt;
+			}
+
+			/// \brief [[RFC-BPR-0090]]. A line's row top in viewport coordinates,
+			/// unrounded, so text drawn over the pane meets its rows exactly.
+			[[nodiscard]] auto exact_line_top(const std::uint32_t aLine) const -> std::optional<qreal>
+			{
+				const auto block = document()->findBlockByNumber(static_cast<int>(aLine));
+				if (!block.isValid() || !block.isVisible()) {
+					return std::nullopt;
+				}
+				return blockBoundingGeometry(block).translated(contentOffset()).top();
+			}
+
 			[[nodiscard]] auto visible_origin() const
 				-> std::optional<std::pair<std::size_t, qreal>>
 			{
@@ -3183,6 +3203,60 @@ namespace bpr::qt {
 		static_cast<thread_tick_scroll_bar*>(Unified->verticalScrollBar())->set_find_ticks(std::move(unified));
 	}
 
+	namespace {
+		/// [[RFC-BPR-0090]]. Tells its owner when the watched widget resizes.
+		class resize_follower final : public QObject
+		{
+		public:
+			resize_follower(QWidget& aWatched, std::function<void()> aResized)
+				: QObject{ &aWatched }
+				, Resized{ std::move(aResized) }
+			{
+				aWatched.installEventFilter(this);
+			}
+
+		protected:
+			auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::Resize && Resized) {
+					Resized();
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			std::function<void()> Resized;
+		};
+	} // namespace
+
+	struct diff_workbench::head_edit
+	{
+		QPointer<suggestion_editor> Editor;
+		QPointer<QPlainTextEdit>    Host;
+		QPointer<QObject>           Follower;
+		/// The selected head lines, and how many there are.
+		std::uint32_t First         = 0U;
+		std::uint32_t Last          = 0U;
+		std::uint32_t OriginalCount = 1U;
+		/// The fill of each head line, as the head pane paints it.
+		std::vector<QColor>     Fills;
+		bool                    OnePane = false;
+		QMetaObject::Connection Scrolled;
+		std::function<void()>   Ended;
+
+		/// The edit's first and last editable lines now.
+		[[nodiscard]] auto range() const -> std::pair<std::uint64_t, std::uint64_t>
+		{
+			const auto editable = Editor != nullptr ? Editor->model().editable_range() : std::nullopt;
+			return editable.value_or(std::pair<std::uint64_t, std::uint64_t>{ First, Last });
+		}
+		[[nodiscard]] auto count() const -> std::uint64_t
+		{
+			const auto [first, last] = range();
+			return last - first + 1U;
+		}
+	};
+
 	diff_workbench::diff_workbench(QWidget* const aParent)
 		: QWidget{ aParent }
 		, UnifiedPresentation{ std::make_unique<unified_presentation>() }
@@ -3434,6 +3508,293 @@ namespace bpr::qt {
 		QWidget::setTabOrder(SharedScroll, Detail);
 	}
 
+	auto diff_workbench::head_edit_row(const std::uint32_t aHeadLine) const -> std::uint64_t
+	{
+		const auto& edit = *HeadEdit;
+		if (aHeadLine < edit.First) {
+			return aHeadLine;
+		}
+		if (aHeadLine <= edit.Last) {
+			return edit.First + std::min<std::uint64_t>(aHeadLine - edit.First, edit.count() - 1U);
+		}
+		return std::uint64_t{ aHeadLine } + edit.count() - edit.OriginalCount;
+	}
+
+	auto diff_workbench::head_line_of_edit_row(const std::uint64_t aRow) const -> std::uint32_t
+	{
+		const auto& edit  = *HeadEdit;
+		const auto  count = edit.count();
+		if (aRow < edit.First) {
+			return static_cast<std::uint32_t>(aRow);
+		}
+		if (aRow < edit.First + count) {
+			return edit.First + static_cast<std::uint32_t>(std::min<std::uint64_t>(aRow - edit.First, edit.OriginalCount - 1U));
+		}
+		return static_cast<std::uint32_t>(aRow - count + edit.OriginalCount);
+	}
+
+	auto diff_workbench::begin_head_edit(const head_edit_request& aRequest) -> suggestion_editor*
+	{
+		end_head_edit();
+		if (!CurrentResult || !CurrentResult->RightDocument.has_value() || aRequest.First > aRequest.Last) {
+			return nullptr;
+		}
+		const auto& document = *CurrentResult->RightDocument;
+		if (document.Bytes.size() > core::maximum_suggestion_editor_bytes || aRequest.Last >= document.Lines.size()) {
+			return nullptr;
+		}
+		auto text  = std::string{ document.Bytes.begin(), document.Bytes.end() };
+		auto lines = core::split_text_lines(text);
+		if (aRequest.Last >= lines.size()) {
+			return nullptr;
+		}
+		auto spanCount = static_cast<std::uint64_t>(aRequest.Last - aRequest.First) + 1U;
+		if (aRequest.Span.has_value() && !aRequest.Span->empty()) {
+			const auto from = lines.begin() + aRequest.First;
+			lines.erase(from, from + static_cast<std::ptrdiff_t>(spanCount));
+			lines.insert(lines.begin() + aRequest.First, aRequest.Span->begin(), aRequest.Span->end());
+			spanCount = aRequest.Span->size();
+			text      = core::join_text_lines(lines);
+		}
+
+		auto edit           = std::make_unique<head_edit>();
+		edit->First         = aRequest.First;
+		edit->Last          = aRequest.Last;
+		edit->OriginalCount = aRequest.Last - aRequest.First + 1U;
+		edit->OnePane       = OnePaneEnabled;
+		auto* const host    = OnePaneEnabled ? Unified : Right;
+		edit->Host          = host;
+		// The head pane's own fills, per head line.
+		edit->Fills.assign(document.Lines.size(), QColor{ });
+		if (Colors.Supplied) {
+			for (const auto& segment : CurrentResult->Alignment.Segments) {
+				const auto colour = moved(segment.Id) ? Colors.Moved
+					: segment.Kind == core::alignment_kind::right_only || segment.Kind == core::alignment_kind::replacement
+					? Colors.Added
+					: QColor{ };
+				for (auto line = segment.Right.Begin; colour.isValid() && line < segment.Right.End && line < edit->Fills.size(); ++line) {
+					edit->Fills[line] = colour;
+				}
+			}
+		}
+
+		auto* const editor = new suggestion_editor{ host };
+		editor->setObjectName(QStringLiteral("diffHeadSuggestionEditor"));
+		editor->setAccessibleName(QStringLiteral("Suggested change to lines %1 to %2").arg(aRequest.First + 1U).arg(aRequest.Last + 1U));
+		editor->setFrameShape(QFrame::NoFrame);
+		editor->set_code_font(host->font());
+		editor->set_contrast_variant(Colors.Variant);
+		const auto column = std::max(1.0, QFontMetricsF{ host->font() }.horizontalAdvance(QLatin1Char{ 'M' }));
+		const auto tab    = static_cast<std::uint32_t>(std::max(1.0, std::round(host->tabStopDistance() / column)));
+		editor->set_text(text, tab);
+		editor->set_indentation(core::indentation_for({ }, text));
+		editor->set_editable_lines(aRequest.First, aRequest.First + spanCount - 1U);
+		if (RightSpans) {
+			const auto classified = classify_text_lines(std::span{ document.Bytes }, RightSpans);
+			editor->set_syntax(suggestion_syntax_lines(classified, std::string_view{ reinterpret_cast<const char*>(document.Bytes.data()), document.Bytes.size() }, Colors.Syntax));
+		}
+		HeadEdit                    = std::move(edit);
+		const auto gutterBackground = Colors.Syntax[static_cast<std::size_t>(core::appearance_role::code_gutter_background)];
+		const auto gutterText       = Colors.Syntax[static_cast<std::size_t>(core::appearance_role::code_line_number_text)];
+		auto       gutterWidth      = pane(Right)->gutter_width();
+		if (OnePaneEnabled || gutterWidth <= 0) {
+			const auto digits = QString::number(document.Lines.size() + spanCount).size();
+			gutterWidth       = qCeil(QFontMetricsF{ host->font() }.horizontalAdvance(QString(digits, QLatin1Char{ '9' }))) + 3 * GutterPadding;
+		}
+		editor->set_gutter(suggestion_editor::gutter_presentation{
+			.Width      = gutterWidth,
+			.Padding    = GutterPadding,
+			.Font       = host->font(),
+			.Background = gutterBackground,
+			.Text       = gutterText,
+			.Number     = [this](const std::uint64_t aRow) -> QString {
+				if (!HeadEdit) {
+					return { };
+				}
+				const auto& current = *HeadEdit;
+				// A row the edit added has no number in the head file yet.
+				if (aRow >= current.First && aRow < current.First + current.count() && aRow - current.First >= current.OriginalCount) {
+					return { };
+				}
+				return QString::number(head_line_of_edit_row(aRow) + 1U);
+			},
+		});
+		editor->set_row_fill([this](const std::uint64_t aRow) -> std::optional<QColor> {
+			if (!HeadEdit) {
+				return std::nullopt;
+			}
+			const auto& current = *HeadEdit;
+			if (aRow >= current.First && aRow < current.First + current.count() && aRow - current.First >= current.OriginalCount) {
+				return std::nullopt;
+			}
+			const auto line = head_line_of_edit_row(aRow);
+			return line < current.Fills.size() && current.Fills[line].isValid() ? std::optional{ current.Fills[line] } : std::nullopt;
+		});
+		editor->set_range_colours(aRequest.Wash, aRequest.Edge, aRequest.Flash);
+		editor->set_empty_range_note(aRequest.EmptyNote);
+		editor->setGeometry(host->rect());
+		editor->Changed = [this, changed = aRequest.Changed] {
+			sync_head_edit();
+			if (changed) {
+				changed();
+			}
+		};
+		HeadEdit->Ended    = aRequest.Ended;
+		HeadEdit->Editor   = editor;
+		HeadEdit->Follower = new resize_follower{ *host, [this] {
+													 if (HeadEdit && HeadEdit->Editor && HeadEdit->Host) {
+														 HeadEdit->Editor->setGeometry(HeadEdit->Host->rect());
+														 sync_head_edit();
+													 }
+												 } };
+		if (!OnePaneEnabled) {
+			// The comparison stays the one thing that scrolls; the edit follows it.
+			editor->set_external_scroll(true);
+			editor->Wheeled    = [this](QWheelEvent* const aEvent) { static_cast<void>(scroll_by_wheel(*aEvent)); };
+			editor->Reveal     = [this](const std::uint64_t aRow) { reveal_head_edit_row(aRow); };
+			HeadEdit->Scrolled = connect(Right->verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { sync_head_edit(); });
+		}
+		editor->horizontalScrollBar()->setValue(host->horizontalScrollBar()->value());
+		editor->show();
+		editor->raise();
+		// One pane's map draws the interleaved rows, which the edit hides.
+		if (OnePaneEnabled) {
+			UnifiedMap->hide();
+		}
+		if (OnePaneEnabled) {
+			// The range where its head rows were in the interleaved view.
+			auto above = std::uint64_t{ 0U };
+			if (const auto row = unified_row_for(core::diff_side::right, aRequest.First); row.has_value()) {
+				const auto rect = pane(Unified)->line_row_rect(*row);
+				if (!rect.isEmpty() && rect.top() > 0) {
+					above = static_cast<std::uint64_t>(std::floor(static_cast<qreal>(rect.top()) / std::max<qreal>(1.0, editor->line_height())));
+				}
+			}
+			editor->scroll_to_line(aRequest.First > above ? aRequest.First - above : 0U);
+		}
+		// The caret at the end of the last selected line.
+		const auto last = aRequest.First + spanCount - 1U;
+		static_cast<void>(editor->apply(core::place_caret{ .At = { last, editor->model().line_width(last) } }));
+		sync_head_edit();
+		editor->setFocus(Qt::OtherFocusReason);
+		return editor;
+	}
+
+	void diff_workbench::end_head_edit()
+	{
+		if (!HeadEdit) {
+			return;
+		}
+		auto edit = std::move(HeadEdit);
+		QObject::disconnect(edit->Scrolled);
+		if (edit->Follower) {
+			delete edit->Follower.data();
+		}
+		const auto hadFocus = edit->Editor && edit->Editor->hasFocus();
+		if (edit->Editor) {
+			// Gestures may still be on the editor's stack: it goes once they return.
+			edit->Editor->hide();
+			edit->Editor->deleteLater();
+		}
+		LinkMap->set_dimmed_from(std::nullopt);
+		if (edit->OnePane && OnePaneEnabled) {
+			UnifiedMap->show();
+		}
+		if (hadFocus && edit->Host) {
+			edit->Host->setFocus(Qt::OtherFocusReason);
+		}
+		if (edit->Ended) {
+			edit->Ended();
+		}
+	}
+
+	auto diff_workbench::head_editor() const noexcept -> suggestion_editor*
+	{
+		return HeadEdit ? HeadEdit->Editor.data() : nullptr;
+	}
+
+	auto diff_workbench::head_edit_lines() const -> std::optional<std::pair<std::uint32_t, std::uint32_t>>
+	{
+		return HeadEdit ? std::optional{ std::pair{ HeadEdit->First, HeadEdit->Last } } : std::nullopt;
+	}
+
+	void diff_workbench::sync_head_edit()
+	{
+		if (!HeadEdit || !HeadEdit->Editor || HeadEdit->OnePane) {
+			return;
+		}
+		auto* const editor = HeadEdit->Editor.data();
+		auto* const source = pane(Right);
+		const auto  top    = source->top_visible_line();
+		if (!top) {
+			return;
+		}
+		const auto row = source->exact_line_top(*top);
+		if (!row) {
+			return;
+		}
+		// Where the head pane's top row is, in the editor's viewport, and the
+		// head's fractional line at the editor's top edge.
+		const auto pitch  = std::max<qreal>(1.0, editor->line_height());
+		const auto y      = *row + static_cast<qreal>(Right->viewport()->mapTo(Right, QPoint{ }).y() - editor->viewport()->mapTo(Right, QPoint{ }).y());
+		const auto head   = static_cast<qreal>(*top) - y / pitch;
+		const auto first  = static_cast<qreal>(HeadEdit->First);
+		const auto before = static_cast<qreal>(HeadEdit->OriginalCount);
+		const auto after  = static_cast<qreal>(HeadEdit->count());
+		// Rows above the range meet their head rows exactly, the range's rows
+		// pass at the rate its length differs, and rows below meet theirs once
+		// the range has gone above the top: the edit scrolls without a jump.
+		const auto row0 = head < first ? head : head < first + before ? first + (head - first) * after / before
+																	  : head + after - before;
+		editor->set_vertical_offset(row0 * pitch);
+		// Ribbons that touch or follow the range no longer meet their rows.
+		const auto rangeRow = source->line_row_rect(HeadEdit->First);
+		auto       dimFrom  = std::optional<qreal>{ };
+		if (!rangeRow.isEmpty()) {
+			dimFrom = static_cast<qreal>(LinkMap->mapFrom(Comparison, Right->viewport()->mapTo(Comparison, QPoint{ 0, rangeRow.top() })).y());
+		} else if (*top > HeadEdit->First) {
+			dimFrom = -1.0e9;
+		}
+		LinkMap->set_dimmed_from(dimFrom);
+	}
+
+	void diff_workbench::reveal_head_edit_row(const std::uint64_t aRow)
+	{
+		if (!HeadEdit || !HeadEdit->Editor || HeadEdit->OnePane) {
+			return;
+		}
+		auto* const editor  = HeadEdit->Editor.data();
+		const auto  pitch   = std::max<qreal>(1.0, editor->line_height());
+		const auto  overrun = [editor, pitch, aRow] {
+			const auto top    = static_cast<qreal>(aRow) * pitch - editor->vertical_offset();
+			const auto height = static_cast<qreal>(editor->viewport()->height());
+			return top < 0.0 ? top : top + pitch > height ? top + pitch - height
+														  : 0.0;
+		};
+		// The comparison moves by the pixels the row is out of view. The edit
+		// covers the head pane, so its viewport's own area and clip say where
+		// its rows show, not what is visible of it. The reveal measures the
+		// pane's origin, which can land a few pixels short: it goes again while
+		// that brings the row nearer.
+		for (auto attempt = 0; attempt < 3; ++attempt) {
+			const auto before = overrun();
+			if (std::abs(before) < 0.5 || !HeadEdit || !HeadEdit->Editor) {
+				return;
+			}
+			const auto clip    = Right->viewport()->mask();
+			const auto visible = clip.isEmpty() ? Right->viewport()->rect() : clip.boundingRect().intersected(Right->viewport()->rect());
+			if (visible.isEmpty()) {
+				return;
+			}
+			const auto shift = static_cast<int>(before < 0.0 ? std::floor(before) : std::ceil(before));
+			const auto rect  = shift < 0 ? QRect{ 0, visible.top() + shift, 1, 1 } : QRect{ 0, visible.bottom() + shift, 1, 1 };
+			reveal_keyboard_row(Right, rect, visible);
+			if (std::abs(overrun()) >= std::abs(before)) {
+				return;
+			}
+		}
+	}
+
 	diff_workbench::~diff_workbench() = default;
 
 	struct diff_workbench::staged_publication
@@ -3481,6 +3842,8 @@ namespace bpr::qt {
 	void diff_workbench::adopt_publication(const application::diff_publication& aPublication,
 										   QTextDocument* const aLeft, QTextDocument* const aRight)
 	{
+		// [[RFC-BPR-0090]]. An edit holds the text it was opened on.
+		end_head_edit();
 		const auto previousSelection = Interaction.Selection;
 		HeldLine.reset();
 		for (auto* source : { Left, Right, Unified }) {
@@ -5055,6 +5418,7 @@ namespace bpr::qt {
 		// a rendering bug rather than an optimisation: the reviewer would
 		// scroll into a changed region and find it untinted.
 		update_diff_paint();
+		sync_head_edit();
 		++Statistics.FrameApplications;
 		if (FrameObserver) {
 			FrameObserver();
@@ -5430,6 +5794,7 @@ namespace bpr::qt {
 		if (OnePaneEnabled == aEnabled) {
 			return;
 		}
+		end_head_edit();
 		if (CurrentResult && Interaction.Selection) {
 			const auto side   = PresentationReadingSide.value_or(Interaction.Selection->PreferredLine.Side);
 			auto*      source = pane(OnePaneEnabled ? Unified : side == core::diff_side::left ? Left
@@ -6527,6 +6892,7 @@ namespace bpr::qt {
 
 	void diff_workbench::clear_projection(QString aStatus)
 	{
+		end_head_edit();
 		clear_source_find_document();
 		HeldLine.reset();
 		RestoredReadingLine.reset();

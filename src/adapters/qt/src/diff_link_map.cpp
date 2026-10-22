@@ -471,10 +471,16 @@ namespace bpr::qt {
 		const auto selectedOutline = palette().color(QPalette::WindowText);
 
 		auto ordinaryPaths = QPainterPath{ };
+		auto dimmedPaths   = QPainterPath{ };
 		for (const auto& link : VisibleLinks) {
-			ordinaryPaths.addPath(link.Path);
+			// [[RFC-BPR-0090]]. A ribbon that touches or follows the head
+			// pane's edited range no longer meets its own row.
+			(DimmedFrom.has_value() && link.RightBottom > *DimmedFrom ? dimmedPaths : ordinaryPaths).addPath(link.Path);
 		}
 		painter.fillPath(ordinaryPaths, normal);
+		if (!dimmedPaths.isEmpty()) {
+			painter.fillPath(dimmedPaths, with_alpha(palette().color(QPalette::WindowText), 40));
+		}
 
 		Statistics.LastPaintedPaths = 0U;
 		Statistics.LastMoveMarkers  = 0U;
@@ -747,6 +753,19 @@ namespace bpr::qt {
 		ViewportBandHeight = aHeight;
 		rebuild_visible_geometry();
 		update();
+	}
+
+	void diff_link_map::set_dimmed_from(const std::optional<qreal> aRightTop)
+	{
+		if (DimmedFrom != aRightTop) {
+			DimmedFrom = aRightTop;
+			update();
+		}
+	}
+
+	auto diff_link_map::dimmed_from() const noexcept -> std::optional<qreal>
+	{
+		return DimmedFrom;
 	}
 
 	auto diff_link_map::band_height() const noexcept -> qreal

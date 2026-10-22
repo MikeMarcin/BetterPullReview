@@ -1937,9 +1937,12 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   comment, GitHub's `side: LEFT`, only once the epoch host has answered that
   the comparison's base document is the merge base's version of the file,
   which GitHub numbers `LEFT` lines in, and only inside a hunk; Suggest change
-  stays on the head side ([[BPR-1212]] v002). A refusal opens nothing and says
+  stays on the head side ([[BPR-1212]] v002), and takes one line only inside a
+  hunk and no range on a commit-filtered diff whose right side is not the head
+  (`core::decide_suggestion_range`, [[RFC-BPR-0090]]). A refusal opens nothing and says
   why in the status line: a base line whose numbering is not known to be
-  GitHub's, a base line outside every hunk, a suggestion on a base line, lines
+  GitHub's, a base line outside every hunk, a suggestion on a base line or on
+  a line outside every hunk, lines
   on two sides, lines outside one hunk, or, with no line selected, "Select a
   line first: click it, or move to it with Up and Down while the code has
   focus." Otherwise the range's last line is selected, its draft takes the
@@ -1968,8 +1971,8 @@ selectable themes, fonts, syntax presentation, and high-contrast profiles.
   right-click is not refused for a draft still on its way. An item that cannot apply is unavailable, and a
   row under the items says why in a few words ("This file's base is not
   GitHub's", "Base lines need a changed region", "Suggest change: head side
-  only", "Lines must be in one changed region"), with the full reason as its
-  tooltip.
+  only", "Suggestions need a changed region", "Lines must be in one changed
+  region"), with the full reason as its tooltip.
 - The lower pane is **Line details** ([[BPR-1334]]), RFC-BPR-0005's Beyond
   Compare–inspired line-over-line pane. It shows the current line twice, full
   width: the base version above the head version, each with its line number
@@ -2615,10 +2618,25 @@ named for the lines when there are several ("Add comment on lines a–b").
 A published thread on several lines, GitHub's `start_line` to `line`, says
 "a–b" in its header and "Lines a–b" in its mark's description, and its open
 wash and bar span all of them, its edge mark on the last
-([[BPR-1721]]). Suggest change starts the draft as a
-```` ```suggestion ```` block holding the selected lines exactly, the caret
-at the end of its last line, set monospaced and unwrapped, and shows what the
-block changes as it is edited. Neither key nor item acts on lines the core
+([[BPR-1721]]). Suggest change writes the change in the code
+([[RFC-BPR-0090]]; the owner's Q1 and Q5, 2026-10-21): the head pane becomes
+the Review Cycles editor over the whole head file, at the pane's geometry, and
+only the selected lines are editable, washed blue with a blue edge down the
+gutter beside them; the caret is at the end of the last one. The editor
+follows the comparison's scroll, and a wheel over it scrolls the comparison.
+An edit that would change any other byte is refused whole, the edge flashes
+once and the status line says "Only lines a–b are in this suggestion. Esc
+ends the edit." Enter and pasted lines grow the range, the rows below moving
+down and a new row unnumbered, and emptying it leaves one row that says
+"Deletes lines a–b". Ribbons that touch or follow the range are dimmed while
+it is edited. In one pane the edit shows the head file alone, over the
+interleaved rows, until it ends. The drawer field holds the reviewer's words
+only, never a block, and "What it changes" shows the code's change under them;
+the draft's body is the core's composition of the words and the block. Esc
+in the code ends the edit and keeps the change, and the field keeps holding
+the words; Suggest change on the same lines opens it again. Outside Review,
+where no code shows, the full composer still starts as a
+```` ```suggestion ```` block holding the selected lines exactly. Neither key nor item acts on lines the core
 refuses together, Suggest change does not act on the base side, and the menu
 says why in a row under the items. Maximize (Command+Shift+M) opens the
 same draft in Discuss, where the full composer lives: the conversations narrow

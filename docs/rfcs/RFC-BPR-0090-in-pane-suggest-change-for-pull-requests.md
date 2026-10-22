@@ -124,8 +124,11 @@ reason row already uses, and changes nothing.
 
 The head pane becomes the shared editor of RC55-07 over the whole head file,
 at the same geometry: text, scroll position, line numbers, syntax colours and
-the head's added-row fills do not change, and the selection is selected again
-in the editor. A thin write-blue edge runs down the gutter beside the range
+the head's added-row fills do not change, and the caret is at the end of the
+last selected line, so typing adds to the lines rather than replacing them.
+The editor follows the comparison's scroll, so a wheel over it scrolls both
+panes, and moving the caret out of view scrolls the comparison to it. A thin
+write-blue edge runs down the gutter beside the range
 and the range's rows take the light write-blue wash, the drawer's "amber is
 where you read, blue is where you write". The rest of the file stays
 readable around it, so the reviewer sees the context of the change.
@@ -160,8 +163,11 @@ readable around it, so the reviewer sees the context of the change.
   `suggestion_fence_body`'s (one backtick longer than any run in the code).
 - **The base pane stays read-only**, and its rows and the link map keep their
   alignment above the range. Below a range that grew or shrank, the head
-  rows are offset by the difference, so ribbons that touch the range or lie
-  below it are drawn dimmed until the edit ends.
+  rows are offset by the difference while the range is in view, so ribbons
+  that touch the range or lie below it are drawn dimmed until the edit ends.
+  The edit scrolls without a jump: rows above the range meet their head rows,
+  the range's rows pass at the rate its length differs, and rows below meet
+  theirs once the range has gone above the top.
 - **One pane (Q4).** In the one-pane comparison the edit shows the head file
   alone, scrolled so the range sits where its rows were, with the head's
   added rows still green. The interleaved comparison returns when the edit
@@ -319,7 +325,8 @@ was edited, and Copy change copies the block's text.
 
 - **AC01:** From Shift+Return, the right-click item and the review bar, on a
   selection or the caret alone, the head pane becomes editable with
-  unchanged text, scroll, numbers and colours, and the selection kept. A base
+  unchanged text, scroll, numbers and colours, and the caret at the end of
+  the last selected line. A base
   line, a range across changed regions, a single line outside every changed
   region and a range on a filtered diff whose right side is not head are
   refused at entry with their reason.

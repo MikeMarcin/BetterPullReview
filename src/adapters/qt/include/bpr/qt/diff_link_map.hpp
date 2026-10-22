@@ -166,6 +166,13 @@ namespace bpr::qt {
 		/// wrong place - BPR-0208. Given the band, the conversion is exact;
 		/// assumed, it is wrong by however much the layout happens to differ.
 		void set_viewport_band(qreal aTopOffset, qreal aHeight);
+		/// \brief [[RFC-BPR-0090]]. Ribbons whose right end reaches below this
+		/// height of the right pane's viewport are drawn dimmed, or none.
+		/// \details While the head pane edits a range in place, the rows below
+		/// it move with its length, so a ribbon that touches or follows it no
+		/// longer meets its own row.
+		void               set_dimmed_from(std::optional<qreal> aRightTop);
+		[[nodiscard]] auto dimmed_from() const noexcept -> std::optional<qreal>;
 
 		[[nodiscard]] auto set_frame(const comparison_scroll_frame& aFrame)
 			-> bool;
@@ -292,6 +299,7 @@ namespace bpr::qt {
 		bool                                              Dragging                      = false;
 		bool                                              SelectionAnnouncementsEnabled = true;
 		diff_link_map_statistics                          Statistics;
+		std::optional<qreal>                              DimmedFrom;
 	};
 
 	/// \brief Owns the two-pane splitter whose sole handle is a DiffLinkMap.

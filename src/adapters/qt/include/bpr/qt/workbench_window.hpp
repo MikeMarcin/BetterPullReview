@@ -17,6 +17,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/release_maintenance.hpp"
@@ -1925,6 +1926,24 @@ namespace bpr::qt {
 		void maximize_drawer_draft();
 		/// \brief [[BPR-1212]]. The exact head lines the shown draft is on.
 		[[nodiscard]] auto draft_source_lines() const -> std::optional<std::vector<std::string>>;
+		/// \brief [[RFC-BPR-0090]]. Why Suggest change cannot open on lines the
+		/// comment rules took (`core::decide_suggestion_range`), or nothing;
+		/// `aWords` receives the menu's few words.
+		[[nodiscard]] auto suggestion_range_reason(const core::comment_range_decision& aDecision, QString* aWords = nullptr) const -> QString;
+		/// \brief [[RFC-BPR-0090]]. Opens the shown draft's lines for writing
+		/// in the head pane (Suggest change, owner Q1 and Q5): a kept
+		/// suggestion opens with its block, words stay in the drawer.
+		/// \returns Whether the edit opened.
+		auto begin_pane_suggestion() -> bool;
+		/// \brief [[RFC-BPR-0090]]. Ends the head pane's edit; the draft keeps
+		/// what was written, and the drawer still holds only its words.
+		void end_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. Ends the edit and the drawer's link to it.
+		void release_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. The core's plan for the head pane's edit now.
+		[[nodiscard]] auto pane_suggestion_plan() const -> std::optional<core::pull_request_suggestion_plan>;
+		/// \brief [[RFC-BPR-0090]]. Writes the plan's body to the draft.
+		void compose_pane_suggestion();
 		/// [[BPR-1084]]. Tells the draft editor where the reply it shows is attached.
 		void present_reply_placement();
 		void update_new_comment_group();
@@ -2558,7 +2577,25 @@ namespace bpr::qt {
 			std::optional<std::uint32_t> StartLine;
 			bool                         Suggestion = false;
 		};
-		std::optional<pending_line_comment>  PendingLineComment;
+		std::optional<pending_line_comment> PendingLineComment;
+		/// [[RFC-BPR-0090]]. The drawer draft whose suggestion is written in
+		/// the head pane: its lines, the head's own text of them, and the
+		/// reviewer's words, which the drawer field holds while the block
+		/// lives in the code. It stays linked after the edit closes, for as
+		/// long as the drawer writes that draft, so the block never moves into
+		/// the field (owner, Q5).
+		struct pane_suggestion
+		{
+			core::source_line_ref        Anchor;
+			std::optional<std::uint32_t> StartLine;
+			std::vector<core::text_line> Original;
+			QString                      Prose;
+			/// The words held a suggestion block of their own when the edit opened.
+			bool OwnBlock = false;
+			/// The head pane's edit is open.
+			bool Open = false;
+		};
+		std::optional<pane_suggestion>       PaneSuggestion;
 		QString                              CommentDraftUnavailable;
 		std::optional<core::source_line_ref> WritingAnchor;
 		QAction*                             AddCommentAction    = nullptr;
