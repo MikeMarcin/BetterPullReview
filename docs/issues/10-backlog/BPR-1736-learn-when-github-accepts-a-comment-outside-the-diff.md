@@ -383,3 +383,12 @@ Each is one Accept or Reject.
   matters today, independent of this card, because GitHub.com users already
   make such comments in the web page. Checking it needs one such comment made
   in GitHub's web page on BPR-Test, which an agent can't make.
+
+## Owner decisions, 2026-10-22
+
+The owner accepted every recommendation in chat ("I accept all 4 of your recommendations"):
+
+- D1: **Accept.** A learned fact may decide native placement beyond three lines.
+- D2: **Reject**, as recommended. The first native attempt is not skipped on versions already known to refuse.
+- D3: **Accept.** Single-comment evidence counts for reviews too.
+- D4: **Accept.** The measured GitHub.com refusal shape is the general classifier. The GHES 3.20.8 shape still needs one export from the owner after a single off-hunk Publish.
