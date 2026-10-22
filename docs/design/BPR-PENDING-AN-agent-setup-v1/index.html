@@ -6,21 +6,22 @@
 h2.sec { margin:34px 0 4px; font-size:17px; }
 p.n { color:var(--ink-2); font-size:13.5px; line-height:1.55; max-width:78ch; margin:6px 0; }
 .today { display:grid; grid-template-columns:2.2fr 1fr; gap:18px; align-items:start; margin-top:12px; }
+.today .shot img { max-height:560px; object-fit:contain; object-position:top; }
 </style></head>
 <body>
 <div class="page">
 <header class="top"><h1>Setting up an agent the first time</h1><span class="themeswitch chip" role="button" tabindex="0" id="themeBtn">Light / Dark</span></header>
-<p class="lede">Design round v1 for BPR-PENDING-AN and RFC-DRAFT-0026. The owner, 2026-10-22: “I think we need some ux for setting up your agent the first time you go to the agent tab. Maybe a little wizard I'm not sure.” The first two pictures are the real application, rendered offscreen from <code class="c">b69b82c9b</code> on the conventional-comments fixture. The rest are mockups on BPR-1574's accepted drawer kit; paths and versions in them are examples.</p>
+<p class="lede">Design round v1, revision 2, for BPR-PENDING-AN and RFC-DRAFT-0026 r2. The owner, 2026-10-22: “I think we need some ux for setting up your agent the first time you go to the agent tab. Maybe a little wizard I'm not sure.” Revision 2 adds the Repository step: an agentic review needs the real repository, not just the diff. The first pictures are the real application, rendered offscreen from <code class="c">b69b82c9b</code> on the conventional-comments fixture. The rest are mockups on BPR-1574's accepted drawer kit; paths, versions and commits in them are examples.</p>
 
-<h2 class="sec">Today</h2>
+<h2 class="sec" id="today">Today</h2>
 <p class="n">The Agent tab opens straight into a conversation. Its agent list is the four built-in profiles by their protocol names, with <b>Codex App Server</b> chosen first whatever is installed. Nothing is looked for until you press Ask. On this Mac the first Ask ended <b>Finished: failed_to_start</b>: a shipped build passes the bare name <code class="c">codex</code> to a launcher that starts only absolute paths, so Codex cannot start from the shipped profiles on any platform. Claude is searched for, but only Settings › Agents &amp; context says where it was found.</p>
 <div class="today">
   <figure class="shot"><img data-theme-src="frames/today-first-visit" src="frames/today-first-visit-light.png" alt="The Review window with the Agent tab open: a profile menu reading Codex Ap…, the head, a scope menu, History, an Ask the agent button and the question field"><figcaption><b>First visit.</b> A conversation, a truncated “Codex Ap…” menu and no word about setup.</figcaption></figure>
   <figure class="shot"><img data-theme-src="frames/today-first-ask" src="frames/today-first-ask-light.png" alt="The Agent tab after the first Ask: a red callout reading Codex App Server stopped before answering, Finished: failed_to_start"><figcaption><b>First Ask.</b> “Codex App Server stopped before answering. Finished: failed_to_start.”</figcaption></figure>
 </div>
 <figure class="shot" style="max-width:760px;margin-top:14px"><img src="frames/today-settings-light.png" alt="Settings, Agents and context: Allowed profile Codex App Server; Claude process wrapper with Using /opt/homebrew/bin/claude (found on PATH)"><figcaption><b>Settings › Agents &amp; context.</b> The only place that says which <code class="c">claude</code> would run. The profile chosen here applies to the next request only.</figcaption></figure>
-
-<p class="n"><b>The owner's own first run</b> (2026-10-22, from a photograph, not reproduced here) chose <b>External terminal harness</b> for a Claude Code wrapper, scope Selected lines, head <code class="c">fba81b4</code>. It ended “External terminal harness stopped before answering. Finished: workspace_unavailable. Your question is kept.” and Show the log gave Git's words: “error: Could not read 984772c… fatal: Failed to traverse parents of commit fba81b4…”. The private review copy could not be made from the cache, so no agent ran at all; the cause is being fixed separately. The words blamed the harness, the reason was a code and a raw log, and the only actions were Ask again and the log. External terminal harness is the plain-text fallback for a tool with no Claude or Codex interface; a Claude wrapper belongs under Settings › Claude › Process wrapper, and nothing in the menu says so.</p>
+<p class="n"><b>The owner's own first run</b> (2026-10-22, from a photograph, not reproduced here) chose <b>External terminal harness</b> for a Claude Code wrapper, scope Selected lines, head <code class="c">fba81b4</code>. It ended “External terminal harness stopped before answering. Finished: workspace_unavailable. Your question is kept.” and Show the log gave Git's words: “error: Could not read 984772c… fatal: Failed to traverse parents of commit fba81b4…”. The private review copy could not be made from the application's cache, so no agent ran; the cause is being fixed separately. The words blamed the harness, the reason was a code and a raw log, and the only actions were Ask again and the log. External terminal harness is the plain-text fallback for a tool with no Claude or Codex interface; a Claude wrapper belongs under Settings › Claude › Process wrapper, and nothing in the menu says so.</p>
+<p class="n"><b>Where the agent works today</b> is that private copy: a new repository filled from the application's own full, filterless cache, so the head's history is there while the cache is whole, but no branches, tags, remotes, LFS content or submodules. “Use my working copy” always refuses: no shipped path sets the checkout it needs. The agent is told identities, not the description, threads or a review method.</p>
 
 <h2 class="sec">What a first-time user has to do now</h2>
 <table class="steps-today">
@@ -29,45 +30,63 @@ p.n { color:var(--ink-2); font-size:13.5px; line-height:1.55; max-width:78ch; ma
 <tr><td>Sign in to it: <code class="c">claude auth login</code> or <code class="c">codex login</code></td><td>Terminal</td><td>Not mentioned; learned from a failure</td><td><span class="k-detect">Detect</span> with the agent's status command; <span class="k-explain">explain</span> and copy the command. Never take the credential.</td></tr>
 <tr><td>Open a pull request in Review</td><td>App</td><td>Needed: the tab exists only there</td><td>Nothing to change</td></tr>
 <tr><td>Pick the agent from four protocol names</td><td>Agent tab or Settings</td><td>Codex App Server is preselected</td><td><span class="k-do">Do</span>: preselect what was found, by its plain name, and remember it</td></tr>
-<tr><td>Claude through Bedrock or a gateway: set a process wrapper</td><td>Settings</td><td>Works</td><td><span class="k-explain">Explain</span>: “Use another program…” leads there</td></tr>
-<tr><td>Codex: make it start at all</td><td>Not possible in a shipped build</td><td>Always <code class="c">failed_to_start</code></td><td><span class="k-do">Do</span>: search for <code class="c">codex</code> as for <code class="c">claude</code></td></tr>
-<tr><td>Get a private copy of the pull request made</td><td>Automatic, at Ask</td><td>Fails as <code class="c">workspace_unavailable</code> with a raw Git log</td><td><span class="k-detect">Detect</span> in setup's check; <span class="k-explain">explain</span> in words; <span class="k-do">do</span> Get the pull request again, or Use my working copy</td></tr>
 <tr><td>Know what “External terminal harness” is</td><td>Agent menu</td><td>Unexplained; read as “my wrapper”</td><td><span class="k-explain">Explain</span> it in Settings and take it off the menu (Q4)</td></tr>
-<tr><td>Register the MCP helper</td><td>Nothing</td><td>Not a user step: the app owns the helper, and no agent is configured with it today</td><td>Nothing to say</td></tr>
+<tr><td>Claude through Bedrock or a gateway: set a process wrapper</td><td>Settings</td><td>Works</td><td><span class="k-explain">Explain</span>: “Use another program…” leads there</td></tr>
+<tr><td>Codex: make it start at all</td><td>Not possible in a shipped build</td><td>Always <code class="c">failed_to_start</code></td><td><span class="k-do">Do</span>: search for <code class="c">codex</code> as for <code class="c">claude</code> (Q5)</td></tr>
+<tr><td>Give the agent the real repository</td><td>Not possible</td><td>Private copy only; working copy unreachable</td><td><span class="k-detect">Detect</span> the clone in your clone folders; <span class="k-do">do</span> the worktree at the head (Q7, Q8)</td></tr>
+<tr><td>Tell the agent the PR and how to review</td><td>Not possible</td><td>Identities only</td><td><span class="k-do">Do</span>: send the brief and the editable review skill</td></tr>
+<tr><td>Get the agent's copy made</td><td>Automatic, at Ask</td><td>Fails as <code class="c">workspace_unavailable</code> with a raw Git log</td><td><span class="k-detect">Detect</span> in setup's check; <span class="k-explain">explain</span> in words; <span class="k-do">do</span> the recovery</td></tr>
+<tr><td>Register the MCP helper</td><td>Nothing</td><td>Not a user step</td><td>Nothing to say</td></tr>
 <tr><td>Use <code class="c">bpr cycle</code> or <code class="c">bpr tour</code> from the agent</td><td>Build from source; MASK skills</td><td><code class="c">bpr</code> is in no release package</td><td>Out of this card (Q6)</td></tr>
 </table>
 
 <h2 class="sec">The proposal: set up in the tab</h2>
-<p class="n">The first time the Agent tab opens and no agent has been chosen for this profile, the tab is a short setup instead of a conversation. It looks for the agents (reading file metadata only, running nothing), shows what it found with the path, and offers one check of the two things a first question needs: the agent answers, and the private copy of this pull request can be made. Each has its own result in words and a recovery action. When both pass, the steps fold into one green line and the question field takes the keyboard. The choice is saved for the profile, so the setup does not come back. It can be run again from History or Settings, and it returns by itself when the saved agent is gone. A later Ask that fails for a setup reason goes back to that check instead of offering only Ask again.</p>
-<figure class="shot" style="margin-top:12px"><img data-theme-src="frames/window" src="frames/window-light.png" alt="The Review window with the Agent tab showing Set up an agent: step 1 Agent, Claude Code found on PATH; step 2 Check it works; step 3 Ready"><figcaption><b>First visit, one agent found,</b> in the window.</figcaption></figure>
+<p class="n">The first time the Agent tab opens, it is a four-step setup instead of a conversation. <b>Agent</b> finds the agents by reading file metadata, shows each with its path, and chooses the one it found. <b>Repository</b> finds your clone of the pull request's repository in the clone folders you list in Settings (reading <code class="c">.git/config</code> only), and remembers the one you pick. <b>Check it works</b> checks the agent answers and makes the agent's own worktree of your clone at the head, each result in words with a recovery. <b>Ready</b> folds the steps to one green line, shows what the agent gets, and puts the cursor in the question field. A later pull request in another repository asks only the Repository step. The agent's worktree never touches your checkout or branches and is removed when its session ends.</p>
+<figure class="shot" style="margin-top:12px"><img data-theme-src="frames/window" src="frames/window-light.png" alt="The Review window with the Agent tab showing Set up an agent at the Repository step, with two clones found"><figcaption><b>The Repository step,</b> in the window.</figcaption></figure>
 <div class="shots">
-  <figure class="shot"><img data-theme-src="frames/one" src="frames/one-light.png" alt=""><figcaption><b>One agent found.</b> Chosen for you; step 2 offers the check.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/two" src="frames/two-light.png" alt=""><figcaption><b>Two found.</b> Claude Code first; choose one.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/none" src="frames/none-light.png" alt=""><figcaption><b>None found.</b> Where it looked, install links, Look again, or a program you choose.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/checking" src="frames/checking-light.png" alt=""><figcaption><b>Checking.</b> The agent has answered; the copy is being made. Bounded, and it can be stopped.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/signin" src="frames/signin-light.png" alt=""><figcaption><b>Found, not signed in.</b> The command to run, Copy, Check again.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/workspace" src="frames/workspace-light.png" alt=""><figcaption><b>The copy can't be made.</b> The owner's failure, in words, with two ways on.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/askfail" src="frames/askfail-light.png" alt=""><figcaption><b>A later Ask fails for a setup reason.</b> Named after what failed; Check again.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/ready" src="frames/ready-light.png" alt=""><figcaption><b>Ready.</b> How it says success, then the conversation.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/one" src="frames/one-light.png" alt=""><figcaption><b>Agent, one found.</b> Chosen for you, with its path.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/two" src="frames/two-light.png" alt=""><figcaption><b>Agent, two found.</b> Claude Code first; choose one.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/none" src="frames/none-light.png" alt=""><figcaption><b>No agent found.</b> Where it looked, install links, Look again.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/repo" src="frames/repo-light.png" alt=""><figcaption><b>Repository, two clones found.</b> Remembered for this repository.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/nofolders" src="frames/nofolders-light.png" alt=""><figcaption><b>No clone folders yet.</b> The setting, offered in place.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/noclone" src="frames/noclone-light.png" alt=""><figcaption><b>No clone found.</b> Choose its folder, clone it, or use the private copy.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/check" src="frames/check-light.png" alt=""><figcaption><b>Check it works.</b> The agent, and its worktree.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/checking" src="frames/checking-light.png" alt=""><figcaption><b>Checking.</b> The agent has answered; the worktree is being made. Bounded, and it can be stopped.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/signin" src="frames/signin-light.png" alt=""><figcaption><b>Not signed in.</b> The command to run, Copy, Check again.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/workspace" src="frames/workspace-light.png" alt=""><figcaption><b>The private copy can't be made.</b> The owner's failure, in words, with two ways on.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/ready" src="frames/ready-light.png" alt=""><figcaption><b>Ready.</b> How it says success, and what the agent gets.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/askfail" src="frames/askfail-light.png" alt=""><figcaption><b>A later Ask fails for a setup reason.</b> Named after what failed, with its recovery.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/newhead" src="frames/newhead-light.png" alt=""><figcaption><b>A new head.</b> The session keeps its worktree; a new session gets a new one.</figcaption></figure>
   <figure class="shot"><img data-theme-src="frames/moved" src="frames/moved-light.png" alt=""><figcaption><b>Partly set up.</b> The saved agent is gone: Set up again.</figcaption></figure>
-  <figure class="shot"><img data-theme-src="frames/rerun" src="frames/rerun-light.png" alt=""><figcaption><b>Run it again.</b> History › Set up agent…, and the same in Settings.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/rerun" src="frames/rerun-light.png" alt=""><figcaption><b>Run it again.</b> History › Set up agent… or Change repository folder…</figcaption></figure>
   <figure class="shot"><img data-theme-src="frames/ghes" src="frames/ghes-light.png" alt=""><figcaption><b>A host that forbids Codex</b> says so in the row.</figcaption></figure>
+</div>
+
+<h2 class="sec">The owner's two decisions, in Settings</h2>
+<div class="shots">
+  <figure class="shot" style="grid-column:span 2"><img data-theme-src="frames/settings-folders" src="frames/settings-folders-light.png" alt=""><figcaption><b>D2: Clone folders,</b> and the clones linked to each repository.</figcaption></figure>
+  <figure class="shot" style="grid-column:span 2"><img data-theme-src="frames/settings-skill" src="frames/settings-skill-light.png" alt=""><figcaption><b>D1: the review skill,</b> edited, with a newer shipped version offered rather than applied.</figcaption></figure>
 </div>
 
 <h2 class="sec">The alternatives</h2>
 <div class="shots">
-  <figure class="shot"><img data-theme-src="frames/alt-empty" src="frames/alt-empty-light.png" alt=""><figcaption><b>B: an empty state with next steps.</b> Explains, detects nothing, sends you to Settings.</figcaption></figure>
-  <figure class="shot" style="grid-column:span 2"><img data-theme-src="frames/alt-sheet" src="frames/alt-sheet-light.png" alt=""><figcaption><b>C: a wizard sheet.</b> The same steps in a modal over the window, with Back and Continue.</figcaption></figure>
+  <figure class="shot"><img data-theme-src="frames/alt-empty" src="frames/alt-empty-light.png" alt=""><figcaption><b>Q1 B: an empty state with next steps.</b> Explains, detects nothing, sends you to Settings.</figcaption></figure>
+  <figure class="shot" style="grid-column:span 2"><img data-theme-src="frames/alt-sheet" src="frames/alt-sheet-light.png" alt=""><figcaption><b>Q1 C: a wizard sheet.</b> The same steps in a modal over the window, with Back and Continue.</figcaption></figure>
   <figure class="shot"><img data-theme-src="frames/one-ask" src="frames/one-ask-light.png" alt=""><figcaption><b>Q3 B: check with one short request</b> instead of the status command.</figcaption></figure>
 </div>
 
-<h2 class="sec">The questions</h2>
+<h2 class="sec">Decided, and still open</h2>
+<div class="q"><h3>D1. The review workflow ships as a skill you can edit</h3><p>Owner, 2026-10-22: “I think we ship it as a skill and make it editable by the user.”</p></div>
+<div class="q"><h3>D2. A setting for the folders that hold your clones</h3><p>Owner, 2026-10-22: “We probably also give the user a setting to point to their folders where it can find existing repo clones.”</p></div>
 <div class="q"><h3>Q1. Shape</h3><p>A: set up inside the Agent tab (recommended). B: an empty state with next steps. C: a wizard sheet.</p></div>
-<div class="q"><h3>Q2. Look for agents when the tab first opens</h3><p>Accept or Reject. Amends “Merely showing the panel performs no executable discovery” (AI agent boundary). Reading metadata only; nothing runs.</p></div>
-<div class="q"><h3>Q3. How the check proves it works</h3><p>A: the agent's own status command (recommended). B: one short request with no code. C: no check; the first real answer is the check.</p></div>
-<div class="q"><h3>Q4. Plain agent names</h3><p>Accept or Reject. The menu says Claude Code and Codex. The Codex protocol choice moves to Settings, and the external terminal harness leaves the menu for Settings as “a harness that reads plain text”, explained there.</p></div>
-<div class="q"><h3>Q5. Find codex the way claude is found</h3><p>Accept or Reject. PATH, then the usual install folders, with a Codex program path in Settings like Claude's wrapper; the plain-text harness runs only a path you choose. Without it neither starts in a shipped build.</p></div>
-<div class="q"><h3>Q6. Leave “use BetterPullReview from your agent” out</h3><p>Accept or Reject. <code class="c">bpr cycle</code>, <code class="c">bpr tour</code> and their skills get their own card, because <code class="c">bpr</code> is in no release package yet.</p></div>
+<div class="q"><h3>Q2. Look for agents and clones when setup shows</h3><p>Accept or Reject. File metadata and <code class="c">.git/config</code> only; nothing runs.</p></div>
+<div class="q"><h3>Q3. How the agent check proves it works</h3><p>A: the agent's status command (recommended). B: one short request with no code. C: no agent check.</p></div>
+<div class="q"><h3>Q4. Plain agent names</h3><p>Accept or Reject. Claude Code and Codex; the protocol choice and the plain-text harness move to Settings.</p></div>
+<div class="q"><h3>Q5. Find codex the way claude is found</h3><p>Accept or Reject.</p></div>
+<div class="q"><h3>Q6. Leave “use BetterPullReview from your agent” out</h3><p>Accept or Reject.</p></div>
+<div class="q"><h3>Q7. Worktrees of your clone by default</h3><p>Accept or Reject. The private copy becomes the fallback, and “no push” in a worktree is the harness's policy.</p></div>
+<div class="q"><h3>Q8. Where the head's objects come from</h3><p>A: the application's own copy (recommended). B: the clone's own remote, through your Git.</p></div>
+<div class="q"><h3>Q9. How the review skill reaches the agent</h3><p>A: in the request (recommended). B: written into each worktree as a project skill. C: installed into the harness's skill folder by a button.</p></div>
 </div>
 <script>
 "use strict";
