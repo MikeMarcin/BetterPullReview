@@ -79,6 +79,17 @@ namespace bpr::core {
 		return "unknown";
 	}
 
+	auto stable_name(const suggestion_head_move_refusal aRefusal) noexcept -> std::string_view
+	{
+		switch (aRefusal) {
+		case suggestion_head_move_refusal::none:                 return "none";
+		case suggestion_head_move_refusal::changed_where_edited: return "changed_where_edited";
+		case suggestion_head_move_refusal::lines_unknown:        return "lines_unknown";
+		case suggestion_head_move_refusal::second_block:         return "second_block";
+		}
+		return "unknown";
+	}
+
 	auto decide_suggestion_range(const file_alignment& aAlignment, const source_line_ref aFirst, const source_line_ref aLast, const bool aRightIsNotHead)
 		-> suggestion_range_decision
 	{
@@ -277,5 +288,35 @@ namespace bpr::core {
 			}
 		}
 		return std::pair{ *first, *first + (aLast - aFirst) };
+	}
+
+	auto decide_suggestion_head_move(const review_comment_draft& aDraft, const std::optional<line_correspondence>& aOldToNew)
+		-> std::optional<suggestion_head_move>
+	{
+		if (aDraft.State != review_draft_state::drafting || aDraft.shared() || aDraft.ReplyToThread.has_value() || aDraft.Anchor.Side != diff_side::right) {
+			return std::nullopt;
+		}
+		const auto split = split_suggestion_body(aDraft.Body);
+		if (!split.has_value()) {
+			return std::nullopt;
+		}
+		auto result = suggestion_head_move{ };
+		for (const auto& line : split->Block) {
+			result.Change += line;
+			result.Change += '\n';
+		}
+		if (classify_review_body(split->Prose) == review_body_compatibility::requires_line_subject) {
+			result.Refusal = suggestion_head_move_refusal::second_block;
+			return result;
+		}
+		if (!aOldToNew.has_value()) {
+			result.Refusal = suggestion_head_move_refusal::lines_unknown;
+			return result;
+		}
+		result.Carry = decide_suggestion_carry(*aOldToNew, aDraft.StartLine.value_or(aDraft.Anchor.Line), aDraft.Anchor.Line);
+		if (!result.Carry.has_value()) {
+			result.Refusal = suggestion_head_move_refusal::changed_where_edited;
+		}
+		return result;
 	}
 } // namespace bpr::core

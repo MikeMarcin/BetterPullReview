@@ -69,7 +69,9 @@
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/git_objects.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
@@ -77,12 +79,15 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/source_find_bar.hpp"
 #include "bpr/qt/source_search_panel.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
 
+#include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QItemSelection>
@@ -1334,6 +1339,80 @@ namespace {
 		std::cout << "force-push course files=" << overview_files(window) << '\n';
 		finish(run);
 	}
+
+	/// \brief [[BPR-1733]], RFC-BPR-0090 AC08 on the composed application. A
+	/// suggestion kept on C3 is offered Carry once the force push serves C3r,
+	/// which carries C3's tree, so every line of it is unchanged: the epoch
+	/// host read the file at both heads from the review's own objects.
+	/// Carrying writes it again on C3r's lines with the same body, and the
+	/// draft on C3 goes once the new one is saved. Nothing is published.
+	void a_suggestion_carries_across_a_force_push()
+	{
+		auto  run    = course{ };
+		auto& window = start(run, split_opening(app::detail::github_epoch_fixture_phase::seed));
+		read_commit_trees(window, 97U);
+		enter_review(run);
+		select(window, split_version);
+		const auto  first   = window.comparison_surface()->current_result();
+		const auto& segment = std::ranges::find_if(first->Alignment.Segments, [](const core::alignment_segment& aSegment) {
+			return (aSegment.Kind == core::alignment_kind::right_only || aSegment.Kind == core::alignment_kind::replacement) && aSegment.Right.Begin < aSegment.Right.End;
+		});
+		expect(segment != first->Alignment.Segments.end(), "src/version.txt has a line the pull request adds");
+		const auto line   = segment->Right.Begin;
+		auto*      editor = window.review_editor();
+		expect(window.comparison_surface()->select_conversation_line(core::diff_side::right, line), "the line can be selected");
+		wait_for([&] { return editor->shown_draft() && editor->shown_draft()->Anchor.Line == line && editor->shown_draft()->Anchor.Side == core::diff_side::right; }, "a draft is offered on the line");
+		expect(window.suggest_change_action()->isEnabled(), "Suggest change is offered on it");
+		window.suggest_change_action()->trigger();
+		wait_for([&] { return window.comparison_surface()->head_editor() != nullptr; }, "Suggest change opens the head pane's edit");
+		auto* const head = window.comparison_surface()->head_editor();
+		expect(head->apply(core::insert_text{ .Text = " // carried" }), "the change is typed in the code");
+		wait_for([&] {
+			const auto& draft = editor->shown_draft();
+			return draft && draft->Anchor.Line == line && core::split_suggestion_body(draft->Body).has_value() && !editor->rejected_candidate();
+		},
+				 "the suggestion is kept as the draft's body");
+		const auto kept  = *editor->shown_draft();
+		auto       press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QCoreApplication::sendEvent(head, &press);
+		QApplication::processEvents();
+
+		// The force push: the next refresh serves C3r, which carries C3's tree.
+		expect(window.github_refresh_action()->isEnabled(), "Refresh is available");
+		window.github_refresh_action()->trigger();
+		wait_for([&] { return tab(window)->model()->row_of(std::string{ split_c3r }) >= 0; }, "the refresh serves C3r");
+		enter_review(run);
+		select(window, split_version);
+		const auto movedId = qt::conversation_cards_view::moved_suggestion_identity(kept.Id);
+		const auto moved   = [&] {
+			const auto& cards = window.conversation_panel()->cards()->cards();
+			const auto  card  = std::ranges::find(cards, movedId, &qt::thread_card::Id);
+			return card != cards.end() ? std::optional{ *card } : std::nullopt;
+		};
+		wait_for([&] { return moved().has_value(); }, "the suggestion kept on C3 is a note of its own at C3r");
+		const auto note = *moved();
+		std::cout << "carry-course: line=" << line + 1U << " notice=\"" << note.Notice.toStdString() << "\"\n";
+		expect(note.Carryable && note.Line == std::optional<std::uint32_t>{ line + 1U } && note.Notice.startsWith(QStringLiteral("Written on 968f892 at line"))
+				   && note.Notice.endsWith(QStringLiteral("Those lines are unchanged here, at line %1.").arg(line + 1U)),
+			   "it is carried to its own line, every line being unchanged, which the host read at both heads");
+		window.conversation_panel()->cards()->open_thread(movedId);
+		QApplication::processEvents();
+		auto* const carry = window.conversation_panel()->cards()->open_card() != nullptr
+			? window.conversation_panel()->cards()->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadCarrySuggestion"))
+			: nullptr;
+		expect(carry != nullptr, "the note offers Carry to the new head");
+		carry->click();
+		wait_for([&] {
+			const auto& draft = editor->shown_draft();
+			return draft && draft->Id != kept.Id && draft->Anchor.Line == line && draft->Body == kept.Body && !editor->rejected_candidate();
+		},
+				 "Carry writes the same body on the line at C3r");
+		wait_for([&] { return !moved().has_value(); }, "once the carried draft is saved the draft on C3 is deleted and its note goes");
+		expect(window.comparison_surface()->head_editor() != nullptr && window.comparison_surface()->head_editor()->model().state().Lines[line].Content.ends_with(" // carried"),
+			   "the head pane edits the line with the carried change");
+		expect(access::held_review_mutation_terminals(*run.Application) == 0U && posts(run) == 0U, "nothing is published");
+		finish(run);
+	}
 } // namespace
 
 auto main(int aArgc, char** aArgv) -> int
@@ -1344,6 +1423,7 @@ auto main(int aArgc, char** aArgv) -> int
 	linguist_generated_at_head();
 	split_files_read_per_commit();
 	force_push_rematch();
+	a_suggestion_carries_across_a_force_push();
 	comments_from_a_filtered_diff();
 	filtered_find_and_restore();
 	filters_restore_with_the_window();

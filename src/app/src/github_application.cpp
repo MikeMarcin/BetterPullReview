@@ -14,6 +14,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/hex.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/event_loop_metrics.hpp"
@@ -22,6 +23,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/markdown_image_decoder.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
 #include "github_release_update.hpp"
@@ -8337,6 +8339,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
+			Window->set_carried_suggestion_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { discard_carried_suggestion(aDraft, aRevision); });
 			Window->set_review_draft_dispatch(
 				[this](core::review_draft_command aCommand) {
 					dispatch_review_draft(core::revisioned_review_draft_command{ .Command = std::move(aCommand) });
@@ -11924,6 +11927,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto replies = core::decide_reply_drafts(drafts, reply_threads());
 			Window->present_saved_drafts(std::move(drafts), std::move(replies));
 			publish_review_comments(saved);
+			// [[BPR-1733]]. A carried or deleted suggestion leaves its note.
+			present_moved_suggestions();
 		}
 
 		/// \brief [[BPR-1374]]. The accepted snapshot's review threads, as the
@@ -14307,6 +14312,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// and the answer.
 		std::optional<application::filtered_comment_lines_request>     FilteredCommentLinesAsked;
 		std::optional<application::filtered_comment_lines_observation> FilteredCommentLines;
+		/// [[BPR-1733]]. Each comparison this window showed a file on, with the
+		/// commit its right side was read at and the file's path there: what a
+		/// kept suggestion on that comparison can be carried from.
+		struct shown_comparison
+		{
+			core::file_comparison_digest Digest;
+			core::git_commit_oid         Head;
+			std::string                  Path;
+		};
+		static constexpr std::size_t  maximum_shown_comparisons = 512U;
+		std::vector<shown_comparison> ShownComparisons;
+		/// [[BPR-1733]]. The lines asked for a kept suggestion from an earlier
+		/// head, and the answers, refusals included.
+		static constexpr std::size_t                          maximum_head_move_answers = 256U;
+		std::vector<application::head_move_lines_request>     HeadMoveLinesAsked;
+		std::vector<application::head_move_lines_observation> HeadMoveLines;
+		/// [[BPR-1733]]. The kept suggestions the private store holds on other
+		/// heads of this pull request than the accepted one, as last read.
+		std::vector<private_review_workflow::earlier_suggestion> EarlierSuggestions;
 		/// [[BPR-1707]]. The comparison request the accepted comparison was
 		/// last resolved for: a resolution asking for it again is a refresh.
 		std::optional<core::comparison_selection> SettledFilterRequest;
@@ -14680,6 +14704,196 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				})) {
 				FilteredCommentLines = application::filtered_comment_lines_observation{ .Request = *request, .Status = application::filtered_comment_lines_status::unauthorized, .Lines = { } };
 			}
+		}
+
+		/// \brief [[BPR-1733]]. A kept suggestion written on an earlier head of
+		/// the file shown, and the request for its lines there and here.
+		struct moved_candidate
+		{
+			core::revisioned_review_draft        Saved;
+			application::head_move_lines_request Request;
+		};
+
+		/// \brief [[BPR-1733]]. The file shown's path at its right commit.
+		[[nodiscard]] auto shown_right_path() const -> std::string
+		{
+			const auto& publication = *SelectedDiffPublication;
+			const auto  bytes       = publication.RightPath.value_or(publication.LeftPath.value_or(publication.Request.File.CurrentPath)).generic_u8string();
+			return std::string{ bytes.begin(), bytes.end() };
+		}
+
+		/// \brief [[BPR-1733]]. Every kept suggestion on an earlier head of the
+		/// file shown that this window read that head's comparison of: on the
+		/// same path, or the path the file had before the pull request moved it.
+		[[nodiscard]] auto moved_candidates() const -> std::vector<moved_candidate>
+		{
+			auto candidates = std::vector<moved_candidate>{ };
+			if (!SelectedDiffPublication || SelectedDiffPublication->Key.Filter || !SharedDrafts || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return candidates;
+			}
+			const auto& publication = *SelectedDiffPublication;
+			const auto  head        = core::parse_git_commit_oid(WindowRead->accepted_snapshot()->PullRequest.HeadOid.value());
+			if (!head || publication.Request.Diff.Comparison.Right.Commit != *head) {
+				return candidates;
+			}
+			const auto  digest   = core::comparison_digest(publication.Key);
+			const auto  path     = shown_right_path();
+			const auto& files    = WindowRead->accepted_snapshot()->Files;
+			const auto  whole    = std::ranges::find(files, path, &application::github_file_record::Path);
+			const auto  previous = whole != files.end() && whole->PreviousPath ? *whole->PreviousPath : path;
+			// The drafts the store keeps on other heads, and any the shared
+			// owner still holds on another comparison.
+			auto kept = std::vector<core::revisioned_review_draft>{ };
+			for (const auto& earlier : EarlierSuggestions) {
+				kept.push_back(earlier.Draft);
+			}
+			for (auto& saved : SharedDrafts->recovery_snapshot()) {
+				if (std::ranges::none_of(kept, [&saved](const core::revisioned_review_draft& aKept) { return aKept.Draft.Id == saved.Draft.Id; })) {
+					kept.push_back(std::move(saved));
+				}
+			}
+			for (auto& saved : kept) {
+				const auto& draft = saved.Draft;
+				if (draft.Anchor.Comparison == digest || !core::decide_suggestion_head_move(draft, std::nullopt).has_value()) {
+					continue;
+				}
+				const auto earlier = std::ranges::find(ShownComparisons, draft.Anchor.Comparison, &shown_comparison::Digest);
+				if (earlier == ShownComparisons.end() || earlier->Head == *head || (earlier->Path != path && earlier->Path != previous)) {
+					continue;
+				}
+				candidates.push_back(moved_candidate{
+					.Saved   = std::move(saved),
+					.Request = application::head_move_lines_request{
+						.WorkbenchAuthority = publication.Request.WorkbenchAuthority,
+						.Head               = *head,
+						.EarlierHead        = earlier->Head,
+						.Key                = publication.Key,
+						.EarlierPath        = earlier->Path,
+						.HeadPath           = path,
+					},
+				});
+			}
+			return candidates;
+		}
+
+		/// \brief [[BPR-1733]]. Reads the kept suggestions the private store
+		/// holds on other heads, then asks for their lines (`ask_head_move_lines`).
+		void observe_head_moves()
+		{
+			if (Closing) {
+				return;
+			}
+			// The store's suggestions on other heads are read again each time,
+			// so one carried or deleted elsewhere is not offered.
+			if (PrivateReview && PrivateDraftsReady) {
+				PrivateReview->earlier_suggestions([this, owner = SharedDrafts](std::vector<private_review_workflow::earlier_suggestion> aEarlier) {
+					if (Closing || owner != SharedDrafts) {
+						return;
+					}
+					EarlierSuggestions = std::move(aEarlier);
+					ask_head_move_lines();
+				});
+			}
+			ask_head_move_lines();
+		}
+
+		/// \brief [[BPR-1733]]. Remembers the head and path the comparison
+		/// shown was read at, asks once for each candidate's lines, and
+		/// presents what each offers.
+		void ask_head_move_lines()
+		{
+			if (Closing) {
+				return;
+			}
+			if (SelectedDiffPublication && !SelectedDiffPublication->Key.Filter) {
+				const auto digest = core::comparison_digest(SelectedDiffPublication->Key);
+				std::erase_if(ShownComparisons, [&digest](const shown_comparison& aShown) { return aShown.Digest == digest; });
+				ShownComparisons.push_back(shown_comparison{ .Digest = digest, .Head = SelectedDiffPublication->Request.Diff.Comparison.Right.Commit, .Path = shown_right_path() });
+				if (ShownComparisons.size() > maximum_shown_comparisons) {
+					ShownComparisons.erase(ShownComparisons.begin());
+				}
+			}
+			for (const auto& candidate : moved_candidates()) {
+				if (EpochHost == nullptr || std::ranges::find(HeadMoveLinesAsked, candidate.Request) != HeadMoveLinesAsked.end()) {
+					continue;
+				}
+				if (HeadMoveLinesAsked.size() >= maximum_head_move_answers) {
+					HeadMoveLinesAsked.clear();
+					HeadMoveLines.clear();
+				}
+				HeadMoveLinesAsked.push_back(candidate.Request);
+				const auto asked = EpochHost->resolve_head_move_lines(candidate.Request, [this](const application::head_move_lines_observation& aObservation) {
+					if (Closing || std::ranges::find(HeadMoveLinesAsked, aObservation.Request) == HeadMoveLinesAsked.end()) {
+						return;
+					}
+					HeadMoveLines.push_back(aObservation);
+					present_moved_suggestions();
+				});
+				// A refusal is an answer: nothing is carried, and the change can be copied.
+				if (!asked) {
+					HeadMoveLines.push_back(application::head_move_lines_observation{ .Request = candidate.Request, .Status = application::head_move_lines_status::unauthorized, .Lines = std::nullopt });
+				}
+			}
+			present_moved_suggestions();
+		}
+
+		/// \brief [[BPR-1733]]. Tells the window what each kept suggestion from
+		/// an earlier head of the file shown offers here, as the core decides it
+		/// from the host's answer; one still being read waits for it.
+		void present_moved_suggestions()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto moved = std::vector<qt::moved_suggestion_card>{ };
+			for (const auto& candidate : moved_candidates()) {
+				const auto answer = std::ranges::find(HeadMoveLines, candidate.Request, &application::head_move_lines_observation::Request);
+				if (answer == HeadMoveLines.end()) {
+					continue;
+				}
+				const auto lines    = answer->Status == application::head_move_lines_status::resolved ? answer->Lines : std::nullopt;
+				const auto decision = core::decide_suggestion_head_move(candidate.Saved.Draft, lines);
+				if (!decision) {
+					continue;
+				}
+				const auto hex = core::canonical_hex(candidate.Request.EarlierHead);
+				moved.push_back(qt::moved_suggestion_card{
+					.Draft       = candidate.Saved.Draft,
+					.Revision    = candidate.Saved.Revision,
+					.Comparison  = core::comparison_digest(candidate.Request.Key),
+					.EarlierHead = QString::fromStdString(std::string{ hex.view().substr(0U, 7U) }),
+					.Move        = *decision,
+				});
+			}
+			Window->present_moved_suggestions(std::move(moved));
+		}
+
+		/// \brief [[BPR-1733]]. The draft a carried suggestion came from goes,
+		/// at the revision its note showed, once the carried one is saved.
+		/// Nothing is published.
+		void discard_carried_suggestion(const core::review_draft_id aDraft, const std::uint64_t aRevision)
+		{
+			if (Closing || !SharedDrafts) {
+				return;
+			}
+			// Kept by the store on another head: deleted there.
+			if (PrivateReview && std::ranges::any_of(EarlierSuggestions, [aDraft](const private_review_workflow::earlier_suggestion& aEarlier) { return aEarlier.Draft.Draft.Id == aDraft; })) {
+				PrivateReview->discard_earlier_suggestion(aDraft, aRevision, [this, owner = SharedDrafts](bool) {
+					if (!Closing && owner == SharedDrafts) {
+						observe_head_moves();
+					}
+				});
+				return;
+			}
+			const auto read = SharedDrafts->read(DraftConsumer, aDraft);
+			if (!read.Accepted || read.Accepted->Revision != aRevision || !core::decide_suggestion_head_move(read.Accepted->Draft, std::nullopt).has_value()) {
+				return;
+			}
+			auto command             = core::revisioned_review_draft_command{ };
+			command.Command          = core::review_draft_command{ .Id = aDraft, .Kind = core::review_draft_command_kind::discard };
+			command.ExpectedRevision = aRevision;
+			command.Scope            = read.Accepted->Scope;
+			change_review_drafts({ std::move(command) }, [](bool) { });
 		}
 
 		/// \brief RFC-BPR-0089 M4 (owner decision Q1). Tells the window where a
@@ -18889,6 +19103,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// until another file was chosen and this one again.
 					request_filtered_comment_lines();
 					present_filtered_comment();
+					observe_head_moves();
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
 					LastSelectedDiff = aPublication;
@@ -18907,6 +19122,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_split_strip();
 			request_filtered_comment_lines();
 			present_filtered_comment();
+			observe_head_moves();
 			request_diff(
 				aPublication.Key,
 				aPublication.Request.Diff.Comparison,
@@ -20571,11 +20787,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				failed,
 			};
 			detail::label_authoring_probe_evidence Evidence;
-			/// [[BPR-1212]]. The range's first line and the block Shift+Return
-			/// should start it with, and whether the course is only the
-			/// line-draft phases (`--line-draft-course`).
+			/// [[BPR-1212]]. The range's first line and the body its suggestion
+			/// is published with, and whether the course is only the
+			/// line-draft phases (`--line-draft-course`). [[RFC-BPR-0090]]:
+			/// Shift+Return opens the lines for writing in the head pane and
+			/// the drawer prefills nothing (owner, Q5), so the course types
+			/// its change there, once (`RangeTyped`).
 			std::optional<std::uint32_t> RangeStart;
 			std::string                  Prefill;
+			bool                         RangeTyped = false;
 			/// [[BPR-1721]]. The dragged range's first line, and whether
 			/// the drag has been made and the menu's item chosen.
 			std::optional<std::uint32_t> MouseRangeStart;
@@ -31011,11 +31231,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.KeyboardRangeSelected) {
 				return fail("keyboard-range-not-selected");
 			}
-			const auto lines = core::suggestion_source_lines(*compared->RightDocument, start, start + 2U);
+			auto lines = core::suggestion_source_lines(*compared->RightDocument, start, start + 2U);
 			if (!lines) {
 				return fail("no-prefill");
 			}
-			probe.Prefill      = core::suggestion_fence_body(*lines);
+			// [[RFC-BPR-0090]]. The change typed at the end of the last line,
+			// as the core composes a suggestion with no words.
+			lines->back() += " // probe";
+			probe.Prefill      = core::compose_suggestion_body("", *lines);
+			probe.RangeTyped   = false;
 			probe.NativeBefore = implementation->Fixture->review_mutation_evidence().NativePosts;
 			probe.Anchor       = core::source_line_ref{ compared->Alignment.Digest, core::diff_side::right, start + 2U };
 			paneKey(*right, Qt::Key_Return, Qt::ShiftModifier);
@@ -31026,25 +31250,40 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto& draft  = implementation->ReviewDraft;
 			const auto  start  = probe.RangeStart.value_or(0U);
 			auto* const writer = cards->writing_draft() ? cards->draft_editor() : nullptr;
+			auto* const head   = window->comparison_surface()->head_editor();
 			note("draft=" + (draft ? std::to_string(draft->Anchor.Line) + ":" + (draft->StartLine ? std::to_string(*draft->StartLine) : std::string{ "-" }) : std::string{ "-" })
-				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " status=" + window->statusBar()->currentMessage().toStdString());
-			if (!draft || !probe.Anchor || draft->Anchor != *probe.Anchor || draft->Body != probe.Prefill || writer == nullptr || writer->toPlainText().toStdString() != probe.Prefill
-				|| text().toStdString() != probe.Prefill || !editor->publish_action()->isEnabled()) {
+				 + " writing=" + std::to_string(writer != nullptr ? 1 : 0) + " pane=" + std::to_string(head != nullptr ? 1 : 0) + " typed=" + std::to_string(probe.RangeTyped ? 1 : 0)
+				 + " status=" + window->statusBar()->currentMessage().toStdString());
+			// [[RFC-BPR-0090]]. Shift+Return opens the three lines for writing
+			// in the head pane, with the caret at the end of the last, and the
+			// drawer holds the words, none yet. The change is typed there.
+			if (!probe.RangeTyped) {
+				if (!draft || !probe.Anchor || draft->Anchor != *probe.Anchor || draft->StartLine != std::optional{ start } || writer == nullptr || head == nullptr
+					|| head->model().editable_range() != std::optional{ std::pair<std::uint64_t, std::uint64_t>{ start, start + 2U } }) {
+					return result::pending;
+				}
+				if (!writer->toPlainText().isEmpty() || !head->apply(core::insert_text{ .Text = " // probe" })) {
+					return fail("suggestion-not-in-the-pane words=" + writer->toPlainText().toStdString());
+				}
+				probe.RangeTyped = true;
+				return result::pending;
+			}
+			if (!draft || draft->Anchor != *probe.Anchor || draft->Body != probe.Prefill || writer == nullptr || head == nullptr || !editor->publish_action()->isEnabled()) {
 				return result::pending;
 			}
 			// The drawer names the lines, the gutter's blue bracket spans them,
-			// and the caret is at the end of the block's last line.
+			// the drawer holds no block, and the body is the core's composition.
 			const auto& marks                  = window->comparison_surface()->line_marks(core::diff_side::right);
 			const auto  bracket                = std::ranges::any_of(marks, [start](const qt::diff_line_mark& aMark) {
 				return aMark.Writing && aMark.Line == start + 2U && aMark.FirstLine == std::optional<std::uint32_t>{ start };
 			});
 			probe.Evidence.SuggestionPrefilled = draft->StartLine == start && !draft->ReplyToThread && cards->open_card() != nullptr
-				&& cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U) && bracket
-				&& writer->textCursor().position() == writer->toPlainText().lastIndexOf(QLatin1Char{ '\n' }) && markState() == "native";
+				&& cards->open_card()->accessibleName() == QStringLiteral("Your draft on lines %1–%2").arg(start + 1U).arg(start + 3U) && bracket && writer->toPlainText().isEmpty()
+				&& markState() == "native";
 			render("drawer-range-suggestion");
 			if (!probe.Evidence.SuggestionPrefilled) {
-				return fail("suggestion-not-prefilled caret=" + std::to_string(writer->textCursor().position()) + " mark=" + markState()
-							+ " bracket=" + std::to_string(bracket ? 1 : 0) + " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
+				return fail("suggestion-not-in-the-pane words=" + writer->toPlainText().toStdString() + " mark=" + markState() + " bracket=" + std::to_string(bracket ? 1 : 0)
+							+ " card=" + (cards->open_card() != nullptr ? cards->open_card()->accessibleName().toStdString() : std::string{ "-" }));
 			}
 			// The drawer draft's own Publish.
 			auto* const publish = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));

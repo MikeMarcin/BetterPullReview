@@ -1492,6 +1492,40 @@ namespace bpr::qt {
 			connect(discard, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::discard_reply); } });
 			actions->addWidget(discard);
 			footRow->addLayout(actions);
+		} else if (aCard.Draft && aCard.MovedSuggestion) {
+			// [[BPR-1733]]. My kept suggestion from an earlier head: written
+			// again at its lines here when the core carries it, or its change
+			// copied. Nothing here publishes.
+			footRow->setContentsMargins(text_left, 2, text_right, 10);
+			footRow->setSpacing(8);
+			if (notice != nullptr) {
+				footRow->addWidget(notice);
+			}
+			auto* const actions = new QHBoxLayout{ };
+			actions->setSpacing(4);
+			if (aCard.Carryable) {
+				auto* const carry = new note_button{ note_button::kind::primary, QStringLiteral("Carry to the new head"), Foot };
+				carry->setObjectName(QStringLiteral("threadCarrySuggestion"));
+				carry->setIcon(conversation_icon(conversation_glyph::edit, palette));
+				carry->setToolTip(QStringLiteral("Write this suggestion again on these lines of this head. The draft from the earlier head is deleted once the new one is saved. Nothing is published."));
+				carry->set_style(Style);
+				connect(carry, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::carry_suggestion); } });
+				actions->addWidget(carry);
+			}
+			auto* const copy = new QToolButton{ Foot };
+			copy->setObjectName(QStringLiteral("threadCopyChange"));
+			copy->setAutoRaise(true);
+			copy->setText(QStringLiteral("Copy change"));
+			copy->setEnabled(!aCard.Change.isEmpty());
+			copy->setToolTip(aCard.Change.isEmpty() ? QStringLiteral("This suggestion deletes its lines, so there is no text to copy") : QStringLiteral("Copy the suggested lines"));
+			copy->setIcon(conversation_icon(conversation_glyph::copy, palette));
+			copy->setProperty("conversationGlyph", static_cast<int>(conversation_glyph::copy));
+			copy->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+			copy->setFocusPolicy(Qt::StrongFocus);
+			connect(copy, &QToolButton::clicked, this, [this] { if (Action) { Action(card_action::copy_change); } });
+			actions->addWidget(copy);
+			actions->addStretch(1);
+			footRow->addLayout(actions);
 		} else if (aCard.Draft) {
 			footRow->setContentsMargins(text_left, 4, text_right, 10);
 			auto* const actions = new QHBoxLayout{ };

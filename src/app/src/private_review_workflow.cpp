@@ -1,5 +1,8 @@
 #include "private_review_workflow.hpp"
 #include "private_review_operations.hpp"
+
+#include "bpr/core/pull_request_suggestion.hpp"
+
 #include <algorithm>
 #include <array>
 #include <iterator>
@@ -791,6 +794,62 @@ namespace bpr::app {
 			return output;
 		},
 			 std::move(aCompletion));
+	}
+	void private_review_workflow::earlier_suggestions(earlier_completion aCompletion)
+	{
+		if (Closing || !Current || !Binding) {
+			if (aCompletion) {
+				aCompletion({ });
+			}
+			return;
+		}
+		const auto generation = Generation;
+		auto       context    = Current;
+		const auto head       = Binding->Revision.HeadOid;
+		++Pending;
+		Effects.post([this, generation, context, head, completion = std::move(aCompletion)]() mutable {
+			auto found = std::vector<earlier_suggestion>{ };
+			{
+				const auto lock = std::scoped_lock{ Gate };
+				try {
+					for (auto& record : take(context->Store->list_drafts())) {
+						if (record.Binding.Revision.HeadOid != head && core::decide_suggestion_head_move(record.Draft.Draft, std::nullopt).has_value()) {
+							found.push_back(earlier_suggestion{ .Draft = std::move(record.Draft), .Head = record.Binding.Revision.HeadOid });
+						}
+					}
+				} catch (...) {
+					found.clear();
+				}
+			}
+			Decisions.post([this, generation, context, delivered = std::move(found), notify = std::move(completion)]() mutable {
+				--Pending;
+				if (Closing || generation != Generation || context != Current) {
+					delivered.clear();
+				}
+				if (notify) {
+					notify(std::move(delivered));
+				}
+			});
+		});
+	}
+	void private_review_workflow::discard_earlier_suggestion(const core::review_draft_id aDraft, const std::uint64_t aRevision, std::function<void(bool)> aDone)
+	{
+		const auto head = Binding ? std::optional{ Binding->Revision.HeadOid } : std::nullopt;
+		post([aDraft, aRevision, head](context& aContext) {
+			result     output;
+			const auto record = take(aContext.Store->load_draft(aDraft));
+			require(record.Draft.Revision == aRevision && record.Draft.Draft.State == core::review_draft_state::drafting && std::optional{ record.Binding.Revision.HeadOid } != head
+					&& core::decide_suggestion_head_move(record.Draft.Draft, std::nullopt).has_value());
+			// Not the bound head's: the shared drafts never held it, so its
+			// commit goes to nobody but the caller.
+			output.Drafts  = accepted(application::review_composition_application_host(*aContext.Store).change_draft({ { aDraft, core::review_draft_command_kind::discard, { } }, aRevision, false, { }, core::review_draft_scope_id{ 1 } }));
+			output.Refresh = false;
+			return output; },
+			 [done = std::move(aDone)](auto aCommit) {
+				 if (done) {
+					 done(aCommit.has_value());
+				 }
+			 });
 	}
 	void private_review_workflow::settle_review_comments(std::string aKey, bool aPublished, std::optional<core::review_submission_proposal> aProposal)
 	{

@@ -7148,6 +7148,85 @@ namespace {
 		expect(!value.Host->resolve_commit_filter_touches(self, record), "a commit diffed against itself is refused");
 	}
 
+	// [[BPR-1733]]. A kept suggestion written on an earlier head: the host reads
+	// its file at that head and at the accepted one, by literal path, and says
+	// which lines the move left unchanged. Only a head this host accepted for
+	// the review before the current one may be read.
+	void head_move_lines_compare_an_earlier_head_with_the_head()
+	{
+		fixture value;
+		establish_ready_comparison(value);
+		const auto earlier = value.Host->state().AcceptedRevision->Head;
+		const auto shown   = resolve_selected_diff(value, selected_diff_request_for(value));
+		const auto key     = application::selected_diff_key(shown);
+		expect(key.has_value(), "the comparison at the earlier head is read");
+
+		auto       observations = std::vector<application::head_move_lines_observation>{ };
+		const auto record       = [&observations](const application::head_move_lines_observation& aObservation) {
+			observations.push_back(aObservation);
+		};
+		auto request = application::head_move_lines_request{
+			.WorkbenchAuthority = workbench_authority_for(value.Host->state()),
+			.Head               = earlier,
+			.EarlierHead        = oid<core::git_commit_oid>(19U),
+			.Key                = *key,
+			.EarlierPath        = "src/file.cpp",
+			.HeadPath           = "src/file.cpp",
+		};
+		expect(!value.Host->resolve_head_move_lines(request, record), "before any newer head, no earlier head may be read");
+
+		value.Host->accept(make_handoff(value.State, 2U, 21U, true));
+		drain(value);
+		const auto head = value.Host->state().AcceptedRevision->Head;
+		expect(head != earlier && head == oid<core::git_commit_oid>(21U), "a newer head is accepted for the same pull request");
+
+		// The earlier file's three lines, then the head's with one line put before them.
+		auto reads                            = 0;
+		value.State.DuringBlobMaterialization = [&value, &reads](std::stop_token) {
+			value.State.CachedBlobOverride = ++reads == 1 ? std::vector<std::uint8_t>{ 'a', '\n', 'b', '\n', 'c', '\n' }
+														  : std::vector<std::uint8_t>{ 'x', '\n', 'a', '\n', 'b', '\n', 'c', '\n' };
+		};
+		value.State.TreeEntryResults.clear();
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x91U));
+		value.State.TreeEntryResults.emplace_back(oid<core::git_blob_oid>(0x92U));
+		request.WorkbenchAuthority = workbench_authority_for(value.Host->state());
+		request.Head               = head;
+		request.EarlierHead        = earlier;
+		request.HeadPath           = "src/renamed.cpp";
+		const auto lookups         = value.State.TreeEntryRequests.size();
+		expect(value.Host->resolve_head_move_lines(request, record) && observations.empty(), "the earlier head's file is admitted and answered later");
+		drain(value);
+		expect(observations.size() == 1U && observations.front().Status == application::head_move_lines_status::resolved
+				   && observations.front().Lines == core::line_correspondence{ .LeftLines = 3U, .RightLines = 4U, .Unchanged = { { .Left = 0U, .Right = 1U, .Length = 3U } } },
+			   "the three earlier lines are the head's lines 2 to 4");
+		expect(value.State.TreeEntryRequests.size() == lookups + 2U && value.State.TreeEntryRequests[lookups].Commit == earlier
+				   && value.State.TreeEntryRequests[lookups].Path == std::filesystem::path{ "src/file.cpp" } && value.State.TreeEntryRequests[lookups + 1U].Commit == head
+				   && value.State.TreeEntryRequests[lookups + 1U].Path == std::filesystem::path{ "src/renamed.cpp" } && value.Host->outstanding_jobs() == 0U,
+			   "each side is looked up by its own literal path at its own head, and the job retired");
+		value.State.DuringBlobMaterialization = { };
+		value.State.CachedBlobOverride.reset();
+
+		value.State.CachedBlobMissing = true;
+		expect(value.Host->resolve_head_move_lines(request, record), "a second request is admitted");
+		drain(value);
+		expect(observations.size() == 2U && observations.back().Status == application::head_move_lines_status::objects_unavailable && !observations.back().Lines.has_value(),
+			   "a blob the review's objects do not hold is said, with no lines");
+		value.State.CachedBlobMissing = false;
+
+		auto foreign        = request;
+		foreign.EarlierHead = oid<core::git_commit_oid>(0x99U);
+		expect(!value.Host->resolve_head_move_lines(foreign, record), "a commit the host never accepted as a head is never read");
+		auto same        = request;
+		same.EarlierHead = head;
+		expect(!value.Host->resolve_head_move_lines(same, record), "the head is not its own earlier head");
+		auto moved = request;
+		moved.Head = earlier;
+		expect(!value.Host->resolve_head_move_lines(moved, record), "a head other than the accepted one is refused before admission");
+		auto absolute        = request;
+		absolute.EarlierPath = "/src/file.cpp";
+		expect(!value.Host->resolve_head_move_lines(absolute, record) && observations.size() == 2U, "an absolute path is refused before admission");
+	}
+
 	// RFC-BPR-0089. A sparse review holds only its epochs' commits: the touches
 	// job acquires the chain's trees once, through the review's own lease, into
 	// a transient store, diffs there, and filtered diffs read their files at
@@ -9718,6 +9797,7 @@ int main(int argc, char** argv)
 	shutdown_waits_for_worker_and_decision_quiescence();
 	changed_paths_resolve_beside_the_selected_comparison();
 	commit_filter_touches_authorize_filtered_diffs();
+	head_move_lines_compare_an_earlier_head_with_the_head();
 	sparse_review_acquires_the_chain_trees();
 	base_numbering_compares_the_merge_base_with_the_left_side();
 	return EXIT_SUCCESS;

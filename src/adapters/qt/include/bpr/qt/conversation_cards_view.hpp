@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_round_trip.hpp"
@@ -111,6 +112,29 @@ namespace bpr::qt {
 		/// [[RFC-BPR-0090]]. The drawer draft's suggestion GitHub cannot apply
 		/// becomes text at the same lines (owner, Q3).
 		convert_draft,
+		/// [[BPR-1733]]. My kept suggestion from an earlier head is written
+		/// again at its lines here; the earlier draft goes once it is saved.
+		carry_suggestion,
+		/// [[BPR-1733]]. My kept suggestion's change, copied as its lines.
+		copy_change,
+	};
+
+	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of
+	/// the file shown, as the core decided at this head (RFC-BPR-0090, "A new
+	/// head while editing").
+	struct moved_suggestion_card
+	{
+		/// The draft as it was saved, on its own comparison, and its revision.
+		core::review_comment_draft Draft;
+		std::uint64_t              Revision = 0U;
+		/// The comparison shown, where its note is drawn.
+		core::file_comparison_digest Comparison;
+		/// The short commit it was written on.
+		QString EarlierHead;
+		/// Carry to its lines here, or why not, and the change to copy.
+		core::suggestion_head_move Move;
+
+		auto operator==(const moved_suggestion_card&) const -> bool = default;
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands
@@ -229,6 +253,12 @@ namespace bpr::qt {
 		QString Notice;
 		/// [[BPR-1374]]. My kept reply can become a new comment on its line.
 		bool KeepableAsComment = false;
+		/// [[BPR-1733]]. My kept suggestion from an earlier head, at the
+		/// lines it is carried to here or at its own; `Carryable` when the core
+		/// carries it, and `Change` what Copy change copies.
+		bool    MovedSuggestion = false;
+		bool    Carryable       = false;
+		QString Change;
 		/// How many of the posts are unread; the first post unread makes the
 		/// thread new.
 		std::size_t UnreadCount = 0U;
@@ -445,6 +475,16 @@ namespace bpr::qt {
 		[[nodiscard]] static auto unsent_reply_notice(core::reply_draft_standing aStanding) -> QString;
 		/// \brief [[BPR-1374]]. The identity of a kept reply's note.
 		[[nodiscard]] static auto kept_reply_identity(core::review_draft_id aDraft) -> std::string;
+		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
+		/// of the file shown, each a note of its own at the lines it is
+		/// carried to, or at its own, while that comparison is shown. The
+		/// window says what each offers; nothing here decides it.
+		void set_moved_suggestions(std::vector<moved_suggestion_card> aMoved);
+		/// \brief [[BPR-1733]]. The identity of a moved suggestion's note.
+		[[nodiscard]] static auto moved_suggestion_identity(core::review_draft_id aDraft) -> std::string;
+		/// \brief [[BPR-1733]]. What a moved suggestion's note says about where
+		/// it was written and what can be done with it.
+		[[nodiscard]] static auto moved_suggestion_notice(const moved_suggestion_card& aMoved) -> QString;
 		void                      set_viewer_login(const QString& aLogin);
 		void                      set_thread_dispatch(card_thread_dispatch aDispatch);
 		void                      set_action_dispatch(card_action_dispatch aDispatch);
@@ -752,6 +792,7 @@ namespace bpr::qt {
 		std::optional<core::review_comment_draft>                                            Draft;
 		std::vector<core::review_comment_draft>                                              SavedDrafts;
 		std::vector<core::reply_draft_decision>                                              UnsentReplies;
+		std::vector<moved_suggestion_card>                                                   MovedSuggestions;
 		std::optional<core::file_comparison_digest>                                          CurrentComparison;
 		card_line_locator                                                                    Locator;
 		card_thread_dispatch                                                                 ThreadDispatch;

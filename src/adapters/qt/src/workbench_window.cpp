@@ -2461,6 +2461,13 @@ namespace bpr::qt {
 				case card_action::convert_draft:
 					convert_pane_suggestion();
 					break;
+				case card_action::carry_suggestion:
+					carry_moved_suggestion(aIdentity);
+					break;
+				case card_action::copy_change:
+					// [[BPR-1733]]. The note copied the change itself.
+					statusBar()->showMessage(tr("Copied the suggested lines."), 4000);
+					break;
 				case card_action::publish_draft:
 					// [[RFC-BPR-0090]]. A held suggestion goes nowhere until it
 					// is converted or deleted.
@@ -8237,6 +8244,7 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
+		settle_carried_suggestion(aDrafts);
 		ConversationPanel->cards()->set_saved_drafts(std::move(aDrafts), std::move(aReplies));
 		apply_thread_marks();
 		if (changed && ConversationPanel->cards()->writing_draft()) {
@@ -10151,6 +10159,10 @@ namespace bpr::qt {
 		} else if (auto* const field = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr ? ConversationPanel->cards()->draft_editor() : nullptr; field != nullptr) {
 			field->setFocus(Qt::OtherFocusReason);
 		}
+		// [[BPR-1733]]. Opened on a carried suggestion's lines: it takes its body.
+		if (Carrying.has_value() && !Carrying->Written && PaneSuggestion->Anchor == Carrying->Anchor) {
+			write_carried_suggestion();
+		}
 		return true;
 	}
 
@@ -10911,6 +10923,89 @@ namespace bpr::qt {
 	void workbench_window::set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
 	{
 		PendingCommentDeleteDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_carried_suggestion_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch)
+	{
+		CarriedSuggestionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_moved_suggestions(std::vector<moved_suggestion_card> aMoved)
+	{
+		MovedSuggestions = aMoved;
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			ConversationPanel->cards()->set_moved_suggestions(std::move(aMoved));
+			apply_thread_marks();
+		}
+	}
+
+	void workbench_window::carry_moved_suggestion(const std::string& aIdentity)
+	{
+		// [[BPR-1733]]. Suggest change on the lines the core carried it to,
+		// as a hand would choose them; the draft opened there takes its body.
+		const auto        moved  = std::ranges::find_if(MovedSuggestions, [&aIdentity](const moved_suggestion_card& aMoved) {
+			return conversation_cards_view::moved_suggestion_identity(aMoved.Draft.Id) == aIdentity;
+		});
+		const auto* const result = ComparisonSurface != nullptr ? ComparisonSurface->current_result().get() : nullptr;
+		if (moved == MovedSuggestions.end() || !moved->Move.Carry.has_value() || result == nullptr || result->Alignment.Digest != moved->Comparison) {
+			statusBar()->showMessage(tr("This suggestion cannot be carried now. Copy the change to write it again."), 10000);
+			return;
+		}
+		const auto [first, last] = *moved->Move.Carry;
+		const auto anchor        = core::source_line_ref{ .Comparison = moved->Comparison, .Side = core::diff_side::right, .Line = last };
+		// The lines must be ones GitHub takes a suggestion on at this head too.
+		if (const auto why = suggestion_range_reason(core::comment_range_decision{ .Anchor = anchor, .StartLine = first < last ? std::optional{ first } : std::nullopt }); !why.isEmpty()) {
+			statusBar()->showMessage(why, 10000);
+			return;
+		}
+		Carrying = carried_suggestion{
+			.From      = moved->Draft.Id,
+			.Revision  = moved->Revision,
+			.Anchor    = anchor,
+			.StartLine = first < last ? std::optional{ first } : std::nullopt,
+			.Body      = moved->Draft.Body,
+		};
+		const auto selected = ComparisonSurface->selection().has_value() && ComparisonSurface->selection()->PreferredLine == anchor;
+		if (!selected && !ComparisonSurface->select_conversation_line(core::diff_side::right, last)) {
+			Carrying.reset();
+			statusBar()->showMessage(tr("Select a line of this comparison."), 10000);
+			return;
+		}
+		PendingLineComment = pending_line_comment{ .Anchor = anchor, .StartLine = Carrying->StartLine, .Suggestion = true };
+		if (!resume_line_comment() && PendingLineComment.has_value()) {
+			statusBar()->showMessage(tr("Opening the suggestion on its lines…"), line_comment_wait_ms);
+			QTimer::singleShot(line_comment_wait_ms, this, [this, anchor] { report_line_comment_wait(anchor); });
+		}
+	}
+
+	void workbench_window::write_carried_suggestion()
+	{
+		if (!Carrying.has_value() || Carrying->Written || ReviewEditor == nullptr || !PaneSuggestion.has_value() || PaneSuggestion->Anchor != Carrying->Anchor) {
+			return;
+		}
+		Carrying->Written = true;
+		// The body goes through the draft's own edit path, so the new draft
+		// is saved as any typed one is; the edit then opens on its block.
+		ReviewEditor->body_editor()->setPlainText(QString::fromStdString(Carrying->Body));
+		static_cast<void>(begin_pane_suggestion(true));
+		statusBar()->showMessage(tr("Carried to this head. The draft from the earlier head is deleted once this one is saved."), 6000);
+	}
+
+	void workbench_window::settle_carried_suggestion(const std::vector<core::review_comment_draft>& aDrafts)
+	{
+		if (!Carrying.has_value() || !Carrying->Written) {
+			return;
+		}
+		const auto saved = std::ranges::any_of(aDrafts, [this](const core::review_comment_draft& aDraft) {
+			return aDraft.Id != Carrying->From && aDraft.Anchor == Carrying->Anchor && aDraft.StartLine == Carrying->StartLine && aDraft.Body == Carrying->Body;
+		});
+		if (!saved) {
+			return;
+		}
+		const auto carried = *std::exchange(Carrying, std::nullopt);
+		if (CarriedSuggestionDispatch) {
+			CarriedSuggestionDispatch(carried.From, carried.Revision);
+		}
 	}
 
 	void workbench_window::confirm_delete_drawer_draft()

@@ -4634,6 +4634,59 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief [[BPR-1733]]. See `epoch_application_host::resolve_head_move_lines`.
+		[[nodiscard]] auto resolve_head_move_lines(
+			head_move_lines_request    aRequest,
+			head_move_lines_completion aCompletion) -> bool
+		{
+			const auto pathValid = [](const std::string& aPath) {
+				return !aPath.empty() && aPath.size() <= maximum_git_tree_entry_path_bytes && !aPath.starts_with('/');
+			};
+			if (!aCompletion || !aRequest.EarlierHead.valid() || aRequest.EarlierHead == aRequest.Head || aRequest.EarlierHead.algorithm() != aRequest.Head.algorithm()
+				|| !pathValid(aRequest.EarlierPath) || !pathValid(aRequest.HeadPath) || !State.Authority
+				|| std::ranges::find(EarlierHeads, std::pair{ *State.Authority, aRequest.EarlierHead }) == EarlierHeads.end()) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto       actor         = std::move(reviewActor->first);
+			const auto expected      = std::move(reviewActor->second);
+			auto       reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+			auto       admitted      = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 context = std::move(reviewContext),
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation   = head_move_lines_observation{ .Request = request, .Status = head_move_lines_status::failure, .Lines = std::nullopt };
+						observation.Status = head_move_lines(*actor, expected, context, request, control->Stop.get_token(), observation.Lines);
+						if (observation.Status != head_move_lines_status::resolved) {
+							observation.Lines.reset();
+						}
+						enqueue_completion(gate, decisionLane, std::move(control), [answer = std::move(observation), deliver = std::move(completion)](implementation&) { deliver(answer); });
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
 		/// \brief RFC-BPR-0089 M4. The file at the filtered diff's commits, the
 		/// head and the merge base, compared, on the actor.
 		///
@@ -4647,6 +4700,78 @@ namespace bpr::application {
 		[[nodiscard]] auto filtered_comment_lines(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
 												  const std::shared_ptr<authority_context>& aContext, const filtered_comment_lines_request& aRequest,
 												  const std::stop_token aStop, core::filtered_comment_lines& aLines) -> filtered_comment_lines_status
+		{
+			using status = filtered_comment_lines_status;
+			return read_exact_file_sides(aActor, aExpected, aContext, aRequest.Head, aRequest.Key, aStop, [&](const auto& aLoad, const auto& aCompare) -> status {
+				const auto& diff  = *aRequest.Key.Filter;
+				auto        right = aLoad(aRequest.RightPath, diff.Right);
+				if (!right) {
+					return right.error();
+				}
+				auto base = aLoad(aRequest.BasePath, aRequest.MergeBase);
+				if (!base) {
+					return base.error();
+				}
+				auto head = diff.Right == aRequest.Head ? right : aLoad(aRequest.HeadPath, aRequest.Head);
+				if (!head) {
+					return head.error();
+				}
+				// A line moved to the head is resolved there only inside a hunk of
+				// the merge base to the head.
+				aLines.BaseToHead = aCompare(*base, *head);
+				if (diff.Right != aRequest.Head) {
+					aLines.RightToHead = aCompare(*right, *head);
+					aLines.BaseToRight = aCompare(*base, *right);
+				}
+				if (aStop.stop_requested()) {
+					return status::cancelled;
+				}
+				if (diff.Left != aRequest.MergeBase) {
+					auto left = aLoad(aRequest.LeftPath, diff.Left);
+					if (!left) {
+						return left.error();
+					}
+					aLines.LeftToBase = aCompare(*left, *base);
+				}
+				return aStop.stop_requested() ? status::cancelled : status::resolved;
+			});
+		}
+
+		/// \brief [[BPR-1733]]. The file at an earlier head and at the head,
+		/// compared, on the actor, read as a filtered diff's sides are.
+		[[nodiscard]] auto head_move_lines(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+										   const std::shared_ptr<authority_context>& aContext, const head_move_lines_request& aRequest,
+										   const std::stop_token aStop, std::optional<core::line_correspondence>& aLines) -> head_move_lines_status
+		{
+			using status = head_move_lines_status;
+			return read_exact_file_sides(aActor, aExpected, aContext, aRequest.Head, aRequest.Key, aStop, [&](const auto& aLoad, const auto& aCompare) -> status {
+				auto earlier = aLoad(aRequest.EarlierPath, aRequest.EarlierHead);
+				if (!earlier) {
+					return earlier.error();
+				}
+				auto head = aLoad(aRequest.HeadPath, aRequest.Head);
+				if (!head) {
+					return head.error();
+				}
+				aLines = aCompare(*earlier, *head);
+				return aStop.stop_requested() ? status::cancelled : aLines ? status::resolved
+																		   : status::failure;
+			});
+		}
+
+		/// \brief RFC-BPR-0089 M4 and [[BPR-1733]]. Reads files by literal path
+		/// at commits of the review and compares pairs of them, for `aAnswer`.
+		///
+		/// \details Each blob is looked up in the retained cache or, for a
+		/// sparse review whose chain commits only its chain store holds, there,
+		/// and read exactly as `generated_attributes` reads one. Each pair is
+		/// compared by the review's own engine with exact whitespace, so an
+		/// unchanged line is byte for byte the same. `aAnswer` is called with
+		/// `load(path, commit)` and `compare(left, right)`.
+		template <typename Answer>
+		[[nodiscard]] auto read_exact_file_sides(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+												 const std::shared_ptr<authority_context>& aContext, const core::git_commit_oid& aHead,
+												 const core::file_comparison_key& aKey, const std::stop_token aStop, Answer&& aAnswer) -> filtered_comment_lines_status
 		{
 			using status        = filtered_comment_lines_status;
 			const auto statusOf = [](const git_cache_failure aFailure) {
@@ -4667,7 +4792,7 @@ namespace bpr::application {
 			}();
 			const auto sparse = aContext && object_loading_for(aContext->Handoff.Shape) == pull_request_object_loading::selected_objects
 				&& aContext->Handoff.SmartGit && !aContext->Handoff.SmartGit->revoked() && aContext->Handoff.SmartGit->supports_sparse_commit_trees()
-				&& aRequest.Head == aContext->Revision.Head;
+				&& aHead == aContext->Revision.Head;
 			const auto lookup = [&](const std::string& aPath, const core::git_commit_oid& aCommit) -> std::expected<std::optional<core::git_blob_oid>, status> {
 				if (chainTrees && chainTrees->holds(aCommit)) {
 					auto held = chainTrees->find_blob_at_path(aCommit, aPath, aStop);
@@ -4763,7 +4888,7 @@ namespace bpr::application {
 				if (!digest) {
 					return std::nullopt;
 				}
-				auto key         = aRequest.Key;
+				auto key         = aKey;
 				key.LeftBlob     = aLeft.Blob;
 				key.RightBlob    = aRight.Blob;
 				key.Options      = *digest;
@@ -4782,37 +4907,7 @@ namespace bpr::application {
 				const auto computed = core::compute_file_diff(input, matching);
 				return computed.Result ? core::correspondence_of(computed.Result->Alignment) : std::nullopt;
 			};
-			const auto& diff  = *aRequest.Key.Filter;
-			auto        right = load(aRequest.RightPath, diff.Right);
-			if (!right) {
-				return right.error();
-			}
-			auto base = load(aRequest.BasePath, aRequest.MergeBase);
-			if (!base) {
-				return base.error();
-			}
-			auto head = diff.Right == aRequest.Head ? right : load(aRequest.HeadPath, aRequest.Head);
-			if (!head) {
-				return head.error();
-			}
-			// A line moved to the head is resolved there only inside a hunk of
-			// the merge base to the head.
-			aLines.BaseToHead = compare(*base, *head);
-			if (diff.Right != aRequest.Head) {
-				aLines.RightToHead = compare(*right, *head);
-				aLines.BaseToRight = compare(*base, *right);
-			}
-			if (aStop.stop_requested()) {
-				return status::cancelled;
-			}
-			if (diff.Left != aRequest.MergeBase) {
-				auto left = load(aRequest.LeftPath, diff.Left);
-				if (!left) {
-					return left.error();
-				}
-				aLines.LeftToBase = compare(*left, *base);
-			}
-			return aStop.stop_requested() ? status::cancelled : status::resolved;
+			return std::forward<Answer>(aAnswer)(load, compare);
 		}
 
 		/// \brief [[BPR-1212]]. The review's cache actor and the session it
@@ -7696,6 +7791,9 @@ namespace bpr::application {
 										== authorityContext->Authority
 									&& *aHost.State.AcceptedRevision
 										== authorityContext->Revision;
+								if (accepted && previous && previous->Authority == authorityContext->Authority && previous->Revision.Head != authorityContext->Revision.Head) {
+									aHost.remember_earlier_head(previous->Authority, previous->Revision.Head);
+								}
 								if (accepted && previous) {
 									implementation::revoke_blob_authority(
 										previous->Actor,
@@ -10459,10 +10557,25 @@ namespace bpr::application {
 		std::shared_ptr<actor_work_state> ActorWork = std::make_shared<actor_work_state>();
 		std::vector<
 			std::pair<cache_actor_key, std::shared_ptr<authority_effect_actor>>>
-														   CacheActors;
-		mutable std::mutex                                 CacheActorsMutex;
-		mutable std::mutex                                 JobsMutex;
-		std::shared_ptr<authority_context>                 Active;
+										   CacheActors;
+		mutable std::mutex                 CacheActorsMutex;
+		mutable std::mutex                 JobsMutex;
+		std::shared_ptr<authority_context> Active;
+		/// [[BPR-1733]]. Heads this host accepted for a pull request before the
+		/// one it shows, newest last, at most `maximum_earlier_heads` of them:
+		/// the commits a kept suggestion may be carried from.
+		std::vector<std::pair<core::pull_request_authority, core::git_commit_oid>> EarlierHeads;
+		static constexpr std::size_t                                               maximum_earlier_heads = 64U;
+
+		void remember_earlier_head(const core::pull_request_authority& aAuthority, const core::git_commit_oid& aHead)
+		{
+			auto entry = std::pair{ aAuthority, aHead };
+			std::erase(EarlierHeads, entry);
+			EarlierHeads.push_back(std::move(entry));
+			if (EarlierHeads.size() > maximum_earlier_heads) {
+				EarlierHeads.erase(EarlierHeads.begin());
+			}
+		}
 		std::optional<pull_request_authority_invalidation> PendingAuthority;
 		std::optional<std::uint64_t>                       PendingOfferToken;
 		std::vector<std::shared_ptr<job_control>>          Jobs;
@@ -10641,6 +10754,13 @@ namespace bpr::application {
 		generated_attributes_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_generated_attributes(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_head_move_lines(
+		head_move_lines_request    aRequest,
+		head_move_lines_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_head_move_lines(std::move(aRequest), std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_filtered_comment_lines(

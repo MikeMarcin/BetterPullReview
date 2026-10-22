@@ -213,6 +213,16 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_filtered_comment_lines(
 			filtered_comment_lines_request    aRequest,
 			filtered_comment_lines_completion aCompletion) -> bool;
+		/// \brief [[BPR-1733]]. Reads one file at an earlier head of the review
+		/// and at the accepted head, and answers which lines the move leaves
+		/// unchanged, for a kept suggestion written on the earlier head.
+		/// \details Never fetches trees: the earlier head must be one this host
+		/// accepted for the same pull request, before the accepted one. Runs on
+		/// the review's cache actor like `resolve_filtered_comment_lines`, with
+		/// the same admission, reads and completion.
+		[[nodiscard]] auto resolve_head_move_lines(
+			head_move_lines_request    aRequest,
+			head_move_lines_completion aCompletion) -> bool;
 		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
 		/// the merge base's version of its file, which GitHub numbers `LEFT`
 		/// lines in.

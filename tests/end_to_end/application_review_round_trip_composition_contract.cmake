@@ -1,3 +1,19 @@
+# [[BPR-1733]] reseal (2026-10-22) over last matching main 0986da0ff,
+# linear. Pinned-scope change: a kept suggestion from an earlier head is
+# carried to the new head or its change copied, on this card's own commit.
+# Inside the manifest, github_application.cpp remembers the head and path
+# each comparison it showed was read at, reads the private store's kept
+# suggestions on other heads (private_review_workflow.cpp's
+# earlier_suggestions, a read), asks the epoch host for the file's lines at
+# the earlier head and the head (resolve_head_move_lines), presents what the
+# core decides, and once the carried draft is saved deletes the earlier one
+# in the store at the revision shown (discard_earlier_suggestion). Its
+# BUILD_TESTING label-authoring probe follows RFC-BPR-0090: Shift+Return on a
+# range opens the lines in the head pane, the probe types its change there
+# and publishes the core's composed body. No review mutation, publication
+# path, credential, grant, provider selection, ledger write or
+# source-inventory change. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
 # Upkeep reseal (2026-10-21): the only src/app change since the BPR-1721 note below
 # is renaming its [[BPR-PENDING-AB]] comment tags to [[BPR-1721]]; no code change.
 # [[BPR-1721]] reseal (2026-10-21) over last matching main cb5679683,
@@ -1966,7 +1982,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"20033120a02ab8d12317d4304e960e894676403dfa23dcaec35e26e3348748de"
+		"3d5e11041b2ffae08d7983f3c8619ecc2a4889d4d447026c76bf7cb340098512"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2190,7 +2206,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "b882d4251e78767fb7d9323c91794d56b766d511443d53e280b716523cffcc01"
+        "ca198a9228b5c84919c500f4f866ac78df7e02cc938db359b6c4842f3f5e6466"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

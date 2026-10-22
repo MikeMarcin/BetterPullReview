@@ -602,6 +602,46 @@ namespace bpr::application {
 
 	using filtered_comment_lines_completion = std::function<void(const filtered_comment_lines_observation&)>;
 
+	/// \brief [[BPR-1733]]. Asks how one file's lines at an earlier head of the
+	/// review correspond to its lines at the accepted head, for a kept
+	/// suggestion written on that earlier head (RFC-BPR-0090, "A new head
+	/// while editing").
+	///
+	/// \details `EarlierHead` must be a head this host accepted for the same
+	/// pull request since it started, before `Head`. The host reads the file by
+	/// literal path at both commits from the review's objects, as a filtered
+	/// diff's sides are read, and compares them with the review's own diff
+	/// engine and exact whitespace, the earlier head on the left. A path
+	/// absent at a commit compares as an empty file. `Key` is the comparison
+	/// shown at the head; its blobs and endpoints are replaced by the two read.
+	struct head_move_lines_request
+	{
+		workbench_pull_request_authority WorkbenchAuthority;
+		core::git_commit_oid             Head;
+		core::git_commit_oid             EarlierHead;
+		core::file_comparison_key        Key;
+		std::string                      EarlierPath;
+		std::string                      HeadPath;
+
+		auto operator<=>(const head_move_lines_request&) const = default;
+	};
+
+	/// \brief [[BPR-1733]]. The same answers as a filtered diff's: `unauthorized`
+	/// when the earlier head is not one this host accepted for the review.
+	using head_move_lines_status = filtered_comment_lines_status;
+
+	/// \brief [[BPR-1733]]. One exact answer to a `head_move_lines_request`.
+	struct head_move_lines_observation
+	{
+		head_move_lines_request                  Request;
+		head_move_lines_status                   Status = head_move_lines_status::failure;
+		std::optional<core::line_correspondence> Lines;
+
+		auto operator<=>(const head_move_lines_observation&) const = default;
+	};
+
+	using head_move_lines_completion = std::function<void(const head_move_lines_observation&)>;
+
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///
 	/// \details [[BPR-0654]]. The overview's "changed since my last review"

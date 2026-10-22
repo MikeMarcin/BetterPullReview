@@ -7,6 +7,7 @@
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
+#include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
@@ -12207,6 +12208,108 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1733]]. A kept suggestion written on an earlier head of the
+	/// file shown is a note of its own. Carried, it is written again on the
+	/// lines the core carried it to: Suggest change opens there with its block
+	/// in the code and its words in the drawer, and once that draft is saved
+	/// the earlier one is deleted. Not carried, it says why and copies its
+	/// change. Lines GitHub takes no suggestion on are refused with the reason.
+	void test_a_suggestion_from_an_earlier_head_is_carried_or_copied()
+	{
+		for (const auto onePane : { false, true }) {
+			auto        course = line_gesture_course{ onePane };
+			const auto  which  = std::string{ onePane ? "one pane: " : "split: " };
+			auto* const cards  = course.Window.conversation_panel()->cards();
+			course.reset();
+			auto carried = std::vector<std::pair<core::review_draft_id, std::uint64_t>>{ };
+			course.Window.set_carried_suggestion_dispatch([&carried](const core::review_draft_id aDraft, const std::uint64_t aRevision) { carried.emplace_back(aDraft, aRevision); });
+
+			const auto shown          = course.Surface->current_result()->Alignment.Digest;
+			auto       earlier        = core::review_comment_draft{ };
+			earlier.Id                = core::review_draft_id{ 900U };
+			earlier.Anchor.Comparison = core::file_comparison_digest{ };
+			earlier.Anchor.Side       = core::diff_side::right;
+			earlier.Anchor.Line       = 4U;
+			earlier.Body              = core::compose_suggestion_body("Use the new name.", std::vector<std::string>{ "renamed `line` 5" });
+			expect(earlier.Anchor.Comparison != shown, which + "the earlier draft is on another comparison");
+			// The earlier head's line 5 is this head's line 6, unchanged.
+			const auto lines = core::line_correspondence{ .LeftLines = 29U, .RightLines = 30U, .Unchanged = { { .Left = 0U, .Right = 0U, .Length = 4U }, { .Left = 4U, .Right = 5U, .Length = 25U } } };
+			auto       moved = qt::moved_suggestion_card{ .Draft = earlier, .Revision = 3U, .Comparison = shown, .EarlierHead = QStringLiteral("2cbe948"), .Move = *core::decide_suggestion_head_move(earlier, lines) };
+			expect(moved.Move.Carry == std::pair<std::uint32_t, std::uint32_t>{ 5U, 5U }, which + "the core carries line 5 to line 6");
+			course.Window.present_moved_suggestions({ moved });
+			process_events();
+			const auto id   = qt::conversation_cards_view::moved_suggestion_identity(earlier.Id);
+			const auto card = std::ranges::find(cards->cards(), id, &qt::thread_card::Id);
+			expect(card != cards->cards().end() && card->MovedSuggestion && card->Carryable && card->Line == 6U && card->Side == core::diff_side::right
+					   && card->Notice == QStringLiteral("Written on 2cbe948 at line 5. Those lines are unchanged here, at line 6."),
+				   which + "its note sits at line 6 and says where it was written and where it goes");
+			cards->open_thread(id);
+			process_events();
+			auto* const carry = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadCarrySuggestion")) : nullptr;
+			auto* const copy  = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadCopyChange")) : nullptr;
+			expect(carry != nullptr && copy != nullptr && copy->isEnabled(), which + "it offers Carry to the new head and Copy change");
+			save_render(course.Window, QStringLiteral("moved-suggestion-carry-%1").arg(onePane ? QStringLiteral("one-pane") : QStringLiteral("split")));
+			QApplication::clipboard()->setText(QStringLiteral("|"));
+			copy->click();
+			process_events();
+			expect(QApplication::clipboard()->text() == QStringLiteral("renamed `line` 5\n"), which + "Copy change copies the suggested lines");
+
+			carry->click();
+			expect(course.ranged(5U, 5U), which + "Carry opens a draft on line 6");
+			course.settle();
+			auto* const head = course.Surface->head_editor();
+			expect(head != nullptr && head->model().editable_range() == std::pair<std::uint64_t, std::uint64_t>{ 5U, 5U } && head->model().state().Lines[5].Content == "renamed `line` 5",
+				   which + "the head pane edits line 6 with the carried block");
+			expect(course.Accepted && course.Accepted->Draft.Body == earlier.Body && course.Accepted->Draft.Id != earlier.Id, which + "the new draft holds the carried body exactly");
+			auto* const field = cards->draft_editor();
+			expect(field != nullptr && field->toPlainText() == QStringLiteral("Use the new name."), which + "and the drawer holds its words");
+			expect(carried.empty(), which + "the earlier draft stays until the new one is saved");
+			course.Window.present_saved_drafts({ earlier, course.Accepted->Draft });
+			process_events();
+			expect(carried == std::vector<std::pair<core::review_draft_id, std::uint64_t>>{ { earlier.Id, 3U } }, which + "once it is saved, the earlier draft is deleted at the revision shown");
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+			QCoreApplication::sendEvent(head, &press);
+			process_events();
+			course.Window.present_moved_suggestions({ });
+			course.reset();
+
+			// Not carried: why, and the change to copy.
+			auto changed     = moved;
+			changed.Move     = *core::decide_suggestion_head_move(earlier, core::line_correspondence{ .LeftLines = 29U, .RightLines = 30U, .Unchanged = { { .Left = 0U, .Right = 0U, .Length = 4U } } });
+			changed.Draft.Id = core::review_draft_id{ 901U };
+			course.Window.present_moved_suggestions({ changed });
+			process_events();
+			const auto otherId = qt::conversation_cards_view::moved_suggestion_identity(changed.Draft.Id);
+			const auto other   = std::ranges::find(cards->cards(), otherId, &qt::thread_card::Id);
+			expect(other != cards->cards().end() && !other->Carryable && other->Line == 5U
+					   && other->Notice == QStringLiteral("Written on 2cbe948 at line 5. The file changed where it was edited, so it is not carried. Copy the change to write it again."),
+				   which + "a changed line is not carried, and its note says so at its own line");
+			cards->open_thread(otherId);
+			process_events();
+			expect(cards->open_card() != nullptr && cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadCarrySuggestion")) == nullptr
+					   && cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadCopyChange")) != nullptr,
+				   which + "it offers Copy change only");
+			save_render(course.Window, QStringLiteral("moved-suggestion-copy-%1").arg(onePane ? QStringLiteral("one-pane") : QStringLiteral("split")));
+
+			// Carried onto lines GitHub takes no suggestion on: refused with the reason.
+			auto outside       = moved;
+			outside.Draft.Id   = core::review_draft_id{ 902U };
+			outside.Move.Carry = std::pair<std::uint32_t, std::uint32_t>{ 20U, 20U };
+			course.Window.present_moved_suggestions({ outside });
+			process_events();
+			const auto outsideId = qt::conversation_cards_view::moved_suggestion_identity(outside.Draft.Id);
+			cards->open_thread(outsideId);
+			process_events();
+			auto* const refused = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadCarrySuggestion")) : nullptr;
+			expect(refused != nullptr, which + "a carry onto line 21 is offered as the core decided");
+			refused->click();
+			process_events();
+			expect(!drawer_writing(course.Window) && course.Window.statusBar()->currentMessage().contains(QStringLiteral("changed region")),
+				   which + "and refused with the reason, since line 21 is outside every changed region");
+			course.Window.present_moved_suggestions({ });
+		}
+	}
+
 	/// \brief [[RFC-BPR-0090]] Q4 A. In one pane, Suggest change shows the head
 	/// file alone while the lines are written (the interleaved rows hold no one
 	/// file to type into), and the comparison comes back when the edit ends.
@@ -21776,6 +21879,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_one_pane_has_the_code_menu", &test_one_pane_has_the_code_menu);
 		runCase("test_one_pane_suggest_change_shows_the_head_file", &test_one_pane_suggest_change_shows_the_head_file);
 		runCase("test_suggestion_dims_the_read_only_code", &test_suggestion_dims_the_read_only_code);
+		runCase("test_a_suggestion_from_an_earlier_head_is_carried_or_copied", &test_a_suggestion_from_an_earlier_head_is_carried_or_copied);
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);

@@ -4,6 +4,7 @@
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/filtered_comment.hpp"
 #include "bpr/core/review_comment_range.hpp"
+#include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/suggestion_text_editing.hpp"
 
@@ -215,6 +216,49 @@ namespace bpr::core {
 	/// its right one the newer head.
 	[[nodiscard]] auto decide_suggestion_carry(const line_correspondence& aOldToNew, std::uint32_t aFirst, std::uint32_t aLast)
 		-> std::optional<std::pair<std::uint32_t, std::uint32_t>>;
+
+	/// \brief [[BPR-1733]]. Why a kept suggestion from an earlier head is not
+	/// carried to the newer one.
+	enum class suggestion_head_move_refusal : std::uint8_t {
+		none,
+		/// A line of its range changed at the newer head, or the lines no
+		/// longer stand together there.
+		changed_where_edited,
+		/// The earlier head's file could not be compared with the newer
+		/// head's, so no line is known to be unchanged.
+		lines_unknown,
+		/// The words hold a suggestion block of their own, so the draft does
+		/// not open in the code (`rebuild_suggestion_span`'s `second_block`).
+		second_block,
+	};
+
+	[[nodiscard]] auto stable_name(suggestion_head_move_refusal aRefusal) noexcept -> std::string_view;
+
+	/// \brief [[BPR-1733]]. What a kept suggestion written on an earlier head
+	/// offers once a newer head is shown.
+	struct suggestion_head_move
+	{
+		/// The zero-based first and last line at the newer head, when it is
+		/// carried there; none otherwise.
+		std::optional<std::pair<std::uint32_t, std::uint32_t>> Carry;
+		suggestion_head_move_refusal                           Refusal = suggestion_head_move_refusal::none;
+		/// What Copy change copies: the block's lines, each ending in a line
+		/// feed; empty for a deletion.
+		std::string Change;
+
+		auto operator<=>(const suggestion_head_move&) const = default;
+	};
+
+	/// \brief [[BPR-1733]]. Carry to the new head, or Copy change, for a kept
+	/// suggestion draft written on an earlier head.
+	/// \details None unless the draft is the reviewer's own new comment, still
+	/// being written, on the right side, with a body `split_suggestion_body`
+	/// reads. It is carried exactly when `decide_suggestion_carry` maps its
+	/// range through `aOldToNew` (the earlier head's file on the left, the
+	/// newer head's on the right); with no correspondence it is not. Its body
+	/// is carried unchanged.
+	[[nodiscard]] auto decide_suggestion_head_move(const review_comment_draft& aDraft, const std::optional<line_correspondence>& aOldToNew)
+		-> std::optional<suggestion_head_move>;
 } // namespace bpr::core
 
 #endif

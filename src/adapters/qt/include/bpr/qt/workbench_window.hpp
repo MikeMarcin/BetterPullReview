@@ -650,6 +650,14 @@ namespace bpr::qt {
 		/// draft at the revision the page listed. Nothing is published.
 		void set_comment_draft_unavailable(QString aReason);
 		void set_pending_comment_delete_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
+		/// \brief [[BPR-1733]]. My kept suggestions written on an earlier head
+		/// of the file shown, as the core decided them at this head: each a
+		/// note at its lines, offering Carry to the new head or Copy change.
+		void present_moved_suggestions(std::vector<moved_suggestion_card> aMoved);
+		/// \brief [[BPR-1733]]. Where the draft a carried suggestion came from
+		/// goes once the carried one is saved: the composition deletes it at
+		/// the revision its note showed. Nothing is published.
+		void set_carried_suggestion_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
@@ -2275,7 +2283,29 @@ namespace bpr::qt {
 		/// sink and the drawer Delete's question.
 		QAction*                                                  FinishReviewAction = nullptr;
 		std::function<void(core::review_draft_id, std::uint64_t)> PendingCommentDeleteDispatch;
-		QPointer<destructive_question>                            DeleteDraftConfirmation;
+		std::function<void(core::review_draft_id, std::uint64_t)> CarriedSuggestionDispatch;
+		/// [[BPR-1733]]. The moved suggestions the composition last presented.
+		std::vector<moved_suggestion_card> MovedSuggestions;
+		/// [[BPR-1733]]. A suggestion being carried to this head: the draft it
+		/// came from and its revision, the lines it goes to, and its body,
+		/// which the new draft takes once Suggest change opens there.
+		struct carried_suggestion
+		{
+			core::review_draft_id        From;
+			std::uint64_t                Revision = 0U;
+			core::source_line_ref        Anchor;
+			std::optional<std::uint32_t> StartLine;
+			std::string                  Body;
+			bool                         Written = false;
+		};
+		std::optional<carried_suggestion> Carrying;
+		void                              carry_moved_suggestion(const std::string& aIdentity);
+		/// [[BPR-1733]]. Writes the carried body into the draft Suggest change
+		/// opened on its lines, and opens the edit again on its block.
+		void write_carried_suggestion();
+		/// [[BPR-1733]]. Once the carried draft is saved, the earlier one goes.
+		void                           settle_carried_suggestion(const std::vector<core::review_comment_draft>& aDrafts);
+		QPointer<destructive_question> DeleteDraftConfirmation;
 		/// [[BPR-1374]]. A kept reply's actions, and Discard's question.
 		std::function<void(core::review_draft_id, unsent_reply_action)> UnsentReplyDispatch;
 		QPointer<destructive_question>                                  DiscardReplyConfirmation;

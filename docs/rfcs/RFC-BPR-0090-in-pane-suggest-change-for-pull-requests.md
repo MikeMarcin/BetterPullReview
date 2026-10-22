@@ -298,15 +298,25 @@ The header says "Suggested change, lines a–b". While the code is edited:
 
 The edit is bound to its head blob and comparison. When a newer head arrives,
 the edit ends and its draft stays on its comparison, read-only, naming its
-head, as the established rule says. Carry and Copy change, below, are card
-BPR-1733: they need the host's old-to-new head correspondence on the
-window's side, and the core's decision is built (M1). **Carry to the new head** is offered on
-that draft only when the core finds every original line of its range
-unchanged at the new head (exact, from the old-to-new head correspondence,
-never fuzzy, `core::decide_suggestion_carry`). Carrying opens the same edit
-on the new head's lines with the same block, and the old draft is deleted
-once the new one is kept. Otherwise the draft says the file changed where it
-was edited, and Copy change copies the block's text.
+head, as the established rule says. Shown at the newer head, the file's kept
+suggestion from the earlier one is a note of its own in the Comments
+drawer ([[BPR-1733]]): "Written on `<short commit>` at lines a–b.", then
+what it offers. **Carry to the new head** is offered only when the core finds
+every original line of its range unchanged at the new head and still
+together (exact, from the old-to-new head correspondence, never fuzzy,
+`core::decide_suggestion_head_move` over `core::decide_suggestion_carry`).
+The epoch host answers that correspondence (`resolve_head_move_lines`): it
+reads the file by literal path at the earlier head and the head from the
+review's own objects and compares them with the review's engine, and only
+for a head it accepted for the pull request in this session. Carrying is
+Suggest change on the new lines, refused with its reason where GitHub takes
+no suggestion; the new draft takes the same body, so the edit opens on the
+same block with the same words, and the old draft is deleted at the revision
+its note showed once the new one is kept. Otherwise the note says why (the
+file changed where it was edited, or its lines could not be compared) and
+Copy change copies the block's lines. Nothing is published either way. A
+suggestion kept on a comparison this window has not shown, such as one from
+before a restart, is not offered here; Saved comments keeps it, read-only.
 
 ### Ownership
 

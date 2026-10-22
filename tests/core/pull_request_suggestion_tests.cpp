@@ -415,6 +415,59 @@ namespace {
 		expect(!decide_suggestion_carry(lines, 3U, 4U).has_value(), "lines split apart by an insertion are not carried");
 		expect(!decide_suggestion_carry(lines, 5U, 4U).has_value(), "an inverted range");
 	}
+	/// \brief [[BPR-1733]]. A kept suggestion from an earlier head is carried
+	/// exactly when its lines are unchanged and together at the newer head;
+	/// otherwise it offers its change to copy, and anything else is not a
+	/// suggestion to carry.
+	void test_a_suggestion_from_an_earlier_head_carries_or_copies()
+	{
+		const auto lines = line_correspondence{
+			.LeftLines  = 10U,
+			.RightLines = 12U,
+			.Unchanged  = { { .Left = 0U, .Right = 0U, .Length = 4U }, { .Left = 4U, .Right = 6U, .Length = 4U }, { .Left = 9U, .Right = 11U, .Length = 1U } },
+		};
+		auto draft        = review_comment_draft{ };
+		draft.Id          = review_draft_id{ 7U };
+		draft.Anchor.Side = diff_side::right;
+		draft.Anchor.Line = 6U;
+		draft.StartLine   = 4U;
+		const auto block  = std::vector<std::string>{ "int a = 1;", "int b = 2;" };
+		draft.Body        = compose_suggestion_body("Tighter.", block);
+		const auto moved  = decide_suggestion_head_move(draft, lines);
+		expect(moved.has_value() && moved->Carry == std::pair<std::uint32_t, std::uint32_t>{ 6U, 8U } && moved->Refusal == suggestion_head_move_refusal::none,
+			   "lines 5 to 7 unchanged at the newer head carry to lines 7 to 9");
+		expect(moved->Change == "int a = 1;\nint b = 2;\n", "Copy change is the block's lines");
+
+		draft.Anchor.Line  = 8U;
+		draft.StartLine    = 7U;
+		const auto changed = decide_suggestion_head_move(draft, lines);
+		expect(changed.has_value() && !changed->Carry.has_value() && changed->Refusal == suggestion_head_move_refusal::changed_where_edited && changed->Change == moved->Change,
+			   "a range with a changed line is not carried and offers its change");
+		const auto unknown = decide_suggestion_head_move(draft, std::nullopt);
+		expect(unknown.has_value() && !unknown->Carry.has_value() && unknown->Refusal == suggestion_head_move_refusal::lines_unknown, "with no comparison nothing is carried");
+
+		auto deletion = draft;
+		deletion.Body = compose_suggestion_body("", { });
+		expect(decide_suggestion_head_move(deletion, lines)->Change.empty(), "a deletion has no change to copy");
+		auto second = draft;
+		second.Body = compose_suggestion_body(suggestion_fence_body(std::vector<std::string>{ "x" }), block);
+		expect(decide_suggestion_head_move(second, lines)->Refusal == suggestion_head_move_refusal::second_block, "words holding a block of their own do not carry");
+
+		auto text = draft;
+		text.Body = "Just words.";
+		expect(!decide_suggestion_head_move(text, lines).has_value(), "a text draft is not a suggestion to carry");
+		auto reply          = draft;
+		reply.ReplyToThread = "thread";
+		expect(!decide_suggestion_head_move(reply, lines).has_value(), "nor is a reply");
+		auto base        = draft;
+		base.Anchor.Side = diff_side::left;
+		expect(!decide_suggestion_head_move(base, lines).has_value(), "nor a base line's comment");
+		auto publishing  = draft;
+		publishing.State = review_draft_state::publishing;
+		expect(!decide_suggestion_head_move(publishing, lines).has_value(), "nor a draft being published");
+		expect(stable_name(suggestion_head_move_refusal::changed_where_edited) == "changed_where_edited", "the refusal has a stable name");
+	}
+
 	/// \brief A JSON string of exact bytes.
 	[[nodiscard]] auto json(const std::string_view aText) -> std::string
 	{
@@ -539,6 +592,7 @@ auto main(const int aArgc, char** const aArgv) -> int
 	test_a_kept_draft_opens_again();
 	test_convert_writes_the_change_as_text();
 	test_carry_needs_every_line_unchanged();
+	test_a_suggestion_from_an_earlier_head_carries_or_copies();
 	std::cout << "pull request suggestion tests passed\n";
 	return EXIT_SUCCESS;
 }
