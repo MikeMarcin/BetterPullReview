@@ -61,8 +61,28 @@ Claude is; the plain-text harness leaves the menu.
 ## Decisions for the owner
 
 Q1 to Q6 in the RFC's "Decisions for the owner", asked one per question in a
-fresh attended-review session. The session ID, state directory and status
-are recorded here when it opens; its URL is not.
+fresh attended-review session (its URL is not recorded here):
+
+- Session `29049098deb24f47c839771a46b05c4c`, state
+  `/Users/jaeger/.mask/attended-review/owner-review-20261022-agent-setup-v001`,
+  source this branch's worktree, loopback host started 2026-10-22, event
+  cursor 18, six candidates ready and protected, none answered.
+- Candidates `BPR-PENDING-AN-q1-shape`, `-q2-detect`, `-q3-check`,
+  `-q4-names`, `-q5-codex` and `-q6-scope`, revision
+  `agent-setup-v001@c47ad93e6`. Q1 and Q3 are named alternatives; the rest
+  are Accept or Reject.
+
+## Continuation
+
+Read the answers with
+`attended_review.py --repo-root <this worktree> --state <state> status --after 18`,
+record each on this card and in RFC-DRAFT-0026, then adopt, revise or set
+aside the RFC and allocate real IDs for this card and the plan's cards. The
+offscreen renders came from a tests-on release build of `b69b82c9b` with a
+temporary, uncommitted hook in `src/app/main.cpp`'s `--attended-agent-look`
+(stop before Start, grab the tab and Settings); the stills are headless
+Chrome renders of `still.html?still=ID&theme=light|dark` with a throwaway
+browser profile.
 
 ## Plan after the answers
 
