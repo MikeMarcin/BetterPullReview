@@ -13744,13 +13744,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!aTerminal.Result) {
 				const auto failure         = aTerminal.Result.error();
 				const auto definiteRefusal = failure == application::review_mutation_failure::refused_by_server
+					|| application::journal_rejection(failure)
 					|| failure == application::review_mutation_failure::incompatible_body
 					|| failure == application::review_mutation_failure::unsupported;
 				const auto unconfirmed = (aTerminal.MutationAttempted && !definiteRefusal)
 					|| failure == application::review_mutation_failure::unavailable
 					|| failure == application::review_mutation_failure::target_unavailable
 					|| failure == application::review_mutation_failure::malformed_response;
-				currentOutcome = unconfirmed ? outcome::indeterminate : outcome::not_published;
+				// [[BPR-1735]]. The journal's rejection says no comment exists.
+				currentOutcome = application::journal_rejection(failure) ? outcome::rejected
+					: unconfirmed                                        ? outcome::indeterminate
+																		 : outcome::not_published;
 			}
 			const auto publicationOutcome = core::retain_review_publication_outcome(PublishingPriorOutcome, currentOutcome);
 			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {

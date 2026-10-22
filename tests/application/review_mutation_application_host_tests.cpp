@@ -818,6 +818,97 @@ namespace {
 		host.shutdown();
 	}
 
+	/// [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff the core places
+	/// a new comment by the measured hunk rule: within three lines of a change
+	/// of the merge base to the head it is a line comment, as before; outside
+	/// every hunk it is bound for RFC-BPR-0022's file comment with no native
+	/// attempt and is no review comment; a range leaving the hunk is refused;
+	/// and with the lines unread nothing is inferred.
+	void test_a_whole_pr_line_outside_github_diff_is_a_file_comment()
+	{
+		auto request = publication_request();
+		bind_resolved_endpoints(request);
+		const auto head = request.SelectedDiff.Request.Diff.Comparison.Right.Commit;
+		const auto base = request.SelectedDiff.Request.Diff.Comparison.Left.Commit;
+		const auto at   = [&request](const core::diff_side aSide, const std::uint32_t aLine, const std::uint64_t aDraft, const std::optional<std::uint32_t> aStart = std::nullopt) {
+			auto line                         = request;
+			line.Proposal.Draft               = core::review_draft_id{ aDraft };
+			line.Selection.PreferredLine.Side = aSide;
+			line.Selection.PreferredLine.Line = aLine;
+			line.Proposal.Anchor              = line.Selection.PreferredLine;
+			line.Proposal.StartLine           = aStart;
+			return line;
+		};
+		auto  provider                  = std::make_unique<fake_provider>();
+		auto* observed                  = provider.get();
+		auto  effects                   = application::manual_executor{ };
+		auto  decisions                 = application::manual_executor{ };
+		auto  projection                = recording_projection{ };
+		projection.Source->Material.Key = request.SelectedDiff.Key;
+		// BPR-Test #124's shape: line 10 (zero-based 9) changed.
+		const auto lines             = core::line_correspondence{ .LeftLines = 100U, .RightLines = 100U, .Unchanged = { { 0U, 0U, 9U }, { 10U, 10U, 90U } } };
+		projection.Source->WholeDiff = core::whole_diff_comment_source{ .Head = head, .MergeBase = base, .BaseToHead = lines };
+		auto host                    = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto sent = [&](application::review_mutation_publication_request aRequest, const std::string_view aWhat) -> const application::review_mutation_request& {
+			static_cast<void>(host.publish(std::move(aRequest)));
+			expect(effects.pending() == 1U, aWhat);
+			effects.run_next();
+			decisions.drain();
+			return observed->Submitted.back();
+		};
+		const auto refused = [&](application::review_mutation_publication_request aRequest, const application::review_mutation_failure aFailure, const std::string_view aWhat) {
+			const auto before = observed->Submitted.size();
+			static_cast<void>(host.publish(std::move(aRequest)));
+			expect(effects.pending() == 0U, aWhat);
+			decisions.drain();
+			expect(observed->Submitted.size() == before && !projection.Published.back().Result.has_value() && projection.Published.back().Result.error() == aFailure, aWhat);
+		};
+
+		const auto& inside = sent(at(core::diff_side::right, 12U, 61U), "a line three after the change is admitted");
+		expect(inside.Source && inside.Source->Placement == core::review_placement::unknown && !inside.LiveBinding->Anchor.RemoteLine && inside.LiveBinding->Anchor.Commit == head,
+			   "as the line comment it always was");
+		expect(host.comment_destination(at(core::diff_side::right, 12U, 62U)).has_value(), "and it can join a review");
+
+		expect(host.comment_destination(at(core::diff_side::right, 13U, 63U)).error() == application::review_mutation_failure::unsupported,
+			   "a line four after it is no review comment: a review's comments are line comments");
+		const auto& outside = sent(at(core::diff_side::right, 13U, 64U), "a line four after the change is admitted");
+		expect(outside.Source && outside.Source->Placement == core::review_placement::unresolvable_line && outside.LiveBinding->Anchor.Commit == head
+				   && !outside.LiveBinding->Anchor.RemoteLine && outside.LiveBinding->Anchor.Semantic.Line == 13U && outside.Source->Endpoint == request.SelectedDiff.RightEndpoint
+				   && !outside.Source->LeftEndpoint && outside.Representation == core::review_publication_representation::native_line,
+			   "bound at the head, its source the head's document, for the provider's direct file comment");
+
+		refused(at(core::diff_side::right, 13U, 65U, 11U), application::review_mutation_failure::unsupported, "a range leaving the hunk is refused before any write");
+
+		// A base line: placed only when the left document is the merge base's.
+		refused(at(core::diff_side::left, 50U, 66U), application::review_mutation_failure::unsupported, "a base line without that evidence is refused as before");
+		projection.Source->Material.BaseNumberedAsGitHub = true;
+		const auto& onBase                               = sent(at(core::diff_side::left, 50U, 67U), "a base line outside every hunk is admitted");
+		expect(onBase.Source && onBase.Source->Placement == core::review_placement::unresolvable_line && onBase.Source->LeftEndpoint == request.SelectedDiff.LeftEndpoint
+				   && onBase.LiveBinding->Anchor.Semantic.Side == core::diff_side::left,
+			   "as a file comment whose permalink names the merge base's line, from the left document");
+		const auto& nearBase = sent(at(core::diff_side::left, 7U, 68U), "a base line near the change is admitted");
+		expect(nearBase.Source && nearBase.Source->Placement == core::review_placement::unknown && !nearBase.Source->LeftEndpoint, "as GitHub's LEFT line");
+
+		// Unread lines infer nothing; another head is refused.
+		projection.Source->WholeDiff->BaseToHead.reset();
+		const auto& unread = sent(at(core::diff_side::right, 59U, 69U), "with the lines unread a far line is admitted");
+		expect(unread.Source && unread.Source->Placement == core::review_placement::unknown, "and published natively, as before");
+		projection.Source->WholeDiff = core::whole_diff_comment_source{ .Head = base, .MergeBase = base, .BaseToHead = lines };
+		refused(at(core::diff_side::right, 59U, 70U), application::review_mutation_failure::stale_head, "a placement for another head is refused");
+		host.shutdown();
+	}
+
 	void test_thread_resolution_needs_the_capability_and_a_permitting_grant()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -1646,6 +1737,7 @@ auto main() -> int
 	test_a_base_line_root_needs_githubs_base_numbering();
 	test_filtered_diff_comments_are_placed_by_the_core();
 	test_a_filtered_base_line_the_merge_base_changed_is_a_file_comment();
+	test_a_whole_pr_line_outside_github_diff_is_a_file_comment();
 	test_a_label_changed_after_preparation_needs_a_new_gesture();
 	std::cout << "review-mutation-application-host-tests:pass\n";
 	return EXIT_SUCCESS;

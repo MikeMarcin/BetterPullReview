@@ -542,6 +542,30 @@ namespace {
 		for (const auto unanswered : { state::initial, state::native_definitively_unsupported, state::unsupported_evidence_admitted, state::unresolvable_line_admitted, state::succeeded_native, state::succeeded_fallback, state::rejected }) {
 			expect(!advance_review_publication({ .State = unanswered, .Eligible = true }, event::definitively_rejected), "only a sent child is rejected");
 		}
+
+		// What settles a child that may have been sent, when GitHub's complete
+		// list holds no comment of it.
+		using answer       = review_publication_answer;
+		constexpr auto at  = std::int64_t{ 1'000'000 };
+		const auto     now = at + review_publication_settle_delay_ms;
+		expect(publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 4U, .RecordedUtcMs = at }, at), "a fully received 4xx settles at once");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 5U, .RecordedUtcMs = at }, now * 9), "a server error never does");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 3U, .RecordedUtcMs = at }, now * 9), "nor a redirect");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = at }, now * 9), "nor a POST with no definite answer: its outcome is unknown");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::success, .StatusClass = 2U, .RecordedUtcMs = at }, now * 9), "nor a success");
+		expect(!publication_definitely_unpublished(std::nullopt, now * 9), "nor a child with no answer kept");
+		const auto migrated = review_publication_post{ .Answer = answer::kept_before_answers, .StatusClass = 0U, .RecordedUtcMs = at };
+		expect(!publication_definitely_unpublished(migrated, now - 1) && publication_definitely_unpublished(migrated, now), "a migrated record settles ten minutes after it was migrated");
+		expect(!publication_definitely_unpublished(migrated, at - 1), "a clock earlier than the record waits");
+		expect(!valid(review_publication_post{ .Answer = answer::success, .StatusClass = 4U }) && !valid(review_publication_post{ .Answer = answer::no_answer, .StatusClass = 4U })
+				   && !valid(review_publication_post{ .Answer = static_cast<answer>(9), .StatusClass = 0U }) && !valid(review_publication_post{ .Answer = answer::no_answer, .RecordedUtcMs = -1 }),
+			   "answers out of range are invalid");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 6U }, now), "and settle nothing");
+
+		using outcome = review_publication_outcome;
+		expect(retain_review_publication_outcome(outcome::indeterminate, outcome::rejected) == outcome::not_published, "the journal's rejection unlocks a draft whose outcome was unknown");
+		expect(retain_review_publication_outcome(outcome::indeterminate, outcome::not_published) == outcome::indeterminate, "a refused check does not");
+		expect(retain_review_publication_outcome(outcome::published, outcome::rejected) == outcome::published, "nor does anything undo a confirmed receipt");
 	}
 
 	void test_publication_policy()

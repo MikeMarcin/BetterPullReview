@@ -6,6 +6,11 @@ namespace bpr::core {
 		if (aCurrent == review_publication_outcome::published || aPrior == review_publication_outcome::published) {
 			return review_publication_outcome::published;
 		}
+		// [[BPR-1735]]. The journal's rejection, not a refused check, says no
+		// comment exists, so it unlocks a draft whose outcome was unknown.
+		if (aCurrent == review_publication_outcome::rejected) {
+			return review_publication_outcome::not_published;
+		}
 		if (aPrior == review_publication_outcome::indeterminate || aCurrent == review_publication_outcome::indeterminate) {
 			return review_publication_outcome::indeterminate;
 		}
@@ -176,5 +181,34 @@ namespace bpr::core {
 			offset = end - 1U;
 		}
 		return review_body_compatibility::portable;
+	}
+
+	auto valid(const review_publication_post& aPost) noexcept -> bool
+	{
+		if (aPost.RecordedUtcMs < 0) {
+			return false;
+		}
+		switch (aPost.Answer) {
+		case review_publication_answer::success:
+			return aPost.StatusClass == 2U;
+		case review_publication_answer::error_status:
+			return aPost.StatusClass >= 3U && aPost.StatusClass <= 5U;
+		case review_publication_answer::kept_before_answers:
+		case review_publication_answer::no_answer:
+			return aPost.StatusClass == 0U;
+		}
+		return false;
+	}
+
+	auto publication_definitely_unpublished(const std::optional<review_publication_post>& aPost, const std::int64_t aNowUtcMs) noexcept -> bool
+	{
+		if (!aPost || !valid(*aPost)) {
+			return false;
+		}
+		if (aPost->Answer == review_publication_answer::error_status) {
+			return aPost->StatusClass == 4U;
+		}
+		return aPost->Answer == review_publication_answer::kept_before_answers && aNowUtcMs >= aPost->RecordedUtcMs
+			&& aNowUtcMs - aPost->RecordedUtcMs >= review_publication_settle_delay_ms;
 	}
 }

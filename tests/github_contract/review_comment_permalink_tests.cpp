@@ -384,6 +384,7 @@ namespace {
 		unavailable.Target.Semantic.Repository = core::repository_id{ 99U };
 		expect(!parse_review_permalink_body(unavailable, canonical), "foreign source authority cannot invent an anchor");
 	}
+	[[nodiscard]] auto is_file(const review_mutation_wire_request& aPost) -> bool;
 	using journal_state    = core::review_publication_state;
 	using journal_record   = application::review_publication_recovery_record;
 	using recovery_failure = application::review_mutation_recovery_failure;
@@ -398,6 +399,8 @@ namespace {
 		auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_mutation_recovery_record, recovery_failure> override { return Inner->mark_possibly_transmitted(aKey, aFingerprint); }
 		auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_mutation_receipt& aReceipt) -> std::expected<application::review_mutation_recovery_record, recovery_failure> override { return Inner->resolve(aKey, aFingerprint, aReceipt); }
 		auto load_publication(const std::string& aKey) -> std::expected<std::optional<journal_record>, recovery_failure> override { return Inner->load_publication(aKey); }
+		auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost) -> std::expected<void, recovery_failure> override { return Inner->note_publication_post(aKey, aPost); }
+		auto load_publication_post(const std::string& aKey) -> std::expected<std::optional<core::review_publication_post>, recovery_failure> override { return Inner->load_publication_post(aKey); }
 		auto advance_publication(const std::optional<journal_record>& aExpected, const journal_record& aNext) -> std::expected<journal_record, recovery_failure> override
 		{
 			if (InterruptBefore == aNext.State) {
@@ -546,6 +549,12 @@ namespace {
 				expect(!aWitness(), "transmission witness cannot be consumed twice");
 				Posts.push_back(wire);
 				const bool file = std::get<application::review_mutation_request>(wire.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
+				// [[BPR-1735]]. Native HTTPS carries a refusal it admits no
+				// answer for as an error with the status.
+				if (!file && ErrorStatus != 0U) {
+					boundary();
+					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::refused_by_server, .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = ErrorStatus };
+				}
 				if ((!file && RejectNative) || GenericStatus != 0) {
 					response = Rejection.value_or(fixture_rejection());
 					if (GenericStatus != 0) {
@@ -601,6 +610,7 @@ namespace {
 		bool                                         Stacked         = false;
 		unsigned                                     ResetAtTarget   = 0U;
 		int                                          GenericStatus   = 0;
+		std::uint16_t                                ErrorStatus     = 0U;
 		std::stop_source*                            CancelAfterPost = nullptr;
 		std::function<void()>                        AfterPost;
 	};
@@ -708,7 +718,14 @@ namespace {
 			}
 			auto session = review_mutation_session{ transport, config, std::make_shared<publication_lease>(), open_journal(scratch.path()) };
 			static_cast<void>(session.submit(request));
-			expect(transport.Posts.size() == 1U, "nearby error and restart never authorize a fallback or retry POST");
+			// [[BPR-1735]]. A fully received 4xx rejects the native child, so
+			// publishing again is a new native attempt; nothing else is.
+			const auto refused = response.Status >= 400 && response.Status < 500;
+			expect(transport.Posts.size() == (refused ? 2U : 1U), "nearby error and restart never authorize a fallback, and only a refusal a new attempt");
+			expect(std::ranges::all_of(transport.Posts, [](const review_mutation_wire_request& aPost) {
+					   return std::get<application::review_mutation_request>(aPost.Semantic).Representation == core::review_publication_representation::native_line;
+				   }),
+				   "no file comment follows a refusal the classifier does not admit");
 		}
 		auto scratch               = tests::sqlite_contract::scratch_root{ "recorded-success" };
 		auto transport             = publication_transport{ };
@@ -724,11 +741,14 @@ namespace {
 		expect(session.submit(request)->Duplicate && transport.Posts.size() == 2U, "completed recorded publication replay has no POST");
 		// An earlier build with no selected contract left a transmission witness.
 		// Loading the very same logical request under rev2 must remain GET-only.
+		// [[BPR-1735]]. A fully received refusal is now rejected, so the witness
+		// left unresolved is one whose answer was lost.
 		auto oldRoot             = tests::sqlite_contract::scratch_root{ "recorded-old-witness" };
 		auto oldWire             = publication_transport{ };
 		oldWire.RecordedIdentity = true;
 		oldWire.RejectNative     = true;
 		oldWire.Rejection        = recorded_rejection();
+		oldWire.LoseResponse     = true;
 		{
 			auto oldSession = review_mutation_session{ oldWire, config, std::make_shared<publication_lease>(), open_journal(oldRoot.path()), off_hunk_unsupported_contract{ } };
 			expect(!oldSession.submit(request), "old disabled classifier retains unresolved witness");
@@ -900,7 +920,9 @@ namespace {
 		expect(!session.submit(request) && transport.Posts.size() == 1U && log->Events.size() == 1U, "diagnostic session does not activate synthetic rejection or fallback");
 		expect(log->Events.front().HttpStatus == 422U && log->Events.front().ContextGeneration == 7U, "real session emits one scoped POST observation");
 		static_cast<void>(session.submit(request));
-		expect(transport.Posts.size() == 1U && log->Events.size() == 1U, "recovery stays GET-only and creates no synthetic POST diagnostic");
+		// [[BPR-1735]]. The refusal was rejected, so publishing again is one new
+		// native POST with its own observation, never a fallback.
+		expect(transport.Posts.size() == 2U && log->Events.size() == 2U && !is_file(transport.Posts.back()), "a rejected comment is sent again natively, and observed once more");
 	}
 
 	void test_session_ambiguity_and_refusals()
@@ -955,7 +977,11 @@ namespace {
 			const auto writes         = transport.Posts.size();
 			transport.CancelAfterPost = nullptr;
 			static_cast<void>(session.submit(request));
-			expect(transport.Posts.size() == writes, "reentry never blindly resubmits native");
+			// [[BPR-1735]]. A fully received 4xx (courses 0 to 3) is rejected:
+			// publishing again is one new native attempt. Nothing else resends.
+			const auto rejected = course <= 3U;
+			expect(!rejected || result.Result.error() == application::review_mutation_failure::refused_not_published, "a refusal is reported as not published");
+			expect(transport.Posts.size() == writes + (rejected ? 1U : 0U), "reentry never blindly resubmits native, and a rejected comment is sent again only natively");
 		}
 	}
 	void test_session_restart_states()
@@ -1486,8 +1512,11 @@ namespace {
 		expect(!compile_review_permalink_body(left, permalink_anchor(left), "Wrong side."), "an anchor on the other side than its endpoint is refused");
 		auto unfiltered              = left;
 		unfiltered.Comparison.Filter = std::nullopt;
-		expect(!compile_review_permalink_body(unfiltered, { .Comparison = core::comparison_digest(unfiltered.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base."),
-			   "an unfiltered left side has no permalink");
+		// [[BPR-1735]]. A Whole PR base line GitHub resolves nowhere names its
+		// line at the comparison's left commit, the merge base.
+		const auto onBase = compile_review_permalink_body(unfiltered, { .Comparison = core::comparison_digest(unfiltered.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base.");
+		expect(onBase && onBase->starts_with("https://github.com/MikeMarcin/BPR-Test/blob/" + std::string{ core::canonical_hex(unfiltered.Endpoint->request().Diff.Comparison.Left.Commit).view() } + "/dir/review.cpp#L13\n\n"),
+			   "an unfiltered left side's permalink names the comparison's left commit");
 		auto otherBlob                = left;
 		otherBlob.Comparison.LeftBlob = oid<core::git_blob_oid>(41U);
 		expect(!compile_review_permalink_body(otherBlob, { .Comparison = core::comparison_digest(otherBlob.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base."),
@@ -1569,12 +1598,187 @@ namespace {
 		auto range                            = base();
 		range.Proposal.StartLine              = 10U;
 		range.IdempotencyKey                  = application::idempotency_key_for(range.Proposal, range.Target);
-		for (const auto& refused : { suggestion, unfiltered, moved, leftless, range }) {
+		static_cast<void>(unfiltered);
+		for (const auto& refused : { suggestion, moved, leftless, range }) {
 			auto scratch   = tests::sqlite_contract::scratch_root{ "unresolvable-refused" };
 			auto transport = publication_transport{ };
 			auto session   = review_mutation_session{ transport, session_configuration(refused), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(application::github_server_contract::github_com_2022_11_28) };
-			expect(!session.submit(refused) && transport.Posts.empty(), "a suggestion, an unfiltered or moved source, a left line without its document and a range write nothing");
+			expect(!session.submit(refused) && transport.Posts.empty(), "a suggestion, a moved source, a left line without its document and a range write nothing");
 		}
+	}
+
+	[[nodiscard]] auto is_file(const review_mutation_wire_request& aPost) -> bool
+	{
+		return std::get<application::review_mutation_request>(aPost.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
+	}
+
+	/// [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff a line the core
+	/// places outside every hunk is RFC-BPR-0022's file comment at once, with a
+	/// permalink to the line at its own side's commit: no native attempt, one
+	/// comment across retries and a restart.
+	void test_an_off_hunk_whole_pr_line_is_a_file_comment_at_once()
+	{
+		const auto head = std::string(40U, '1');
+		for (const auto side : { core::diff_side::right, core::diff_side::left }) {
+			auto source               = permalink_source();
+			auto request              = publication_request(source);
+			request.Source->Placement = core::review_placement::unresolvable_line;
+			const auto& comparison    = source.Endpoint->request().Diff.Comparison;
+			auto        named         = std::string{ core::canonical_hex(comparison.Right.Commit).view() };
+			if (side == core::diff_side::left) {
+				request.Source->LeftEndpoint         = application::make_workbench_selected_diff_endpoint_for_testing(source.Endpoint->request(), core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+				request.Proposal.Anchor.Side         = core::diff_side::left;
+				request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
+				request.IdempotencyKey               = application::idempotency_key_for(request.Proposal, request.Target);
+				named                                = std::string{ core::canonical_hex(comparison.Left.Commit).view() };
+			}
+			auto        scratch   = tests::sqlite_contract::scratch_root{ side == core::diff_side::right ? "whole-off-hunk-right" : "whole-off-hunk-left" };
+			auto        journal   = open_journal(scratch.path());
+			const auto* observed  = journal.get();
+			auto        transport = publication_transport{ };
+			{
+				auto       session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+				const auto first   = session.submit_and_reconcile(request);
+				expect(first.Result && first.Result->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 1U && is_file(transport.Posts.front()),
+					   "an off-hunk Whole PR line is published as one file comment, with no native attempt");
+				const auto& sent = transport.Posts.front();
+				expect(sent.Body.find("\"subject_type\":\"file\"") != std::string::npos && sent.Body.find("\"commit_id\":\"" + head + "\"") != std::string::npos
+						   && sent.Body.find("\"line\"") == std::string::npos && sent.Body.find("blob/" + named + "/dir/review.cpp#L13\\n\\nLiteral review prose.") != std::string::npos,
+					   "written at the head with a permalink to the line at its side's commit");
+				expect(observed->Saved.front().State == journal_state::unresolvable_line_admitted && observed->Saved.back().State == journal_state::succeeded_fallback,
+					   "through the journal's durable admission");
+				expect(session.submit(request) && transport.Posts.size() == 1U, "a replay sends nothing");
+			}
+			auto reopened = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			expect(reopened.submit(request) && transport.Posts.size() == 1U, "nor does a restart");
+		}
+	}
+
+	/// [[BPR-1735]]. A native single comment GitHub refuses with a fully
+	/// received 4xx is rejected, not left possibly sent: it is reported as not
+	/// published with GitHub's reason, and its draft can be published again
+	/// or, placed off the diff, as a file comment. An unknown outcome never is.
+	void test_a_refused_single_comment_is_rejected()
+	{
+		const auto courses = std::array<std::string_view, 3U>{ "answer", "error", "unplaceable" };
+		for (const auto course : courses) {
+			auto request   = publication_request(permalink_source());
+			auto scratch   = tests::sqlite_contract::scratch_root{ "refused-single" };
+			auto journal   = open_journal(scratch.path());
+			auto transport = publication_transport{ };
+			if (course == "answer") {
+				transport.GenericStatus = 422;
+			} else if (course == "error") {
+				transport.ErrorStatus = 422U;
+			} else {
+				transport.RejectNative = true;
+				transport.Rejection    = recorded_rejection();
+			}
+			auto       session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			const auto first   = session.submit_and_reconcile(request);
+			const auto reason  = course == "unplaceable" ? application::review_mutation_failure::unplaceable_line : application::review_mutation_failure::refused_not_published;
+			expect(!first.Result && first.Result.error() == reason && first.MutationAttempted && transport.Posts.size() == 1U,
+				   "a fully received refusal is not published, with GitHub's reason; through the GitHub CLI or native HTTPS alike");
+			transport.GenericStatus = 0;
+			transport.ErrorStatus   = 0U;
+			transport.RejectNative  = false;
+			const auto again        = session.submit_and_reconcile(request);
+			expect(again.Result && transport.Posts.size() == 2U && !is_file(transport.Posts.back()), "the draft can be published again, as a new native attempt");
+		}
+
+		// Refused natively, then placed outside GitHub's diff: the same draft
+		// becomes its file comment, from the rejected record.
+		{
+			auto request           = publication_request(permalink_source());
+			auto scratch           = tests::sqlite_contract::scratch_root{ "refused-then-file" };
+			auto transport         = publication_transport{ };
+			transport.RejectNative = true;
+			transport.Rejection    = recorded_rejection();
+			{
+				auto session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+				expect(!session.submit(request), "refused natively");
+			}
+			request.Source->Placement = core::review_placement::unresolvable_line;
+			auto       session        = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			const auto file           = session.submit(request);
+			expect(file && file->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 2U && is_file(transport.Posts.back()),
+				   "after a restart it is published once as a file comment");
+			expect(session.submit(request) && transport.Posts.size() == 2U, "and never again");
+		}
+
+		// Unknown outcomes are never rejected: a lost answer, a server error.
+		for (const auto lost : { true, false }) {
+			auto request      = publication_request(permalink_source());
+			auto scratch      = tests::sqlite_contract::scratch_root{ "unknown-single" };
+			auto transport    = publication_transport{ };
+			transport.Publish = false;
+			if (lost) {
+				transport.LoseResponse = true;
+			} else {
+				transport.GenericStatus = 502;
+			}
+			auto session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			session.set_publication_clock([] { return std::int64_t{ 4'000'000'000'000 }; });
+			const auto first = session.submit_and_reconcile(request);
+			expect(!first.Result && !application::journal_rejection(first.Result.error()), "an unknown outcome is not rejected");
+			session.set_publication_clock([] { return std::int64_t{ 4'000'000'000'000 } + 86'400'000; });
+			static_cast<void>(session.submit(request));
+			expect(transport.Posts.size() == 1U, "and a day later it still only reconciles");
+		}
+	}
+
+	/// [[BPR-1735]]. A record an earlier version left possibly sent, with no
+	/// answer kept, is migrated as kept before answers; once ten minutes have
+	/// passed and GitHub's complete list holds no comment of it, a check
+	/// settles it as not published, and its draft can be published again.
+	void test_a_migrated_stuck_comment_settles()
+	{
+		auto request           = publication_request(permalink_source());
+		auto scratch           = tests::sqlite_contract::scratch_root{ "migrated-single" };
+		auto transport         = publication_transport{ };
+		transport.Publish      = false;
+		transport.LoseResponse = true;
+		std::string key;
+		{
+			auto  journal  = open_journal(scratch.path());
+			auto* recorded = journal.get();
+			auto  session  = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			expect(!session.submit(request) && transport.Posts.size() == 1U, "an earlier version's lost answer");
+			key = recorded->Saved.back().Key;
+			expect(recorded->Saved.back().State == journal_state::native_possibly_transmitted, "is left possibly sent");
+			// As the version 7 migration keeps it, at the time of the upgrade.
+			expect(recorded->note_publication_post(key, { .Answer = core::review_publication_answer::kept_before_answers, .StatusClass = 0U, .RecordedUtcMs = 5'000'000 }).has_value(), "kept before answers");
+		}
+		transport.LoseResponse = false;
+		auto session           = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+		session.set_publication_clock([] { return std::int64_t{ 5'000'000 } + core::review_publication_settle_delay_ms - 1; });
+		const auto early = session.reconcile_publication(request);
+		expect(!early.Result && !application::journal_rejection(early.Result.error()) && transport.Posts.size() == 1U, "before the delay it only reconciles");
+		session.set_publication_clock([] { return std::int64_t{ 5'000'000 } + core::review_publication_settle_delay_ms; });
+		const auto settled = session.reconcile_publication(request);
+		expect(!settled.Result && settled.Result.error() == application::review_mutation_failure::settled_not_published && transport.Posts.size() == 1U,
+			   "after it, with no comment of it listed, the check settles it as not published and sends nothing");
+		const auto again = session.submit(request);
+		expect(again && transport.Posts.size() == 2U, "the draft is published again, once");
+
+		// A comment GitHub did create is found first, however late.
+		auto createdRequest   = publication_request(permalink_source());
+		auto createdScratch   = tests::sqlite_contract::scratch_root{ "migrated-created" };
+		auto created          = publication_transport{ };
+		created.LoseResponse  = true;
+		created.HideAfterPost = true;
+		{
+			auto  journal  = open_journal(createdScratch.path());
+			auto* recorded = journal.get();
+			auto  first    = review_mutation_session{ created, session_configuration(createdRequest), std::make_shared<publication_lease>(), std::move(journal) };
+			static_cast<void>(first.submit(createdRequest));
+			static_cast<void>(recorded->note_publication_post(recorded->Saved.back().Key, { .Answer = core::review_publication_answer::kept_before_answers, .StatusClass = 0U, .RecordedUtcMs = 0 }));
+		}
+		created.LoseResponse  = false;
+		created.HideAfterPost = false;
+		auto       check      = review_mutation_session{ created, session_configuration(createdRequest), std::make_shared<publication_lease>(), open_journal(createdScratch.path()) };
+		const auto found      = check.reconcile_publication(createdRequest);
+		expect(found.Result && created.Posts.size() == 1U, "a listed comment confirms it instead of settling");
 	}
 }
 
@@ -1597,6 +1801,9 @@ auto main() -> int
 	test_permalink_rejects_foreign_noncanonical_and_unavailable_sources();
 	test_a_filtered_diff_permalink_names_its_own_commit();
 	test_an_unresolvable_filtered_line_is_a_file_comment_at_once();
+	test_an_off_hunk_whole_pr_line_is_a_file_comment_at_once();
+	test_a_refused_single_comment_is_rejected();
+	test_a_migrated_stuck_comment_settles();
 	std::cout << "review-comment-permalink-tests:pass\n";
 	return EXIT_SUCCESS;
 }

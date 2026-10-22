@@ -37,7 +37,28 @@ namespace bpr::application {
 		credential_unavailable,
 		/// The credential tool failed before any publication request.
 		credential_tool_failed,
+		/// [[BPR-1735]]. GitHub refused the comment with a fully received
+		/// answer saying its line cannot be placed (outside the diff). The
+		/// journal recorded it rejected: it was not published.
+		unplaceable_line,
+		/// [[BPR-1735]]. GitHub refused the comment with another fully
+		/// received 4xx answer. The journal recorded it rejected: it was not
+		/// published.
+		refused_not_published,
+		/// [[BPR-1735]]. A comment an earlier version left unconfirmed was
+		/// settled: GitHub's complete comment list holds no comment of it
+		/// ten minutes after the upgrade kept it. The journal recorded it
+		/// rejected: it was not published.
+		settled_not_published,
 	};
+
+	/// \brief [[BPR-1735]]. Whether the failure is the journal's record of a
+	/// rejection, which says no comment of the publication exists.
+	[[nodiscard]] constexpr auto journal_rejection(const review_mutation_failure aFailure) noexcept -> bool
+	{
+		return aFailure == review_mutation_failure::unplaceable_line || aFailure == review_mutation_failure::refused_not_published
+			|| aFailure == review_mutation_failure::settled_not_published;
+	}
 
 	/// \brief Returns the stable name for the supplied value.
 	[[nodiscard]] auto name(review_mutation_failure aFailure) noexcept

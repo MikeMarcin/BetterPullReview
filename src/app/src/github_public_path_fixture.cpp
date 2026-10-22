@@ -4829,6 +4829,8 @@ namespace bpr::app::detail {
 				return Inner->load_publication(aKey);
 			}
 			auto advance_publication(const std::optional<publication>& aExpected, const publication& aNext) -> std::expected<publication, failure> override { return Inner->advance_publication(aExpected, aNext); }
+			auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost) -> std::expected<void, failure> override { return Inner->note_publication_post(aKey, aPost); }
+			auto load_publication_post(const std::string& aKey) -> std::expected<std::optional<core::review_publication_post>, failure> override { return Inner->load_publication_post(aKey); }
 
 		private:
 			std::unique_ptr<application::review_mutation_recovery_port> Inner;

@@ -45,6 +45,11 @@ namespace bpr::application {
 		/// places a comment on it from (owner decision Q1), from the accepted
 		/// commit list and the lines the epoch host read. Absent otherwise.
 		std::optional<core::filtered_comment_source> Filtered;
+		/// [[BPR-1735]]. For the Whole PR diff, once the merge base is known:
+		/// the head, the merge base and, once the epoch host read and compared
+		/// the file at both, the merge base to the head, which the core places
+		/// a new comment by. Absent on a filtered diff.
+		std::optional<core::whole_diff_comment_source> WholeDiff;
 	};
 
 	/// \brief Reads current bounded source facts on the host's decision lane without effects.

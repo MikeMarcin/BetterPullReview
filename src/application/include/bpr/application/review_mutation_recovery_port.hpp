@@ -128,6 +128,26 @@ namespace bpr::application {
 			static_cast<void>(aNext);
 			return std::unexpected(review_mutation_recovery_failure::unavailable);
 		}
+		/// \brief [[BPR-1735]]. Keeps what GitHub answered the POST of the
+		/// logical publication's child that may have been sent, replacing any
+		/// earlier answer. The publication must exist. Keeping it is best
+		/// effort for the caller: a child with no answer kept is reconciled
+		/// GET-only, as RFC-BPR-0022 has it.
+		[[nodiscard]] virtual auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost)
+			-> std::expected<void, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			static_cast<void>(aPost);
+			return std::unexpected(review_mutation_recovery_failure::unavailable);
+		}
+		/// \brief [[BPR-1735]]. The answer kept for the publication, none when
+		/// none was kept.
+		[[nodiscard]] virtual auto load_publication_post(const std::string& aKey)
+			-> std::expected<std::optional<core::review_publication_post>, review_mutation_recovery_failure>
+		{
+			static_cast<void>(aKey);
+			return std::optional<core::review_publication_post>{ };
+		}
 
 		[[nodiscard]] virtual auto load(const std::string& aIdempotencyKey)
 			-> std::expected<

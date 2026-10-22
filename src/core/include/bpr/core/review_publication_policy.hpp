@@ -7,12 +7,20 @@
 
 namespace bpr::core {
 	/// \brief Publication knowledge for the exact draft, distinct from a retry's refusal.
-	enum class review_publication_outcome : std::uint8_t { not_published,
-														   indeterminate,
-														   published };
+	enum class review_publication_outcome : std::uint8_t {
+		not_published,
+		indeterminate,
+		published,
+		/// [[BPR-1735]]. The durable journal recorded the publication rejected:
+		/// GitHub answered its last child with a fully received refusal, or a
+		/// migrated record was settled. No comment of it exists.
+		rejected,
+	};
 	/// \brief A refusal to check an earlier attempt cannot establish non-publication.
 	/// \details The host supplies exact prior draft knowledge and current outcome facts.
-	/// Only a confirmed receipt resolves an indeterminate publication. This grants no write.
+	/// Only a confirmed receipt resolves an indeterminate publication, and only
+	/// the journal's `rejected` record establishes that none exists ([[BPR-1735]]):
+	/// it is retained as `not_published`. This grants no write.
 	[[nodiscard]] auto retain_review_publication_outcome(review_publication_outcome aPrior, review_publication_outcome aCurrent) noexcept -> review_publication_outcome;
 
 	/// \brief Provider evidence about the selected anchor, never painted diff geometry.
@@ -125,5 +133,52 @@ namespace bpr::core {
 
 	/// \brief Conservatively recognizes fenced suggestion bodies that require a line subject.
 	[[nodiscard]] auto classify_review_body(std::string_view aBody) noexcept -> review_body_compatibility;
+
+	/// \brief [[BPR-1735]]. What GitHub answered the POST of a logical
+	/// publication's last child, as its record keeps it.
+	enum class review_publication_answer : std::uint8_t {
+		/// The child may have been sent before answers were kept: a record an
+		/// earlier version left, kept at the time it was migrated.
+		kept_before_answers,
+		success,
+		error_status,
+		/// The POST may have left and nothing definite came back.
+		no_answer,
+	};
+	/// \brief [[BPR-1735]]. `StatusClass` is the hundreds digit of an answer's
+	/// status (2 to 5), 0 with none. `RecordedUtcMs` is when it was kept, in
+	/// UTC milliseconds since the Unix epoch.
+	struct review_publication_post
+	{
+		review_publication_answer Answer        = review_publication_answer::no_answer;
+		std::uint8_t              StatusClass   = 0U;
+		std::int64_t              RecordedUtcMs = 0;
+
+		auto operator<=>(const review_publication_post&) const = default;
+	};
+	/// \brief [[BPR-1735]]. How long after a migrated record was kept GitHub's
+	/// comment list is trusted to show a comment GitHub created for it: as
+	/// [[BPR-1715]] decided for a review.
+	inline constexpr std::int64_t review_publication_settle_delay_ms = std::int64_t{ 10 } * 60 * 1000;
+	/// \brief [[BPR-1735]]. Whether the answer is in range: a known answer, a
+	/// class that matches it (2 for success, 3 to 5 for an error status, 0
+	/// otherwise) and a time that is not negative.
+	[[nodiscard]] auto valid(const review_publication_post& aPost) noexcept -> bool;
+	/// \brief [[BPR-1735]]. Whether a child that may have been sent, and that
+	/// GitHub's complete comment list shows no new exact comment for, is
+	/// definitely not published, so it is rejected and its draft kept.
+	///
+	/// \details Only two answers settle it:
+	/// - a 4xx status, fully received: GitHub validates a comment before it
+	///   creates one, and refused this one;
+	/// - a record kept before answers were (`kept_before_answers`), once
+	///   `review_publication_settle_delay_ms` have passed since it was
+	///   migrated, as a review's unanswered attempt settles ([[BPR-1715]]).
+	///
+	/// No kept answer, a success, a redirect or server error, and a POST with
+	/// no definite answer never settle: their outcome is genuinely unknown,
+	/// and RFC-BPR-0022 keeps them to GET-only reconciliation. A clock earlier
+	/// than the record waits.
+	[[nodiscard]] auto publication_definitely_unpublished(const std::optional<review_publication_post>& aPost, std::int64_t aNowUtcMs) noexcept -> bool;
 }
 #endif

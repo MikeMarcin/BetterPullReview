@@ -8,6 +8,7 @@
 #include <sqlite3.h>
 
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -500,9 +501,9 @@ namespace {
 		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect((*store)->admit(record()).has_value(), "v3 native input admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+		execute_sql(database_path(directory), "DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store && user_version(database_path(directory)) == 7 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
+		expect(store && user_version(database_path(directory)) == 8 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
 		auto submission = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
 		expect(submission.has_value(), "whole-review journal remains compatible after migration");
 	}
@@ -525,17 +526,102 @@ namespace {
 		const auto value = publication();
 		expect((*store)->advance_publication(std::nullopt, value).has_value(), "v6 logical publication admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_post; PRAGMA user_version = 6; UPDATE recovery_meta SET schema_format = 6;");
+		execute_sql(database_path(directory), "DROP TABLE publication_post; DROP TABLE submission_post; PRAGMA user_version = 6; UPDATE recovery_meta SET schema_format = 6;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store.has_value() && user_version(database_path(directory)) == 7
-				   && query_text(database_path(directory), "SELECT schema_format FROM recovery_meta WHERE singleton = 1") == "7",
-			   "v6 migrates to v7");
+		expect(store.has_value() && user_version(database_path(directory)) == 8
+				   && query_text(database_path(directory), "SELECT schema_format FROM recovery_meta WHERE singleton = 1") == "8",
+			   "v6 migrates to the current version");
 		expect((*store)->load(prepared.IdempotencyKey).value() == *sent, "v6 possibly sent source-line attempt is kept exactly");
 		expect((*store)->load_publication(value.Key).value() == value, "v6 logical publication is kept exactly");
 		expect(query_text(database_path(directory), "SELECT count(*) FROM submission_post") == "0",
 			   "no source-line attempt gains a whole review's POST answer");
 		expect(adapters::sqlite::make_review_submission_recovery_store(configuration(directory)).has_value(),
 			   "the whole-review journal opens the migrated database");
+	}
+
+	/// [[BPR-1735]]. A refused child is retired as rejected, survives a
+	/// restart, and starts again; its POST's answer is kept beside it; and a
+	/// version 7 journal migrates every logical publication with an answer
+	/// kept before answers were, at the time it is migrated.
+	void test_rejection_answers_and_version_seven_migration()
+	{
+		using state  = core::review_publication_state;
+		using answer = core::review_publication_answer;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto          value = publication();
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "native parent admitted");
+		auto sent                 = value;
+		sent.State                = state::native_possibly_transmitted;
+		sent.Native->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(value, sent).has_value(), "the witness is durable");
+		expect((*store)->load_publication_post(value.Key).value() == std::nullopt, "no answer is kept until one is noted");
+		expect((*store)->note_publication_post(value.Key, { .Answer = answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = 1000 }).has_value(), "no answer yet is kept");
+		expect((*store)->note_publication_post(value.Key, { .Answer = answer::error_status, .StatusClass = 4U, .RecordedUtcMs = 2000 }).has_value(), "and replaced by the answer");
+		expect(!(*store)->note_publication_post(std::string(64U, 'd'), { .Answer = answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = 1000 }), "an answer needs its publication");
+		expect(!(*store)->note_publication_post(value.Key, { .Answer = answer::success, .StatusClass = 4U, .RecordedUtcMs = 1000 }), "an answer out of range is refused");
+
+		auto rejected  = sent;
+		rejected.State = state::rejected;
+		expect(!(*store)->advance_publication(value, rejected), "a prepared child is never rejected");
+		expect((*store)->advance_publication(sent, rejected).has_value(), "a sent child is rejected with nothing else changed");
+		auto forged            = rejected;
+		forged.Native->Receipt = application::review_mutation_receipt{ .ServerCommentId = "PRRC_forged" };
+		forged.Native->State   = application::review_mutation_recovery_state::succeeded;
+		expect(!application::valid(forged), "a rejected child holds no receipt");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(value.Key).value() == rejected, "the rejection survives a restart exactly");
+		expect((*store)->load_publication_post(value.Key).value() == core::review_publication_post{ .Answer = answer::error_status, .StatusClass = 4U, .RecordedUtcMs = 2000 }, "and so does its answer");
+
+		auto again = value;
+		expect((*store)->advance_publication(rejected, again).has_value(), "publishing again starts a new native attempt under the same key");
+		auto backTo  = again;
+		backTo.State = state::rejected;
+		expect(!(*store)->advance_publication(again, backTo), "a new prepared attempt is not rejected before it is sent");
+		auto admitted  = again;
+		admitted.State = state::unresolvable_line_admitted;
+		admitted.Native.reset();
+		admitted.Authorization = { .Source = application::review_fallback_authorization_source::unresolvable_line, .ContractDigest = { 7 }, .ScopeDigest = { 8 } };
+		expect(!(*store)->advance_publication(again, admitted), "a prepared native attempt is never admitted as unresolvable");
+
+		// A file comment refused under its admission is rejected too.
+		auto second      = publication();
+		second.Key       = std::string(64U, 'e');
+		second.LegacyKey = std::string(64U, 'f');
+		second.State     = state::unresolvable_line_admitted;
+		second.Native.reset();
+		second.Authorization = admitted.Authorization;
+		expect((*store)->advance_publication(std::nullopt, second).has_value(), "an unresolvable line admitted");
+		auto prepared                   = second;
+		prepared.State                  = state::fallback_prepared;
+		prepared.Fallback               = fallback_child(second);
+		prepared.Fallback->Transmission = application::review_mutation_recovery_transmission::prepared;
+		expect((*store)->advance_publication(second, prepared).has_value(), "its file comment prepared");
+		auto fileSent                   = prepared;
+		fileSent.State                  = state::fallback_possibly_transmitted;
+		fileSent.Fallback->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(prepared, fileSent).has_value(), "and sent");
+		auto fileRejected  = fileSent;
+		fileRejected.State = state::rejected;
+		expect((*store)->advance_publication(fileSent, fileRejected).has_value(), "a refused file comment is rejected");
+		expect((*store)->advance_publication(fileRejected, second).has_value(), "and is admitted again to be published again");
+
+		// Version 7: no answers were kept. Migration keeps one for every
+		// logical publication, as kept before answers, at the migration time.
+		store->reset();
+		execute_sql(database_path(directory), "DROP TABLE publication_post; PRAGMA user_version = 7; UPDATE recovery_meta SET schema_format = 7;");
+		const auto before = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		store             = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto after  = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		expect(store.has_value() && user_version(database_path(directory)) == 8, "v7 migrates to v8");
+		for (const auto& key : { value.Key, second.Key }) {
+			const auto kept = (*store)->load_publication_post(key);
+			expect(kept && *kept && (**kept).Answer == answer::kept_before_answers && (**kept).StatusClass == 0U && (**kept).RecordedUtcMs >= before - 1000
+					   && (**kept).RecordedUtcMs <= after + 1000,
+				   "each migrated publication is kept as answered before answers were, from now");
+		}
+		expect((*store)->load_publication(value.Key).value() == again && (*store)->load_publication(second.Key).value() == second, "migration keeps every publication exactly");
 	}
 
 	void test_durable_unresolved_and_success_reopen()
@@ -657,7 +743,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 8",
+				   "PRAGMA user_version = 9",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -706,7 +792,7 @@ namespace {
 			candidate.LegacyKey = std::string(64U, alias);
 			expect(!(*migrated)->advance_publication(std::nullopt, candidate), "migrated unresolved and succeeded aliases cannot admit another publication");
 		}
-		expect(user_version(database_path(directory)) == 7,
+		expect(user_version(database_path(directory)) == 8,
 			   "version-one migration commits the current schema version");
 	}
 
@@ -718,9 +804,9 @@ namespace {
 		const auto expected = record();
 		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
 		anchored->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		execute_sql(database_path(directory), "DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
 		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
-		expect(sibling.has_value() && user_version(database_path(directory)) == 7, "submission factory migrates exact v2 database to the current version");
+		expect(sibling.has_value() && user_version(database_path(directory)) == 8, "submission factory migrates exact v2 database to the current version");
 		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect(anchored.has_value(), "source-line factory opens the shared current schema");
 		const auto loaded = (*anchored)->load(expected.IdempotencyKey);
@@ -833,6 +919,7 @@ try {
 	test_an_unresolvable_line_admission_survives_a_restart();
 	test_version_three_keeps_both_journals();
 	test_version_six_migration_keeps_the_source_line_journal();
+	test_rejection_answers_and_version_seven_migration();
 	test_logical_capacity_and_stale_compare_exchange();
 	test_durable_unresolved_and_success_reopen();
 	test_schema_identity_is_fail_closed_and_credential_free();

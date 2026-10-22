@@ -3406,6 +3406,12 @@ namespace bpr::adapters::github::detail {
 			event.ContextGeneration = contextGeneration;
 			static_cast<void>(Log->record(event));
 		}
+		// [[BPR-1735]]. The status of a refusal the transport carries as an
+		// error (native HTTPS admits no 4xx answer for every operation).
+		LastErrorStatus = 0U;
+		if (auto* error = std::get_if<github_mutation_wire_error>(&completion)) {
+			LastErrorStatus = error->HttpStatus;
+		}
 		if (auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
 			return std::move(success->Response);
 		}
@@ -3770,6 +3776,41 @@ namespace bpr::adapters::github::detail {
 			aRecord.State           = file ? publication_state::succeeded_fallback : publication_state::succeeded_native;
 			return aRecord;
 		}
+		/// \brief [[BPR-1735]]. The record with its last sent child rejected.
+		[[nodiscard]] auto rejected_publication(application::review_publication_recovery_record aRecord) -> application::review_publication_recovery_record
+		{
+			aRecord.State = publication_state::rejected;
+			return aRecord;
+		}
+		/// \brief [[BPR-1735]]. Whether GitHub's complete comment list holds
+		/// no exact comment of this publication outside the child's baseline:
+		/// not one, where `new_exact_receipt` also answers none for several.
+		[[nodiscard]] auto no_new_exact_comment(const review_mutation_server_reconciliation& aObserved, const std::vector<std::string>& aBaseline) -> bool
+		{
+			return std::ranges::all_of(aObserved.ExactReceipts, [&aBaseline](const application::review_mutation_receipt& aReceipt) {
+				return std::ranges::binary_search(aBaseline, aReceipt.ServerCommentId);
+			});
+		}
+		[[nodiscard]] auto utc_now_ms() -> std::int64_t
+		{
+			return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		}
+		/// \brief [[BPR-1735]]. What a child's POST answered, by class only:
+		/// an answer's status, or the status an error carried; no answer
+		/// otherwise.
+		[[nodiscard]] auto kept_answer(const std::expected<review_mutation_wire_response, application::review_mutation_failure>& aResponse, const std::uint16_t aErrorStatus,
+									   const std::int64_t aNow) -> core::review_publication_post
+		{
+			const auto status = aResponse ? aResponse->Status : static_cast<int>(aErrorStatus);
+			const auto klass  = status >= 200 && status <= 599 ? static_cast<std::uint8_t>(status / 100) : std::uint8_t{ 0U };
+			if (aResponse && klass == 2U) {
+				return { .Answer = core::review_publication_answer::success, .StatusClass = klass, .RecordedUtcMs = aNow };
+			}
+			if (klass >= 3U) {
+				return { .Answer = core::review_publication_answer::error_status, .StatusClass = klass, .RecordedUtcMs = aNow };
+			}
+			return { .Answer = core::review_publication_answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = aNow };
+		}
 	}
 
 	auto review_mutation_session::recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, const std::stop_token aStop) -> application::review_mutation_submission
@@ -3797,6 +3838,18 @@ namespace bpr::adapters::github::detail {
 		auto result  = application::review_mutation_submission{ .Reconciliation = observed->Projection };
 		auto receipt = new_exact_receipt(*observed, *child->BaselineExactCommentIds);
 		if (!receipt) {
+			// [[BPR-1735]]. GitHub's complete list holds no comment of it, and
+			// the kept answer settles it: a 4xx fully received, or a record an
+			// earlier version left, ten minutes after it was migrated. Any
+			// other answer stays unknown and only reconciles.
+			if (no_new_exact_comment(*observed, *child->BaselineExactCommentIds)) {
+				const auto post = Recovery->load_publication_post(aRecord.Key);
+				if (post && core::publication_definitely_unpublished(*post, PublicationClock ? PublicationClock() : utc_now_ms())
+					&& Recovery->advance_publication(aRecord, rejected_publication(aRecord))) {
+					result.Result = std::unexpected((**post).Answer == core::review_publication_answer::kept_before_answers ? application::review_mutation_failure::settled_not_published
+																															: application::review_mutation_failure::refused_not_published);
+				}
+			}
 			return result;
 		}
 		receipt->Duplicate  = true;
@@ -3819,10 +3872,10 @@ namespace bpr::adapters::github::detail {
 		if (aStop.stop_requested()) {
 			return publication_failure(application::review_mutation_failure::cancelled);
 		}
-		const auto wire      = compile_review_comment_request(request, Configuration.Target.ServerContract);
-		auto       result    = application::review_mutation_submission{ .MutationAttempted = true };
-		auto       witnessed = std::make_shared<std::atomic_bool>(false);
-		const auto response  = perform(*wire, aStop, [this, aRecord, witnessed] {
+		const auto wire        = compile_review_comment_request(request, Configuration.Target.ServerContract);
+		auto       result      = application::review_mutation_submission{ .MutationAttempted = true };
+		auto       witnessed   = std::make_shared<std::atomic_bool>(false);
+		const auto response    = perform(*wire, aStop, [this, aRecord, witnessed] {
 			if (witnessed->exchange(true, std::memory_order_acq_rel)) {
 				return false;
 			}
@@ -3830,9 +3883,16 @@ namespace bpr::adapters::github::detail {
 			const bool file                                    = file_child_state(next.State);
 			(file ? next.Fallback : next.Native)->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
 			next.State                                         = file ? publication_state::fallback_possibly_transmitted : publication_state::native_possibly_transmitted;
-			return Recovery->advance_publication(aRecord, next).has_value();
+			if (!Recovery->advance_publication(aRecord, next)) {
+				return false;
+			}
+			// [[BPR-1735]]. No answer yet, and since when. Best effort: a
+			// child with no answer kept only reconciles, as before.
+			static_cast<void>(Recovery->note_publication_post(aRecord.Key, { .Answer = core::review_publication_answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = PublicationClock ? PublicationClock() : utc_now_ms() }));
+			return true;
 		});
-		const auto loaded    = Recovery->load_publication(aRecord.Key);
+		const auto errorStatus = LastErrorStatus;
+		const auto loaded      = Recovery->load_publication(aRecord.Key);
 		if (!loaded || !*loaded) {
 			return result;
 		}
@@ -3863,6 +3923,12 @@ namespace bpr::adapters::github::detail {
 			static_cast<void>(PublicationCapabilities.record(capability_key(Configuration, aRequest), { .State = core::off_hunk_creation_capability::unsupported, .Source = application::review_publication_evidence_source::observed_definitive_unsupported, .ContractDigest = rejected.Authorization.ContractDigest, .ObservedAt = now, .ExpiresAt = now + application::review_publication_capability_cache::maximum_lifetime_seconds }, now));
 			return result;
 		}
+		// [[BPR-1735]]. What GitHub answered, kept with the child, so a later
+		// check or restart can settle a refusal it could not confirm now. An
+		// exact unsupported rejection above is the classifier's, not this.
+		const auto answer  = kept_answer(response, errorStatus, PublicationClock ? PublicationClock() : utc_now_ms());
+		const auto refused = answer.Answer == core::review_publication_answer::error_status && answer.StatusClass == 4U;
+		static_cast<void>(Recovery->note_publication_post(current.Key, answer));
 		std::optional<application::review_mutation_receipt> receipt;
 		if (response) {
 			const auto parsed = parse_review_comment_response(*response, request);
@@ -3886,6 +3952,16 @@ namespace bpr::adapters::github::detail {
 			receipt = new_exact_receipt(*observed, *child->BaselineExactCommentIds);
 		}
 		if (!receipt) {
+			// [[BPR-1735]]. A fully received 4xx, and GitHub's complete list
+			// holds no comment of it: GitHub validates a comment before it
+			// creates one, so this child is rejected and its draft kept, to be
+			// published again. A refusal not yet confirmed by the list stays
+			// unknown and settles on a later check.
+			if (refused && observed && no_new_exact_comment(*observed, *child->BaselineExactCommentIds)
+				&& Recovery->advance_publication(current, rejected_publication(current))) {
+				const auto unplaceable = response && refusal_names_unplaceable_line(response->Body);
+				result.Result          = std::unexpected(unplaceable ? application::review_mutation_failure::unplaceable_line : application::review_mutation_failure::refused_not_published);
+			}
 			return result;
 		}
 		const auto resolved = resolved_publication(current, *receipt);
@@ -3929,8 +4005,10 @@ namespace bpr::adapters::github::detail {
 				&& !aRequest.Proposal.ReplyToThread
 				&& (anchor.Commit == Configuration.Target.Semantic.ExpectedHead
 					|| (anchor.Semantic.Side == core::diff_side::right && source.Comparison.Filter->Right == anchor.Commit)));
+		// [[BPR-1735]]. On the Whole PR diff too: the core placed the line
+		// outside every hunk of the merge base to the head.
 		const auto unresolvableOk = !unresolvable
-			|| (source.Comparison.Filter && !anchor.RemoteLine && anchor.Commit == Configuration.Target.Semantic.ExpectedHead
+			|| (!anchor.RemoteLine && anchor.Commit == Configuration.Target.Semantic.ExpectedHead
 				&& aRequest.Representation == core::review_publication_representation::native_line && !aRequest.Proposal.StartLine && !aRequest.Proposal.ReplyToThread);
 		if (!source.Endpoint || source.Placement > core::review_placement::unresolvable_line || !placedOk || !unresolvableOk
 			|| source.Comparison.Authority.Profile != authority.Profile || source.Comparison.Authority.ProfileRevision.value() != authority.ProfileRevision.value()
@@ -3972,7 +4050,9 @@ namespace bpr::adapters::github::detail {
 			if (plan.Action == action::already_succeeded || plan.Action == action::reconcile_native || plan.Action == action::reconcile_fallback) {
 				return recover_publication(aRequest, *current, aStop);
 			}
-			if (!current) {
+			// [[BPR-1735]]. A rejected publication starts again as a new attempt
+			// under its own key: GitHub holds no comment of it.
+			if (!current || current->State == publication_state::rejected) {
 				if (const auto exact = observe_exact(aStop, publishes_left(aRequest)); !exact) {
 					return publication_failure(exact.error());
 				}
@@ -4003,7 +4083,7 @@ namespace bpr::adapters::github::detail {
 				if (aRequest.Proposal.Durable && (!Lineage || !localBody || !Lineage->prepare(aRequest, key, *localBody))) {
 					return publication_failure();
 				}
-				const auto saved = Recovery->advance_publication(std::nullopt, next);
+				const auto saved = Recovery->advance_publication(current, next);
 				if (!saved) {
 					return publication_failure();
 				}

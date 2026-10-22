@@ -532,6 +532,24 @@ namespace bpr::application {
 					return std::unexpected(review_mutation_failure::unsupported);
 				}
 			}
+			// [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff the core
+			// places a new comment by the measured hunk rule once the merge base
+			// to the head is read: a line outside every hunk is RFC-BPR-0022's
+			// file comment with no native attempt. A base line is placed only
+			// when its document is the merge base's; otherwise the refusal below
+			// stands. Unread lines infer nothing.
+			const auto wholeBase = !newOnBase || (source->Material.BaseNumberedAsGitHub && publication.LeftPath.has_value() && key.LeftBlob.has_value());
+			if (!key.Filter.has_value() && !aRequest.Proposal.ReplyToThread.has_value() && source->WholeDiff && wholeBase) {
+				if (source->WholeDiff->Head != Coordinator.designated().ExpectedHead) {
+					return std::unexpected(review_mutation_failure::stale_head);
+				}
+				if (auto whole = core::place_whole_diff_comment(*source->WholeDiff, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine)) {
+					if (whole->Placement == core::filtered_comment_placement::refused) {
+						return std::unexpected(review_mutation_failure::unsupported);
+					}
+					placement = std::move(*whole);
+				}
+			}
 			// [[BPR-1212]]. GitHub counts a `LEFT` line in the merge base's
 			// version of the file. Without the evidence that the left document
 			// is that version, a base line could land on another line. A
@@ -552,10 +570,14 @@ namespace bpr::application {
 			// file comment at the head, at the head's path; its permalink names
 			// the line at the diff's own commit on its side, from that side's
 			// endpoint. Nothing about it moves the anchor.
+			// [[BPR-1735]]. On the Whole PR diff that commit is the comparison's
+			// own side: the head, or the merge base on the left.
 			const auto fileComment = placement && placement->Placement == core::filtered_comment_placement::file_comment;
+			const auto sideCommit  = key.Filter                        ? (selected.PreferredLine.Side == core::diff_side::left ? key.Filter->Left : key.Filter->Right)
+				: selected.PreferredLine.Side == core::diff_side::left ? comparison.Left.Commit
+																	   : comparison.Right.Commit;
 			if (fileComment
-				&& (placement->Side != selected.PreferredLine.Side || placement->Line != selected.PreferredLine.Line
-					|| placement->Commit != (placement->Side == core::diff_side::left ? key.Filter->Left : key.Filter->Right)
+				&& (placement->Side != selected.PreferredLine.Side || placement->Line != selected.PreferredLine.Line || placement->Commit != sideCommit
 					|| (newOnBase && !publication.LeftEndpoint.has_value()))) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}

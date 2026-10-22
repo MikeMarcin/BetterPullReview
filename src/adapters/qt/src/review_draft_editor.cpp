@@ -1103,6 +1103,18 @@ namespace bpr::qt {
 			set_publication_status(
 				QStringLiteral("The server refused publication."));
 			break;
+		case application::review_mutation_failure::unplaceable_line:
+			// [[BPR-1735]]. GitHub's own reason, in plain words; the draft is
+			// kept and can be published again.
+			set_publication_status(QStringLiteral(
+				"Not published: GitHub can't attach a comment to this line, such as a line outside the changes. Your draft is kept; edit it, or publish it again."));
+			break;
+		case application::review_mutation_failure::refused_not_published:
+			set_publication_status(QStringLiteral("Not published: GitHub refused this comment. Your draft is kept; check it and publish it again."));
+			break;
+		case application::review_mutation_failure::settled_not_published:
+			set_publication_status(QStringLiteral("Not published: GitHub has no comment from that attempt. Your draft is kept; publish it again."));
+			break;
 		case application::review_mutation_failure::undesignated_target:
 			set_publication_status(QStringLiteral(
 				"Publication was refused because the pull request changed."));

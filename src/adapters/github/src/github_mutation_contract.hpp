@@ -764,6 +764,16 @@ namespace bpr::adapters::github::detail {
 		application::review_publication_capability_cache            PublicationCapabilities;
 		application::review_publication_lineage_port*               Lineage = nullptr;
 		std::shared_ptr<application::diagnostic_log_port>           Log;
+		/// [[BPR-1735]]. The HTTP status the last `perform` error carried, 0
+		/// with none; read on the serialized lane right after it.
+		std::uint16_t LastErrorStatus = 0U;
+		/// [[BPR-1735]]. UTC milliseconds for the answers a publication keeps.
+		std::function<std::int64_t()> PublicationClock;
+
+	public:
+		/// \brief [[BPR-1735]]. Replaces the wall clock the kept answers and
+		/// the migrated records' settling read; for tests.
+		void set_publication_clock(std::function<std::int64_t()> aClock) { PublicationClock = std::move(aClock); }
 	};
 } // namespace bpr::adapters::github::detail
 

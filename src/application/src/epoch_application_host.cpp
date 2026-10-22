@@ -4687,6 +4687,81 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief [[BPR-1735]]. See `epoch_application_host::resolve_github_diff_lines`.
+		[[nodiscard]] auto resolve_github_diff_lines(
+			github_diff_lines_request    aRequest,
+			github_diff_lines_completion aCompletion) -> bool
+		{
+			const auto pathValid = [](const std::string& aPath) {
+				return !aPath.empty() && aPath.size() <= maximum_git_tree_entry_path_bytes && !aPath.starts_with('/');
+			};
+			if (!aCompletion || !aRequest.MergeBase.valid() || !aRequest.Head.valid() || aRequest.MergeBase.algorithm() != aRequest.Head.algorithm()
+				|| !pathValid(aRequest.HeadPath) || !pathValid(aRequest.BasePath) || !State.AcceptedComparison.has_value()
+				|| State.AcceptedComparison->Left.Commit != aRequest.MergeBase || State.AcceptedComparison->Right.Commit != aRequest.Head) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto       actor         = std::move(reviewActor->first);
+			const auto expected      = std::move(reviewActor->second);
+			auto       reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+			auto       admitted      = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 context = std::move(reviewContext),
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation   = github_diff_lines_observation{ .Request = request, .Status = github_diff_lines_status::failure, .BaseToHead = std::nullopt };
+						observation.Status = github_diff_lines(*actor, expected, context, request, control->Stop.get_token(), observation.BaseToHead);
+						if (observation.Status != github_diff_lines_status::resolved) {
+							observation.BaseToHead.reset();
+						}
+						enqueue_completion(gate, decisionLane, std::move(control), [answer = std::move(observation), deliver = std::move(completion)](implementation&) { deliver(answer); });
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
+		/// \brief [[BPR-1735]]. The file at the merge base and at the head,
+		/// compared, on the actor, read as a filtered diff's sides are.
+		[[nodiscard]] auto github_diff_lines(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+											 const std::shared_ptr<authority_context>& aContext, const github_diff_lines_request& aRequest,
+											 const std::stop_token aStop, std::optional<core::line_correspondence>& aLines) -> github_diff_lines_status
+		{
+			using status = github_diff_lines_status;
+			return read_exact_file_sides(aActor, aExpected, aContext, aRequest.Head, aRequest.Key, aStop, [&](const auto& aLoad, const auto& aCompare) -> status {
+				auto base = aLoad(aRequest.BasePath, aRequest.MergeBase);
+				if (!base) {
+					return base.error();
+				}
+				auto head = aLoad(aRequest.HeadPath, aRequest.Head);
+				if (!head) {
+					return head.error();
+				}
+				aLines = aCompare(*base, *head);
+				return aStop.stop_requested() ? status::cancelled : aLines ? status::resolved
+																		   : status::failure;
+			});
+		}
+
 		/// \brief RFC-BPR-0089 M4. The file at the filtered diff's commits, the
 		/// head and the merge base, compared, on the actor.
 		///
@@ -10761,6 +10836,13 @@ namespace bpr::application {
 		head_move_lines_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_head_move_lines(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_github_diff_lines(
+		github_diff_lines_request    aRequest,
+		github_diff_lines_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_github_diff_lines(std::move(aRequest), std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_filtered_comment_lines(

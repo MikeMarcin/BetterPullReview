@@ -23,7 +23,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 7 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 8 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -126,6 +126,17 @@ namespace bpr::adapters::sqlite {
 							  "recorded_utc_ms INTEGER NOT NULL CHECK(recorded_utc_ms >= 0),"
 							  "PRIMARY KEY(scope_id,idempotency_key),"
 							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
+			// [[BPR-1735]]. What GitHub answered the POST of a logical
+			// publication's child that may have been sent: no answer before
+			// it may leave, then the answer. 0 is a record kept before
+			// answers were, at the time it was migrated.
+			std::string_view{ "CREATE TABLE publication_post("
+							  "scope_id INTEGER NOT NULL,publication_key TEXT NOT NULL,"
+							  "answer INTEGER NOT NULL CHECK(answer BETWEEN 0 AND 3),"
+							  "post_class INTEGER NOT NULL CHECK(post_class BETWEEN 0 AND 5),"
+							  "recorded_utc_ms INTEGER NOT NULL CHECK(recorded_utc_ms >= 0),"
+							  "PRIMARY KEY(scope_id,publication_key),"
+							  "FOREIGN KEY(scope_id,publication_key) REFERENCES logical_publication(scope_id,publication_key) ON DELETE CASCADE) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -180,6 +191,19 @@ namespace bpr::adapters::sqlite {
 		};
 		constexpr std::array RecoverySchemaVersion7{
 			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_post" }, RecoverySchema[9] },
+			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
+		};
+		constexpr std::array RecoverySchemaVersion8{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "publication_post" }, RecoverySchema[10] },
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
 			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
 			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
@@ -501,6 +525,54 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(transaction ? failure::unavailable : transaction.error());
 				}
 				return aNext;
+			}
+
+			auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost)
+				-> std::expected<void, application::review_mutation_recovery_failure> override
+			{
+				using failure = application::review_mutation_recovery_failure;
+				if (!core::valid(aPost)) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				auto             upsert = detail::prepare(Database,
+														  "INSERT INTO publication_post(scope_id,publication_key,answer,post_class,recorded_utc_ms) "
+														  "SELECT ?1,?2,?3,?4,?5 WHERE EXISTS(SELECT 1 FROM logical_publication WHERE scope_id=?1 AND publication_key=?2) "
+														  "ON CONFLICT(scope_id,publication_key) DO UPDATE SET answer=excluded.answer,post_class=excluded.post_class,recorded_utc_ms=excluded.recorded_utc_ms");
+				if (!upsert || ::sqlite3_bind_int64(upsert->Value, 1, Scope) != SQLITE_OK || !bind_text(upsert->Value, 2, aKey)
+					|| ::sqlite3_bind_int64(upsert->Value, 3, static_cast<std::int64_t>(aPost.Answer)) != SQLITE_OK || ::sqlite3_bind_int64(upsert->Value, 4, aPost.StatusClass) != SQLITE_OK
+					|| ::sqlite3_bind_int64(upsert->Value, 5, aPost.RecordedUtcMs) != SQLITE_OK || ::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				if (::sqlite3_changes(Database) != 1) {
+					return std::unexpected(failure::conflict);
+				}
+				return { };
+			}
+
+			auto load_publication_post(const std::string& aKey)
+				-> std::expected<std::optional<core::review_publication_post>, application::review_mutation_recovery_failure> override
+			{
+				using failure = application::review_mutation_recovery_failure;
+				std::scoped_lock lock{ Mutex };
+				auto             query = detail::prepare(Database, "SELECT answer,post_class,recorded_utc_ms FROM publication_post WHERE scope_id=?1 AND publication_key=?2");
+				if (!query || ::sqlite3_bind_int64(query->Value, 1, Scope) != SQLITE_OK || !bind_text(query->Value, 2, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto row = ::sqlite3_step(query->Value);
+				if (row == SQLITE_DONE) {
+					return std::optional<core::review_publication_post>{ };
+				}
+				if (row != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto answer = ::sqlite3_column_int64(query->Value, 0);
+				const auto klass  = ::sqlite3_column_int64(query->Value, 1);
+				auto       post   = core::review_publication_post{ .Answer = static_cast<core::review_publication_answer>(std::clamp<std::int64_t>(answer, 0, 3)), .StatusClass = static_cast<std::uint8_t>(std::clamp<std::int64_t>(klass, 0, 5)), .RecordedUtcMs = ::sqlite3_column_int64(query->Value, 2) };
+				if (answer < 0 || answer > 3 || klass < 0 || klass > 5 || !core::valid(post) || ::sqlite3_step(query->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				return std::optional{ post };
 			}
 
 			auto load(const std::string& aIdempotencyKey)
@@ -1937,7 +2009,7 @@ namespace bpr::adapters::sqlite {
 							return created;
 						}
 					}
-					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,7)")) {
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,8)")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				} else {
@@ -1950,7 +2022,8 @@ namespace bpr::adapters::sqlite {
 						: *version == 4                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion4)
 						: *version == 5                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion5)
 						: *version == 6                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion6)
-																													 : validate_schema(aDatabase, RecoverySchemaVersion7);
+						: *version == 7                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion7)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion8);
 					if (!schema) {
 						return schema;
 					}
@@ -1977,14 +2050,23 @@ namespace bpr::adapters::sqlite {
 														   "SELECT scope_id,idempotency_key,3,0,0 FROM submission_baseline JOIN submission_attempt USING(scope_id,idempotency_key) WHERE transmission = 1 AND state = 0"))) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 7 WHERE singleton = 1")) {
+					// [[BPR-1735]]. A logical publication kept before answers were
+					// has none; it is kept as such, from now, so a child that may
+					// have been sent settles only after the delay.
+					if (*version < 8
+						&& (!detail::execute(aDatabase, RecoverySchema[10])
+							|| !detail::execute(aDatabase, "INSERT INTO publication_post(scope_id,publication_key,answer,post_class,recorded_utc_ms) "
+														   "SELECT scope_id,publication_key,0,0,CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) FROM logical_publication"))) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 8 WHERE singleton = 1")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				}
-				if (!detail::execute(aDatabase, "PRAGMA user_version = 7")) {
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 8")) {
 					return std::unexpected(detail::failure::unavailable);
 				}
-				return validate_schema(aDatabase, RecoverySchemaVersion7);
+				return validate_schema(aDatabase, RecoverySchemaVersion8);
 			};
 			const auto migrated = migrate();
 			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {
