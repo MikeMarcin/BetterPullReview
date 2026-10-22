@@ -189,6 +189,11 @@ namespace bpr::qt {
 		/// down the gutter beside them, and the edge's colour while a refused
 		/// edit flashes it.
 		void set_range_colours(const QColor& aWash, const QColor& aEdge, const QColor& aFlash);
+		/// \brief [[RFC-BPR-0090]]. The ground the lines outside the editable
+		/// range, and the space below the last line, sit on; their ink fades
+		/// toward it as far as the text floor allows (`core::read_only_code_ink`).
+		/// An invalid colour, the default, keeps every line on the code's ground.
+		void set_read_only_ground(const QColor& aGround);
 		/// \brief [[RFC-BPR-0090]]. What an editable range left as one empty
 		/// line says on that line ("Deletes lines 12–14"), or nothing.
 		void set_empty_range_note(QString aNote);
@@ -260,6 +265,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto column_x(std::uint64_t aColumn) const -> qreal;
 		[[nodiscard]] auto syntax_of(std::uint64_t aLine) const -> const QList<QTextLayout::FormatRange>*;
 		[[nodiscard]] auto selection_ink(const QColor& aColour, const QColor& aFill) const -> QColor;
+		/// [[RFC-BPR-0090]]. The ink of a colour on a read-only line, on `ReadOnlyGround`.
+		[[nodiscard]] auto read_only_ink(const QColor& aColour) const -> QColor;
 		/// Remembers what a press selected, for a drag with the button held.
 		void hold(core::selection_unit aUnit);
 
@@ -313,6 +320,8 @@ namespace bpr::qt {
 		QColor                                              RangeEdge;
 		QColor                                              RangeFlash;
 		QString                                             EmptyRangeNote;
+		QColor                                              ReadOnlyGround;
+		mutable QHash<QRgb, QColor>                         ReadOnlyInk;
 		QElapsedTimer                                       Flash;
 	};
 }

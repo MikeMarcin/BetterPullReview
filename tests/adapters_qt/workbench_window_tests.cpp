@@ -3,6 +3,7 @@
 #include "diff_publication_fixture.hpp"
 #include "product_diff.hpp"
 
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"
 #include "bpr/core/diff_semantics.hpp"
@@ -12140,6 +12141,72 @@ namespace {
 		}
 	};
 
+	/// \brief [[RFC-BPR-0090]], the owner's note on the drawer-link look
+	/// (2026-10-22): "make it more obvious which parts of the panes are read
+	/// only ... dim the background the rest of the code". While a suggestion
+	/// is edited, every line outside the editable range sits on the code
+	/// gutter's ground, the range keeps the code's own ground under its wash
+	/// and its edge, and outside the high-contrast variants the read-only
+	/// code's ink fades a little toward that ground, never below the text
+	/// floor. In each variant, for a person to look at.
+	void test_suggestion_dims_the_read_only_code()
+	{
+		const auto distance = [](const QColor& aA, const QColor& aB) {
+			return std::max({ std::abs(aA.red() - aB.red()), std::abs(aA.green() - aB.green()), std::abs(aA.blue() - aB.blue()) });
+		};
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") },
+										  std::pair{ core::appearance_mode::dark, QStringLiteral("dark") },
+										  std::pair{ core::appearance_mode::high_contrast_light, QStringLiteral("high-contrast-light") },
+										  std::pair{ core::appearance_mode::high_contrast_dark, QStringLiteral("high-contrast-dark") } }) {
+			for (const auto onePane : { false, true }) {
+				auto course   = line_gesture_course{ onePane };
+				auto settings = qt::default_appearance_settings();
+				settings.Mode = mode;
+				auto profile  = qt::appearance_profile{ settings };
+				profile.apply_to(course.Window);
+				course.Surface->adopt_appearance(profile);
+				process_events();
+				course.reset();
+				const auto  which = std::string{ onePane ? "one pane, " : "split, " } + name.toStdString();
+				auto* const menu  = course.right_click(course.right(5U));
+				expect(line_gesture_course::choose(menu, "suggestChangeAction") && course.ranged(5U, 5U), which + ": Suggest change on line 6 opens its draft");
+				auto* const head = course.Surface->head_editor();
+				expect(head != nullptr && head->apply(core::insert_text{ .Text = "\n    line 5b" }), which + ": a second line is typed into the range");
+				course.settle();
+				process_events();
+				save_render(course.Window, QStringLiteral("read-only-dim-%1-%2").arg(onePane ? QStringLiteral("one-pane") : QStringLiteral("split"), name));
+
+				const auto image  = head->viewport()->grab().toImage();
+				const auto ratio  = image.devicePixelRatio();
+				const auto sample = [&](const std::uint64_t aLine) {
+					const auto cell = head->cell_rectangle(core::text_point{ aLine, 0U });
+					return image.pixelColor(static_cast<int>((head->viewport()->width() - 12) * ratio), static_cast<int>(cell.center().y() * ratio));
+				};
+				const auto ground   = profile.color(core::appearance_role::code_gutter_background);
+				const auto base     = profile.color(core::appearance_role::code_background);
+				const auto editable = sample(6U);
+				expect(distance(sample(2U), ground) <= 2 && distance(sample(14U), ground) <= 2, which + ": the lines outside the range sit on the code gutter's ground");
+				expect(distance(editable, ground) > distance(base, ground) / 2, which + ": the range keeps the code's own ground under its wash");
+				const auto below = image.pixelColor(static_cast<int>((head->viewport()->width() - 12) * ratio), static_cast<int>((head->viewport()->height() - 4) * ratio));
+				expect(head->cell_rectangle(core::text_point{ 30U, 0U }).bottom() < head->viewport()->height() - 8 && distance(below, ground) <= 2,
+					   which + ": so does the space below the last line");
+				const auto normal   = core::appearance_color{ static_cast<std::uint8_t>(profile.color(core::appearance_role::syntax_normal).red()),
+															  static_cast<std::uint8_t>(profile.color(core::appearance_role::syntax_normal).green()),
+															  static_cast<std::uint8_t>(profile.color(core::appearance_role::syntax_normal).blue()), 255U };
+				const auto onGround = core::appearance_color{ static_cast<std::uint8_t>(ground.red()), static_cast<std::uint8_t>(ground.green()), static_cast<std::uint8_t>(ground.blue()), 255U };
+				const auto faded    = core::read_only_code_ink(normal, onGround, profile.variant());
+				expect(core::contrast_ratio_hundredths(faded, onGround) >= core::minimum_contrast_hundredths(core::contrast_kind::text, profile.variant()),
+					   which + ": the read-only ink still reaches the text floor on that ground");
+				expect(core::high_contrast(profile.variant()) == (faded == normal), which + ": it fades outside the high-contrast variants and only there");
+
+				auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+				QCoreApplication::sendEvent(head, &press);
+				process_events();
+				expect(course.Surface->head_editor() == nullptr, which + ": Esc ends the edit");
+			}
+		}
+	}
+
 	/// \brief [[RFC-BPR-0090]] Q4 A. In one pane, Suggest change shows the head
 	/// file alone while the lines are written (the interleaved rows hold no one
 	/// file to type into), and the comparison comes back when the edit ends.
@@ -21708,6 +21775,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_the_plus_on_a_pull_request_without_threads_opens_its_draft", &test_the_plus_on_a_pull_request_without_threads_opens_its_draft);
 		runCase("test_one_pane_has_the_code_menu", &test_one_pane_has_the_code_menu);
 		runCase("test_one_pane_suggest_change_shows_the_head_file", &test_one_pane_suggest_change_shows_the_head_file);
+		runCase("test_suggestion_dims_the_read_only_code", &test_suggestion_dims_the_read_only_code);
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);

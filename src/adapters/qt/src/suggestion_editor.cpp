@@ -394,6 +394,7 @@ namespace bpr::qt {
 		if (Variant != aVariant) {
 			Variant = aVariant;
 			SelectionInk.clear();
+			ReadOnlyInk.clear();
 			viewport()->update();
 		}
 	}
@@ -598,6 +599,27 @@ namespace bpr::qt {
 		if (GutterWidget != nullptr) {
 			GutterWidget->update();
 		}
+	}
+
+	void suggestion_editor::set_read_only_ground(const QColor& aGround)
+	{
+		if (ReadOnlyGround != aGround) {
+			ReadOnlyGround = aGround;
+			ReadOnlyInk.clear();
+			viewport()->update();
+		}
+	}
+
+	auto suggestion_editor::read_only_ink(const QColor& aColour) const -> QColor
+	{
+		if (const auto found = ReadOnlyInk.constFind(aColour.rgba()); found != ReadOnlyInk.cend()) {
+			return *found;
+		}
+		const auto channel = [](const QColor& aSource) {
+			return core::appearance_color{ static_cast<std::uint8_t>(aSource.red()), static_cast<std::uint8_t>(aSource.green()), static_cast<std::uint8_t>(aSource.blue()), 255U };
+		};
+		const auto ink = core::read_only_code_ink(channel(aColour), channel(ReadOnlyGround), Variant);
+		return *ReadOnlyInk.insert(aColour.rgba(), QColor{ ink.Red, ink.Green, ink.Blue });
 	}
 
 	void suggestion_editor::set_empty_range_note(QString aNote)
@@ -826,10 +848,17 @@ namespace bpr::qt {
 		const auto  offset  = top_offset();
 		const auto  top     = [&](const std::uint64_t aLine) { return static_cast<qreal>(aLine) * RowHeight - offset; };
 		painter.setFont(CodeFont);
-		painter.fillRect(viewport()->rect(), palette().base());
+		// [[RFC-BPR-0090]]. With a read-only ground, everything but the
+		// editable lines sits on it: the code that cannot change reads as set
+		// back, beside the range's own ground, wash and edge.
+		const auto dimmed = ReadOnlyGround.isValid() && Editor.editable_range().has_value();
+		painter.fillRect(viewport()->rect(), dimmed ? QBrush{ ReadOnlyGround } : palette().base());
 		// [[RFC-BPR-0090]]. The head's row fills, then the editable lines' wash.
 		for (auto line = first; line < last; ++line) {
 			const auto row = QRectF{ 0.0, top(line), static_cast<qreal>(viewport()->width()), RowHeight };
+			if (dimmed && in_editable_lines(line)) {
+				painter.fillRect(row, palette().base());
+			}
 			if (RowFill) {
 				if (const auto fill = RowFill(line); fill.has_value()) {
 					painter.fillRect(row, *fill);
@@ -895,8 +924,9 @@ namespace bpr::qt {
 			runPoints.clear();
 		};
 		for (auto line = first; line < last; ++line) {
-			const auto  y       = top(line) + Ascent;
-			const auto& content = state.Lines[line].Content;
+			const auto  y        = top(line) + Ascent;
+			const auto& content  = state.Lines[line].Content;
+			const auto  readOnly = dimmed && !in_editable_lines(line);
 			// The colour of each UTF-16 unit, the first range in the list that
 			// covers a unit winning, as a search in list order would choose.
 			unitColours.assign(content.size() + 1U, text);
@@ -928,7 +958,8 @@ namespace bpr::qt {
 				const auto  column = cluster.Column;
 				const auto& role   = unitColours[std::min(at, unitColours.size() - 1U)];
 				const auto  inside = std::ranges::any_of(spans, [column](const auto& aSpan) { return aSpan.first <= column && column < aSpan.second; });
-				const auto  colour = inside ? selection_ink(role, selection) : role;
+				const auto  colour = inside ? selection_ink(role, selection) : readOnly ? read_only_ink(role)
+																						: role;
 				// [[BPR-1432]]. A lone CR is content, shown as its symbol.
 				const auto  glyph  = content[cluster.Offset] == '\r' ? QString{ QChar{ lone_carriage_return_symbol } } : source;
 				auto        origin = QPointF{ column_x(column), y };

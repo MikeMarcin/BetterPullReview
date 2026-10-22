@@ -816,6 +816,14 @@ namespace bpr::core {
 		return reaching_floor(aSyntax, aFill, minimum_contrast_hundredths(contrast_kind::text, aVariant));
 	}
 
+	auto read_only_code_ink(
+		const appearance_color aSyntax, const appearance_color aGround,
+		const appearance_variant aVariant) noexcept -> appearance_color
+	{
+		const auto faded = composited(aGround, aSyntax, read_only_code_fade_alpha(aVariant));
+		return reaching_floor(faded, aGround, minimum_contrast_hundredths(contrast_kind::text, aVariant));
+	}
+
 	namespace {
 		[[nodiscard]] auto reads_on(const appearance_color aInk, const std::span<const contrast_ground> aGrounds) noexcept -> bool
 		{

@@ -136,7 +136,15 @@ panes, and moving the caret out of view scrolls the comparison to it. A thin
 write-blue edge runs down the gutter beside the range
 and the range's rows take the light write-blue wash, the drawer's "amber is
 where you read, blue is where you write". The rest of the file stays
-readable around it, so the reviewer sees the context of the change.
+readable around it, so the reviewer sees the context of the change, but is
+set back: its lines and the space below the last line sit on the code
+gutter's ground, and in the light and dark variants their ink fades a
+quarter of the way toward that ground, never below the text floor
+(`core::read_only_code_ink`). The high-contrast variants keep their ink and
+take only the ground. The owner asked for this on the drawer-link look
+(2026-10-22): "I wonder if we can make it more obvious which parts of the
+panes are read only. The rail is nice but maybe we could dim the background
+the rest of the code or something."
 
 - **Only the range is editable.** The editable span runs from the start of
   the range's first line to the end of its last line's text. Everything

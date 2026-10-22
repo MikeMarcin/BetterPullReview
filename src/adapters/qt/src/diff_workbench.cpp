@@ -3685,6 +3685,11 @@ namespace bpr::qt {
 			return line < current.Fills.size() && current.Fills[line].isValid() ? std::optional{ current.Fills[line] } : std::nullopt;
 		});
 		editor->set_range_colours(aRequest.Wash, aRequest.Edge, aRequest.Flash);
+		// The owner's note on the drawer-link look: the code that cannot
+		// change is set back on the gutter's ground.
+		if (Colors.Supplied) {
+			editor->set_read_only_ground(gutterBackground);
+		}
 		editor->set_empty_range_note(aRequest.EmptyNote);
 		editor->setGeometry(host->rect());
 		editor->Changed = [this, changed = aRequest.Changed] {

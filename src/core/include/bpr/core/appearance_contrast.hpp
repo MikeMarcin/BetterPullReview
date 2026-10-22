@@ -456,6 +456,32 @@ namespace bpr::core {
 		appearance_color aSyntax, appearance_color aFill, appearance_variant aVariant) noexcept
 		-> appearance_color;
 
+	/// \brief [[RFC-BPR-0090]]. How far the code outside a suggestion's
+	/// editable lines fades toward its ground while the suggestion is edited,
+	/// as the ground's opacity over the ink.
+	///
+	/// \details The owner, on the drawer-link look (2026-10-22): "make it more
+	/// obvious which parts of the panes are read only ... dim the background
+	/// the rest of the code". The read-only lines take the code gutter's
+	/// ground, and in the light and dark variants their ink is a quarter of
+	/// the way to it. A dark ground cannot darken far enough to show, so the
+	/// ink carries the step there. The high-contrast variants keep their ink.
+	[[nodiscard]] constexpr auto read_only_code_fade_alpha(const appearance_variant aVariant) noexcept -> std::uint8_t
+	{
+		return aVariant == appearance_variant::light || aVariant == appearance_variant::dark ? std::uint8_t{ 64U } : std::uint8_t{ 0U };
+	}
+
+	/// \brief [[RFC-BPR-0090]]. The ink a syntax-coloured glyph outside a
+	/// suggestion's editable lines is drawn in on `aGround`.
+	///
+	/// \details `aSyntax` faded toward `aGround` by
+	/// `read_only_code_fade_alpha`, then moved back only as far as the
+	/// variant's text floor needs (`readable_selection_ink`'s rule), so a
+	/// dimmed line still reads.
+	[[nodiscard]] auto read_only_code_ink(
+		appearance_color aSyntax, appearance_color aGround, appearance_variant aVariant) noexcept
+		-> appearance_color;
+
 	/// \brief [[BPR-1585]]. The step, in hundredths of a contrast ratio, that the
 	/// Overview Files table's quiet row band stands from the table's ground.
 	inline constexpr std::uint32_t quiet_band_contrast_hundredths = 108U;
