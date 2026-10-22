@@ -316,6 +316,20 @@ namespace bpr::application {
 			bool                                          Refusal    = false;
 		};
 
+		/// \brief The placement a validated publication is bound with: a file
+		/// comment's, a moved line's, [[BPR-1736]] a core-placed off-hunk
+		/// line's for its native attempt, or the source's own.
+		[[nodiscard]] static constexpr auto placed_as(const bool aFileComment, const bool aRemapped, const bool aOffHunk, const core::review_placement aSource) noexcept -> core::review_placement
+		{
+			if (aFileComment) {
+				return core::review_placement::unresolvable_line;
+			}
+			if (aRemapped) {
+				return core::review_placement::legacy_line;
+			}
+			return aOffHunk ? core::review_placement::off_hunk : aSource;
+		}
+
 		struct validated_publication final
 		{
 			review_mutation_anchor_binding                Anchor;
@@ -627,18 +641,15 @@ namespace bpr::application {
 				// The line count is the anchor's side's: a base line is counted
 				// in the base document.
 				// A moved line has no file-comment fallback: GitHub took it as a
-				// line comment where it was placed.
-				.Source     = review_mutation_source_binding{ .Endpoint   = publication.RightEndpoint,
-															  .Comparison = key,
-															  .LineCount  = newOnBase ? *lines : *source->Material.RightLines,
-															  .Placement  = fileComment ? core::review_placement::unresolvable_line
-																  : remapped            ? core::review_placement::legacy_line
-																  : offHunk             ? core::review_placement::off_hunk
-																						: source->Placement,
-															  // [[BPR-1736]]. An off-hunk base line's file comment,
-														  // after a refusal, links to it in the merge base.
-														  .LeftEndpoint      = (fileComment || offHunk) && newOnBase ? publication.LeftEndpoint : std::nullopt,
-														  .CorePlacedOffHunk = offHunk },
+				// line comment where it was placed. [[BPR-1736]]. An off-hunk base
+				// line's file comment, after a refusal, links to it in the merge
+				// base.
+				.Source     = review_mutation_source_binding{ .Endpoint          = publication.RightEndpoint,
+															  .Comparison        = key,
+															  .LineCount         = newOnBase ? *lines : *source->Material.RightLines,
+															  .Placement         = placed_as(fileComment, remapped, offHunk, source->Placement),
+															  .LeftEndpoint      = (fileComment || offHunk) && newOnBase ? publication.LeftEndpoint : std::nullopt,
+															  .CorePlacedOffHunk = offHunk },
 				.ReviewHeld = reviewHeld,
 			};
 		}

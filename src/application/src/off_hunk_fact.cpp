@@ -19,7 +19,7 @@ namespace bpr::application {
 				|| core::current_off_hunk_fact((**loaded).Key.Product, (**loaded).Fact.Observation, aNow) == core::off_hunk_creation_capability::unknown) {
 				return std::nullopt;
 			}
-			return **loaded;
+			return *loaded;
 		}
 
 		/// \brief The newer of the scope's current single-comment and review
