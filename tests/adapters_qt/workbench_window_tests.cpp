@@ -12346,6 +12346,84 @@ namespace {
 		expect(course.Surface->head_editor() == nullptr && !drawer_writing(window), "Delete ends the edit and the head pane reads its own lines again");
 	}
 
+	/// \brief [[BPR-PENDING-AJ]]. The style macOS uses runs a selection past a
+	/// line's end to the pane's edge (`SH_RichText_FullWidthSelection`).
+	class full_width_selection_style final : public QProxyStyle
+	{
+	public:
+		using QProxyStyle::QProxyStyle;
+		[[nodiscard]] auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget, QStyleHintReturn* const aReturn) const -> int override
+		{
+			return aHint == SH_RichText_FullWidthSelection ? 1 : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+	};
+
+	/// \brief [[BPR-PENDING-AJ]]. Collects what a widget repaints.
+	class repaint_log final : public QObject
+	{
+	public:
+		explicit repaint_log(QWidget& aWidget)
+			: QObject{ &aWidget }
+		{
+			aWidget.installEventFilter(this);
+		}
+		QRegion Painted;
+
+	protected:
+		auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+		{
+			if (aEvent->type() == QEvent::Paint) {
+				Painted += static_cast<QPaintEvent*>(aEvent)->region();
+			}
+			return QObject::eventFilter(aWatched, aEvent);
+		}
+	};
+
+	/// \brief [[BPR-PENDING-AJ]]. With the macOS style a selection over several
+	/// lines is painted to the pane's edge, past the longest line; when it is
+	/// cleared, or the pane loses focus and it turns the inactive colour, all
+	/// of that is painted again. Qt asked only for the document's own width,
+	/// so the part past the longest line kept the old fill: the stray "virtual
+	/// space" highlight the owner saw in one pane after a selection and Esc
+	/// (look v001, 2026-10-22).
+	void test_a_full_width_selection_repaints_to_the_edge()
+	{
+		for (const auto onePane : { true, false }) {
+			auto  course = line_gesture_course{ onePane };
+			auto& pane   = course.pane();
+			auto  style  = full_width_selection_style{ QApplication::style()->name() };
+			pane.setStyle(&style);
+			// Wide enough that the split head pane is wider than its longest line.
+			course.Window.resize(2'400, 900);
+			process_events();
+			course.reset();
+			course.drag(course.right(0U), course.right(12U));
+			const auto  which    = onePane ? std::string{ "one pane" } : std::string{ "split" };
+			auto* const viewport = pane.viewport();
+			expect(pane.textCursor().hasSelection(), which + ": a drag over lines 1 to 13 selects their text");
+			const auto width = static_cast<int>(std::ceil(pane.document()->documentLayout()->documentSize().width()));
+			expect(width + 40 < viewport->width(), which + ": the pane is wider than its longest line, so a full-width selection runs past it");
+			// A row in the middle of the selection, past every line's end.
+			const auto row     = pane.cursorRect(QTextCursor{ pane.document()->findBlockByNumber(3) }).center().y();
+			const auto pastEnd = QPoint{ viewport->width() - 8, row };
+			for (const auto& [gesture, act] : std::vector<std::pair<std::string, std::function<void()>>>{
+					 { "losing focus", [&course] { course.Window.conversation_panel()->setFocus(Qt::OtherFocusReason); } },
+					 { "clearing the selection", [&pane] {
+						  auto cursor = pane.textCursor();
+						  cursor.clearSelection();
+						  pane.setTextCursor(cursor);
+					  } } }) {
+				pane.setFocus(Qt::OtherFocusReason);
+				process_events();
+				auto log = repaint_log{ *viewport };
+				act();
+				process_events();
+				expect(log.Painted.contains(pastEnd), std::string{ which }.append(": ").append(gesture).append(" repaints the selection past the longest line, to the pane's edge"));
+			}
+			pane.setStyle(nullptr);
+		}
+	}
+
 	/// \brief [[BPR-1724]] gap 1. The one-pane comparison has the code's
 	/// menu, as split view does, for the line each row shows: a head line, or
 	/// the base line a removed row shows. It had no menu at all.
@@ -21621,6 +21699,7 @@ auto main(int argc, char** argv) -> int
 	// past that same assertion: which thread moves code, and when.
 	// [[BPR-1212]]. Return and Shift+Return in the code, reached directly.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--line-draft"))) {
+		runCase("test_a_full_width_selection_repaints_to_the_edge", &test_a_full_width_selection_repaints_to_the_edge);
 		runCase("test_return_in_the_code_starts_a_draft_on_the_selection", &test_return_in_the_code_starts_a_draft_on_the_selection);
 		runCase("test_right_click_on_any_line_and_on_base_lines", &test_right_click_on_any_line_and_on_base_lines);
 		runCase("test_a_selection_takes_a_range_comment_from_its_menu", &test_a_selection_takes_a_range_comment_from_its_menu);

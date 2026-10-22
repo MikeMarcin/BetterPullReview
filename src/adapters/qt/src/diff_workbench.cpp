@@ -23,6 +23,7 @@
 #include <QElapsedTimer>
 #include <QEnterEvent>
 #include <QEvent>
+#include <QFocusEvent>
 #include <QFont>
 #include <QFontMetricsF>
 #include <QHBoxLayout>
@@ -49,6 +50,7 @@
 #include <QSignalBlocker>
 #include <QSplitter>
 #include <QStackedLayout>
+#include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTextBlock>
 #include <QTextCharFormat>
@@ -947,6 +949,42 @@ namespace bpr::qt {
 			/// Together they say which line is at the top and how far above the
 			/// viewport edge it starts, which is everything needed to turn a
 			/// per-line document measurement into a scroll origin.
+			/// \brief [[BPR-PENDING-AJ]]. Repaints the rows the last and the
+			/// current text selection cover, across the whole viewport.
+			/// \details With the style macOS uses, a selection that runs past a
+			/// line's end is painted to the pane's edge (`paintEvent`), but Qt
+			/// asks only for the document's width when the selection changes or
+			/// turns the inactive colour, so the part past the longest line kept
+			/// its old fill. Only the selected rows are repainted, so the work
+			/// stays bounded by the viewport.
+			void repaint_full_width_selection()
+			{
+				const auto cursor  = textCursor();
+				const auto current = cursor.hasSelection() ? std::optional{ std::pair{ cursor.selectionStart(), cursor.selectionEnd() } } : std::nullopt;
+				const auto last    = std::exchange(PaintedSelection, current);
+				if (!style()->styleHint(QStyle::SH_RichText_FullWidthSelection, nullptr, this)) {
+					return;
+				}
+				auto region = QRegion{ };
+				for (const auto& span : { last, current }) {
+					if (!span) {
+						continue;
+					}
+					auto block = firstVisibleBlock();
+					auto top   = block.isValid() ? blockBoundingGeometry(block).translated(contentOffset()).top() : 0.0;
+					for (; block.isValid() && top <= viewport()->height(); block = block.next()) {
+						const auto bottom = top + blockBoundingRect(block).height();
+						if (block.isVisible() && block.position() + block.length() > span->first && block.position() <= span->second) {
+							region += QRect{ 0, qFloor(top), viewport()->width(), qCeil(bottom) - qFloor(top) };
+						}
+						top = bottom;
+					}
+				}
+				if (!region.isEmpty()) {
+					viewport()->update(region);
+				}
+			}
+
 			/// \brief [[RFC-BPR-0090]]. The first line any of whose row shows.
 			[[nodiscard]] auto top_visible_line() const -> std::optional<std::uint32_t>
 			{
@@ -1064,6 +1102,18 @@ namespace bpr::qt {
 						update(covered);
 					}
 				}
+			}
+
+			// [[BPR-PENDING-AJ]]. Focus changes the selection's colour.
+			void focusInEvent(QFocusEvent* const aEvent) override
+			{
+				QPlainTextEdit::focusInEvent(aEvent);
+				repaint_full_width_selection();
+			}
+			void focusOutEvent(QFocusEvent* const aEvent) override
+			{
+				QPlainTextEdit::focusOutEvent(aEvent);
+				repaint_full_width_selection();
 			}
 
 			void wheelEvent(QWheelEvent* const aEvent) override
@@ -1378,10 +1428,12 @@ namespace bpr::qt {
 			class gutter_area;
 			class add_button;
 
-			gutter_area*                                      Gutter    = nullptr;
-			add_button*                                       AddButton = nullptr;
-			QColor                                            GutterBackground;
-			QColor                                            GutterText;
+			gutter_area* Gutter    = nullptr;
+			add_button*  AddButton = nullptr;
+			QColor       GutterBackground;
+			QColor       GutterText;
+			/// [[BPR-PENDING-AJ]]. The text selection last painted, as positions.
+			std::optional<std::pair<int, int>>                PaintedSelection;
 			code_gutter_text_cache                            GutterLabels;
 			std::vector<std::uint32_t>                        Boundaries;
 			QColor                                            RuleColor;
@@ -1760,6 +1812,8 @@ namespace bpr::qt {
 		{
 			Gutter    = new gutter_area{ this };
 			AddButton = new add_button{ this };
+			// [[BPR-PENDING-AJ]]. A full-width selection is repainted to the edge.
+			connect(this, &QPlainTextEdit::selectionChanged, this, [this] { repaint_full_width_selection(); });
 			// [[BPR-1335]]. The pointer in the "+" column over the code, not
 			// only over the number's padding, shows the line's "+".
 			viewport()->setMouseTracking(true);
