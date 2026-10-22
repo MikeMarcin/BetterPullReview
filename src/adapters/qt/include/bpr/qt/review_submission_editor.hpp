@@ -179,6 +179,23 @@ namespace bpr::qt {
 		void set_pending_open(std::function<void(const core::review_submission_comment&, core::workbench_thread_destination)> aOpen);
 		/// \brief [[BPR-1345]] v002. A pending row's Delete, once confirmed.
 		void set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete);
+		/// \brief [[RFC-BPR-0090]]. A suggestion GitHub cannot apply where it
+		/// goes (owner, Q3): why, and Convert's words.
+		struct held_comment
+		{
+			QString Reason;
+			QString Convert;
+			/// The reading amber the reason is written in.
+			QColor Ink;
+			auto   operator==(const held_comment&) const -> bool = default;
+		};
+		/// \brief [[RFC-BPR-0090]]. The review's held suggestions, by draft:
+		/// each row says why and offers Convert, and the review is not
+		/// submitted while any is listed.
+		void               set_held_comments(std::map<core::review_draft_id, held_comment> aHeld);
+		[[nodiscard]] auto held_comments() const noexcept -> const std::map<core::review_draft_id, held_comment>&;
+		/// \brief [[RFC-BPR-0090]]. A held row's Convert.
+		void set_pending_convert(std::function<void(const core::review_submission_comment&)> aConvert);
 		/// \brief [[BPR-1345]] v002. Called once a confirmed Discard review
 		/// has discarded the review, so the window can close the page.
 		void set_discard_observer(std::function<void()> aObserver);
@@ -247,31 +264,34 @@ namespace bpr::qt {
 		std::function<void(const core::review_submission_comment&)>                                     PendingReveal;
 		std::function<void(const core::review_submission_comment&, core::workbench_thread_destination)> PendingOpen;
 		std::function<void(const core::review_submission_comment&)>                                     PendingDelete;
-		std::function<void()>                                                                           DiscardObserver;
-		std::function<void(std::size_t)>                                                                SubmittedObserver;
-		std::optional<core::review_submission_draft>                                                    LastSubmitted;
-		std::size_t                                                                                     Confirmed = 0U;
-		std::optional<feedback_mark_theme>                                                              MarkTheme;
-		std::optional<QColor>                                                                           Attention;
-		review_submission_editor_projection                                                             Shown;
-		QPlainTextEdit*                                                                                 Body = nullptr;
-		std::array<QToolButton*, 3>                                                                     Decisions{ };
-		QToolButton*                                                                                    Preflight       = nullptr;
-		QMenu*                                                                                          PreflightMenu   = nullptr;
-		QTextEdit*                                                                                      Target          = nullptr;
-		QLabel*                                                                                         Status          = nullptr;
-		QLabel*                                                                                         UnknownReason   = nullptr;
-		QWidget*                                                                                        Waiting         = nullptr;
-		QLabel*                                                                                         WaitingMark     = nullptr;
-		QLabel*                                                                                         WaitingTitle    = nullptr;
-		QLabel*                                                                                         WaitingFallback = nullptr;
-		QLabel*                                                                                         WaitingAssure   = nullptr;
-		QLabel*                                                                                         DraftState      = nullptr;
-		QLabel*                                                                                         Title           = nullptr;
-		QLabel*                                                                                         Purpose         = nullptr;
-		QWidget*                                                                                        Pending         = nullptr;
-		QVBoxLayout*                                                                                    PendingRows     = nullptr;
-		QLabel*                                                                                         Carries         = nullptr;
+		/// [[RFC-BPR-0090]]. The held suggestions and their rows' Convert.
+		std::map<core::review_draft_id, held_comment>               Held;
+		std::function<void(const core::review_submission_comment&)> PendingConvert;
+		std::function<void()>                                       DiscardObserver;
+		std::function<void(std::size_t)>                            SubmittedObserver;
+		std::optional<core::review_submission_draft>                LastSubmitted;
+		std::size_t                                                 Confirmed = 0U;
+		std::optional<feedback_mark_theme>                          MarkTheme;
+		std::optional<QColor>                                       Attention;
+		review_submission_editor_projection                         Shown;
+		QPlainTextEdit*                                             Body = nullptr;
+		std::array<QToolButton*, 3>                                 Decisions{ };
+		QToolButton*                                                Preflight       = nullptr;
+		QMenu*                                                      PreflightMenu   = nullptr;
+		QTextEdit*                                                  Target          = nullptr;
+		QLabel*                                                     Status          = nullptr;
+		QLabel*                                                     UnknownReason   = nullptr;
+		QWidget*                                                    Waiting         = nullptr;
+		QLabel*                                                     WaitingMark     = nullptr;
+		QLabel*                                                     WaitingTitle    = nullptr;
+		QLabel*                                                     WaitingFallback = nullptr;
+		QLabel*                                                     WaitingAssure   = nullptr;
+		QLabel*                                                     DraftState      = nullptr;
+		QLabel*                                                     Title           = nullptr;
+		QLabel*                                                     Purpose         = nullptr;
+		QWidget*                                                    Pending         = nullptr;
+		QVBoxLayout*                                                PendingRows     = nullptr;
+		QLabel*                                                     Carries         = nullptr;
 		/// [[BPR-1590]] v002. The pull request line, the box's heading and its rules.
 		QLabel*                                      Context         = nullptr;
 		QWidget*                                     Heading         = nullptr;

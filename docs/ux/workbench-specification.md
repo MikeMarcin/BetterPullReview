@@ -2634,7 +2634,16 @@ interleaved rows, until it ends. The drawer field holds the reviewer's words
 only, never a block, and "What it changes" shows the code's change under them;
 the draft's body is the core's composition of the words and the block. Esc
 in the code ends the edit and keeps the change, and the field keeps holding
-the words; Suggest change on the same lines opens it again. Outside Review,
+the words; opening the kept draft again (Suggest change, its card, Return or
+Comment) opens its change in the code. Typed back to the original, the draft
+is a plain comment of its words. On a commit-filtered diff a suggestion whose
+line changed after the diff's commit, or that GitHub resolves on no commit,
+is held (owner's Q3): the range turns the reading amber, the card says why,
+and Add single comment and Start a review give way to "Convert to a comment
+on `<commit>`" or "Convert to file comment", which writes the words and the
+change, as a ```` ```diff ```` block, as text on the same lines. Finish your
+review lists a held suggestion with its reason and the same Convert, and
+waits to be submitted until none is held. Outside Review,
 where no code shows, the full composer still starts as a
 ```` ```suggestion ```` block holding the selected lines exactly. Neither key nor item acts on lines the core
 refuses together, Suggest change does not act on the base side, and the menu

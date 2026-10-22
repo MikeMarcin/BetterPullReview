@@ -315,8 +315,14 @@ namespace bpr::qt {
 		note_button*             Publish         = nullptr;
 		/// [[BPR-1345]]. Start a review, Add review comment, or on a pending
 		/// draft Update review comment; and where the draft stands.
-		note_button*       ReviewAction = nullptr;
-		note_button*       SplitAction  = nullptr;
+		note_button* ReviewAction = nullptr;
+		note_button* SplitAction  = nullptr;
+		/// [[RFC-BPR-0090]]. Convert, shown in the sending buttons' place
+		/// while GitHub cannot apply the suggestion; and whether the change
+		/// written in the code is content even when the field is empty.
+		note_button*       ConvertAction = nullptr;
+		QString            ConvertWords;
+		bool               CodeChange   = false;
 		QBoxLayout*        DraftActions = nullptr;
 		QWidget*           Privacy      = nullptr;
 		draft_review_state Review       = draft_review_state::none;

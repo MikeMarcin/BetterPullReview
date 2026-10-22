@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -533,6 +534,57 @@ auto main(int argc, char** argv) -> int
 	question->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm"))->click();
 	QApplication::processEvents();
 	expect(deleted.size() == 1U && deleted.front() == first && intents.size() == beforeRows, "Delete comment deletes exactly that comment, through the window");
+
+	// [[RFC-BPR-0090]] Q3. A held suggestion says why under its row, offers
+	// Convert beside Delete, and keeps every verdict and Submit back until it
+	// is gone.
+	{
+		auto                         heldIntents = std::vector<qt::review_submission_editor_intent>{ };
+		auto                         converted   = std::vector<core::review_draft_id>{ };
+		qt::review_submission_editor held{ [&](qt::review_submission_editor_intent aIntent) { heldIntents.push_back(std::move(aIntent)); } };
+		held.set_pending_convert([&](const core::review_submission_comment& aComment) { converted.push_back(aComment.Draft); });
+		auto suggestion    = first;
+		suggestion.Draft   = core::review_draft_id{ 21U };
+		suggestion.Line    = 432U;
+		suggestion.Body    = "```suggestion\n\treturn clamp(scale);\n```";
+		auto carrying      = finishing;
+		carrying.Comments  = { first, suggestion };
+		auto heldShown     = finish;
+		heldShown.Draft    = carrying;
+		heldShown.Controls = core::controls(carrying);
+		heldShown.Prepared = core::prepare_review_decision(carrying, { });
+		held.resize(560, 760);
+		held.show();
+		held.present(heldShown);
+		QApplication::processEvents();
+		auto* const verdict = held.disposition_button(core::review_disposition::comment);
+		const auto  free    = verdict->isEnabled();
+		held.set_held_comments({ { suggestion.Draft, { .Reason = QStringLiteral("Line 433 changed after commit 9b2e41c. GitHub shows a comment here as outdated, so it cannot apply a suggestion."), .Convert = QStringLiteral("Convert to a comment on 9b2e41c") } } });
+		QApplication::processEvents();
+		const auto reasons  = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
+		const auto converts = held.pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingConvert"));
+		expect(reasons.size() == 1 && reasons.front()->text().startsWith(QStringLiteral("Line 433 changed after commit 9b2e41c")) && reasons.front()->isVisible() && converts.size() == 1
+				   && converts.front()->text() == QStringLiteral("Convert to a comment on 9b2e41c") && converts.front()->isVisible(),
+			   "the held suggestion's row says why and offers Convert; the other comment's row does not");
+		expect(!verdict->isEnabled() && verdict->toolTip() == QStringLiteral("1 suggestion GitHub cannot apply is held. Convert it or delete it first."),
+			   "every verdict waits while a suggestion is held, and says why");
+		const auto before = heldIntents.size();
+		held.submit_action()->trigger();
+		QApplication::processEvents();
+		expect(std::ranges::none_of(std::span{ heldIntents }.subspan(before), [](const qt::review_submission_editor_intent& aIntent) {
+				   return aIntent.Command.Kind == core::review_submission_command_kind::begin_submit;
+			   }),
+			   "Submit by its key sends nothing while a suggestion is held");
+		converts.front()->click();
+		QApplication::processEvents();
+		expect(converted == std::vector<core::review_draft_id>{ suggestion.Draft }, "Convert asks the window to convert exactly that comment");
+		held.set_held_comments({ });
+		QApplication::processEvents();
+		// Relisted rows go once the event loop deletes them; they are hidden at once.
+		const auto stillHeld = held.pending_list()->findChildren<QLabel*>(QStringLiteral("wholeReviewPendingHeld"));
+		expect(verdict->isEnabled() == free && std::ranges::none_of(stillHeld, [](const QLabel* aLabel) { return aLabel->isVisible(); }),
+			   "once nothing is held the rows say nothing more and the verdicts are as they were");
+	}
 
 	// [[BPR-1719]]. Several pending comments are selected with Shift,
 	// Command (Ctrl) and Select All, and copied in the page's order: each its

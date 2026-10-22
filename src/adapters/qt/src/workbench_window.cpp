@@ -2458,7 +2458,16 @@ namespace bpr::qt {
 				case card_action::defect:
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
 					break;
+				case card_action::convert_draft:
+					convert_pane_suggestion();
+					break;
 				case card_action::publish_draft:
+					// [[RFC-BPR-0090]]. A held suggestion goes nowhere until it
+					// is converted or deleted.
+					if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt; shown.has_value() && HeldSuggestions.contains(shown->Id)) {
+						statusBar()->showMessage(HeldSuggestions.at(shown->Id).Reason, 10000);
+						break;
+					}
 					// [[BPR-1212]]. Publish posts this one comment now; the
 					// drawer closes the composer once the draft is published.
 					if (ReviewEditor != nullptr && ReviewEditor->publish_action()->isEnabled()) {
@@ -2489,6 +2498,10 @@ namespace bpr::qt {
 					leave_drawer_draft(false);
 					break;
 				case card_action::review_draft:
+					if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt; shown.has_value() && HeldSuggestions.contains(shown->Id)) {
+						statusBar()->showMessage(HeldSuggestions.at(shown->Id).Reason, 10000);
+						break;
+					}
 					// [[BPR-1345]]. Start a review, or Add review comment: the
 					// draft stays as written, pending in the review, and the
 					// composer closes on it. Nothing is published.
@@ -3039,6 +3052,19 @@ namespace bpr::qt {
 			if (PendingCommentDeleteDispatch) {
 				PendingCommentDeleteDispatch(aComment.Draft, aComment.DraftRevision);
 			}
+		});
+		// [[RFC-BPR-0090]]. Convert on a held suggestion (owner, Q3): the
+		// comment is opened at its line, and converted there once it shows.
+		ReviewSubmissionEditor->set_pending_convert([this](const core::review_submission_comment& aComment) {
+			if (!HeldSuggestions.contains(aComment.Draft)) {
+				return;
+			}
+			PendingConvert = aComment.Draft;
+			if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->Id == aComment.Draft) {
+				present_inline_draft();
+				return;
+			}
+			open_pending_comment(aComment, core::workbench_thread_destination::review);
 		});
 		ReviewSubmissionEditor->set_discard_observer([this] {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
@@ -10005,9 +10031,15 @@ namespace bpr::qt {
 		}
 		CompositionCaret = -1;
 		apply_thread_marks();
-		// [[RFC-BPR-0090]]. The draft's lines open for writing in the head pane.
+		// [[RFC-BPR-0090]]. The draft's lines open for writing in the head pane;
+		// a kept suggestion opens there again however it is opened, and the
+		// keyboard stays with its words.
 		if (aSuggestion) {
 			static_cast<void>(begin_pane_suggestion());
+		} else if (!PaneSuggestion.has_value() || PaneSuggestion->Anchor != draft->Anchor) {
+			if (core::split_suggestion_body(ReviewEditor->body_editor()->toPlainText().toStdString()).has_value()) {
+				static_cast<void>(begin_pane_suggestion(false));
+			}
 		}
 		return true;
 	}
@@ -10044,7 +10076,7 @@ namespace bpr::qt {
 					  tr("Lines must be in one changed region"));
 	}
 
-	auto workbench_window::begin_pane_suggestion() -> bool
+	auto workbench_window::begin_pane_suggestion(const bool aFocusCode) -> bool
 	{
 		if (ReviewEditor == nullptr || ComparisonSurface == nullptr) {
 			return false;
@@ -10114,7 +10146,11 @@ namespace bpr::qt {
 		};
 		statusBar()->showMessage(tr("Suggesting a change to %1. Type it in the code; Esc ends the edit.").arg(words), 6000);
 		present_inline_draft();
-		editor->setFocus(Qt::OtherFocusReason);
+		if (aFocusCode) {
+			editor->setFocus(Qt::OtherFocusReason);
+		} else if (auto* const field = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr ? ConversationPanel->cards()->draft_editor() : nullptr; field != nullptr) {
+			field->setFocus(Qt::OtherFocusReason);
+		}
 		return true;
 	}
 
@@ -10139,9 +10175,16 @@ namespace bpr::qt {
 		if (!PaneSuggestion.has_value() || ReviewEditor == nullptr) {
 			return std::nullopt;
 		}
-		const auto  prose  = PaneSuggestion->Prose.toStdString();
-		const auto  first  = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
-		auto        input  = core::pull_request_suggestion_input{ .First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Prose = prose };
+		const auto prose = PaneSuggestion->Prose.toStdString();
+		const auto first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+		auto       input = core::pull_request_suggestion_input{ .First = first, .Last = PaneSuggestion->Anchor.Line, .Original = PaneSuggestion->Original, .Prose = prose };
+		// On a commit-filtered diff, where the host's core puts a comment on
+		// the anchor line (RFC-BPR-0089 Q1); not yet known is not placed.
+		if (FilteredComments) {
+			input.Filtered = FilteredPlacement.has_value() && FilteredPlacement->Selection == PaneSuggestion->Anchor
+				? FilteredPlacement->Target
+				: core::filtered_comment_target{ .Placement = core::filtered_comment_placement::refused, .Refusal = core::filtered_comment_refusal::lines_pending };
+		}
 		auto* const editor = PaneSuggestion->Open && ComparisonSurface != nullptr ? ComparisonSurface->head_editor() : nullptr;
 		if (editor != nullptr) {
 			const auto range = editor->model().editable_range();
@@ -10159,6 +10202,76 @@ namespace bpr::qt {
 		input.Edited     = split.has_value() && kept.Refusal == core::suggestion_rebuild_refusal::none ? std::span<const core::text_line>{ kept.Lines }
 																									   : std::span<const core::text_line>{ PaneSuggestion->Original };
 		return core::plan_pull_request_suggestion(input);
+	}
+
+	auto workbench_window::suggestion_hold(const core::pull_request_suggestion_plan& aPlan) const -> std::pair<QString, QString>
+	{
+		if (!aPlan.Changed || aPlan.placeable() || !PaneSuggestion.has_value()) {
+			return { };
+		}
+		const auto line   = PaneSuggestion->Anchor.Line + 1U;
+		const auto commit = FilteredPlacement.has_value() ? FilteredPlacement->Commit : QString{ };
+		switch (aPlan.Reason) {
+		case core::suggestion_placement_reason::changed_after_commit:
+			return { tr("Line %1 changed after commit %2. GitHub shows a comment here as outdated, so it cannot apply a suggestion.").arg(line).arg(commit),
+					 tr("Convert to a comment on %1").arg(commit) };
+		case core::suggestion_placement_reason::unresolvable_line:
+			return { tr("GitHub can't attach a comment to line %1 on any commit, so it cannot apply a suggestion here.").arg(line), tr("Convert to file comment") };
+		case core::suggestion_placement_reason::not_placed: {
+			const auto [notice, blocks] = filtered_comment_notice();
+			static_cast<void>(blocks);
+			return { notice.isEmpty() ? tr("Working out where GitHub puts a comment on this line…") : notice, QString{ } };
+		}
+		case core::suggestion_placement_reason::none:
+			break;
+		}
+		return { };
+	}
+
+	void workbench_window::convert_pane_suggestion()
+	{
+		const auto plan = pane_suggestion_plan();
+		if (!plan.has_value() || !plan->Changed || ReviewEditor == nullptr || ReviewEditor->body_editor()->isReadOnly()) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->Anchor != PaneSuggestion->Anchor) {
+			return;
+		}
+		auto original = std::vector<std::string>{ };
+		for (const auto& line : PaneSuggestion->Original) {
+			original.push_back(line.Content);
+		}
+		const auto first = PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line);
+		const auto last  = PaneSuggestion->Anchor.Line;
+		const auto text  = core::convert_suggestion_to_text(PaneSuggestion->Prose.toStdString(), first, last, original, plan->Block);
+		const auto id    = draft->Id;
+		// The draft is text from now on: the link to the code ends with it.
+		release_pane_suggestion();
+		HeldSuggestions.erase(id);
+		ReviewEditor->body_editor()->setPlainText(QString::fromStdString(text));
+		present_held_suggestions();
+		statusBar()->showMessage(first == last ? tr("Your words and the change are now a comment on line %1.").arg(last + 1U)
+											   : tr("Your words and the change are now a comment on lines %1–%2.").arg(first + 1U).arg(last + 1U),
+								 6000);
+		present_inline_draft();
+	}
+
+	void workbench_window::present_held_suggestions()
+	{
+		if (ReviewSubmissionEditor == nullptr) {
+			return;
+		}
+		// The reading amber, deep enough to read as text on either variant.
+		auto ink = ConversationPanel != nullptr && ConversationPanel->cards() != nullptr ? ConversationPanel->cards()->marker() : QColor{ };
+		if (ink.isValid()) {
+			ink = palette().color(QPalette::Window).lightness() < 128 ? ink.lighter(125) : ink.darker(155);
+		}
+		auto held = std::map<core::review_draft_id, review_submission_editor::held_comment>{ };
+		for (const auto& [id, suggestion] : HeldSuggestions) {
+			held.emplace(id, review_submission_editor::held_comment{ .Reason = suggestion.Reason, .Convert = suggestion.Convert, .Ink = ink });
+		}
+		ReviewSubmissionEditor->set_held_comments(std::move(held));
 	}
 
 	void workbench_window::compose_pane_suggestion()
@@ -10589,7 +10702,23 @@ namespace bpr::qt {
 		}
 		auto* const cards = ConversationPanel->cards();
 		const auto& draft = ReviewEditor->shown_draft();
-		const auto  body  = ReviewEditor->body_editor()->toPlainText();
+		// [[RFC-BPR-0090]]. Finish your review's Convert, once its draft shows:
+		// the text the window planned for it, at the same lines.
+		if (PendingConvert.has_value() && draft.has_value() && draft->Id == *PendingConvert && !ReviewEditor->body_editor()->isReadOnly()) {
+			const auto id = *std::exchange(PendingConvert, std::nullopt);
+			if (PaneSuggestion.has_value() && PaneSuggestion->Anchor == draft->Anchor) {
+				convert_pane_suggestion();
+				return;
+			}
+			if (const auto found = HeldSuggestions.find(id); found != HeldSuggestions.end()) {
+				const auto text = QString::fromStdString(found->second.Body);
+				HeldSuggestions.erase(found);
+				present_held_suggestions();
+				ReviewEditor->body_editor()->setPlainText(text);
+				return;
+			}
+		}
+		const auto body = ReviewEditor->body_editor()->toPlainText();
 		// The notes hold the accepted draft, so a draft left in the drawer
 		// is its note at once; while it is written this lays nothing out.
 		cards->set_draft(draft, ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr ? std::optional{ ComparisonSurface->current_result()->Alignment.Digest } : std::nullopt);
@@ -10598,10 +10727,41 @@ namespace bpr::qt {
 		// [[RFC-BPR-0090]]. Linked to the head pane's edit: the words in the
 		// field, and what the code's change does under them.
 		const auto linked = PaneSuggestion.has_value() && draft.has_value() && PaneSuggestion->Anchor == draft->Anchor;
+		auto       hold   = std::pair<QString, QString>{ };
 		if (linked) {
 			// No change yet says to type it in the code.
 			const auto plan = pane_suggestion_plan();
 			change          = plan.has_value() && plan->Changed ? plan->Change : core::suggested_change{ .Fenced = true };
+			// [[RFC-BPR-0090]] Q3. A suggestion GitHub cannot apply is held,
+			// marked, and offered Convert; Finish your review holds it too.
+			if (plan.has_value()) {
+				hold = suggestion_hold(*plan);
+			}
+			const auto wasHeld = HeldSuggestions.contains(draft->Id);
+			if (!hold.first.isEmpty() && plan.has_value()) {
+				auto original = std::vector<std::string>{ };
+				for (const auto& line : PaneSuggestion->Original) {
+					original.push_back(line.Content);
+				}
+				HeldSuggestions[draft->Id] = held_suggestion{
+					.Reason  = hold.first,
+					.Convert = hold.second,
+					.Body    = core::convert_suggestion_to_text(PaneSuggestion->Prose.toStdString(), PaneSuggestion->StartLine.value_or(PaneSuggestion->Anchor.Line), PaneSuggestion->Anchor.Line,
+																original, plan->Block),
+				};
+			} else {
+				HeldSuggestions.erase(draft->Id);
+			}
+			if (wasHeld != HeldSuggestions.contains(draft->Id) || !hold.first.isEmpty()) {
+				present_held_suggestions();
+			}
+			// The range's edge reads amber while GitHub cannot apply it.
+			if (auto* const head = PaneSuggestion->Open && ComparisonSurface != nullptr ? ComparisonSurface->head_editor() : nullptr; head != nullptr) {
+				auto edge = hold.first.isEmpty() ? cards->accent() : cards->marker();
+				auto wash = edge;
+				wash.setAlphaF(0.14F);
+				head->set_range_colours(wash, edge, edge.darker(135));
+			}
 		} else if (draft.has_value() && core::classify_review_body(body.toStdString()) == core::review_body_compatibility::requires_line_subject) {
 			if (const auto lines = draft_source_lines(); lines.has_value()) {
 				if (auto decided = core::suggested_change_of(body.toStdString(), *lines); decided.Fenced) {
@@ -10685,13 +10845,17 @@ namespace bpr::qt {
 		if (notice.isEmpty() && !ReviewEditor->publish_action()->isEnabled() && !body.trimmed().isEmpty()) {
 			notice = ReviewEditor->publish_action()->toolTip();
 		}
+		if (!hold.first.isEmpty()) {
+			notice = hold.first;
+		}
 		cards->present_draft(draft_composer_presentation{
 			.Body        = linked ? PaneSuggestion->Prose : body,
-			.Publishable = ReviewEditor->publish_action()->isEnabled(),
+			.Publishable = ReviewEditor->publish_action()->isEnabled() && hold.first.isEmpty(),
 			.Editable    = !ReviewEditor->body_editor()->isReadOnly(),
 			.Lines       = words,
 			.Change      = std::move(change),
 			.InCode      = linked,
+			.Convert     = hold.second,
 			.Notice      = notice,
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),

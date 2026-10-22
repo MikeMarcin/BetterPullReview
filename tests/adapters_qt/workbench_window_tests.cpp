@@ -12230,6 +12230,122 @@ namespace {
 		expect(course.Surface->head_editor() == nullptr, "Esc collapses the carets, then ends the edit");
 	}
 
+	/// \brief [[RFC-BPR-0090]] M3. A suggestion GitHub cannot apply where it
+	/// goes is held, marked and converted on the comment (owner, Q3), and
+	/// Finish your review holds it too; a kept suggestion opens in the code
+	/// again, and one typed back to the original is a plain comment.
+	void test_a_held_suggestion_is_converted_and_a_kept_one_reopens()
+	{
+		auto  course = line_gesture_course{ false };
+		auto& window = course.Window;
+		auto* cards  = window.conversation_panel()->cards();
+		// A diff whose right side is an earlier commit than the head.
+		window.set_conversation_endpoint_placement(true, false);
+		course.reset();
+		const auto present = [&course, &window](const std::uint32_t aLine, const core::filtered_comment_placement aPlacement) {
+			window.present_filtered_comment(true, qt::filtered_comment_presentation{
+													  .Selection = { .Comparison = course.Diff.Alignment.Digest, .Side = core::diff_side::right, .Line = aLine },
+													  .Target    = { .Placement = aPlacement, .Refusal = core::filtered_comment_refusal::none, .Side = core::diff_side::right, .Line = aLine },
+													  .Commit    = QStringLiteral("9b2e41c"),
+												  });
+		};
+		course.click(course.right(5U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 5U; }, 2000);
+		present(5U, core::filtered_comment_placement::earlier_commit);
+		window.suggest_change_action()->trigger();
+		expect(course.ranged(5U, 5U) && course.Surface->head_editor() != nullptr, "Suggest change on line 6 of the filtered diff opens it in the code");
+		static_cast<void>(course.Surface->head_editor()->apply(core::insert_text{ .Text = "!" }));
+		course.settle();
+		auto* const card    = cards->open_card();
+		auto* const convert = card->findChild<QAbstractButton*>(QStringLiteral("threadConvertDraft"));
+		auto* const publish = card->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+		auto* const review  = card->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft"));
+		const auto  id      = course.Accepted->Draft.Id;
+		const auto& held    = window.review_submission_editor_view()->held_comments();
+		expect(convert != nullptr && convert->isVisible() && convert->text() == QStringLiteral("Convert to a comment on 9b2e41c") && publish != nullptr && !publish->isVisible()
+				   && review != nullptr && !review->isVisible() && held.contains(id) && held.at(id).Reason.startsWith(QStringLiteral("Line 6 changed after commit 9b2e41c")),
+			   "a suggestion on a line changed after the filtered commit is held: Convert takes the sending buttons' place and Finish your review holds it");
+		save_render(window, QStringLiteral("held-suggestion"));
+		// Sending it by its key is refused, with the reason.
+		const auto sent = course.Commands.size();
+		cards->draft_editor()->setFocus(Qt::OtherFocusReason);
+		auto send = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier | Qt::ShiftModifier };
+		QCoreApplication::sendEvent(cards->draft_editor(), &send);
+		process_events();
+		expect(std::ranges::none_of(std::span{ course.Commands }.subspan(sent), [](const core::revisioned_review_draft_command& aCommand) {
+				   return aCommand.Command.Kind == core::review_draft_command_kind::begin_publish;
+			   }) && window.statusBar()->currentMessage().startsWith(QStringLiteral("Line 6 changed after commit 9b2e41c")),
+			   "Add single comment by its key publishes nothing while the suggestion is held, and says why");
+		convert->click();
+		process_events();
+		course.settle();
+		expect(course.Accepted->Draft.Body == "Suggested change to line 6:\n\n```diff\n-changed `line` 5\n+changed `line` 5!\n```" && course.Surface->head_editor() == nullptr
+				   && !window.review_submission_editor_view()->held_comments().contains(id) && publish->isVisible(),
+			   "Convert writes the change as text on the same line, ends the edit and releases the hold");
+
+		// A line GitHub resolves on no commit converts to a file comment.
+		course.reset();
+		course.click(course.right(3U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 3U; }, 2000);
+		present(3U, core::filtered_comment_placement::file_comment);
+		window.suggest_change_action()->trigger();
+		expect(course.ranged(3U, 3U), "Suggest change on line 4 opens its draft");
+		static_cast<void>(course.Surface->head_editor()->apply(core::insert_text{ .Text = "?" }));
+		course.settle();
+		auto* const fileConvert = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadConvertDraft"));
+		expect(fileConvert != nullptr && fileConvert->isVisible() && fileConvert->text() == QStringLiteral("Convert to file comment"),
+			   "where GitHub resolves the line on no commit, Convert makes a file comment");
+		course.reset();
+		expect(window.review_submission_editor_view()->held_comments().size() == 1U, "leaving the draft keeps its hold for Finish your review");
+
+		// Back on a diff whose right side is the head: Esc keeps the change,
+		// opening the draft again opens it in the code, and typing it back
+		// leaves a plain comment.
+		window.present_filtered_comment(false, std::nullopt);
+		window.set_conversation_endpoint_placement(true, true);
+		course.reset();
+		course.click(course.right(4U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 4U; }, 2000);
+		window.suggest_change_action()->trigger();
+		expect(course.ranged(4U, 4U), "Suggest change on line 5 opens its draft");
+		static_cast<void>(course.Surface->head_editor()->apply(core::insert_text{ .Text = ";" }));
+		cards->draft_editor()->setPlainText(QStringLiteral("Terminate it."));
+		course.settle();
+		expect(course.Accepted->Draft.Body == "Terminate it.\n\n```suggestion\nline 4;\n```", "the words and the block compose the kept body");
+		course.reset();
+		course.click(course.right(4U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 4U; }, 2000);
+		window.comment_action()->trigger();
+		process_events();
+		course.settle();
+		auto* const reopened = course.Surface->head_editor();
+		expect(drawer_writing(window) && reopened != nullptr && reopened->text().find("line 4;\n") != std::string::npos && cards->draft_editor()->toPlainText() == QStringLiteral("Terminate it.")
+				   && window.focusWidget() == cards->draft_editor(),
+			   "opening the kept suggestion again opens its change in the code, with its words in the drawer and the keyboard there");
+		static_cast<void>(reopened->apply(core::delete_backward{ }));
+		course.settle();
+		expect(course.Accepted->Draft.Body == "Terminate it.", "typed back to the original, the draft is a plain comment with its words");
+		course.reset();
+
+		// Delete, once confirmed, ends the edit: the head pane reads again.
+		course.click(course.right(2U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 2U; }, 2000);
+		window.suggest_change_action()->trigger();
+		expect(course.ranged(2U, 2U), "Suggest change on line 3 opens its draft");
+		static_cast<void>(course.Surface->head_editor()->apply(core::insert_text{ .Text = "#" }));
+		course.settle();
+		auto* const trash = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadDeleteDraft"));
+		expect(trash != nullptr, "the draft offers Delete");
+		trash->click();
+		process_events();
+		if (auto* const question = window.delete_draft_confirmation(); question != nullptr) {
+			question->confirm_button()->click();
+			process_events();
+		}
+		course.settle();
+		expect(course.Surface->head_editor() == nullptr && !drawer_writing(window), "Delete ends the edit and the head pane reads its own lines again");
+	}
+
 	/// \brief [[BPR-1724]] gap 1. The one-pane comparison has the code's
 	/// menu, as split view does, for the line each row shows: a head line, or
 	/// the base line a removed row shows. It had no menu at all.
@@ -21514,6 +21630,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_one_pane_has_the_code_menu", &test_one_pane_has_the_code_menu);
 		runCase("test_one_pane_suggest_change_shows_the_head_file", &test_one_pane_suggest_change_shows_the_head_file);
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
+		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);

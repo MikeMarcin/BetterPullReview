@@ -230,10 +230,16 @@ The header says "Suggested change, lines a–b". While the code is edited:
 ### A change GitHub cannot take as a suggestion (Q3)
 
 - **Marked.** An unplaceable suggestion keeps its block and its edit. The
-  range's edge and the draft's card turn amber, the reading colour, with the
-  reason: "GitHub shows a comment on this line as outdated, so it cannot
-  apply a suggestion here." Publish is unavailable for it as a suggestion,
-  and it is held back from a review with that reason.
+  range's wash and edge turn amber, the reading colour, and the card says
+  why: "Line 6 changed after commit 9b2e41c. GitHub shows a comment here as
+  outdated, so it cannot apply a suggestion." Add single comment and Start a
+  review give way to Convert, and their keys send nothing while it is held.
+- **Held from the review.** Finish your review lists a held suggestion with
+  its reason under its row and Convert beside Delete, and Comment, Approve,
+  Request changes and Submit wait until no held suggestion is listed. The
+  window holds what it has planned: a suggestion it has opened in the code
+  this session. A draft written in an earlier session and never opened since
+  is planned, and held, when it is next opened.
 - **Convert to file comment**, on the comment itself and on the Finish your
   review page beside the held comment. It rewrites the draft as text
   (`core::convert_suggestion_to_text`): the prose exactly, then "Suggested
@@ -247,7 +253,8 @@ The header says "Suggested change, lines a–b". While the code is edited:
   file-comment subject for a draft, which is [[BPR-1716]]'s AC2 and is
   recorded as follow-up BPR-PENDING-AH7. The button's words name the
   destination the core decides: "Convert to file comment" or "Convert to a
-  comment on `<short commit>`". Undo in the drawer restores the suggestion.
+  comment on `<short commit>`". Converted, the draft is an ordinary text
+  comment: its whole text shows in the drawer, and it is sent as one.
 
 ### Lifecycle
 
@@ -259,12 +266,13 @@ The header says "Suggested change, lines a–b". While the code is edited:
   the edit. With no change and no prose, nothing is kept. Otherwise the
   draft is kept and the pane returns to reading with the draft's lines
   marked as today.
-- **Typed back to the original.** With prose, the draft stays a plain comment
-  on its lines and the drawer says "No change suggested: this is a comment on
-  lines a–b." With no prose it is not kept.
+- **Typed back to the original.** With prose, the draft is a plain comment
+  on its lines, its body the words alone, and "What it changes" says there is
+  no change yet. With no prose it is not kept.
 - **Reopening.** Opening a kept draft whose body ends in one suggestion block
-  on its own lines (from its card, its lines, or Edit in code) opens the edit
-  again. The core rebuilds the span by giving the block's lines the original
+  (Suggest change on its lines, its card, Return or Comment) opens the edit
+  again, with its words in the drawer; Suggest change puts the keyboard in
+  the code and the others leave it with the words. The core rebuilds the span by giving the block's lines the original
   last line's ending (`core::rebuild_suggestion_span`); this is exact for
   every block the edit wrote. It is refused with a reason, and the draft
   stays a text draft, when the block does not parse, the prose holds a
@@ -277,7 +285,9 @@ The header says "Suggested change, lines a–b". While the code is edited:
 
 The edit is bound to its head blob and comparison. When a newer head arrives,
 the edit ends and its draft stays on its comparison, read-only, naming its
-head, as the established rule says. **Carry to the new head** is offered on
+head, as the established rule says. Carry and Copy change, below, are card
+BPR-PENDING-AH8: they need the host's old-to-new head correspondence on the
+window's side, and the core's decision is built (M1). **Carry to the new head** is offered on
 that draft only when the core finds every original line of its range
 unchanged at the new head (exact, from the old-to-new head correspondence,
 never fuzzy, `core::decide_suggestion_carry`). Carrying opens the same edit
@@ -370,7 +380,8 @@ was edited, and Copy change copies the block's text.
 |---|---|---|---|
 | M1 Core | BPR-PENDING-AH1 | `decide_suggestion_range`, the editable span in `suggestion_text_editor`, `plan_pull_request_suggestion`, `split_suggestion_body`, `rebuild_suggestion_span`, `convert_suggestion_to_text`, `decide_suggestion_carry`, with core tests | AC03 and AC05 (core share), AC06 (rebuild), AC08 (decision), AC09 |
 | M2 Qt pane | BPR-PENDING-AH2 | The shared editor over the head pane at the same geometry: external scroll, number gutter, fills, range edge, dimmed ribbons, the entries and the one-pane head view | AC01, AC02 |
-| M3 Drawer and lifecycle | BPR-PENDING-AH3 | The linked draft, the composed body through the durable path, the mark and Convert on the comment and on Finish your review, leaving, reopening, deleting, typed back, a new head and Carry, and the composed course | AC04 to AC09 |
+| M3 Drawer and lifecycle | BPR-PENDING-AH3 | The linked draft, the composed body through the durable path, the mark and Convert on the comment and on Finish your review, leaving, reopening, deleting, typed back, the edit ending at a new head, and the composed courses | AC04 to AC07, AC08 (the edit ends), AC09 |
+| M3 Carry | BPR-PENDING-AH8 | Carry to the new head and Copy change on a kept suggestion whose head moved, from the host's old-to-new head correspondence | AC08 (Carry and Copy change) |
 | M4 Live and attended | BPR-PENDING-AH4 | A BPR-Test course (publish the plan's bodies, then Commit suggestion), the CRLF measurement, a frozen build and the owner's look | AC03 (live), AC10 |
 | Closeout | BPR-PENDING-AH5 | Verify every criterion and close the RFC | All |
 

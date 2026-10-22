@@ -108,6 +108,9 @@ namespace bpr::qt {
 		show_in_discuss,
 		/// [[BPR-1586]]. Show this thread's row, at the post named, in Threads.
 		show_in_threads,
+		/// [[RFC-BPR-0090]]. The drawer draft's suggestion GitHub cannot apply
+		/// becomes text at the same lines (owner, Q3).
+		convert_draft,
 	};
 
 	/// \brief [[BPR-1345]]. Where the draft written in the drawer stands
@@ -350,6 +353,10 @@ namespace bpr::qt {
 		/// [[RFC-BPR-0090]]. The change is written in the head pane: `Body`
 		/// is the reviewer's words only, and the block lives in the code.
 		bool InCode = false;
+		/// [[RFC-BPR-0090]]. GitHub cannot apply this suggestion where it goes,
+		/// so it is held: the foot offers this button ("Convert to file
+		/// comment") in place of the sending ones, and `Notice` says why.
+		QString Convert;
 		/// What the last Publish came to ([[BPR-1329]]), else why Publish is
 		/// unavailable, or empty.
 		QString Notice;

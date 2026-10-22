@@ -12,6 +12,7 @@ draft as committed in `653e2ff2d` and `8cdbace3a`.
 | Proposed M1 Core | BPR-PENDING-AH1 | Range decision, editable span, plan, body split, rebuild, convert, carry. |
 | Proposed M2 Qt pane | BPR-PENDING-AH2 | |
 | Proposed M3 Drawer and lifecycle | BPR-PENDING-AH3 | |
+| (from M3) | BPR-PENDING-AH8 | Carry and Copy change at a newer head, split from AH3 during M3 because they need host facts. |
 | Proposed M4 Live and attended | BPR-PENDING-AH4 | |
 | (none) | BPR-PENDING-AH5 | Closeout card for RFC-BPR-0090. |
 | (Q4 note) | BPR-PENDING-AH6 | Backlog follow-up: a stacked two-pane layout. |
@@ -19,7 +20,7 @@ draft as committed in `653e2ff2d` and `8cdbace3a`.
 | Design frames v1 | `docs/design/BPR-1723-in-pane-suggest-v1/` | Kept as the questions' evidence. |
 | (none) | `docs/design/BPR-1723-in-pane-suggest-v2/` | Frames for the adopted selected-range design. |
 
-Card IDs are provisional (`BPR-PENDING-AH1` to `AH7`). They are allocated on
+Card IDs are provisional (`BPR-PENDING-AH1` to `AH8`). They are allocated on
 `main` by the coordinator with `python3 scripts/allocate_issue_id.py`, which
 renames the files and every reference together; this lane commits no
 counter or reservation.

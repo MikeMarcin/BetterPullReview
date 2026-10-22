@@ -1933,8 +1933,11 @@ namespace bpr::qt {
 		/// \brief [[RFC-BPR-0090]]. Opens the shown draft's lines for writing
 		/// in the head pane (Suggest change, owner Q1 and Q5): a kept
 		/// suggestion opens with its block, words stay in the drawer.
+		/// \details `aFocusCode` puts the keyboard in the code, as Suggest
+		/// change does; reopening a kept suggestion by its card or its line
+		/// leaves it in the drawer's words.
 		/// \returns Whether the edit opened.
-		auto begin_pane_suggestion() -> bool;
+		auto begin_pane_suggestion(bool aFocusCode = true) -> bool;
 		/// \brief [[RFC-BPR-0090]]. Ends the head pane's edit; the draft keeps
 		/// what was written, and the drawer still holds only its words.
 		void end_pane_suggestion();
@@ -1944,6 +1947,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto pane_suggestion_plan() const -> std::optional<core::pull_request_suggestion_plan>;
 		/// \brief [[RFC-BPR-0090]]. Writes the plan's body to the draft.
 		void compose_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. Why GitHub cannot apply the plan's
+		/// suggestion and Convert's words, or nothing when it can.
+		[[nodiscard]] auto suggestion_hold(const core::pull_request_suggestion_plan& aPlan) const -> std::pair<QString, QString>;
+		/// \brief [[RFC-BPR-0090]]. Convert (owner, Q3): the drawer draft's
+		/// held suggestion becomes text at the same lines, its words first.
+		void convert_pane_suggestion();
+		/// \brief [[RFC-BPR-0090]]. Tells Finish your review which of its
+		/// comments are held suggestions.
+		void present_held_suggestions();
 		/// [[BPR-1084]]. Tells the draft editor where the reply it shows is attached.
 		void present_reply_placement();
 		void update_new_comment_group();
@@ -2595,7 +2607,19 @@ namespace bpr::qt {
 			/// The head pane's edit is open.
 			bool Open = false;
 		};
-		std::optional<pane_suggestion>       PaneSuggestion;
+		std::optional<pane_suggestion> PaneSuggestion;
+		/// [[RFC-BPR-0090]]. Suggestions GitHub cannot apply where they go, by
+		/// draft, as the window last planned them: why, Convert's words and
+		/// the text Convert writes. Finish your review holds them back.
+		struct held_suggestion
+		{
+			QString     Reason;
+			QString     Convert;
+			std::string Body;
+		};
+		std::map<core::review_draft_id, held_suggestion> HeldSuggestions;
+		/// A held draft Finish your review asked to convert, once it shows.
+		std::optional<core::review_draft_id> PendingConvert;
 		QString                              CommentDraftUnavailable;
 		std::optional<core::source_line_ref> WritingAnchor;
 		QAction*                             AddCommentAction    = nullptr;

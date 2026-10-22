@@ -1271,7 +1271,13 @@ namespace bpr::qt {
 		connect(Details, &QToolButton::toggled, this, [this](const bool aOpen) { Target->setVisible(aOpen && !Shown.TargetDescription.isEmpty()); });
 		layout->addStretch(1);
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] { emit_command(core::review_submission_command_kind::edit); });
-		connect(Submit, &QAction::triggered, this, [this] { emit_command(core::review_submission_command_kind::begin_submit); });
+		connect(Submit, &QAction::triggered, this, [this] {
+			// [[RFC-BPR-0090]]. Nothing is submitted while a suggestion is held.
+			if (Draft.has_value() && std::ranges::any_of(Draft->Comments, [this](const core::review_submission_comment& aComment) { return Held.contains(aComment.Draft); })) {
+				return;
+			}
+			emit_command(core::review_submission_command_kind::begin_submit);
+		});
 		connect(Discard, &QAction::triggered, this, [this] { confirm_discard(); });
 		connect(Reconcile, &QAction::triggered, this, [this] { emit_operation(review_submission_editor_operation::reconcile); });
 		setFocusProxy(Body);
@@ -1576,7 +1582,43 @@ namespace bpr::qt {
 					PendingAnchor = index;
 				}
 				PendingButtons.emplace_back(open);
-				across->addWidget(open, 1);
+				// [[RFC-BPR-0090]]. A held suggestion says why under its row
+				// and offers Convert beside Delete (owner, Q3).
+				const auto held = Held.find(comment.Draft);
+				if (held != Held.end()) {
+					auto* const column = new QVBoxLayout{ };
+					column->setContentsMargins(0, 0, 0, 0);
+					column->setSpacing(1);
+					column->addWidget(open);
+					auto* const why = new QLabel{ held->second.Reason, row };
+					why->setObjectName(QStringLiteral("wholeReviewPendingHeld"));
+					why->setWordWrap(true);
+					why->setTextFormat(Qt::PlainText);
+					why->setContentsMargins(6, 0, 0, 2);
+					auto ink = why->palette();
+					ink.setColor(QPalette::WindowText, held->second.Ink.isValid() ? held->second.Ink : palette().color(QPalette::PlaceholderText));
+					why->setPalette(ink);
+					column->addWidget(why);
+					across->addLayout(column, 1);
+					open->setAccessibleDescription(held->second.Reason);
+				} else {
+					across->addWidget(open, 1);
+				}
+				if (held != Held.end() && !held->second.Convert.isEmpty()) {
+					auto* const convert = new QToolButton{ row };
+					convert->setObjectName(QStringLiteral("wholeReviewPendingConvert"));
+					convert->setText(held->second.Convert);
+					convert->setToolButtonStyle(Qt::ToolButtonTextOnly);
+					convert->setFocusPolicy(Qt::StrongFocus);
+					convert->setToolTip(tr("%1. Your words and the change become text on the same lines.").arg(held->second.Convert));
+					convert->setAccessibleName(tr("%1: %2").arg(held->second.Convert, said));
+					connect(convert, &QToolButton::clicked, this, [this, comment] {
+						if (PendingConvert) {
+							PendingConvert(comment);
+						}
+					});
+					across->addWidget(convert, 0, Qt::AlignVCenter);
+				}
 				auto* const remove = new QToolButton{ row };
 				remove->setObjectName(QStringLiteral("wholeReviewPendingDelete"));
 				remove->setAutoRaise(true);
@@ -1625,9 +1667,17 @@ namespace bpr::qt {
 		const auto blank     = Draft.has_value() && QString::fromUtf8(Draft->Body).trimmed().isEmpty();
 		const auto count     = Draft.has_value() ? Draft->Comments.size() : 0U;
 		const auto blocked   = Shown.Status.isEmpty() ? tr("This review cannot be submitted now.") : Shown.Status;
+		// [[RFC-BPR-0090]]. A held suggestion keeps the review back until it
+		// is converted or deleted (owner, Q3).
+		const auto held      = Draft.has_value() ? static_cast<std::size_t>(std::ranges::count_if(Draft->Comments, [this](const core::review_submission_comment& aComment) {
+			return Held.contains(aComment.Draft);
+		}))
+												 : 0U;
+		const auto heldWords = held == 1U ? tr("1 suggestion GitHub cannot apply is held. Convert it or delete it first.")
+										  : tr("%1 suggestions GitHub cannot apply are held. Convert them or delete them first.").arg(held);
 		for (const auto disposition : decision_order) {
 			auto* const button  = Decisions[decision_index(disposition)];
-			const auto  enabled = connected && core::submits_as(Shown.Controls, disposition);
+			const auto  enabled = connected && core::submits_as(Shown.Controls, disposition) && held == 0U;
 			button->setEnabled(enabled);
 			auto tip = QString{ };
 			switch (disposition) {
@@ -1648,6 +1698,9 @@ namespace bpr::qt {
 										: blocked;
 				break;
 			}
+			if (held > 0U) {
+				tip = heldWords;
+			}
 			button->setToolTip(tip);
 			button->setAccessibleDescription(tip);
 		}
@@ -1655,6 +1708,10 @@ namespace bpr::qt {
 	void review_submission_editor::submit_as(const core::review_disposition aDisposition)
 	{
 		if (!Draft || !Dispatch || !core::submits_as(Shown.Controls, aDisposition)) {
+			return;
+		}
+		// [[RFC-BPR-0090]]. Nothing is submitted while a suggestion is held.
+		if (std::ranges::any_of(Draft->Comments, [this](const core::review_submission_comment& aComment) { return Held.contains(aComment.Draft); })) {
 			return;
 		}
 		if (Draft->Disposition != aDisposition) {
@@ -1910,6 +1967,25 @@ namespace bpr::qt {
 	void review_submission_editor::set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete)
 	{
 		PendingDelete = std::move(aDelete);
+	}
+	void review_submission_editor::set_held_comments(std::map<core::review_draft_id, held_comment> aHeld)
+	{
+		if (Held == aHeld) {
+			return;
+		}
+		Held = std::move(aHeld);
+		// The rows say why and the verdicts wait: list again.
+		Listed.clear();
+		present_pending();
+		present_verdicts();
+	}
+	auto review_submission_editor::held_comments() const noexcept -> const std::map<core::review_draft_id, held_comment>&
+	{
+		return Held;
+	}
+	void review_submission_editor::set_pending_convert(std::function<void(const core::review_submission_comment&)> aConvert)
+	{
+		PendingConvert = std::move(aConvert);
 	}
 	void review_submission_editor::set_discard_observer(std::function<void()> aObserver)
 	{

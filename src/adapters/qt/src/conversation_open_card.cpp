@@ -1740,6 +1740,14 @@ namespace bpr::qt {
 		});
 		pair->addWidget(SplitAction);
 		DraftActions->addLayout(pair);
+		// [[RFC-BPR-0090]]. A suggestion GitHub cannot apply is held: Convert
+		// takes the sending buttons' place (owner, Q3).
+		ConvertAction = new note_button{ note_button::kind::primary, QString{ }, Foot };
+		ConvertAction->setObjectName(QStringLiteral("threadConvertDraft"));
+		ConvertAction->set_style(Style);
+		ConvertAction->hide();
+		connect(ConvertAction, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::convert_draft); } });
+		DraftActions->addWidget(ConvertAction);
 		aFoot.addLayout(DraftActions);
 		present_review_state();
 		connect(ReplyBox, &QPlainTextEdit::textChanged, this, [this] {
@@ -1804,6 +1812,30 @@ namespace bpr::qt {
 			static_cast<state_label*>(DraftState)->set_text(suggested ? QStringLiteral("Suggested change") : QStringLiteral("Draft"));
 		}
 		static_cast<suggestion_change_view*>(Change)->present(aDraft.has_value() ? aDraft->Change : std::nullopt, lines, inCode);
+		// [[RFC-BPR-0090]]. The code's change counts as content, and a held
+		// suggestion offers Convert in place of the sending buttons.
+		CodeChange      = inCode && aDraft->Change.has_value() && !aDraft->Change->unchanged();
+		const auto held = aDraft.has_value() ? aDraft->Convert : QString{ };
+		if (held != ConvertWords && ConvertAction != nullptr && Publish != nullptr && ReviewAction != nullptr && SplitAction != nullptr) {
+			ConvertWords = held;
+			ConvertAction->setText(held);
+			ConvertAction->setAccessibleName(held);
+			ConvertAction->setToolTip(held.isEmpty() ? QString{ } : QStringLiteral("GitHub cannot apply this suggestion where it goes. %1 keeps your words and the change, as text on the same lines.").arg(held));
+			ConvertAction->setVisible(!held.isEmpty());
+			ReviewAction->setVisible(held.isEmpty());
+			if (!held.isEmpty()) {
+				Publish->hide();
+				SplitAction->hide();
+			} else {
+				Publish->show();
+				SplitAction->hide();
+				ReviewAction->set_joined(false);
+				fit_draft_actions();
+			}
+			if (HeightChanged) {
+				HeightChanged();
+			}
+		}
 		const auto former = std::exchange(LastNotice, aDraft.has_value() ? aDraft->Notice : QString{ });
 		if (!LastNotice.isEmpty()) {
 			ReplyStatus->setText(LastNotice);
@@ -1901,7 +1933,7 @@ namespace bpr::qt {
 
 	void open_thread_card::fit_draft_actions()
 	{
-		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr) {
+		if (DraftActions == nullptr || Publish == nullptr || ReviewAction == nullptr || SplitAction == nullptr || Foot == nullptr || !ConvertWords.isEmpty()) {
 			return;
 		}
 		// Room for the lock, Delete and both pills side by side, or the
@@ -2019,13 +2051,15 @@ namespace bpr::qt {
 
 	void open_thread_card::refresh_reply_controls()
 	{
+		// [[RFC-BPR-0090]]. A change written in the code is content too.
+		const auto written = ReplyBox != nullptr && (CodeChange || !ReplyBox->toPlainText().trimmed().isEmpty());
 		if (Publish != nullptr && ReplyBox != nullptr) {
-			Publish->setEnabled(Publishable && !ReplyBox->toPlainText().trimmed().isEmpty());
+			Publish->setEnabled(Publishable && written);
 		}
 		// [[BPR-1345]]. A review takes a comment with words; closing a
 		// pending one is always possible.
 		if (ReviewAction != nullptr && ReplyBox != nullptr) {
-			ReviewAction->setEnabled(Review == draft_review_state::pending || (!ReplyBox->isReadOnly() && !ReplyBox->toPlainText().trimmed().isEmpty()));
+			ReviewAction->setEnabled(ConvertWords.isEmpty() && (Review == draft_review_state::pending || (!ReplyBox->isReadOnly() && written)));
 		}
 		if (Suggestion != nullptr && ReplyBox != nullptr) {
 			Suggestion->present(core::decide_suggestion_applicability(ReplyBox->toPlainText().toStdString(), Placement));
