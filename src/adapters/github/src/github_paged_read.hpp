@@ -7,6 +7,7 @@
 
 #include "bpr/application/markdown_image_ports.hpp"
 #include "bpr/application/personal_discovery_port.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -190,6 +191,40 @@ namespace bpr::adapters::github::detail {
 		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
 		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_team_membership_read_result;
+
+	/// \brief [[BPR-PENDING-AR1]]. The reactions of the comments asked about,
+	/// in the order asked; a node GitHub answered null is left out.
+	struct github_reaction_read
+	{
+		std::vector<application::github_reaction_record> Records;
+		application::github_rate_limit_state             RateLimits;
+	};
+
+	using github_reaction_read_result = std::expected<github_reaction_read, github_paged_read_failure>;
+
+	/// \brief [[BPR-PENDING-AR1]]. Asks GitHub for the reactions of up to
+	/// `maximum_reaction_subjects_per_read` comments and reviews of the
+	/// accepted pull request in one GraphQL page, bound to the repository and
+	/// pull request nodes the snapshot read. Signed out it sends nothing.
+	[[nodiscard]] auto perform_github_reaction_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		core::repository_id                                      aRepository,
+		std::string_view                                         aRepositoryNode,
+		std::string_view                                         aPullRequestNode,
+		const std::vector<std::string>&                          aSubjects,
+		std::stop_token                                          aStop,
+		const github_paged_read_limits&                          aLimits        = { },
+		github_provider_read_authority                           aReadAuthority = github_provider_read_authority::authenticated,
+		github_paged_response_observer*                          aObserver      = nullptr) noexcept
+		-> github_reaction_read_result;
+
+	/// \brief [[BPR-PENDING-AR1]]. One reaction subject's state as a GraphQL
+	/// answer gives it: `viewerCanReact` and `reactionGroups` read off an
+	/// object, with the groups made canonical. Shared by the read above and by
+	/// the mutation contract, which reads the same selection back.
+	[[nodiscard]] auto parse_reaction_summary(std::string_view aObjectJson) -> std::optional<core::reaction_summary>;
 
 	struct github_pull_request_confirmation
 	{

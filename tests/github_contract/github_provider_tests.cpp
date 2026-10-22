@@ -1886,6 +1886,73 @@ namespace {
 		}
 	}
 
+	/// [[BPR-PENDING-AR1]]. After the snapshot the provider asks GitHub for
+	/// the reactions of the pull request's comments and reviews with words,
+	/// bound to the repository and pull request it read; a refused reaction
+	/// read leaves the snapshot whole, with reactions unread.
+	void test_reactions_are_read_after_the_snapshot()
+	{
+		for (const auto refuse : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::native_https };
+			const auto       request       = pull_request_for(fixture, account_lease(fixture));
+			auto             asked         = std::vector<std::vector<std::string>>{ };
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				if (aWire.Wire.Operation == read_operation::list_reactions) {
+					asked.push_back(aWire.Wire.Semantic.Nodes);
+					expect(validate_outbound_read_request(aWire.Wire).has_value() && aWire.Wire.Semantic.PullRequestNumber == 17U,
+						   "the reaction request is canonical and names the pull request");
+					if (refuse) {
+						return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::rate_limit } };
+					}
+					auto response                 = viewer_response();
+					response.Headers.back().Value = "graphql";
+					response.Body                 = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17"}},"nodes":[)"
+													R"({"__typename":"IssueComment","id":"IC_fixture_1","viewerCanReact":true,"reactionGroups":[{"content":"ROCKET","viewerHasReacted":true,"reactors":{"totalCount":2,"nodes":[{"__typename":"User","login":"octo-reviewer"}]}}]},)"
+													R"({"__typename":"PullRequestReview","id":"PRR_fixture_1","viewerCanReact":false,"reactionGroups":[]}]}})";
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				const auto filename = [&]() -> std::optional<std::string_view> {
+					switch (aWire.Wire.Operation) {
+					case read_operation::get_repository:            return "repository";
+					case read_operation::get_pull_request:          return "pull_request";
+					case read_operation::list_pull_request_files:   return "files";
+					case read_operation::list_pull_request_commits: return "commits";
+					case read_operation::list_reviews:              return "reviews";
+					case read_operation::list_issue_comments:       return "issue_comments";
+					case read_operation::list_checks:               return "checks";
+					case read_operation::search_pull_requests:      return "search";
+					default:                                        return std::nullopt;
+					}
+				}();
+				if (!filename) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::unsupported_capability } };
+				}
+				auto response = viewer_response();
+				response.Body = read_file(capability_fixture_root().parent_path().parent_path() / "contracts/v1/github-com/responses" / (std::string{ *filename } + ".json"));
+				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
+					response.Headers.back().Value = "search";
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			auto completions = std::vector<application::github_pull_request_completion>{ };
+			fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			const auto& snapshot = require_one<application::github_pull_request_success>(completions, "the read completes whether or not reactions were answered").Snapshot;
+			expect(asked == std::vector<std::vector<std::string>>{ { "IC_fixture_1", "PRR_fixture_1" } }, "one page asks about the comment and the review with words");
+			expect(!snapshot.IssueComments.empty() && !snapshot.Reviews.empty(), "the snapshot is whole");
+			if (refuse) {
+				expect(snapshot.ReactionsAvailability == application::github_reaction_availability::failed && snapshot.Reactions.empty(),
+					   "a refused reaction read leaves reactions unread and nothing else");
+				continue;
+			}
+			expect(snapshot.ReactionsAvailability == application::github_reaction_availability::available && snapshot.Reactions.size() == 2U
+					   && snapshot.Reactions[0].Subject == "IC_fixture_1" && snapshot.Reactions[0].Reactions.Groups.size() == 1U
+					   && snapshot.Reactions[0].Reactions.Groups[0].Content == core::reaction_content::rocket && snapshot.Reactions[0].Reactions.Groups[0].Count == 2U
+					   && snapshot.Reactions[0].Reactions.Groups[0].ViewerReacted && !snapshot.Reactions[1].Reactions.ViewerCanReact,
+				   "GitHub's answer is kept per subject");
+		}
+	}
+
 	/// [[BPR-1560]], [[BPR-1572]]. The provider says why a snapshot has no
 	/// merge base: a read that failed (a window may keep the merge base it
 	/// had) differs from answers proving there is no single one (the pull
@@ -3002,6 +3069,8 @@ int main(int aArgc, char** aArgv)
 	test_pull_request_attempt_diagnostic_propagation();
 	test_merge_base_failure_and_refusal_are_distinct();
 	test_team_membership_is_read_once_a_session();
+	test_reactions_are_read_after_the_snapshot();
+
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
 	test_live_profile_catalog();

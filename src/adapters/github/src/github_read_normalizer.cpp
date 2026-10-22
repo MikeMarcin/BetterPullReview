@@ -893,6 +893,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
 			case read_operation::resolve_body_images:
+			case read_operation::list_reactions:
 			case read_operation::list_requested_reviewers:
 				request.PullRequestNumber = aContext.PullRequestRequest.Number.value();
 				break;
@@ -1020,6 +1021,7 @@ namespace bpr::adapters::github::detail {
 				case read_operation::list_requested_reviewers:
 				case read_operation::get_merge_base:
 				case read_operation::get_team_membership:
+				case read_operation::list_reactions:
 				case read_operation::list_home_pull_requests:       return failed(contract_failure_code::unexpected_operation);
 				case read_operation::get_viewer_identity:           decoded = decode_record(documents.Viewer, response.Response); break;
 				case read_operation::get_repository:                decoded = decode_record(documents.Repository, response.Response); break;

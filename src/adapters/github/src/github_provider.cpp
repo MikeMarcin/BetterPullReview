@@ -71,6 +71,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_requested_reviewers:
 			case read_operation::get_team_membership:
 			case read_operation::list_home_pull_requests:
+			case read_operation::list_reactions:
 				// [[BPR-0988]]. Discovery is not part of a pull request read.
 				return application::diagnostic_paged_operation::none;
 			}
@@ -2802,6 +2803,79 @@ namespace bpr::adapters::github::detail {
 								}
 								result->ViewerTeamMemberships.push_back(std::move(record));
 							}
+						}
+						// [[BPR-PENDING-AR1]]. The reactions of every review-thread
+						// comment, pull request comment and review with words, in
+						// pages of fifty and at most eight pages a read. A refused,
+						// rate-limited or malformed answer leaves reactions unread
+						// and fails nothing else; lost authentication fails the
+						// read as every optional read does.
+						if (state->ReadAuthority == github_provider_read_authority::authenticated) {
+							constexpr auto mostSubjects = std::size_t{ 400U };
+							auto           subjects     = std::vector<std::string>{ };
+							const auto     add          = [&subjects](const std::string_view aNode) {
+								if (!aNode.empty() && subjects.size() < mostSubjects + 1U && std::ranges::find(subjects, aNode) == subjects.end()) {
+									subjects.emplace_back(aNode);
+								}
+							};
+							for (const auto& thread : result->ReviewThreads) {
+								for (const auto& comment : thread.Comments) {
+									if (!comment.Deleted) {
+										add(comment.Comment.value());
+									}
+								}
+							}
+							for (const auto& comment : result->IssueComments) {
+								if (!comment.Deleted) {
+									add(comment.Comment.value());
+								}
+							}
+							for (const auto& review : result->Reviews) {
+								if (!review.Body.empty()) {
+									add(review.Review.value());
+								}
+							}
+							const auto partial = subjects.size() > mostSubjects;
+							if (partial) {
+								subjects.resize(mostSubjects);
+							}
+							auto availability = subjects.empty() ? application::github_reaction_availability::unobserved
+																 : application::github_reaction_availability::available;
+							for (std::size_t first = 0; first < subjects.size(); first += maximum_reaction_subjects_per_read) {
+								const auto last  = std::min(subjects.size(), first + maximum_reaction_subjects_per_read);
+								const auto batch = std::vector<std::string>{ subjects.begin() + static_cast<std::ptrdiff_t>(first), subjects.begin() + static_cast<std::ptrdiff_t>(last) };
+								const auto read  = perform_github_reaction_read(*readTransport, *profile, aRequest, result->Repository.Repository,
+																				result->Repository.Node.value(), result->PullRequest.Node.value(), batch,
+																				job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+								if (read) {
+									if (read->RateLimits.Graphql) {
+										result->RateLimits.Graphql = read->RateLimits.Graphql;
+									}
+									for (const auto& record : read->Records) {
+										result->Reactions.push_back(record);
+									}
+									continue;
+								}
+								if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
+									cancelled();
+									return;
+								}
+								const auto& error = std::get<application::github_provider_error>(read.error());
+								if (error.Failure == application::github_provider_failure::authentication) {
+									failed(error);
+									return;
+								}
+								if (error.RateLimits.Graphql) {
+									result->RateLimits.Graphql = error.RateLimits.Graphql;
+								}
+								availability = application::github_reaction_availability::failed;
+								result->Reactions.clear();
+								break;
+							}
+							if (partial && availability == application::github_reaction_availability::available) {
+								availability = application::github_reaction_availability::partial;
+							}
+							result->ReactionsAvailability = availability;
 						}
 						if (finish_job(state, job)) {
 							delivery->deliver(

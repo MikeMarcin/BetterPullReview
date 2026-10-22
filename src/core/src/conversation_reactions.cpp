@@ -227,7 +227,7 @@ namespace bpr::core {
 		std::erase_if(aOverlay.Resolutions, [&](const conversation_change& aChange) { return !aChange.Confirmed && matches(aChange, aThread); });
 	}
 
-	void observe_conversation(conversation_overlay& aOverlay, const conversation_observation& aObservation)
+	void observe_conversation(conversation_overlay& aOverlay, const conversation_read_observation& aObservation)
 	{
 		if (aObservation.ReactionsObserved) {
 			aOverlay.Answered.clear();

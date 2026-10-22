@@ -186,7 +186,7 @@ namespace bpr::core {
 
 	/// \brief What one read observed, for reconciling the overlay: each
 	/// comment's reactions when they were read, and each thread's resolution.
-	struct conversation_observation
+	struct conversation_read_observation
 	{
 		bool                                    ReactionsObserved = false;
 		std::map<std::string, reaction_summary> Reactions;
@@ -197,7 +197,7 @@ namespace bpr::core {
 	/// is the newer account of everyone else's reactions); a confirmed change
 	/// the read agrees with is done, and one the read disagrees with a second
 	/// time is given up. Unanswered changes stay.
-	void observe_conversation(conversation_overlay& aOverlay, const conversation_observation& aObservation);
+	void observe_conversation(conversation_overlay& aOverlay, const conversation_read_observation& aObservation);
 
 	/// \brief One comment's reactions as the viewer should see them now: the
 	/// latest of GitHub's answer and the read, with the viewer's own changes

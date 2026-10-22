@@ -639,6 +639,7 @@ namespace {
 			request.BaseOid = "1111111111111111111111111111111111111111";
 			break;
 		case read_operation::resolve_body_images:
+		case read_operation::list_reactions:
 			request.PullRequestNumber = 17;
 			request.Nodes             = { "PR_kwDOA", "IC_kwDOB" };
 			break;
@@ -1044,7 +1045,7 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 23U
+			all_read_operations.size() == 24U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
@@ -1052,7 +1053,7 @@ namespace {
 									 read_operation::list_review_comments)
 					!= all_read_operations.end()
 				&& std::ranges::find(read_operation_catalog, read_operation::get_merge_base) == read_operation_catalog.end(),
-			"the compiled set holds twenty-three reads and the recording holds ten");
+			"the compiled set holds twenty-four reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(

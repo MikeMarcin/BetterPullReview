@@ -85,6 +85,8 @@ namespace bpr::adapters::github::detail {
 		case read_operation::get_team_membership:
 		// [[BPR-1680]]. Home's batched read is the viewer's discovery.
 		case read_operation::list_home_pull_requests:
+		// [[BPR-PENDING-AR1]]. Reactions carry the viewer's own state.
+		case read_operation::list_reactions:
 			return false;
 		}
 		return false;

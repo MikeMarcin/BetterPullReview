@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <algorithm>
@@ -410,6 +411,29 @@ namespace bpr::application {
 		std::string            Team;
 		github_team_membership Membership                                              = github_team_membership::unavailable;
 		auto                   operator<=>(const github_team_membership_record&) const = default;
+	};
+	/// \brief [[BPR-PENDING-AR1]]. One comment's or review's reactions, as
+	/// GitHub answered the read after the snapshot.
+	struct github_reaction_record
+	{
+		/// The comment's or review's GraphQL node: a review-thread comment, a
+		/// pull request comment or a review.
+		std::string            Subject;
+		core::reaction_summary Reactions;
+
+		auto operator<=>(const github_reaction_record&) const = default;
+	};
+	/// \brief [[BPR-PENDING-AR1]]. Whether the read after the snapshot
+	/// answered the reactions.
+	enum class github_reaction_availability : std::uint8_t {
+		/// Not asked: a signed-out read, or nothing to ask about.
+		unobserved,
+		available,
+		/// Asked about more comments than one read covers; the rest are unread.
+		partial,
+		/// GitHub refused or did not answer (limits, a schema without the
+		/// fields, a malformed answer).
+		failed,
 	};
 	enum class github_merge_assessment : std::uint8_t { unknown,
 														behind,
@@ -822,7 +846,11 @@ namespace bpr::application {
 		/// [[BPR-1589]]. The viewer's membership of each requested team, read
 		/// after the snapshot; empty when no team was asked about.
 		std::vector<github_team_membership_record> ViewerTeamMemberships;
-		bool                                       ReviewRequestsStale = false;
+		/// [[BPR-PENDING-AR1]]. The reactions of the comments and reviews
+		/// above, read after the snapshot; empty unless available or partial.
+		github_reaction_availability        ReactionsAvailability = github_reaction_availability::unobserved;
+		std::vector<github_reaction_record> Reactions;
+		bool                                ReviewRequestsStale = false;
 		// A complete REST fallback observes actors, including an empty roster,
 		// independently of the richer connection's code-owner availability.
 		bool                             ReviewRequestActorsObserved = false;

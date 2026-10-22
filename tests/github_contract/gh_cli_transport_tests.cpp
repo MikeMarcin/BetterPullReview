@@ -371,6 +371,7 @@ namespace {
 			request.BaseOid = "1111111111111111111111111111111111111111";
 			break;
 		case read_operation::resolve_body_images:
+		case read_operation::list_reactions:
 			request.PullRequestNumber = 17U;
 			request.Nodes             = { "PR_kwDOA", "IC_kwDOB" };
 			break;
