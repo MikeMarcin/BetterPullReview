@@ -22,8 +22,14 @@ RFC-BPR-0091 M6 ([RFC](../../rfcs/RFC-BPR-0091-agent-first-run-setup.md#mileston
   light and dark, and **What the agent gets**.
 - History's **Set up agent…** and **Change repository folder…**; Settings ›
   Agents & context's **Set up agent…**, Codex program path, Codex protocol and
-  plain-text harness rows; Settings › Repositories' clone folders, linked
-  clones and worktree usage.
+  plain-text harness rows; Settings › Repositories' clone folders and linked
+  clones ([[BPR-PENDING-AQ4]] makes no worktree, so there is no worktree
+  usage to show).
+- Settings › Agents & context › Review skill over
+  `application::review_skill_host` ([[BPR-PENDING-AQ5]]): the plain-text
+  editor with **Save** and its refusal's words, **Restore default** with the
+  Downloads copy tick box, and the newer-default offer's **Compare**, **Use
+  version N** and **Keep mine**.
 - The partly set up callouts and a later Ask's setup failures with their
   recovery and Check again.
 

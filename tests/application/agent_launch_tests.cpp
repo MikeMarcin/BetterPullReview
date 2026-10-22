@@ -3,6 +3,7 @@
 
 #include "../core/private_review_fixture.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/review_skill_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_wrapper.hpp"
@@ -334,12 +335,18 @@ namespace {
 
 	/// \brief [[BPR-1091]]. Helper off: the press's wire is byte for byte
 	/// what it was before the guidance existed.
+	/// \details [[BPR-PENDING-AQ5]]. Version three changed the `schema` line
+	/// and nothing else a press writes: with that one line read as version
+	/// two, the bytes are still the pinned ones.
 	void test_a_press_without_guidance_keeps_its_wire_bytes()
 	{
 		const auto built = application::build_agent_context_supplement(workshop_press(core::workshop_operation::clarify), session());
-		expect(built.has_value() && !built->FeedbackGuidance.has_value(), "a press with no guidance builds and carries none");
-		const auto encoded = application::encode_agent_supplement(*built);
-		const auto digest  = hex_digest(encoded);
+		expect(built.has_value() && !built->FeedbackGuidance.has_value() && !built->Brief.has_value(), "a press with no guidance builds and carries none, and no brief");
+		auto       encoded = application::encode_agent_supplement(*built);
+		const auto version = encoded.find("schema\t3\n");
+		expect(version == 0U, "the press is version three");
+		encoded.replace(version, 9U, "schema\t2\n");
+		const auto digest = hex_digest(encoded);
 		if (digest != workshop_press_wire_before_guidance) {
 			std::cerr << "workshop-press-wire-digest:" << digest << '\n';
 		}
@@ -379,6 +386,8 @@ namespace {
 		expect(at != std::string::npos && encoded.find("feedback_guidance", at + expected.size()) == std::string::npos, "three escaped lines, once, directly after the operation they qualify");
 		auto stripped = encoded;
 		stripped.erase(at + std::string_view{ "workshop_operation\tclarify\n" }.size(), expected.size() - std::string_view{ "workshop_operation\tclarify\n" }.size());
+		// [[BPR-PENDING-AQ5]]. Read as version two, as the press above is.
+		stripped.replace(0U, 9U, "schema\t2\n");
 		expect(hex_digest(stripped) == workshop_press_wire_before_guidance, "and every other byte of the press is the pre-guidance wire");
 
 		auto defaulted             = workshop_press(core::workshop_operation::shorten);
@@ -407,11 +416,66 @@ namespace {
 		}
 	}
 
+	/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. A review request's brief crosses
+	/// whole after every version-two field, counted and with its cuts stated;
+	/// a launch without one writes no brief line.
+	void test_the_brief_crosses_after_the_version_two_fields()
+	{
+		auto observed  = observation();
+		observed.Brief = core::bound_review_brief({
+			.Title       = "Bound the retry",
+			.Description = "Line one\nLine two",
+			.BaseBranch  = "main",
+			.Files       = { { .Path = "src/retry.cpp" }, { .Path = "src/new.cpp", .PreviousPath = "src/old.cpp", .Status = core::brief_file_status::renamed } },
+			.Threads     = { { .Path = "src/retry.cpp", .Line = 12U, .Comments = { { .Author = "octo", .Body = "Is this bounded?" } } } },
+			.Workspace   = core::brief_workspace::linked_clone_history,
+			.Skill       = core::brief_review_skill{ .Source = core::review_skill_source::built_in, .Version = 1U, .Text = std::string{ application::built_in_review_skill() } },
+		});
+		expect(observed.Brief.has_value(), "the fixture brief is within its bounds");
+		const auto built = application::build_agent_context_supplement(observed, session());
+		expect(built.has_value() && built->Brief == observed.Brief, "the brief rides the supplement unchanged");
+		const auto encoded = application::encode_agent_supplement(*built);
+		for (const auto required : {
+				 "brief.title\tBound the retry\n",
+				 "brief.description\tLine one\\nLine two\n",
+				 "brief.description.cut_bytes\t0\n",
+				 "brief.base_branch\tmain\n",
+				 "brief.workspace\tlinked_clone_history\n",
+				 "brief.file.count\t2\n",
+				 "brief.file.1.status\trenamed\n",
+				 "brief.file.1.previous_path\tsrc/old.cpp\n",
+				 "brief.file.omitted\t0\n",
+				 "brief.thread.count\t1\n",
+				 "brief.thread.0.line\t12\n",
+				 "brief.thread.0.resolved\t0\n",
+				 "brief.thread.0.comment.0.author\tocto\n",
+				 "brief.thread.0.comment.0.body\tIs this bounded?\n",
+				 "brief.thread.omitted\t0\n",
+				 "brief.skill.present\t1\n",
+				 "brief.skill.source\tbuilt_in\n",
+				 "brief.skill.version\t1\n",
+			 }) {
+			expect(encoded.find(required) != std::string::npos, "the exact brief field is encoded");
+		}
+		expect(encoded.find("brief.diff\tgit diff ") != std::string::npos && encoded.find("brief.skill.text\t---\\nname: bpr-pr-review") != std::string::npos,
+			   "the diff is named and the skill's text is carried whole");
+		expect(encoded.find("brief.title") > encoded.find("draft.count"), "the brief follows every version-two field");
+		auto snapshot              = *built;
+		snapshot.Brief->Workspace  = core::brief_workspace::private_snapshot;
+		const auto snapshotEncoded = application::encode_agent_supplement(snapshot);
+		expect(snapshotEncoded.find("brief.diff\t\n") != std::string::npos, "a snapshot names no diff: it has no base");
+		const auto without = application::encode_agent_supplement(*application::build_agent_context_supplement(observation(), session()));
+		expect(without.find("brief.") == std::string::npos, "a launch without a brief writes no brief line");
+		auto oversized         = observed;
+		oversized.Brief->Title = std::string(core::maximum_brief_title_bytes + 1U, 't');
+		expect(!application::build_agent_context_supplement(oversized, session()), "a brief outside its bounds refuses the build");
+	}
+
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()
 	{
 		const auto encoded = application::encode_agent_supplement(built_supplement());
 		for (const auto required : {
-				 "schema\t2\n",
+				 "schema\t3\n",
 				 "session\t40\n",
 				 "profile\t1\n",
 				 "host\t10\n",
@@ -533,7 +597,7 @@ namespace {
 					== "{\"method\":\"initialized\"}\n"
 					   "{\"method\":\"thread/start\",\"id\":1,\"params\":{}}\n"
 				&& turn && turn->find("\"threadId\":\"thread-7\"") != std::string::npos
-				&& turn->find("schema\\t2\\n") != std::string::npos,
+				&& turn->find("schema\\t3\\n") != std::string::npos,
 			"App Server context waits for its initialized thread and then travels in a turn input");
 	}
 
@@ -1367,6 +1431,7 @@ auto main() -> int
 	test_a_press_without_guidance_keeps_its_wire_bytes();
 	test_a_press_carries_the_effective_feedback_guidance_and_nothing_more();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
+	test_the_brief_crosses_after_the_version_two_fields();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();
 	test_launch_refuses_inexact_profile_session_and_schema();

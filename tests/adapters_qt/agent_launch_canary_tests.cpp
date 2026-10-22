@@ -517,7 +517,7 @@ namespace {
 		const auto input = event_values(result, "stdin");
 		expect(
 			std::ranges::any_of(input, [](const std::string& aInput) {
-				return aInput.find("schema\t2\n") != std::string::npos
+				return aInput.find("schema\t3\n") != std::string::npos
 					&& aInput.find("pull_request_url\t") != std::string::npos
 					&& aInput.find("last_reviewed_head.present\t1")
 					!= std::string::npos

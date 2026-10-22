@@ -86,6 +86,24 @@ try {
 	expect(links->forget_link("github.com", 42U, "bpr-fixtures", "engine") && links->load_links()->size() == 1U, "Forget removes one link");
 	expect(store->load() == none, "the preferences are untouched by links");
 
+	// [[BPR-PENDING-AQ5]]. The edited review skill and its record.
+	using loaded_skill = std::optional<std::optional<application::stored_review_skill>>;
+	const auto noSkill = loaded_skill{ std::in_place, std::nullopt };
+	auto       skills  = adapters::sqlite::make_review_skill_store(scratch.path());
+	expect(skills->load_review_skill() == noSkill, "no edited skill reads as none");
+	auto edited               = application::stored_review_skill{ .Text = "---\nname: bpr-pr-review\ndescription: d\n---\nMine.\n" };
+	edited.Record.BaseVersion = 3U;
+	edited.Record.BaseDigest.fill(0xABU);
+	expect(skills->store_review_skill(edited), "an edited skill is stored");
+	skills.reset();
+	skills = adapters::sqlite::make_review_skill_store(scratch.path());
+	expect(skills->load_review_skill() == loaded_skill{ std::in_place, edited }, "and reads back whole after a restart, with no kept version");
+	edited.Record.KeptVersion = 4U;
+	expect(skills->store_review_skill(edited) && skills->load_review_skill() == loaded_skill{ std::in_place, edited }, "Keep mine's version is stored");
+	expect(!skills->store_review_skill({ .Text = std::string(core::maximum_review_skill_bytes + 1U, 'x') }), "a skill over its bound is refused");
+	expect(skills->forget_review_skill() && skills->load_review_skill() == noSkill, "Restore default removes it");
+	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by the skill");
+
 #ifndef _WIN32
 	struct stat status{ };
 	expect(::stat(path.c_str(), &status) == 0 && (status.st_mode & 0077) == 0, "the file is owner-private");

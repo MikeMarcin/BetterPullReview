@@ -7,6 +7,7 @@
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/adapters/workspace/clone_folder_scan.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
+#include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/insights_host.hpp"
@@ -102,6 +103,8 @@
 	#include "bpr/application/agent_setup_host.hpp"
 	#include "bpr/application/claude_process_wrapper.hpp"
 	#include "bpr/application/clone_link_host.hpp"
+	#include "bpr/application/review_brief.hpp"
+	#include "bpr/application/review_skill_host.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -318,6 +321,32 @@ namespace bpr::app {
 	}
 
 	namespace {
+#if defined(BPR_AGENT_INTEGRATIONS)
+		/// [[BPR-PENDING-AQ5]], RFC-BPR-0091 D1. Writes the edited review skill
+		/// to a new file in Downloads (else Documents or home) before Restore
+		/// default or Use version N removes it, and names the file. Never
+		/// replaces a file that is already there.
+		[[nodiscard]] auto save_review_skill_copy(const std::string& aText) -> std::optional<std::string>
+		{
+			const auto directory = resolve_diagnostic_export_directory(diagnostic_export_locations());
+			if (!directory) {
+				return std::nullopt;
+			}
+			const auto name = QStringLiteral("bpr-pr-review SKILL %1.md").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss")));
+			auto       file = QFile{ QDir{ QString::fromStdString(*directory) }.filePath(name) };
+			if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+				return std::nullopt;
+			}
+			const auto written = file.write(aText.data(), static_cast<qint64>(aText.size()));
+			file.close();
+			if (written != static_cast<qint64>(aText.size()) || file.error() != QFileDevice::NoError) {
+				static_cast<void>(file.remove());
+				return std::nullopt;
+			}
+			return QDir::toNativeSeparators(file.fileName()).toStdString();
+		}
+#endif
+
 		class native_insights_metrics final : public application::process_metrics_port
 		{
 		public:
@@ -9336,6 +9365,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			CloneLinks->load();
 			observe_clone_repository();
+			// [[BPR-PENDING-AQ5]], RFC-BPR-0091 D1. The review skill: the
+			// built-in default until the profile edits it.
+			ReviewSkillStore = adapters::sqlite::make_review_skill_store(ApplicationDataRoot);
+			{
+				auto dependencies     = application::review_skill_dependencies{ };
+				dependencies.Store    = ReviewSkillStore.get();
+				dependencies.BuiltIn  = std::string{ application::built_in_review_skill() };
+				dependencies.SaveCopy = [](const std::string& aText) { return save_review_skill_copy(aText); };
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Decision = &DecisionLane;
+				ReviewSkill           = std::make_unique<application::review_skill_host>(std::move(dependencies));
+			}
+			ReviewSkill->load();
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
@@ -18676,6 +18718,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			observation.CurrentDraft = current_agent_draft_observation();
+			// [[BPR-PENDING-AQ5]], RFC-BPR-0091. A review request carries the
+			// brief: what the reviewer can read on GitHub about this pull
+			// request, bounded, and the review skill's text (Q9 A). A comment
+			// workshop press and a writing request are not review requests.
+			if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
+				observation.Brief = core::bound_review_brief(application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt));
+			}
 			// Which file, and where in it. The two are told apart because
 			// only one of them names a comparison. The file is a path and a
 			// review receipt, which belong to the file rather than to any pair
@@ -21020,6 +21069,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (CloneLinks) {
 				CloneLinks->shutdown();
 			}
+			if (ReviewSkill) {
+				ReviewSkill->shutdown();
+			}
 #endif
 			if (TourHost) {
 				TourHost->shutdown();
@@ -21133,6 +21185,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
 				|| (AgentSetup && !AgentSetup->is_quiescent())
 				|| (CloneLinks && !CloneLinks->is_quiescent())
+				|| (ReviewSkill && !ReviewSkill->is_quiescent())
 #endif
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
@@ -22177,6 +22230,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-PENDING-AQ3]]. Clone folders and links: store, then host.
 		std::unique_ptr<application::clone_link_store_port> CloneLinkStore;
 		std::unique_ptr<application::clone_link_host>       CloneLinks;
+		/// [[BPR-PENDING-AQ5]]. The review skill: store, then host.
+		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
+		std::unique_ptr<application::review_skill_host>       ReviewSkill;
 		/// [[BPR-PENDING-AQ4]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;

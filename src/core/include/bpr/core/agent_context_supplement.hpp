@@ -6,6 +6,7 @@
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/review_ledger.hpp"
+#include "bpr/core/review_skill.hpp"
 
 #include <compare>
 #include <cstddef>
@@ -19,9 +20,11 @@ namespace bpr::core {
 	/// \brief The supplement schema every agent receives a version of.
 	///
 	/// \details Version two replaces the partial file/defect vocabulary with
-	/// exact receipt, defect-history, selection, and session records. A reader
-	/// must refuse an unsupported version rather than guessing at field meaning.
-	inline constexpr std::uint32_t agent_supplement_schema_version = 2U;
+	/// exact receipt, defect-history, selection, and session records. Version
+	/// three ([[BPR-PENDING-AQ5]], RFC-BPR-0091) adds the review brief and the
+	/// review skill's text and changes no version-two field. A reader must
+	/// refuse an unsupported version rather than guessing at field meaning.
+	inline constexpr std::uint32_t agent_supplement_schema_version = 3U;
 
 	inline constexpr std::size_t maximum_selected_notes         = 64U;
 	inline constexpr std::size_t maximum_selected_drafts        = 64U;
@@ -164,6 +167,136 @@ namespace bpr::core {
 		auto operator<=>(const supplement_feedback_guidance&) const = default;
 	};
 
+	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0091. The review brief's bounds.
+	inline constexpr std::size_t maximum_brief_title_bytes       = 1024U;
+	inline constexpr std::size_t maximum_brief_description_bytes = 16U * 1024U;
+	inline constexpr std::size_t maximum_brief_branch_bytes      = 1024U;
+	inline constexpr std::size_t maximum_brief_files             = maximum_supplement_paths;
+	inline constexpr std::size_t maximum_brief_path_bytes        = 4096U;
+	inline constexpr std::size_t maximum_brief_login_bytes       = 256U;
+	/// \brief All the review threads' paths, logins and bodies together.
+	inline constexpr std::size_t maximum_brief_thread_bytes = 64U * 1024U;
+
+	/// \brief How one changed file changed.
+	enum class brief_file_status : std::uint8_t {
+		added,
+		modified,
+		removed,
+		renamed,
+		copied,
+		type_changed,
+		other,
+	};
+	[[nodiscard]] auto stable_name(brief_file_status aStatus) noexcept -> std::string_view;
+
+	/// \brief One changed file of the pull request.
+	struct brief_changed_file
+	{
+		std::string                Path;
+		std::optional<std::string> PreviousPath;
+		brief_file_status          Status = brief_file_status::modified;
+
+		auto operator<=>(const brief_changed_file&) const = default;
+	};
+
+	/// \brief One comment of a review thread: its author's login and body.
+	struct brief_comment
+	{
+		std::string Author;
+		std::string Body;
+
+		auto operator<=>(const brief_comment&) const = default;
+	};
+
+	/// \brief One review thread, anchored to its file and line.
+	struct brief_thread
+	{
+		std::string                  Path;
+		std::optional<std::uint32_t> Line;
+		bool                         Resolved = false;
+		bool                         Outdated = false;
+		std::vector<brief_comment>   Comments;
+
+		auto operator<=>(const brief_thread&) const = default;
+	};
+
+	/// \brief What the agent's workspace is, so the brief can say what works in it.
+	enum class brief_workspace : std::uint8_t {
+		/// The head's files with the linked clone's history borrowed.
+		linked_clone_history,
+		/// The head's files and history from the application's own copy.
+		private_copy,
+		/// The head's files only: a sparse review's snapshot.
+		private_snapshot,
+	};
+	[[nodiscard]] auto stable_name(brief_workspace aWorkspace) noexcept -> std::string_view;
+
+	/// \brief The review skill a request carries, whole.
+	struct brief_review_skill
+	{
+		review_skill_source          Source = review_skill_source::built_in;
+		std::optional<std::uint32_t> Version;
+		std::string                  Text;
+
+		auto operator<=>(const brief_review_skill&) const = default;
+	};
+
+	/// \brief What the host read for one brief, before its bounds.
+	struct review_brief_input
+	{
+		std::string                       Title;
+		std::string                       Description;
+		std::string                       BaseBranch;
+		std::vector<brief_changed_file>   Files;
+		std::vector<brief_thread>         Threads;
+		brief_workspace                   Workspace = brief_workspace::private_copy;
+		std::optional<brief_review_skill> Skill;
+
+		auto operator<=>(const review_brief_input&) const = default;
+	};
+
+	/// \brief The bounded brief one review request carries.
+	///
+	/// \details Every cut is counted: `DescriptionCutBytes` is how much of the
+	/// description was left out, `FilesOmitted` and `ThreadsOmitted` how many
+	/// files and threads. Everything here is what the signed-in reviewer can
+	/// already read on GitHub, plus the skill; no field holds a credential.
+	struct supplement_brief
+	{
+		std::string                       Title;
+		std::string                       Description;
+		std::size_t                       DescriptionCutBytes = 0U;
+		std::string                       BaseBranch;
+		std::vector<brief_changed_file>   Files;
+		std::size_t                       FilesOmitted = 0U;
+		std::vector<brief_thread>         Threads;
+		std::size_t                       ThreadsOmitted = 0U;
+		brief_workspace                   Workspace      = brief_workspace::private_copy;
+		std::optional<brief_review_skill> Skill;
+
+		auto operator<=>(const supplement_brief&) const = default;
+	};
+
+	/// \brief Bounds one brief, deterministically, or refuses it.
+	///
+	/// \details The title and base branch are cut at a character boundary
+	/// to their bounds. The description is cut at the last line break within
+	/// `maximum_brief_description_bytes` (at a character boundary when it
+	/// has none). Files past `maximum_brief_files`, or with a path past
+	/// `maximum_brief_path_bytes`, are left out. Threads are ordered
+	/// unresolved first, otherwise as given; each is kept whole while the
+	/// threads' paths, logins and bodies stay within
+	/// `maximum_brief_thread_bytes`, and one that does not fit is left out
+	/// while later, smaller ones may still fit. A thread with no comment is
+	/// dropped and not counted: it says nothing. Logins are cut to
+	/// `maximum_brief_login_bytes`. A skill that is not a review skill
+	/// `inspect_review_skill` accepts refuses the brief whole: the host chose
+	/// it, and half a method is not one.
+	[[nodiscard]] auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>;
+
+	/// \brief Whether a brief is within every bound `bound_review_brief` keeps.
+	[[nodiscard]] auto valid_brief(const supplement_brief& aBrief) -> bool;
+
 	/// \brief What the reviewer approved for one versioned supplement.
 	///
 	/// \details The request contains no store and no implicit note or draft
@@ -195,6 +328,9 @@ namespace bpr::core {
 		/// [[BPR-1091]]. Engaged only beside an engaged `Operation`; a request
 		/// that carries guidance without one is refused whole.
 		std::optional<supplement_feedback_guidance> FeedbackGuidance;
+		/// [[BPR-PENDING-AQ5]]. The review brief; a brief outside its bounds
+		/// refuses the request whole.
+		std::optional<supplement_brief> Brief;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -236,6 +372,9 @@ namespace bpr::core {
 		/// [[BPR-1091]]. The review-feedback guidance of a workshop request,
 		/// carried through unchanged; absent for every other launch.
 		std::optional<supplement_feedback_guidance> FeedbackGuidance;
+		/// [[BPR-PENDING-AQ5]]. The review brief, carried through unchanged;
+		/// absent for a launch that is not a review request.
+		std::optional<supplement_brief> Brief;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

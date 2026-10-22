@@ -1331,3 +1331,14 @@ bpr_enable_hardening(test_better_pull_review_clone_discovery_core_tests)
 bpr_enable_warnings(test_better_pull_review_clone_discovery_core_tests)
 bpr_add_network_isolated_test(NAME core_clone_discovery COMMAND test_better_pull_review_clone_discovery_core_tests)
 set_tests_properties(core_clone_discovery PROPERTIES PASS_REGULAR_EXPRESSION "clone-discovery-tests:pass")
+
+# [[BPR-PENDING-AQ5]]. RFC-BPR-0091 D1 and Q9 A: the review skill's front matter,
+# the newer-version offer and the review brief's bounds.
+bpr_add_executable(test_better_pull_review_review_skill_core_tests review_skill_tests.cpp)
+target_link_libraries(test_better_pull_review_review_skill_core_tests PRIVATE BetterPullReview::Core)
+target_compile_definitions(test_better_pull_review_review_skill_core_tests PRIVATE
+    BPR_TEST_REVIEW_SKILL="${PROJECT_SOURCE_DIR}/packaging/agent-skills/bpr-pr-review/SKILL.md")
+bpr_enable_hardening(test_better_pull_review_review_skill_core_tests)
+bpr_enable_warnings(test_better_pull_review_review_skill_core_tests)
+bpr_add_network_isolated_test(NAME core_review_skill COMMAND test_better_pull_review_review_skill_core_tests)
+set_tests_properties(core_review_skill PROPERTIES PASS_REGULAR_EXPRESSION "review-skill-tests:pass")

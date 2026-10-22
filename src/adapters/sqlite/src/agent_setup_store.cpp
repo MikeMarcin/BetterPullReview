@@ -5,6 +5,7 @@
 
 #include <sqlite3.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -76,7 +77,15 @@ namespace bpr::adapters::sqlite {
 									"path TEXT NOT NULL CHECK(length(CAST(path AS BLOB)) <= 1024),"
 									"remote TEXT NOT NULL CHECK(length(CAST(remote AS BLOB)) <= 1024),"
 									"private_copy INTEGER NOT NULL CHECK(private_copy BETWEEN 0 AND 1),"
-									"PRIMARY KEY(host, repository, owner, name)) STRICT")) {
+									"PRIMARY KEY(host, repository, owner, name)) STRICT")
+				// [[BPR-PENDING-AQ5]]. The profile's edited review skill.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS review_skill("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) BETWEEN 1 AND 65536),"
+									"base_version INTEGER NOT NULL CHECK(base_version BETWEEN 0 AND 4294967295),"
+									"base_digest BLOB NOT NULL CHECK(length(base_digest)=32),"
+									"kept_version INTEGER CHECK(kept_version IS NULL OR kept_version BETWEEN 0 AND 4294967295)) STRICT")) {
 				return { };
 			}
 			return result;
@@ -260,6 +269,88 @@ namespace bpr::adapters::sqlite {
 			std::filesystem::path Root;
 		};
 
+		class review_skill_store final : public application::review_skill_store_port
+		{
+		public:
+			explicit review_skill_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load_review_skill() -> std::optional<std::optional<application::stored_review_skill>> override
+			{
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT text,base_version,base_digest,kept_version FROM review_skill WHERE singleton=1");
+					if (!row) {
+						return std::nullopt;
+					}
+					auto none = std::optional<std::optional<application::stored_review_skill>>{ std::in_place, std::nullopt };
+					if (sqlite3_step(row->Value) != SQLITE_ROW) {
+						return none;
+					}
+					auto text = column_text(row->Value, 0);
+					if (!text || text->size() > core::maximum_review_skill_bytes || sqlite3_column_type(row->Value, 1) != SQLITE_INTEGER
+						|| sqlite3_column_type(row->Value, 2) != SQLITE_BLOB || sqlite3_column_bytes(row->Value, 2) != 32) {
+						return none;
+					}
+					auto skill               = application::stored_review_skill{ .Text = std::move(*text) };
+					skill.Record.BaseVersion = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 1));
+					const auto* const digest = static_cast<const std::uint8_t*>(sqlite3_column_blob(row->Value, 2));
+					std::copy_n(digest, 32, skill.Record.BaseDigest.begin());
+					if (sqlite3_column_type(row->Value, 3) == SQLITE_INTEGER) {
+						skill.Record.KeptVersion = static_cast<std::uint32_t>(sqlite3_column_int64(row->Value, 3));
+					}
+					return std::optional{ std::optional{ std::move(skill) } };
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store_review_skill(const application::stored_review_skill& aSkill) -> bool override
+			{
+				if (aSkill.Text.empty() || aSkill.Text.size() > core::maximum_review_skill_bytes) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto row = detail::prepare(store->Database.get(), "INSERT OR REPLACE INTO review_skill VALUES(1,?1,?2,?3,?4)");
+					if (!row) {
+						return false;
+					}
+					bind(row->Value, 1, aSkill.Text);
+					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aSkill.Record.BaseVersion));
+					sqlite3_bind_blob(row->Value, 3, aSkill.Record.BaseDigest.data(), static_cast<int>(aSkill.Record.BaseDigest.size()), SQLITE_TRANSIENT);
+					if (aSkill.Record.KeptVersion) {
+						sqlite3_bind_int64(row->Value, 4, static_cast<std::int64_t>(*aSkill.Record.KeptVersion));
+					} else {
+						sqlite3_bind_null(row->Value, 4);
+					}
+					return sqlite3_step(row->Value) == SQLITE_DONE;
+				} catch (...) {
+					return false;
+				}
+			}
+
+			[[nodiscard]] auto forget_review_skill() -> bool override
+			{
+				try {
+					auto store = open(Root);
+					return store && detail::execute(store->Database.get(), "DELETE FROM review_skill").has_value();
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
+			std::filesystem::path Root;
+		};
+
 		class agent_setup_store final : public application::agent_setup_store_port
 		{
 		public:
@@ -342,5 +433,10 @@ namespace bpr::adapters::sqlite {
 	auto make_clone_link_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::clone_link_store_port>
 	{
 		return std::make_unique<clone_link_store>(aRoot);
+	}
+
+	auto make_review_skill_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::review_skill_store_port>
+	{
+		return std::make_unique<review_skill_store>(aRoot);
 	}
 } // namespace bpr::adapters::sqlite

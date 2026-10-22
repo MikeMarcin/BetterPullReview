@@ -1661,6 +1661,7 @@ namespace bpr::application {
 			.Selection          = aObservation.Selection,
 			.Operation          = admittedOperation,
 			.FeedbackGuidance   = aObservation.FeedbackGuidance,
+			.Brief              = aObservation.Brief,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
@@ -1827,6 +1828,57 @@ namespace bpr::application {
 				return *this;
 			}
 		};
+		/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. The review brief's wire form, after
+		/// every version-two field. Each collection is counted, and each cut is
+		/// stated, so a reader never has to guess what a missing line meant.
+		template <typename TSink>
+		void encode_brief_into(TSink& aResult, const core::supplement_brief& aBrief, const core::agent_revision_binding& aBinding)
+		{
+			append_field(aResult, "brief.title", aBrief.Title);
+			append_field(aResult, "brief.description", aBrief.Description);
+			append_number(aResult, "brief.description.cut_bytes", aBrief.DescriptionCutBytes);
+			append_field(aResult, "brief.base_branch", aBrief.BaseBranch);
+			append_field(aResult, "brief.workspace", core::stable_name(aBrief.Workspace));
+			// The diff is named rather than copied; a snapshot has no base to
+			// compare with, and says so by naming none.
+			auto diff = std::string{ };
+			if (aBrief.Workspace != core::brief_workspace::private_snapshot) {
+				diff = "git diff " + std::string{ core::canonical_hex(aBinding.BaseOid).view() } + "..." + std::string{ core::canonical_hex(aBinding.HeadOid).view() };
+			}
+			append_field(aResult, "brief.diff", diff);
+			append_number(aResult, "brief.file.count", aBrief.Files.size());
+			for (auto index = std::size_t{ 0U }; index < aBrief.Files.size(); ++index) {
+				const auto  prefix = "brief.file." + std::to_string(index);
+				const auto& file   = aBrief.Files[index];
+				append_field(aResult, prefix + ".path", file.Path);
+				append_field(aResult, prefix + ".status", core::stable_name(file.Status));
+				append_field(aResult, prefix + ".previous_path", file.PreviousPath.value_or(std::string{ }));
+			}
+			append_number(aResult, "brief.file.omitted", aBrief.FilesOmitted);
+			append_number(aResult, "brief.thread.count", aBrief.Threads.size());
+			for (auto index = std::size_t{ 0U }; index < aBrief.Threads.size(); ++index) {
+				const auto  prefix = "brief.thread." + std::to_string(index);
+				const auto& thread = aBrief.Threads[index];
+				append_field(aResult, prefix + ".path", thread.Path);
+				append_field(aResult, prefix + ".line", thread.Line ? std::to_string(*thread.Line) : std::string{ });
+				append_number(aResult, prefix + ".resolved", thread.Resolved ? 1 : 0);
+				append_number(aResult, prefix + ".outdated", thread.Outdated ? 1 : 0);
+				append_number(aResult, prefix + ".comment.count", thread.Comments.size());
+				for (auto comment = std::size_t{ 0U }; comment < thread.Comments.size(); ++comment) {
+					const auto at = prefix + ".comment." + std::to_string(comment);
+					append_field(aResult, at + ".author", thread.Comments[comment].Author);
+					append_field(aResult, at + ".body", thread.Comments[comment].Body);
+				}
+			}
+			append_number(aResult, "brief.thread.omitted", aBrief.ThreadsOmitted);
+			append_number(aResult, "brief.skill.present", aBrief.Skill ? 1 : 0);
+			if (aBrief.Skill) {
+				append_field(aResult, "brief.skill.source", core::stable_name(aBrief.Skill->Source));
+				append_field(aResult, "brief.skill.version", aBrief.Skill->Version ? std::to_string(*aBrief.Skill->Version) : std::string{ });
+				append_field(aResult, "brief.skill.text", aBrief.Skill->Text);
+			}
+		}
+
 		template <typename TSink>
 		void encode_supplement_into(TSink& aResult, const core::agent_context_supplement& aSupplement)
 		{
@@ -2068,6 +2120,12 @@ namespace bpr::application {
 					append_source_line(aResult, prefix + ".anchor", *draft.Anchor);
 				}
 				append_field(aResult, prefix + ".text", draft.Text);
+			}
+
+			// [[BPR-PENDING-AQ5]]. Written only when present, as the feedback
+			// guidance is: a launch that is not a review request adds no line.
+			if (aSupplement.Brief) {
+				encode_brief_into(aResult, *aSupplement.Brief, aSupplement.Session.Binding);
 			}
 		}
 

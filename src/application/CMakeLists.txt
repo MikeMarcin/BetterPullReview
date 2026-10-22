@@ -10,6 +10,10 @@ foreach(resource IN ITEMS application-contract problem-statement solution-summar
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/resources/review-preparation/${resource}.md")
 endforeach()
 configure_file(resources/writing_hooks_data.hpp.in writing_hooks_data.hpp @ONLY)
+# [[BPR-PENDING-AQ5]]. The built-in review skill, from its Agent Skills package.
+file(READ "${PROJECT_SOURCE_DIR}/packaging/agent-skills/bpr-pr-review/SKILL.md" REVIEW_SKILL)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/packaging/agent-skills/bpr-pr-review/SKILL.md")
+configure_file(resources/review_skill_data.hpp.in review_skill_data.hpp @ONLY)
 add_library(
     better_pull_review_application
     STATIC
@@ -144,6 +148,8 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/agent_program_resolution.cpp
             src/agent_setup_host.cpp
             src/clone_link_host.cpp
+            src/review_brief.cpp
+            src/review_skill_host.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_realignment.cpp

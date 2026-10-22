@@ -3,6 +3,7 @@
 
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
+#include "bpr/application/review_skill_host.hpp"
 
 #include <filesystem>
 #include <memory>
@@ -24,6 +25,13 @@ namespace bpr::adapters::sqlite {
 	/// links (at most 1,000), each a folder path, a remote name and a private
 	/// copy flag; no URL or credential is stored.
 	[[nodiscard]] auto make_clone_link_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::clone_link_store_port>;
+
+	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0091 D1. The same file's edited copy
+	/// of the review skill: its text (at most `core::maximum_review_skill_bytes`),
+	/// the built-in version and SHA-256 it came from, and the version Keep mine
+	/// was chosen for. A row that does not read back whole is reported as no
+	/// copy. Settings resets remove it with the rest of the file.
+	[[nodiscard]] auto make_review_skill_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::review_skill_store_port>;
 } // namespace bpr::adapters::sqlite
 
 #endif

@@ -353,6 +353,16 @@ Every review request carries a brief, as context supplement version three
   the private copy, and that copy's limits;
 - the version-two fields as now, and the review skill's text (D1, Q9 A).
 
+> **Implementation note ([[BPR-PENDING-AQ5]], 2026-10-22).** The brief's
+> lines follow every version-two field and are written only when a brief is
+> present, as the feedback guidance's are: a comment-workshop press and a
+> writing request carry none, and their bytes differ from version two only in
+> the `schema` line. The workspace is named by kind (`linked_clone_history`,
+> `private_copy`, `private_snapshot`), set once the workspace is made; its
+> path is the agent's working directory rather than a field. The private copy
+> now also holds the base the cache has, so the named diff works when the
+> base is not an ancestor of the head; a snapshot names no diff.
+
 The Ready step shows the brief as **What the agent gets**, which the reviewer
 can open at any time from the context row. Everything in it is what the
 signed-in reviewer can already read on GitHub; no credential, token or
@@ -396,6 +406,15 @@ the reviewer can edit.
   review request, the same for Claude Code, Codex and the plain-text harness,
   and nothing is written to any harness's configuration. The reviewer's own skills in their harness still load as the
   harness loads them.
+
+> **Implementation note ([[BPR-PENDING-AQ5]], 2026-10-22, owner confirmation
+> pending in [[BPR-PENDING-AQ8]]).** The edited copy and its record live in
+> the profile's `agent-setup.sqlite3` (settings, which resets and purge
+> already cover), not as files under `agent-skills/bpr-pr-review/`: the
+> profile maintenance inventory admits only paths it knows, and a new folder
+> there is purge work of its own. **Open in editor** is therefore not offered
+> yet; the Settings editor ([[BPR-PENDING-AQ6]]) is how the skill is edited.
+> The package ships `SKILL.md` alone, with no references.
 
 ### Check it works
 
@@ -613,7 +632,7 @@ closed and its protections released.
 | M2 Host: detection, check and saved agent | BPR-PENDING-AQ2 | Detection when setup shows, the bounded status check, the saved agent per profile and Send to Agent's default | AC01, AC10 (agent row), AC11 (agent), AC12 (agent) |
 | M3 Clone folders and links | BPR-PENDING-AQ3 | The core's remote URL parsing and matching, the adapter's bounded `.git/config` and `.git/HEAD` reads, the stored clone folders and per-repository links | AC04, AC05 |
 | M4 Agent workspaces on the clone's history | BPR-PENDING-AQ4 | Done as a private workspace borrowing the clone's objects (see [the implementation note](#the-agents-worktree), owner confirmation pending in M8); only what the clone lacks copied from the application's copy; the workspace check row | AC06 and AC07 as noted, AC10 (workspace row) |
-| M5 Brief and review skill | BPR-PENDING-AQ5 | Context supplement version three with its bounds, the built-in `bpr-pr-review` skill, its profile copy, versions and Settings editor | AC08, AC09 |
+| M5 Brief and review skill | BPR-PENDING-AQ5 | Context supplement version three with its bounds, the built-in `bpr-pr-review` skill, its profile copy and versions (the Settings editor is M6's; see the notes above) | AC08, AC09 |
 | M6 Qt setup in the Agent tab | BPR-PENDING-AQ6 | Every frame's state in the tab, light and dark, the History entries, the partly set up callouts and the Settings rows | AC01, AC11, AC12 |
 | M7 Documentation | BPR-PENDING-AQ7 | The AI agent boundary amendment (Q2), Git and epoch model, Settings and the workbench specification | All, as documented |
 | M8 Frozen build and the owner's look | BPR-PENDING-AQ8 | A frozen build, a short attended session and the owner's look | AC14 |

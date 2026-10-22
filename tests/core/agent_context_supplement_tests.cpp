@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement       = core::agent_context_supplement;
-		const auto whole       = supplement{ };
+		using supplement    = core::agent_context_supplement;
+		const auto whole    = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -234,7 +234,8 @@ namespace {
 					 notes,
 					 drafts,
 					 operation,
-					 guidance] = whole;
+					 guidance,
+					 brief] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
@@ -260,12 +261,21 @@ namespace {
 		static_assert(std::is_same_v<decltype(guidanceSource), const core::feedback_guidance_source>);
 		static_assert(std::is_same_v<decltype(guidanceVersion), const std::string>);
 		static_assert(std::is_same_v<decltype(guidanceText), const std::string>);
+		// [[BPR-PENDING-AQ5]]. The brief: what the reviewer can read on GitHub,
+		// the workspace's kind and the review skill's text; no argv,
+		// environment or token.
+		static_assert(std::is_same_v<decltype(brief), const std::optional<core::supplement_brief>>);
+		[[maybe_unused]] const auto& [briefTitle, briefDescription, briefCut, briefBase, briefFiles, briefFilesOmitted, briefThreads, briefThreadsOmitted, briefWorkspace,
+									  briefSkill] = core::supplement_brief{ };
+		static_assert(std::is_same_v<decltype(briefSkill), const std::optional<core::brief_review_skill>>);
+		[[maybe_unused]] const auto& [skillSource, skillVersion, skillText] = core::brief_review_skill{ };
+		static_assert(std::is_same_v<decltype(skillText), const std::string>);
 		expect(
 			version == core::agent_supplement_schema_version
 				&& applicationSession.value() == 0U && run.Id.value() == 0U
 				&& url.empty() && message.empty() && !previous && !lastReviewed
 				&& files.empty() && defects.empty() && !selection && notes.empty()
-				&& drafts.empty() && !operation && !guidance,
+				&& drafts.empty() && !operation && !guidance && !brief,
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 

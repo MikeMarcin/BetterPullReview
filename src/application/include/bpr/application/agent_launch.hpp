@@ -109,6 +109,11 @@ namespace bpr::application {
 		/// operation it is refused whole, as an operation riding on another
 		/// gesture is.
 		std::optional<core::supplement_feedback_guidance> FeedbackGuidance;
+		/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. The review brief, already within
+		/// its bounds (`core::bound_review_brief`); absent for a launch that is
+		/// not a review request. The host sets its workspace kind once the
+		/// workspace is made.
+		std::optional<core::supplement_brief> Brief;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};

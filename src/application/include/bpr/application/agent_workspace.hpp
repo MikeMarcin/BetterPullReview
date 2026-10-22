@@ -72,6 +72,9 @@ namespace bpr::application {
 		/// [[BPR-PENDING-AQ4]]. The workspace borrows its history from the
 		/// reviewer's linked clone.
 		bool BorrowsHistory = false;
+		/// [[BPR-PENDING-AQ5]]. The workspace holds the head without its
+		/// history: a sparse review's snapshot whose parents no clone lent.
+		bool Shallow = false;
 
 		auto operator<=>(const prepared_workspace&) const = default;
 	};

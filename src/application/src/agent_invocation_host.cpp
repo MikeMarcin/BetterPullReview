@@ -761,7 +761,17 @@ namespace bpr::application {
 					return;
 				}
 				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly };
-				auto launch  = build_agent_launch(aProfile, aSupplement, Environment, options);
+				// [[BPR-PENDING-AQ5]]. The brief says what the workspace that
+				// was just made is, so the agent knows whether history and the
+				// base are there to compare with.
+				auto framed = std::optional<core::agent_context_supplement>{ };
+				if (aSupplement.Brief && workspace) {
+					framed                   = aSupplement;
+					framed->Brief->Workspace = workspace->Shallow ? core::brief_workspace::private_snapshot
+						: workspace->BorrowsHistory               ? core::brief_workspace::linked_clone_history
+																  : core::brief_workspace::private_copy;
+				}
+				auto launch = build_agent_launch(aProfile, framed ? *framed : aSupplement, Environment, options);
 				options.PrivateSources.clear();
 				if (aInvocation->PrivateAdmission) {
 					aInvocation->PrivateAdmission->Launch.PrivateSources.clear();

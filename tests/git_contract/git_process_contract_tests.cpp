@@ -4056,6 +4056,7 @@ namespace {
 		require(read_text(workspace / "README.md") == "the head's readme\n" && read_text(workspace / "src" / "main.cpp") == "int main() { return 0; }\n",
 				"the workspace holds every file at the head");
 		require(read_text(workspace / ".git" / "shallow") == head + "\n", "the workspace records the head as its shallow boundary");
+		require(made->Workspace.Shallow, "and says it is shallow, for the brief ([[BPR-PENDING-AQ5]])");
 		require(run_fixture_git(workspace / ".git", { "rev-list", "--count", "HEAD" }) == "1",
 				"history in the workspace ends at the head instead of failing at its missing parent");
 		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the snapshot workspace cleans up normally");
@@ -4070,6 +4071,7 @@ namespace {
 		borrowedRequest.Materialization.HistoryClone = clone;
 		const auto borrowed                          = adapter->materialize_agent_workspace(borrowedRequest, { });
 		require(borrowed.has_value() && borrowed->Workspace.BorrowsHistory, "a sparse review's workspace borrows the clone's history");
+		require(!borrowed->Workspace.Shallow, "and is not shallow once its parent is borrowed");
 		const auto borrowedWorkspace = std::filesystem::path{ borrowed->Workspace.Path };
 		require(!std::filesystem::exists(borrowedWorkspace / ".git" / "shallow"), "with the head's parent in the clone the workspace is not shallow");
 		require(run_fixture_git(borrowedWorkspace / ".git", { "rev-list", "--count", "HEAD" }) == "2", "history goes past the head into the clone");
@@ -4187,6 +4189,8 @@ namespace {
 		const auto plain = adapter->materialize_agent_workspace(request(4U, std::nullopt), { });
 		require(plain.has_value() && !plain->Workspace.BorrowsHistory && !std::filesystem::exists(std::filesystem::path{ plain->Workspace.Path } / ".git" / "objects" / "info" / "alternates"),
 				"without a clone the workspace is the private copy, as before");
+		require(!plain->Workspace.Shallow && run_fixture_git(std::filesystem::path{ plain->Workspace.Path } / ".git", { "cat-file", "-t", base }) == "commit",
+				"and holds the base, so the brief's diff against it works ([[BPR-PENDING-AQ5]])");
 		require(adapter->cleanup_agent_workspace(*plain, { }).has_value(), "and it cleans up");
 	}
 

@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -224,9 +225,11 @@ namespace {
 			// destroys twice when a later member throws ([[BPR-0816]]).
 			auto result = application::owned_agent_workspace{
 				.Workspace = application::prepared_workspace{
-					.Policy     = core::agent_workspace_policy::disposable_review_workspace,
-					.PinnedHead = aRequest.Session.Binding.HeadOid,
-					.Path       = "/tmp/bpr-agent-owned/exact-head",
+					.Policy         = core::agent_workspace_policy::disposable_review_workspace,
+					.PinnedHead     = aRequest.Session.Binding.HeadOid,
+					.Path           = "/tmp/bpr-agent-owned/exact-head",
+					.BorrowsHistory = BorrowsHistory,
+					.Shallow        = Shallow,
 				},
 				.ApplicationSession = aRequest.ApplicationSession,
 				.Authority          = aRequest.Authority,
@@ -268,6 +271,8 @@ namespace {
 		std::function<void()>                                               AfterMaterialization;
 		std::optional<application::agent_workspace_error>                   MaterializationFailure;
 		bool                                                                FailNextCleanup = false;
+		bool                                                                BorrowsHistory  = false;
+		bool                                                                Shallow         = false;
 	};
 
 	class process_spy final : public application::agent_process_port
@@ -1661,6 +1666,31 @@ namespace {
 } // namespace
 
 namespace {
+	/// [[BPR-PENDING-AQ5]], RFC-BPR-0091. The brief names the workspace that
+	/// was actually made: borrowed history, the private copy or a snapshot.
+	void test_the_brief_names_the_workspace_that_was_made()
+	{
+		const auto kinds = std::array{
+			std::tuple{ false, false, std::string_view{ "brief.workspace\tprivate_copy\n" } },
+			std::tuple{ true, false, std::string_view{ "brief.workspace\tlinked_clone_history\n" } },
+			std::tuple{ true, true, std::string_view{ "brief.workspace\tprivate_snapshot\n" } },
+		};
+		for (const auto& [borrows, shallow, expected] : kinds) {
+			auto test                      = harness{ };
+			test.Workspaces.BorrowsHistory = borrows;
+			test.Workspaces.Shallow        = shallow;
+			const auto hostId              = core::git_host_id{ 1U };
+			test.Host.observe(core::application_session_id{ 1U }, authority(hostId), binding(hostId));
+			auto asked          = request(hostId, core::external_terminal_profile_id);
+			asked.Context.Brief = core::bound_review_brief({ .Title = "Bound the retry" });
+			test.Host.dispatch(std::move(asked));
+			test.settle();
+			expect(test.Processes.LastRequest && test.Processes.LastRequest->Input.find(expected) != std::string::npos
+					   && test.Processes.LastRequest->Input.find("brief.title\tBound the retry\n") != std::string::npos,
+				   "the launched brief names the workspace that was made");
+		}
+	}
+
 	/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Check it works. The workspace probe
 	/// makes and removes the workspace an Ask would make, admits no session,
 	/// starts no process, answers on the decision lane and holds quiescence
@@ -1721,6 +1751,7 @@ auto main() -> int
 	test_a_fresh_turn_under_the_same_binding_change_is_superseded();
 	test_a_promoted_finding_reaches_only_the_note_authority();
 	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
+	test_the_brief_names_the_workspace_that_was_made();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

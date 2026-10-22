@@ -1,3 +1,21 @@
+# [[BPR-PENDING-AQ5]] reseal (2026-10-22) over the BPR-PENDING-AQ4 reseal
+# below (12c38719f), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0091 M5 (owner decision D1, answer Q9 A): github_application.cpp,
+# agent builds only, gives every review request (each entry point but a
+# comment-workshop press, never a writing request) the review brief:
+# application::read_review_brief reads the accepted snapshot's title,
+# description, base branch, changed files and review threads, and
+# core::bound_review_brief bounds it (description 16 KiB cut at a line,
+# threads 64 KiB unresolved first, every cut counted). It carries the review
+# skill application::review_skill_host gives it: the built-in bpr-pr-review
+# until the profile edits it, then the copy adapters::sqlite::
+# make_review_skill_store keeps in the same agent-setup file. A file-local
+# save_review_skill_copy writes an edited copy to a new file in Downloads
+# (QIODevice::NewOnly) before Restore default removes it. The host is shut
+# down with the window and counted in quiescence. No grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays
+# exact.
 # [[BPR-PENDING-AQ4]] reseal (2026-10-22) over the BPR-PENDING-AQ3 reseal
 # below (2f017aece), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0091 M4 (owner answer Q7 of 2026-10-22): github_application.cpp,

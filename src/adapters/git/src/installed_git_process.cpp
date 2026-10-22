@@ -4454,6 +4454,7 @@ namespace bpr::adapters::git {
 
 				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
 				auto       arguments     = std::vector<std::string>{ };
+				auto       shallow       = false;
 				const auto baseText      = std::string{ core::canonical_hex(materialization.Session.Binding.BaseOid).view() };
 				if (borrowed && present(headText)) {
 					// The clone already holds the head: nothing to copy.
@@ -4521,6 +4522,7 @@ namespace bpr::adapters::git {
 					if (!parentsBorrowed && !write_private_file(destination / ".git" / "shallow", headText + "\n")) {
 						return fail(git_process_failure::invalid_repository);
 					}
+					shallow = !parentsBorrowed;
 				} else {
 					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
 					append_arguments(
@@ -4534,10 +4536,26 @@ namespace bpr::adapters::git {
 					// Borrowing a clone that holds the base, only what the base
 					// lacks is copied; its history is read from the clone.
 					const auto excludeBase = borrowed && baseText != headText && present(baseText);
-					const auto packed      = submitWorkspace(
+					// [[BPR-PENDING-AQ5]]. Otherwise the base the cache holds is
+					// copied too, so the brief's `git diff BASE...HEAD` works when
+					// the base is not an ancestor of the head.
+					auto cacheHasBase = false;
+					if (!excludeBase && baseText != headText) {
+						auto probe = common_git_arguments(aRequest.Repository, HooksRoot);
+						append_arguments(probe, "cat-file", "-e", baseText + "^{commit}");
+						const auto answered = submitWorkspace(process_request{ .Arguments = std::move(probe), .AllowExitOne = true }, aStop);
+						cacheHasBase        = answered.has_value() && answered->ExitCode == 0;
+					}
+					auto tips = headText + "\n";
+					if (excludeBase) {
+						tips += "^" + baseText + "\n";
+					} else if (cacheHasBase) {
+						tips += baseText + "\n";
+					}
+					const auto packed = submitWorkspace(
 						process_request{
 							.Arguments = std::move(arguments),
-							.Input     = memory_input{ headText + "\n" + (excludeBase ? "^" + baseText + "\n" : std::string{ }) },
+							.Input     = memory_input{ std::move(tips) },
 							.Timeout   = pack_process_timeout,
 						},
 						aStop);
@@ -4662,6 +4680,7 @@ namespace bpr::adapters::git {
 						.Path           = path_text(destination),
 						.Cleanliness    = application::checkout_cleanliness::clean,
 						.BorrowsHistory = borrowed.has_value(),
+						.Shallow        = shallow,
 					},
 					.ApplicationSession = materialization.ApplicationSession,
 					.Authority          = materialization.Authority,
