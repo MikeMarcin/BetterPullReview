@@ -247,6 +247,7 @@ namespace {
 		expect(f.Host.is_quiescent() && f.Persisted.back().Tabs[0].Selection == line(1, 9),
 			   "a lane's accepted line is durable before Quit without another event turn");
 		f.Host.observe_reading_position_on_lane(request, line(1, 10));
+		f.Host.complete_with_reading_position_on_lane(request, line(1, 11));
 		f.Lane.drain();
 		expect(f.Persisted.back().Tabs[0].Selection == line(1, 9), "shutdown refuses later lane readings");
 	}
@@ -343,10 +344,32 @@ namespace {
 		expect(f.Host.state().Tabs[0].State == core::document_tab_view_state::loading && f.Host.is_quiescent(),
 			   "after shutdown a queued terminal runs as a no-op");
 	}
+	void test_completion_feedback_keeps_the_newer_reading()
+	{
+		for (const bool fromProjection : { true, false }) {
+			fixture f;
+			f.open_window(pair(1, 2));
+			f.Host.apply(core::open_in_active_tab_intent{ file(1) });
+			const auto request   = f.Views.Loads.back().Request;
+			bool       refreshed = false;
+			const auto refresh   = [&] { if(!refreshed && f.Host.state().Presented) {refreshed=true;f.Host.refresh();} };
+			if (fromProjection) {
+				f.Output.OnPublish = refresh;
+			} else {
+				f.OnPersist = refresh;
+			}
+			f.Host.complete_with_reading_position_on_lane(request, line(1, 1));
+			expect(refreshed && f.Host.state().Pending, "completion feedback starts a new request");
+			expect(f.Host.state().Pending->View.Comparison == pair(1, 2) && f.Host.state().Pending->View.File == file(1), "refresh keeps the exact same comparison and file");
+			expect(f.Host.state().Pending->View.Selection == line(1, 1) && f.Persisted.back().Tabs[0].Selection == line(1, 1), "completion feedback cannot replace the newer chosen line before observation");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_completion_feedback_keeps_the_newer_reading();
 	test_completions_route_to_the_tab_that_asked();
 	test_a_closed_loading_tab_publishes_nothing();
 	test_two_views_of_one_file_through_refresh_and_restart();

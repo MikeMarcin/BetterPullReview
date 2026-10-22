@@ -247,6 +247,12 @@ namespace bpr::core {
 		request_id                               aRequest,
 		const std::optional<semantic_selection>& aSelection) -> document_tabs_output;
 
+	/// \brief Completes the current load with its already-chosen reading atomically.
+	/// \details Neither transition is adopted if the request or reading is refused.
+	[[nodiscard]] auto complete_view_with_reading_position(
+		document_tabs_state& aState, request_id aRequest,
+		const std::optional<semantic_selection>& aSelection) -> document_tabs_output;
+
 	/// \brief [[BPR-1478]]. Adopts a file the reviewer chose in Review, before
 	/// the active tab takes it.
 	///

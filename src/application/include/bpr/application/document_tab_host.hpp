@@ -75,6 +75,8 @@ namespace bpr::application {
 		void complete_on_lane(core::request_id aRequest, core::document_tab_view_outcome aOutcome);
 		/// \brief Records a gesture already on the decision lane before Home or Quit.
 		void observe_reading_position_on_lane(core::request_id aRequest, const std::optional<core::semantic_selection>& aSelection);
+		/// \brief Accepts the displayed load and its gesture before publishing either.
+		void complete_with_reading_position_on_lane(core::request_id aRequest, const std::optional<core::semantic_selection>& aSelection);
 		/// \brief Refuses later terminals; posted ones already queued become no-ops.
 		void shutdown();
 

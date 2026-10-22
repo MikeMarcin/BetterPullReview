@@ -7560,7 +7560,7 @@ namespace bpr::app {
 			PendingReviewNavigation = pending_review_navigation{ *aCommand, workbench_authority(*LastAcceptedHandoff), WorkbenchHost->generation(), TabHost->state().Active, active ? std::optional{ active->View } : std::nullopt, restoreReading };
 			continue_review_navigation();
 		}
-		void finish_tab_load(const core::document_tab_view_outcome aOutcome)
+		void finish_tab_load(const core::document_tab_view_outcome aOutcome, const bool aAcceptReading = false)
 		{
 			const auto request = std::exchange(TabLoad, std::nullopt);
 			TabDriver.reset();
@@ -7569,7 +7569,11 @@ namespace bpr::app {
 				return;
 			}
 			TabPresented = aOutcome == core::document_tab_view_outcome::ready ? request : std::nullopt;
-			TabHost->complete_on_lane(request->Request, aOutcome);
+			if (aAcceptReading) {
+				TabHost->complete_with_reading_position_on_lane(request->Request, Window->comparison_surface()->selection());
+			} else {
+				TabHost->complete_on_lane(request->Request, aOutcome);
+			}
 			// A failed reading restoration refuses entry navigation. An ordinary
 			// file press can still use the now-settled exact file order below.
 			if (aOutcome == core::document_tab_view_outcome::unavailable
@@ -8383,7 +8387,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					auto shown      = TabLoad->View;
 					shown.Selection = Window->comparison_surface()->selection();
 					if (tab_view_presented(shown)) {
-						finish_tab_load(core::document_tab_view_outcome::ready);
+						finish_tab_load(core::document_tab_view_outcome::ready, true);
 					}
 				}
 				retain_reading_position();

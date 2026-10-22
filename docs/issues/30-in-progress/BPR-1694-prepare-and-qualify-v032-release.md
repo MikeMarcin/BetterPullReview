@@ -332,3 +332,26 @@ The cheap composition inventory and hostile-bypass control, nine ownership
 controls, documentation and whitespace checks pass. The prior Windows reading
 failure remains an open integration obligation until the combined source is
 validated; no old-candidate pass or exception qualifies the new bundle.
+
+## Atomic completion and reading acceptance
+
+Review over matching `e031a961a` found a remaining split transition: completing
+a pending view publishes its old reading before the following observation. A
+reentrant projection or persistence refresh starts a newer request carrying that
+old reading, correctly rejecting the late observation as stale. An external
+counterexample linked to the real old production libraries fails the exact
+line-preservation assertion. Both callback variants pass with the repair.
+
+The core now composes completion and reading acceptance on a bounded state copy,
+committing only when both accept. Stale and invalid selections leave the entire
+state unchanged. The host performs this single transition on its decision lane;
+the app uses it only inside the existing exact pending-material gesture guard.
+Ordinary completions, current-request/generation checks, shutdown and publication
+authority are unchanged. Core and host suites and clang-format 22 pass.
+Only the app full/manifest tripwires and the reviewed restoration family's app
+input hash are renewed; the mutation tripwire and scheduling remain unchanged.
+
+The prior composed Windows failure's precise callback sequence remains uncaptured.
+The normal combined-source restoration and Home courses pass, but its Windows
+commit-filter course fails while reading the restoration store. That separate
+failure and final native qualification remain open; no publication is implied.

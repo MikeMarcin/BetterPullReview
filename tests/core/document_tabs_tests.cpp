@@ -503,10 +503,28 @@ namespace {
 		expect(later.Tabs.size() == 3U && later.Tabs[0].Id.value() == 41U, "a refused restoration leaves the state as it was");
 		expect(!persisted(document_tabs_state{ }), "nothing persists before the window has a comparison");
 	}
+	void test_completion_and_reading_are_one_transition()
+	{
+		auto state = document_tabs_state{ };
+		static_cast<void>(transition(state, set_window_comparison_intent{ pair(1, 2) }));
+		const auto opened  = transition(state, open_in_active_tab_intent{ file(1) });
+		const auto request = opened.Load->Request;
+		const auto before  = state;
+		expect(complete_view_with_reading_position(state, request_id{ request.value() + 1U }, line(1, 1)).Reason == document_tab_reason::stale_view && state == before, "stale combined completion changes nothing");
+		auto invalid                     = line(1, 1);
+		invalid.PreferredLine.Comparison = { };
+		expect(complete_view_with_reading_position(state, request, invalid).Reason == document_tab_reason::invalid_position && state == before, "invalid reading cannot partly complete the load");
+		const auto accepted = complete_view_with_reading_position(state, request, line(1, 1));
+		expect(accepted.Changed && accepted.Reason == document_tab_reason::none && !state.Pending && state.Presented && active(state).View.Selection == line(1, 1), "ready completion includes the chosen reading");
+		const auto refreshed = reload_active(state);
+		expect(refreshed.Load && refreshed.Load->View.Selection == line(1, 1), "a following refresh inherits the chosen reading");
+	}
+
 } // namespace
 
 auto main() -> int
 {
+	test_completion_and_reading_are_one_transition();
 	test_nothing_opens_before_the_window_has_a_comparison();
 	test_clicking_a_file_reuses_the_active_tab();
 	test_open_in_new_tab_is_a_background_tab_on_the_window_comparison();

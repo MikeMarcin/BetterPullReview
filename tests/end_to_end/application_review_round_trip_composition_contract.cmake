@@ -1987,6 +1987,14 @@ endfunction()
 # dispatcher latency observation and shutdown drain. No grant, credential,
 # provider or mutation admission changes; mutation-branch digest unchanged.
 
+# BPR-1694 atomic-reading reseal over matching e031a961a. Only
+# github_application.cpp changes in the pinned manifest: the already guarded
+# pending reading gesture completes ready and accepts the current selection
+# through one core transition before any projection/persistence callback.
+# Existing request/material/generation guards and ordinary completions remain.
+# No provider, credential, grant, mutation or publication branch changes.
+# Core refusal is atomic for stale/invalid input; host callback counterexamples
+# and review are recorded on BPR-1694. Mutation pin stays unchanged.
 function(bpr_verify_full_application_digest source_variable)
     bpr_compute_full_application_digest(
         ${source_variable}
@@ -2005,7 +2013,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"cfa6a65e7319128774bcf858bfbc6ccbca89956d248e66a714a8bb201da929c1"
+		"d3e992ad699f036982c3d507b05fb78ecf70b69adac3d9e7ab336aebbbc3ba8f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2229,7 +2237,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "129a37c08d3c94f1589475f5b5b6c2d77487a3013e268fa053bf4d7ad85ac9a5"
+        "7ee72605c0f6999152db2f6933a9f6b736d236bffb6537c6c16e911329ea890d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

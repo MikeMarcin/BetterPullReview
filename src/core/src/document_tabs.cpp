@@ -390,6 +390,26 @@ namespace bpr::core {
 		return { .Changed = true, .Load = std::nullopt, .Reason = none };
 	}
 
+	auto complete_view_with_reading_position(
+		document_tabs_state& aState, const request_id aRequest,
+		const std::optional<semantic_selection>& aSelection) -> document_tabs_output
+	{
+		if (!aState.Pending || aState.Pending->Request != aRequest) {
+			return refused(stale_view);
+		}
+		auto       next      = aState;
+		const auto completed = complete_view(next, aRequest, document_tab_view_outcome::ready);
+		if (completed.Reason != none) {
+			return completed;
+		}
+		const auto observed = observe_reading_position(next, aRequest, aSelection);
+		if (observed.Reason != none) {
+			return observed;
+		}
+		aState = std::move(next);
+		return completed;
+	}
+
 	auto observe_file_choice(document_tabs_state& aState, const file_identity& aFile) -> document_tabs_output
 	{
 		if (!aFile.valid()) {
