@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AK"
+id: "BPR-1735"
 title: "An off-hunk comment never reaches the file-comment fallback outside the designated PR"
 status: "Backlog"
 rfcs: ["RFC-BPR-0022"]
 depends_on: []
 priority: "P1"
 platforms: ["mac","win","linux"]
-metadata: {"kind":"bug","origin":"Owner report 2026-10-22, after BPR-1715's build showed a review refused on GitHub Enterprise Server 3.20.8 because a comment sits outside every hunk","phase":"diagnosis done; design awaits the owner's choice","related_cards":["BPR-1715","BPR-1716","BPR-1706","BPR-1728","BPR-1732","BPR-1345"],"related_rfcs":["RFC-BPR-0008","RFC-BPR-0089","RFC-BPR-0090"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1735--BPR-1735--b13813e1d6a2.json","kind":"bug","origin":"Owner report 2026-10-22, after BPR-1715's build showed a review refused on GitHub Enterprise Server 3.20.8 because a comment sits outside every hunk","phase":"diagnosis done; design awaits the owner's choice","related_cards":["BPR-1715","BPR-1716","BPR-1706","BPR-1728","BPR-1732","BPR-1345"],"related_rfcs":["RFC-BPR-0008","RFC-BPR-0089","RFC-BPR-0090"]}
 ---
 
-# BPR-PENDING-AK: An off-hunk comment never reaches the file-comment fallback outside the designated PR
+# BPR-1735: An off-hunk comment never reaches the file-comment fallback outside the designated PR
 
 ## Owner report
 
