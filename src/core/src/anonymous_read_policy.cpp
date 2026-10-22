@@ -30,6 +30,7 @@ namespace bpr::core {
 			case anonymous_read_intent::set_viewed_file_state:
 			case anonymous_read_intent::publish_review_comment:
 			case anonymous_read_intent::submit_review:
+			case anonymous_read_intent::react_to_comment:
 				return anonymous_refusal_reason::mutation_refused;
 			case anonymous_read_intent::read_private_repository:
 				return anonymous_refusal_reason::private_or_missing;
@@ -89,6 +90,8 @@ namespace bpr::core {
 			return 16U;
 		case anonymous_read_intent::select_enterprise_host:
 			return 17U;
+		case anonymous_read_intent::react_to_comment:
+			return 18U;
 		}
 		return anonymous_read_intent_count;
 	}

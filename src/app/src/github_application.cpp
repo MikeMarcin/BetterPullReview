@@ -8355,6 +8355,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
 			Window->set_thread_resolution_dispatch(
 				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
+			Window->set_reaction_dispatch(
+				[this](const qt::reaction_gesture& aGesture) { react_to_post(aGesture); });
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 			// BPR-0533. The six comment-workshop controls reach the composed
 			// workshop host and nothing else: the editor asks for an operation
@@ -12666,8 +12669,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					ReviewCommentPlacement.clear();
 				}
 			}
+			if (aUpdate.PullRequest) {
+				observe_conversation_state();
+			}
 			Window->publish(placed ? *placed : aUpdate);
+			if (aUpdate.PullRequest) {
+				present_conversation_state();
+			}
 			select_published_conversation();
+
 			if (aUpdate.PullRequest) {
 				observe_review_preflight();
 				// [[BPR-1374]]. A thread gone or resolved on the server changes
@@ -12963,9 +12973,170 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											core::canonical_hex(aHandoff.Head).view()))
 										.arg(QString::fromStdString(WindowRead->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
-			const auto* selectedProfile = find_profile(aHandoff.Profile);
-			const auto  cliProfile      = selectedProfile && selectedProfile->authentication_transport() == application::github_authentication_transport::github_cli;
-			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads && !cliProfile);
+			// [[BPR-PENDING-AR1]]. The GitHub CLI connection resolves threads
+			// too, through `gh api graphql`.
+			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+		}
+
+		/// [[BPR-PENDING-AR1]]. The posts' reactions and the threads'
+		/// resolutions as the viewer should see them: the accepted read, with
+		/// the viewer's own changes the core keeps until GitHub and a later
+		/// read agree with them.
+		void present_conversation_state()
+		{
+			if (Closing || Window == nullptr || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto& snapshot  = *WindowRead->accepted_snapshot();
+			const auto  viewer    = snapshot.Viewer.Login;
+			auto        reactions = std::map<std::string, core::reaction_summary>{ };
+			const auto  read      = snapshot.ReactionsAvailability == application::github_reaction_availability::available
+				|| snapshot.ReactionsAvailability == application::github_reaction_availability::partial;
+			if (read) {
+				for (const auto& record : snapshot.Reactions) {
+					if (auto shown = core::project_reaction_summary(&record.Reactions, ConversationOverlay, record.Subject, viewer)) {
+						reactions.insert_or_assign(record.Subject, std::move(*shown));
+					}
+				}
+			}
+			for (const auto& [subject, answered] : ConversationOverlay.Answered) {
+				if (!reactions.contains(subject)) {
+					if (auto shown = core::project_reaction_summary(nullptr, ConversationOverlay, subject, viewer)) {
+						reactions.insert_or_assign(subject, std::move(*shown));
+					}
+				}
+			}
+			auto resolutions = std::map<std::string, qt::thread_resolution_presentation>{ };
+			for (const auto& thread : snapshot.ReviewThreads) {
+				const auto identity  = thread_identity(thread);
+				const auto projected = core::project_thread_resolution(thread.Resolved, ConversationOverlay, identity);
+				resolutions.insert_or_assign(identity, qt::thread_resolution_presentation{
+														   .Resolved     = projected.Resolved,
+														   .Pending      = projected.Pending,
+														   .CanResolve   = thread.ViewerResolvePermission != application::github_permission_state::denied,
+														   .CanUnresolve = thread.ViewerUnresolvePermission != application::github_permission_state::denied,
+													   });
+			}
+			Window->present_conversation_state(std::move(reactions), std::move(resolutions));
+		}
+
+		/// [[BPR-PENDING-AR1]]. A new accepted read reconciles the viewer's
+		/// changes with what GitHub now says; another pull request drops them.
+		void observe_conversation_state()
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			if (ConversationOverlayPullRequest != snapshot.PullRequest.PullRequest) {
+				ConversationOverlay            = { };
+				ConversationOverlayPullRequest = snapshot.PullRequest.PullRequest;
+				ConversationChanges.clear();
+			}
+			auto observation              = core::conversation_read_observation{ };
+			observation.ReactionsObserved = snapshot.ReactionsAvailability == application::github_reaction_availability::available;
+			for (const auto& record : snapshot.Reactions) {
+				observation.Reactions.insert_or_assign(record.Subject, record.Reactions);
+			}
+			for (const auto& thread : snapshot.ReviewThreads) {
+				observation.Resolved.insert_or_assign(thread_identity(thread), thread.Resolved);
+			}
+			core::observe_conversation(ConversationOverlay, observation);
+		}
+
+		/// [[BPR-PENDING-AR1]]. A post's reaction: the core decides from the
+		/// session's anonymity, what was read of the post and GitHub's
+		/// permission, and whether the same change is still unanswered; the
+		/// count changes at once, and the host writes it under a one-shot grant.
+		void react_to_post(const qt::reaction_gesture& aGesture)
+		{
+			if (Closing || Window == nullptr || aGesture.Subject.empty()) {
+				return;
+			}
+			auto* const panel  = Window->conversation_panel();
+			const auto  notice = [panel](const QString& aText) {
+				if (panel != nullptr) {
+					panel->present_notice(aText);
+				}
+			};
+			const auto anonymous = Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(core::anonymous_read_intent::react_to_comment));
+			const auto refusal = core::decide_reaction(core::reaction_input{
+				.AnonymousRead  = anonymous,
+				.Observed       = aGesture.Observed,
+				.ViewerCanReact = aGesture.ViewerCanReact,
+				.InFlight       = core::reaction_in_flight(ConversationOverlay, aGesture.Subject, aGesture.Content),
+			});
+			++ReactionGestures;
+			switch (refusal) {
+			case core::reaction_refusal::anonymous_read:
+				notice(QStringLiteral("Sign in to react; a public preview only reads."));
+				return;
+			case core::reaction_refusal::unobserved:
+				notice(QStringLiteral("Reactions on this comment have not been read yet; refresh and try again."));
+				return;
+			case core::reaction_refusal::not_permitted:
+				notice(QStringLiteral("GitHub does not let you react to this comment."));
+				return;
+			case core::reaction_refusal::in_flight:
+				notice(QStringLiteral("Waiting for GitHub to answer the last change to this reaction."));
+				return;
+			case core::reaction_refusal::none:
+				break;
+			}
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().Reacts) {
+				notice(QStringLiteral("Reactions are unavailable for this pull request."));
+				return;
+			}
+			if (!core::begin_reaction_change(ConversationOverlay, aGesture.Subject, aGesture.Content, aGesture.Add)) {
+				return;
+			}
+			present_conversation_state();
+			auto request = application::review_reaction_publication_request{
+				.Subject = aGesture.Subject,
+				.Content = aGesture.Content,
+				.Add     = aGesture.Add,
+			};
+			auto grant = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_reaction(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			const auto context = ReviewMutationHost->react(std::move(request), std::move(grant));
+			ConversationChanges.insert_or_assign(context.Request.value(), aGesture.Subject);
+		}
+
+		void publish_reaction(const application::review_reaction_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto change = ConversationChanges.find(aTerminal.Context.Request.value());
+			if (change == ConversationChanges.end()) {
+				return;
+			}
+			ConversationChanges.erase(change);
+			if (aTerminal.Result.has_value()) {
+				++ReactionCompletions;
+				core::confirm_reaction_change(ConversationOverlay, aTerminal.Request.Subject, aTerminal.Request.Content, aTerminal.Result->Reactions);
+			} else {
+				++ReactionFailures;
+				core::abandon_reaction_change(ConversationOverlay, aTerminal.Request.Subject, aTerminal.Request.Content);
+				if (auto* const panel = Window->conversation_panel(); panel != nullptr) {
+					const auto words = QString::fromUtf8(core::reaction_label(aTerminal.Request.Content).data(),
+														 static_cast<qsizetype>(core::reaction_label(aTerminal.Request.Content).size()));
+					panel->present_notice(aTerminal.Result.error() == application::review_mutation_failure::not_confirmed
+											  ? QStringLiteral("GitHub does not show the %1 reaction; nothing was sent twice. Try again.").arg(words)
+											  : QStringLiteral("The %1 reaction could not be %2: %3.")
+													.arg(words, aTerminal.Request.Add ? QStringLiteral("added") : QStringLiteral("removed"),
+														 QString::fromUtf8(application::name(aTerminal.Result.error()))));
+				}
+			}
+			present_conversation_state();
 		}
 
 		// [[BPR-0657]]. A card's Resolve or Unresolve: the core decides from
@@ -12987,23 +13158,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					panel->present_notice(aText);
 				}
 			};
-			if (Host && Host->accepted_session()) {
-				const auto* selectedProfile = find_profile(Host->accepted_session()->Profile);
-				if (selectedProfile && selectedProfile->authentication_transport() == application::github_authentication_transport::github_cli) {
-					notice(QStringLiteral("Thread resolution is unavailable through the GitHub CLI profile."));
-					return;
-				}
-			}
 			const auto anonymous = Host != nullptr
+
 				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
 					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
 									 : core::anonymous_read_intent::unresolve_review_thread));
+			// [[BPR-PENDING-AR1]]. GitHub's own word on whether this viewer may
+			// resolve (or reopen) the thread, from the accepted read.
+			const auto* const thread    = accepted_thread(aGesture.Identity);
+			const auto        permitted = thread == nullptr
+				|| (aGesture.Resolve ? thread->ViewerResolvePermission : thread->ViewerUnresolvePermission) != application::github_permission_state::denied;
 			const auto refusal = core::decide_thread_resolution(core::thread_resolution_input{
-				.Capability    = aGesture.Capability,
-				.AnonymousRead = anonymous,
-				.Resolved      = aGesture.Resolved,
-				.Resolve       = aGesture.Resolve,
+				.Capability      = aGesture.Capability,
+				.AnonymousRead   = anonymous,
+				.Resolved        = aGesture.Resolved,
+				.Resolve         = aGesture.Resolve,
+				.ViewerPermitted = permitted,
 			});
+
 			++ThreadResolutionGestures;
 			switch (refusal) {
 			case core::thread_resolution_refusal::anonymous_read:
@@ -13027,7 +13199,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case core::thread_resolution_refusal::none:
 				break;
 			}
+			if (core::resolution_in_flight(ConversationOverlay, aGesture.Identity)) {
+				++ThreadResolutionRefusals;
+				notice(QStringLiteral("Waiting for GitHub to answer the last change to this conversation."));
+				return;
+			}
 			auto request = application::review_thread_resolution_publication_request{
+
 				.Thread  = std::string{ aGesture.Identity.substr(prefix.size()) },
 				.Resolve = aGesture.Resolve,
 			};
@@ -13040,21 +13218,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return application::detail::review_mutation_user_authority_issuer::issue_thread(
 						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
 				});
-			notice(aGesture.Resolve ? QStringLiteral("Resolving the thread…")
-									: QStringLiteral("Reopening the thread…"));
+			notice(aGesture.Resolve ? QStringLiteral("Resolving the conversation…")
+									: QStringLiteral("Reopening the conversation…"));
+			// [[BPR-PENDING-AR1]]. The thread shows what was asked at once.
+			static_cast<void>(core::begin_resolution_change(ConversationOverlay, aGesture.Identity, aGesture.Resolve));
+			present_conversation_state();
 			PendingThreadResolution = ReviewMutationHost->resolve(std::move(request), std::move(grant));
+			ConversationChanges.insert_or_assign(PendingThreadResolution->Request.value(), aGesture.Identity);
 		}
 
 		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
 		{
-			if (Closing || Window == nullptr
-				|| PendingThreadResolution != std::optional{ aTerminal.Context }) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			// [[BPR-PENDING-AR1]]. Every answer settles its own change, the
+			// latest or not.
+			if (const auto change = ConversationChanges.find(aTerminal.Context.Request.value()); change != ConversationChanges.end()) {
+				if (aTerminal.Result.has_value()) {
+					core::confirm_resolution_change(ConversationOverlay, change->second);
+				} else {
+					core::abandon_resolution_change(ConversationOverlay, change->second);
+				}
+				ConversationChanges.erase(change);
+				present_conversation_state();
+			}
+			if (PendingThreadResolution != std::optional{ aTerminal.Context }) {
 				return;
 			}
 			PendingThreadResolution.reset();
 			auto* const panel = Window->conversation_panel();
 			if (!aTerminal.Result.has_value()) {
 				++ThreadResolutionFailures;
+
 				if (panel != nullptr) {
 					panel->present_notice(QStringLiteral("The thread could not be %1: %2.")
 											  .arg(aTerminal.Request.Resolve ? QStringLiteral("resolved")
@@ -13065,8 +13261,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			++ThreadResolutionCompletions;
 			if (panel != nullptr) {
-				panel->present_notice(aTerminal.Result->Resolved ? QStringLiteral("Thread resolved.")
-																 : QStringLiteral("Thread reopened."));
+				panel->present_notice(aTerminal.Result->Resolved ? QStringLiteral("Conversation resolved.")
+																 : QStringLiteral("Conversation reopened."));
 			}
 			// The thread's new state comes back from the server the way every
 			// other fact does.
@@ -21477,6 +21673,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                                 ThreadResolutionRefusals    = 0U;
 		std::size_t                                                 ThreadResolutionCompletions = 0U;
 		std::size_t                                                 ThreadResolutionFailures    = 0U;
+		/// [[BPR-PENDING-AR1]]. The viewer's reaction and resolution changes
+		/// reads have not caught up with, the pull request they are on, and
+		/// each unanswered request's subject.
+		core::conversation_overlay           ConversationOverlay;
+		core::pull_request_id                ConversationOverlayPullRequest;
+		std::map<std::uint64_t, std::string> ConversationChanges;
+		std::size_t                          ReactionGestures    = 0U;
+		std::size_t                          ReactionCompletions = 0U;
+		std::size_t                          ReactionFailures    = 0U;
+
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
 		std::optional<application::review_mutation_request_context>

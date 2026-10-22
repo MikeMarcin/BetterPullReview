@@ -2422,6 +2422,25 @@ namespace bpr::qt {
 				dispatch(aLogin);
 			}
 		});
+		// [[BPR-PENDING-AR1]]. A post's reaction travels with what the window
+		// shows of it: added when the viewer has not made it, removed when
+		// they have; the composition decides.
+		ConversationPanel->cards()->set_reaction_dispatch([this](const std::string& aPost, const core::reaction_content aContent) {
+			const auto dispatch = ReactionDispatch;
+			if (!dispatch || ConversationPanel == nullptr) {
+				return;
+			}
+			const auto shown = ConversationPanel->cards()->reactions_of(aPost);
+			auto       node  = aPost.substr(aPost.find(':') == std::string::npos ? 0U : aPost.find(':') + 1U);
+			dispatch(reaction_gesture{
+				.Post           = aPost,
+				.Subject        = std::move(node),
+				.Content        = aContent,
+				.Add            = core::reaction_toggle(shown, aContent),
+				.Observed       = shown.has_value(),
+				.ViewerCanReact = shown.has_value() && shown->ViewerCanReact,
+			});
+		});
 		ConversationPanel->cards()->set_action_dispatch(
 			[this](const card_action aAction, const std::string& aIdentity) {
 				// [[BPR-1046]]. A reply still waiting for its comparison is
@@ -11576,6 +11595,20 @@ namespace bpr::qt {
 	void workbench_window::set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch)
 	{
 		ThreadResolutionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_reaction_dispatch(workbench_reaction_dispatch aDispatch)
+	{
+		ReactionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_conversation_state(std::map<std::string, core::reaction_summary> aReactions, std::map<std::string, thread_resolution_presentation> aResolutions)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		ConversationPanel->cards()->present_reactions(std::move(aReactions));
+		ConversationPanel->cards()->present_thread_resolutions(std::move(aResolutions));
 	}
 
 	void workbench_window::set_thread_resolution_provider(const bool aResolves)

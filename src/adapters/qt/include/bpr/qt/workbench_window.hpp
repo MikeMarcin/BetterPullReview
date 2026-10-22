@@ -181,7 +181,26 @@ namespace bpr::qt {
 		auto operator<=>(const thread_resolution_gesture&) const = default;
 	};
 	using workbench_thread_resolution_dispatch = std::function<void(const thread_resolution_gesture&)>;
-	using workbench_defect_dispatch            = std::function<void(core::defect_command)>;
+	/// [[BPR-PENDING-AR1]]. A reaction added or removed on one post, with what
+	/// the window shows of it, so the composition can decide it.
+	struct reaction_gesture
+	{
+		/// The post as its card names it ("review-comment:…").
+		std::string Post;
+		/// The post's GitHub node.
+		std::string            Subject;
+		core::reaction_content Content = core::reaction_content::thumbs_up;
+		/// Add the reaction (the viewer has not made it), or remove it.
+		bool Add = true;
+		/// The post's reactions were read.
+		bool Observed = false;
+		/// GitHub's `viewerCanReact` for the post.
+		bool ViewerCanReact = false;
+
+		auto operator<=>(const reaction_gesture&) const = default;
+	};
+	using workbench_reaction_dispatch = std::function<void(const reaction_gesture&)>;
+	using workbench_defect_dispatch   = std::function<void(core::defect_command)>;
 
 	/// \brief Carries the exact placeable conversation anchor chosen in Qt.
 	struct workbench_defect_classification
@@ -690,6 +709,11 @@ namespace bpr::qt {
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
 		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
+		/// \brief [[BPR-PENDING-AR1]]. Where a post's reaction goes.
+		void set_reaction_dispatch(workbench_reaction_dispatch aDispatch);
+		/// \brief [[BPR-PENDING-AR1]]. The posts' reactions, by GitHub node,
+		/// and each thread's resolution as the viewer should see them.
+		void present_conversation_state(std::map<std::string, core::reaction_summary> aReactions, std::map<std::string, thread_resolution_presentation> aResolutions);
 		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with
 		/// the server's capability this is what offers Resolve on the cards.
 		void set_thread_resolution_provider(bool aResolves);
@@ -2901,6 +2925,7 @@ namespace bpr::qt {
 		std::optional<std::string>           DeferredReply;
 		bool                                 DeferredReplyInPlace = false;
 		workbench_thread_resolution_dispatch ThreadResolutionDispatch;
+		workbench_reaction_dispatch          ReactionDispatch;
 		bool                                 ProviderResolvesThreads = false;
 		core::github_capabilities            Capabilities;
 		// [[BPR-0661]].

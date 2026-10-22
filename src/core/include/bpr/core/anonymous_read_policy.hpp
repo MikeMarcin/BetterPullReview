@@ -59,9 +59,11 @@ namespace bpr::core {
 		submit_review,
 		read_private_repository,
 		select_enterprise_host,
+		/// [[BPR-PENDING-AR1]]. A reaction added to or removed from a comment.
+		react_to_comment,
 	};
 
-	inline constexpr std::size_t anonymous_read_intent_count = 18U;
+	inline constexpr std::size_t anonymous_read_intent_count = 19U;
 
 	/// Every intent, in declaration order. `catalog_index` decides an intent's
 	/// position with a switch that names each enumerator, so an intent added
@@ -87,6 +89,7 @@ namespace bpr::core {
 			anonymous_read_intent::submit_review,
 			anonymous_read_intent::read_private_repository,
 			anonymous_read_intent::select_enterprise_host,
+			anonymous_read_intent::react_to_comment,
 		};
 
 	/// \brief Computes the catalog position of the supplied intent.

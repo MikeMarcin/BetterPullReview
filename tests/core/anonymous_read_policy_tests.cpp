@@ -43,7 +43,7 @@ namespace {
 		reason Reason = reason::graphql_refused;
 	};
 
-	constexpr std::array<refusal_case, 9> refused_intents{
+	constexpr std::array<refusal_case, 10> refused_intents{
 		refusal_case{ intent::read_review_threads, reason::graphql_refused },
 		refusal_case{
 			intent::read_viewer_identity,
@@ -61,6 +61,8 @@ namespace {
 			intent::read_private_repository,
 			reason::private_or_missing },
 		refusal_case{ intent::select_enterprise_host, reason::ghes_unavailable },
+		// [[BPR-PENDING-AR1]].
+		refusal_case{ intent::react_to_comment, reason::mutation_refused },
 	};
 
 	[[nodiscard]] auto sample_scope() -> core::github_identity_scope

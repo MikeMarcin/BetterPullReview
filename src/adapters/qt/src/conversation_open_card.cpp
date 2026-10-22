@@ -2,6 +2,7 @@
 #include "bpr/core/workbench_interaction.hpp"
 
 #include "conversation_glyphs.hpp"
+#include "conversation_reactions.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -45,14 +46,16 @@ namespace bpr::qt {
 	namespace {
 		/// The prototype's measures: the rail's right edge, the avatar column,
 		/// where a post's text starts, and its padding.
-		constexpr int rail_right    = 8;
-		constexpr int gut_left      = 12;
-		constexpr int avatar_size   = 18;
-		constexpr int mark_gap      = 3;
-		constexpr int mark_size     = 16;
-		constexpr int text_left     = gut_left + avatar_size + 9;
-		constexpr int text_right    = 10;
-		constexpr int post_padding  = 8;
+		constexpr int rail_right   = 8;
+		constexpr int gut_left     = 12;
+		constexpr int avatar_size  = 18;
+		constexpr int mark_gap     = 3;
+		constexpr int mark_size    = 16;
+		constexpr int text_left    = gut_left + avatar_size + 9;
+		constexpr int text_right   = 10;
+		constexpr int post_padding = 8;
+		/// [[BPR-PENDING-AR1]]. Between a post's body and its reactions.
+		constexpr int reaction_gap  = 6;
 		constexpr int header_height = 34;
 		constexpr int reply_minimum = 54;
 		constexpr int reply_maximum = 220;
@@ -748,8 +751,71 @@ namespace bpr::qt {
 		});
 		// A fallback body already shows its source; there is nothing to switch to.
 		SourceButton->setEnabled(Reader->rendered_available());
+		// [[BPR-PENDING-AR1]]. Add reaction, as GitHub's comment header has
+		// it, beside the post's other tools; and the post's reactions under
+		// its body.
+		ReactButton = new post_tool{ conversation_glyph::react, aStyle.Colours, this };
+		ReactButton->setObjectName(QStringLiteral("threadPostReact"));
+		ReactButton->setToolTip(QStringLiteral("Add reaction"));
+		ReactButton->setAccessibleName(QStringLiteral("Add reaction"));
+		ReactButton->hide();
+		connect(ReactButton, &QAbstractButton::clicked, this, [this] { open_reaction_picker(); });
+		Reactions          = new reaction_bar{ aStyle.Colours, this };
+		Reactions->Toggled = [this](const core::reaction_content aContent) {
+			const auto requested = ReactionRequested;
+			if (requested) {
+				requested(aContent);
+			}
+		};
 		connect(qApp, &QApplication::focusChanged, this, [this] { refresh_tools(); });
 		refresh_source_button();
+	}
+
+	void thread_post_view::set_reactions(const std::optional<core::reaction_summary>& aSummary)
+	{
+		if (Summary == aSummary) {
+			return;
+		}
+		Summary = aSummary;
+		Reactions->set_reactions(aSummary, Style.Viewer);
+		ReactButton->setVisible(aSummary.has_value() && aSummary->ViewerCanReact);
+		refresh_tools();
+		updateGeometry();
+		place_children();
+		if (HeightChanged) {
+			HeightChanged();
+		}
+	}
+
+	auto thread_post_view::reactions() const noexcept -> const std::optional<core::reaction_summary>&
+	{
+		return Summary;
+	}
+
+	auto thread_post_view::react_button() const noexcept -> post_tool*
+	{
+		return ReactButton;
+	}
+
+	auto thread_post_view::reaction_chips() const noexcept -> reaction_bar*
+	{
+		return Reactions;
+	}
+
+	auto thread_post_view::open_reaction_picker() -> reaction_picker*
+	{
+		if (!Summary.has_value() || !Summary->ViewerCanReact) {
+			return nullptr;
+		}
+		auto* const picker = new reaction_picker{ Summary, Style.Colours, this };
+		picker->Chosen     = [this](const core::reaction_content aContent) {
+			const auto requested = ReactionRequested;
+			if (requested) {
+				requested(aContent);
+			}
+		};
+		picker->popup_at(ReactButton->mapToGlobal(QPoint{ 0, ReactButton->height() + 2 }));
+		return picker;
 	}
 
 	void thread_post_view::refresh_source_button()
@@ -770,11 +836,15 @@ namespace bpr::qt {
 	{
 		const auto name  = name_height();
 		const auto width = std::max(1, this->width() - text_left - text_right);
-		Reader->setGeometry(text_left, post_padding + name + 1, width, Reader->heightForWidth(width));
+		const auto body  = Reader->heightForWidth(width);
+		Reader->setGeometry(text_left, post_padding + name + 1, width, body);
 		const auto size = SourceButton->sizeHint();
 		const auto top  = post_padding + (name - size.height()) / 2;
 		CopyButton->setGeometry(this->width() - text_right + 4 - size.width(), top, size.width(), size.height());
 		SourceButton->setGeometry(CopyButton->x() - 2 - size.width(), top, size.width(), size.height());
+		ReactButton->setGeometry(SourceButton->x() - 2 - size.width(), top, size.width(), size.height());
+		const auto chips = Reactions->chips().empty() ? 0 : Reactions->heightForWidth(width);
+		Reactions->setGeometry(text_left, post_padding + name + 1 + body + reaction_gap, width, chips);
 	}
 
 	void thread_post_view::refresh_tools()
@@ -782,6 +852,7 @@ namespace bpr::qt {
 		const auto revealed = Hovered || isAncestorOf(QApplication::focusWidget());
 		SourceButton->set_revealed(revealed);
 		CopyButton->set_revealed(revealed);
+		ReactButton->set_revealed(revealed);
 	}
 
 	void thread_post_view::enterEvent(QEnterEvent* const aEvent)
@@ -805,8 +876,11 @@ namespace bpr::qt {
 
 	auto thread_post_view::heightForWidth(const int aWidth) const -> int
 	{
-		const auto text = name_height() + 1 + Reader->heightForWidth(std::max(1, aWidth - text_left - text_right));
-		const auto gut  = Post.Label ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
+		const auto width = std::max(1, aWidth - text_left - text_right);
+		const auto chips = Reactions->chips().empty() ? 0 : Reactions->heightForWidth(width);
+		const auto text  = name_height() + 1 + Reader->heightForWidth(width) + (chips > 0 ? reaction_gap + chips : 0);
+		const auto gut   = Post.Label ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
+
 		return post_padding + std::max(text, gut) + post_padding;
 	}
 
@@ -927,7 +1001,8 @@ namespace bpr::qt {
 		const auto who  = Post.Mine ? QStringLiteral("you") : Post.Author;
 		painter.setFont(bold);
 		painter.setPen(colours.Ink);
-		const auto tools = SourceButton->x() - 4;
+		const auto tools = (ReactButton->isVisibleTo(this) ? ReactButton->x() : SourceButton->x()) - 4;
+
 		painter.drawText(QRect{ x, post_padding, std::max(0, tools - x), name }, Qt::AlignLeft | Qt::AlignVCenter, who);
 		x += QFontMetrics{ bold }.horizontalAdvance(who) + 7;
 		if (!Post.ReplyingTo.isEmpty()) {
@@ -1219,8 +1294,12 @@ namespace bpr::qt {
 			row->addWidget(new state_label{ QStringLiteral("Pending in your review"), conversation_glyph::lock, Style.Colours.Signal, header });
 		} else if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
+		} else if (aCard.ResolutionPending) {
+			// [[BPR-PENDING-AR1]]. Shown at once; GitHub's answer settles it.
+			row->addWidget(new state_label{ aCard.Resolved ? QStringLiteral("Resolving…") : QStringLiteral("Reopening…"), std::nullopt, Style.Colours.Faint, header });
 		} else if (aCard.Resolved) {
 			row->addWidget(new state_label{ aCard.Outdated ? QStringLiteral("Resolved, outdated") : QStringLiteral("Resolved"), conversation_glyph::resolved, Style.Colours.Ok, header });
+
 		} else if (aCard.Outdated) {
 			row->addWidget(new state_label{ QStringLiteral("Outdated"), std::nullopt, Style.Colours.Faint, header });
 		}
@@ -1232,9 +1311,11 @@ namespace bpr::qt {
 		}
 
 		if (!aCard.Draft) {
-			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread")) {
-				auto* const resolve = tool(header, QStringLiteral("threadResolve"), aCard.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
+			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread") && aCard.ResolutionPermitted) {
+				auto* const resolve = tool(header, QStringLiteral("threadResolve"), aCard.Resolved ? QStringLiteral("Unresolve conversation") : QStringLiteral("Resolve conversation"),
 										   aCard.Resolved ? conversation_glyph::unresolve : conversation_glyph::resolve, palette);
+				resolve->setEnabled(!aCard.ResolutionPending);
+
 				connect(resolve, &QToolButton::clicked, this, [this, resolved = aCard.Resolved] {
 					if (Action) {
 						Action(resolved ? card_action::unresolve : card_action::resolve);
@@ -1344,7 +1425,17 @@ namespace bpr::qt {
 				}
 			}
 			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
+			if (!aCard.Draft) {
+				// [[BPR-PENDING-AR1]]. A reaction names its post.
+				view->ReactionRequested = [this, id = post.Id](const core::reaction_content aContent) {
+					const auto requested = Reaction;
+					if (requested) {
+						requested(id, aContent);
+					}
+				};
+			}
 			if (!aCard.Verdict.isEmpty()) {
+
 				const auto count = aCard.ReviewComments.size();
 				view->reader()->set_empty_body_text(count == 0U       ? QStringLiteral("No overall review comment.")
 														: count == 1U ? QStringLiteral("No overall review comment. 1 file comment is linked below.")
@@ -1584,6 +1675,23 @@ namespace bpr::qt {
 			ReplyField->set_style(Style);
 			connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
 			footRow->addWidget(ReplyField);
+			// [[BPR-PENDING-AR1]]. Where GitHub puts it: at the thread's end,
+			// beside Reply, for a viewer GitHub lets resolve the thread.
+			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread") && aCard.ResolutionPermitted) {
+				ResolveConversation = new note_button{ note_button::kind::secondary, aCard.Resolved ? QStringLiteral("Unresolve conversation") : QStringLiteral("Resolve conversation"), Foot };
+				ResolveConversation->setObjectName(QStringLiteral("threadResolveConversation"));
+				ResolveConversation->setAccessibleName(ResolveConversation->text());
+				ResolveConversation->setToolTip(aCard.Resolved ? QStringLiteral("Reopen this conversation on GitHub") : QStringLiteral("Mark this conversation resolved on GitHub"));
+				ResolveConversation->setEnabled(!aCard.ResolutionPending);
+				ResolveConversation->set_style(Style);
+				connect(ResolveConversation, &QAbstractButton::clicked, this, [this, resolved = aCard.Resolved] {
+					if (Action) {
+						Action(resolved ? card_action::unresolve : card_action::resolve);
+					}
+				});
+				footRow->addWidget(ResolveConversation);
+			}
+
 			Editor             = new reply_frame{ Style.Colours.Signal, Style.Colours.CodeBackground.isValid() ? Style.Colours.CodeBackground : Style.Colours.Panel, Foot };
 			auto* const editor = new QVBoxLayout{ Editor };
 			editor->setContentsMargins(12, 11, 12, 11);
@@ -2123,6 +2231,21 @@ namespace bpr::qt {
 	auto open_thread_card::posts() const -> std::vector<thread_post_view*>
 	{
 		return Posts;
+	}
+
+	void open_thread_card::present_reactions(const std::function<std::optional<core::reaction_summary>(const std::string&)>& aLookup)
+	{
+		if (Draft) {
+			return;
+		}
+		for (auto* const post : Posts) {
+			post->set_reactions(aLookup ? aLookup(post->post().Id) : std::nullopt);
+		}
+	}
+
+	auto open_thread_card::resolve_conversation() const noexcept -> QAbstractButton*
+	{
+		return ResolveConversation;
 	}
 
 	void open_thread_card::present_read_state(const thread_card& aCard)

@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_CONVERSATION_CARDS_VIEW_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
@@ -209,6 +210,18 @@ namespace bpr::qt {
 		qsizetype Lead = 0;
 	};
 
+	/// \brief [[BPR-PENDING-AR1]]. A review thread's resolution as the viewer
+	/// should see it, and whether GitHub lets the viewer resolve or reopen it.
+	struct thread_resolution_presentation
+	{
+		bool Resolved     = false;
+		bool Pending      = false;
+		bool CanResolve   = true;
+		bool CanUnresolve = true;
+
+		auto operator==(const thread_resolution_presentation&) const -> bool = default;
+	};
+
 	/// \brief One thread's note: a review thread's root and its replies, or my draft.
 	struct thread_card
 	{
@@ -230,10 +243,15 @@ namespace bpr::qt {
 		/// [[BPR-1212]] slice 1. My draft on several lines: its one-based
 		/// first line; `Line` is its last, where it is anchored.
 		std::optional<std::uint32_t> FirstLine;
-		bool                         Resolved          = false;
-		bool                         Outdated          = false;
-		bool                         AnchorUnavailable = false;
-		bool                         Draft             = false;
+		bool                         Resolved = false;
+		/// [[BPR-PENDING-AR1]]. My resolve or reopen is unanswered; `Resolved`
+		/// already shows what I asked.
+		bool ResolutionPending = false;
+		/// [[BPR-PENDING-AR1]]. GitHub lets me resolve (or reopen) this thread.
+		bool ResolutionPermitted = true;
+		bool Outdated            = false;
+		bool AnchorUnavailable   = false;
+		bool Draft               = false;
 		/// [[BPR-1345]]. My draft is pending in my review, or held by its
 		/// submission.
 		bool Pending = false;
@@ -539,6 +557,16 @@ namespace bpr::qt {
 		/// \details Lays out again only when that thread's note is shown.
 		auto set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
 			-> std::vector<std::string>;
+		/// \brief [[BPR-PENDING-AR1]]. The posts' reactions as the viewer
+		/// should see them, by GitHub node; a post without an entry shows none.
+		void present_reactions(std::map<std::string, core::reaction_summary> aBySubject);
+		/// \brief The reactions of one post, named as its card names it.
+		[[nodiscard]] auto reactions_of(std::string_view aPost) const -> std::optional<core::reaction_summary>;
+		/// \brief A reaction asked for on a post: the post's identity and the reaction.
+		void set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch);
+		/// \brief [[BPR-PENDING-AR1]]. Each thread's resolution as the viewer
+		/// should see it and GitHub's permission for it, by thread identity.
+		void present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread);
 		/// \brief [[BPR-0657]]. Offers Resolve and Unresolve on the threads when the
 		/// provider and the server both resolve threads.
 		void               set_resolution_offered(bool aOffered);
@@ -848,7 +876,10 @@ namespace bpr::qt {
 		bool                                                                        ReadStateKnown    = false;
 		bool                                                                        Feed              = false;
 		bool                                                                        ResolutionOffered = false;
-		bool                                                                        HasFocus          = false;
+		std::map<std::string, core::reaction_summary>                               ReactionsBySubject;
+		std::map<std::string, thread_resolution_presentation>                       ResolutionsByThread;
+		std::function<void(const std::string&, core::reaction_content)>             ReactionDispatch;
+		bool                                                                        HasFocus = false;
 		discuss_filters                                                             Filters;
 		QString                                                                     PullRequestAuthor;
 		card_excerpt_locator                                                        ExcerptLocator;

@@ -927,6 +927,7 @@ namespace {
 			core::anonymous_read_intent::submit_review,
 			core::anonymous_read_intent::read_private_repository,
 			core::anonymous_read_intent::select_enterprise_host,
+			core::anonymous_read_intent::react_to_comment,
 		};
 		for (const auto intent : refused) {
 			const auto  decision = test.Host->public_preview_legality(intent);

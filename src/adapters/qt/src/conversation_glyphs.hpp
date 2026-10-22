@@ -63,6 +63,8 @@ namespace bpr::qt {
 		clear_filters,
 		/// [[BPR-1337]]. Dismiss what a pill names: a cross.
 		dismiss,
+		/// [[BPR-PENDING-AR1]]. Add reaction: a face with a plus.
+		react,
 	};
 
 	/// \brief Strokes one glyph into \p aBox in \p aInk.

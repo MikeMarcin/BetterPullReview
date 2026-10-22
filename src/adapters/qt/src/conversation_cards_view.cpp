@@ -997,8 +997,46 @@ namespace bpr::qt {
 		return Filters;
 	}
 
+	void conversation_cards_view::present_reactions(std::map<std::string, core::reaction_summary> aBySubject)
+	{
+		if (ReactionsBySubject == aBySubject) {
+			return;
+		}
+		ReactionsBySubject = std::move(aBySubject);
+		if (OpenCard != nullptr) {
+			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
+		}
+	}
+
+	auto conversation_cards_view::reactions_of(const std::string_view aPost) const -> std::optional<core::reaction_summary>
+	{
+		// A post is named by its kind and its GitHub node; reactions by the node.
+		for (const auto prefix : { std::string_view{ "review-comment:" }, std::string_view{ "issue-comment:" }, std::string_view{ "review:" } }) {
+			if (aPost.starts_with(prefix)) {
+				const auto found = ReactionsBySubject.find(std::string{ aPost.substr(prefix.size()) });
+				return found == ReactionsBySubject.end() ? std::nullopt : std::optional{ found->second };
+			}
+		}
+		return std::nullopt;
+	}
+
+	void conversation_cards_view::set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch)
+	{
+		ReactionDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread)
+	{
+		if (ResolutionsByThread == aByThread) {
+			return;
+		}
+		ResolutionsByThread = std::move(aByThread);
+		relayout();
+	}
+
 	void conversation_cards_view::set_resolution_offered(const bool aOffered)
 	{
+
 		if (ResolutionOffered == aOffered) {
 			return;
 		}
@@ -1783,15 +1821,23 @@ namespace bpr::qt {
 				card.DefectBadge       = badge->second.first;
 				card.DefectDescription = badge->second.second;
 			}
-			card.Kind              = isThread                                        ? QStringLiteral("Inline thread")
+			card.Kind      = isThread                                                ? QStringLiteral("Inline thread")
 				: node.Kind == application::github_conversation_kind::review         ? QStringLiteral("Review summary")
 				: node.Kind == application::github_conversation_kind::review_comment ? QStringLiteral("Inline comment")
 																					 : QStringLiteral("PR comment");
-			card.Path              = text(node.Path);
-			card.Side              = side_of(node);
-			card.Line              = node.Line;
-			card.StartLine         = node.StartLine;
-			card.Resolved          = node.Resolved;
+			card.Path      = text(node.Path);
+			card.Side      = side_of(node);
+			card.Line      = node.Line;
+			card.StartLine = node.StartLine;
+			card.Resolved  = node.Resolved;
+			// [[BPR-PENDING-AR1]]. My resolve or reopen shows at once, and
+			// GitHub's permission decides whether it is offered.
+			if (const auto presented = ResolutionsByThread.find(node.Id); isThread && presented != ResolutionsByThread.end()) {
+				card.Resolved            = presented->second.Resolved;
+				card.ResolutionPending   = presented->second.Pending;
+				card.ResolutionPermitted = presented->second.Resolved ? presented->second.CanUnresolve : presented->second.CanResolve;
+			}
+
 			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
 			card.FileLevel         = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
@@ -2090,6 +2136,8 @@ namespace bpr::qt {
 		// keeps its widgets, its focus and the reply being typed.
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
 			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
+			+ QString::number(static_cast<int>(card.ResolutionPending)) + QString::number(static_cast<int>(card.ResolutionPermitted))
+
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment));
@@ -2101,8 +2149,10 @@ namespace bpr::qt {
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
+			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 			return;
 		}
+
 		auto* const previous    = OpenCard;
 		const auto  hadFocus    = previous != nullptr && previous->isAncestorOf(QApplication::focusWidget());
 		const auto  focusedName = hadFocus ? QApplication::focusWidget()->objectName() : QString{ };
@@ -2222,8 +2272,16 @@ namespace bpr::qt {
 				ImageDispatch(aPost, std::move(aReferences));
 			}
 		};
+		OpenCard->Reaction = [this](const std::string& aPost, const core::reaction_content aContent) {
+			const auto dispatch = ReactionDispatch;
+			if (dispatch) {
+				dispatch(aPost, aContent);
+			}
+		};
+		OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 		OpenCard->set_images_shown(ImagesShown);
 		OpenCard->request_images();
+
 		OpenCard->request_code_syntax();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {
