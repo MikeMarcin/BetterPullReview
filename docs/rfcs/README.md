@@ -676,3 +676,19 @@ editable, one suggestion per Suggest change, an unplaceable change is marked
 and offered Convert to file comment, one pane shows the head file while
 editing, and the drawer no longer prefills a block.
 [Import](assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md).
+
+## Reactions and resolving conversations
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0091](RFC-BPR-0091-comment-reactions-and-resolve-conversation.md) | React to comments and resolve conversations as GitHub's web interface does | Auto-Verified | Closed 2026-10-22 by [BPR-PENDING-AR1](../issues/60-done/BPR-PENDING-AR1-react-to-comments-and-resolve-conversations.md): fixture rows and the composed course through the shipped composition on github-com and ghes-3.18, the live course on MikeMarcin/BPR-Test #132 with a second identity, and the owner's Accept of all three looks on a frozen build. Depends on RFC-BPR-0008, RFC-BPR-0015 |
+
+Drafted 2026-10-22 as RFC-DRAFT-0027 from the owner's report that reacting to
+a comment with an emoji and resolving a conversation were missing. Reactions
+are read after each snapshot and added or removed through the review mutation
+host; a write whose outcome is unclear is confirmed by reading GitHub's state
+back, never by sending it again. Resolve and reactions now go through the
+GitHub CLI connection as fixed GraphQL documents. The owner accepted the
+chips, the picker and Resolve conversation (session
+`3b59571c0c371e211a07e6a1c88e5711`, closed). Windows and Linux native runs are
+not claimed. [Import](assets/reactions-and-resolve-v1.LIVE_IMPORT.md).
