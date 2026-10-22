@@ -1,3 +1,17 @@
+# [[BPR-PENDING-AQ4]] reseal (2026-10-22) over the BPR-PENDING-AQ3 reseal
+# below (2f017aece), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0091 M4 (owner answer Q7 of 2026-10-22): github_application.cpp,
+# agent builds only, gives each agent workspace request the linked clone the
+# repository's link names (an absolute path, or none for the private copy),
+# so the Git adapter's workspace borrows that clone's history through one
+# alternates line and copies only what the clone lacks; nothing is written
+# to the clone and the workspace has no remote. Check it works asks the agent
+# host's new probe_workspace, which makes and removes the workspace an Ask
+# would make on the accepted binding through the same workspace port, admits
+# no session, runs no process and answers on the decision lane. No grant,
+# target, provider, credential, mutation or publication path changes; no new
+# src/app source. Full and manifest pins bind these bytes; mutation 16d135419
+# stays exact.
 # [[BPR-PENDING-AQ3]] reseal (2026-10-22) over the BPR-PENDING-AQ2 reseal
 # below (f8b7fbabd), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0091 M3 (owner decision D2 of 2026-10-22): github_application.cpp,

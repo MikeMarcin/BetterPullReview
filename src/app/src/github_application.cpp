@@ -11428,6 +11428,79 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-PENDING-AQ2]], RFC-BPR-0091. What setup decided reaches the
 		/// window: the saved or chosen agent is the one the Agent tab and Send to
 		/// Agent offer first.
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. The linked clone a review's
+		/// workspace borrows history from: the observed repository's serving
+		/// link, never for tool-free writing and never the private copy.
+		[[nodiscard]] auto linked_history_clone(const bool aWritingOnly) const -> std::optional<std::filesystem::path>
+		{
+			if (aWritingOnly || !CloneLinks || !CloneLinks->repository_chosen()) {
+				return std::nullopt;
+			}
+			const auto view = CloneLinks->projection();
+			if (!view.Linked || view.Linked->PrivateCopy || view.Linked->Path.empty()) {
+				return std::nullopt;
+			}
+			return std::filesystem::path{ std::u8string { reinterpret_cast<const char8_t*>(view.Linked->Path.data()),
+														  view.Linked->Path.size() } };
+		}
+
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Check it works. One Check runs the
+		/// agent's own status command and makes, then removes, the workspace an
+		/// Ask would make for the review on screen.
+		void check_agent_setup()
+		{
+			if (Closing || !AgentSetup) {
+				return;
+			}
+			AgentSetup->check();
+			check_agent_workspace();
+		}
+
+		void check_agent_workspace()
+		{
+			if (Closing || !AgentSetup) {
+				return;
+			}
+			const auto failed = [this](const std::optional<application::agent_workspace_unavailable_reason> aReason) {
+				LastWorkspaceProbeReason = aReason;
+				AgentSetup->set_workspace_check(core::fail_check(core::agent_setup_failure::workspace_unavailable));
+			};
+			if (AgentHost == nullptr || EpochHost == nullptr || !AgentReview) {
+				failed(std::nullopt);
+				return;
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+				failed(std::nullopt);
+				return;
+			}
+			const auto& authority  = *state.Authority;
+			const auto& revision   = *state.AcceptedRevision;
+			const auto& comparison = *state.AcceptedComparison;
+			auto        binding    = core::agent_revision_binding{
+				.Host        = authority.Host,
+				.Repository  = authority.Repository,
+				.PullRequest = authority.PullRequest,
+				.BaseOid     = revision.Base,
+				.HeadOid     = revision.Head,
+				.LeftEpoch   = comparison.Left.Identity.Epoch,
+				.RightEpoch  = comparison.Right.Identity.Epoch,
+			};
+			LastWorkspaceProbeReason.reset();
+			AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
+			AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false),
+									   [this, failed](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
+										   if (Closing || !AgentSetup) {
+											   return;
+										   }
+										   if (aProbed) {
+											   AgentSetup->set_workspace_check({ .State = core::setup_check_state::passed });
+											   return;
+										   }
+										   failed(aProbed.error().Code == application::agent_workspace_failure::unavailable ? std::optional{ aProbed.error().Reason } : std::nullopt);
+									   });
+		}
+
 		/// [[BPR-PENDING-AQ3]]. A repository with a serving link or the private
 		/// copy has its Repository step done.
 		void present_clone_links(const application::clone_link_projection& aProjection)
@@ -18752,6 +18825,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.WritingOnly            = aWritingOnly,
 				.RequestedSettings      = std::move(requested),
 				.PrivateRun             = std::move(privateRun),
+				.HistoryClone           = linked_history_clone(aWritingOnly),
 			});
 			return true;
 		}
@@ -22103,6 +22177,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-PENDING-AQ3]]. Clone folders and links: store, then host.
 		std::unique_ptr<application::clone_link_store_port> CloneLinkStore;
 		std::unique_ptr<application::clone_link_host>       CloneLinks;
+		/// [[BPR-PENDING-AQ4]]. Why the last workspace probe could not make the
+		/// workspace, for its words; absent when it was not that.
+		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

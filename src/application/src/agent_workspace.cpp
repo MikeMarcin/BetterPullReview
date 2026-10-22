@@ -121,7 +121,8 @@ namespace bpr::application {
 			&& aRequest.Session.Binding.HeadOid.algorithm()
 			== aRequest.Session.Binding.BaseOid.algorithm()
 			&& aRequest.ParentDirectory.is_absolute()
-			&& !aRequest.ParentDirectory.empty();
+			&& !aRequest.ParentDirectory.empty()
+			&& (!aRequest.HistoryClone || (aRequest.HistoryClone->is_absolute() && !aRequest.HistoryClone->empty()));
 	}
 
 	auto valid(const owned_agent_workspace& aWorkspace) noexcept -> bool

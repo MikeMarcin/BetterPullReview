@@ -265,6 +265,19 @@ history, branches, tags, LFS files or submodules" for a sparse one.
 With a linked clone, each agent session gets its own worktree of that clone
 at the session's head (Q7 accepted):
 
+> **Implementation note ([[BPR-PENDING-AQ4]], 2026-10-22, owner confirmation
+> pending in [[BPR-PENDING-AQ8]]).** Built as the existing private
+> disposable workspace with the clone's history borrowed through one
+> `objects/info/alternates` line, not as `git worktree add`: a worktree's
+> `.git` file cannot hold the workspace's owner-private marker and journaled
+> cleanup, and it would write into the clone and carry its remotes. Nothing
+> is written to the clone; only what it lacks is copied from the
+> application's cache (nothing when it holds the head); a sparse review's
+> workspace is shallow only when the clone lacks a parent of the head; the
+> workspace has no remote. The fetch, `worktree remove`, limit of three and
+> sparse **Copy** command below have nothing to govern under this form. On
+> Reject, a later card builds the form below.
+
 - **Getting the head** (Q8 A: from the application's own copy, never
   through the reviewer's remote or credentials).
   1. If the clone already holds the head commit, nothing is fetched.
@@ -599,7 +612,7 @@ closed and its protections released.
 | M1 Core setup and agent finding | BPR-PENDING-AQ1 | The setup state, rows, policy filtering, failure words and check decoding in core; the Codex search and program path; the plain-text harness only by a chosen path, so a shipped build starts both | AC02, AC03, AC13 (core share) |
 | M2 Host: detection, check and saved agent | BPR-PENDING-AQ2 | Detection when setup shows, the bounded status check, the saved agent per profile and Send to Agent's default | AC01, AC10 (agent row), AC11 (agent), AC12 (agent) |
 | M3 Clone folders and links | BPR-PENDING-AQ3 | The core's remote URL parsing and matching, the adapter's bounded `.git/config` and `.git/HEAD` reads, the stored clone folders and per-repository links | AC04, AC05 |
-| M4 Agent worktrees | BPR-PENDING-AQ4 | Getting the head from the application's copy, `worktree add` and `remove` with hooks, fsmonitor and filters off, ownership, the limit, reclamation, the worktree check row | AC06, AC07, AC10 (worktree row) |
+| M4 Agent workspaces on the clone's history | BPR-PENDING-AQ4 | Done as a private workspace borrowing the clone's objects (see [the implementation note](#the-agents-worktree), owner confirmation pending in M8); only what the clone lacks copied from the application's copy; the workspace check row | AC06 and AC07 as noted, AC10 (workspace row) |
 | M5 Brief and review skill | BPR-PENDING-AQ5 | Context supplement version three with its bounds, the built-in `bpr-pr-review` skill, its profile copy, versions and Settings editor | AC08, AC09 |
 | M6 Qt setup in the Agent tab | BPR-PENDING-AQ6 | Every frame's state in the tab, light and dark, the History entries, the partly set up callouts and the Settings rows | AC01, AC11, AC12 |
 | M7 Documentation | BPR-PENDING-AQ7 | The AI agent boundary amendment (Q2), Git and epoch model, Settings and the workbench specification | All, as documented |

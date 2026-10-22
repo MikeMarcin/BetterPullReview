@@ -730,6 +730,7 @@ namespace bpr::application {
 							.Authority          = aRequest.Authority,
 							.Session            = aInvocation->Identity.Session,
 							.ParentDirectory    = WorkspaceParent,
+							.HistoryClone       = aRequest.HistoryClone,
 						},
 						aInvocation->Stop->get_token());
 					if (!materialized.has_value()) {
@@ -1157,8 +1158,11 @@ namespace bpr::application {
 		bool AdmissionPending   = false;
 		bool AdmissionCancelled = false;
 
-		std::atomic_bool                       Closing    = false;
-		std::atomic_size_t                     ActiveJobs = 0U;
+		std::atomic_bool   Closing    = false;
+		std::atomic_size_t ActiveJobs = 0U;
+		/// [[BPR-PENDING-AQ4]]. Workspace probes posted and not yet answered.
+		std::atomic_size_t                     Probes        = 0U;
+		std::atomic_uint64_t                   ProbeSessions = 0U;
 		std::mutex                             GateMutex;
 		std::condition_variable                GateChanged;
 		std::size_t                            CallbacksInFlight = 0U;
@@ -1254,7 +1258,66 @@ namespace bpr::application {
 	auto agent_invocation_host::is_quiescent() const noexcept -> bool
 	{
 		const auto implementation = Implementation;
-		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U;
+		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U && implementation->Probes.load(std::memory_order_acquire) == 0U;
+	}
+
+	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,
+												core::agent_revision_binding aBinding, std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer)
+	{
+		const auto host = Implementation;
+		if (host->Closing.load(std::memory_order_acquire)) {
+			if (aAnswer) {
+				aAnswer(std::unexpected(agent_workspace_error{ agent_workspace_failure::cancelled }));
+			}
+			return;
+		}
+		// The reserved range: the high half of the session identities, which
+		// the durable catalog's monotonic identities never reach.
+		constexpr auto reserved    = std::uint64_t{ 1U } << 63U;
+		auto           request     = agent_workspace_materialization_request{ };
+		request.ApplicationSession = aApplicationSession;
+		request.Authority          = std::move(aAuthority);
+		request.Session.Id         = core::agent_session_id{ reserved + host->ProbeSessions.fetch_add(1U) + 1U };
+		request.Session.Profile    = core::external_terminal_profile_id;
+		request.Session.Binding    = std::move(aBinding);
+		request.ParentDirectory    = host->WorkspaceParent;
+		request.HistoryClone       = std::move(aHistoryClone);
+		++host->Probes;
+		try {
+			host->Effects.post([weak = std::weak_ptr{ host }, probe = std::move(request), answer = std::move(aAnswer)]() mutable {
+				auto self = weak.lock();
+				if (!self) {
+					return;
+				}
+				if (!self->enter_callback()) {
+					--self->Probes;
+					return;
+				}
+				auto guard  = implementation::callback_guard{ self };
+				auto result = std::expected<prepared_workspace, agent_workspace_error>{ std::unexpected(agent_workspace_error{ agent_workspace_failure::invalid_request }) };
+				try {
+					auto made = self->Workspaces.materialize_agent_workspace(probe, { });
+					if (made) {
+						result = made->Workspace;
+						static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));
+					} else {
+						result = std::unexpected(std::move(made.error()));
+					}
+				} catch (...) { }
+				try {
+					self->DecisionLane.post([self, reply = std::move(answer), outcome = std::move(result)]() mutable {
+						--self->Probes;
+						if (!self->Closing.load(std::memory_order_acquire) && reply) {
+							reply(std::move(outcome));
+						}
+					});
+				} catch (...) {
+					--self->Probes;
+				}
+			});
+		} catch (...) {
+			--host->Probes;
+		}
 	}
 
 	auto agent_invocation_host::statistics() const noexcept

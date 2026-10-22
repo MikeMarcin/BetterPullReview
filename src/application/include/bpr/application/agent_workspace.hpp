@@ -69,6 +69,9 @@ namespace bpr::application {
 		/// built from an immutable revision, so it has nothing uncommitted in
 		/// it by construction and reports `clean`.
 		checkout_cleanliness Cleanliness = checkout_cleanliness::clean;
+		/// [[BPR-PENDING-AQ4]]. The workspace borrows its history from the
+		/// reviewer's linked clone.
+		bool BorrowsHistory = false;
 
 		auto operator<=>(const prepared_workspace&) const = default;
 	};
@@ -89,6 +92,11 @@ namespace bpr::application {
 		core::pull_request_authority Authority;
 		core::agent_session          Session;
 		std::filesystem::path        ParentDirectory;
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. The working tree of the
+		/// reviewer's linked clone whose history the workspace borrows, read
+		/// only, through Git's alternates. Absent: the workspace holds only
+		/// what the application's own copy gives it, as before.
+		std::optional<std::filesystem::path> HistoryClone;
 
 		auto operator<=>(const agent_workspace_materialization_request&) const
 			= default;

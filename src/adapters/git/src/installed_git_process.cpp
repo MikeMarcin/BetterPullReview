@@ -220,6 +220,71 @@ namespace bpr::adapters::git {
 				: std::optional<std::filesystem::path>{ canonical };
 		}
 
+		/// \brief The objects folder a checkout's Git directory uses, followed
+		/// through a `.git` file and `commondir` as Git follows them, or nothing.
+		/// \details One path that the alternates list can carry as a single
+		/// entry: no separator, quote or line break. Shared by publication,
+		/// which reads a chosen checkout's objects, and by an agent workspace
+		/// that borrows a linked clone's history ([[BPR-PENDING-AQ4]]).
+		[[nodiscard]] auto checkout_objects(const std::string& aCheckout) -> std::optional<std::filesystem::path>
+		{
+			const auto root = resolve_canonical_existing(path_from_text(aCheckout));
+			if (!root) {
+				return std::nullopt;
+			}
+			const auto smallText = [](const std::filesystem::path& aPath) -> std::optional<std::string> {
+				std::error_code error;
+				if (!std::filesystem::is_regular_file(aPath, error) || error || std::filesystem::file_size(aPath, error) > 4096U || error) {
+					return std::nullopt;
+				}
+				std::ifstream input{ aPath, std::ios::binary };
+				auto          text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
+				while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
+					text.pop_back();
+				}
+				return input.bad() ? std::nullopt : std::optional{ std::move(text) };
+			};
+			const auto relative = [](const std::filesystem::path& aBase, const std::string& aText) {
+				const auto path = path_from_text(aText);
+				return path.is_absolute() ? path : aBase / path;
+			};
+			std::error_code error;
+			auto            gitDirectory = *root / ".git";
+			if (std::filesystem::is_regular_file(gitDirectory, error) && !error) {
+				const auto pointer = smallText(gitDirectory);
+				if (!pointer || !pointer->starts_with("gitdir: ")) {
+					return std::nullopt;
+				}
+				gitDirectory = relative(*root, pointer->substr(8U));
+			}
+			auto common = resolve_canonical_existing(gitDirectory);
+			if (!common) {
+				return std::nullopt;
+			}
+			if (const auto shared = smallText(*common / "commondir")) {
+				common = resolve_canonical_existing(relative(*common, *shared));
+				if (!common) {
+					return std::nullopt;
+				}
+			}
+			auto objects = resolve_canonical_existing(*common / "objects");
+			if (!objects || !std::filesystem::is_directory(*objects, error) || error) {
+				return std::nullopt;
+			}
+			// The alternates list is separator-delimited; a quoted or
+			// multi-entry form is never produced.
+			const auto text = path_text(*objects);
+#if defined(Q_OS_WIN)
+			constexpr auto separator = ';';
+#else
+			constexpr auto separator = ':';
+#endif
+			if (text.find(separator) != std::string::npos || text.find_first_of("\"\n\r") != std::string::npos) {
+				return std::nullopt;
+			}
+			return objects;
+		}
+
 		[[nodiscard]] auto private_directory(
 			const std::filesystem::path& aPath) -> bool
 		{
@@ -4361,9 +4426,38 @@ namespace bpr::adapters::git {
 					return fail(initialized.error());
 				}
 
+				// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. With a linked clone the
+				// workspace borrows that clone's history read-only, through
+				// Git's alternates list: one line naming the clone's objects
+				// folder. Nothing is written to the clone, and the workspace has
+				// no remote, so the agent's tools can read the history and blame
+				// without reaching the reviewer's remotes.
+				auto borrowed = std::optional<std::string>{ };
+				if (materialization.HistoryClone) {
+					const auto objects = checkout_objects(path_text(*materialization.HistoryClone));
+					if (!objects) {
+						return fail(git_process_error{ git_process_failure::invalid_request, "The linked clone has no objects folder this workspace can borrow history from." });
+					}
+					borrowed = path_text(*objects) + "\n";
+					if (!write_private_file(destination / ".git" / "objects" / "info" / "alternates", *borrowed)) {
+						return fail(git_process_failure::invalid_repository);
+					}
+				}
+				// Whether the workspace already reads an object, through its
+				// borrowed history or its own packs.
+				const auto present = [&](const std::string& aObject) -> bool {
+					auto probe = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(probe, "cat-file", "-e", aObject + "^{commit}");
+					const auto answered = submitWorkspace(process_request{ .Arguments = std::move(probe), .AllowExitOne = true }, aStop);
+					return answered.has_value() && answered->ExitCode == 0;
+				};
+
 				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
 				auto       arguments     = std::vector<std::string>{ };
-				if (aRequest.Snapshot) {
+				const auto baseText      = std::string{ core::canonical_hex(materialization.Session.Binding.BaseOid).view() };
+				if (borrowed && present(headText)) {
+					// The clone already holds the head: nothing to copy.
+				} else if (aRequest.Snapshot) {
 					// [[BPR-1738]]. A sparse review's cache holds the head's
 					// commit and trees but no blobs and no parents, so packing the
 					// head's closure out of it walks into the first missing
@@ -4401,7 +4495,30 @@ namespace bpr::adapters::git {
 					if (!indexedSnapshot.has_value()) {
 						return fail(indexedSnapshot.error());
 					}
-					if (!write_private_file(destination / ".git" / "shallow", headText + "\n")) {
+					// Borrowed history ends the snapshot's boundary only when the
+					// clone holds every parent of the head.
+					auto parentsBorrowed = false;
+					if (borrowed) {
+						auto read = workspace_git_arguments(destination, HooksRoot);
+						append_arguments(read, "cat-file", "commit", headText);
+						const auto commitText = submitWorkspace(process_request{ .Arguments = std::move(read) }, aStop);
+						if (commitText.has_value()) {
+							auto parents = std::vector<std::string>{ };
+							for (auto rest = std::string_view{ commitText->StandardOutput }; !rest.empty();) {
+								const auto end  = rest.find('\n');
+								const auto line = rest.substr(0U, end);
+								if (line.empty()) {
+									break;
+								}
+								if (line.starts_with("parent ")) {
+									parents.emplace_back(line.substr(7U));
+								}
+								rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+							}
+							parentsBorrowed = !parents.empty() && std::ranges::all_of(parents, present);
+						}
+					}
+					if (!parentsBorrowed && !write_private_file(destination / ".git" / "shallow", headText + "\n")) {
 						return fail(git_process_failure::invalid_repository);
 					}
 				} else {
@@ -4414,10 +4531,13 @@ namespace bpr::adapters::git {
 						"--non-empty",
 						"--",
 						path_text(destination / ".git" / "objects" / "pack" / "pack"));
-					const auto packed = submitWorkspace(
+					// Borrowing a clone that holds the base, only what the base
+					// lacks is copied; its history is read from the clone.
+					const auto excludeBase = borrowed && baseText != headText && present(baseText);
+					const auto packed      = submitWorkspace(
 						process_request{
 							.Arguments = std::move(arguments),
-							.Input     = memory_input{ headText + "\n" },
+							.Input     = memory_input{ headText + "\n" + (excludeBase ? "^" + baseText + "\n" : std::string{ }) },
 							.Timeout   = pack_process_timeout,
 						},
 						aStop);
@@ -4501,9 +4621,11 @@ namespace bpr::adapters::git {
 				}
 
 				std::error_code topologyError;
-				const auto      unsafeTopology = std::filesystem::exists(
-													 destination / ".git" / "objects" / "info" / "alternates",
-													 topologyError)
+				// The only alternates entry a workspace may hold is the one it
+				// wrote for the linked clone.
+				const auto alternatesFile = destination / ".git" / "objects" / "info" / "alternates";
+				const auto unsafeTopology = (borrowed ? !read_exact_file(alternatesFile, *borrowed)
+													  : std::filesystem::exists(alternatesFile, topologyError))
 					|| topologyError
 					|| std::filesystem::exists(
 												destination / ".git" / "objects" / "info" / "http-alternates",
@@ -4535,10 +4657,11 @@ namespace bpr::adapters::git {
 				}
 				auto owned = application::owned_agent_workspace{
 					.Workspace = application::prepared_workspace{
-						.Policy      = core::agent_workspace_policy::disposable_review_workspace,
-						.PinnedHead  = head,
-						.Path        = path_text(destination),
-						.Cleanliness = application::checkout_cleanliness::clean,
+						.Policy         = core::agent_workspace_policy::disposable_review_workspace,
+						.PinnedHead     = head,
+						.Path           = path_text(destination),
+						.Cleanliness    = application::checkout_cleanliness::clean,
+						.BorrowsHistory = borrowed.has_value(),
 					},
 					.ApplicationSession = materialization.ApplicationSession,
 					.Authority          = materialization.Authority,
@@ -6865,67 +6988,6 @@ namespace bpr::adapters::git {
 				return std::move(result->StandardOutput);
 			}
 
-			/// Resolves the checkout's shared object directory from its `.git`
-			/// directory or `gitdir:` file, without reading its configuration.
-			[[nodiscard]] static auto source_objects(const std::string& aCheckout) -> std::optional<std::filesystem::path>
-			{
-				const auto root = resolve_canonical_existing(path_from_text(aCheckout));
-				if (!root) {
-					return std::nullopt;
-				}
-				const auto smallText = [](const std::filesystem::path& aPath) -> std::optional<std::string> {
-					std::error_code error;
-					if (!std::filesystem::is_regular_file(aPath, error) || error || std::filesystem::file_size(aPath, error) > 4096U || error) {
-						return std::nullopt;
-					}
-					std::ifstream input{ aPath, std::ios::binary };
-					auto          text = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
-					while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) {
-						text.pop_back();
-					}
-					return input.bad() ? std::nullopt : std::optional{ std::move(text) };
-				};
-				const auto relative = [](const std::filesystem::path& aBase, const std::string& aText) {
-					const auto path = path_from_text(aText);
-					return path.is_absolute() ? path : aBase / path;
-				};
-				std::error_code error;
-				auto            gitDirectory = *root / ".git";
-				if (std::filesystem::is_regular_file(gitDirectory, error) && !error) {
-					const auto pointer = smallText(gitDirectory);
-					if (!pointer || !pointer->starts_with("gitdir: ")) {
-						return std::nullopt;
-					}
-					gitDirectory = relative(*root, pointer->substr(8U));
-				}
-				auto common = resolve_canonical_existing(gitDirectory);
-				if (!common) {
-					return std::nullopt;
-				}
-				if (const auto shared = smallText(*common / "commondir")) {
-					common = resolve_canonical_existing(relative(*common, *shared));
-					if (!common) {
-						return std::nullopt;
-					}
-				}
-				auto objects = resolve_canonical_existing(*common / "objects");
-				if (!objects || !std::filesystem::is_directory(*objects, error) || error) {
-					return std::nullopt;
-				}
-				// The alternates list is separator-delimited; a quoted or
-				// multi-entry form is never produced.
-				const auto text = path_text(*objects);
-#if defined(Q_OS_WIN)
-				constexpr auto separator = ';';
-#else
-				constexpr auto separator = ':';
-#endif
-				if (text.find(separator) != std::string::npos || text.find_first_of("\"\n\r") != std::string::npos) {
-					return std::nullopt;
-				}
-				return objects;
-			}
-
 			[[nodiscard]] auto prepare(
 				const application::publication_repository& aRepository,
 				const std::stop_token                      aStop)
@@ -6934,7 +6996,7 @@ namespace bpr::adapters::git {
 				if (aRepository.Algorithm != core::git_hash_algorithm::sha1 && aRepository.Algorithm != core::git_hash_algorithm::sha256) {
 					return failure(application::publication_git_failure::invalid_repository);
 				}
-				const auto objects = source_objects(aRepository.Checkout);
+				const auto objects = checkout_objects(aRepository.Checkout);
 				if (!objects) {
 					return failure(application::publication_git_failure::invalid_repository);
 				}

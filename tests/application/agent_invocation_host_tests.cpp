@@ -1660,6 +1660,40 @@ namespace {
 
 } // namespace
 
+namespace {
+	/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Check it works. The workspace probe
+	/// makes and removes the workspace an Ask would make, admits no session,
+	/// starts no process, answers on the decision lane and holds quiescence
+	/// until it does; a failure comes back with its reason.
+	void test_workspace_probe_makes_and_removes_a_workspace_without_a_session()
+	{
+		auto       test   = harness{ };
+		const auto hostId = core::git_host_id{ 1U };
+		auto       answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::filesystem::path{ "/tmp/reviewer-clone" },
+								  [&answer](auto aProbed) { answer = std::move(aProbed); });
+		expect(!test.Host.is_quiescent() && !answer, "a posted probe holds quiescence");
+		test.Effects.drain();
+		expect(!answer, "the probe answers on the decision lane, not the effect lane");
+		test.Decisions.drain();
+		expect(answer && answer->has_value() && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 1U && test.Processes.Starts == 0U && test.Host.is_quiescent(),
+			   "the probe makes the workspace, removes it and runs nothing");
+		expect(test.Workspaces.LastRequest && test.Workspaces.LastRequest->HistoryClone == std::filesystem::path{ "/tmp/reviewer-clone" }
+				   && test.Workspaces.LastRequest->Session.Id.value() >= (std::uint64_t{ 1U } << 63U) && test.Workspaces.LastRequest->ParentDirectory == test.Workspaces.LastCleanup->ParentDirectory,
+			   "it carries the linked clone and a reserved session identity");
+		expect(test.Projection.Finished.empty(), "no session finishes: none was admitted");
+
+		test.Workspaces.MaterializationFailure = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, "no head",
+																					 application::agent_workspace_unavailable_reason::download_failed };
+		answer.reset();
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.settle();
+		expect(answer && !answer->has_value() && answer->error().Reason == application::agent_workspace_unavailable_reason::download_failed && test.Workspaces.Cleanups == 1U
+				   && test.Host.is_quiescent(),
+			   "a workspace that cannot be made answers with its reason and leaves nothing to clean");
+	}
+}
+
 auto main() -> int
 {
 	test_explicit_settings_cross_the_existing_invocation_host();
@@ -1686,6 +1720,7 @@ auto main() -> int
 	test_a_continued_turn_survives_the_binding_moving_under_it();
 	test_a_fresh_turn_under_the_same_binding_change_is_superseded();
 	test_a_promoted_finding_reaches_only_the_note_authority();
+	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

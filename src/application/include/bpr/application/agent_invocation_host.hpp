@@ -69,6 +69,9 @@ namespace bpr::application {
 		bool                               WritingOnly = false;
 		core::agent_setting_facts          RequestedSettings;
 		std::optional<private_run_intent>  PrivateRun;
+		/// [[BPR-PENDING-AQ4]], RFC-BPR-0091 Q7. The reviewer's linked clone,
+		/// whose history the session's workspace borrows read-only.
+		std::optional<std::filesystem::path> HistoryClone;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -182,6 +185,16 @@ namespace bpr::application {
 		void cancel();
 		void shutdown();
 		void retry_cleanup();
+
+		/// \brief [[BPR-PENDING-AQ4]], RFC-BPR-0091 Check it works. Makes the
+		/// workspace an Ask on this binding would make, through the same
+		/// workspace port, then removes it, and answers on the decision lane.
+		/// \details No session is admitted and no agent runs: the probe's
+		/// session identity is from a reserved range no durable session uses.
+		/// It counts toward quiescence until it answers.
+		using workspace_probe_answer = std::function<void(std::expected<prepared_workspace, agent_workspace_error>)>;
+		void probe_workspace(core::application_session_id aApplicationSession, core::pull_request_authority aAuthority, core::agent_revision_binding aBinding,
+							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer);
 
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto statistics() const noexcept
