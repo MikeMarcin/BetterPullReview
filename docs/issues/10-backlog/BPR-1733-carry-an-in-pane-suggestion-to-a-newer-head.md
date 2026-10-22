@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AH8"
+id: "BPR-1733"
 title: "Carry a kept in-pane suggestion to a newer head, or copy its change"
 status: "Backlog"
 rfcs: ["RFC-BPR-0090"]
-depends_on: ["BPR-PENDING-AH3"]
+depends_on: ["BPR-1728"]
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"RFC-BPR-0090 M3, 2026-10-21: split from BPR-PENDING-AH3 because it needs host facts the window does not hold","related_cards":["BPR-1723","BPR-PENDING-AH1","BPR-PENDING-AH3"],"milestone":"RFC-BPR-0090 M3"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 M3, 2026-10-21: split from BPR-1728 because it needs host facts the window does not hold","related_cards":["BPR-1723","BPR-1726","BPR-1728"],"milestone":"RFC-BPR-0090 M3"}
 ---
 
-# BPR-PENDING-AH8: Carry a kept in-pane suggestion to a newer head, or copy its change
+# BPR-1733: Carry a kept in-pane suggestion to a newer head, or copy its change
 
 RFC-BPR-0090 "A new head while editing" ([RFC](../../rfcs/RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md#a-new-head-while-editing)).
 

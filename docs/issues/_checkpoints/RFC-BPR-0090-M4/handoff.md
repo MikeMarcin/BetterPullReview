@@ -5,7 +5,7 @@ Assignment: record the owner's answers to RFC-DRAFT-0025 (session
 the design so only the selected lines are editable, adopt the RFC, split it
 into cards, and implement M1 to M4, from the RFC implementation coordinator,
 over main `07a9594c3`. Branch `worktree-agent-ab2406ef642d68509`, rebased
-onto main `7075954df`. New issue IDs are provisional (`BPR-PENDING-AH1` to
+onto main `7075954df`. New issue IDs are provisional (`BPR-1726` to
 `AH8`); the coordinator allocates them on main. No card's metadata carries a
 `provisional_id` key.
 
@@ -19,14 +19,14 @@ own palette: the write-blue for the range and the reading amber for a hold.
 |---|---|---|
 | Owner answers Q1 to Q5 and the Q1 clarification | recorded; session handed back, released and its host stopped | [[BPR-1723]], RFC "Owner decisions" |
 | RFC adoption | RFC-BPR-0090 r2, In Progress, indexed; draft kept as provenance | `f0e03c9be` |
-| M1 core | done | BPR-PENDING-AH1, `860b7726f` |
-| M2 Qt pane | done | BPR-PENDING-AH2, `e249fc5f6` |
-| M3 drawer, hold and Convert, lifecycle | done apart from Carry | BPR-PENDING-AH3, `a7b8b0f6d` |
-| Carry and Copy change at a newer head | Backlog: needs the host's old-to-new head correspondence | BPR-PENDING-AH8 |
-| M4 live course | five planned suggestions accepted and read back identical on BPR-Test #123 | BPR-PENDING-AH4 |
-| M4 CRLF commit measurement | parked: GitHub's Commit suggestions is the owner's (wizard) | BPR-PENDING-AH4 |
-| M4 look (RFC AC10) | parked: six questions on a frozen build | BPR-PENDING-AH4 |
-| Follow-ups | stacked two panes (Q4 note), a durable file-comment subject | BPR-PENDING-AH6, AH7 |
+| M1 core | done | BPR-1726, `860b7726f` |
+| M2 Qt pane | done | BPR-1727, `e249fc5f6` |
+| M3 drawer, hold and Convert, lifecycle | done apart from Carry | BPR-1728, `a7b8b0f6d` |
+| Carry and Copy change at a newer head | Backlog: needs the host's old-to-new head correspondence | BPR-1733 |
+| M4 live course | five planned suggestions accepted and read back identical on BPR-Test #123 | BPR-1729 |
+| M4 CRLF commit measurement | parked: GitHub's Commit suggestions is the owner's (wizard) | BPR-1729 |
+| M4 look (RFC AC10) | parked: six questions on a frozen build | BPR-1729 |
+| Follow-ups | stacked two panes (Q4 note), a durable file-comment subject | BPR-1731, AH7 |
 
 ## Open sessions and resources
 
@@ -52,5 +52,5 @@ own palette: the write-blue for the range and the reading amber for a hold.
 After the owner: read the look with `status --after 18`; once the wizard's
 first step is acknowledged, run the course's `measure` and record it with
 `record --step measure`; record AH4's AC1 and AC2; `cleanup` #123; remove the
-frozen root with `scripts/freeze_attended_build.py remove`; then BPR-PENDING-AH8,
-then the closeout BPR-PENDING-AH5.
+frozen root with `scripts/freeze_attended_build.py remove`; then BPR-1733,
+then the closeout BPR-1730.

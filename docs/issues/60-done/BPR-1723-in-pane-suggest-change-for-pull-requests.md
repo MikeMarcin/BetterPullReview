@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0090"]
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1723--BPR-1723--40864f3da1f3.json","kind":"ux","origin":"owner report 2026-10-21 (relayed by the coordinator)","owner_note":"It seems like the suggest change logic from the local project where we can type our change into the main code pain doesnt exist for the pr review ux","draft_rfc":"docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md","design_frames":"docs/design/BPR-1723-in-pane-suggest-v1/index.html","frontend_design":"frontend-design:frontend-design loaded before the design frames","related_cards":["BPR-1156","BPR-1212","BPR-1721","BPR-1084","BPR-1716","BPR-1706"],"related_rfcs":["RFC-BPR-0055","RFC-BPR-0022","RFC-BPR-0048","RFC-BPR-0089"],"phase":"1 (design); no product code changed","adopted_rfc":"docs/rfcs/RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md","design_frames_v2":"docs/design/BPR-1723-in-pane-suggest-v2/index.html","milestone_cards":["BPR-PENDING-AH1","BPR-PENDING-AH2","BPR-PENDING-AH3","BPR-PENDING-AH4","BPR-PENDING-AH5"],"follow_ups":["BPR-PENDING-AH6","BPR-PENDING-AH7"],"owner_session":{"id":"e5387830d18edd8d541b96e47ecbd9cb","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-in-pane-suggest-v001","status":"closed 2026-10-21, handed back, host stopped"}}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1723--BPR-1723--40864f3da1f3.json","kind":"ux","origin":"owner report 2026-10-21 (relayed by the coordinator)","owner_note":"It seems like the suggest change logic from the local project where we can type our change into the main code pain doesnt exist for the pr review ux","draft_rfc":"docs/rfcs/assets/pr-in-pane-suggestions-v1/RFC-DRAFT-0025-in-pane-suggest-change-for-pull-requests.md","design_frames":"docs/design/BPR-1723-in-pane-suggest-v1/index.html","frontend_design":"frontend-design:frontend-design loaded before the design frames","related_cards":["BPR-1156","BPR-1212","BPR-1721","BPR-1084","BPR-1716","BPR-1706"],"related_rfcs":["RFC-BPR-0055","RFC-BPR-0022","RFC-BPR-0048","RFC-BPR-0089"],"phase":"1 (design); no product code changed","adopted_rfc":"docs/rfcs/RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md","design_frames_v2":"docs/design/BPR-1723-in-pane-suggest-v2/index.html","milestone_cards":["BPR-1726","BPR-1727","BPR-1728","BPR-1729","BPR-1730"],"follow_ups":["BPR-1731","BPR-1732"],"owner_session":{"id":"e5387830d18edd8d541b96e47ecbd9cb","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-in-pane-suggest-v001","status":"closed 2026-10-21, handed back, host stopped"}}
 acceptance: [{"criterion":"The owner's answers to Q1 to Q5 are recorded here and in the RFC, and the RFC is adopted, revised or set aside to match","outcome":"pass","revision":"07a9594c3a64dc9176a97335b04a6cead7b637cc","evidence":{"kind":"observation","detail":"attended_review.py status --after 15 on session e5387830d18edd8d541b96e47ecbd9cb read the five decisions (sequences 17 to 52: Q1 reject superseding an accept, Q2 A, Q3 B with its note, Q4 A with its note, Q5 accept); the coordinator relayed the owner's chat clarification of Q1. All are recorded on this card and in RFC-BPR-0090 r2, which adopts the revised draft. hand-back reported nothing pending, and the host stopped."}}]
 ---
 
@@ -78,7 +78,7 @@ per decision. Its URL is kept in the external session state.
 - **Q4: A**, one pane shows the head file while editing (sequence 50). Note:
   "I kind of want to say 2 pane with top over bottom but I think that's too
   big of a change to land here." A stacked two-pane layout is recorded as
-  backlog card BPR-PENDING-AH6.
+  backlog card BPR-1731.
 - **Q5: Accept** (sequence 52). The drawer stops prefilling a suggestion
   block.
 
@@ -102,8 +102,8 @@ The revised design, in short:
 - One comment per edit. Frames for this design are in
   [design frames v2](../../design/BPR-1723-in-pane-suggest-v2/index.html).
 
-Its milestones are cards BPR-PENDING-AH1 to AH4, with closeout
-BPR-PENDING-AH5 and follow-ups AH6 and AH7.
+Its milestones are cards BPR-1726 to AH4, with closeout
+BPR-1730 and follow-ups AH6 and AH7.
 
 ## Acceptance
 

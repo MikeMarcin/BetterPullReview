@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AH6"
+id: "BPR-1731"
 title: "A stacked two-pane comparison, base over head"
 status: "Backlog"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2"}
 ---
 
-# BPR-PENDING-AH6: A stacked two-pane comparison, base over head
+# BPR-1731: A stacked two-pane comparison, base over head
 
 ## Origin
 

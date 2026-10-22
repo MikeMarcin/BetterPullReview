@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AH7"
+id: "BPR-1732"
 title: "A converted suggestion can always become a file comment"
 status: "Backlog"
 rfcs: []
 depends_on: ["BPR-1716"]
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2"}
 ---
 
-# BPR-PENDING-AH7: A converted suggestion can always become a file comment
+# BPR-1732: A converted suggestion can always become a file comment
 
 ## Origin
 

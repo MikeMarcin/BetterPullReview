@@ -15,7 +15,7 @@ In Progress, revision r2. Adopted from
 owner answered its five questions. Card [[BPR-1723]] holds the phase 1
 finding; the milestone cards are listed under [Milestones](#milestones).
 M1 to M3 are implemented; Carry and Copy change at a newer head are
-BPR-PENDING-AH8. M4's live course on BPR-Test #123 published the core's
+BPR-1733. M4's live course on BPR-Test #123 published the core's
 planned suggestions, which GitHub took at their lines and returned
 unchanged; GitHub's Commit suggestion on a CRLF file and the owner's look
 are parked on the owner ([checkpoint](../issues/_checkpoints/RFC-BPR-0090-M4/handoff.md)).
@@ -97,7 +97,7 @@ was handed back with nothing pending and its host stopped on 2026-10-21.
 - **Q4, one pane: A.** While editing, the one pane shows the head file.
   Note, verbatim: "I kind of want to say 2 pane with top over bottom but I
   think that's too big of a change to land here." A stacked two-pane layout
-  is recorded as a separate backlog card (BPR-PENDING-AH6).
+  is recorded as a separate backlog card (BPR-1731).
 - **Q5, the drawer block: Accept.** Suggest change always edits in the code,
   and the drawer never prefills a suggestion block. A fence typed or pasted
   into a comment still works as text, as today ([[BPR-1084]]).
@@ -256,7 +256,7 @@ The header says "Suggested change, lines a–b". While the code is edited:
   published there as a text comment that GitHub shows outdated, as RFC-BPR-0089
   Q1 decided for comments; making that one a file comment needs a durable
   file-comment subject for a draft, which is [[BPR-1716]]'s AC2 and is
-  recorded as follow-up BPR-PENDING-AH7. The button's words name the
+  recorded as follow-up BPR-1732. The button's words name the
   destination the core decides: "Convert to file comment" or "Convert to a
   comment on `<short commit>`". Converted, the draft is an ordinary text
   comment: its whole text shows in the drawer, and it is sent as one.
@@ -291,7 +291,7 @@ The header says "Suggested change, lines a–b". While the code is edited:
 The edit is bound to its head blob and comparison. When a newer head arrives,
 the edit ends and its draft stays on its comparison, read-only, naming its
 head, as the established rule says. Carry and Copy change, below, are card
-BPR-PENDING-AH8: they need the host's old-to-new head correspondence on the
+BPR-1733: they need the host's old-to-new head correspondence on the
 window's side, and the core's decision is built (M1). **Carry to the new head** is offered on
 that draft only when the core finds every original line of its range
 unchanged at the new head (exact, from the old-to-new head correspondence,
@@ -322,7 +322,7 @@ was edited, and Copy change copies the block's text.
 - Review Cycles' own editor. It is reused; it gains the editable span, an
   external scroll offset, a number gutter and row fills, and keeps its
   behaviour when none is set.
-- A stacked two-pane layout (Q4's note; BPR-PENDING-AH6).
+- A stacked two-pane layout (Q4's note; BPR-1731).
 
 ### Alternatives considered
 
@@ -383,14 +383,14 @@ was edited, and Copy change copies the block's text.
 
 | Milestone | Card | Scope | Acceptance |
 |---|---|---|---|
-| M1 Core | BPR-PENDING-AH1 | `decide_suggestion_range`, the editable span in `suggestion_text_editor`, `plan_pull_request_suggestion`, `split_suggestion_body`, `rebuild_suggestion_span`, `convert_suggestion_to_text`, `decide_suggestion_carry`, with core tests | AC03 and AC05 (core share), AC06 (rebuild), AC08 (decision), AC09 |
-| M2 Qt pane | BPR-PENDING-AH2 | The shared editor over the head pane at the same geometry: external scroll, number gutter, fills, range edge, dimmed ribbons, the entries and the one-pane head view | AC01, AC02 |
-| M3 Drawer and lifecycle | BPR-PENDING-AH3 | The linked draft, the composed body through the durable path, the mark and Convert on the comment and on Finish your review, leaving, reopening, deleting, typed back, the edit ending at a new head, and the composed courses | AC04 to AC07, AC08 (the edit ends), AC09 |
-| M3 Carry | BPR-PENDING-AH8 | Carry to the new head and Copy change on a kept suggestion whose head moved, from the host's old-to-new head correspondence | AC08 (Carry and Copy change) |
-| M4 Live and attended | BPR-PENDING-AH4 | A BPR-Test course (publish the plan's bodies, then Commit suggestion), the CRLF measurement, a frozen build and the owner's look | AC03 (live), AC10 |
-| Closeout | BPR-PENDING-AH5 | Verify every criterion and close the RFC | All |
+| M1 Core | BPR-1726 | `decide_suggestion_range`, the editable span in `suggestion_text_editor`, `plan_pull_request_suggestion`, `split_suggestion_body`, `rebuild_suggestion_span`, `convert_suggestion_to_text`, `decide_suggestion_carry`, with core tests | AC03 and AC05 (core share), AC06 (rebuild), AC08 (decision), AC09 |
+| M2 Qt pane | BPR-1727 | The shared editor over the head pane at the same geometry: external scroll, number gutter, fills, range edge, dimmed ribbons, the entries and the one-pane head view | AC01, AC02 |
+| M3 Drawer and lifecycle | BPR-1728 | The linked draft, the composed body through the durable path, the mark and Convert on the comment and on Finish your review, leaving, reopening, deleting, typed back, the edit ending at a new head, and the composed courses | AC04 to AC07, AC08 (the edit ends), AC09 |
+| M3 Carry | BPR-1733 | Carry to the new head and Copy change on a kept suggestion whose head moved, from the host's old-to-new head correspondence | AC08 (Carry and Copy change) |
+| M4 Live and attended | BPR-1729 | A BPR-Test course (publish the plan's bodies, then Commit suggestion), the CRLF measurement, a frozen build and the owner's look | AC03 (live), AC10 |
+| Closeout | BPR-1730 | Verify every criterion and close the RFC | All |
 
-Follow-ups recorded in the backlog: BPR-PENDING-AH6 (a stacked two-pane
-layout, Q4's note) and BPR-PENDING-AH7 (a durable file-comment subject, so a
+Follow-ups recorded in the backlog: BPR-1731 (a stacked two-pane
+layout, Q4's note) and BPR-1732 (a durable file-comment subject, so a
 converted suggestion on a line GitHub resolves on a filtered commit can be a
 file comment too).

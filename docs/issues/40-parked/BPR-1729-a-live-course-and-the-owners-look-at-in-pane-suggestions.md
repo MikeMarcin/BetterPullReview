@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AH4"
+id: "BPR-1729"
 title: "Publish in-pane suggestions on BPR-Test, measure CRLF, and take the owner's look"
 status: "Parked"
 rfcs: ["RFC-BPR-0090"]
-depends_on: ["BPR-PENDING-AH3"]
+depends_on: ["BPR-1728"]
 priority: "P2"
 platforms: ["mac","win","linux"]
 parked_on: "human-review"
-metadata: {"origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2","milestone":"RFC-BPR-0090 M4","live_pull_request":"MikeMarcin/BPR-Test#123","look_session":{"id":"7dba4a1f1dbf08a0ad93da313b35fbcd","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0090-look-v001","status":"six candidates ready at event cursor 18, host serving"},"wizard_session":{"id":"882aa75a-b47d-49a0-ab01-340f0ca80646","state":"/Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001","status":"active, waiting on step commit-batch"},"frozen_build":{"root":"/Users/jaeger/bpr-rfc0090-in-pane-v001.t2govxlb","commit":"b13164f02fa980ec881a55ce2c4fdd0f5a044bc6","executable_sha256":"34a0eb21f6ed5c8962405acca55c83becd4075c6054a6c85cb73e6f5860c51c0"}}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2","milestone":"RFC-BPR-0090 M4","live_pull_request":"MikeMarcin/BPR-Test#123","look_session":{"id":"7dba4a1f1dbf08a0ad93da313b35fbcd","state":"/Users/jaeger/.mask/attended-review/owner-review-20261021-rfc0090-look-v001","status":"six candidates ready at event cursor 18, host serving"},"wizard_session":{"id":"882aa75a-b47d-49a0-ab01-340f0ca80646","state":"/Users/jaeger/.mask/wizard/rfc-0090-commit-suggestions-v001","status":"active, waiting on step commit-batch"},"frozen_build":{"root":"/Users/jaeger/bpr-rfc0090-in-pane-v001.t2govxlb","commit":"b13164f02fa980ec881a55ce2c4fdd0f5a044bc6","executable_sha256":"34a0eb21f6ed5c8962405acca55c83becd4075c6054a6c85cb73e6f5860c51c0"}}
 ---
 
-# BPR-PENDING-AH4: Publish in-pane suggestions on BPR-Test, measure CRLF, and take the owner's look
+# BPR-1729: Publish in-pane suggestions on BPR-Test, measure CRLF, and take the owner's look
 
 RFC-BPR-0090 M4 ([RFC](../../rfcs/RFC-BPR-0090-in-pane-suggest-change-for-pull-requests.md#milestones)).
 

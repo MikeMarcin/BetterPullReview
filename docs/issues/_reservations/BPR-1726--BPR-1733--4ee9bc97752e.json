@@ -1,0 +1,17 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1726",
+    "BPR-1727",
+    "BPR-1728",
+    "BPR-1729",
+    "BPR-1730",
+    "BPR-1731",
+    "BPR-1732",
+    "BPR-1733"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0090 cards",
+  "created": "2026-10-22T01:41:29.303954+00:00",
+  "base": "3927fca2154f51fd85a9d32a181eb1f165479884"
+}
