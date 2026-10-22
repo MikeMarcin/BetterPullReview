@@ -17,6 +17,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/refresh_feedback.hpp"
@@ -385,6 +386,10 @@ namespace bpr::qt {
 		core::filtered_comment_target Target;
 		/// The diff's right commit, abbreviated, to name an earlier commit.
 		QString Commit;
+		/// [[BPR-1736]]. On the Whole PR diff, for a line outside every hunk:
+		/// what this profile learned about GitHub taking a comment there, which
+		/// the notice says. Absent on a filtered diff.
+		std::optional<core::off_hunk_creation_capability> Learned;
 
 		auto operator==(const filtered_comment_presentation&) const -> bool = default;
 	};

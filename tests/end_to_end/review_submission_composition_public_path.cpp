@@ -904,7 +904,7 @@ auto main(int argc, char** argv) -> int
 			const auto journal  = *dataRoot / "state" / "v1" / "review-mutation-recovery.sqlite3";
 			::sqlite3* database = nullptr;
 			expect(std::filesystem::exists(journal) && ::sqlite3_open_v2(journal.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the recovery journal opens");
-			const auto downgraded = ::sqlite3_exec(database, "DROP TABLE publication_post; DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;", nullptr, nullptr, nullptr);
+			const auto downgraded = ::sqlite3_exec(database, "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;", nullptr, nullptr, nullptr);
 			static_cast<void>(::sqlite3_close_v2(database));
 			expect(downgraded == SQLITE_OK, "the journal is the version an earlier application wrote");
 		}
@@ -1042,8 +1042,15 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return access::review_mutation_evidence(*application).FilePosts == before.FilePosts + 1U && composer.shown_draft() && composer.shown_draft()->Comments.size() == 8U; },
 				 "Publish as file comment publishes it on its own and takes it out of the review");
 			const auto after = access::review_mutation_evidence(*application);
-			expect(after.NativePosts == before.NativePosts && after.LastFile && after.LastPath == "review.cpp" && after.LastCommit == access::accepted_head(*application),
-				   "one file comment at the head, with no native attempt");
+			// [[BPR-1736]] (D2 rejected). Nothing was learned yet: one native
+			// attempt, refused in GitHub.com's shape, and its file comment
+			// followed at once.
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->OffHunkNativePosts == 1U, "one native attempt at the line outside the diff");
+			}
+			expect(after.NativePosts == before.NativePosts + 1U && after.LastFile && after.LastPath == "review.cpp" && after.LastCommit == access::accepted_head(*application),
+				   "refused, then one file comment at the head");
 			expect(after.LastBody == "https://github.com/octo-org/review-repository/blob/" + access::accepted_head(*application) + "/review.cpp#L86\n\n" + offHunkBody,
 				   "its body is the permalink to head line 86 and the comment word for word");
 			wait([&] { return composer.held_comments().empty() && composer.disposition_button(core::review_disposition::comment)->isEnabled(); }, "with nothing held Submit is allowed");
@@ -1057,6 +1064,79 @@ auto main(int argc, char** argv) -> int
 				}
 			}
 			expect(access::review_mutation_evidence(*application).FilePosts == before.FilePosts + 1U, "and the file comment was published once");
+		}
+		// [[BPR-1736]] (owner, 2026-10-22). The fact that refusal taught, and
+		// what follows from it: the next line outside the diff is a file comment
+		// with no native attempt; a review carries such a line only once GitHub
+		// accepted one, and when GitHub then refuses that review the fact drops
+		// to unsupported and the page holds the comment.
+		{
+			const auto journal = *dataRoot / "state" / "v1" / "review-mutation-recovery.sqlite3";
+			const auto facts   = [&journal](const std::string& aSql) {
+				::sqlite3* database = nullptr;
+				expect(::sqlite3_open_v2(journal.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the recovery journal opens");
+				auto rows = std::vector<std::string>{ };
+				auto row  = [](void* aRows, const int aColumns, char** aValues, char**) {
+					auto text = std::string{ };
+					for (auto column = 0; column < aColumns; ++column) {
+						text += (column == 0 ? "" : ",") + std::string{ aValues[column] != nullptr ? aValues[column] : "null" };
+					}
+					static_cast<std::vector<std::string>*>(aRows)->push_back(std::move(text));
+					return 0;
+				};
+				expect(::sqlite3_exec(database, aSql.c_str(), row, &rows, nullptr) == SQLITE_OK, "the learned facts are read");
+				static_cast<void>(::sqlite3_close_v2(database));
+				return rows;
+			};
+			expect(facts("SELECT operation,state,source,product,server_version,line FROM off_hunk_fact") == std::vector<std::string>{ "0,2,2,1,,85" },
+				   "the refusal taught unsupported for a single comment on GitHub.com, from head line 86");
+			auto& course = application->window();
+			course.close_review_sheet();
+			course.choose_modality(qt::review_modality::review);
+			wait([&] { return access::reveal_fixture_file(*application, "review.cpp") == app::detail::fixture_file_reveal_result::shown; }, "review.cpp is shown");
+			wait([&] { return course.comparison_surface()->select_conversation_line(core::diff_side::right, 95U); }, "head line 96, outside every hunk, is selected");
+			auto* const drawer = course.review_editor();
+			wait([&] { return drawer->target_notice_text() == QStringLiteral("GitHub can't place a comment on this line. It will be posted as a file comment that links to the line."); },
+				 "the editor says what was learned before Publish");
+			wait([&] { return course.comment_action()->isEnabled(); }, "Comment is offered");
+			course.comment_action()->trigger();
+			const auto body = std::string{ "note: Learned outside the diff." };
+			drawer->body_editor()->setPlainText(QString::fromStdString(body));
+			wait([&] { return drawer->shown_draft() && drawer->shown_draft()->Body == body && !drawer->rejected_candidate(); }, "the comment is kept locally");
+			const auto before = access::review_mutation_evidence(*application);
+			expect(drawer->publish_action()->isEnabled(), "Publish is offered");
+			drawer->publish_action()->trigger();
+			wait([&] { return access::review_mutation_evidence(*application).FilePosts == before.FilePosts + 1U; }, "Publish posts it");
+			const auto after = access::review_mutation_evidence(*application);
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(server->OffHunkNativePosts == 1U && after.NativePosts == before.NativePosts && after.LastFile
+						   && after.LastBody == "https://github.com/octo-org/review-repository/blob/" + access::accepted_head(*application) + "/review.cpp#L96\n\n" + body,
+					   "as a file comment linking to the line, with no native attempt");
+			}
+
+			// Say GitHub had accepted such a comment: a review now carries one.
+			static_cast<void>(facts("UPDATE off_hunk_fact SET state=1,source=1,observed_utc_ms=CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)"));
+			const auto carriedBody = std::string{ "issue: Carried outside the diff." };
+			static_cast<void>(write_pending(*application, 100U, QString::fromStdString(carriedBody)));
+			auto& composer = *course.review_submission_editor_view();
+			course.open_review_composition();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->Comments.size() == 1U && composer.held_comments().empty() && composer.submit_action()->isEnabled(); },
+				 "with the fact supported the review carries the line outside the diff, nothing held");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseNextReviewAsAnswer = true;
+			}
+			composer.submit_action()->trigger();
+			wait([&] { return composer.shown_draft() && composer.shown_draft()->State == state::drafting && composer.held_comments().size() == 1U; },
+				 "GitHub refuses the review for an unplaceable line: settled as not published, and the comment is held");
+			expect(facts("SELECT operation,state,source FROM off_hunk_fact ORDER BY operation") == std::vector<std::string>{ "0,2,2", "1,2,2" },
+				   "the fact drops to unsupported for both operations");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				expect(std::ranges::none_of(server->PreviousComments, [&carriedBody](const application::staged_review_comment& aComment) { return aComment.Body == carriedBody; }),
+					   "and nothing was published; nothing is resent");
+			}
 		}
 		shutdown(*application);
 		cli.check();

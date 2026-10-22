@@ -201,6 +201,7 @@ namespace bpr::app {
 	}
 
 	void review_submission_workflow::set_publication_observer(publication_observer aObserver) { PublicationObserved = std::move(aObserver); }
+	void review_submission_workflow::set_unplaceable_refusal_observer(unplaceable_refusal_observer aObserver) { UnplaceableRefusalObserved = std::move(aObserver); }
 
 	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments)
 	{
@@ -765,6 +766,9 @@ namespace bpr::app {
 					Status = QStringLiteral("Not published: GitHub refused this review. Your summary and comments are kept; check them and submit again.");
 				}
 				answer(refused, application::review_submission_publication::definitely_not_published);
+				if (result->Refusal == application::review_submission_refusal::unplaceable_line && UnplaceableRefusalObserved) {
+					UnplaceableRefusalObserved(refused);
+				}
 			} else {
 				// [[BPR-1475]]. Not reread: Check status is how an unknown outcome
 				// is settled, and a read accepted while it runs can replace the

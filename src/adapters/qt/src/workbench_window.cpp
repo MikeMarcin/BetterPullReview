@@ -8317,6 +8317,15 @@ namespace bpr::qt {
 						 .arg(shown.Commit),
 					 false };
 		case placement::file_comment: {
+			// [[BPR-1736]]. On the Whole PR diff, what was learned: GitHub
+			// refused such a comment here, or nothing is known yet and Publish
+			// asks GitHub once. Never what the server's version supports.
+			if (shown.Learned == core::off_hunk_creation_capability::unsupported) {
+				return { tr("GitHub can't place a comment on this line. It will be posted as a file comment that links to the line."), false };
+			}
+			if (shown.Learned == core::off_hunk_creation_capability::unknown) {
+				return { tr("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line."), false };
+			}
 			// [[BPR-1706]]. Why GitHub takes no line comment here, then what
 			// Publish does instead.
 			const auto why = target.Refusal == refusal::base_line_changed ? tr("This line changed after the merge base, where GitHub counts base lines, so GitHub can't attach a comment to it.")

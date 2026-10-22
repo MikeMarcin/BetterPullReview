@@ -4831,6 +4831,8 @@ namespace bpr::app::detail {
 			auto advance_publication(const std::optional<publication>& aExpected, const publication& aNext) -> std::expected<publication, failure> override { return Inner->advance_publication(aExpected, aNext); }
 			auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost) -> std::expected<void, failure> override { return Inner->note_publication_post(aKey, aPost); }
 			auto load_publication_post(const std::string& aKey) -> std::expected<std::optional<core::review_publication_post>, failure> override { return Inner->load_publication_post(aKey); }
+			// [[BPR-1736]]. The product journal's learned facts.
+			auto off_hunk_facts() noexcept -> application::off_hunk_fact_port* override { return Inner->off_hunk_facts(); }
 
 		private:
 			std::unique_ptr<application::review_mutation_recovery_port> Inner;
@@ -4937,6 +4939,23 @@ namespace bpr::app::detail {
 					// writes on a line GitHub will not take an inline comment on.
 					if (!file && (request.Proposal.Body == "BPR-0571 off-hunk publication." || request.Proposal.Body.find("BPR-1084 off-hunk") != std::string::npos)) {
 						return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"fixture_off_hunk_unsupported","message":"Fixture: no comment created for off-hunk line"}]})" } };
+					}
+					// [[BPR-1736]]. A line the core placed outside the diff, as
+					// the server chosen for the course answers it.
+					if (!file && request.Source && request.Source->CorePlacedOffHunk && State->PublishedTour) {
+						using answer = review_submission_fixture_state::off_hunk_answer;
+						auto mode    = answer::refuse_github_com;
+						{
+							const std::scoped_lock lock{ State->PublishedTour->Mutex };
+							mode = State->PublishedTour->OffHunkNative;
+							++State->PublishedTour->OffHunkNativePosts;
+						}
+						if (mode == answer::refuse_github_com) {
+							return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"custom","field":"pull_request_review_thread.line","message":"could not be resolved"}],"documentation_url":"https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request","status":"422"})" } };
+						}
+						if (mode == answer::refuse_unrecorded) {
+							return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"invalid","field":"line","message":"is not part of the diff"}],"documentation_url":"https://docs.github.com/enterprise-server@3.20/rest/pulls/comments#create-a-review-comment-for-a-pull-request","status":"422"})" } };
+						}
 					}
 					object        = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
 					const auto id = QStringLiteral("PRRC_composed_%1").arg(Comments.size() + 1);

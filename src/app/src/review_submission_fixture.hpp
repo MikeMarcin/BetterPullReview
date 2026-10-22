@@ -65,6 +65,20 @@ namespace bpr::app::detail {
 		/// status answers. Released by clearing it and notifying `ReadGate`.
 		bool                    StallReviewReads = false;
 		std::condition_variable ReadGate;
+		/// [[BPR-1736]]. How this server answers a native single comment the
+		/// core placed outside GitHub's diff: refused in GitHub.com's measured
+		/// shape (422, `pull_request_review_thread.line`, "could not be
+		/// resolved"), as every GitHub host answers today; refused in a shape
+		/// no classifier records, as GitHub Enterprise Server's may be; or
+		/// created, which no host has done yet and only a fixture shows.
+		enum class off_hunk_answer : std::uint8_t {
+			refuse_github_com,
+			refuse_unrecorded,
+			accept,
+		};
+		off_hunk_answer OffHunkNative = off_hunk_answer::refuse_github_com;
+		/// Native POSTs at such a line, answered or not.
+		std::size_t OffHunkNativePosts = 0U;
 	};
 	[[nodiscard]] auto make_staged_review_fixture_provider(std::shared_ptr<review_submission_fixture_state>, std::unique_ptr<application::review_submission_recovery_port>, application::review_submission_live_binding, std::string) -> std::unique_ptr<application::review_submission_port>;
 	[[nodiscard]] auto make_review_submission_fixture_provider(

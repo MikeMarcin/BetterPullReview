@@ -12428,6 +12428,18 @@ namespace {
 			   "before Publish the editor says GitHub can't attach a comment to the line and Publish adds one on the file");
 		expect(window.filtered_comment_placement() && window.filtered_comment_placement()->Target.Placement == core::filtered_comment_placement::file_comment,
 			   "the Whole PR placement is the one a review's Start asks about");
+		// [[BPR-1736]]. With what the profile learned, the card's words: never
+		// what the server's version supports.
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc"), .Learned = core::off_hunk_creation_capability::unsupported });
+		course.settle();
+		expect(window.filtered_comment_notice() == std::pair{ QStringLiteral("GitHub can't place a comment on this line. It will be posted as a file comment that links to the line."), false },
+			   "GitHub refused such a comment here: Publish posts the file comment");
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc"), .Learned = core::off_hunk_creation_capability::unknown });
+		course.settle();
+		expect(window.filtered_comment_notice() == std::pair{ QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line."), false },
+			   "nothing learned yet: Publish asks GitHub once");
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc") });
+		course.settle();
 
 		const auto id = course.Accepted->Draft.Id;
 		window.present_unplaceable_review_comments({ { id, qt::workbench_window::unplaceable_review_comment{ .Target = target, .StartLine = std::nullopt, .Commit = QStringLiteral("61e8dbc") } } });

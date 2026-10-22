@@ -1,3 +1,23 @@
+# [[BPR-1736]] reseal (2026-10-22) over last matching main 293d6181a,
+# linear, on this card's composition commit. Pinned-scope change, owner
+# decisions D1 to D4 of 2026-10-22 (RFC-BPR-0022 amendment r6):
+# github_application.cpp opens the profile's learned off-hunk facts on their
+# own connection to the recovery journal (make_off_hunk_fact_store), passes
+# the presented fact to the mutation host as the source observation's
+# OffHunkFact, says what was learned in the Whole PR notice (Learned) and drops
+# the mark where GitHub accepted such a line, holds a pending comment outside
+# the diff unless the review fact is supported, re-presents the notice and the
+# holds after a publication's terminal, and, when a review carrying such a line
+# under a supported fact is refused for an unplaceable line
+# (review_submission_workflow's new unplaceable refusal observer), demotes the
+# fact for both operations and holds the comment; nothing is resent.
+# review_submission_workflow.cpp and .hpp are in the manifest;
+# review_submission_fixture.hpp and github_public_path_fixture.cpp, test-only,
+# are not (the fixture answers a core-placed off-hunk native comment in
+# GitHub.com's measured refusal by default). No credential, grant, provider
+# selection, ledger write or source-inventory change; the production
+# make_live_review_mutation_provider call is untouched. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-1735]] reseal (2026-10-22) over last matching main 4ed30b995,
 # linear, on this card's commits. Pinned-scope change, owner decision of
 # 2026-10-22 (RFC-BPR-0022 amendment r5): github_application.cpp reads
@@ -2034,7 +2054,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"9b8e6974dd2b137293d1ba01ca49c99667eb4179eff5036cfb1b33b9b360fb4c"
+		"bc1be785922e4b03d74717682607909bc94ae18956f4e3253bc9c5daec3937e5"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2258,7 +2278,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "75f19066e5f16af5322a6390aa222a38df6e7a39307b3649107004b32ec41b5c"
+        "5895ab1afce0ca4d64a116b2dfec652dad93c21380e677c6adff567c71aa868e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

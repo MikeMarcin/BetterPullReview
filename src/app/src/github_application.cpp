@@ -8340,6 +8340,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				},
 				[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 			ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
+			ReviewSubmission->set_unplaceable_refusal_observer([this](const application::review_submission_request& aRefused) { demote_off_hunk_fact(aRefused); });
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
@@ -12720,7 +12721,78 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					const auto bytes = file->CurrentPath.generic_u8string();
 					return std::string{ bytes.begin(), bytes.end() };
 				}()),
+				// [[BPR-1736]]. What this profile learned about a single comment
+				// outside GitHub's diff here; publication checks the exact key.
+				.OffHunkFact = presented_off_hunk_fact(false),
 			};
+		}
+
+		/// \brief [[BPR-1736]]. The scope the learned off-hunk facts of the
+		/// accepted pull request are kept under, and the profile's facts; none
+		/// before a pull request is accepted or when the journal can't open.
+		[[nodiscard]] auto off_hunk_facts() const -> std::optional<std::pair<application::off_hunk_fact_scope, application::off_hunk_fact_port*>>
+		{
+			if (!LastAcceptedHandoff || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto binding = select_observed_review_mutation(*LastAcceptedHandoff, *WindowRead->accepted_snapshot());
+			if (!binding) {
+				return std::nullopt;
+			}
+			const auto hostname = std::string{ binding->Target.Hostname.value() };
+			if (!OffHunkFactsOpened || OffHunkFactsRoot != ApplicationDataRoot) {
+				OffHunkFactsOpened = true;
+				OffHunkFactsRoot   = ApplicationDataRoot;
+				auto opened        = adapters::sqlite::make_off_hunk_fact_store({ .StorageRoot = ApplicationDataRoot,
+																				  .Host        = hostname,
+																				  .Account     = std::to_string(binding->ActingIdentity.Account.value()),
+																				  .Repository  = binding->Target.Repository.Owner + "/" + binding->Target.Repository.Name,
+																				  .PullRequest = static_cast<std::int64_t>(binding->Target.Number.value()) });
+				OffHunkFacts       = opened ? std::move(*opened) : nullptr;
+			}
+			return std::pair{ application::off_hunk_fact_scope{ .Profile              = LastAcceptedHandoff->Profile.value(),
+																.Host                 = hostname,
+																.Account              = binding->ActingIdentity.Account.value(),
+																.RepositoryDatabaseId = binding->Target.RepositoryDatabaseId },
+							  OffHunkFacts.get() };
+		}
+
+		/// \brief [[BPR-1736]]. The learned fact as presented now: for a single
+		/// comment, or for a review (decision D3: the newer of both).
+		[[nodiscard]] auto presented_off_hunk_fact(const bool aReview) const -> core::off_hunk_creation_capability
+		{
+			const auto facts = off_hunk_facts();
+			if (!facts) {
+				return core::off_hunk_creation_capability::unknown;
+			}
+			const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			return aReview ? application::presented_review_off_hunk_fact(facts->second, facts->first, now) : application::presented_off_hunk_fact(facts->second, facts->first, now);
+		}
+
+		/// \brief [[BPR-1736]]. GitHub refused a review for a line it can't
+		/// place. When a learned fact let it carry a comment outside the diff,
+		/// GitHub withdrew support: the fact drops to unsupported for both
+		/// operations and the page holds those comments. Nothing is resent.
+		void demote_off_hunk_fact(const application::review_submission_request& aRefused)
+		{
+			const auto facts = off_hunk_facts();
+			if (Closing || !facts || presented_off_hunk_fact(true) != core::off_hunk_creation_capability::supported) {
+				return;
+			}
+			const auto carried = std::ranges::find_if(aRefused.Proposal.Comments, [this](const core::review_submission_comment& aComment) {
+				const auto source = whole_diff_source(aComment.Path);
+				return source && core::holds_review_comment(core::place_on_github_diff(source->BaseToHead, aComment.Side, aComment.Line, aComment.StartLine), core::off_hunk_creation_capability::unknown);
+			});
+			if (carried == aRefused.Proposal.Comments.end() || !aRefused.LiveBinding) {
+				return;
+			}
+			const auto& target = aRefused.LiveBinding->Target;
+			const auto  now    = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			static_cast<void>(application::demote_off_hunk_fact(facts->second, facts->first,
+																{ .Repository = target.Repository.Owner + "/" + target.Repository.Name, .PullRequest = target.Number.value(), .Path = carried->Path, .Line = carried->Line },
+																now));
+			present_review_comment_holds();
+			present_filtered_comment();
 		}
 
 		void retire_review_mutation_host()
@@ -13794,6 +13866,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			const auto failedBinding = std::exchange(PublishingBinding, std::nullopt);
 			refresh_review_projection(aTerminal);
+			// [[BPR-1736]]. And whatever follows: the answer may have taught it.
+			present_review_comment_holds();
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
 			if (!ReviewDraft.has_value()) {
@@ -13849,6 +13923,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else {
 				present_inline_publication_failure(aTerminal.Result.error(), aPublicationOutcome, failedBinding);
 			}
+			// [[BPR-1736]]. GitHub's answer may have taught the learned fact:
+			// the notice says what is known now.
+			present_filtered_comment();
 		}
 
 		void retire_review_ledger()
@@ -14360,6 +14437,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<application::github_diff_lines_observation> Answer;
 		};
 		std::map<std::string, github_diff_lines_entry> GitHubDiffLines;
+		/// [[BPR-1736]]. The profile's learned off-hunk facts, opened once per
+		/// data root on their own connection to the recovery journal.
+		mutable std::unique_ptr<application::off_hunk_fact_port> OffHunkFacts;
+		mutable std::filesystem::path                            OffHunkFactsRoot;
+		mutable bool                                             OffHunkFactsOpened = false;
 		/// [[BPR-1735]]. The comments pending in the review on this head, as
 		/// last published to it, which the core holds back when it places one
 		/// outside GitHub's diff.
@@ -14878,8 +14960,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!target || target->Placement == core::filtered_comment_placement::head) {
 				return std::nullopt;
 			}
+			// [[BPR-1736]]. Where GitHub accepted a comment outside the diff,
+			// such a line is native and carries no mark; otherwise the notice
+			// says what was learned.
+			const auto learned = presented_off_hunk_fact(false);
+			if (core::route_github_comment(core::place_on_github_diff(source->BaseToHead, line.Side, line.Line, start), learned) == core::github_comment_route::native_off_hunk) {
+				return std::nullopt;
+			}
 			const auto hex = core::canonical_hex(target->Commit);
-			return qt::filtered_comment_presentation{ .Selection = line, .Target = *target, .Commit = QString::fromUtf8(hex.view().substr(0U, 7U)) };
+			return qt::filtered_comment_presentation{ .Selection = line, .Target = *target, .Commit = QString::fromUtf8(hex.view().substr(0U, 7U)), .Learned = learned };
 		}
 
 		/// \brief [[BPR-1735]]. Holds every comment pending in the review that
@@ -14899,9 +14988,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			request_github_diff_lines(paths);
 			auto held = std::map<core::review_draft_id, qt::workbench_window::unplaceable_review_comment>{ };
 			auto ids  = std::vector<core::review_draft_id>{ };
+			// [[BPR-1736]]. A review never probes: a line outside the diff rides
+			// it only once GitHub accepted such a comment (decision D3).
+			const auto learned = PendingReviewComments.empty() ? core::off_hunk_creation_capability::unknown : presented_off_hunk_fact(true);
 			for (const auto& comment : PendingReviewComments) {
 				const auto source = whole_diff_source(comment.Path);
-				if (!source || !core::holds_review_comment(core::place_on_github_diff(source->BaseToHead, comment.Side, comment.Line, comment.StartLine))) {
+				if (!source || !core::holds_review_comment(core::place_on_github_diff(source->BaseToHead, comment.Side, comment.Line, comment.StartLine), learned)) {
 					continue;
 				}
 				const auto target = core::place_whole_diff_comment(*source, comment.Side, comment.Line, comment.StartLine);
