@@ -220,7 +220,8 @@ namespace bpr::application {
 		/// [[BPR-1680]]. One `github.discovery` event. Logging never changes
 		/// what discovery does.
 		void record(const diagnostic_outcome aOutcome, const core::discovery_diagnosis& aDiagnosis,
-					const diagnostic_detail aDetail = diagnostic_detail::standard, const std::optional<github_provider_failure> aFailure = std::nullopt) noexcept
+					const diagnostic_detail aDetail = diagnostic_detail::standard, const std::optional<github_provider_failure> aFailure = std::nullopt,
+					const personal_discovery_cost aCost = { }, const github_provider_error* aError = nullptr) noexcept
 		{
 			if (Log == nullptr) {
 				return;
@@ -231,9 +232,17 @@ namespace bpr::application {
 				if (text.empty() || text.size() > event.Summary.Text.size()) {
 					return;
 				}
-				event.Operation = diagnostic_operation::discovery;
-				event.Outcome   = aOutcome;
-				event.Detail    = aDetail;
+				event.Operation      = diagnostic_operation::discovery;
+				event.Outcome        = aOutcome;
+				event.Detail         = aDetail;
+				event.PagedOperation = aCost.LastReadOperation;
+				event.HttpStatus     = aCost.LastHttpStatus;
+				if (aError != nullptr) {
+					event.TransportFailureSource = aError->TransportFailureSource;
+					if (aError->HttpStatus != 0U) {
+						event.HttpStatus = aError->HttpStatus;
+					}
+				}
 				std::ranges::copy(text, event.Summary.Text.begin());
 				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
 				event.Summary.State = diagnostic_summary_state::sanitized;
@@ -293,7 +302,7 @@ namespace bpr::application {
 				: std::holds_alternative<personal_discovery_cancelled>(aCompletion)
 				? diagnostic_outcome::cancelled
 				: diagnostic_outcome::succeeded;
-			record(outcome, diagnosis, diagnostic_detail::standard, error != nullptr ? std::optional{ error->Error.Failure } : std::nullopt);
+			record(outcome, diagnosis, diagnostic_detail::standard, error != nullptr ? std::optional{ error->Error.Failure } : std::nullopt, cost, error != nullptr ? &error->Error : nullptr);
 		}
 
 		[[nodiscard]] auto ended_state() const noexcept -> core::discovery_diagnosis_state

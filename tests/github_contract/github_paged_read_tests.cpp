@@ -4055,6 +4055,15 @@ namespace {
 					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/api/v3/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
 				   "the same bounded personal and optional metadata reads on a GHES 3.18 fixture contract");
 		}
+		for (const auto bodyLimit : { false, true }) {
+			auto transport      = discovery_fixture_transport{ true };
+			transport.Search    = [](const auto&) { return discovery_search({ discovery_item(5U, "author", "https://ghe.example.invalid/api/v3") }, 1U); };
+			transport.Reviewers = [bodyLimit](std::uint32_t) { return bodyLimit ? success_response(std::string(4U * 1024U * 1024U + 1U, 'x')) : requested_reviewers_response({ }, 101U); };
+			const auto  result  = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			const auto* error   = result ? nullptr : std::get_if<application::github_provider_error>(&result.error());
+			expect(error && error->Failure == application::github_provider_failure::response_limit && transport.Requests.size() == 2U, "distinct GHES reviewer byte and record guards both produce the observed two-request response-limit signature; it does not identify the private guard");
+		}
+
 		const auto failing = [](const int aStatus, const std::string_view aRemaining, const bool aDetail, std::string aBody = "{\"message\":\"no\"}") {
 			auto       transport = discovery_fixture_transport{ };
 			const auto fail      = [aStatus, aRemaining, aBody](wire_response aResponse) {

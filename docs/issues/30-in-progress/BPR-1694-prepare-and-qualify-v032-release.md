@@ -575,3 +575,36 @@ it introduces no effect, provider routing or mutation bypass. The full
 The existing mutation inventory is unchanged. The application manifest seal is
 renewed for this exact entry-point delta; the cheap direct-bypass counterexample
 method is required again before final native dispatch.
+
+
+### GHES Home diagnostic follow-up
+
+The owner reported Home refresh failure on GHES in the published prerelease.
+The anonymized diagnostic classifies requested discovery as
+`response_too_large`, including reads that sent two requests. This is not an
+HTTP status or proof of a particular size guard: synthetic GHES courses show
+that an oversized reviewer response and excessive reviewer records both produce
+that same signature. The private server's actual guard remains unconfirmed.
+
+Discovery now retains its last attempted closed operation and observed HTTP
+status with its existing bounded cost observation, and the host preserves those
+fields and any typed transport-failure source in the existing diagnostic event.
+No host, repository, login, URL, response body or credential is added. Unknown
+HTTP values remain zero; existing privacy validation is retained. This is
+investigation support, not a claim that the GHES failure has been fixed.
+
+Windows focused provider and Home-host courses passed with the diagnostic
+propagation assertions. The real logger course passed after its new fixture
+supplied the required sanitized discovery diagnosis; the privacy guard was not
+relaxed. The synthetic paged-read characterization also passed. Managed
+clang-format and clang-tidy 22 checks passed after correcting two test parameter
+names. Native qualification and source/artifact binding for a later candidate
+remain separate.
+
+The earlier Windows cache-byte full-course failure remains recorded. Six
+instrumented focused runs and a rebuilt uninstrumented focused run passed,
+without reproducing it. The course now distinguishes stale-key and stale-text
+observations and prints its compound predicate's state only on failure; its
+work, bounds and assertions remain unchanged. A passing rerun is not described
+as a root-cause fix. Stable publication still requires the remaining native
+qualification and GHES investigation disposition.

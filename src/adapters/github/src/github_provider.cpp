@@ -67,12 +67,15 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
-			case read_operation::search_personal_pull_requests:
-			case read_operation::list_requested_reviewers:
-			case read_operation::get_team_membership:
-			case read_operation::list_home_pull_requests:
-				// [[BPR-0988]]. Discovery is not part of a pull request read.
 				return application::diagnostic_paged_operation::none;
+			case read_operation::search_personal_pull_requests:
+				return application::diagnostic_paged_operation::search_pull_requests;
+			case read_operation::list_requested_reviewers:
+				return application::diagnostic_paged_operation::list_requested_reviewers;
+			case read_operation::get_team_membership:
+				return application::diagnostic_paged_operation::none;
+			case read_operation::list_home_pull_requests:
+				return application::diagnostic_paged_operation::list_home_pull_requests;
 			}
 			return application::diagnostic_paged_operation::none;
 		}
@@ -352,13 +355,26 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 			{
 				Requests.fetch_add(1U, std::memory_order_relaxed);
-				return Inner.perform(aRequest, std::move(aStop));
+				LastOperation.store(diagnostic_operation_for(aRequest.Wire.Operation), std::memory_order_relaxed);
+				LastStatus.store(0U, std::memory_order_relaxed);
+				auto completion = Inner.perform(aRequest, std::move(aStop));
+				if (const auto* success = std::get_if<github_wire_success>(&completion)) {
+					const auto status = success->Response.Status;
+					LastStatus.store(status >= 100 && status <= 599 ? static_cast<std::uint16_t>(status) : std::uint16_t{ 0U }, std::memory_order_relaxed);
+				} else if (const auto* error = std::get_if<github_wire_error>(&completion)) {
+					LastStatus.store(error->Error.HttpStatus, std::memory_order_relaxed);
+				}
+				return completion;
 			}
 			[[nodiscard]] auto requests() const noexcept -> std::uint32_t { return Requests.load(std::memory_order_relaxed); }
+			[[nodiscard]] auto last_operation() const noexcept -> application::diagnostic_paged_operation { return LastOperation.load(std::memory_order_relaxed); }
+			[[nodiscard]] auto last_status() const noexcept -> std::uint16_t { return LastStatus.load(std::memory_order_relaxed); }
 
 		private:
-			github_wire_transport_port& Inner;
-			std::atomic<std::uint32_t>  Requests{ 0U };
+			github_wire_transport_port&                          Inner;
+			std::atomic<std::uint32_t>                           Requests{ 0U };
+			std::atomic<application::diagnostic_paged_operation> LastOperation{ application::diagnostic_paged_operation::none };
+			std::atomic<std::uint16_t>                           LastStatus{ 0U };
 		};
 
 		/// [[BPR-1680]]. Whole milliseconds between two steady instants, saturated.
@@ -2913,9 +2929,11 @@ namespace bpr::adapters::github::detail {
 				auto       counted = std::optional<counting_wire_transport>{ };
 				const auto cost    = [&] {
 					return application::personal_discovery_cost{
-						.Requests         = counted ? counted->requests() : 0U,
-						.WaitMilliseconds = milliseconds_between(submitted, started),
-						.RunMilliseconds  = milliseconds_between(started, std::chrono::steady_clock::now()),
+						.Requests          = counted ? counted->requests() : 0U,
+						.WaitMilliseconds  = milliseconds_between(submitted, started),
+						.RunMilliseconds   = milliseconds_between(started, std::chrono::steady_clock::now()),
+						.LastReadOperation = counted ? counted->last_operation() : application::diagnostic_paged_operation::none,
+						.LastHttpStatus    = counted ? counted->last_status() : std::uint16_t{ 0U },
 					};
 				};
 				try {

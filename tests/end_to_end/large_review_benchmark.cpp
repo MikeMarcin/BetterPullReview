@@ -1622,13 +1622,15 @@ namespace bpr::e2e::large_review {
 		expectedB.LeftBlob  = core::parse_git_blob_oid(foundB->base.oid);
 		expectedB.RightBlob = core::parse_git_blob_oid(foundB->head.oid);
 		bool       holdingB = false, stalePublication = false;
+		bool       staleKeyObserved = false, staleTextObserved = false;
 		const auto observeB = [&](QTextDocument* aDocument, const QString& aFirstLine) {
 			if (!holdingB) {
 				return;
 			}
 			++aReport.ByteHeldSourceObservations;
-			stalePublication = stalePublication || (surface.current_result() && surface.current_result()->Alignment.Key != expectedB)
-				|| (!aDocument->isEmpty() && aDocument->firstBlock().text() != aFirstLine);
+			staleKeyObserved  = staleKeyObserved || (surface.current_result() && surface.current_result()->Alignment.Key != expectedB);
+			staleTextObserved = staleTextObserved || (!aDocument->isEmpty() && aDocument->firstBlock().text() != aFirstLine);
+			stalePublication  = stalePublication || staleKeyObserved || staleTextObserved;
 		};
 		QObject    observationLifetime;
 		const auto leftObservation  = QObject::connect(surface.left_pane()->document(), &QTextDocument::contentsChanged, &observationLifetime, [&] {
@@ -1653,9 +1655,13 @@ namespace bpr::e2e::large_review {
 		supersede.stop();
 		QObject::disconnect(leftObservation);
 		QObject::disconnect(rightObservation);
-		require(drainedB && !stalePublication && aReport.ByteHeldSourceObservations != 0U
-					&& selected(surface, source_path(100)) && surface.current_result()->Alignment.Key == expectedB && settled(),
-				"stale comparison published while superseding file B remained selected");
+		const auto heldPassed = drainedB && !stalePublication && aReport.ByteHeldSourceObservations != 0U
+			&& selected(surface, source_path(100)) && surface.current_result()->Alignment.Key == expectedB && settled();
+		if (!heldPassed) {
+			std::cerr << "CACHE_BYTE_HELD_FAILURE drained=" << drainedB << " stale_key=" << staleKeyObserved << " stale_text=" << staleTextObserved
+					  << " observations=" << aReport.ByteHeldSourceObservations << " selected=" << selected(surface, source_path(100)) << " settled=" << settled() << "\n";
+		}
+		require(heldPassed, "stale comparison published while superseding file B remained selected");
 		for (int line = 0; line < 8; ++line) {
 			const auto common = QStringLiteral("// synthetic source 0100 line %1").arg(line + 1);
 			require(surface.left_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0100 = 0;") : common)

@@ -2912,6 +2912,18 @@ namespace {
 				   && std::get<application::personal_discovery_cancelled>(completions.front()).Request == request
 				   && fixture.Transport->ReadRequests.size() == before + 1U,
 			   "the read reaches the account transport and terminates exactly once");
+
+		for (const auto status : { std::uint16_t{ 0U }, std::uint16_t{ 413U } }) {
+			completions.clear();
+			fixture.Transport->ReadHandler = [status](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::response_limit, .HttpStatus = status } };
+			};
+			fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_error>(completions.front()), "bounded discovery transport failure is delivered once");
+			const auto& failure = std::get<application::personal_discovery_error>(completions.front());
+			expect(failure.Cost.Requests == 1U && failure.Cost.LastReadOperation == application::diagnostic_paged_operation::search_pull_requests && failure.Cost.LastHttpStatus == status, "the failed discovery preserves its last operation and only an observed HTTP status");
+		}
 		for (const auto variant : { 0, 1, 2, 3 }) {
 			auto forged = request;
 			if (variant == 0) {

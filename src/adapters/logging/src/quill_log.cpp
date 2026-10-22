@@ -419,7 +419,7 @@ namespace bpr::adapters::logging {
 		}
 
 		constexpr std::array<std::string_view, 8>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery" };
-		constexpr std::array<std::string_view, 14> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline", "GetMergeBase" };
+		constexpr std::array<std::string_view, 16> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline", "GetMergeBase", "ListRequestedReviewers", "ListHomePullRequests" };
 		constexpr std::array<std::string_view, 6>  outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 		constexpr std::array<std::string_view, 5>  summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 	}

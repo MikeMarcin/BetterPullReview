@@ -152,6 +152,9 @@ namespace bpr::application {
 		std::uint32_t Requests         = 0U;
 		std::uint32_t WaitMilliseconds = 0U;
 		std::uint32_t RunMilliseconds  = 0U;
+		/// Last attempted operation and observed status only; no URL or response content.
+		diagnostic_paged_operation LastReadOperation = diagnostic_paged_operation::none;
+		std::uint16_t              LastHttpStatus    = 0U;
 
 		auto operator<=>(const personal_discovery_cost&) const = default;
 	};
