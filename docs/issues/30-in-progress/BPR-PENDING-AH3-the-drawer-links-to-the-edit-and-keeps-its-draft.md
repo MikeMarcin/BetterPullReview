@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-PENDING-AH3"
 title: "The drawer links to the in-pane edit, keeps its draft, and converts a suggestion GitHub cannot apply"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0090"]
 depends_on: ["BPR-PENDING-AH2"]
 priority: "P2"
