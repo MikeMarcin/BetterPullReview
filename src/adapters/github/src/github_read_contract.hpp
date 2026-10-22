@@ -56,7 +56,7 @@ namespace bpr::adapters::github::detail {
 		/// of several pull requests of one repository in one GraphQL query,
 		/// each pull request an alias.
 		list_home_pull_requests,
-		/// [[BPR-PENDING-AR1]]. The reactions of the accepted pull request's
+		/// [[BPR-1741]]. The reactions of the accepted pull request's
 		/// comments and reviews, by GraphQL node (`nodes(ids:)`), bound to the
 		/// pull request like `resolve_body_images`.
 		list_reactions,

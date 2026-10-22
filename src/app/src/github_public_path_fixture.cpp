@@ -2119,7 +2119,7 @@ namespace bpr::app::detail {
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			std::vector<QJsonObject>              CreatedReviewThreads;
-			// [[BPR-PENDING-AR1]]. With `--reaction-probe`, the reactions the
+			// [[BPR-1741]]. With `--reaction-probe`, the reactions the
 			// fixture answers `ListReactions` with, by comment node, changed by
 			// its mutation provider; the repository and pull request nodes the
 			// recorded answers named, which bind that answer.
@@ -2906,7 +2906,7 @@ namespace bpr::app::detail {
 			return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository }, { "nodes", nodes } } } } }.toJson(QJsonDocument::Compact).toStdString();
 		}
 
-		/// [[BPR-PENDING-AR1]]. The fixture's `ListReactions` answer: GitHub's
+		/// [[BPR-1741]]. The fixture's `ListReactions` answer: GitHub's
 		/// eight groups for every comment asked about, as GitHub gives them.
 		[[nodiscard]] auto reactions_response(const fixture_recording_state& aState, const std::vector<std::string>& aNodes) -> std::string
 		{
@@ -3064,7 +3064,7 @@ namespace bpr::app::detail {
 					append_rate_limit_headers(response, aRequest.Wire.Operation);
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
 				}
-				// [[BPR-PENDING-AR1]]. Reactions are answered only by the reaction
+				// [[BPR-1741]]. Reactions are answered only by the reaction
 				// course, from its own state; every other course reads none.
 				if (aRequest.Wire.Operation == read_operation::list_reactions) {
 					if (!State->ReactionsServed || Role != fixture_transport_role::account || !validate_github_wire_request(State->Profile, aRequest)) {
@@ -5269,7 +5269,7 @@ namespace bpr::app::detail {
 				};
 			}
 
-			// [[BPR-PENDING-AR1]]. The reaction changes on the next read, and
+			// [[BPR-1741]]. The reaction changes on the next read, and
 			// the answer carries the comment's reactions as GitHub's does.
 			auto set_reaction(
 				const application::review_reaction_request& aRequest,
@@ -5495,7 +5495,7 @@ namespace bpr::app::detail {
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
 			Recording->RepeatReads = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
-			// [[BPR-PENDING-AR1]]. Two others gave the first thread's first post
+			// [[BPR-1741]]. Two others gave the first thread's first post
 			// a thumbs up.
 			Recording->ReactionsServed = aOptions.ServesReactions;
 			if (aOptions.ServesReactions) {

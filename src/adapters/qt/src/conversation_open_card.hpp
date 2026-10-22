@@ -131,7 +131,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto arrival() const noexcept -> qreal;
 		/// \brief The body's height changed: a source switch, fonts.
 		std::function<void()> HeightChanged;
-		/// \brief [[BPR-PENDING-AR1]]. The post's reactions as the viewer
+		/// \brief [[BPR-1741]]. The post's reactions as the viewer
 		/// should see them; none when they were not read. Under the body,
 		/// with Add reaction among the post's tools when GitHub lets the
 		/// viewer react.
@@ -166,7 +166,7 @@ namespace bpr::qt {
 		markdown_body_view* Reader       = nullptr;
 		post_tool*          SourceButton = nullptr;
 		post_tool*          CopyButton   = nullptr;
-		/// [[BPR-PENDING-AR1]].
+		/// [[BPR-1741]].
 		post_tool*                            ReactButton = nullptr;
 		reaction_bar*                         Reactions   = nullptr;
 		std::optional<core::reaction_summary> Summary;
@@ -242,13 +242,13 @@ namespace bpr::qt {
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto posts() const -> std::vector<thread_post_view*>;
-		/// \brief [[BPR-PENDING-AR1]]. Shows each post's reactions as \p aLookup
+		/// \brief [[BPR-1741]]. Shows each post's reactions as \p aLookup
 		/// gives them for the post's identity, in place.
 		void present_reactions(const std::function<std::optional<core::reaction_summary>(const std::string&)>& aLookup);
-		/// \brief [[BPR-PENDING-AR1]]. Resolve conversation at the thread's
+		/// \brief [[BPR-1741]]. Resolve conversation at the thread's
 		/// end; null where the thread offers none.
 		[[nodiscard]] auto resolve_conversation() const noexcept -> QAbstractButton*;
-		/// \brief [[BPR-PENDING-AR1]]. A reaction asked for on one post.
+		/// \brief [[BPR-1741]]. A reaction asked for on one post.
 		std::function<void(const std::string&, core::reaction_content)> Reaction;
 		/// \brief Updates durable read marks without replacing readers or their menus.
 		void present_read_state(const thread_card& aCard);

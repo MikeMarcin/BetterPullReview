@@ -2422,7 +2422,7 @@ namespace bpr::qt {
 				dispatch(aLogin);
 			}
 		});
-		// [[BPR-PENDING-AR1]]. A post's reaction travels with what the window
+		// [[BPR-1741]]. A post's reaction travels with what the window
 		// shows of it: added when the viewer has not made it, removed when
 		// they have; the composition decides.
 		ConversationPanel->cards()->set_reaction_dispatch([this](const std::string& aPost, const core::reaction_content aContent) {

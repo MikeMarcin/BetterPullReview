@@ -20,12 +20,12 @@ class QPaintEvent;
 class QResizeEvent;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AR1]]. Who reacted with one reaction, in words, as
+	/// \brief [[BPR-1741]]. Who reacted with one reaction, in words, as
 	/// GitHub says it: "You and octocat reacted with thumbs up", up to the
 	/// names GitHub gave, then "and N others".
 	[[nodiscard]] auto reaction_description(const core::reaction_group& aGroup, const QString& aViewer) -> QString;
 
-	/// \brief [[BPR-PENDING-AR1]]. One reaction under a post: its emoji and
+	/// \brief [[BPR-1741]]. One reaction under a post: its emoji and
 	/// count in a pill, tinted in the accent when it is mine and outlined in
 	/// dashes while GitHub has not answered my change. Pressing it adds or
 	/// removes mine; it is disabled when GitHub does not let me react.
@@ -45,7 +45,7 @@ namespace bpr::qt {
 		note_colours         Colours;
 	};
 
-	/// \brief [[BPR-PENDING-AR1]]. A post's reactions, under its body: the
+	/// \brief [[BPR-1741]]. A post's reactions, under its body: the
 	/// non-zero ones in GitHub's order, wrapping to the post's width. Empty,
 	/// and no height, when the post has none or none were read.
 	class reaction_bar final : public QWidget
@@ -73,7 +73,7 @@ namespace bpr::qt {
 		std::vector<reaction_chip*> Chips;
 	};
 
-	/// \brief [[BPR-PENDING-AR1]]. The eight reactions GitHub offers, in its
+	/// \brief [[BPR-1741]]. The eight reactions GitHub offers, in its
 	/// order, as a small popup: each a checkable button named for its
 	/// reaction, checked when it is mine. The arrow keys move between them,
 	/// Space or Return chooses and closes, Esc closes.

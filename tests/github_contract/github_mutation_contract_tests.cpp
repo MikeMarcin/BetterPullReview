@@ -793,7 +793,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AR1]]. GitHub's eight groups, as `reactionGroups` always
+	/// [[BPR-1741]]. GitHub's eight groups, as `reactionGroups` always
 	/// answers them: zero counts included, the viewer's thumbs up named.
 	[[nodiscard]] auto all_reaction_groups_json(const bool aMine, const std::uint32_t aThumbs) -> std::string
 	{
@@ -815,7 +815,7 @@ namespace {
 			+ all_reaction_groups_json(aMine, aThumbs) + "," + aPullRequest + "}";
 	}
 
-	// [[BPR-PENDING-AR1]]. A reaction goes by fixed GraphQL documents: the
+	// [[BPR-1741]]. A reaction goes by fixed GraphQL documents: the
 	// read that binds the comment to the pull request, and the two writes,
 	// each named so the read transport refuses it, each answer bound to the
 	// pull request and the comment, and a write's answer in the state asked.
@@ -949,7 +949,7 @@ namespace {
 		return { .Status = 200, .Body = std::string{ std::istreambuf_iterator<char>{ file }, std::istreambuf_iterator<char>{ } } };
 	}
 
-	// [[BPR-PENDING-AR1]]. GitHub's own answers to the product's documents,
+	// [[BPR-1741]]. GitHub's own answers to the product's documents,
 	// recorded on BPR-Test #132 (tests/fixtures/github/reactions-v1), read by
 	// the product's parsers as they read them live.
 	void test_recorded_reaction_and_resolution_answers()

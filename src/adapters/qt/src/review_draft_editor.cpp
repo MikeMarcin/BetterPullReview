@@ -1122,7 +1122,7 @@ namespace bpr::qt {
 			set_publication_status(QStringLiteral("GitHub refused a line comment here. Publish as file comment?"));
 			break;
 		case application::review_mutation_failure::not_confirmed:
-			// [[BPR-PENDING-AR1]]. Only a reaction or a resolution says this.
+			// [[BPR-1741]]. Only a reaction or a resolution says this.
 			set_publication_status(QStringLiteral("GitHub does not show the change; nothing was sent twice."));
 			break;
 		case application::review_mutation_failure::undesignated_target:

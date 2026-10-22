@@ -48,7 +48,7 @@ namespace bpr::adapters::github {
 			const application::review_thread_resolution_request& aRequest,
 			std::stop_token                                      aStop)
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure> override;
-		/// [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction through
+		/// [[BPR-1741]]. Adds or removes the viewer's reaction through
 		/// the leased GraphQL mutation.
 		[[nodiscard]] auto set_reaction(
 			const application::review_reaction_request& aRequest,

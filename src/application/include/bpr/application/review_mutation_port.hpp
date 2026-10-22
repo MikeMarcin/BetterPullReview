@@ -58,7 +58,7 @@ namespace bpr::application {
 		/// the learned fact is now unsupported, so publishing it again posts a
 		/// file comment that links to the line.
 		off_hunk_refused,
-		/// [[BPR-PENDING-AR1]]. A reaction or a resolution whose outcome was
+		/// [[BPR-1741]]. A reaction or a resolution whose outcome was
 		/// ambiguous, and whose state GitHub, asked once more, does not show
 		/// as the one asked for. The write is not repeated.
 		not_confirmed,
@@ -87,7 +87,7 @@ namespace bpr::application {
 	{
 		bool ResolvesThreads    = true;
 		bool RecordsViewedState = true;
-		/// [[BPR-PENDING-AR1]]. Adds and removes reactions on comments.
+		/// [[BPR-1741]]. Adds and removes reactions on comments.
 		bool Reacts = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
@@ -393,7 +393,7 @@ namespace bpr::application {
 		auto operator<=>(const review_thread_resolution_receipt&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AR1]]. Asks the provider to add or remove the
+	/// \brief [[BPR-1741]]. Asks the provider to add or remove the
 	/// viewer's reaction on one comment or review.
 	///
 	/// \details `Subject` is the comment's or review's GraphQL node as the
@@ -502,7 +502,7 @@ namespace bpr::application {
 			static_cast<void>(aStop);
 			return std::unexpected(review_mutation_failure::unavailable);
 		}
-		/// \brief [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction
+		/// \brief [[BPR-1741]]. Adds or removes the viewer's reaction
 		/// on one comment; a provider without the capability answers
 		/// `unsupported`.
 		[[nodiscard]] virtual auto set_reaction(

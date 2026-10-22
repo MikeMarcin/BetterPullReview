@@ -210,7 +210,7 @@ namespace bpr::qt {
 		qsizetype Lead = 0;
 	};
 
-	/// \brief [[BPR-PENDING-AR1]]. A review thread's resolution as the viewer
+	/// \brief [[BPR-1741]]. A review thread's resolution as the viewer
 	/// should see it, and whether GitHub lets the viewer resolve or reopen it.
 	struct thread_resolution_presentation
 	{
@@ -244,10 +244,10 @@ namespace bpr::qt {
 		/// first line; `Line` is its last, where it is anchored.
 		std::optional<std::uint32_t> FirstLine;
 		bool                         Resolved = false;
-		/// [[BPR-PENDING-AR1]]. My resolve or reopen is unanswered; `Resolved`
+		/// [[BPR-1741]]. My resolve or reopen is unanswered; `Resolved`
 		/// already shows what I asked.
 		bool ResolutionPending = false;
-		/// [[BPR-PENDING-AR1]]. GitHub lets me resolve (or reopen) this thread.
+		/// [[BPR-1741]]. GitHub lets me resolve (or reopen) this thread.
 		bool ResolutionPermitted = true;
 		bool Outdated            = false;
 		bool AnchorUnavailable   = false;
@@ -557,14 +557,14 @@ namespace bpr::qt {
 		/// \details Lays out again only when that thread's note is shown.
 		auto set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
 			-> std::vector<std::string>;
-		/// \brief [[BPR-PENDING-AR1]]. The posts' reactions as the viewer
+		/// \brief [[BPR-1741]]. The posts' reactions as the viewer
 		/// should see them, by GitHub node; a post without an entry shows none.
 		void present_reactions(std::map<std::string, core::reaction_summary> aBySubject);
 		/// \brief The reactions of one post, named as its card names it.
 		[[nodiscard]] auto reactions_of(std::string_view aPost) const -> std::optional<core::reaction_summary>;
 		/// \brief A reaction asked for on a post: the post's identity and the reaction.
 		void set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch);
-		/// \brief [[BPR-PENDING-AR1]]. Each thread's resolution as the viewer
+		/// \brief [[BPR-1741]]. Each thread's resolution as the viewer
 		/// should see it and GitHub's permission for it, by thread identity.
 		void present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread);
 		/// \brief [[BPR-0657]]. Offers Resolve and Unresolve on the threads when the

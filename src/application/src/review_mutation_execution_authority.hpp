@@ -30,7 +30,7 @@ namespace bpr::application::detail {
 											   core::request_generation aGeneration, review_mutation_target_binding aTarget,
 											   review_mutation_acting_identity aActor, review_thread_resolution_publication_request aRequest)
 			-> review_mutation_execution_grant;
-		/// \brief [[BPR-PENDING-AR1]]. The one-shot grant for one exact reaction change.
+		/// \brief [[BPR-1741]]. The one-shot grant for one exact reaction change.
 		[[nodiscard]] static auto issue_reaction(core::application_session_id aSession,
 												 core::request_generation aGeneration, review_mutation_target_binding aTarget,
 												 review_mutation_acting_identity aActor, review_reaction_publication_request aRequest)
@@ -225,7 +225,7 @@ namespace bpr::application {
 		[[nodiscard]] auto permits_thread(
 			const review_mutation_thread_scope&                 aScope,
 			const review_thread_resolution_publication_request& aRequest) noexcept -> bool;
-		// [[BPR-PENDING-AR1]]. A reaction binds and is permitted like a
+		// [[BPR-1741]]. A reaction binds and is permitted like a
 		// resolution, its subject in the scope's `Thread`; a user one-shot grant
 		// permits only the exact change it was issued for.
 		explicit review_mutation_execution_authority(

@@ -57,7 +57,7 @@ namespace bpr::qt {
 		constexpr int chip_gap     = 6;
 		constexpr int chip_padding = 8;
 
-		/// [[BPR-PENDING-AR1]]. One reaction in the picker: its emoji in a
+		/// [[BPR-1741]]. One reaction in the picker: its emoji in a
 		/// square, washed in the accent when it is mine.
 		class reaction_option final : public QAbstractButton
 		{

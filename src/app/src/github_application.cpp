@@ -12973,12 +12973,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											core::canonical_hex(aHandoff.Head).view()))
 										.arg(QString::fromStdString(WindowRead->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
-			// [[BPR-PENDING-AR1]]. The GitHub CLI connection resolves threads
+			// [[BPR-1741]]. The GitHub CLI connection resolves threads
 			// too, through `gh api graphql`.
 			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
 		}
 
-		/// [[BPR-PENDING-AR1]]. The posts' reactions and the threads'
+		/// [[BPR-1741]]. The posts' reactions and the threads'
 		/// resolutions as the viewer should see them: the accepted read, with
 		/// the viewer's own changes the core keeps until GitHub and a later
 		/// read agree with them.
@@ -13020,7 +13020,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->present_conversation_state(std::move(reactions), std::move(resolutions));
 		}
 
-		/// [[BPR-PENDING-AR1]]. A new accepted read reconciles the viewer's
+		/// [[BPR-1741]]. A new accepted read reconciles the viewer's
 		/// changes with what GitHub now says; another pull request drops them.
 		void observe_conversation_state()
 		{
@@ -13044,7 +13044,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			core::observe_conversation(ConversationOverlay, observation);
 		}
 
-		/// [[BPR-PENDING-AR1]]. A post's reaction: the core decides from the
+		/// [[BPR-1741]]. A post's reaction: the core decides from the
 		/// session's anonymity, what was read of the post and GitHub's
 		/// permission, and whether the same change is still unanswered; the
 		/// count changes at once, and the host writes it under a one-shot grant.
@@ -13163,7 +13163,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
 					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
 									 : core::anonymous_read_intent::unresolve_review_thread));
-			// [[BPR-PENDING-AR1]]. GitHub's own word on whether this viewer may
+			// [[BPR-1741]]. GitHub's own word on whether this viewer may
 			// resolve (or reopen) the thread, from the accepted read.
 			const auto* const thread    = accepted_thread(aGesture.Identity);
 			const auto        permitted = thread == nullptr
@@ -13220,7 +13220,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			notice(aGesture.Resolve ? QStringLiteral("Resolving the conversation…")
 									: QStringLiteral("Reopening the conversation…"));
-			// [[BPR-PENDING-AR1]]. The thread shows what was asked at once.
+			// [[BPR-1741]]. The thread shows what was asked at once.
 			static_cast<void>(core::begin_resolution_change(ConversationOverlay, aGesture.Identity, aGesture.Resolve));
 			present_conversation_state();
 			PendingThreadResolution = ReviewMutationHost->resolve(std::move(request), std::move(grant));
@@ -13232,7 +13232,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
-			// [[BPR-PENDING-AR1]]. Every answer settles its own change, the
+			// [[BPR-1741]]. Every answer settles its own change, the
 			// latest or not.
 			if (const auto change = ConversationChanges.find(aTerminal.Context.Request.value()); change != ConversationChanges.end()) {
 				if (aTerminal.Result.has_value()) {
@@ -21242,7 +21242,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_reply_published,
 				awaiting_reply_seen,
 				awaiting_resolved,
-				// [[BPR-PENDING-AR1]].
+				// [[BPR-1741]].
 				awaiting_reopened,
 				awaiting_reactions_read,
 				awaiting_reaction_confirmed,
@@ -21682,7 +21682,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                                 ThreadResolutionRefusals    = 0U;
 		std::size_t                                                 ThreadResolutionCompletions = 0U;
 		std::size_t                                                 ThreadResolutionFailures    = 0U;
-		/// [[BPR-PENDING-AR1]]. The viewer's reaction and resolution changes
+		/// [[BPR-1741]]. The viewer's reaction and resolution changes
 		/// reads have not caught up with, the pull request they are on, and
 		/// each unanswered request's subject.
 		core::conversation_overlay           ConversationOverlay;
@@ -30499,7 +30499,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 
 	namespace {
-		/// [[BPR-PENDING-AR1]]. One post of the open thread, by identity.
+		/// [[BPR-1741]]. One post of the open thread, by identity.
 		[[nodiscard]] auto post_view_of(const qt::conversation_cards_view& aCards, const std::string& aPost) -> QWidget*
 		{
 			if (aCards.open_card() == nullptr) {
@@ -30513,7 +30513,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return nullptr;
 		}
 
-		/// [[BPR-PENDING-AR1]]. One reaction's chip under a post of the open thread.
+		/// [[BPR-1741]]. One reaction's chip under a post of the open thread.
 		[[nodiscard]] auto reaction_chip_of(const qt::conversation_cards_view& aCards, const std::string& aPost, const core::reaction_content aContent) -> QAbstractButton*
 		{
 			auto* const post = post_view_of(aCards, aPost);
@@ -30821,7 +30821,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.ThreadResolved = true;
-			// [[BPR-PENDING-AR1]]. With reactions served, the course goes on:
+			// [[BPR-1741]]. With reactions served, the course goes on:
 			// Unresolve conversation at the thread's end, then reactions.
 			if (!implementation->ReviewMutationHost->capabilities().Reacts) {
 				probe.Phase = state_type::phase::passed;

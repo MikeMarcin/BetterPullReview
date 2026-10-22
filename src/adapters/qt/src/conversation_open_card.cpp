@@ -54,7 +54,7 @@ namespace bpr::qt {
 		constexpr int text_left    = gut_left + avatar_size + 9;
 		constexpr int text_right   = 10;
 		constexpr int post_padding = 8;
-		/// [[BPR-PENDING-AR1]]. Between a post's body and its reactions.
+		/// [[BPR-1741]]. Between a post's body and its reactions.
 		constexpr int reaction_gap  = 6;
 		constexpr int header_height = 34;
 		constexpr int reply_minimum = 54;
@@ -751,7 +751,7 @@ namespace bpr::qt {
 		});
 		// A fallback body already shows its source; there is nothing to switch to.
 		SourceButton->setEnabled(Reader->rendered_available());
-		// [[BPR-PENDING-AR1]]. Add reaction, as GitHub's comment header has
+		// [[BPR-1741]]. Add reaction, as GitHub's comment header has
 		// it, beside the post's other tools; and the post's reactions under
 		// its body.
 		ReactButton = new post_tool{ conversation_glyph::react, aStyle.Colours, this };
@@ -1295,7 +1295,7 @@ namespace bpr::qt {
 		} else if (aCard.Draft) {
 			row->addWidget(new state_label{ QStringLiteral("Only you see it"), conversation_glyph::lock, Style.Colours.Faint, header });
 		} else if (aCard.ResolutionPending) {
-			// [[BPR-PENDING-AR1]]. Shown at once; GitHub's answer settles it.
+			// [[BPR-1741]]. Shown at once; GitHub's answer settles it.
 			row->addWidget(new state_label{ aCard.Resolved ? QStringLiteral("Resolving…") : QStringLiteral("Reopening…"), std::nullopt, Style.Colours.Faint, header });
 		} else if (aCard.Resolved) {
 			row->addWidget(new state_label{ aCard.Outdated ? QStringLiteral("Resolved, outdated") : QStringLiteral("Resolved"), conversation_glyph::resolved, Style.Colours.Ok, header });
@@ -1426,7 +1426,7 @@ namespace bpr::qt {
 			}
 			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
 			if (!aCard.Draft) {
-				// [[BPR-PENDING-AR1]]. A reaction names its post.
+				// [[BPR-1741]]. A reaction names its post.
 				view->ReactionRequested = [this, id = post.Id](const core::reaction_content aContent) {
 					const auto requested = Reaction;
 					if (requested) {
@@ -1675,7 +1675,7 @@ namespace bpr::qt {
 			ReplyField->set_style(Style);
 			connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
 			footRow->addWidget(ReplyField);
-			// [[BPR-PENDING-AR1]]. Where GitHub puts it: at the thread's end,
+			// [[BPR-1741]]. Where GitHub puts it: at the thread's end,
 			// beside Reply, for a viewer GitHub lets resolve the thread.
 			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread") && aCard.ResolutionPermitted) {
 				ResolveConversation = new note_button{ note_button::kind::secondary, aCard.Resolved ? QStringLiteral("Unresolve conversation") : QStringLiteral("Resolve conversation"), Foot };

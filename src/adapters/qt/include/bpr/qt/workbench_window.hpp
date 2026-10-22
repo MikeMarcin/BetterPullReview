@@ -181,7 +181,7 @@ namespace bpr::qt {
 		auto operator<=>(const thread_resolution_gesture&) const = default;
 	};
 	using workbench_thread_resolution_dispatch = std::function<void(const thread_resolution_gesture&)>;
-	/// [[BPR-PENDING-AR1]]. A reaction added or removed on one post, with what
+	/// [[BPR-1741]]. A reaction added or removed on one post, with what
 	/// the window shows of it, so the composition can decide it.
 	struct reaction_gesture
 	{
@@ -709,9 +709,9 @@ namespace bpr::qt {
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
 		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-AR1]]. Where a post's reaction goes.
+		/// \brief [[BPR-1741]]. Where a post's reaction goes.
 		void set_reaction_dispatch(workbench_reaction_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-AR1]]. The posts' reactions, by GitHub node,
+		/// \brief [[BPR-1741]]. The posts' reactions, by GitHub node,
 		/// and each thread's resolution as the viewer should see them.
 		void present_conversation_state(std::map<std::string, core::reaction_summary> aReactions, std::map<std::string, thread_resolution_presentation> aResolutions);
 		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with

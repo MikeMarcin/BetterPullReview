@@ -477,7 +477,7 @@ namespace bpr::app::detail {
 		/// threads. Off, the composed editor reports the degradation, which
 		/// the round-trip course pins; on, the threaded-reply course resolves.
 		bool ResolvesThreads = false;
-		/// [[BPR-PENDING-AR1]]. The fixture answers reactions and its mutation
+		/// [[BPR-1741]]. The fixture answers reactions and its mutation
 		/// provider adds and removes them; off, no course reads any.
 		bool                                        ServesReactions         = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
@@ -590,7 +590,7 @@ namespace bpr::app::detail {
 		/// resolutions asked of the provider.
 		std::size_t Replies     = 0U;
 		std::size_t Resolutions = 0U;
-		/// [[BPR-PENDING-AR1]]. Reaction changes asked of the provider.
+		/// [[BPR-1741]]. Reaction changes asked of the provider.
 		std::size_t Reactions = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
@@ -800,7 +800,7 @@ namespace bpr::app::detail {
 		bool ReplyUnderThread = false;
 		bool ResolveAsked     = false;
 		bool ThreadResolved   = false;
-		/// [[BPR-PENDING-AR1]]. With reactions served: Unresolve conversation
+		/// [[BPR-1741]]. With reactions served: Unresolve conversation
 		/// shown at once and settled by GitHub, the recorded reactions read, a
 		/// chip's reaction shown at once, confirmed and removed, a reaction
 		/// chosen in the picker by keyboard, and a later read agreeing.

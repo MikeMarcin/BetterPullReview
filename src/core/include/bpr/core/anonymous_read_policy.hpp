@@ -59,7 +59,7 @@ namespace bpr::core {
 		submit_review,
 		read_private_repository,
 		select_enterprise_host,
-		/// [[BPR-PENDING-AR1]]. A reaction added to or removed from a comment.
+		/// [[BPR-1741]]. A reaction added to or removed from a comment.
 		react_to_comment,
 	};
 

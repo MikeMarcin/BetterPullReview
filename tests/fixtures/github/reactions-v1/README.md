@@ -1,6 +1,6 @@
 # Recorded reaction and resolution answers
 
-[[BPR-PENDING-AR1]]. GitHub's answers to the product's own reaction and
+[[BPR-1741]]. GitHub's answers to the product's own reaction and
 resolution documents, recorded on 2026-10-22 by
 `tests/scripts/reaction_live_course.py` on the owner-designated live target
 `MikeMarcin/BPR-Test`, pull request 132 (closed and its branch deleted by the

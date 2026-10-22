@@ -128,7 +128,7 @@ namespace bpr::application {
 		auto operator==(const review_thread_resolution_terminal&) const -> bool = default;
 	};
 
-	/// \brief [[BPR-PENDING-AR1]]. Asks the host to add or remove the viewer's
+	/// \brief [[BPR-1741]]. Asks the host to add or remove the viewer's
 	/// reaction on one comment or review, named by its GraphQL node.
 	struct review_reaction_publication_request
 	{
@@ -139,7 +139,7 @@ namespace bpr::application {
 		auto operator<=>(const review_reaction_publication_request&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AR1]]. One reaction change's terminal.
+	/// \brief [[BPR-1741]]. One reaction change's terminal.
 	struct review_reaction_terminal
 	{
 		review_mutation_request_context                                 Context;
@@ -163,7 +163,7 @@ namespace bpr::application {
 		{
 			static_cast<void>(aTerminal);
 		}
-		/// \brief [[BPR-PENDING-AR1]]. A sink that does not present reactions
+		/// \brief [[BPR-1741]]. A sink that does not present reactions
 		/// ignores them.
 		virtual void publish_reaction(const review_reaction_terminal& aTerminal)
 		{
@@ -240,7 +240,7 @@ namespace bpr::application {
 		std::uint64_t ShutdownRequestsStopped = 0U;
 		/// [[BPR-0657]].
 		std::uint64_t ThreadResolutions = 0U;
-		/// [[BPR-PENDING-AR1]]. Reaction changes GitHub answered as asked.
+		/// [[BPR-1741]]. Reaction changes GitHub answered as asked.
 		std::uint64_t Reactions = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
@@ -297,7 +297,7 @@ namespace bpr::application {
 			review_thread_resolution_publication_request aRequest,
 			review_mutation_execution_grant              aRequestGrant = { })
 			-> review_mutation_request_context;
-		/// \brief [[BPR-PENDING-AR1]]. Adds or removes the viewer's reaction
+		/// \brief [[BPR-1741]]. Adds or removes the viewer's reaction
 		/// under a grant bound to the accepted target and actor, as a
 		/// resolution does; refused before any effect when the provider does
 		/// not react or the grant does not permit the exact request.

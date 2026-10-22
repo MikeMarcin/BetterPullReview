@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[[BPR-PENDING-AR1]]. The live reaction and resolution course on MikeMarcin/BPR-Test.
+"""[[BPR-1741]]. The live reaction and resolution course on MikeMarcin/BPR-Test.
 
 Run by hand, never by CTest. The owner designated MikeMarcin/BPR-Test as the
 live GitHub target (2026-10-05); it is a constant here, not an argument. The

@@ -412,7 +412,7 @@ namespace bpr::application {
 		github_team_membership Membership                                              = github_team_membership::unavailable;
 		auto                   operator<=>(const github_team_membership_record&) const = default;
 	};
-	/// \brief [[BPR-PENDING-AR1]]. One comment's or review's reactions, as
+	/// \brief [[BPR-1741]]. One comment's or review's reactions, as
 	/// GitHub answered the read after the snapshot.
 	struct github_reaction_record
 	{
@@ -423,7 +423,7 @@ namespace bpr::application {
 
 		auto operator<=>(const github_reaction_record&) const = default;
 	};
-	/// \brief [[BPR-PENDING-AR1]]. Whether the read after the snapshot
+	/// \brief [[BPR-1741]]. Whether the read after the snapshot
 	/// answered the reactions.
 	enum class github_reaction_availability : std::uint8_t {
 		/// Not asked: a signed-out read, or nothing to ask about.
@@ -846,7 +846,7 @@ namespace bpr::application {
 		/// [[BPR-1589]]. The viewer's membership of each requested team, read
 		/// after the snapshot; empty when no team was asked about.
 		std::vector<github_team_membership_record> ViewerTeamMemberships;
-		/// [[BPR-PENDING-AR1]]. The reactions of the comments and reviews
+		/// [[BPR-1741]]. The reactions of the comments and reviews
 		/// above, read after the snapshot; empty unless available or partial.
 		github_reaction_availability        ReactionsAvailability = github_reaction_availability::unobserved;
 		std::vector<github_reaction_record> Reactions;

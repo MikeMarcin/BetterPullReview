@@ -340,7 +340,7 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
-		/// [[BPR-PENDING-AR1]]. The reactions of the accepted pull request's
+		/// [[BPR-1741]]. The reactions of the accepted pull request's
 		/// comments and reviews: the viewer's permission, and each group's
 		/// content, whether the viewer reacted, how many did and the first
 		/// five who did. Bound to the target like `ResolveBodyImages`; its
@@ -1953,7 +1953,7 @@ namespace bpr::adapters::github::detail {
 			"UnresolveThread",
 			// [[BPR-1368]]. The pending tour stop edit.
 			"UpdateReviewComment",
-			// [[BPR-PENDING-AR1]]. A reaction added or removed.
+			// [[BPR-1741]]. A reaction added or removed.
 			"AddReaction",
 			"RemoveReaction",
 		};

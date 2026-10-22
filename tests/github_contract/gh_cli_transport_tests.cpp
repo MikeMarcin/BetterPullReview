@@ -1778,7 +1778,7 @@ namespace {
 			}
 			// A reply and [[BPR-0896]]'s thread reconciliation of one are
 			// refused before launch: nothing this transport wrote can need
-			// them. [[BPR-PENDING-AR1]]: a resolution, a reaction and the reads
+			// them. [[BPR-1741]]: a resolution, a reaction and the reads
 			// that bind them go by `gh api graphql`, below.
 
 			auto reply                   = semanticRequest;

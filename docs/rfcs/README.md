@@ -681,7 +681,7 @@ editing, and the drawer no longer prefills a block.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0091](RFC-BPR-0091-comment-reactions-and-resolve-conversation.md) | React to comments and resolve conversations as GitHub's web interface does | Auto-Verified | Closed 2026-10-22 by [BPR-PENDING-AR1](../issues/60-done/BPR-PENDING-AR1-react-to-comments-and-resolve-conversations.md): fixture rows and the composed course through the shipped composition on github-com and ghes-3.18, the live course on MikeMarcin/BPR-Test #132 with a second identity, and the owner's Accept of all three looks on a frozen build. Depends on RFC-BPR-0008, RFC-BPR-0015 |
+| [RFC-BPR-0091](RFC-BPR-0091-comment-reactions-and-resolve-conversation.md) | React to comments and resolve conversations as GitHub's web interface does | Auto-Verified | Closed 2026-10-22 by [BPR-1741](../issues/60-done/BPR-1741-react-to-comments-and-resolve-conversations.md): fixture rows and the composed course through the shipped composition on github-com and ghes-3.18, the live course on MikeMarcin/BPR-Test #132 with a second identity, and the owner's Accept of all three looks on a frozen build. Depends on RFC-BPR-0008, RFC-BPR-0015 |
 
 Drafted 2026-10-22 as RFC-DRAFT-0027 from the owner's report that reacting to
 a comment with an emoji and resolving a conversation were missing. Reactions

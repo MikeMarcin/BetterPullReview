@@ -192,7 +192,7 @@ namespace bpr::adapters::github::detail {
 		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_team_membership_read_result;
 
-	/// \brief [[BPR-PENDING-AR1]]. The reactions of the comments asked about,
+	/// \brief [[BPR-1741]]. The reactions of the comments asked about,
 	/// in the order asked; a node GitHub answered null is left out.
 	struct github_reaction_read
 	{
@@ -202,7 +202,7 @@ namespace bpr::adapters::github::detail {
 
 	using github_reaction_read_result = std::expected<github_reaction_read, github_paged_read_failure>;
 
-	/// \brief [[BPR-PENDING-AR1]]. Asks GitHub for the reactions of up to
+	/// \brief [[BPR-1741]]. Asks GitHub for the reactions of up to
 	/// `maximum_reaction_subjects_per_read` comments and reviews of the
 	/// accepted pull request in one GraphQL page, bound to the repository and
 	/// pull request nodes the snapshot read. Signed out it sends nothing.
@@ -220,7 +220,7 @@ namespace bpr::adapters::github::detail {
 		github_paged_response_observer*                          aObserver      = nullptr) noexcept
 		-> github_reaction_read_result;
 
-	/// \brief [[BPR-PENDING-AR1]]. One reaction subject's state as a GraphQL
+	/// \brief [[BPR-1741]]. One reaction subject's state as a GraphQL
 	/// answer gives it: `viewerCanReact` and `reactionGroups` read off an
 	/// object, with the groups made canonical. Shared by the read above and by
 	/// the mutation contract, which reads the same selection back.

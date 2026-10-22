@@ -428,7 +428,7 @@ namespace bpr::application {
 			review_thread_resolution_publication_request Request;
 			std::stop_source                             Stop;
 		};
-		// [[BPR-PENDING-AR1]]. One reaction change in flight, kept like a
+		// [[BPR-1741]]. One reaction change in flight, kept like a
 		// resolution: its own record and queue.
 		struct reaction_record final
 		{

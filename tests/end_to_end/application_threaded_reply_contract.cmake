@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 4.4.2)
 # thread on the next read, Resolve on the card resolves the thread through
 # the port and the thread comes back resolved.
 #
-# [[BPR-PENDING-AR1]]. With `--reaction-probe` the course goes on: Unresolve
+# [[BPR-1741]]. With `--reaction-probe` the course goes on: Unresolve
 # conversation at the thread's end shows the thread open at once and GitHub's
 # answer settles it; the recorded thumbs up is read; pressing its chip shows
 # mine at once, the write confirms it and a second press removes it; Heart is

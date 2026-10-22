@@ -1416,7 +1416,7 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_markdown_image_resolution_tests
 )
 
-# [[BPR-PENDING-AR1]]. The live reaction and resolution course against the
+# [[BPR-1741]]. The live reaction and resolution course against the
 # one owner-designated disposable repository. Not a test row and not built by
 # default: it reaches GitHub.com through gh, so only an explicit configure
 # builds it, and tests/scripts/reaction_live_course.py runs it by hand.

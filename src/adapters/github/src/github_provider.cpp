@@ -2804,7 +2804,7 @@ namespace bpr::adapters::github::detail {
 								result->ViewerTeamMemberships.push_back(std::move(record));
 							}
 						}
-						// [[BPR-PENDING-AR1]]. The reactions of every review-thread
+						// [[BPR-1741]]. The reactions of every review-thread
 						// comment, pull request comment and review with words, in
 						// pages of fifty and at most eight pages a read. A refused,
 						// rate-limited or malformed answer leaves reactions unread

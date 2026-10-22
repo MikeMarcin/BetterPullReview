@@ -3711,7 +3711,7 @@ namespace {
 			   "a signed-out read sends nothing");
 	}
 
-	/// [[BPR-PENDING-AR1]]. One subject's answer: its type, identity,
+	/// [[BPR-1741]]. One subject's answer: its type, identity,
 	/// permission and groups as `ListReactions` selects them.
 	[[nodiscard]] auto reaction_node(const std::string_view aType, const std::string_view aId, const bool aCanReact, const std::string_view aGroups) -> std::string
 	{

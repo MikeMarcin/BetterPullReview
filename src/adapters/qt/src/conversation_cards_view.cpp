@@ -1830,7 +1830,7 @@ namespace bpr::qt {
 			card.Line      = node.Line;
 			card.StartLine = node.StartLine;
 			card.Resolved  = node.Resolved;
-			// [[BPR-PENDING-AR1]]. My resolve or reopen shows at once, and
+			// [[BPR-1741]]. My resolve or reopen shows at once, and
 			// GitHub's permission decides whether it is offered.
 			if (const auto presented = ResolutionsByThread.find(node.Id); isThread && presented != ResolutionsByThread.end()) {
 				card.Resolved            = presented->second.Resolved;

@@ -111,7 +111,7 @@ namespace bpr::adapters::github::detail {
 			"query ObserveThread($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
 			"id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
-		/// [[BPR-PENDING-AR1]]. A reaction subject: a review-thread comment, a
+		/// [[BPR-1741]]. A reaction subject: a review-thread comment, a
 		/// pull request comment or a review, each named with the pull request
 		/// it belongs to (as a thread is, [[BPR-0879]]) and its reactions as
 		/// `ListReactions` selects them.
@@ -513,7 +513,7 @@ namespace bpr::adapters::github::detail {
 					"variables", &resolution_query_json::Variables);
 			};
 		};
-		// [[BPR-PENDING-AR1]]. A reaction's envelopes, outbound.
+		// [[BPR-1741]]. A reaction's envelopes, outbound.
 		struct reaction_variables_json
 		{
 			std::string_view Subject;
@@ -711,7 +711,7 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("data", &thread_node_response_json::Data);
 			};
 		};
-		// [[BPR-PENDING-AR1]]. A reaction subject as an answer names it. The
+		// [[BPR-1741]]. A reaction subject as an answer names it. The
 		// groups are kept raw and read by the same reader `ListReactions`
 		// uses, so a reaction answer is held to one rule.
 		struct reaction_subject_json
@@ -796,7 +796,7 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("data", &remove_reaction_response_json::Data);
 			};
 		};
-		/// [[BPR-PENDING-AR1]]. The subject's reactions, held to the
+		/// [[BPR-1741]]. The subject's reactions, held to the
 		/// `ListReactions` reader: a subject of one of the three kinds, the
 		/// identity asked, in the designated pull request.
 		[[nodiscard]] auto reaction_subject_observation(
@@ -2455,7 +2455,7 @@ namespace bpr::adapters::github::detail {
 		case operation::unresolve_review_thread:
 		case operation::observe_review_thread:
 		case operation::observe_review_thread_comments:
-		// [[BPR-PENDING-AR1]]. A reaction keeps no recovery record either: it
+		// [[BPR-1741]]. A reaction keeps no recovery record either: it
 		// is idempotent by state, so an ambiguous one is confirmed by reading
 		// the state back, never by sending it again.
 		case operation::observe_reaction_subject:
@@ -4094,7 +4094,7 @@ namespace bpr::adapters::github::detail {
 			if (!bound.has_value()) {
 				return std::unexpected(bound.error());
 			}
-			// [[BPR-PENDING-AR1]]. A thread GitHub already shows in the state
+			// [[BPR-1741]]. A thread GitHub already shows in the state
 			// asked is not written again.
 			if (bound->Resolved == aRequest.Resolve) {
 				return application::review_thread_resolution_receipt{ .Thread = bound->Thread, .Resolved = bound->Resolved };
@@ -4121,7 +4121,7 @@ namespace bpr::adapters::github::detail {
 			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
 				return std::unexpected(application::review_mutation_failure::cancelled);
 			}
-			// [[BPR-PENDING-AR1]]. An ambiguous outcome is confirmed by one read
+			// [[BPR-1741]]. An ambiguous outcome is confirmed by one read
 			// of the thread's state, never by resolving it again.
 			const auto after = observe_thread_target(aRequest, aStop);
 			if (after.has_value() && after->Resolved == aRequest.Resolve) {

@@ -1886,7 +1886,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AR1]]. After the snapshot the provider asks GitHub for
+	/// [[BPR-1741]]. After the snapshot the provider asks GitHub for
 	/// the reactions of the pull request's comments and reviews with words,
 	/// bound to the repository and pull request it read; a refused reaction
 	/// read leaves the snapshot whole, with reactions unread.

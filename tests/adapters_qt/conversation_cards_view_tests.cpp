@@ -2211,7 +2211,7 @@ namespace {
 		QApplication::processEvents();
 	}
 
-	/// [[BPR-PENDING-AR1]]. A thread as the composition names it, with two
+	/// [[BPR-1741]]. A thread as the composition names it, with two
 	/// posts, and the reactions GitHub reported on them.
 	[[nodiscard]] auto reacting_view(qt::conversation_cards_view& aView) -> std::map<std::string, core::reaction_summary>
 	{
@@ -2263,7 +2263,7 @@ namespace {
 		return nullptr;
 	}
 
-	/// [[BPR-PENDING-AR1]]. A post shows its reactions under its body, says
+	/// [[BPR-1741]]. A post shows its reactions under its body, says
 	/// who reacted, and adds or removes mine from a chip or the picker, by
 	/// mouse and by keyboard alone; a post GitHub does not let me react to
 	/// offers neither.
@@ -2341,7 +2341,7 @@ namespace {
 		view.hide();
 	}
 
-	/// [[BPR-PENDING-AR1]]. Resolve conversation ends the thread beside Reply
+	/// [[BPR-1741]]. Resolve conversation ends the thread beside Reply
 	/// once resolution is offered, shows a change at once, and is not offered
 	/// to a viewer GitHub does not let resolve the thread.
 	auto test_resolve_conversation_beside_reply() -> void
@@ -2383,7 +2383,7 @@ namespace {
 		view.hide();
 	}
 
-	/// [[BPR-PENDING-AR1]]. Chips and the picker are drawn from the palette:
+	/// [[BPR-1741]]. Chips and the picker are drawn from the palette:
 	/// mine in the accent, legible in light and dark. With a directory, the
 	/// renders are kept for a look.
 	auto test_reactions_render_in_light_and_dark(const QString& aDirectory) -> void

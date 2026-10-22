@@ -1,4 +1,6 @@
-# [[BPR-PENDING-AR1]] reseal (2026-10-22) over last matching main 3ddfbc5f8,
+# Upkeep reseal (2026-10-22): the only src/app change since the BPR-1741 note below
+# is renaming its [[BPR-PENDING-AR1]] comment tags to [[BPR-1741]]; no code change.
+# [[BPR-1741]] reseal (2026-10-22) over last matching main 3ddfbc5f8,
 # linear. Pinned-scope commits 1e097ce42, 4ff78af59, 2fcdde895 and d8bc00b29 (the owner's
 # request of 2026-10-22 for reactions and Resolve conversation, RFC-DRAFT-0027).
 # github_application.cpp names the core's new not_permitted resolution refusal,
@@ -2073,7 +2075,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"3b181a19e92e3299876e61a61968fddae2771db585be235dc7130f2d29209400"
+		"fc5cea4005c59d166e34a6ec48e8376a3af56a14d7a458a59de8305cb1bf9413"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2297,7 +2299,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "fb2e25f6bc120b4d530849dd9ab80451045bdc755c6dde9b9b99c54385163478"
+        "c52fdd7262ab01f5b198a5246158050d09a54d5a5541d6f9367580691f1ee1d3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -158,7 +158,7 @@ These Tour operations remain unavailable on an unqualified host/transport.
 (`ResolveThread`, `UnresolveThread`) and a reaction added or removed
 (`AddReaction`, `RemoveReaction`), each after the read that binds its subject
 to the pull request (`ObserveThread`, `ObserveReactionSubject`)
-([[BPR-PENDING-AR1]]). Those are the only GraphQL writes it admits; each body
+([[BPR-1741]]). Those are the only GraphQL writes it admits; each body
 must equal its compiled form, and a reply is still refused there.
 
 RFC-BPR-0078's `strict-cli-publication-r2` amendment permits one transient

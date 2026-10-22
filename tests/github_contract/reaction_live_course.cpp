@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AR1]]. The live reaction and resolution course's own process:
+// [[BPR-1741]]. The live reaction and resolution course's own process:
 // never a CTest row and not built by default (BPR_BUILD_LIVE_REACTION_COURSE).
 //
 // tests/scripts/reaction_live_course.py makes a pull request with a review

@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AR1]]. The eight reactions GitHub offers on a
+	/// \brief [[BPR-1741]]. The eight reactions GitHub offers on a
 	/// comment, in the order its web interface shows them.
 	enum class reaction_content : std::uint8_t {
 		thumbs_up,

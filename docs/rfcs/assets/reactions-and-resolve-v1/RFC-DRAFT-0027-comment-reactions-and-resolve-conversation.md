@@ -2,7 +2,7 @@
 id: "RFC-DRAFT-0027"
 title: "React to comments and resolve conversations as GitHub's web interface does"
 status: "Proposed"
-metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-PENDING-AR1", "revision": "r1 2026-10-22", "authoring": "author-rfc; frontend-design:frontend-design loaded for the Qt surfaces", "observed_at": "92162efed", "owner_questions": "none open; the choices below follow GitHub's web interface and are recorded under Decisions for the owner to amend"}
+metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1741", "revision": "r1 2026-10-22", "authoring": "author-rfc; frontend-design:frontend-design loaded for the Qt surfaces", "observed_at": "92162efed", "owner_questions": "none open; the choices below follow GitHub's web interface and are recorded under Decisions for the owner to amend"}
 ---
 
 # React to comments and resolve conversations as GitHub's web interface does

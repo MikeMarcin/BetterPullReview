@@ -1925,7 +1925,7 @@ namespace {
 	// [[BPR-0879]]. The coordinator applies one rule to every write it makes,
 	// and a resolution POST is counted as the submission it is. Counting only
 	// the attempt let diagnostics report zero submissions after a real write.
-	/// [[BPR-PENDING-AR1]]. A reaction subject's state as GitHub answers it:
+	/// [[BPR-1741]]. A reaction subject's state as GitHub answers it:
 	/// a review comment of the designated pull request (or another), its
 	/// permission, and the viewer's thumbs up with a count.
 	[[nodiscard]] auto reaction_subject_json(const bool aDesignated, const bool aMine, const std::uint32_t aCount, const bool aCanReact = true) -> std::string
@@ -1972,7 +1972,7 @@ namespace {
 		return static_cast<std::size_t>(std::ranges::count_if(aTransport.Requests, [aOperation](const auto& aWire) { return aWire.Wire.Operation == aOperation; }));
 	}
 
-	// [[BPR-PENDING-AR1]]. A reaction is bound to the designated pull request
+	// [[BPR-1741]]. A reaction is bound to the designated pull request
 	// before it is written, is not written when GitHub already shows it, and
 	// takes GitHub's own answer for the counts.
 	void test_a_reaction_is_observed_then_written_once()
@@ -2027,7 +2027,7 @@ namespace {
 			   "an answer naming another pull request is an undesignated target, and nothing is sent twice");
 	}
 
-	// [[BPR-PENDING-AR1]]. An ambiguous reaction or resolution is confirmed by
+	// [[BPR-1741]]. An ambiguous reaction or resolution is confirmed by
 	// reading its state back once, never by sending it again.
 	void test_an_ambiguous_change_is_confirmed_by_reading_it_back()
 	{

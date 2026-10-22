@@ -4195,7 +4195,7 @@ namespace bpr::adapters::github::detail {
 	}
 
 	namespace {
-		/// [[BPR-PENDING-AR1]]. One subject's `viewerCanReact` and
+		/// [[BPR-1741]]. One subject's `viewerCanReact` and
 		/// `reactionGroups`: at most the eight known contents, each once; a
 		/// group's `reactors` names at most five, each a non-empty login of a
 		/// user, bot, organization or mannequin (a reactor GitHub no longer

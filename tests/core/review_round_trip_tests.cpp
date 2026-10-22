@@ -285,7 +285,7 @@ namespace {
 		unresolveResolved.Resolved = true;
 		expect(decide_thread_resolution(unresolveResolved) == thread_resolution_refusal::none,
 			   "unresolving a resolved thread is allowed");
-		// [[BPR-PENDING-AR1]]. GitHub's per-thread permission.
+		// [[BPR-1741]]. GitHub's per-thread permission.
 		auto denied            = allowed;
 		denied.ViewerPermitted = false;
 		expect(decide_thread_resolution(denied) == thread_resolution_refusal::not_permitted,

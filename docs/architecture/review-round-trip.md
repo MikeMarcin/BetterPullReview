@@ -597,7 +597,7 @@ A provider that cannot resolve threads or record viewed state reports that
 rather than skipping the operation. Silently skipping would leave a reviewer
 believing they had resolved something.
 
-## Reactions and resolving conversations ([[BPR-PENDING-AR1]])
+## Reactions and resolving conversations ([[BPR-1741]])
 
 After the snapshot an authenticated read asks for the reactions of the pull
 request's review-thread comments, pull request comments and reviews with words

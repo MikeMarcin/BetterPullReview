@@ -1095,7 +1095,7 @@ namespace {
 		host.shutdown();
 	}
 
-	/// [[BPR-PENDING-AR1]]. A reaction is admitted like a resolution: the
+	/// [[BPR-1741]]. A reaction is admitted like a resolution: the
 	/// provider must react, the grant must permit the exact change, and a
 	/// grant issued for anything else permits none.
 	void test_a_reaction_needs_the_capability_and_a_permitting_grant()

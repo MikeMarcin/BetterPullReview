@@ -4,12 +4,12 @@ title: "React to comments and resolve conversations as GitHub's web interface do
 status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0008", "RFC-BPR-0015"]
-metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-PENDING-AR1", "revision": "r2 2026-10-22, owner look accepted", "draft": "docs/rfcs/assets/reactions-and-resolve-v1/RFC-DRAFT-0027-comment-reactions-and-resolve-conversation.md", "import": "docs/rfcs/assets/reactions-and-resolve-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the Qt surfaces", "closeout": "BPR-PENDING-AR1 (2026-10-22)", "owner_look": "attended-review session 3b59571c0c371e211a07e6a1c88e5711 (closed): AR1-reaction-chips, AR1-reaction-picker and AR1-resolve-conversation accepted"}
+metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1741", "revision": "r2 2026-10-22, owner look accepted", "draft": "docs/rfcs/assets/reactions-and-resolve-v1/RFC-DRAFT-0027-comment-reactions-and-resolve-conversation.md", "import": "docs/rfcs/assets/reactions-and-resolve-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the Qt surfaces", "closeout": "BPR-1741 (2026-10-22)", "owner_look": "attended-review session 3b59571c0c371e211a07e6a1c88e5711 (closed): AR1-reaction-chips, AR1-reaction-picker and AR1-resolve-conversation accepted"}
 ---
 
 # React to comments and resolve conversations as GitHub's web interface does
 
-Auto-Verified, revision r2, closed by [[BPR-PENDING-AR1]] on 2026-10-22.
+Auto-Verified, revision r2, closed by [[BPR-1741]] on 2026-10-22.
 Adopted from
 [RFC-DRAFT-0027](assets/reactions-and-resolve-v1/RFC-DRAFT-0027-comment-reactions-and-resolve-conversation.md)
 ([import record](assets/reactions-and-resolve-v1.LIVE_IMPORT.md)). The draft

@@ -1855,7 +1855,7 @@ namespace bpr::adapters::github::detail {
 					&& aSemantic.ActingIdentity == authority.Account;
 			} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>
 								 || std::same_as<semantic_type, application::review_reaction_request>) {
-				// [[BPR-PENDING-AR1]]. A resolution or a reaction is bound to
+				// [[BPR-1741]]. A resolution or a reaction is bound to
 				// the target and the actor exactly as a comment is.
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.LiveBinding->ActingIdentity.Account == authority.Account && aSemantic.ActingIdentity == authority.Account;
@@ -1879,7 +1879,7 @@ namespace bpr::adapters::github::detail {
 		const auto prefix    = githubCom ? std::string_view{ "/" } : std::string_view{ "/api/v3/" };
 		// [[BPR-1368]]. A tour stop edited while its review is pending is sent
 		// to `gh api graphql`, which names the host's own GraphQL root.
-		// [[BPR-PENDING-AR1]]. So are a thread resolved or reopened and a
+		// [[BPR-1741]]. So are a thread resolved or reopened and a
 		// reaction added or removed, with the reads that bind them to the pull
 		// request first. Each is a fixed document the outbound validator above
 		// compared for exact equality; no other GraphQL write is admitted.

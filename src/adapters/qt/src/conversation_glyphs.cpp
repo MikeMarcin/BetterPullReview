@@ -212,7 +212,7 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 17.0, 7.0 }, QPointF{ 7.0, 17.0 });
 				break;
 			case conversation_glyph::react: {
-				// [[BPR-PENDING-AR1]]. Add reaction: a face, as GitHub's, with
+				// [[BPR-1741]]. Add reaction: a face, as GitHub's, with
 				// a small plus at its shoulder.
 				aPainter.drawArc(QRectF{ 2.5, 4.5, 16.0, 16.0 }, 75 * 16, 300 * 16);
 				dot(aPainter, { 7.6, 10.6 }, 1.2);

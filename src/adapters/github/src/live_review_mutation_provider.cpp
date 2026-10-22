@@ -82,7 +82,7 @@ namespace bpr::adapters::github {
 	{
 		// [[BPR-0657]]. Threads resolve through the leased GraphQL mutation;
 		// viewed state is still not recorded.
-		// [[BPR-PENDING-AR1]]. Reactions are added and removed the same way.
+		// [[BPR-1741]]. Reactions are added and removed the same way.
 		return {
 			.ResolvesThreads    = true,
 			.RecordsViewedState = false,

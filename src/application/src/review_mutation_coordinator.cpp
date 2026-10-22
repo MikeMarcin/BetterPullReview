@@ -159,7 +159,7 @@ namespace bpr::application {
 			++Statistics.RefusedBeforeSubmit;
 			return std::unexpected(review_mutation_failure::undesignated_target);
 		}
-		// [[BPR-PENDING-AR1]]. A reaction is a write, so it answers to the
+		// [[BPR-1741]]. A reaction is a write, so it answers to the
 		// rule a resolution does: the server must still describe the
 		// designated pull request, and a moved head is acknowledged because a
 		// comment belongs to a pull request, not to a commit.
