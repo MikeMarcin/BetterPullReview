@@ -44,6 +44,9 @@ namespace bpr::application {
 		/// Owner decision 2026-10-23: a time limit on each agent run, in
 		/// minutes, for every agent; 0, the default, is no limit.
 		std::uint32_t RunLimitMinutes = 0U;
+		/// Owner look v004: the Agent tab's suggested prompts were hidden
+		/// with its Suggestions toggle; they show by default.
+		bool SuggestionsHidden = false;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};

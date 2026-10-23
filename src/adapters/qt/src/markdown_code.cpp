@@ -1,5 +1,7 @@
 #include "markdown_code.hpp"
 
+#include "markdown_github.hpp"
+
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
@@ -216,6 +218,105 @@ namespace bpr::qt::detail {
 	void markdown_code_store::clear()
 	{
 		Blocks.clear();
+		Inline.clear();
+	}
+
+	void markdown_code_store::set_inline_selector(std::string aSelector)
+	{
+		InlineSelector = std::move(aSelector);
+		if (InlineSelector.empty()) {
+			Inline.clear();
+		}
+	}
+
+	namespace {
+		/// \brief Inline code as the import marks it: fixed pitch, not a
+		/// keyboard key, outside fenced code and a suggestion's rows.
+		[[nodiscard]] auto inline_code_block(const QTextBlock& aBlock) -> bool
+		{
+			const auto format = aBlock.blockFormat();
+			return !format.hasProperty(QTextFormat::BlockCodeFence) && !format.hasProperty(QTextFormat::BlockCodeLanguage) && !format.hasProperty(markdown_code_ordinal_property)
+				&& !format.hasProperty(markdown_code_row_property);
+		}
+
+		[[nodiscard]] auto inline_code_chars(const QTextCharFormat& aFormat) -> bool
+		{
+			return aFormat.fontFixedPitch() && !aFormat.boolProperty(markdown_keyboard_property);
+		}
+
+		/// \brief Each run of inline code in a block: where it starts in the
+		/// block, and its text.
+		template <typename Visit>
+		void for_each_inline_run(const QTextBlock& aBlock, Visit&& aVisit)
+		{
+			auto start = -1;
+			auto text  = QString{ };
+			for (auto it = aBlock.begin(); !it.atEnd(); ++it) {
+				const auto fragment = it.fragment();
+				if (inline_code_chars(fragment.charFormat())) {
+					if (start < 0) {
+						start = fragment.position() - aBlock.position();
+					}
+					text += fragment.text();
+					continue;
+				}
+				if (start >= 0) {
+					aVisit(start, text);
+					start = -1;
+					text.clear();
+				}
+			}
+			if (start >= 0) {
+				aVisit(start, text);
+			}
+		}
+	} // namespace
+
+	void markdown_code_store::place_inline(const QTextDocument& aDocument)
+	{
+		Inline.clear();
+		if (InlineSelector.empty()) {
+			return;
+		}
+		for (auto current = aDocument.begin(); current.isValid(); current = current.next()) {
+			if (!inline_code_block(current)) {
+				continue;
+			}
+			for_each_inline_run(current, [this](int /*aStart*/, const QString& aText) {
+				auto utf8 = aText.toUtf8().toStdString();
+				if (utf8.empty() || utf8.find('\n') != std::string::npos || std::ranges::any_of(Inline, [&utf8](const inline_code& aCode) { return *aCode.Text == utf8; })) {
+					return;
+				}
+				Inline.push_back({ .Text = std::make_shared<const std::string>(std::move(utf8)), .Spans = { } });
+			});
+		}
+	}
+
+	void markdown_code_store::style_inline(QTextDocument& aDocument, const code_role_colors& aRoles) const
+	{
+		if (Inline.empty()) {
+			return;
+		}
+		for (auto current = aDocument.begin(); current.isValid(); current = current.next()) {
+			if (!inline_code_block(current)) {
+				continue;
+			}
+			auto formats = QList<QTextLayout::FormatRange>{ };
+			for_each_inline_run(current, [&](const int aStart, const QString& aText) {
+				const auto utf8  = aText.toUtf8().toStdString();
+				const auto found = std::ranges::find_if(Inline, [&utf8](const inline_code& aCode) { return *aCode.Text == utf8; });
+				if (found == Inline.end() || !found->Spans) {
+					return;
+				}
+				for (auto range : line_formats(utf8, found->Spans, 0U, aRoles)) {
+					range.start += aStart;
+					formats.push_back(range);
+				}
+			});
+			if (!formats.isEmpty() || (current.layout() != nullptr && !current.layout()->formats().isEmpty())) {
+				apply_syntax_format_ranges(aDocument, current, formats);
+			}
+		}
 	}
 
 	auto markdown_code_store::suggestions() const noexcept -> bool
@@ -358,6 +459,7 @@ namespace bpr::qt::detail {
 				cursor.insertText(QString::fromStdString(row.Text), rowChars);
 			}
 		}
+		place_inline(aDocument);
 	}
 
 	auto markdown_code_store::requests() const -> std::vector<application::markdown_code_syntax_request>
@@ -376,6 +478,9 @@ namespace bpr::qt::detail {
 				add(entry.Selector, entry.Text);
 				add(entry.Selector, entry.Removed);
 			}
+		}
+		for (const auto& code : Inline) {
+			add(InlineSelector, code.Text);
 		}
 		return requests;
 	}
@@ -397,6 +502,14 @@ namespace bpr::qt::detail {
 			if (entry.Removed && *entry.Removed == *aSpans.Text && entry.RemovedSpans != aSpans.Spans) {
 				entry.RemovedSpans = aSpans.Spans;
 				taken              = true;
+			}
+		}
+		if (aSpans.Selector == InlineSelector) {
+			for (auto& code : Inline) {
+				if (*code.Text == *aSpans.Text && code.Spans != aSpans.Spans) {
+					code.Spans = aSpans.Spans;
+					taken      = true;
+				}
 			}
 		}
 		return taken;
@@ -498,6 +611,7 @@ namespace bpr::qt::detail {
 				aDocument.rootFrame()->setFrameFormat(frame);
 			}
 		}
+		style_inline(aDocument, aRoles);
 		if (Blocks.empty()) {
 			return;
 		}

@@ -13,6 +13,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
@@ -74,6 +75,12 @@ namespace bpr::qt {
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
 
+	/// \brief Owner look v004 ("The models aren't listing their version
+	/// numbers"). A model as a reviewer reads it: `claude-sonnet-5-5` is
+	/// "Sonnet 5.5", a bare alias such as `sonnet` is "Sonnet (newest)", and
+	/// any other name is shown as the agent reported it.
+	[[nodiscard]] auto agent_model_display_name(const QString& aModel) -> QString;
+
 	/// \brief [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23. What the
 	/// suggested prompts may name: the open file's path, and the selected
 	/// lines, one-based, first and last.
@@ -118,8 +125,49 @@ namespace bpr::qt {
 	};
 	using agent_finding_card_dispatch = std::function<void(const agent_finding_card_request&)>;
 	/// \brief Save as note on a plain answer: the text (the whole reply, or
-	/// the selected part), and where the host says how it went.
-	using agent_answer_note_dispatch = std::function<void(const QString& aText, std::function<void(bool aSaved, const QString& aWhy)> aDone)>;
+	/// the selected part), and where the host says how it went: the note it
+	/// made, which Go to note opens (owner look v004), when it was saved.
+	using agent_answer_note_done     = std::function<void(bool aSaved, const QString& aWhy, std::uint64_t aNote)>;
+	using agent_answer_note_dispatch = std::function<void(const QString& aText, agent_answer_note_done aDone)>;
+	/// \brief Opens a private note the tab saved, in the Notes area.
+	using agent_note_navigation = std::function<void(std::uint64_t aNote)>;
+	/// \brief Owner look v004 ("This should be a link to the file and line I
+	/// can click"). A file of the pull request a reference names: the path
+	/// it is shown under, or nothing when the pull request has no such file.
+	using agent_file_resolver = std::function<std::optional<QString>(const QString& aPath)>;
+	/// \brief Opens a file of the pull request in Review at a one-based line
+	/// of its head (or, `aBefore`, of the change's base).
+	using agent_line_navigation = std::function<void(const QString& aPath, std::uint32_t aLine, bool aBefore)>;
+
+	/// \brief One place a text names a file and line of the pull request.
+	struct agent_line_reference
+	{
+		/// Where in the text, in UTF-16 units.
+		qsizetype Begin  = 0;
+		qsizetype Length = 0;
+		QString   Path;
+		/// One-based, first and last.
+		std::uint32_t First  = 0U;
+		std::uint32_t Last   = 0U;
+		bool          Before = false;
+
+		auto operator==(const agent_line_reference&) const -> bool = default;
+	};
+
+	/// \brief Every reference to a file and line in `aText`: `path:34`,
+	/// `path:34-36`, `path line 34`, `path lines 34–36` (either followed by
+	/// "before the change" for the base), each only when `aResolve` knows
+	/// the path; and, when `aContextFile` is not empty, a bare `line 34` or
+	/// `lines 34–36`, which names that file.
+	[[nodiscard]] auto agent_line_references(const QString& aText, const agent_file_resolver& aResolve, const QString& aContextFile = { }) -> std::vector<agent_line_reference>;
+	/// \brief `aMarkdown` with each reference outside code made a link, and
+	/// an inline code span that is wholly one made a link around it. Fenced
+	/// code is left as written.
+	[[nodiscard]] auto agent_markdown_with_line_links(const QString& aMarkdown, const agent_file_resolver& aResolve, const QString& aContextFile = { }) -> QString;
+	/// \brief The link a reference is opened by, and what it names: a path,
+	/// `#L` for the head or `#B` for the base, and the first line.
+	[[nodiscard]] auto agent_line_link(const QString& aPath, std::uint32_t aLine, bool aBefore) -> QString;
+	[[nodiscard]] auto agent_line_link_target(const QString& aLink) -> std::optional<std::pair<QString, std::pair<std::uint32_t, bool>>>;
 
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
@@ -226,11 +274,17 @@ namespace bpr::qt {
 		void set_suggestion_context(std::function<agent_suggestion_context()> aContext);
 		void refresh_suggestions();
 		/// \brief The suggested prompts shown now, in order; each is sent as
-		/// written. With an empty thread they stand above the question field,
-		/// and once it has turns they are the Suggestions menu in the field.
+		/// written. Owner look v004: they stand above the question field
+		/// whether or not the thread has turns, and the field's Suggestions
+		/// toggle shows or hides them.
 		[[nodiscard]] auto suggestions() const -> QStringList;
 		[[nodiscard]] auto suggestion_buttons() const -> std::vector<QPushButton*>;
-		[[nodiscard]] auto suggestions_menu_button() const noexcept -> QToolButton* { return SuggestionsMenu; }
+		[[nodiscard]] auto suggestions_toggle() const noexcept -> QToolButton* { return SuggestionsMenu; }
+		/// \brief The toggle as the host kept it, said to nobody; and where a
+		/// reviewer's press goes, so the host keeps it.
+		void               set_suggestions_shown(bool aShown);
+		void               set_suggestions_observer(std::function<void(bool aShown)> aObserver);
+		[[nodiscard]] auto suggestions_shown() const -> bool;
 		/// \brief Sends `aPrompt` as a chat turn, as if typed and asked.
 		void send_prompt(const QString& aPrompt);
 		/// \brief Reads the panels again and redraws.
@@ -249,10 +303,23 @@ namespace bpr::qt {
 		/// card's Add as draft comment, Save as note and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
 		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
-		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { });
+		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
 		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
 		/// \brief Save as note on a plain answer.
-		void               set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
+		void set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
+		/// \brief Owner look v004 ("After save as note it should turn into Go
+		/// to note"): where Go to note goes.
+		void set_note_navigation(agent_note_navigation aNavigate);
+		/// \brief Which files references may name, and where a link to one
+		/// goes; references are links only when both are set.
+		void set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate);
+		/// \brief Owner look v004 ("Not drawing inline comment with syntax
+		/// highlighing"): the file name the answers' inline code is
+		/// coloured as, such as `code.cpp` for a C++ pull request; empty
+		/// leaves it plain.
+		void               set_inline_code_file(const QString& aFileName);
+		[[nodiscard]] auto turn_question_label(std::size_t aTurn) const -> QLabel*;
+		[[nodiscard]] auto turn_answer_view(std::size_t aTurn) const -> markdown_body_view*;
 		[[nodiscard]] auto turn_note_button(std::size_t aTurn) const -> QPushButton*;
 		/// \brief The cards a turn brought, under its answer.
 		[[nodiscard]] auto turn_cards(std::size_t aTurn) const -> std::vector<QWidget*>;
@@ -276,6 +343,8 @@ namespace bpr::qt {
 			bool                     Anchored = false;
 			agent_finding_card_state State    = agent_finding_card_state::open;
 			QString                  Why;
+			/// The note Save as note made; 0 for none.
+			std::uint64_t Note = 0U;
 			/// The turn it is under; none for a card no turn brought.
 			std::optional<std::size_t> Turn;
 			QPointer<QWidget>          Widget;
@@ -291,6 +360,11 @@ namespace bpr::qt {
 		std::optional<std::uint64_t> ClaimedSession;
 		agent_finding_card_dispatch  CardDispatch;
 		agent_answer_note_dispatch   NoteDispatch;
+		agent_note_navigation        NoteNavigate;
+		agent_file_resolver          LineResolve;
+		agent_line_navigation        LineNavigate;
+		QString                      InlineCodeFile;
+		void                         follow_link(const QString& aLink);
 		void                         present_banner();
 
 		agent_launch_panel&             Launch;
@@ -318,12 +392,14 @@ namespace bpr::qt {
 		std::function<void()>           CheckAgain;
 		std::function<void()>           FirstShown;
 		std::vector<agent_run_settings> RunSettingsShown;
-		agent_run_settings_dispatch     RunSettingsDispatch;
-		QToolButton*                    RunSettings = nullptr;
-		QLabel*                         Notice      = nullptr;
-		[[nodiscard]] auto              current_run_settings() const -> const agent_run_settings*;
-		void                            present_run_settings_button();
-		void                            ask();
+		/// The model each agent last reported running, by its profile.
+		std::map<std::uint64_t, QString> ReportedModels;
+		agent_run_settings_dispatch      RunSettingsDispatch;
+		QToolButton*                     RunSettings = nullptr;
+		QLabel*                          Notice      = nullptr;
+		[[nodiscard]] auto               current_run_settings() const -> const agent_run_settings*;
+		void                             present_run_settings_button();
+		void                             ask();
 		/// One question and its answer.
 		struct turn
 		{
@@ -344,10 +420,19 @@ namespace bpr::qt {
 			QDateTime                    AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own.
 			std::uint64_t Serial = 0U;
+			/// The note Save as note made; 0 for none.
+			std::uint64_t    Note = 0U;
+			QPointer<QLabel> QuestionLabel;
+			/// The one file the question names, which a bare "line 34" in the
+			/// answer is in.
+			QString ContextFile;
 		};
 		std::vector<turn> Turns;
-		QWidget*          Thread       = nullptr;
-		QVBoxLayout*      ThreadColumn = nullptr;
+		/// The question and the answer as shown, their references links.
+		void         show_question(turn& aTurn);
+		void         show_answer(turn& aTurn);
+		QWidget*     Thread       = nullptr;
+		QVBoxLayout* ThreadColumn = nullptr;
 		/// Each turn's widgets, made for a new or restored turn.
 		auto                                                                        add_turn_widgets(turn& aTurn) -> void;
 		void                                                                        set_answer(turn& aTurn, const QString& aText);
@@ -373,6 +458,8 @@ namespace bpr::qt {
 		QWidget*                                            Suggestions      = nullptr;
 		QVBoxLayout*                                        SuggestionColumn = nullptr;
 		QToolButton*                                        SuggestionsMenu  = nullptr;
+		QLabel*                                             SuggestionsLine  = nullptr;
+		std::function<void(bool)>                           SuggestionsObserver;
 		QStringList                                         Prompts;
 		std::vector<QPointer<QPushButton>>                  PromptButtons;
 		/// What the next admitted request is: a question typed, or a review.

@@ -36,7 +36,9 @@
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
+#include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
@@ -49,6 +51,10 @@
 
 namespace bpr::qt {
 	namespace {
+		/// A reply card's side margins; its answer is this much narrower.
+		constexpr auto reply_left_margin  = 12;
+		constexpr auto reply_right_margin = 10;
+
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
 			const auto keep = 1.0 - aShare;
@@ -288,6 +294,240 @@ namespace bpr::qt {
 			return words;
 		}
 	} // namespace
+
+	auto agent_model_display_name(const QString& aModel) -> QString
+	{
+		auto       name    = aModel.trimmed();
+		auto       context = QString{ };
+		const auto bracket = name.indexOf(QLatin1Char{ '[' });
+		if (bracket > 0 && name.endsWith(QLatin1Char{ ']' })) {
+			// `claude-opus-5-5[1m]`: the window the agent asked for.
+			context = name.mid(bracket + 1, name.size() - bracket - 2).toUpper();
+			name    = name.left(bracket);
+		}
+		const auto        family  = [](const QString& aWord) { return aWord.left(1).toUpper() + aWord.mid(1).toLower(); };
+		const auto        with    = [&context](QString aShown) { return context.isEmpty() ? aShown : aShown + QStringLiteral(" (") + context + QLatin1Char{ ')' }; };
+		static const auto aliases = QStringList{ QStringLiteral("opus"), QStringLiteral("sonnet"), QStringLiteral("haiku"), QStringLiteral("fable") };
+		if (aliases.contains(name.toLower())) {
+			return with(QObject::tr("%1 (newest)").arg(family(name)));
+		}
+		// `claude-<family>-<major>[-<minor>][-<date>]`.
+		auto parts = name.split(QLatin1Char{ '-' });
+		if (parts.size() >= 3 && parts.front().compare(QStringLiteral("claude"), Qt::CaseInsensitive) == 0) {
+			if (parts.size() >= 4 && parts.back().size() == 8) {
+				parts.removeLast();
+			}
+			auto       majorOk = false;
+			const auto major   = parts[2].toUInt(&majorOk);
+			if (majorOk && parts[1].size() > 1 && parts.size() <= 4) {
+				auto version = QString::number(major);
+				if (parts.size() == 4) {
+					auto       minorOk = false;
+					const auto minor   = parts[3].toUInt(&minorOk);
+					if (!minorOk || parts[3].size() > 2) {
+						return aModel.trimmed();
+					}
+					version += QLatin1Char{ '.' } + QString::number(minor);
+				}
+				return with(family(parts[1]) + QLatin1Char{ ' ' } + version);
+			}
+		}
+		return aModel.trimmed();
+	}
+
+	auto agent_line_link(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> QString
+	{
+		return aPath + (aBefore ? QStringLiteral("#B") : QStringLiteral("#L")) + QString::number(aLine);
+	}
+
+	auto agent_line_link_target(const QString& aLink) -> std::optional<std::pair<QString, std::pair<std::uint32_t, bool>>>
+	{
+		const auto hash = aLink.lastIndexOf(QLatin1Char{ '#' });
+		if (hash <= 0 || hash + 2 >= aLink.size() || (aLink[hash + 1] != QLatin1Char{ 'L' } && aLink[hash + 1] != QLatin1Char{ 'B' })) {
+			return std::nullopt;
+		}
+		auto       number = false;
+		const auto line   = aLink.mid(hash + 2).toUInt(&number);
+		if (!number || line == 0U || aLink.contains(QStringLiteral("://"))) {
+			return std::nullopt;
+		}
+		return std::pair{ aLink.left(hash), std::pair{ static_cast<std::uint32_t>(line), aLink[hash + 1] == QLatin1Char{ 'B' } } };
+	}
+
+	auto agent_line_references(const QString& aText, const agent_file_resolver& aResolve, const QString& aContextFile) -> std::vector<agent_line_reference>
+	{
+		auto found = std::vector<agent_line_reference>{ };
+		if (!aResolve) {
+			return found;
+		}
+		const auto taken = [&found](const qsizetype aBegin, const qsizetype aEnd) {
+			return std::ranges::any_of(found, [&](const agent_line_reference& aKnown) { return aBegin < aKnown.Begin + aKnown.Length && aKnown.Begin < aEnd; });
+		};
+		const auto add = [&](const QRegularExpressionMatch& aMatch, const QString& aPath, const int aFirst, const int aLast, const bool aBefore) {
+			auto       firstOk = false;
+			auto       lastOk  = false;
+			const auto first   = aMatch.captured(aFirst).toUInt(&firstOk);
+			const auto last    = aLast > 0 && aMatch.hasCaptured(aLast) ? aMatch.captured(aLast).toUInt(&lastOk) : first;
+			if (!firstOk || first == 0U || taken(aMatch.capturedStart(), aMatch.capturedEnd())) {
+				return;
+			}
+			found.push_back({ .Begin  = aMatch.capturedStart(),
+							  .Length = aMatch.capturedLength(),
+							  .Path   = aPath,
+							  .First  = static_cast<std::uint32_t>(first),
+							  .Last   = static_cast<std::uint32_t>(std::max(first, aLast > 0 && aMatch.hasCaptured(aLast) && lastOk ? last : first)),
+							  .Before = aBefore });
+		};
+		// A path: words of letters, digits, `.`, `_` and `-` between slashes,
+		// the last with an extension.
+		static const auto path  = QStringLiteral(R"((?<![\w./\\-])((?:[\w.-]+/)*[\w-][\w.-]*\.[A-Za-z0-9_+]+))");
+		static const auto named = QRegularExpression{ path + QStringLiteral(R"( ([Ll]ines?) (\d+)(?:\s*(?:[-–]|to)\s*(\d+))?( before the change)?(?!\d))") };
+		static const auto colon = QRegularExpression{ path + QStringLiteral(R"(:(\d+)(?:[-–](\d+))?(?![\d\w]))") };
+		static const auto bare  = QRegularExpression{ QStringLiteral(R"((?<![\w/.-])[Ll]ines? (\d+)(?:\s*(?:[-–]|to|and)\s*(\d+))?( before the change)?(?!\d))") };
+		for (auto it = named.globalMatch(aText); it.hasNext();) {
+			const auto match = it.next();
+			if (const auto resolved = aResolve(match.captured(1))) {
+				add(match, *resolved, 3, 4, match.hasCaptured(5));
+			}
+		}
+		for (auto it = colon.globalMatch(aText); it.hasNext();) {
+			const auto match = it.next();
+			if (const auto resolved = aResolve(match.captured(1))) {
+				add(match, *resolved, 2, 3, false);
+			}
+		}
+		if (!aContextFile.isEmpty()) {
+			for (auto it = bare.globalMatch(aText); it.hasNext();) {
+				const auto match = it.next();
+				add(match, aContextFile, 1, 2, match.hasCaptured(3));
+			}
+		}
+		std::ranges::sort(found, { }, &agent_line_reference::Begin);
+		return found;
+	}
+
+	namespace {
+		/// \brief Where inline code spans and existing links are in one line
+		/// of Markdown: a reference is never made a link inside either.
+		struct markdown_spans
+		{
+			/// Code spans: from the first backtick to after the last.
+			std::vector<std::pair<qsizetype, qsizetype>> Code;
+			std::vector<std::pair<qsizetype, qsizetype>> Links;
+		};
+
+		[[nodiscard]] auto spans_of(const QString& aLine) -> markdown_spans
+		{
+			auto spans = markdown_spans{ };
+			for (qsizetype at = 0; at < aLine.size();) {
+				if (aLine[at] != QLatin1Char{ '`' }) {
+					++at;
+					continue;
+				}
+				auto run = qsizetype{ 0 };
+				while (at + run < aLine.size() && aLine[at + run] == QLatin1Char{ '`' }) {
+					++run;
+				}
+				// The closing run is the next of exactly the same length.
+				auto close = at + run;
+				auto shut  = qsizetype{ -1 };
+				while (close < aLine.size()) {
+					if (aLine[close] != QLatin1Char{ '`' }) {
+						++close;
+						continue;
+					}
+					auto length = qsizetype{ 0 };
+					while (close + length < aLine.size() && aLine[close + length] == QLatin1Char{ '`' }) {
+						++length;
+					}
+					if (length == run) {
+						shut = close + length;
+						break;
+					}
+					close += length;
+				}
+				if (shut < 0) {
+					at += run;
+					continue;
+				}
+				spans.Code.emplace_back(at, shut);
+				at = shut;
+			}
+			static const auto links = QRegularExpression{ QStringLiteral(R"(\[[^\]]*\]\([^)]*\)|<[^>\s]+>|https?://\S+)") };
+			for (auto it = links.globalMatch(aLine); it.hasNext();) {
+				const auto match = it.next();
+				spans.Links.emplace_back(match.capturedStart(), match.capturedEnd());
+			}
+			return spans;
+		}
+
+		[[nodiscard]] auto inside(const std::vector<std::pair<qsizetype, qsizetype>>& aSpans, const qsizetype aBegin, const qsizetype aEnd) -> bool
+		{
+			return std::ranges::any_of(aSpans, [&](const auto& aSpan) { return aBegin < aSpan.second && aSpan.first < aEnd; });
+		}
+	} // namespace
+
+	auto agent_markdown_with_line_links(const QString& aMarkdown, const agent_file_resolver& aResolve, const QString& aContextFile) -> QString
+	{
+		if (!aResolve) {
+			return aMarkdown;
+		}
+		auto lines = aMarkdown.split(QLatin1Char{ '\n' });
+		auto fence = QString{ };
+		// A fence: up to three spaces, then three or more backticks or tildes.
+		const auto fenceOf = [](const QString& aLine) {
+			auto indent = qsizetype{ 0 };
+			while (indent < aLine.size() && aLine[indent] == QLatin1Char{ ' ' }) {
+				++indent;
+			}
+			if (indent > 3 || indent == aLine.size() || (aLine[indent] != QLatin1Char{ '`' } && aLine[indent] != QLatin1Char{ '~' })) {
+				return QString{ };
+			}
+			auto run = qsizetype{ 0 };
+			while (indent + run < aLine.size() && aLine[indent + run] == aLine[indent]) {
+				++run;
+			}
+			return run >= 3 ? aLine.mid(indent, run) : QString{ };
+		};
+		for (auto& line : lines) {
+			const auto marker = fenceOf(line);
+			if (!fence.isEmpty()) {
+				if (!marker.isEmpty() && marker[0] == fence[0] && marker.size() >= fence.size() && line.trimmed() == marker) {
+					fence.clear();
+				}
+				continue;
+			}
+			if (!marker.isEmpty()) {
+				fence = marker;
+				continue;
+			}
+			const auto spans = spans_of(line);
+			auto       edits = std::vector<std::pair<std::pair<qsizetype, qsizetype>, QString>>{ };
+			// A code span that is wholly one reference becomes a link around it.
+			for (const auto& [begin, end] : spans.Code) {
+				auto run = qsizetype{ 0 };
+				while (begin + run < end && line[begin + run] == QLatin1Char{ '`' }) {
+					++run;
+				}
+				const auto content = line.mid(begin + run, end - begin - 2 * run).trimmed();
+				const auto refs    = agent_line_references(content, aResolve, aContextFile);
+				if (refs.size() == 1U && refs.front().Begin == 0 && refs.front().Length == content.size() && !inside(spans.Links, begin, end)) {
+					edits.push_back({ { begin, end }, QStringLiteral("[") + line.mid(begin, end - begin) + QStringLiteral("](") + agent_line_link(refs.front().Path, refs.front().First, refs.front().Before) + QLatin1Char{ ')' } });
+				}
+			}
+			for (const auto& ref : agent_line_references(line, aResolve, aContextFile)) {
+				if (inside(spans.Code, ref.Begin, ref.Begin + ref.Length) || inside(spans.Links, ref.Begin, ref.Begin + ref.Length)) {
+					continue;
+				}
+				edits.push_back({ { ref.Begin, ref.Begin + ref.Length }, QStringLiteral("[") + line.mid(ref.Begin, ref.Length) + QStringLiteral("](") + agent_line_link(ref.Path, ref.First, ref.Before) + QLatin1Char{ ')' } });
+			}
+			std::ranges::sort(edits, std::ranges::greater{ }, [](const auto& aEdit) { return aEdit.first.first; });
+			for (const auto& [range, text] : edits) {
+				line.replace(range.first, range.second - range.first, text);
+			}
+		}
+		return lines.join(QLatin1Char{ '\n' });
+	}
 
 	agent_tab_view::agent_tab_view(agent_launch_panel& aLaunch, side_chat_panel& aChat, finding_queue_view& aFindings, QWidget& aHistory, QWidget* aParent)
 		: QWidget{ aParent }
@@ -541,6 +781,7 @@ namespace bpr::qt {
 		SuggestionColumn->setContentsMargins(0, 0, 0, 0);
 		SuggestionColumn->setSpacing(4);
 		auto* const suggestLine = new QLabel{ tr("Ask about this pull request, or try:"), Suggestions };
+		SuggestionsLine         = suggestLine;
 		suggestLine->setObjectName(QStringLiteral("agentSuggestionsLine"));
 		suggestLine->setForegroundRole(QPalette::PlaceholderText);
 		suggestLine->setWordWrap(true);
@@ -585,11 +826,22 @@ namespace bpr::qt {
 								   QStringLiteral("agentAddContext"));
 		connect(Context, &QToolButton::clicked, Chat.add_context_action(), &QAction::trigger);
 		askRow->addWidget(Context);
-		// Once the thread has turns the suggestions fold into this menu.
-		SuggestionsMenu = make_drawer_tool(field, drawer_icon(drawer_glyph::agent, palette()), tr("Suggested prompts"), QStringLiteral("agentSuggestionsMenu"));
-		SuggestionsMenu->setPopupMode(QToolButton::InstantPopup);
-		SuggestionsMenu->setMenu(new QMenu{ SuggestionsMenu });
-		SuggestionsMenu->hide();
+		// Owner look v004 ("I would like the suggestions to come back where
+		// they were in the chat window... maybe turn the suggestion prompts
+		// into a toggle to show/hide them instead of a drop down"): the
+		// prompts stay above the field, and this shows or hides them; the
+		// host keeps the choice.
+		SuggestionsMenu = make_drawer_tool(field, drawer_icon(drawer_glyph::agent, palette()), tr("Hide the suggested prompts"), QStringLiteral("agentSuggestionsToggle"));
+		SuggestionsMenu->setCheckable(true);
+		SuggestionsMenu->setChecked(true);
+		SuggestionsMenu->setAccessibleName(tr("Suggested prompts"));
+		connect(SuggestionsMenu, &QToolButton::toggled, this, [this](const bool aShown) {
+			SuggestionsMenu->setToolTip(aShown ? tr("Hide the suggested prompts") : tr("Show the suggested prompts"));
+			refresh_suggestions();
+			if (SuggestionsObserver) {
+				SuggestionsObserver(aShown);
+			}
+		});
 		askRow->addWidget(SuggestionsMenu);
 		auto* const scope = Chat.scope_selector();
 		Borrowed.emplace_back(scope, scope->parentWidget());
@@ -879,10 +1131,14 @@ namespace bpr::qt {
 		asked->setObjectName(QStringLiteral("agentTurnQuestion"));
 		auto* const askedColumn = new QVBoxLayout{ asked };
 		askedColumn->setContentsMargins(10, 6, 10, 6);
-		auto* const question = new QLabel{ aTurn.Question, asked };
+		auto* const question = new QLabel{ asked };
+		question->setObjectName(QStringLiteral("agentTurnQuestionText"));
 		question->setWordWrap(true);
-		question->setTextFormat(Qt::PlainText);
-		question->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		question->setOpenExternalLinks(false);
+		// Owner look v004: a file and line the question names is a link to it.
+		connect(question, &QLabel::linkActivated, this, [this](const QString& aLink) { follow_link(aLink); });
+		aTurn.QuestionLabel = question;
+		show_question(aTurn);
 		if (aTurn.Review) {
 			auto italic = question->font();
 			italic.setItalic(true);
@@ -896,7 +1152,7 @@ namespace bpr::qt {
 		auto* const reply = new rounded{ rounded::look::card, box };
 		reply->setObjectName(QStringLiteral("agentTurnReply"));
 		auto* const replyColumn = new QVBoxLayout{ reply };
-		replyColumn->setContentsMargins(12, 8, 10, 6);
+		replyColumn->setContentsMargins(reply_left_margin, 8, reply_right_margin, 6);
 		replyColumn->setSpacing(6);
 		// Owner decision (a): the answer reads as the agent wrote it, its
 		// Markdown rendered in place, its code coloured as comments' are;
@@ -905,6 +1161,9 @@ namespace bpr::qt {
 		answer->setObjectName(QStringLiteral("agentTurnAnswer"));
 		answer->set_in_place(true);
 		answer->set_height_observer([this, answer] { fit_answer(*answer); });
+		// A reference the answer makes a link opens its file at its line;
+		// any other link does nothing.
+		answer->set_link_dispatch([this](const std::string& aLink) { follow_link(QString::fromStdString(aLink)); });
 		dress_answer(*answer);
 		answer->hide();
 		replyColumn->addWidget(answer);
@@ -957,8 +1216,18 @@ namespace bpr::qt {
 		});
 		connect(save, &QPushButton::clicked, this, [this, save] {
 			for (auto& kept : Turns) {
-				if (kept.SaveNote != save || !NoteDispatch) {
+				if (kept.SaveNote != save) {
 					continue;
+				}
+				// Owner look v004: once saved, the button goes to the note.
+				if (kept.Note != 0U) {
+					if (NoteNavigate) {
+						NoteNavigate(kept.Note);
+					}
+					return;
+				}
+				if (!NoteDispatch) {
+					return;
 				}
 				auto       text     = kept.AnswerText;
 				const auto selected = kept.Answer != nullptr ? kept.Answer->rendered_view()->textCursor().selectedText() : QString{ };
@@ -967,13 +1236,26 @@ namespace bpr::qt {
 					text.replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
 				}
 				save->setEnabled(false);
-				NoteDispatch(text, [guarded = QPointer{ save }](const bool aSaved, const QString& aWhy) {
+				NoteDispatch(text, [this, guarded = QPointer{ save }](const bool aSaved, const QString& aWhy, const std::uint64_t aNote) {
 					if (guarded == nullptr) {
 						return;
 					}
-					guarded->setText(aSaved ? QObject::tr("Saved as a note") : QObject::tr("Not saved: %1").arg(aWhy));
-					guarded->setEnabled(!aSaved);
+					if (!aSaved) {
+						guarded->setText(tr("Not saved: %1").arg(aWhy));
+						guarded->setEnabled(true);
+						return;
+					}
+					for (auto& turn : Turns) {
+						if (turn.SaveNote == guarded) {
+							turn.Note = aNote;
+						}
+					}
+					const auto navigable = aNote != 0U && NoteNavigate;
+					guarded->setText(navigable ? tr("Go to note") : tr("Saved as a note"));
+					guarded->setToolTip(navigable ? tr("Open the private note this reply was saved as") : QString{ });
+					guarded->setEnabled(navigable);
 				});
+				return;
 			}
 		});
 	}
@@ -990,15 +1272,101 @@ namespace bpr::qt {
 			aTurn.AnswerText.remove(fence, closed < 0 ? aTurn.AnswerText.size() - fence : closed + 3 - fence);
 			aTurn.AnswerText = aTurn.AnswerText.trimmed();
 		}
-		aTurn.Answer->set_body(aTurn.AnswerText.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
+		show_answer(aTurn);
+	}
+
+	void agent_tab_view::show_answer(turn& aTurn)
+	{
+		if (aTurn.Answer == nullptr) {
+			return;
+		}
+		// Owner look v004: the files and lines the answer names are links;
+		// Copy and Save as note keep the answer as the agent wrote it.
+		const auto shown = LineNavigate ? agent_markdown_with_line_links(aTurn.AnswerText, LineResolve, aTurn.ContextFile) : aTurn.AnswerText;
+		aTurn.Answer->set_body(shown.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
 		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty());
 		fit_answer(*aTurn.Answer);
 	}
 
+	void agent_tab_view::show_question(turn& aTurn)
+	{
+		if (aTurn.QuestionLabel == nullptr) {
+			return;
+		}
+		const auto refs = LineNavigate ? agent_line_references(aTurn.Question, LineResolve) : std::vector<agent_line_reference>{ };
+		// The one file the question names is where its answer's bare lines are.
+		aTurn.ContextFile.clear();
+		for (const auto& ref : refs) {
+			if (aTurn.ContextFile.isEmpty()) {
+				aTurn.ContextFile = ref.Path;
+			} else if (aTurn.ContextFile != ref.Path) {
+				aTurn.ContextFile.clear();
+				break;
+			}
+		}
+		auto html = QString{ };
+		auto at   = qsizetype{ 0 };
+		for (const auto& ref : refs) {
+			html += aTurn.Question.mid(at, ref.Begin - at).toHtmlEscaped();
+			html += QStringLiteral("<a href=\"%1\">%2</a>").arg(agent_line_link(ref.Path, ref.First, ref.Before).toHtmlEscaped(), aTurn.Question.mid(ref.Begin, ref.Length).toHtmlEscaped());
+			at = ref.Begin + ref.Length;
+		}
+		html += aTurn.Question.mid(at).toHtmlEscaped();
+		html.replace(QLatin1Char{ '\n' }, QStringLiteral("<br>"));
+		aTurn.QuestionLabel->setTextFormat(refs.empty() ? Qt::PlainText : Qt::RichText);
+		aTurn.QuestionLabel->setText(refs.empty() ? aTurn.Question : html);
+		aTurn.QuestionLabel->setTextInteractionFlags(refs.empty() ? Qt::TextSelectableByMouse : Qt::TextSelectableByMouse | Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		aTurn.QuestionLabel->setAccessibleName(aTurn.Question);
+		aTurn.QuestionLabel->setToolTip(refs.empty() ? QString{ } : tr("Click a file and line to open it in Review"));
+	}
+
+	void agent_tab_view::follow_link(const QString& aLink)
+	{
+		const auto target = agent_line_link_target(aLink);
+		if (!target || !LineNavigate || !LineResolve) {
+			return;
+		}
+		const auto path = LineResolve(target->first);
+		if (path) {
+			LineNavigate(*path, target->second.first, target->second.second);
+		}
+	}
+
+	void agent_tab_view::set_note_navigation(agent_note_navigation aNavigate) { NoteNavigate = std::move(aNavigate); }
+
+	void agent_tab_view::set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate)
+	{
+		LineResolve  = std::move(aResolve);
+		LineNavigate = std::move(aNavigate);
+		for (auto& kept : Turns) {
+			show_question(kept);
+			show_answer(kept);
+		}
+	}
+
+	void agent_tab_view::set_inline_code_file(const QString& aFileName)
+	{
+		if (InlineCodeFile == aFileName) {
+			return;
+		}
+		InlineCodeFile = aFileName;
+		for (const auto& kept : Turns) {
+			if (kept.Answer != nullptr) {
+				kept.Answer->set_inline_code_selector(InlineCodeFile.toStdString());
+			}
+		}
+	}
+
+	auto agent_tab_view::turn_question_label(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].QuestionLabel.data() : nullptr; }
+
+	auto agent_tab_view::turn_answer_view(const std::size_t aTurn) const -> markdown_body_view* { return aTurn < Turns.size() ? Turns[aTurn].Answer.data() : nullptr; }
+
 	void agent_tab_view::fit_answer(markdown_body_view& aAnswer) const
 	{
-		// The thread is the viewport less the conversation's margins.
-		constexpr auto margins = 12 + 12;
+		// The answer is the viewport less the conversation's margins and its
+		// reply card's. Owner look v004: measured without the card's, an
+		// answer was given the height of a wider one and lost its last line.
+		constexpr auto margins = 12 + 12 + reply_left_margin + reply_right_margin;
 		const auto     width   = Viewport == nullptr ? aAnswer.width() : Viewport->width() - margins;
 		aAnswer.setFixedHeight(aAnswer.isHidden() ? 0 : aAnswer.heightForWidth(std::max(1, width)));
 	}
@@ -1120,8 +1488,14 @@ namespace bpr::qt {
 		}
 		prompts << tr("What could this change break?");
 		if (context.Lines) {
+			// Owner look v004 ("in an hour I wont remember which file line 34
+			// was in"): the prompt names the file, and the thread links it.
 			const auto [first, last] = *context.Lines;
-			prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected lines (%1–%2)").arg(first).arg(last));
+			if (context.OpenFile.isEmpty()) {
+				prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected lines (%1–%2)").arg(first).arg(last));
+			} else {
+				prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain %1 lines %2–%3").arg(context.OpenFile).arg(first).arg(last));
+			}
 		}
 		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;
 		if (prompts != Prompts) {
@@ -1134,8 +1508,6 @@ namespace bpr::qt {
 				}
 			}
 			PromptButtons.clear();
-			auto* const menu = SuggestionsMenu->menu();
-			menu->clear();
 			for (const auto& prompt : Prompts) {
 				auto* const button = new quiet_push_button{ Suggestions };
 				button->setObjectName(QStringLiteral("agentSuggestion"));
@@ -1147,8 +1519,6 @@ namespace bpr::qt {
 				connect(button, &QPushButton::clicked, this, [this, prompt] { send_prompt(prompt); });
 				SuggestionColumn->addWidget(button, 0, Qt::AlignLeft);
 				PromptButtons.emplace_back(button);
-				auto* const item = menu->addAction(prompt);
-				connect(item, &QAction::triggered, this, [this, prompt] { send_prompt(prompt); });
 			}
 		}
 		for (const auto& button : PromptButtons) {
@@ -1156,13 +1526,24 @@ namespace bpr::qt {
 				button->setEnabled(usable);
 			}
 		}
-		for (auto* const item : SuggestionsMenu->menu()->actions()) {
-			item->setEnabled(usable);
-		}
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
-		Suggestions->setVisible(conversing && Turns.empty());
-		SuggestionsMenu->setVisible(conversing && !Turns.empty());
+		SuggestionsLine->setVisible(Turns.empty());
+		Suggestions->setVisible(conversing && SuggestionsMenu->isChecked());
+		SuggestionsMenu->setVisible(conversing);
 	}
+
+	void agent_tab_view::set_suggestions_shown(const bool aShown)
+	{
+		// The host's choice is not a new one: it is not said back.
+		const auto quiet = QSignalBlocker{ SuggestionsMenu };
+		SuggestionsMenu->setChecked(aShown);
+		SuggestionsMenu->setToolTip(aShown ? tr("Hide the suggested prompts") : tr("Show the suggested prompts"));
+		refresh_suggestions();
+	}
+
+	void agent_tab_view::set_suggestions_observer(std::function<void(bool)> aObserver) { SuggestionsObserver = std::move(aObserver); }
+
+	auto agent_tab_view::suggestions_shown() const -> bool { return SuggestionsMenu->isChecked(); }
 
 	void agent_tab_view::update_turn()
 	{
@@ -1202,8 +1583,12 @@ namespace bpr::qt {
 			set_answer(current, !stopReason.isEmpty() ? stopReason : tr("%1 stopped before answering: %2.").arg(agent, Launch.status_text()));
 		}
 		auto ran = agent;
-		if (!Launch.last_reported_model().isEmpty()) {
-			ran = tr("%1 (%2)").arg(agent, Launch.last_reported_model());
+		if (const auto reported = Launch.last_reported_model(); succeeded && !reported.isEmpty()) {
+			ran = tr("%1 (%2)").arg(agent, agent_model_display_name(reported));
+			if (const auto profile = Launch.selected_profile()) {
+				ReportedModels[profile->value()] = reported;
+				present_run_settings_button();
+			}
 		}
 		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
 		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
@@ -1274,6 +1659,7 @@ namespace bpr::qt {
 		if (CodeTheme) {
 			aAnswer.set_code_theme(*CodeTheme);
 		}
+		aAnswer.set_inline_code_selector(InlineCodeFile.toStdString());
 		if (CodeDispatch) {
 			aAnswer.set_code_syntax_dispatch(CodeDispatch);
 		}
@@ -1453,12 +1839,13 @@ namespace bpr::qt {
 
 	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
 
-	void agent_tab_view::present_finding_card_state(const std::uint64_t aSession, const std::size_t aOrdinal, const agent_finding_card_state aState, const QString& aWhy)
+	void agent_tab_view::present_finding_card_state(const std::uint64_t aSession, const std::size_t aOrdinal, const agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote)
 	{
 		for (auto& entry : CardEntries) {
 			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
 				entry.State = aState;
 				entry.Why   = aWhy;
+				entry.Note  = aState == agent_finding_card_state::noted ? aNote : 0U;
 				show_card_state(entry);
 			}
 		}
@@ -1620,6 +2007,18 @@ namespace bpr::qt {
 		undo->hide();
 		connect(undo, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::undo_dismiss); });
 		actions->addWidget(undo);
+		// Owner look v004: a finding saved as a note goes to it.
+		auto* const goToNote = new quiet_push_button{ tr("Go to note"), card };
+		goToNote->setObjectName(QStringLiteral("agentFindingGoToNote"));
+		goToNote->setToolTip(tr("Open the private note this finding was saved as"));
+		goToNote->hide();
+		connect(goToNote, &QPushButton::clicked, this, [this, index] {
+			const auto found = std::ranges::find(CardEntries, index, &card_entry::Id);
+			if (found != CardEntries.end() && found->Note != 0U && NoteNavigate) {
+				NoteNavigate(found->Note);
+			}
+		});
+		actions->addWidget(goToNote);
 		actions->addStretch(1);
 		col->addLayout(actions);
 		// Choosing a card selects its finding and shows its lines.
@@ -1646,6 +2045,9 @@ namespace bpr::qt {
 			}
 		}
 		undo->setVisible(aEntry.State == agent_finding_card_state::dismissed);
+		if (auto* const goToNote = card->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote")); goToNote != nullptr) {
+			goToNote->setVisible(aEntry.State == agent_finding_card_state::noted && aEntry.Note != 0U && NoteNavigate);
+		}
 		switch (aEntry.State) {
 		case agent_finding_card_state::open:      state->clear(); break;
 		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
@@ -1753,8 +2155,13 @@ namespace bpr::qt {
 		}
 		// Short enough for the field's row: the model, or "Default model",
 		// and the effort when one is chosen.
-		const auto model = settings->Model.empty() ? tr("default model") : QString::fromStdString(settings->Model);
-		auto       shown = settings->Model.empty() ? tr("Default model") : QString::fromStdString(settings->Model);
+		// Owner look v004: a model by its name and version. The agent's own
+		// default is named by what it last reported running, when it did.
+		const auto reported = ReportedModels.find(settings->Profile);
+		const auto ranAs    = reported == ReportedModels.end() ? QString{ } : agent_model_display_name(reported->second);
+		const auto model    = settings->Model.empty() ? tr("default model") : agent_model_display_name(QString::fromStdString(settings->Model));
+		auto       shown    = !settings->Model.empty() ? model : ranAs.isEmpty() ? tr("Default model")
+																				 : ranAs;
 		if (!settings->Effort.empty()) {
 			shown += QStringLiteral(" · ") + tr("%1 effort").arg(QString::fromStdString(settings->Effort));
 		}
@@ -1774,8 +2181,8 @@ namespace bpr::qt {
 		if (!settings->Note.isEmpty()) {
 			tip += QStringLiteral("\n") + settings->Note;
 		}
-		if (!Launch.last_reported_model().isEmpty()) {
-			tip += QStringLiteral("\n") + tr("Last answer ran %1").arg(Launch.last_reported_model());
+		if (!ranAs.isEmpty()) {
+			tip += QStringLiteral("\n") + tr("Last answer ran %1 (%2)").arg(ranAs, reported->second);
 		}
 		RunSettingsTip = tip;
 		fit_run_settings();
@@ -1816,13 +2223,13 @@ namespace bpr::qt {
 				group->addAction(action);
 				connect(action, &QAction::triggered, this, [apply, aValue] { apply(aValue, std::nullopt); });
 			};
-			add({ }, tr("Default (the agent's own setting)"));
+			add({ }, ranAs.isEmpty() ? tr("Default (the agent's own setting)") : tr("Default (the agent's own; last ran %1)").arg(ranAs));
 			for (const auto& [value, label] : settings->Models) {
 				add(value, label);
 			}
 			const auto known = settings->Model.empty() || std::ranges::any_of(settings->Models, [&settings](const auto& aModel) { return aModel.first == settings->Model; });
 			if (!known) {
-				add(settings->Model, QString::fromStdString(settings->Model));
+				add(settings->Model, agent_model_display_name(QString::fromStdString(settings->Model)));
 			}
 			connect(models->addAction(tr("Other…")), &QAction::triggered, this, [this, apply, current = settings->Model] {
 				auto       accepted = false;

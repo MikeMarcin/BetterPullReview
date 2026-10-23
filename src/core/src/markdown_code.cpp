@@ -634,6 +634,58 @@ namespace bpr::core {
 		return { .Kind = markdown_code_kind::language, .Name = found->Name, .Selector = found->Selector };
 	}
 
+	auto markdown_inline_code_selector(const std::span<const std::string> aPaths) -> std::string
+	{
+		constexpr auto prose = std::to_array<std::string_view>({ "Markdown", "JSON", "YAML", "TOML", "INI", "XML", "reStructuredText", "AsciiDoc" });
+		struct tally
+		{
+			std::string_view Name;
+			std::string_view Selector;
+			std::size_t      Count = 0U;
+		};
+		auto tallies = std::vector<tally>{ };
+		auto headers = std::size_t{ 0U };
+		for (const auto& path : aPaths) {
+			const auto slash = path.find_last_of('/');
+			const auto name  = slash == std::string::npos ? std::string_view{ path } : std::string_view{ path }.substr(slash + 1U);
+			const auto dot   = name.find_last_of('.');
+			if (dot == std::string_view::npos || dot == 0U || dot + 1U == name.size()) {
+				continue;
+			}
+			const auto extension = name.substr(dot + 1U);
+			if (lower(extension) == "h") {
+				++headers;
+				continue;
+			}
+			const auto language = markdown_code_language_of(extension);
+			if (language.Kind != markdown_code_kind::language || std::ranges::find(prose, language.Name) != prose.end()) {
+				continue;
+			}
+			const auto found = std::ranges::find(tallies, language.Name, &tally::Name);
+			if (found == tallies.end()) {
+				tallies.push_back({ .Name = language.Name, .Selector = language.Selector, .Count = 1U });
+			} else {
+				++found->Count;
+			}
+		}
+		// A header is C++'s when C++ is there, C's otherwise.
+		if (headers > 0U) {
+			const auto cpp = std::ranges::find(tallies, std::string_view{ "C++" }, &tally::Name);
+			if (cpp != tallies.end()) {
+				cpp->Count += headers;
+			} else {
+				const auto c = markdown_code_language_of("c");
+				if (const auto found = std::ranges::find(tallies, c.Name, &tally::Name); found != tallies.end()) {
+					found->Count += headers;
+				} else {
+					tallies.push_back({ .Name = c.Name, .Selector = c.Selector, .Count = headers });
+				}
+			}
+		}
+		const auto best = std::ranges::max_element(tallies, [](const tally& aLeft, const tally& aRight) { return aLeft.Count < aRight.Count; });
+		return best == tallies.end() ? std::string{ } : std::string{ best->Selector };
+	}
+
 	auto markdown_diff_marks(const std::string_view aLine) -> std::vector<markdown_diff_mark>
 	{
 		const auto whole = [&aLine](const markdown_diff_mark_kind aKind) {

@@ -342,6 +342,11 @@ namespace {
 		again.Host->load();
 		again.settle();
 		expect(again.state().Preferences.Agents.empty(), "a removed agent does not come back at the next load");
+		// Owner look v004: the Agent tab's Suggestions toggle is kept.
+		expect(!again.state().Preferences.SuggestionsHidden, "the suggestions show by default");
+		again.Host->set_suggestions_hidden(true);
+		again.settle();
+		expect(again.state().Preferences.SuggestionsHidden && again.Store.Stored->SuggestionsHidden, "hiding them is kept for the profile");
 
 		auto answer = std::optional<std::optional<core::agent_entry_refusal>>{ };
 		again.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };

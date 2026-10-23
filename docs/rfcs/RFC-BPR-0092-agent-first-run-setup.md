@@ -712,6 +712,26 @@ coordinator, verbatim:
   Markdown), Save as note and its time, its code coloured by the shared
   Markdown code host as comments' code is. A saved note's foot is its
   actions alone, none cut short.
+- **Look v004's notes (Reject, "much closer but not quite there").** Inline
+  code in an answer is coloured too, through the same host, as the language
+  most of the pull request's files are in (`core::markdown_inline_code_selector`;
+  a `.h` counts as C++ when C++ is there; prose and data leave it plain);
+  comment bodies are unchanged. Save as note becomes **Go to note**, which
+  opens the note in Notes, on a reply and on a finding card. The model menu
+  and the pill name models with their versions: Claude Code's list is Opus
+  5.5, Sonnet 5.5, Haiku 5.5 and Fable 5.1 (`claude-opus-5-5` and so on, as
+  `--model` takes them), a bare alias is "Sonnet (newest)", and the agent's
+  own default is named by the model it last reported; Codex has no list of
+  its own, so its models are what it reports or what is typed. The suggested
+  prompts stay above the field once the thread has turns, and a Suggestions
+  toggle in the field's row shows or hides them, kept for the profile. The
+  selected lines' prompt names its file ("Explain src/foo.cpp line 34"), and
+  a file and line a question or an answer names is a link that opens it in
+  Review at that line, when the path is one of the pull request's files.
+  Setup's "Or add" row is gone: the folder line holds the usual folder that
+  exists, so Add works at once. An answer's last line is no longer cut off:
+  its height is measured at the width its card gives it. The header names the
+  pull request.
 
 ## Acceptance
 

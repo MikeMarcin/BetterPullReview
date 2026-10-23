@@ -888,23 +888,14 @@ namespace bpr::qt {
 			};
 			connect(add, &QPushButton::clicked, this, submit);
 			connect(path, &QLineEdit::returnPressed, this, submit);
-			auto* const row = new QHBoxLayout{ };
+			// Owner look v004 ("get rid of the or add it's just confusing.
+			// Just let the add button be clickable with the the prefilled
+			// text"): the folder found likeliest is the line's text, so Add
+			// takes it as it is; Browse… or typing changes it.
 			if (!Clones.Suggestions.empty()) {
-				row->addWidget(muted(tr("Or add:"), parent));
+				path->setText(shown_path(Clones.Suggestions.front()));
+				path->setToolTip(tr("Found on this computer: %1").arg(text_of(Clones.Suggestions.front())));
 			}
-			for (const auto& suggestion : Clones.Suggestions) {
-				auto* const button = new quiet_push_button{ shown_path(suggestion), parent };
-				button->setObjectName(QStringLiteral("agentSetupSuggestedFolder"));
-				button->setToolTip(tr("Add %1 to your clone folders").arg(text_of(suggestion)));
-				connect(button, &QPushButton::clicked, this, [this, suggestion] {
-					if (Intents.AddCloneFolder) {
-						Intents.AddCloneFolder(suggestion);
-					}
-				});
-				row->addWidget(button);
-			}
-			row->addStretch(1);
-			aBody.addLayout(row);
 			aBody.addWidget(privateCopy(tr("Use a private copy instead")), 0, Qt::AlignLeft);
 			return;
 		}

@@ -174,6 +174,7 @@
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_open.hpp"
+#include "bpr/core/markdown_code.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
@@ -11533,11 +11534,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// the Agent tab: on one line of the shown comparison when `aLine`
 		/// names one, otherwise on the review. It belongs to the review's
 		/// private state, not to any agent session.
-		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, std::function<void(bool, const QString&)> aDone)
+		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone)
 		{
-			const auto answer = [aDone](const bool aSaved, const QString& aWhy) {
+			const auto answer = [aDone](const bool aSaved, const QString& aWhy, const std::uint64_t aNote = 0U) {
 				if (aDone) {
-					aDone(aSaved, aWhy);
+					aDone(aSaved, aWhy, aNote);
 				}
 			};
 			if (Closing || Window == nullptr || !ReviewLedgerHost || !ReviewLedgerAvailable || aText.empty()) {
@@ -11569,7 +11570,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											  return;
 										  }
 										  refresh_agent_private_context_choices();
-										  answer(true, { });
+										  // Owner look v004: Go to note opens the note made.
+										  answer(true, { }, aStored->Id.value());
 									  }));
 		}
 
@@ -11580,9 +11582,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void act_on_agent_card(const qt::agent_finding_card_request& aRequest)
 		{
 			auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
-			const auto  state = [tab, aRequest](const qt::agent_finding_card_state aState, const QString& aWhy = { }) {
+			const auto  state = [tab, aRequest](const qt::agent_finding_card_state aState, const QString& aWhy = { }, const std::uint64_t aNote = 0U) {
 				if (tab != nullptr) {
-					tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy);
+					tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy, aNote);
 				}
 			};
 			if (Closing || tab == nullptr) {
@@ -11628,8 +11630,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
 					text += "\n\n" + *finding.SuggestedComment;
 				}
-				save_agent_note(std::move(text), std::pair{ side, finding.Lines.Begin }, finding.Path, [state](const bool aSaved, const QString& aWhy) {
-					state(aSaved ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aSaved ? QString{ } : QStringLiteral("Not saved: %1.").arg(aWhy));
+				save_agent_note(std::move(text), std::pair{ side, finding.Lines.Begin }, finding.Path, [state](const bool aSaved, const QString& aWhy, const std::uint64_t aNote) {
+					state(aSaved ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aSaved ? QString{ } : QStringLiteral("Not saved: %1.").arg(aWhy), aNote);
 				});
 				return;
 			}
@@ -11723,6 +11725,30 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = current_conversation_agent() });
 		}
 
+		/// Owner look v004. The Agent tab's header names the pull request, and
+		/// its answers' inline code is coloured in the language most of the
+		/// pull request's files are in.
+		void present_agent_pull_request()
+		{
+			if (Closing || Window == nullptr || WindowRead == nullptr) {
+				return;
+			}
+			auto* const tab      = Window->agent_tab();
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (!snapshot) {
+				tab->set_session_title({ });
+				tab->set_inline_code_file({ });
+				return;
+			}
+			tab->set_session_title(QStringLiteral("#%1 %2").arg(snapshot->PullRequest.Number.value()).arg(QString::fromStdString(snapshot->PullRequest.Title)));
+			auto paths = std::vector<std::string>{ };
+			paths.reserve(snapshot->Files.size());
+			for (const auto& file : snapshot->Files) {
+				paths.push_back(file.Path);
+			}
+			tab->set_inline_code_file(QString::fromStdString(core::markdown_inline_code_selector(paths)));
+		}
+
 		/// The open pull request's kept thread, shown in the Agent tab.
 		void present_conversation(const application::agent_conversation_projection& aView)
 		{
@@ -11735,6 +11761,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending) });
 			}
 			Window->agent_tab()->present_thread(shown);
+			present_agent_pull_request();
 			// A pull request opens on the agent it was last asked with.
 			if (aView.Loaded && aView.Key && aView.Key->Agent != 0U && AgentSetup && aView.Key->Agent != current_conversation_agent()) {
 				const auto agents = AgentSetup->projection().Preferences.Agents;
@@ -11887,8 +11914,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// conversation about the open pull request.
 			QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 			tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
-			tab->set_answer_note_dispatch([this](const QString& aText, std::function<void(bool, const QString&)> aDone) {
-				save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone));
+			tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
+			// Owner look v004. Go to note; the files and lines a question or an
+			// answer names open in Review; the suggestions' toggle is kept.
+			tab->set_note_navigation([this](const std::uint64_t aNote) {
+				if (!Closing && Window != nullptr) {
+					Window->go_to_private_note(aNote);
+				}
+			});
+			tab->set_line_links(
+				[this](const QString& aPath) -> std::optional<QString> { return Closing || Window == nullptr ? std::nullopt : Window->review_file_named(aPath); },
+				[this](const QString& aPath, const std::uint32_t aLine, const bool aBefore) {
+					if (!Closing && Window != nullptr) {
+						static_cast<void>(Window->go_to_file_line(aPath, aLine, aBefore));
+					}
+				});
+			tab->set_suggestions_observer([this](const bool aShown) {
+				if (!Closing && AgentSetup) {
+					AgentSetup->set_suggestions_hidden(!aShown);
+				}
 			});
 			tab->set_clear_session_dispatch([this] {
 				if (!Closing && AgentConversation) {
@@ -12127,6 +12171,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->agent_tab()->focus_question();
 		}
 
+		/// Owner look v004 ("The models aren't listing their version numbers").
+		/// Claude Code's `--model` takes a model's full name; the list is the
+		/// current models, newest first in each line, by name and version.
+		[[nodiscard]] static auto claude_models() -> std::vector<std::pair<std::string, QString>>
+		{
+			return { { "claude-opus-5-5", QStringLiteral("Opus 5.5") },
+					 { "claude-sonnet-5-5", QStringLiteral("Sonnet 5.5") },
+					 { "claude-haiku-5-5", QStringLiteral("Haiku 5.5") },
+					 { "claude-fable-5-1",
+					   QStringLiteral("Fable 5.1") } };
+		}
+
 		/// [[BPR-PENDING-AQ6]], owner look v002. What each agent runs with, for
 		/// the Agent tab's model and effort control and its /model and /effort.
 		void present_run_settings()
@@ -12152,8 +12208,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				settings.Effort  = entry.Effort;
 				switch (core::entry_settings_program(entry.Protocol).value_or(core::agent_program::claude)) {
 				case core::agent_program::claude:
-					settings.Models  = { { "opus", QStringLiteral("Opus") }, { "sonnet", QStringLiteral("Sonnet") }, { "haiku",
-																													   QStringLiteral("Haiku") } };
+					settings.Models  = claude_models();
 					settings.Efforts = { "low", "medium", "high", "xhigh", "max" };
 					break;
 				case core::agent_program::codex: settings.Efforts = { "minimal", "low", "medium", "high", "xhigh" }; break;
@@ -12184,8 +12239,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			claude.EffortChoosable = true;
 			claude.Model           = ClaudeModel;
 			claude.Effort          = setup.Preferences.ClaudeEffort;
-			claude.Models          = { { "opus", QStringLiteral("Opus") }, { "sonnet", QStringLiteral("Sonnet") }, { "haiku",
-																													 QStringLiteral("Haiku") } };
+			claude.Models          = claude_models();
 			claude.Efforts         = { "low", "medium", "high", "xhigh", "max" };
 			auto codex             = qt::agent_run_settings{ };
 			codex.Agent            = QStringLiteral("Codex");
@@ -12270,6 +12324,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// the list as published, and the picker offers it.
 			AgentEntries->set(aProjection.Preferences.Agents);
 			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
+			Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
 			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
 			const auto  profile     = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
 			const auto  preferredAt = std::ranges::find(aProjection.Preferences.Agents, aProjection.Preferences.PreferredAgent, &core::agent_entry::Id);
@@ -20897,6 +20952,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_AGENT_INTEGRATIONS)
 			// [[BPR-PENDING-AQ6]], owner decision (a): Review <open file path>.
 			Window->agent_tab()->refresh_suggestions();
+			present_agent_pull_request();
 #endif
 			// RFC-BPR-0089 M4. A commit-filtered diff's threads are marked where
 			// the core places them on it (`place_filtered_threads`).

@@ -448,6 +448,16 @@ namespace bpr::application {
 		return true;
 	}
 
+	void agent_setup_host::set_suggestions_hidden(const bool aHidden)
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Preferences.SuggestionsHidden != aHidden) {
+			host.Projection.Preferences.SuggestionsHidden = aHidden;
+			host.save();
+			host.publish();
+		}
+	}
+
 	void agent_setup_host::prefer_agent(const std::uint32_t aId)
 	{
 		auto& host = *Implementation;

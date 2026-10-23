@@ -169,4 +169,25 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14), the Agent tab after the v003 notes: "The first time
     I open the Agent tab it tells me what to do, and I end up asking a
     question that the agent answers from my repository."
-- Pending: the owner's decision.
+- Handed back 2026-10-23: **Q1 Reject** ("much closer but not quite there",
+  relayed). The owner's note, verbatim (line breaks joined; the pasted
+  sample answer kept as its first quotation): "Not drawing inline comment
+  with syntax highlighing. [I'll read line 34 and the surrounding code to
+  explain what it does. Line 34 returns `diagnostic::invalid_calibration`
+  when `validate(scale, bias, gamma)` fails. This immediately exits the
+  enclosing function, signaling invalid calibration and skipping
+  `finalize(scale, bias, gamma)` on line 36. The surrounding snippet doesn't
+  show which values validation accepts or rejects.] After save as note it
+  should turn into Go to note The models aren't listing their version
+  numbers. I would like the suggestions to come back where they were in the
+  chat window... maybe turn the suggestion prompts into a toggle to show/hide
+  them instead of a drop down. My suggestion question : `Explain the selected
+  line (34)` This should be a link to the file and line I can click... in an
+  hour I wont remember which file line 34 was in. get rid of the or add it's
+  just confusing. Just let the add button be clickable with the the prefilled
+  text". Their screenshots showed the answer card (inline code plain, its last
+  sentence cut off, "Saved as a note" in the footer), the model menu (Default,
+  Opus, Sonnet, Haiku, Other…) and setup's "Or add: ~/Documents/GitHub" row.
+- Look v004's host was stopped, its candidate released and its root removed.
+  v005 builds the seven notes, recorded in the RFC, and the cut-off last line
+  the first screenshot showed.

@@ -113,6 +113,11 @@ namespace bpr::adapters::sqlite {
 									"CREATE TABLE IF NOT EXISTS agent_run_limit("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"minutes INTEGER NOT NULL CHECK(minutes BETWEEN 0 AND 1440)) STRICT")
+				// Owner look v004: whether the Agent tab's suggestions are hidden.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_suggestions("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"hidden INTEGER NOT NULL CHECK(hidden IN (0,1))) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_list("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -239,6 +244,14 @@ namespace bpr::adapters::sqlite {
 				if (committed) {
 					sqlite3_bind_int64(limit->Value, 1, aPreferences.RunLimitMinutes);
 					committed = sqlite3_step(limit->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				auto hidden = detail::prepare(aDatabase, "INSERT OR REPLACE INTO agent_suggestions VALUES(1,?1)");
+				committed   = hidden.has_value();
+				if (committed) {
+					sqlite3_bind_int64(hidden->Value, 1, aPreferences.SuggestionsHidden ? 1 : 0);
+					committed = sqlite3_step(hidden->Value) == SQLITE_DONE;
 				}
 			}
 			if (committed) {
@@ -573,6 +586,9 @@ namespace bpr::adapters::sqlite {
 					}
 					if (auto limit = detail::prepare(store->Database.get(), "SELECT minutes FROM agent_run_limit WHERE singleton=1"); limit && sqlite3_step(limit->Value) == SQLITE_ROW) {
 						loaded.RunLimitMinutes = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(limit->Value, 0), 0, 1440));
+					}
+					if (auto hidden = detail::prepare(store->Database.get(), "SELECT hidden FROM agent_suggestions WHERE singleton=1"); hidden && sqlite3_step(hidden->Value) == SQLITE_ROW) {
+						loaded.SuggestionsHidden = sqlite3_column_int64(hidden->Value, 0) != 0;
 					}
 					return application::valid(loaded) ? loaded : application::agent_setup_preferences{ };
 				} catch (...) {

@@ -264,18 +264,23 @@ namespace {
 		test.Clones.Suggestions = { "/Users/me/Documents/GitHub" };
 		test.show();
 		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
-		test.button(QStringLiteral("agentSetupSuggestedFolder"))->click();
-		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub", "a suggested folder is added in one press");
 		// Owner look v003: one folder line in setup, typed or browsed, then
-		// Add; the list editor is Settings' alone.
+		// Add; the list editor is Settings' alone. Owner look v004: no "Or
+		// add" row; the folder found is the line's text, and Add takes it.
 		auto* const path = test.View.findChild<QLineEdit*>(QStringLiteral("agentSetupFolderPath"));
 		auto* const add  = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFolderAdd"));
-		expect(path != nullptr && add != nullptr && !add->isEnabled() && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFolderBrowse")) != nullptr
-				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")) == nullptr,
-			   "no folder yet: one folder line with Browse and Add, which waits for a path");
+		expect(path != nullptr && add != nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFolderBrowse")) != nullptr
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupSuggestedFolder")) == nullptr
+				   && !test.text().contains(QStringLiteral("Or add")),
+			   "no folder yet: one folder line with Browse and Add, and no separate suggestion row");
 		if (path == nullptr || add == nullptr) {
 			return;
 		}
+		expect(path->text() == QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")) && add->isEnabled(), "the folder found is the line's text, and Add can be pressed at once");
+		add->click();
+		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString(), "Add adds the prefilled folder in one press");
+		path->clear();
+		expect(!add->isEnabled(), "an empty line waits for a path");
 		path->setText(QStringLiteral("work/clones"));
 		add->click();
 		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub" && test.View.findChild<QLabel*>(QStringLiteral("agentSetupFolderStatus"))->text().contains(QStringLiteral("full path")),

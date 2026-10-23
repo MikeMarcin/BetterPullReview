@@ -379,6 +379,50 @@ namespace {
 		use_theme(aView, themes[0]);
 	}
 
+	/// [[BPR-PENDING-AQ6]], owner look v004 ("Not drawing inline comment with
+	/// syntax highlighing"). A body that asks colours its inline code as the
+	/// named file's language, through the same host; a keyboard key and every
+	/// body that does not ask stay plain.
+	void check_inline(composed& aPath)
+	{
+		auto view = qt::markdown_body_view{ };
+		view.set_in_place(true);
+		view.set_code_theme(code_theme(core::appearance_variant::light));
+		aPath.bind(view);
+		view.resize(600, 300);
+		view.show();
+		const auto body = std::string{ "Line 34 returns `diagnostic::invalid_calibration` when `validate(scale, bias, gamma)` fails.\n\nPress <kbd>Ctrl</kbd> to stop.\n\n```cpp\nint x = 1;\n```\n" };
+		show(view, body, "inline:1");
+		expect(view.code_store()->inline_code_texts().empty() && view.code_store()->requests().size() == 1U, "a body that does not ask leaves inline code plain and asks for its fenced code alone");
+		aPath.deliver(view);
+		const auto paragraph = document_of(view).begin();
+		expect(formats_of(paragraph).isEmpty(), "plain inline code is not coloured");
+		const auto text = document_of(view).toRawText();
+		view.set_inline_code_selector("code.cpp");
+		settle();
+		const auto& texts = view.code_store()->inline_code_texts();
+		expect(texts.size() == 2U && *texts[0].Text == "diagnostic::invalid_calibration" && *texts[1].Text == "validate(scale, bias, gamma)", "asked, each inline code span is held once, a keyboard key not at all");
+		aPath.deliver(view);
+		const auto coloured = formats_of(document_of(view).begin());
+		const auto line     = document_of(view).begin().text();
+		const auto first    = line.indexOf(QStringLiteral("diagnostic"));
+		const auto second   = line.indexOf(QStringLiteral("validate"));
+		expect(!coloured.isEmpty() && std::ranges::all_of(coloured, [&](const QTextLayout::FormatRange& aRange) {
+			return (aRange.start >= first && aRange.start + aRange.length <= first + 31) || (aRange.start >= second && aRange.start + aRange.length <= second + 28);
+		}),
+			   "its colours arrive, and only inside the code spans");
+		expect(document_of(view).toRawText() == text, "the text is unchanged");
+		auto keyed = false;
+		for (auto block = document_of(view).begin(); block.isValid(); block = block.next()) {
+			keyed = keyed || (block.text().contains(QStringLiteral("Ctrl")) && !formats_of(block).isEmpty());
+		}
+		expect(!keyed, "a keyboard key is not coloured");
+		view.set_inline_code_selector({ });
+		settle();
+		expect(formats_of(document_of(view).begin()).isEmpty() && view.code_store()->inline_code_texts().empty(), "and without the language it is plain again");
+		aPath.deliver(view);
+	}
+
 	/// [[BPR-1563]]. Each diff line's marks, colours and contrast.
 	void check_diff(qt::markdown_body_view& aView)
 	{
@@ -715,6 +759,7 @@ try {
 	settle();
 	check_languages(view, path);
 	check_arrival(view, path);
+	check_inline(path);
 	check_diff(view);
 	check_suggestions(view);
 	check_bounds(view, path);

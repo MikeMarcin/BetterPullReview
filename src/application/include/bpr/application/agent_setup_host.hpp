@@ -132,7 +132,9 @@ namespace bpr::application {
 		/// \brief Owner decision 2026-10-23: the run time limit in minutes,
 		/// 0 for none. Answers whether it was taken.
 		[[nodiscard]] auto set_run_limit(std::uint32_t aMinutes) -> bool;
-		void               set_repository_chosen(bool aChosen);
+		/// \brief Owner look v004: the Agent tab's Suggestions toggle, kept.
+		void set_suggestions_hidden(bool aHidden);
+		void set_repository_chosen(bool aChosen);
 		/// RFC-BPR-0092 Check it works: the worktree row's result.
 		void set_workspace_check(core::setup_check aCheck);
 		/// Asks for setup again: the chosen agent stays selected, the checks

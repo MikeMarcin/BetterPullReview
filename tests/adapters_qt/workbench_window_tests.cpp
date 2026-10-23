@@ -13849,18 +13849,36 @@ namespace {
 		agent->set_suggestion_context([&suggestionContext] { return suggestionContext; });
 		process_events();
 		expect(agent->suggestions() == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("What could this change break?") }
-				   && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && !agent->suggestions_menu_button()->isVisible()
+				   && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->suggestions_toggle()->isVisible() && agent->suggestions_toggle()->isChecked()
 				   && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->text() == QStringLiteral("Ask about this pull request, or try:"),
 			   "an empty thread offers the pull request and what it could break, under its line");
 		suggestionContext.OpenFile = QStringLiteral("src/engine/renderer.cpp");
 		suggestionContext.Lines    = std::pair{ 440U, 447U };
 		agent->refresh_suggestions();
 		process_events();
+		// Owner look v004 ("in an hour I wont remember which file line 34 was
+		// in"): the lines' prompt names their file.
 		expect(agent->suggestions()
 					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/engine/renderer.cpp"), QStringLiteral("What could this change break?"),
-									   QStringLiteral("Explain the selected lines (440–447)") }
+									   QStringLiteral("Explain src/engine/renderer.cpp lines 440–447") }
 				   && agent->suggestion_buttons().size() == 4U,
-			   "an open file and selected lines add their own suggestions");
+			   "an open file and selected lines add their own suggestions, the lines' naming the file");
+		// Owner look v004: the Suggestions toggle shows and hides them, and
+		// says so to the host, which keeps it; the host's own choice is not
+		// said back.
+		{
+			auto toggled = std::vector<bool>{ };
+			agent->set_suggestions_observer([&toggled](const bool aShown) { toggled.push_back(aShown); });
+			agent->suggestions_toggle()->click();
+			process_events();
+			expect(!agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && toggled == std::vector<bool>{ false } && !agent->suggestions_shown(),
+				   "the toggle hides the suggestions, and the host is told");
+			agent->set_suggestions_shown(true);
+			process_events();
+			expect(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && toggled.size() == 1U && agent->suggestions_toggle()->isChecked(),
+				   "the host's kept choice shows them again, and is not said back");
+			agent->set_suggestions_observer({ });
+		}
 		// Owner decision (c) 2026-10-23 ("A chip in the message box like VS
 		// Code"): the model and effort are in the question field, not the
 		// context row.
@@ -13937,8 +13955,9 @@ namespace {
 			expect(observedThread.size() == 2U && observedThread[1].Question == QStringLiteral("Does this work?")
 					   && observedThread[1].Answer == QStringLiteral("Yes. The retry budget is reset once per frame.") && observedThread[1].Footer.contains(QStringLiteral("answered in")),
 				   "the thread is kept as each turn ends");
-			expect(!agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->suggestions_menu_button()->isVisible() && agent->clear_session_button()->isVisible(),
-				   "once the thread has turns the suggestions fold into a menu, and Clear session is offered");
+			expect(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->isHidden()
+					   && agent->suggestions_toggle()->isVisible() && agent->clear_session_button()->isVisible(),
+				   "once the thread has turns the suggestions stay where they were, without the empty thread's line, and Clear session is offered");
 
 			// Owner decision 2026-10-23 ("Yep build it like that"). The review's
 			// finding is a card under its answer, with three actions; acting on
@@ -13975,19 +13994,41 @@ namespace {
 			// Owner decision 2026-10-23: a finding on another file opens it in Review
 			// first; a path the pull request does not have is answered as such.
 			expect(!window.open_file_in_review(QStringLiteral("not/in/this/pull/request.cpp")), "a file the pull request does not have is not opened");
+			// Owner look v004: a link to a file the pull request does not have
+			// goes nowhere and says so.
+			expect(!window.review_file_named(QStringLiteral("not/in/this/pull/request.cpp")) && !window.go_to_file_line(QStringLiteral("not/in/this/pull/request.cpp"), 3U, false)
+					   && window.statusBar()->currentMessage().contains(QStringLiteral("is not in this pull request")),
+				   "a link to a file the pull request does not have opens nothing, and the status line says so");
 			// A plain reply offers Save as note for the whole of it.
 			auto savedNote = QString{ };
-			agent->set_answer_note_dispatch([&savedNote](const QString& aText, std::function<void(bool, const QString&)> aDone) {
+			agent->set_answer_note_dispatch([&savedNote](const QString& aText, qt::agent_answer_note_done aDone) {
 				savedNote = aText;
-				aDone(true, { });
+				aDone(true, { }, 77U);
 			});
+			auto wentToNote = std::vector<std::uint64_t>{ };
+			agent->set_note_navigation([&wentToNote](const std::uint64_t aNote) { wentToNote.push_back(aNote); });
 			auto* const saveNote = agent->turn_note_button(1U);
 			expect(saveNote != nullptr && !saveNote->isHidden(), "a reply offers Save as note");
 			saveNote->click();
 			process_events();
-			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Saved as a note") && !saveNote->isEnabled(),
-				   "Save as note keeps the reply as a note and says so");
+			// Owner look v004 ("After save as note it should turn into Go to note").
+			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Go to note") && saveNote->isEnabled() && wentToNote.empty(),
+				   "Save as note keeps the reply as a note, and becomes Go to note");
+			saveNote->click();
+			process_events();
+			expect(wentToNote == std::vector<std::uint64_t>{ 77U } && savedNote == QStringLiteral("Yes. The retry budget is reset once per frame."), "Go to note opens the note it made, and saves nothing more");
+			// A finding saved as a note offers the same.
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::noted, { }, 78U);
+			process_events();
+			auto* const cardGo = turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote"));
+			expect(cardGo != nullptr && !cardGo->isHidden(), "a finding saved as a note offers Go to note");
+			if (cardGo != nullptr) {
+				cardGo->click();
+			}
+			expect(wentToNote.size() == 2U && wentToNote.back() == 78U, "and it opens that note");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::open);
 			agent->set_answer_note_dispatch({ });
+			agent->set_note_navigation({ });
 			// Owner look v003 ("something we could copy the whole response ...
 			// Timestamp would also be nice"): each reply has Copy and its time.
 			auto* const copy = agent->turn_copy_button(1U);
@@ -14036,6 +14077,21 @@ namespace {
 			agent->ask_button()->click();
 			process_events();
 			expect(asked.back() == "model=gpt-5", "/model NAME changes the model");
+			// Owner look v004 ("The models aren't listing their version numbers").
+			expect(qt::agent_model_display_name(QStringLiteral("claude-sonnet-5-5")) == QStringLiteral("Sonnet 5.5") && qt::agent_model_display_name(QStringLiteral("claude-opus-5-5[1m]")) == QStringLiteral("Opus 5.5 (1M)")
+					   && qt::agent_model_display_name(QStringLiteral("claude-fable-5-1")) == QStringLiteral("Fable 5.1") && qt::agent_model_display_name(QStringLiteral("claude-opus-4-5-20251101")) == QStringLiteral("Opus 4.5")
+					   && qt::agent_model_display_name(QStringLiteral("sonnet")) == QStringLiteral("Sonnet (newest)") && qt::agent_model_display_name(QStringLiteral("gpt-5.1-codex")) == QStringLiteral("gpt-5.1-codex"),
+				   "a model is named with its version; one the app does not know is shown as the agent reported it");
+			{
+				auto claude   = settings;
+				claude.Agent  = QStringLiteral("Claude Code");
+				claude.Model  = "claude-sonnet-5-5";
+				claude.Models = { { "claude-opus-5-5", QStringLiteral("Opus 5.5") }, { "claude-sonnet-5-5", QStringLiteral("Sonnet 5.5") } };
+				agent->present_run_settings({ claude });
+				process_events();
+				expect(agent->run_settings_text() == QStringLiteral("Claude Code · Sonnet 5.5"), "the chip names the chosen model with its version");
+				agent->present_run_settings({ settings });
+			}
 			// Owner amendment 2026-10-23: every added agent is in the chip's
 			// menu, and choosing one switches to it.
 			{
@@ -14069,15 +14125,15 @@ namespace {
 			// Owner decision (a): a suggestion is sent as written, as a chat
 			// turn, so what was asked is in the thread.
 			auto* const breakItem = [agent] {
-				for (auto* const item : agent->suggestions_menu_button()->menu()->actions()) {
-					if (item->text() == QStringLiteral("What could this change break?")) {
-						return item;
+				for (auto* const button : agent->suggestion_buttons()) {
+					if (button->property("agentPrompt").toString() == QStringLiteral("What could this change break?")) {
+						return button;
 					}
 				}
-				return static_cast<QAction*>(nullptr);
+				return static_cast<QPushButton*>(nullptr);
 			}();
-			expect(breakItem != nullptr && breakItem->isEnabled(), "the Suggestions menu holds the prompts");
-			breakItem->trigger();
+			expect(breakItem != nullptr && breakItem->isEnabled(), "the suggestions above the field hold the prompts");
+			breakItem->click();
 			identity.InvocationGeneration = 3U;
 			window.agent_panel()->admit(identity);
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
@@ -14123,6 +14179,74 @@ namespace {
 			agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```"), .Footer = QStringLiteral("answered") } });
 			process_events();
 			expect(codeAsks > 0U, "a reply's fenced code asks the code host for its colours");
+			// Owner look v004 ("Not drawing inline comment with syntax
+			// highlighing"): inline code is asked for as the pull request's
+			// language, and coloured when its spans come back.
+			{
+				auto inlineAsks = std::vector<application::markdown_code_syntax_request>{ };
+				agent->set_code_syntax_dispatch([&inlineAsks](std::vector<application::markdown_code_syntax_request> aRequests) {
+					for (auto& request : aRequests) {
+						inlineAsks.push_back(std::move(request));
+					}
+				});
+				// The thread shown before asks again for its own fenced code.
+				inlineAsks.clear();
+				agent->present_thread({ { .Question = QStringLiteral("Explain it"), .Answer = QStringLiteral("Line 34 returns `diagnostic::invalid_calibration` when `validate(scale, bias, gamma)` fails."), .Footer = QStringLiteral("answered") } });
+				process_events();
+				expect(inlineAsks.empty(), "without the pull request's language, inline code stays plain and asks for nothing");
+				agent->set_inline_code_file(QStringLiteral("code.cpp"));
+				process_events();
+				const auto askedInline = [&inlineAsks](const std::string& aText) {
+					return std::ranges::any_of(inlineAsks, [&aText](const application::markdown_code_syntax_request& aRequest) { return aRequest.Selector == "code.cpp" && aRequest.Text && *aRequest.Text == aText; });
+				};
+				expect(askedInline("diagnostic::invalid_calibration") && askedInline("validate(scale, bias, gamma)"), "with it, each inline code span is asked for as C++");
+				agent->set_inline_code_file({ });
+				// The dispatch holds this block's list; it goes with the block.
+				agent->set_code_syntax_dispatch({ });
+			}
+			// Owner look v004 ("This should be a link to the file and line I can
+			// click"): a file and line the question or answer names is a link
+			// that opens it in Review.
+			{
+				auto went = std::vector<std::tuple<QString, std::uint32_t, bool>>{ };
+				agent->set_line_links(
+					[](const QString& aPath) -> std::optional<QString> {
+						if (aPath == QStringLiteral("src/engine/renderer.cpp") || aPath == QStringLiteral("renderer.cpp")) {
+							return QStringLiteral("src/engine/renderer.cpp");
+						}
+						return std::nullopt;
+					},
+					[&went](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { went.emplace_back(aPath, aLine, aBefore); });
+				agent->present_thread({ { .Question = QStringLiteral("Explain src/engine/renderer.cpp line 34"),
+										  .Answer   = QStringLiteral("Line 34 returns early; see `renderer.cpp:36` and src/engine/other.cpp:5.\n\n```cpp\n// renderer.cpp:40 stays code\n```"),
+										  .Footer   = QStringLiteral("answered") } });
+				process_events();
+				auto* const question = agent->turn_question_label(0U);
+				expect(question != nullptr && question->textFormat() == Qt::RichText && question->text().contains(QStringLiteral("<a href=\"src/engine/renderer.cpp#L34\">src/engine/renderer.cpp line 34</a>")),
+					   "the question's file and line is a link");
+				if (question != nullptr) {
+					emit question->linkActivated(QStringLiteral("src/engine/renderer.cpp#L34"));
+				}
+				expect(went.size() == 1U && went.back() == std::tuple{ QStringLiteral("src/engine/renderer.cpp"), 34U, false }, "clicking it opens the file at that line");
+				const auto shown = agent->turn_answer_view(0U) != nullptr ? QString::fromStdString(agent->turn_answer_view(0U)->original_body()) : QString{ };
+				expect(shown.contains(QStringLiteral("[Line 34](src/engine/renderer.cpp#L34)")) && shown.contains(QStringLiteral("[`renderer.cpp:36`](src/engine/renderer.cpp#L36)"))
+						   && shown.contains(QStringLiteral("src/engine/other.cpp:5.")) && !shown.contains(QStringLiteral("other.cpp#")) && shown.contains(QStringLiteral("// renderer.cpp:40 stays code")),
+					   "in the answer, the question's bare line, a code span naming a file's line and only the pull request's files are links; fenced code is not");
+				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Save as note keep the answer as written");
+				agent->set_line_links({ }, { });
+			}
+			// Owner look v004: the answer's last line was cut off; the answer is
+			// as tall as its text at the width its card gives it.
+			{
+				auto longer = QString{ };
+				for (auto index = 0; index < 6; ++index) {
+					longer += QStringLiteral("This immediately exits the enclosing function, signaling invalid calibration and skipping finalize on line 36. ");
+				}
+				agent->present_thread({ { .Question = QStringLiteral("Explain it"), .Answer = longer + QStringLiteral("The surrounding snippet doesn't show which values validation accepts or rejects."), .Footer = QStringLiteral("answered") } });
+				process_events();
+				auto* const answer = agent->turn_answer_view(0U);
+				expect(answer != nullptr && answer->width() > 0 && answer->height() >= answer->heightForWidth(answer->width()), "the answer is as tall as its text at its own width, so its last line shows");
+			}
 			agent->set_code_syntax_dispatch({ });
 			agent->present_thread({ });
 			agent->set_clear_session_dispatch({ });

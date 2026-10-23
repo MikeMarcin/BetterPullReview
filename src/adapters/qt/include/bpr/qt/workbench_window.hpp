@@ -969,7 +969,21 @@ namespace bpr::qt {
 		/// the pull request's files in Review, as choosing it in Files does, for
 		/// a finding card's draft or note at its lines. False when the path is
 		/// not one of the pull request's files now.
-		auto               open_file_in_review(const QString& aPath) -> bool;
+		auto open_file_in_review(const QString& aPath) -> bool;
+		/// \brief Owner look v004 ("This should be a link to the file and line
+		/// I can click"). The pull request's file a reference names: the path
+		/// itself, or the one file whose path ends with it; nothing when no
+		/// file, or more than one, is it.
+		[[nodiscard]] auto review_file_named(const QString& aPath) const -> std::optional<QString>;
+		/// \brief Opens the file in Review and selects its one-based line, at
+		/// the head or (`aBefore`) the base, once its comparison is shown.
+		/// False, and the status line says so, when the path is not one of the
+		/// pull request's files.
+		auto go_to_file_line(const QString& aPath, std::uint32_t aLine, bool aBefore) -> bool;
+		/// \brief Owner look v004 ("After save as note it should turn into Go
+		/// to note"): opens one private note in Notes, its file first when it
+		/// is on another; an open note stays open.
+		void               go_to_private_note(std::uint64_t aId);
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
 		void               open_review_tour();
@@ -2487,6 +2501,17 @@ namespace bpr::qt {
 		void show_agent(bool aAsk);
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
+		/// Owner look v004. A line a link asked for, selected once its file's
+		/// comparison is shown; tried again until then, a few seconds at most.
+		struct pending_line_go
+		{
+			core::file_identity File;
+			core::diff_side     Side  = core::diff_side::right;
+			std::uint32_t       Line  = 0U;
+			int                 Tries = 0;
+		};
+		std::optional<pending_line_go> PendingLineGo;
+		void                           resume_line_go();
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
 		/// tabs show their names.
 		QWidget* TrayHeader = nullptr;

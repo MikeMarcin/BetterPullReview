@@ -222,6 +222,18 @@ namespace {
 		const auto alone = markdown_suggestion_rows(suggested, std::nullopt);
 		expect(alone.size() == 1U && alone[0].Added && !alone[0].Number && alone[0].ChangedBegin == alone[0].ChangedEnd, "without context, added rows alone");
 	}
+	/// [[BPR-PENDING-AQ6]], owner look v004: the language inline code about
+	/// a change is coloured as.
+	void inline_code_language()
+	{
+		const auto selector = [](std::vector<std::string> aPaths) { return markdown_inline_code_selector(aPaths); };
+		expect(selector({ "src/engine/renderer.cpp", "src/engine/renderer.hpp", "docs/notes.md", "CMakeLists.txt" }) == "code.cpp", "a C++ change colours inline code as C++");
+		expect(selector({ "include/engine.h", "src/engine.cpp" }) == "code.cpp", "a header is C++'s when C++ is there");
+		expect(selector({ "include/engine.h", "src/engine.c" }) == "code.c", "and C's otherwise");
+		expect(selector({ "README.md", "config/app.yaml", "package.json" }).empty(), "prose and data alone leave inline code plain");
+		expect(selector({ "a.py", "b.ts", "c.py", "d.ts" }) == "code.py", "the earliest language wins a tie");
+		expect(selector({ }).empty() && selector({ "Makefile", ".gitignore" }).empty(), "no extension, no language");
+	}
 } // namespace
 
 int main()
@@ -230,6 +242,7 @@ int main()
 	languages();
 	diff_lines();
 	suggestions();
+	inline_code_language();
 	std::cout << "markdown-code-tests:pass\n";
 	return EXIT_SUCCESS;
 }

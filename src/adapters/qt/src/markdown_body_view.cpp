@@ -1501,6 +1501,18 @@ namespace bpr::qt {
 		Code->style(*Rendered->document(), detail::markdown_code_colours_of(*theme, palette()), theme->Colors, theme->Variant, font(), CodeFont);
 	}
 
+	void markdown_body_view::set_inline_code_selector(std::string aSelector)
+	{
+		if (Code->inline_selector() == aSelector) {
+			return;
+		}
+		Code->set_inline_selector(std::move(aSelector));
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
 	void markdown_body_view::set_suggestions(std::optional<markdown_suggestion_presentation> aSuggestions)
 	{
 		if (Suggestions == aSuggestions) {

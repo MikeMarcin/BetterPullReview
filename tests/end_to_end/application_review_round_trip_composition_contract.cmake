@@ -1,4 +1,16 @@
 # [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v004: github_application.cpp
+# names Claude Code's models with their versions; gives the Agent tab the pull
+# request's title and the language its inline code is coloured in
+# (core::markdown_inline_code_selector over the snapshot's file paths); passes
+# the private note a Save as note made back to the tab, so Go to note opens it
+# through the window's existing Notes area; resolves the files and lines a
+# question or answer names through the window's Files list and opens them in
+# Review through its existing file selection; and keeps the Suggestions toggle
+# with the existing agent setup host. No grant, target, provider, credential,
+# mutation or publication path changes; no new src/app source. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v003 and decisions of
 # 2026-10-23: github_application.cpp gives the Agent tab the profile's code
 # appearance; passes the reviewer's optional run time limit (none by default)
@@ -2304,7 +2316,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"14a22b7a4670f7a85456b9cd2bfffb43397c6a5373e9c32c55ecadd45c903cac"
+		"897537f6e179b6bd047d701768d01ba81a3cd0fd8ab4bc5dd84a576df3355c88"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2528,7 +2540,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "f4ee85e895c14f4ac6923301ef292ab30668905e35370398a7f1abe5a7ffe152"
+        "54be5230b4ee07efa1163dbd192dc863d56db36ff19ceaabcd8a28d720fb53e7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

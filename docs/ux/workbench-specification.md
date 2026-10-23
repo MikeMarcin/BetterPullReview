@@ -2421,13 +2421,23 @@ Below it the conversation is a thread ([[BPR-PENDING-AQ6]], owner looks v002
 and v003): each turn is what was asked, in an outlined bubble with its time
 right-aligned above it, then the agent's reply in its own card: the answer
 as it writes it (its Markdown rendered, fenced code coloured by the shared
-Markdown code host as comments' code is; links and images do nothing), the
+Markdown code host as comments' code is, and its inline code too, in the
+language most of the pull request's files are in (owner look v004); images do
+nothing, and of its links only those to the pull request's files open
+anything), the
 turn's finding cards, one quiet line while the agent works ("● Claude Code is
 thinking, 0:05.") and how the turn ended (who answered, in how long, the
 model it reported, the cost when the harness said, and the findings that turn
 brought; in italics when it stopped), and a footer of Copy (the whole reply
 as Markdown), Save as note and the reply's time (near words, the whole time
-on hover). With nothing asked, the conversation shows an icon and "Ask about
+on hover). Once a reply is saved as a note, its Save as note is **Go to
+note**, which opens that note in Notes (owner look v004). A file and line a
+question or an answer names (`path:34`, `path line 34`, `path lines 34–36`,
+"before the change" for the base, and in an answer a bare "line 34" when the
+question named one file) is a link when the path is one of the pull
+request's files, and opens it in Review at that line; fenced code is left as
+written, and Copy keeps the answer as the agent wrote it. The header names
+the pull request (#17 and its title). With nothing asked, the conversation shows an icon and "Ask about
 this pull request" with one line under it. The question field clears once a
 question is sent. The thread is
 one conversation per pull request and agent (owner decisions, 2026-10-23):
@@ -2436,13 +2446,14 @@ the agent it was last asked with; switching agents shows that agent's own
 thread and switching back resumes it; each question carries its agent's
 earlier turns; and Clear session empties only the current agent's, asking
 first when turns would leave it. Notes and drafts made from the thread are
-the review's, outside any session, and stay in the notes and drafts views. With an empty thread, suggested prompts
-stand above the question field under "Ask about this pull request, or try:"
-(owner decision (a)): Review this pull request, Review *the open file's
-path* when a file is open, What could this change break?, and Explain the
-selected lines (a–b) when lines are selected; each is sent as written, as a
-question, and once the thread has turns they are the field's Suggestions
-menu. A turn's findings are cards under its answer (owner decision,
+the review's, outside any session, and stay in the notes and drafts views. Suggested prompts
+stand above the question field, under "Ask about this pull request, or try:"
+while the thread is empty (owner decision (a)): Review this pull request,
+Review *the open file's path* when a file is open, What could this change
+break?, and Explain *path* lines a–b when lines are selected; each is sent as
+written, as a question. Owner look v004: they stay there once the thread has
+turns, and the field's Suggestions toggle shows or hides them, kept for the
+profile. A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the
@@ -2454,10 +2465,11 @@ part selected. The reply is shown without its `bpr-findings` block. Findings
 delivered with no turn come after the thread, as cards of their own. The question field
 closes the tab (owner look v003, after the Claude Code and Codex
 composers): one rounded field holding any added context, the words, a thin
-rule, and one row: Context (+) and, once the thread has turns, Suggestions as
-icons and what the agent may read on the left; on the right the agent pill
-(owner decision (c) and amendment, 2026-10-23: "Work Codex · gpt-5 · high
-effort", or "Claude Code · Default model", an icon alone when the field is
+rule, and one row: Context (+) and the Suggestions toggle as icons and what
+the agent may read on the left; on the right the agent pill (owner decision
+(c) and amendment, 2026-10-23: "Work Codex · gpt-5 · high effort", or
+"Claude Code · Sonnet 5.5"; a model by its name and version, and the agent's
+own default by the model it last reported, owner look v004), an icon alone when the field is
 narrower than 300 points; its tooltip names the program that runs and the
 model the last answer reported, and its menu lists every agent added in
 Settings › Agents & context, one press to switch, then the agent's own models
@@ -2487,7 +2499,8 @@ offers Install Claude Code, Install Codex and Custom agent…), Repository (the
 clones of the repository in the clone folders, Use this clone, Choose a
 folder…, or a private copy; with no clone folder, Where do your clones live?
 with one folder line, typed or Browse…, then Add (owner look v003; the full
-folder list is Settings › Repositories'), and the usual folders that exist), Check it works (the agent's status command and the workspace,
+folder list is Settings › Repositories'), the line already holding the usual
+folder that exists, so Add takes it at once (owner look v004)), Check it works (the agent's status command and the workspace,
 each with its result and what to do, Check, Stop and Check again) and Ready.
 A finished step folds to one line with Change, and a step already reached
 opens from its header. Look again and Agent settings

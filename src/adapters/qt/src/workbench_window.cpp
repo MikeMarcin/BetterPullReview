@@ -8774,6 +8774,85 @@ namespace bpr::qt {
 		return true;
 	}
 
+	auto workbench_window::review_file_named(const QString& aPath) const -> std::optional<QString>
+	{
+		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		if (model == nullptr || aPath.isEmpty()) {
+			return std::nullopt;
+		}
+		auto       found  = std::optional<QString>{ };
+		const auto suffix = aPath.startsWith(QLatin1Char{ '/' }) ? aPath : QStringLiteral("/") + aPath;
+		for (int row = 0; row < model->rowCount(); ++row) {
+			auto path = model->data(model->index(row, 0), Qt::DisplayRole).toString();
+			if (path == aPath) {
+				return path;
+			}
+			if (path.endsWith(suffix)) {
+				if (found) {
+					return std::nullopt;
+				}
+				found = path;
+			}
+		}
+		return found;
+	}
+
+	auto workbench_window::go_to_file_line(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> bool
+	{
+		const auto path = review_file_named(aPath);
+		if (!path || aLine == 0U) {
+			statusBar()->showMessage(tr("%1 is not in this pull request at its current head.").arg(aPath), 6000);
+			return false;
+		}
+		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U };
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		if (!context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
+			if (!open_file_in_review(*path)) {
+				PendingLineGo.reset();
+				return false;
+			}
+		}
+		resume_line_go();
+		return true;
+	}
+
+	void workbench_window::resume_line_go()
+	{
+		if (!PendingLineGo || ComparisonSurface == nullptr) {
+			return;
+		}
+		const auto context = ComparisonSurface->current_context();
+		if (context.has_value() && context->Key.File == PendingLineGo->File && ComparisonSurface->current_result() != nullptr) {
+			const auto go = *PendingLineGo;
+			PendingLineGo.reset();
+			if (!ComparisonSurface->select_conversation_line(go.Side, go.Line)) {
+				statusBar()->showMessage(tr("Line %1 is not in this file at the %2.").arg(go.Line + 1U).arg(go.Side == core::diff_side::left ? tr("base") : tr("head")), 6000);
+			}
+			return;
+		}
+		if (++PendingLineGo->Tries > 40) {
+			PendingLineGo.reset();
+			return;
+		}
+		QTimer::singleShot(100, this, [this] { resume_line_go(); });
+	}
+
+	void workbench_window::go_to_private_note(const std::uint64_t aId)
+	{
+		if (PrivateNotes == nullptr) {
+			return;
+		}
+		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+		}
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
+			TrayTabs->setCurrentIndex(tray_notes_tab);
+		}
+		if (PrivateNotes->open_note_id() != aId) {
+			PrivateNotes->open_note(aId);
+		}
+	}
+
 	void workbench_window::resume_private_note_open()
 	{
 		if (!PendingNoteOpen || PrivateNotes == nullptr) {

@@ -136,6 +136,8 @@ try {
 	listed.AgentsMoved     = true;
 	listed.RunLimitMinutes = 45U;
 	listed.PreferredAgent  = 2U;
+	// Owner look v004: the Agent tab's Suggestions toggle is kept.
+	listed.SuggestionsHidden = true;
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");
