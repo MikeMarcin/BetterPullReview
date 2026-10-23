@@ -2261,7 +2261,7 @@ namespace {
 				   "and logged as settled by Check status, with the no answer its migration kept");
 			expect(session.pending() && session.pending()->empty(), "and withdraws it, so its drafts are released");
 		}
-		for (const auto [answered, elapsed, settles] : { std::tuple{ false, core::review_submission_settle_delay_ms - 1, false }, std::tuple{ false, core::review_submission_settle_delay_ms, true }, std::tuple{ true, std::int64_t{ 24 } * 60 * 60 * 1000, false } }) {
+		for (const auto& [answered, elapsed, settles] : { std::tuple{ false, core::review_submission_settle_delay_ms - 1, false }, std::tuple{ false, core::review_submission_settle_delay_ms, true }, std::tuple{ true, std::int64_t{ 24 } * 60 * 60 * 1000, false } }) {
 			// A POST with no answer settles after the delay; one GitHub
 			// answered with success never does.
 			temporary_directory root;
