@@ -190,8 +190,8 @@ objects without the base's when it holds the base. Otherwise the private copy
 also holds the base its cache has, so the brief's named diff works when the
 base is not an ancestor of the head. A sparse review's workspace is shallow at
 the head unless the clone holds every parent of the head. This is in place of
-the `git worktree` the RFC first described; the owner's confirmation is
-pending. Check it works makes and removes the same workspace through the
+the `git worktree` the RFC first described, which the owner accepted on
+2026-10-22. Check it works makes and removes the same workspace through the
 agent host's `probe_workspace`, with a session identity from a reserved range,
 no admitted session and no process.
 

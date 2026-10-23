@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-PENDING-AQ6", "BPR-PENDING-AQ7"]
 priority: "P2"
 platforms: ["mac"]
-metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"89855cd96f098cd74e28d271acd60d8a","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v001","transport":"serve --tailscale","lifecycle":"serving, awaiting the owner"},"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v001.s4c2jv_v","commit":"f73f94770","executable_sha256":"4aaf39ef72dfd5668cbe01e2809d4dbf5eeddd5acce837d64f837234aa786c0a","fixture":"github-com"}}
+metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"89855cd96f098cd74e28d271acd60d8a","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v001","transport":"serve --tailscale","lifecycle":"v001 handed back and stopped; see Look v001"},"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v001.s4c2jv_v","commit":"f73f94770","executable_sha256":"4aaf39ef72dfd5668cbe01e2809d4dbf5eeddd5acce837d64f837234aa786c0a","fixture":"github-com"}}
 ---
 
 # BPR-PENDING-AQ8: A frozen build and the owner's look at agent setup
@@ -47,4 +47,13 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q3 ([[BPR-PENDING-AQ5]]'s deviation): keep the edited skill in the
     profile's settings store, edited in Settings, without Open in editor
     for now.
-- Pending: all three answers.
+- Handed back 2026-10-22: **Q2 Accept**, **Q3 Accept**, **Q1 Reject**. The
+  owner's note on Q1, verbatim: "I would prefer if add a folder was a text
+  entry first with a file browser option on the text line. Way too much
+  detail after check if it works.. all of that except the Claude code is
+  ready line should be in a collapsed disclosure. I get to here and see no
+  indication anything happened." Their screenshots showed the ready card
+  with its details open, and the working banner at "Approved Claude stream
+  JSON is working / Preparing agent invocation" with no further change.
+  [[BPR-PENDING-AQ6]]'s follow-up commit answers each point; look v002
+  asks Q1 again.
