@@ -2422,10 +2422,13 @@ agent's answer as it writes it (its Markdown rendered; links and images do
 nothing), and how the turn ended (who answered, in how long, the model it
 reported, the cost when the harness said, and the findings that turn
 brought); the question field clears once a question is sent. The thread is
-one conversation per pull request (owner decision (b), 2026-10-23): it is
-kept for the pull request and shown again when it is opened again, each
-question carries the earlier turns, and Clear session empties it, asking
-first when turns would leave it. With an empty thread, suggested prompts
+one conversation per pull request and agent (owner decisions, 2026-10-23):
+it is kept for the pull request and shown again when it is opened again, on
+the agent it was last asked with; switching agents shows that agent's own
+thread and switching back resumes it; each question carries its agent's
+earlier turns; and Clear session empties only the current agent's, asking
+first when turns would leave it. Notes and drafts made from the thread are
+the review's, outside any session, and stay in the notes and drafts views. With an empty thread, suggested prompts
 stand above the question field under "Ask about this pull request, or try:"
 (owner decision (a)): Review this pull request, Review *the open file's
 path* when a file is open, What could this change break?, and Explain the
@@ -2441,10 +2444,12 @@ Dismissed with **Undo**, and a refusal says why (for another file: open it,
 then try again). A reply offers **Save as note** for the whole of it, or the
 part selected. The reply is shown without its `bpr-findings` block. Findings
 delivered with no turn come after the thread, as cards of their own. The question field
-closes the tab with the model and effort chip (owner decision (c): "opus ·
-high effort", or "Default model"; its tooltip names the program that runs and
-the model the last answer reported, and its menu chooses from the agent's own
-models and effort levels or Other…, saved for the profile), Suggestions once
+closes the tab with the agent chip (owner decision (c) and amendment,
+2026-10-23: "Work Codex · gpt-5 · high effort", or "Claude Code · Default
+model"; its tooltip names the program that runs and the model the last answer
+reported, and its menu lists every agent added in Settings › Agents & context,
+one press to switch, then the agent's own models and effort levels or
+Other…, kept with that agent), Suggestions once
 the thread has turns, its context chips, Context and Ask (⌘↩). `/model NAME`
 and `/effort LEVEL` (or `default`) in the question field do what the chip
 does without asking anything; `/model` or `/effort` alone opens the chip's

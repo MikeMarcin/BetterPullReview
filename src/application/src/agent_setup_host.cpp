@@ -123,6 +123,37 @@ namespace bpr::application {
 				Dependencies.Effects, [store = Dependencies.Store, preferences = Projection.Preferences] { return store->store(preferences); }, [](bool) { });
 		}
 
+		/// [[BPR-PENDING-AQ6]]. The single settings, moved into the list once.
+		void move_into_list()
+		{
+			auto& preferences = Projection.Preferences;
+			if (preferences.AgentsMoved) {
+				return;
+			}
+			auto legacy                = core::legacy_agent_settings{ };
+			legacy.Chosen              = preferences.Chosen;
+			legacy.CodexProtocol       = preferences.CodexProtocol;
+			legacy.ClaudeWrapper       = Dependencies.ClaudeWrapper ? Dependencies.ClaudeWrapper->current() : std::string{ };
+			legacy.ClaudeModel         = Dependencies.LegacyClaudeModel ? Dependencies.LegacyClaudeModel() : std::string{ };
+			legacy.ClaudeEffort        = preferences.ClaudeEffort;
+			legacy.CodexProgram        = preferences.CodexProgram;
+			legacy.CodexModel          = preferences.CodexModel;
+			legacy.CodexEffort         = preferences.CodexEffort;
+			legacy.HarnessProgram      = preferences.HarnessProgram;
+			preferences.Agents         = core::migrate_agent_entries(legacy);
+			preferences.AgentsMoved    = true;
+			preferences.PreferredAgent = preferences.Agents.empty() || !preferences.Chosen ? 0U : preferences.Agents.front().Id;
+			save();
+		}
+
+		/// The entry setup chose, when there is one.
+		[[nodiscard]] auto preferred_entry() const -> const core::agent_entry*
+		{
+			const auto& agents = Projection.Preferences.Agents;
+			const auto  found  = std::ranges::find(agents, Projection.Preferences.PreferredAgent, &core::agent_entry::Id);
+			return Projection.Preferences.PreferredAgent == 0U || found == agents.end() ? nullptr : &*found;
+		}
+
 		void apply_programs()
 		{
 			if (Dependencies.Programs) {
@@ -187,6 +218,15 @@ namespace bpr::application {
 			snapshot.Harness = host.Projection.Preferences.HarnessProgram;
 			snapshot.Inspect = host.Dependencies.Inspect;
 			snapshot.Locate  = host.Dependencies.Locate;
+			// [[BPR-PENDING-AQ6]]. A chosen entry with its own program is the
+			// program setup checks for its kind, as a saved wrapper was.
+			if (const auto* const entry = host.preferred_entry(); entry != nullptr && !entry->Program.empty()) {
+				switch (core::setup_agent_of(entry->Protocol)) {
+				case core::setup_agent::claude_code:        snapshot.Wrapper = entry->Program; break;
+				case core::setup_agent::codex:              snapshot.Codex = entry->Program; break;
+				case core::setup_agent::plain_text_harness: snapshot.Harness = entry->Program; break;
+				}
+			}
 			host.off_lane(
 				host.Dependencies.Effects,
 				[given = std::move(snapshot)] {
@@ -265,6 +305,7 @@ namespace bpr::application {
 				if (aLoaded && valid(*aLoaded)) {
 					self->Projection.Preferences = std::move(*aLoaded);
 				}
+				self->move_into_list();
 				self->apply_programs();
 				self->publish();
 			});
@@ -293,6 +334,113 @@ namespace bpr::application {
 			host.reset_checks();
 		}
 		host.Projection.Preferences.Chosen = aAgent;
+		// [[BPR-PENDING-AQ6]]. Picking a popular agent adds it to the list once
+		// and chooses that entry; a harness is the entry with its program.
+		auto&       preferences = host.Projection.Preferences;
+		const auto* entry       = aAgent == core::setup_agent::plain_text_harness
+			? [&preferences]() -> const core::agent_entry* {
+			const auto found = std::ranges::find_if(preferences.Agents, [&preferences](const core::agent_entry& aEntry) {
+				return aEntry.Protocol == core::agent_protocol::external_terminal && aEntry.Program == preferences.HarnessProgram;
+			});
+			return found == preferences.Agents.end() ? nullptr : &*found;
+		}()
+			: core::find_preset_entry(preferences.Agents, aAgent);
+		if (entry == nullptr && (aAgent != core::setup_agent::plain_text_harness || !preferences.HarnessProgram.empty())) {
+			auto preset = core::preset_agent_entry(aAgent, preferences.CodexProtocol, aAgent == core::setup_agent::plain_text_harness ? preferences.HarnessProgram : std::string{ });
+			if (auto added = core::add_agent_entry(preferences.Agents, std::move(preset))) {
+				preferences.Agents = std::move(*added);
+				entry              = &preferences.Agents.back();
+			}
+		}
+		preferences.PreferredAgent = entry != nullptr ? entry->Id : 0U;
+		host.save();
+		host.publish();
+	}
+
+	void agent_setup_host::add_agent(core::agent_entry aEntry, const bool aPrefer, agent_entry_answer aAnswered)
+	{
+		auto& host  = *Implementation;
+		auto  added = core::add_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
+		if (!added) {
+			if (aAnswered) {
+				aAnswered(added.error());
+			}
+			return;
+		}
+		host.Projection.Preferences.Agents = std::move(*added);
+		if (aPrefer) {
+			const auto& chosen                         = host.Projection.Preferences.Agents.back();
+			host.Projection.Preferences.PreferredAgent = chosen.Id;
+			host.Picked                                = core::setup_agent_of(chosen.Protocol);
+			host.Projection.Preferences.Chosen         = host.Picked;
+			host.reset_checks();
+		}
+		host.save();
+		host.publish();
+		if (aPrefer) {
+			host.detect();
+		}
+		if (aAnswered) {
+			aAnswered(std::nullopt);
+		}
+	}
+
+	void agent_setup_host::update_agent(core::agent_entry aEntry, agent_entry_answer aAnswered)
+	{
+		auto&      host      = *Implementation;
+		const auto preferred = host.Projection.Preferences.PreferredAgent == aEntry.Id;
+		auto       updated   = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
+		if (!updated) {
+			if (aAnswered) {
+				aAnswered(updated.error());
+			}
+			return;
+		}
+		host.Projection.Preferences.Agents = std::move(*updated);
+		host.save();
+		host.publish();
+		if (preferred) {
+			host.detect();
+		}
+		if (aAnswered) {
+			aAnswered(std::nullopt);
+		}
+	}
+
+	void agent_setup_host::remove_agent(const std::uint32_t aId)
+	{
+		auto& host    = *Implementation;
+		auto  removed = core::remove_agent_entry(host.Projection.Preferences.Agents, aId);
+		if (!removed) {
+			return;
+		}
+		host.Projection.Preferences.Agents = std::move(*removed);
+		if (host.Projection.Preferences.PreferredAgent == aId) {
+			host.Projection.Preferences.PreferredAgent = 0U;
+		}
+		host.save();
+		host.publish();
+	}
+
+	void agent_setup_host::move_agent(const std::uint32_t aId, const int aDelta)
+	{
+		auto& host  = *Implementation;
+		auto  moved = core::move_agent_entry(host.Projection.Preferences.Agents, aId, aDelta);
+		if (!moved || *moved == host.Projection.Preferences.Agents) {
+			return;
+		}
+		host.Projection.Preferences.Agents = std::move(*moved);
+		host.save();
+		host.publish();
+	}
+
+	void agent_setup_host::prefer_agent(const std::uint32_t aId)
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Preferences.PreferredAgent == aId || std::ranges::find(host.Projection.Preferences.Agents, aId, &core::agent_entry::Id) == host.Projection.Preferences.Agents.end()) {
+			return;
+		}
+		host.Projection.Preferences.PreferredAgent = aId;
 		host.save();
 		host.publish();
 	}
@@ -324,6 +472,12 @@ namespace bpr::application {
 		}
 		const auto profile = std::ranges::find(host.Dependencies.Profiles, core::setup_profile(agent, host.Projection.Preferences.CodexProtocol), &core::agent_profile::Id);
 		auto       built   = profile == host.Dependencies.Profiles.end() ? std::nullopt : build_agent_status_launches(agent, *profile, path, host.Dependencies.Parent);
+		// [[BPR-PENDING-AQ6]]. The chosen entry's fixed arguments come first,
+		// as they do at every launch.
+		if (const auto* const entry = host.preferred_entry(); built && entry != nullptr && core::setup_agent_of(entry->Protocol) == agent && !entry->Arguments.empty()) {
+			built->Status.Arguments.insert(built->Status.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());
+			built->Version.Arguments.insert(built->Version.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());
+		}
 		if (!built || host.Dependencies.Process == nullptr) {
 			host.settle_check(generation, agent, core::fail_check(core::agent_setup_failure::failed_to_start), std::string{ "status_launch_unavailable" });
 			return;

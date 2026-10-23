@@ -211,6 +211,9 @@ namespace bpr::qt {
 		profiles->setToolTip(tr("The agent this tab asks"));
 		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 		row->addWidget(profiles);
+		// Owner amendment 2026-10-23: the agent is switched from the chip in
+		// the question field; the selector stays the one choice, unseen.
+		profiles->hide();
 		Head = chip_label(context, QStringLiteral("agentHeadChip"));
 		Head->setToolTip(tr("The head the session reads"));
 		row->addWidget(Head);
@@ -1425,7 +1428,8 @@ namespace bpr::qt {
 		if (!settings->Effort.empty()) {
 			shown += QStringLiteral(" · ") + tr("%1 effort").arg(QString::fromStdString(settings->Effort));
 		}
-		RunSettings->setText(!(settings->ModelChoosable || settings->EffortChoosable) ? tr("Its own model") : shown);
+		// Owner amendment 2026-10-23: agent · model · effort.
+		RunSettings->setText(settings->Agent + QStringLiteral(" · ") + (!(settings->ModelChoosable || settings->EffortChoosable) ? tr("its own model") : shown));
 		auto tip = tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program);
 		if (settings->ModelChoosable) {
 			tip += QStringLiteral("\n") + (settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
@@ -1442,6 +1446,18 @@ namespace bpr::qt {
 		RunSettings->setToolTip(tip);
 		auto* const menu = RunSettings->menu();
 		menu->clear();
+		// Every agent added, one press away; each keeps its own conversation
+		// about this pull request (owner decision 2026-10-23).
+		auto* const agents = new QActionGroup{ menu };
+		for (const auto& offered : RunSettingsShown) {
+			auto* const item = menu->addAction(offered.Agent);
+			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
+			item->setCheckable(true);
+			item->setChecked(offered.Profile == settings->Profile);
+			agents->addAction(item);
+			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
+		}
+		menu->addSeparator();
 		auto* const what = menu->addAction(tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program));
 		what->setEnabled(false);
 		if (!settings->Note.isEmpty()) {
@@ -1499,6 +1515,21 @@ namespace bpr::qt {
 		}
 		menu->addSeparator();
 		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
+	}
+
+	auto agent_tab_view::choose_agent(const std::uint64_t aProfile) -> bool
+	{
+		if (!panels_alive() || State == agent_tab_state::working) {
+			return false;
+		}
+		auto* const selector = Launch.profile_selector();
+		const auto  index    = selector->findData(QVariant::fromValue<qulonglong>(aProfile));
+		if (index < 0) {
+			return false;
+		}
+		selector->setCurrentIndex(index);
+		present_run_settings_button();
+		return true;
 	}
 
 	auto agent_tab_view::run_slash_command(const QString& aText) -> bool

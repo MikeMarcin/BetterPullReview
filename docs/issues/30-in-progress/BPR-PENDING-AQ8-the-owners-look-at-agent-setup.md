@@ -106,3 +106,11 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   notes, verbatim: "Yep build it like that." Finding cards under the answer
   with Add as draft comment, Save as note and Dismiss; Save as note on a plain
   reply; nothing automatic. Recorded in the RFC; look v003 covers it.
+- Owner amendment 2026-10-23, in chat (relayed): agents are a list the
+  reviewer manages ("I should be able to define more than one custom agent
+  ... for the actual settings it show be more like "add agent" where you can
+  pick a popular one like claude/codex if they aren't already added or a
+  custom one."), and owner decision the same day: "Yeah separate session for
+  each agent makes the most sense to me. Obviously anything we save on the PR
+  as notes or drafts are outside of that session context." Both recorded in
+  the RFC; look v003 covers them.

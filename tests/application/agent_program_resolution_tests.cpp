@@ -157,6 +157,61 @@ namespace {
 		f.Port->cancel();
 		expect(f.Inner.Cancels == 1, "cancel reaches the launcher");
 	}
+
+	/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. An added agent runs
+	/// its own program with its fixed arguments first; two entries may share
+	/// one wrapper; a gone entry or a refused program starts nothing.
+	void test_added_agents_run_as_their_entries()
+	{
+		recording_port direct;
+		recording_port others;
+		auto           source   = std::make_shared<application::agent_entry_source>();
+		auto           asked    = std::vector<std::string>{ };
+		auto           refusal  = std::optional<agent_wrapper_refusal>{ };
+		auto           claudeAt = std::optional<core::claude_search_candidate>{ core::claude_search_candidate{ .Path = "/usr/local/bin/claude" } };
+		auto           port     = application::agent_entry_process{ direct, others, source,
+																	[&asked, &refusal](const std::string_view aPath) {
+														  asked.emplace_back(aPath);
+														  return refusal;
+													  },
+													  [&claudeAt] { return claudeAt; }, [](core::agent_program) { return std::optional<core::agent_search_candidate>{ }; } };
+		auto list = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
+		list      = *core::add_agent_entry(list, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
+		list      = *core::add_agent_entry(list, core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }));
+		source->set(list);
+
+		auto codex    = request(core::agent_protocol::codex_jsonl_exec, "codex");
+		codex.Profile = core::entry_profile_id(list[1]);
+		static_cast<void>(port.run(codex, 1));
+		auto expected       = codex;
+		expected.Executable = "/opt/work/bin/wrapper";
+		expected.Arguments  = { "--codex", "exec", "--json", "-" };
+		expect(direct.Requests.size() == 1U && direct.Requests.back() == expected && others.Requests.empty(),
+			   "Work Codex runs the wrapper with --codex before Codex's own arguments, straight to the launcher");
+		auto claude    = request(core::agent_protocol::claude_stream_json, "claude");
+		claude.Profile = core::entry_profile_id(list[0]);
+		static_cast<void>(port.run(claude, 1));
+		expect(direct.Requests.back().Executable == "/opt/work/bin/wrapper" && direct.Requests.back().Arguments == claude.Arguments, "Work Claude runs the same wrapper with nothing added");
+		expect(asked == std::vector<std::string>{ "/opt/work/bin/wrapper", "/opt/work/bin/wrapper" }, "the program is inspected again at every launch");
+		auto preset    = request(core::agent_protocol::claude_stream_json, "claude");
+		preset.Profile = core::entry_profile_id(list[2]);
+		static_cast<void>(port.run(preset, 1));
+		expect(direct.Requests.back().Executable == "/usr/local/bin/claude", "Claude Code with no program of its own runs the claude that is found");
+
+		refusal            = agent_wrapper_refusal::not_executable;
+		const auto before  = direct.Requests.size();
+		const auto refused = port.run(codex, 1);
+		expect(direct.Requests.size() == before && refused.Outcome == application::agent_run_outcome::failed_to_start && refused.StandardError.starts_with("Work Codex program /opt/work/bin/wrapper: "),
+			   "a program that cannot run starts nothing and says which agent's it is");
+		refusal = std::nullopt;
+		source->set({ list[0] });
+		const auto gone = port.run(codex, 1);
+		expect(direct.Requests.size() == before && gone.StandardError == application::agent_entry_removed_message, "a removed agent starts nothing");
+
+		const auto builtIn = request(core::agent_protocol::claude_stream_json, "claude");
+		static_cast<void>(port.run(builtIn, 1));
+		expect(others.Requests.size() == 1U && others.Requests.back() == builtIn, "a built-in profile's launch goes to its own resolution unchanged");
+	}
 }
 
 auto main() -> int
@@ -164,6 +219,7 @@ auto main() -> int
 	test_codex_is_found();
 	test_saved_programs();
 	test_pass_through();
+	test_added_agents_run_as_their_entries();
 	std::cout << "agent-program-resolution-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -13999,7 +13999,7 @@ namespace {
 				return true;
 			});
 			process_events();
-			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Default model")
+			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
 					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
 				   "the row names the model and effort, and its tooltip the program that runs");
 			auto* const composer = window.side_chat()->composer();
@@ -14018,6 +14018,34 @@ namespace {
 			agent->ask_button()->click();
 			process_events();
 			expect(asked.back() == "model=gpt-5", "/model NAME changes the model");
+			// Owner amendment 2026-10-23: every added agent is in the chip's
+			// menu, and choosing one switches to it.
+			{
+				auto work        = profile;
+				work.Id          = core::agent_profile_id{ 1102U };
+				work.DisplayName = "Work Codex";
+				window.agent_panel()->offer_profiles(std::vector{ profile, work });
+				auto other    = settings;
+				other.Profile = 1102U;
+				other.Agent   = QStringLiteral("Work Codex");
+				other.Effort  = "high";
+				agent->present_run_settings({ settings, other });
+				process_events();
+				emit agent->run_settings_button()->menu()->aboutToShow();
+				auto choices = QStringList{ };
+				for (auto* const item : agent->run_settings_button()->menu()->actions()) {
+					if (item->objectName() == QStringLiteral("agentRunSettingsAgent")) {
+						choices << item->text();
+					}
+				}
+				expect(choices == QStringList{ QStringLiteral("Codex"), QStringLiteral("Work Codex") }, "the chip's menu lists every added agent");
+				expect(agent->choose_agent(1102U) && window.agent_panel()->selected_profile() == std::optional{ core::agent_profile_id{ 1102U } }
+						   && agent->run_settings_text() == QStringLiteral("Work Codex · Default model · high effort"),
+					   "choosing one switches to it in one press, and the chip says agent, model and effort");
+				expect(agent->choose_agent(1U) && window.agent_panel()->selected_profile() == std::optional{ core::agent_profile_id{ 1U } }, "and back");
+				window.agent_panel()->offer_profiles(std::vector{ profile });
+				agent->present_run_settings({ settings });
+			}
 			composer->clear();
 
 			// Owner decision (a): a suggestion is sent as written, as a chat

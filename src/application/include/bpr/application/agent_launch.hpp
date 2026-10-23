@@ -184,6 +184,9 @@ namespace bpr::application {
 		std::optional<core::agent_run_provenance>     AdmittedRun;
 		bool                                          WritingOnly = false;
 		std::shared_ptr<agent_input_claim>            PrivateInputClaim;
+		/// [[BPR-PENDING-AQ6]]. The profile launched, so an added agent's own
+		/// program and fixed arguments are found for its slot.
+		core::agent_profile_id Profile;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};

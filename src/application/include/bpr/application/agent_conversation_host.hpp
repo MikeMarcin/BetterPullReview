@@ -55,9 +55,13 @@ namespace bpr::application {
 		agent_conversation_host(const agent_conversation_host&)                    = delete;
 		auto operator=(const agent_conversation_host&) -> agent_conversation_host& = delete;
 
-		/// \brief A pull request was opened: its kept turns are read and
-		/// published. Opening the one already open changes nothing.
+		/// \brief A pull request was opened: the agent it was last asked with
+		/// (`aKey.Agent` when none was kept) and that agent's turns are read
+		/// and published. Opening the one already open changes nothing.
 		void open(const agent_conversation_key& aKey);
+		/// \brief Owner decision 2026-10-23: another agent's own conversation
+		/// about the open pull request, kept as the one it is asked with.
+		void switch_agent(std::uint32_t aAgent);
 		/// \brief No pull request is open.
 		void close();
 		/// \brief The thread now, after a turn ended; bounded and kept.

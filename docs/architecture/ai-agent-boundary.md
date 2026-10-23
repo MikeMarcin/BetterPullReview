@@ -222,6 +222,23 @@ version-two field and are written only when present, so a launch without a
 brief differs from version two only in its `schema` line. The agent may still
 read GitHub through its own tools.
 
+**Agents the reviewer adds ([[BPR-PENDING-AQ6]], owner amendment
+2026-10-23).** The picker offers only the agents in the profile's list
+(`core::agent_entry`, at most 16, kept in `agent-setup.sqlite3`): each a
+name, a protocol, a program and fixed arguments, with a default model and
+effort the protocol takes. Each launches as a fixed profile slot of its
+protocol (`core::agent_entry_profiles`), told to every host at composition
+and allowed by `core::built_in_agent_policy` wherever its protocol's built-in
+profile is; the policy question is unchanged. `application::agent_entry_process`
+starts a slot as its entry says: the entry's program, inspected again at each
+launch under the wrapper rules (a popular agent with none has its own program
+looked for again), and the entry's fixed arguments before the protocol's
+own. Nothing from a pull request, a question or a setting is put into the
+arguments, no shell runs them, the environment allowlist is the protocol's,
+and no credential is involved. A pull request's conversation is kept per
+agent (`agent_conversation_key::Agent`), so a follow-up carries only its own
+agent's earlier turns.
+
 **Findings in the answer ([[BPR-PENDING-AQ6]], owner decision 2026-10-23).**
 A harness writes its own result frame, so its model cannot add `bprFindings`
 to it. The review skill therefore asks for a block fenced `bpr-findings` at

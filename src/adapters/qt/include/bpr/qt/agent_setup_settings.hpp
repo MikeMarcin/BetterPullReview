@@ -6,6 +6,7 @@
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
+#include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/folder_list_editor.hpp"
 
 #include <QWidget>
@@ -24,37 +25,63 @@ class QPlainTextEdit;
 class QPushButton;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner answer Q5). Settings ›
-	/// Agents & context: **Set up agent…**, the Codex program and protocol,
-	/// and a harness that reads plain text.
+	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092, owner amendment 2026-10-23
+	/// ("for the actual settings it should be more like add agent"). Settings ›
+	/// Agents & context: the agents the Agent tab offers, in order, with
+	/// **Add agent…** (Claude Code and Codex when found and not yet added, or a
+	/// custom agent), **Edit…**, **Remove**, **Move up** and **Move down**, and
+	/// **Set up agent…**.
 	class agent_programs_panel final : public QWidget
 	{
 	public:
+		using answer = std::function<void(std::optional<core::agent_entry_refusal>)>;
 		struct dispatch
 		{
-			std::function<void()> SetUp;
-			/// An empty path clears the saved program.
+			std::function<void()>                          SetUp;
+			std::function<void(core::agent_entry, answer)> Add;
+			std::function<void(core::agent_entry, answer)> Update;
+			std::function<void(std::uint32_t)>             Remove;
+			std::function<void(std::uint32_t, int)>        Move;
+			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
 		};
 
 		explicit agent_programs_panel(QWidget* aParent = nullptr);
 		void set_dispatch(dispatch aDispatch);
-		void present(const application::agent_setup_preferences& aPreferences);
+		/// \brief The list, and which popular agents were found on this
+		/// computer (offered by Add agent… until they are added).
+		void present(const application::agent_setup_preferences& aPreferences, std::vector<core::agent_detection> aFound = { });
 		/// The answer to a SetProgram: nothing when it was saved.
 		void show_answer(core::setup_agent aAgent, const std::optional<core::agent_wrapper_refusal>& aRefusal);
+		/// \brief How Add and Edit ask for the entry; a test answers itself.
+		void set_editor(agent_entry_editor aEditor);
+		/// \brief Opens Add agent… for one preset (Claude Code or Codex), or
+		/// for a custom agent with none.
+		void add_agent(std::optional<core::setup_agent> aPreset);
 
-		[[nodiscard]] auto codex_path() const noexcept -> QLineEdit* { return CodexPath; }
-		[[nodiscard]] auto harness_path() const noexcept -> QLineEdit* { return HarnessPath; }
-		[[nodiscard]] auto protocol() const noexcept -> QComboBox* { return Protocol; }
+		[[nodiscard]] auto agent_list() const noexcept -> QListWidget* { return List; }
+		[[nodiscard]] auto add_button() const noexcept -> QPushButton* { return AddButton; }
+		[[nodiscard]] auto edit_button() const noexcept -> QPushButton* { return EditButton; }
+		[[nodiscard]] auto remove_button() const noexcept -> QPushButton* { return RemoveButton; }
+		[[nodiscard]] auto up_button() const noexcept -> QPushButton* { return UpButton; }
+		[[nodiscard]] auto down_button() const noexcept -> QPushButton* { return DownButton; }
+		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
 
 	private:
-		dispatch   Dispatch;
-		QLineEdit* CodexPath     = nullptr;
-		QLabel*    CodexStatus   = nullptr;
-		QComboBox* Protocol      = nullptr;
-		QLineEdit* HarnessPath   = nullptr;
-		QLabel*    HarnessStatus = nullptr;
+		void                               settle_buttons();
+		[[nodiscard]] auto                 selected() const -> const core::agent_entry*;
+		dispatch                           Dispatch;
+		agent_entry_editor                 Editor;
+		std::vector<core::agent_entry>     Agents;
+		std::vector<core::agent_detection> Found;
+		QListWidget*                       List         = nullptr;
+		QPushButton*                       AddButton    = nullptr;
+		QPushButton*                       EditButton   = nullptr;
+		QPushButton*                       RemoveButton = nullptr;
+		QPushButton*                       UpButton     = nullptr;
+		QPushButton*                       DownButton   = nullptr;
+		QLabel*                            Status       = nullptr;
 	};
 
 	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner decision D2). Settings ›

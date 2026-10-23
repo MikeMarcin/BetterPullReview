@@ -98,4 +98,73 @@ namespace bpr::application {
 	}
 
 	void located_agent_process::cancel() noexcept { Inner.cancel(); }
+
+	void agent_entry_source::set(std::vector<core::agent_entry> aEntries)
+	{
+		const std::scoped_lock lock{ Mutex };
+		Entries = std::move(aEntries);
+	}
+
+	auto agent_entry_source::current() const -> std::vector<core::agent_entry>
+	{
+		const std::scoped_lock lock{ Mutex };
+		return Entries;
+	}
+
+	agent_entry_process::agent_entry_process(agent_process_port& aDirect, agent_process_port& aOthers, std::shared_ptr<const agent_entry_source> aSource,
+											 agent_wrapper_inspector aInspect, claude_locator aClaude, agent_program_locator aLocate)
+		: Direct{ aDirect }
+		, Others{ aOthers }
+		, Source{ std::move(aSource) }
+		, Inspect{ std::move(aInspect) }
+		, Claude{ std::move(aClaude) }
+		, Locate{ std::move(aLocate) }
+	{ }
+
+	auto agent_entry_process::run(const agent_launch_request& aRequest, const int aTimeoutMilliseconds, const agent_output_sink& aSink, std::stop_token aStop)
+		-> agent_run_result
+	{
+		if (!core::is_agent_entry_profile(aRequest.Profile)) {
+			return Others.run(aRequest, aTimeoutMilliseconds, aSink, std::move(aStop));
+		}
+		const auto  entries = Source ? Source->current() : std::vector<core::agent_entry>{ };
+		const auto* entry   = core::entry_of_profile(entries, aRequest.Profile);
+		if (entry == nullptr || entry->Protocol != aRequest.Protocol) {
+			return refused(aRequest, std::string{ agent_entry_removed_message });
+		}
+		auto program = entry->Program;
+		if (program.empty()) {
+			// A popular agent's own program, looked for again at every launch.
+			try {
+				if (entry->Preset == core::setup_agent::claude_code && Claude) {
+					if (auto found = Claude()) {
+						program = std::move(found->Path);
+					}
+				} else if (entry->Preset == core::setup_agent::codex && Locate) {
+					if (auto found = Locate(core::agent_program::codex)) {
+						program = std::move(found->Path);
+					}
+				}
+			} catch (...) { }
+			if (program.empty()) {
+				return refused(aRequest, entry->Preset == core::setup_agent::claude_code ? std::string{ claude_not_found_message } : std::string{ codex_not_found_message });
+			}
+		} else {
+			auto refusal = std::optional{ core::agent_wrapper_refusal::missing };
+			try {
+				if (Inspect) {
+					refusal = Inspect(program);
+				}
+			} catch (...) { }
+			if (refusal) {
+				return refused(aRequest, entry->Name + " program " + program + ": " + std::string{ core::describe(*refusal) });
+			}
+		}
+		auto launched       = aRequest;
+		launched.Executable = std::move(program);
+		launched.Arguments.insert(launched.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());
+		return Direct.run(launched, aTimeoutMilliseconds, aSink, std::move(aStop));
+	}
+
+	void agent_entry_process::cancel() noexcept { Others.cancel(); }
 } // namespace bpr::application

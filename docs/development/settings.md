@@ -63,12 +63,20 @@ runs it again. See the [workbench specification](../ux/workbench-specification.m
 
 Under **Agents & context**:
 
-- **Codex** is found on `PATH` and in its usual install folders. A program
-  path saved here is used instead. **Protocol** chooses App Server (the
-  default) or JSONL.
-- **A harness that reads plain text** is for a tool with no Claude or Codex
-  interface. It runs only the program path you choose here and is offered in
-  setup once one is saved.
+- **Agents** is the list the Agent tab offers, in its order; an agent you
+  have not added is never offered (owner amendment, 2026-10-23). **Add
+  agent…** offers Claude Code and Codex when they are found on this computer
+  and not yet added, and **Custom agent…**: a name, what the program speaks
+  (Claude Code's stream JSON, Codex App Server or JSONL, or plain text), the
+  program's full path, fixed arguments one per line (such as `--codex`), and
+  a default model and effort. Two agents may run the same program: a work
+  wrapper given nothing for Claude models is "Work Claude", and given
+  `--codex` is "Work Codex". The arguments are given exactly as written,
+  before the request's own, every time; nothing is put into them and no
+  shell runs them. **Edit…**, **Remove**, **Move up** and **Move down** change
+  the list. The first time, the Claude process wrapper and Codex program
+  settings below move into the list (the chosen agent first) and are not
+  moved again.
 - **Review skill** is how the agent reviews: the `bpr-pr-review` skill, sent
   with every review request. Edit it and **Save**; your copy is kept through
   updates. When a newer built-in version ships you can **Compare**, **Use
@@ -81,11 +89,10 @@ Under **Agents & context > Claude**:
   `claude`, for example one that sets up your provider first. Left empty,
   BetterPullReview uses the first `claude` on `PATH` or in the usual install
   folders, and says which.
-- **Model** is passed to Claude as `--model`. The model and effort chip in
-  the Agent tab's question field sets the same model, and Claude's `--effort`, Codex's model
-  and Codex's reasoning effort, all saved for the profile; `/model` and
-  `/effort` in its question field do the same. Review Cycles **Send to Agent**
-  does not use it yet.
+- **Model** is passed to Claude as `--model`. An added agent keeps its own
+  model and effort instead: the chip in the Agent tab's question field shows
+  and sets them, and `/model` and `/effort` in its question field do the
+  same. Review Cycles **Send to Agent** does not use them yet.
 - BetterPullReview never handles Claude's sign-in.
 
 ### Review preparation writing hooks

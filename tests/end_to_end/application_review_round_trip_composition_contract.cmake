@@ -1,4 +1,17 @@
 # [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner amendment 2026-10-23 (agents
+# are a list) and decision (a session per agent): github_application.cpp
+# tells every host the agent-entry profile slots (core::agent_entry_profiles,
+# allowed where their protocol's built-in profile is), starts them through
+# application::agent_entry_process (the entry's program, inspected at each
+# launch, and its fixed arguments before the protocol's own) in front of the
+# existing located/wrapped processes, offers the picker the entries only,
+# carries an entry's model and effort as the request's requested settings,
+# keeps the conversation per agent entry, and routes Settings' list edits and
+# setup's Custom agent to agent_setup_host. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner decision 2026-10-23 ("Yep
 # build it like that"): github_application.cpp takes a finding card's Add as
 # draft comment through the existing private-text promotion into the line's
@@ -2279,7 +2292,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"9365ca80c6075b09bbe9048418194b5a720062afc9189f16edb1368dbc40861a"
+		"d0ebcf32abff87c73dc91e76551679e384ea95259bb9142aff52c38c23c5b9ea"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2503,7 +2516,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "4a80b363449183d2f86edd3af409094c3813ba236244ff6a68834c8e89b2a34c"
+        "93bb85c53bb76875c8c9b1fde5e45aa30052dce6150746cb5831d3e2b3200b9a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -173,6 +173,9 @@ namespace bpr::qt {
 		/// was such a command, which is then not sent to the agent.
 		auto               run_slash_command(const QString& aText) -> bool;
 		[[nodiscard]] auto run_settings_text() const -> QString;
+		/// \brief Owner amendment 2026-10-23: switches to another added agent,
+		/// as its row in the chip's menu does. Refused while one runs.
+		auto               choose_agent(std::uint64_t aProfile) -> bool;
 		[[nodiscard]] auto ready_card() const noexcept -> QWidget* { return ReadyCard; }
 		[[nodiscard]] auto setup_view() const noexcept -> agent_setup_view* { return SetupView; }
 		/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("Is it not meant to

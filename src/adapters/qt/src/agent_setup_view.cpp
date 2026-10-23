@@ -492,7 +492,29 @@ namespace bpr::qt {
 
 	auto agent_setup_view::take_ready() -> bool { return std::exchange(Ready, false); }
 
-	auto agent_setup_view::agent_name() const -> QString { return Setup.State.Chosen ? plain(*Setup.State.Chosen) : tr("The agent"); }
+	auto agent_setup_view::agent_name() const -> QString { return Setup.State.Chosen ? name_for(*Setup.State.Chosen) : tr("The agent"); }
+
+	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString
+	{
+		const auto& preferences = Setup.Preferences;
+		const auto  found       = std::ranges::find(preferences.Agents, preferences.PreferredAgent, &core::agent_entry::Id);
+		if (preferences.PreferredAgent != 0U && found != preferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
+			return text_of(found->Name);
+		}
+		return plain(aAgent);
+	}
+
+	void agent_setup_view::set_entry_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
+
+	void agent_setup_view::add_custom_agent()
+	{
+		if (!Editor || !Intents.AddCustomAgent) {
+			return;
+		}
+		if (auto entry = Editor(core::agent_entry{ }, this)) {
+			Intents.AddCustomAgent(std::move(*entry));
+		}
+	}
 
 	auto agent_setup_view::workspace_words() const -> QString
 	{
@@ -555,7 +577,7 @@ namespace bpr::qt {
 		};
 		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? tr("A private copy") : shown_path(Clones.Linked->Path)) : QString{ };
 		const auto steps      = std::array{
-			step{ core::setup_step::agent, tr("Agent"), Setup.State.Chosen ? plain(*Setup.State.Chosen) : QString{ } },
+			step{ core::setup_step::agent, tr("Agent"), Setup.State.Chosen ? name_for(*Setup.State.Chosen) : QString{ } },
 			step{ core::setup_step::repository, tr("Repository"), repository },
 			step{ core::setup_step::check, tr("Check it works"), QString{ } },
 			step{ core::setup_step::ready, tr("Ready"), QString{ } },
@@ -687,12 +709,11 @@ namespace bpr::qt {
 			}
 			installs->addStretch(1);
 			aBody.addLayout(installs);
-			auto* const chosen = link_button(tr("Use a program I choose…"), parent, QStringLiteral("agentSetupOwnProgram"));
-			connect(chosen, &QPushButton::clicked, this, [this] {
-				if (Intents.OpenSettings) {
-					Intents.OpenSettings();
-				}
-			});
+			// Owner amendment 2026-10-23: a wrapper of the reviewer's own is a
+			// custom agent, described here and added to the list.
+			auto* const chosen = link_button(tr("Custom agent…"), parent, QStringLiteral("agentSetupCustomAgent"));
+			chosen->setToolTip(tr("Use a program of your own, such as a wrapper, with fixed arguments"));
+			connect(chosen, &QPushButton::clicked, this, [this] { add_custom_agent(); });
 			aBody.addWidget(chosen, 0, Qt::AlignLeft);
 			return;
 		}
@@ -709,11 +730,11 @@ namespace bpr::qt {
 			radio->setObjectName(QStringLiteral("agentSetupAgentChoice"));
 			radio->setChecked(card->Chosen);
 			radio->setEnabled(row.Verdict.Permitted);
-			radio->setAccessibleName(plain(row.Agent));
+			radio->setAccessibleName(name_for(row.Agent));
 			grid->addWidget(radio, 0, Qt::AlignTop);
 			auto* const lines = new QVBoxLayout{ };
 			lines->setSpacing(2);
-			auto* const name = words(plain(row.Agent), card);
+			auto* const name = words(name_for(row.Agent), card);
 			auto        bold = name->font();
 			bold.setWeight(QFont::DemiBold);
 			name->setFont(bold);
@@ -746,7 +767,7 @@ namespace bpr::qt {
 					Intents.Choose(agent);
 				}
 			};
-			card->setAccessibleName(plain(row.Agent));
+			card->setAccessibleName(name_for(row.Agent));
 			card->settle();
 			aBody.addWidget(card);
 		}
@@ -754,7 +775,7 @@ namespace bpr::qt {
 		// change it"): changing is optional; the agent already chosen stays a
 		// choice and Continue goes on with it.
 		if (Editing == core::setup_step::agent && Setup.State.Chosen) {
-			auto* const keep = primary_button(tr("Continue with %1").arg(plain(*Setup.State.Chosen)), parent, QStringLiteral("agentSetupContinue"));
+			auto* const keep = primary_button(tr("Continue with %1").arg(name_for(*Setup.State.Chosen)), parent, QStringLiteral("agentSetupContinue"));
 			connect(keep, &QPushButton::clicked, this, [this] {
 				Editing.reset();
 				Picked.reset();
@@ -762,13 +783,9 @@ namespace bpr::qt {
 			});
 			aBody.addWidget(keep, 0, Qt::AlignLeft);
 		}
-		auto* const other = link_button(tr("Use another program…"), parent, QStringLiteral("agentSetupOtherProgram"));
-		other->setToolTip(tr("Choose the Codex program or a harness that reads plain text in Settings"));
-		connect(other, &QPushButton::clicked, this, [this] {
-			if (Intents.OpenSettings) {
-				Intents.OpenSettings();
-			}
-		});
+		auto* const other = link_button(tr("Custom agent…"), parent, QStringLiteral("agentSetupCustomAgent"));
+		other->setToolTip(tr("Use a program of your own, such as a wrapper, with fixed arguments"));
+		connect(other, &QPushButton::clicked, this, [this] { add_custom_agent(); });
 		aBody.addWidget(other, 0, Qt::AlignLeft);
 	}
 

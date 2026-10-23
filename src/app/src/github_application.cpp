@@ -3577,8 +3577,17 @@ namespace bpr::app {
 
 		void offer(const std::span<const core::agent_profile> aProfiles) override
 		{
+			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The picker offers
+			// the agents the reviewer added, not every profile the host knows.
+			if (OfferFilter) {
+				const auto offered = OfferFilter(aProfiles);
+				Panel.offer(offered);
+				return;
+			}
 			Panel.offer(aProfiles);
 		}
+
+		void set_offer_filter(std::function<std::vector<core::agent_profile>(std::span<const core::agent_profile>)> aFilter) { OfferFilter = std::move(aFilter); }
 
 		void refuse(const std::string_view aReason) override
 		{
@@ -3674,16 +3683,17 @@ namespace bpr::app {
 		}
 
 	private:
-		std::function<void(const application::private_review_delta&)> PrivateChanged;
-		std::function<void(const application::private_run_error&)>    PrivateFailed;
-		application::agent_invocation_projection_port&                Panel;
-		finding_sink                                                  Findings;
-		session_sink                                                  Sessions;
-		admit_sink                                                    Admissions;
-		run_sink                                                      Runs;
-		workspace_sink                                                Workspaces;
-		start_sink                                                    Starts;
-		std::function<void(std::string_view)>                         Refused;
+		std::function<void(const application::private_review_delta&)>                         PrivateChanged;
+		std::function<void(const application::private_run_error&)>                            PrivateFailed;
+		application::agent_invocation_projection_port&                                        Panel;
+		finding_sink                                                                          Findings;
+		session_sink                                                                          Sessions;
+		admit_sink                                                                            Admissions;
+		run_sink                                                                              Runs;
+		workspace_sink                                                                        Workspaces;
+		start_sink                                                                            Starts;
+		std::function<void(std::string_view)>                                                 Refused;
+		std::function<std::vector<core::agent_profile>(std::span<const core::agent_profile>)> OfferFilter;
 	};
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -8814,6 +8824,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
+			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. Every slot an
+			// added agent may launch as, told to every host once.
+			std::ranges::move(core::agent_entry_profiles(), std::back_inserter(agentProfiles));
 			// Stated once and given to both hosts. The chat host asks
 			// `core::decide_agent_action` the same host-policy question the
 			// launch host already asks, and two lists written apart are two
@@ -8837,12 +8850,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (external != agentProfiles.end()) {
 					external->Executable = ExternalAgentExecutable->string();
 				}
+				BuiltInProfilesOffered = true;
 			}
 			if (ClaudeAgentExecutable) {
 				const auto claude = std::ranges::find(agentProfiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
 				if (claude != agentProfiles.end()) {
 					claude->Executable = ClaudeAgentExecutable->string();
 				}
+				BuiltInProfilesOffered = true;
 			}
 			if (CodexAgentExecutable.has_value()) {
 				const auto codex = std::ranges::find(
@@ -8852,6 +8867,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (codex != agentProfiles.end()) {
 					codex->Executable = CodexAgentExecutable->string();
 				}
+				BuiltInProfilesOffered = true;
 			}
 	#endif
 	#if defined(BPR_BUILD_TESTING)
@@ -8872,11 +8888,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// harness get an absolute program here, in front of the Claude
 				// wrapper, so a shipped build starts them.
 				LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
+				EntryProcess   = std::make_unique<application::agent_entry_process>(*AgentProcessProbe, *LocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper, locate_claude(), locate_agent_program());
 			}
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 	#else
 			ClaudeProcess  = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
 			LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
+			EntryProcess   = std::make_unique<application::agent_entry_process>(*AgentProcess, *LocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper, locate_claude(), locate_agent_program());
 	#endif
 			{
 				// BPR-0532. The re-alignment a continued turn asks for, served
@@ -8893,7 +8911,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-					*LocatedProcess,
+					*EntryProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -8912,6 +8930,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->withdraw_agent_surfaces();
 #endif
 #if defined(BPR_AGENT_INTEGRATIONS)
+			AgentProjections->set_offer_filter([this](const std::span<const core::agent_profile> aProfiles) {
+				HostOfferedProfiles.assign(aProfiles.begin(), aProfiles.end());
+				return offered_agent_profiles();
+			});
 			AgentProjections->set_private_sink([this](const auto& aDelta) {if(!Closing && PrivateReview){PrivateReview->changed(aDelta);} }, [this](const auto&) {if(!Closing && Window){Window->private_review()->show_status(QStringLiteral("Private run admission or retention refused; no missing provenance is inferred."));} });
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
@@ -11576,6 +11598,50 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. What the picker
+		/// offers: each added agent the host offers a slot for, in the list's
+		/// order and under its name; a test's own built-in programs as well.
+		[[nodiscard]] auto offered_agent_profiles() const -> std::vector<core::agent_profile>
+		{
+			auto offered = std::vector<core::agent_profile>{ };
+			if (AgentSetup) {
+				for (const auto& entry : AgentSetup->projection().Preferences.Agents) {
+					const auto slot = core::entry_profile_id(entry);
+					if (std::ranges::find(HostOfferedProfiles, slot, &core::agent_profile::Id) != HostOfferedProfiles.end()) {
+						offered.push_back(core::entry_profile(entry));
+					}
+				}
+			}
+			if (BuiltInProfilesOffered) {
+				for (const auto& profile : HostOfferedProfiles) {
+					if (!core::is_agent_entry_profile(profile.Id)) {
+						offered.push_back(profile);
+					}
+				}
+			}
+			return offered;
+		}
+
+		/// Owner decision 2026-10-23 ("separate session for each agent"): the
+		/// agent chosen now is the one whose conversation the thread shows.
+		[[nodiscard]] auto current_conversation_agent() const -> std::uint32_t
+		{
+			if (Window == nullptr || !AgentSetup) {
+				return 0U;
+			}
+			const auto  selected = Window->agent_panel()->selected_profile();
+			const auto  agents   = AgentSetup->projection().Preferences.Agents;
+			const auto* entry    = selected ? core::entry_of_profile(agents, *selected) : nullptr;
+			return entry != nullptr ? entry->Id : 0U;
+		}
+
+		void observe_conversation_agent()
+		{
+			if (!Closing && AgentConversation) {
+				AgentConversation->switch_agent(current_conversation_agent());
+			}
+		}
+
 		/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The pull request
 		/// now open, for its conversation.
 		void observe_conversation()
@@ -11587,7 +11653,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				AgentConversation->close();
 				return;
 			}
-			AgentConversation->open({ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value() });
+			AgentConversation->open(
+				{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = current_conversation_agent() });
 		}
 
 		/// The open pull request's kept thread, shown in the Agent tab.
@@ -11602,6 +11669,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending) });
 			}
 			Window->agent_tab()->present_thread(shown);
+			// A pull request opens on the agent it was last asked with.
+			if (aView.Loaded && aView.Key && aView.Key->Agent != 0U && AgentSetup && aView.Key->Agent != current_conversation_agent()) {
+				const auto agents = AgentSetup->projection().Preferences.Agents;
+				if (const auto found = std::ranges::find(agents, aView.Key->Agent, &core::agent_entry::Id); found != agents.end()) {
+					static_cast<void>(Window->agent_tab()->choose_agent(core::entry_profile_id(*found).value()));
+				}
+			}
 		}
 
 		/// [[BPR-PENDING-AQ3]], RFC-BPR-0092 D2. The repository of the review
@@ -11743,6 +11817,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// Owner decision 2026-10-23 ("Yep build it like that"): a card's
 			// three actions, and Save as note on a plain reply. Each makes a
 			// private draft or note in the review, never part of a session.
+			// Owner decision 2026-10-23: switching agents shows that agent's own
+			// conversation about the open pull request.
+			QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 			tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
 			tab->set_answer_note_dispatch([this](const QString& aText, std::function<void(bool, const QString&)> aDone) {
 				save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone));
@@ -11838,6 +11915,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							AgentSetup->stop();
 						}
 					},
+				.AddCustomAgent =
+					[this](core::agent_entry aEntry) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->add_agent(std::move(aEntry), true, [this](const std::optional<core::agent_entry_refusal> aRefusal) {
+								if (aRefusal && !Closing && Window != nullptr) {
+									Window->agent_panel()->refuse(std::string{ core::describe(*aRefusal) });
+								}
+							});
+						}
+					},
 			});
 			Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
 				.SetUp =
@@ -11845,6 +11932,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						if (Window != nullptr && AgentSetup) {
 							Window->agent_setup()->begin(core::setup_step::agent);
 							AgentSetup->restart();
+						}
+					},
+				// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The list's edits.
+				.Add =
+					[this](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->add_agent(std::move(aEntry), false, std::move(aAnswer));
+						}
+					},
+				.Update =
+					[this](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->update_agent(std::move(aEntry), std::move(aAnswer));
+						}
+					},
+				.Remove =
+					[this](const std::uint32_t aId) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->remove_agent(aId);
+						}
+					},
+				.Move =
+					[this](const std::uint32_t aId, const int aDelta) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->move_agent(aId, aDelta);
 						}
 					},
 				.SetProgram =
@@ -11955,7 +12067,44 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr || !AgentSetup) {
 				return;
 			}
-			const auto setup   = AgentSetup->projection();
+			const auto setup = AgentSetup->projection();
+			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. One per added
+			// agent, from its entry; its protocol says which settings apply.
+			auto shown = std::vector<qt::agent_run_settings>{ };
+			for (const auto& entry : setup.Preferences.Agents) {
+				auto settings    = qt::agent_run_settings{ };
+				settings.Profile = core::entry_profile_id(entry).value();
+				settings.Agent   = QString::fromStdString(entry.Name);
+				auto program     = entry.Program.empty() ? (entry.Preset == core::setup_agent::codex ? QStringLiteral("the codex found on this computer") : QStringLiteral("the claude found on this computer"))
+														 : QString::fromStdString(entry.Program);
+				for (const auto& argument : entry.Arguments) {
+					program += QStringLiteral(" ") + QString::fromStdString(argument);
+				}
+				settings.Program = program;
+				settings.Model   = entry.Model;
+				settings.Effort  = entry.Effort;
+				switch (core::entry_settings_program(entry.Protocol).value_or(core::agent_program::claude)) {
+				case core::agent_program::claude:
+					settings.Models  = { { "opus", QStringLiteral("Opus") }, { "sonnet", QStringLiteral("Sonnet") }, { "haiku",
+																													   QStringLiteral("Haiku") } };
+					settings.Efforts = { "low", "medium", "high", "xhigh", "max" };
+					break;
+				case core::agent_program::codex: settings.Efforts = { "minimal", "low", "medium", "high", "xhigh" }; break;
+				}
+				const auto choosable     = core::entry_settings_program(entry.Protocol).has_value();
+				settings.ModelChoosable  = choosable;
+				settings.EffortChoosable = choosable;
+				if (!choosable) {
+					settings.Models.clear();
+					settings.Efforts.clear();
+					settings.Note = QStringLiteral("A plain-text harness chooses its own model and effort.");
+				}
+				shown.push_back(std::move(settings));
+			}
+			if (!BuiltInProfilesOffered) {
+				Window->agent_tab()->present_run_settings(std::move(shown));
+				return;
+			}
 			const auto program = [&setup](const core::setup_agent aAgent) {
 				const auto found = std::ranges::find_if(setup.State.Rows, [aAgent](const core::agent_setup_row& aRow) { return aRow.Agent == aAgent; });
 				return found == setup.State.Rows.end() ? QString{ } : QString::fromStdString(found->Path);
@@ -11988,7 +12137,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			harness.Agent          = QStringLiteral("The plain-text harness");
 			harness.Program        = QString::fromStdString(setup.Preferences.HarnessProgram);
 			harness.Note           = QStringLiteral("A plain-text harness chooses its own model and effort.");
-			Window->agent_tab()->present_run_settings({ claude, appServer, jsonl, harness });
+			for (auto& builtIn : { claude, appServer, jsonl, harness }) {
+				shown.push_back(builtIn);
+			}
+			Window->agent_tab()->present_run_settings(std::move(shown));
 		}
 
 		[[nodiscard]] auto apply_run_settings(const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) -> bool
@@ -11997,6 +12149,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return false;
 			}
 			const auto preferences = AgentSetup->projection().Preferences;
+			// [[BPR-PENDING-AQ6]]. An added agent keeps its model and effort.
+			if (const auto* const entry = core::entry_of_profile(preferences.Agents, core::agent_profile_id{ aProfile }); entry != nullptr) {
+				auto edited = *entry;
+				if (aModel) {
+					edited.Model = std::move(*aModel);
+				}
+				if (aEffort) {
+					edited.Effort = std::move(*aEffort);
+				}
+				if (core::inspect_agent_entry(edited)) {
+					return false;
+				}
+				AgentSetup->update_agent(std::move(edited));
+				return true;
+			}
 			if (aProfile == core::claude_stream_json_profile_id.value()) {
 				if (aModel && !core::storable_claude_model(*aModel)) {
 					return false;
@@ -12027,12 +12194,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
-			Window->agent_programs()->present(aProjection.Preferences);
+			auto found = std::vector<core::agent_detection>{ };
+			for (const auto& row : aProjection.State.Rows) {
+				found.push_back({ .Agent = row.Agent, .Path = row.Path, .How = row.How });
+			}
+			Window->agent_programs()->present(aProjection.Preferences, std::move(found));
+			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The launches use
+			// the list as published, and the picker offers it.
+			AgentEntries->set(aProjection.Preferences.Agents);
+			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
+			const auto  profile     = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
+			const auto  preferredAt = std::ranges::find(aProjection.Preferences.Agents, aProjection.Preferences.PreferredAgent, &core::agent_entry::Id);
+			const auto* preferred   = aProjection.Preferences.PreferredAgent == 0U || preferredAt == aProjection.Preferences.Agents.end() ? nullptr : &*preferredAt;
+			Window->agent_panel()->prefer_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+			Window->agent_panel()->offer_profiles(offered_agent_profiles());
 			present_run_settings();
 			present_setup_view();
-			const auto chosen  = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
-			const auto profile = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
-			Window->agent_panel()->prefer_profile(profile);
+			observe_conversation_agent();
 			if (CycleDesktop) {
 				CycleDesktop->prefer_send_profile(profile);
 			}
@@ -19363,6 +19541,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				}
 			}
+			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. An added agent runs
+			// with its own model and effort unless the request names one.
+			if (AgentSetup) {
+				const auto agents = AgentSetup->projection().Preferences.Agents;
+				if (const auto* const entry = core::entry_of_profile(agents, aProfile); entry != nullptr) {
+					if (!requested.Model && !entry->Model.empty()) {
+						requested.Model = entry->Model;
+					}
+					if (!requested.Effort && !entry->Effort.empty()) {
+						requested.Effort = entry->Effort;
+					}
+				}
+			}
 			if (!aWritingOnly && !privateRun && PrivateReview) {
 				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());
 			}
@@ -22755,7 +22946,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
-		std::unique_ptr<application::agent_invocation_host>      AgentHost;
+		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+		/// reviewer added, for the launches, and the process that starts them.
+		std::shared_ptr<application::agent_entry_source>  AgentEntries = std::make_shared<application::agent_entry_source>();
+		std::unique_ptr<application::agent_entry_process> EntryProcess;
+		/// The profiles the host last offered, before the list chose among them.
+		std::vector<core::agent_profile> HostOfferedProfiles;
+		/// A test that put its own program on a built-in profile keeps it offered.
+		bool                                                BuiltInProfilesOffered = false;
+		std::unique_ptr<application::agent_invocation_host> AgentHost;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;

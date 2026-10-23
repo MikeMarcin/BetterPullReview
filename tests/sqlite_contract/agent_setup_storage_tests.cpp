@@ -120,7 +120,26 @@ try {
 	expect(talks->store(pull, { }) && talks->load(pull) == std::optional{ turns{ } } && talks->load(other)->size() == 1U, "Clear session removes only that pull request's");
 	expect(!talks->store(pull, turns(application::maximum_conversation_turns + 1U)), "more turns than the bound are refused");
 	expect(!talks->store(application::agent_conversation_key{ }, thread), "a conversation names its pull request");
+	// Owner decision 2026-10-23: one conversation per agent, and the agent a
+	// pull request was last asked with.
+	auto workCodex  = other;
+	workCodex.Agent = 2U;
+	expect(talks->store(workCodex, thread) && talks->load(workCodex) == std::optional{ thread } && talks->load(other)->size() == 1U, "each agent keeps its own conversation");
+	expect(!talks->load_agent(other) && talks->store_agent(workCodex) && talks->load_agent(other) == std::optional<std::uint32_t>{ 2U }, "the agent last asked with is kept per pull request");
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by conversations");
+
+	// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agent list.
+	auto listed           = *store->load();
+	listed.Agents         = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
+	listed.Agents         = *core::add_agent_entry(listed.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex", "--profile=work" }, .Effort = "high" });
+	listed.Agents         = *core::add_agent_entry(listed.Agents, core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }));
+	listed.AgentsMoved    = true;
+	listed.PreferredAgent = 2U;
+	expect(store->store(listed), "an agent list is stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");
+	listed.Agents.pop_back();
+	expect(store->store(listed) && store->load()->Agents.size() == 2U, "a removed agent is gone from the stored list");
 
 #ifndef _WIN32
 	struct stat status{ };

@@ -11,11 +11,13 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
+#include <algorithm>
 #include <utility>
 
 namespace bpr::qt {
@@ -57,11 +59,88 @@ namespace bpr::qt {
 
 	agent_programs_panel::agent_programs_panel(QWidget* aParent)
 		: QWidget{ aParent }
+		, Editor{ default_agent_entry_editor() }
 	{
 		setObjectName(QStringLiteral("agentProgramsPanel"));
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->addWidget(heading(tr("Agent setup"), this));
+		column->addWidget(heading(tr("Agents"), this));
+		column->addWidget(note(tr("The agents the Agent tab offers, in this order. An agent you have not added is never offered. Each runs its own program with the fixed arguments you give it, such as a wrapper given --codex for Codex models."), this));
+		List = new QListWidget{ this };
+		List->setObjectName(QStringLiteral("settingsAgentList"));
+		List->setMaximumHeight(160);
+		connect(List, &QListWidget::currentRowChanged, this, [this] { settle_buttons(); });
+		connect(List, &QListWidget::itemDoubleClicked, this, [this] { EditButton->click(); });
+		column->addWidget(List);
+		auto* const row = new QHBoxLayout{ };
+		AddButton       = new quiet_push_button{ tr("Add agent…"), this };
+		AddButton->setObjectName(QStringLiteral("settingsAddAgent"));
+		AddButton->setMenu(new QMenu{ AddButton });
+		connect(AddButton->menu(), &QMenu::aboutToShow, this, [this] {
+			auto* const menu = AddButton->menu();
+			menu->clear();
+			// Claude Code and Codex when found here and not added yet.
+			for (const auto preset : { core::setup_agent::claude_code, core::setup_agent::codex }) {
+				const auto found = std::ranges::find(Found, preset, &core::agent_detection::Agent);
+				if (found == Found.end() || core::find_preset_entry(Agents, preset) != nullptr) {
+					continue;
+				}
+				auto* const item = menu->addAction(tr("%1 (found at %2)").arg(text_of(core::plain_name(preset)), QDir::toNativeSeparators(text_of(found->Path))));
+				item->setObjectName(preset == core::setup_agent::claude_code ? QStringLiteral("settingsAddClaude") : QStringLiteral("settingsAddCodex"));
+				connect(item, &QAction::triggered, this, [this, preset] { add_agent(preset); });
+			}
+			if (!menu->actions().isEmpty()) {
+				menu->addSeparator();
+			}
+			auto* const custom = menu->addAction(tr("Custom agent…"));
+			custom->setObjectName(QStringLiteral("settingsAddCustom"));
+			connect(custom, &QAction::triggered, this, [this] { add_agent(std::nullopt); });
+		});
+		row->addWidget(AddButton);
+		EditButton = new quiet_push_button{ tr("Edit…"), this };
+		EditButton->setObjectName(QStringLiteral("settingsEditAgent"));
+		connect(EditButton, &QPushButton::clicked, this, [this] {
+			const auto* const entry = selected();
+			if (entry == nullptr || !Editor || !Dispatch.Update) {
+				return;
+			}
+			if (auto edited = Editor(*entry, this)) {
+				Dispatch.Update(std::move(*edited), [this](const std::optional<core::agent_entry_refusal> aRefusal) {
+					Status->setText(aRefusal ? text_of(core::describe(*aRefusal)) : tr("Saved."));
+				});
+			}
+		});
+		row->addWidget(EditButton);
+		RemoveButton = new quiet_push_button{ tr("Remove"), this };
+		RemoveButton->setObjectName(QStringLiteral("settingsRemoveAgent"));
+		connect(RemoveButton, &QPushButton::clicked, this, [this] {
+			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Remove) {
+				Dispatch.Remove(entry->Id);
+			}
+		});
+		row->addWidget(RemoveButton);
+		UpButton = new quiet_push_button{ tr("Move up"), this };
+		UpButton->setObjectName(QStringLiteral("settingsAgentUp"));
+		connect(UpButton, &QPushButton::clicked, this, [this] {
+			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Move) {
+				Dispatch.Move(entry->Id, -1);
+			}
+		});
+		row->addWidget(UpButton);
+		DownButton = new quiet_push_button{ tr("Move down"), this };
+		DownButton->setObjectName(QStringLiteral("settingsAgentDown"));
+		connect(DownButton, &QPushButton::clicked, this, [this] {
+			if (const auto* const entry = selected(); entry != nullptr && Dispatch.Move) {
+				Dispatch.Move(entry->Id, 1);
+			}
+		});
+		row->addWidget(DownButton);
+		row->addStretch(1);
+		column->addLayout(row);
+		Status = note({ }, this);
+		Status->setObjectName(QStringLiteral("settingsAgentStatus"));
+		column->addWidget(Status);
+		column->addSpacing(8);
 		auto* const setUp = new quiet_push_button{ tr("Set up agent…"), this };
 		setUp->setObjectName(QStringLiteral("settingsSetUpAgent"));
 		connect(setUp, &QPushButton::clicked, this, [this] {
@@ -70,76 +149,67 @@ namespace bpr::qt {
 			}
 		});
 		column->addWidget(setUp, 0, Qt::AlignLeft);
-
-		const auto pathRow = [this, column](const core::setup_agent aAgent, const QString& aName, QLineEdit*& aField, QLabel*& aStatus) {
-			auto* const row = new QHBoxLayout{ };
-			aField          = new QLineEdit{ this };
-			aField->setObjectName(aName);
-			aField->setPlaceholderText(tr("An absolute path to the program"));
-			row->addWidget(aField, 1);
-			auto* const choose = new quiet_push_button{ tr("Choose…"), this };
-			connect(choose, &QPushButton::clicked, this, [this, field = aField] {
-				const auto chosen = QFileDialog::getOpenFileName(this, tr("Choose the program"), field->text());
-				if (!chosen.isEmpty()) {
-					field->setText(QDir::toNativeSeparators(chosen));
-				}
-			});
-			row->addWidget(choose);
-			auto* const save = new QPushButton{ tr("Save"), this };
-			save->setObjectName(aName + QStringLiteral("Save"));
-			connect(save, &QPushButton::clicked, this, [this, aAgent, field = aField] {
-				if (Dispatch.SetProgram) {
-					Dispatch.SetProgram(aAgent, field->text().trimmed().toStdString());
-				}
-			});
-			row->addWidget(save);
-			column->addLayout(row);
-			aStatus = note({ }, this);
-			aStatus->setObjectName(aName + QStringLiteral("Status"));
-			column->addWidget(aStatus);
-		};
-
-		column->addSpacing(8);
-		column->addWidget(heading(tr("Codex"), this));
-		column->addWidget(note(tr("Codex is found on PATH and in its usual install folders. A program saved here is used instead; empty uses the one found."), this));
-		pathRow(core::setup_agent::codex, QStringLiteral("settingsCodexProgram"), CodexPath, CodexStatus);
-		auto* const form = new QFormLayout{ };
-		Protocol         = new QComboBox{ this };
-		Protocol->setObjectName(QStringLiteral("settingsCodexProtocol"));
-		Protocol->addItem(tr("App Server"), static_cast<int>(core::codex_protocol_choice::app_server));
-		Protocol->addItem(tr("JSONL"), static_cast<int>(core::codex_protocol_choice::jsonl));
-		connect(Protocol, &QComboBox::currentIndexChanged, this, [this](const int aIndex) {
-			if (aIndex >= 0 && Dispatch.SetProtocol) {
-				Dispatch.SetProtocol(static_cast<core::codex_protocol_choice>(Protocol->itemData(aIndex).toInt()));
-			}
-		});
-		form->addRow(tr("Protocol"), Protocol);
-		column->addLayout(form);
-
-		column->addSpacing(8);
-		column->addWidget(heading(tr("A harness that reads plain text"), this));
-		column->addWidget(note(tr("For a tool that has no Claude or Codex interface: it reads the request on standard input and writes plain text. It runs only the program chosen here. A wrapper around Claude belongs under Claude › Process wrapper."), this));
-		pathRow(core::setup_agent::plain_text_harness, QStringLiteral("settingsHarnessProgram"), HarnessPath, HarnessStatus);
+		settle_buttons();
 	}
 
 	void agent_programs_panel::set_dispatch(dispatch aDispatch) { Dispatch = std::move(aDispatch); }
 
-	void agent_programs_panel::present(const application::agent_setup_preferences& aPreferences)
+	void agent_programs_panel::set_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
+
+	void agent_programs_panel::add_agent(const std::optional<core::setup_agent> aPreset)
 	{
-		const auto block = QSignalBlocker{ Protocol };
-		if (!CodexPath->hasFocus()) {
-			CodexPath->setText(text_of(aPreferences.CodexProgram));
+		if (!Editor || !Dispatch.Add) {
+			return;
 		}
-		if (!HarnessPath->hasFocus()) {
-			HarnessPath->setText(text_of(aPreferences.HarnessProgram));
+		auto start = aPreset ? core::preset_agent_entry(*aPreset, core::codex_protocol_choice::app_server, { }) : core::agent_entry{ };
+		if (auto chosen = Editor(start, this)) {
+			Dispatch.Add(std::move(*chosen), [this](const std::optional<core::agent_entry_refusal> aRefusal) {
+				Status->setText(aRefusal ? text_of(core::describe(*aRefusal)) : tr("Added."));
+			});
 		}
-		Protocol->setCurrentIndex(Protocol->findData(static_cast<int>(aPreferences.CodexProtocol)));
 	}
 
-	void agent_programs_panel::show_answer(const core::setup_agent aAgent, const std::optional<core::agent_wrapper_refusal>& aRefusal)
+	auto agent_programs_panel::selected() const -> const core::agent_entry*
 	{
-		auto* const status = aAgent == core::setup_agent::codex ? CodexStatus : HarnessStatus;
-		status->setText(aRefusal ? refusal_words(*aRefusal) : tr("Saved."));
+		const auto row = List->currentRow();
+		return row < 0 || static_cast<std::size_t>(row) >= Agents.size() ? nullptr : &Agents[static_cast<std::size_t>(row)];
+	}
+
+	void agent_programs_panel::settle_buttons()
+	{
+		const auto row = List->currentRow();
+		EditButton->setEnabled(row >= 0);
+		RemoveButton->setEnabled(row >= 0);
+		UpButton->setEnabled(row > 0);
+		DownButton->setEnabled(row >= 0 && row + 1 < List->count());
+	}
+
+	void agent_programs_panel::present(const application::agent_setup_preferences& aPreferences, std::vector<core::agent_detection> aFound)
+	{
+		Found             = std::move(aFound);
+		const auto keptId = selected() != nullptr ? selected()->Id : 0U;
+		Agents            = aPreferences.Agents;
+		const auto block  = QSignalBlocker{ List };
+		List->clear();
+		auto current = -1;
+		for (const auto& entry : Agents) {
+			auto line = text_of(entry.Name) + QStringLiteral(" — ") + QDir::toNativeSeparators(entry.Program.empty() ? tr("its own program") : text_of(entry.Program));
+			for (const auto& argument : entry.Arguments) {
+				line += QStringLiteral(" ") + text_of(argument);
+			}
+			auto* const item = new QListWidgetItem{ line, List };
+			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(entry.Id));
+			if (entry.Id == keptId) {
+				current = List->count() - 1;
+			}
+		}
+		List->setCurrentRow(current);
+		settle_buttons();
+	}
+
+	void agent_programs_panel::show_answer(const core::setup_agent /*aAgent*/, const std::optional<core::agent_wrapper_refusal>& aRefusal)
+	{
+		Status->setText(aRefusal ? refusal_words(*aRefusal) : tr("Saved."));
 	}
 
 	clone_folders_panel::clone_folders_panel(QWidget* aParent)

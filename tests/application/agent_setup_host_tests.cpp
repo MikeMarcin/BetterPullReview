@@ -7,6 +7,7 @@
 #include "bpr/application/agent_setup_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -316,6 +317,60 @@ namespace {
 		ghes.settle();
 		expect(!ghes.Process.Requests.empty() && ghes.Process.Requests.front().Arguments.front() == "auth", "only the permitted agent is checked");
 	}
+
+	/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The single settings
+	/// move into the agent list once; a custom agent is added and chosen, and
+	/// its program and fixed arguments are what setup checks.
+	void test_the_agent_list()
+	{
+		auto f                       = fixture{ };
+		f.Store.Stored->Chosen       = setup_agent::claude_code;
+		f.Store.Stored->ClaudeEffort = "high";
+		f.Wrapper->set("/opt/work/bin/claude-wrapper");
+		f.Host->load();
+		f.settle();
+		const auto moved = f.state().Preferences.Agents;
+		expect(moved.size() == 1U && moved.front().Name == "Claude Code" && moved.front().Program == "/opt/work/bin/claude-wrapper" && moved.front().Effort == "high"
+				   && f.state().Preferences.AgentsMoved && f.state().Preferences.PreferredAgent == moved.front().Id && f.Store.Stored->Agents == moved,
+			   "the chosen Claude Code and its wrapper move into the list, once, and are kept");
+		f.Host->remove_agent(moved.front().Id);
+		f.settle();
+		expect(f.state().Preferences.Agents.empty() && f.state().Preferences.PreferredAgent == 0U, "an agent is removed");
+		auto again         = fixture{ };
+		again.Store.Stored = f.Store.Stored;
+		again.Wrapper->set("/opt/work/bin/claude-wrapper");
+		again.Host->load();
+		again.settle();
+		expect(again.state().Preferences.Agents.empty(), "a removed agent does not come back at the next load");
+
+		auto answer = std::optional<std::optional<core::agent_entry_refusal>>{ };
+		again.Codex = core::agent_search_candidate{ .Path = "/usr/local/bin/codex" };
+		again.Host->add_agent({ .Name = "Work Codex", .Protocol = core::agent_protocol::codex_app_server, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } }, true,
+							  [&answer](const std::optional<core::agent_entry_refusal> aRefusal) { answer = aRefusal; });
+		again.settle();
+		expect(answer == std::optional<std::optional<core::agent_entry_refusal>>{ std::in_place, std::nullopt } && again.state().Preferences.Agents.size() == 1U
+				   && again.state().State.Chosen == setup_agent::codex && again.state().Preferences.PreferredAgent == again.state().Preferences.Agents.front().Id,
+			   "a custom agent added from setup is chosen");
+		const auto rows = again.state().State.Rows;
+		const auto row  = std::ranges::find(rows, setup_agent::codex, &core::agent_setup_row::Agent);
+		expect(row != rows.end() && row->Path == "/opt/work/bin/wrapper", "its program is the Codex row's, in place of the codex found");
+		again.Process.Answers = { said(application::agent_run_outcome::success, "Logged in using ChatGPT"), said(application::agent_run_outcome::success, "codex-cli 0.163.0") };
+		again.Host->check();
+		again.settle();
+		expect(!again.Process.Requests.empty() && again.Process.Requests.front().Executable == "/opt/work/bin/wrapper"
+				   && again.Process.Requests.front().Arguments == std::vector<std::string>{ "--codex", "login", "status" },
+			   "the check runs its program with its fixed arguments before the status command");
+		answer = std::nullopt;
+		again.Host->add_agent({ .Name = "Relative", .Protocol = core::agent_protocol::claude_stream_json, .Program = "wrapper" }, false,
+							  [&answer](const std::optional<core::agent_entry_refusal> aRefusal) { answer = aRefusal; });
+		expect(answer == std::optional<std::optional<core::agent_entry_refusal>>{ core::agent_entry_refusal::invalid_program } && again.state().Preferences.Agents.size() == 1U,
+			   "a refused agent is answered with why and kept nowhere");
+		again.Host->choose(setup_agent::claude_code);
+		again.settle();
+		expect(again.state().Preferences.Agents.size() == 2U && again.state().Preferences.Agents.back().Preset == setup_agent::claude_code
+				   && again.state().Preferences.PreferredAgent == again.state().Preferences.Agents.back().Id,
+			   "picking a popular agent in setup adds it to the list and chooses it");
+	}
 }
 
 auto main() -> int
@@ -325,6 +380,7 @@ auto main() -> int
 	test_status_check();
 	test_codex_and_stop();
 	test_choice_and_steps();
+	test_the_agent_list();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

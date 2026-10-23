@@ -18,6 +18,10 @@ namespace bpr::application {
 		std::string   Owner;
 		std::string   Name;
 		std::uint64_t Number = 0U;
+		/// Owner decision 2026-10-23 ("separate session for each agent"):
+		/// whose conversation it is, the agent entry's identity; 0 for an
+		/// agent that is not in the list.
+		std::uint32_t Agent = 0U;
 
 		auto operator<=>(const agent_conversation_key&) const = default;
 	};
@@ -45,7 +49,7 @@ namespace bpr::application {
 	{
 		constexpr auto bound = std::size_t{ 1024U };
 		return !aKey.Host.empty() && !aKey.Owner.empty() && !aKey.Name.empty() && aKey.Number > 0U && aKey.Host.size() <= bound && aKey.Owner.size() <= bound
-			&& aKey.Name.size() <= bound;
+			&& aKey.Name.size() <= bound && aKey.Agent <= 64U;
 	}
 
 	[[nodiscard]] inline auto valid(const std::vector<agent_conversation_turn>& aTurns) noexcept -> bool
@@ -76,6 +80,10 @@ namespace bpr::application {
 		/// none, and nothing when the store cannot be read.
 		[[nodiscard]] virtual auto load(const agent_conversation_key& aKey) -> std::optional<std::vector<agent_conversation_turn>>       = 0;
 		[[nodiscard]] virtual auto store(const agent_conversation_key& aKey, const std::vector<agent_conversation_turn>& aTurns) -> bool = 0;
+		/// \brief The agent the pull request was last asked with (the key's
+		/// `Agent` is not read), and keeping the key's `Agent` as that.
+		[[nodiscard]] virtual auto load_agent(const agent_conversation_key& aKey) -> std::optional<std::uint32_t> = 0;
+		[[nodiscard]] virtual auto store_agent(const agent_conversation_key& aKey) -> bool                        = 0;
 	};
 } // namespace bpr::application
 

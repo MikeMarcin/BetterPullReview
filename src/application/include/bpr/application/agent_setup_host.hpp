@@ -60,7 +60,10 @@ namespace bpr::application {
 		/// window runs what setup saved.
 		std::shared_ptr<agent_program_source> Programs;
 		environment_reader                    Parent;
-		std::vector<core::agent_profile>      Profiles;
+		/// [[BPR-PENDING-AQ6]]. The profile's Claude › Model, moved into the
+		/// Claude Code entry once.
+		std::function<std::string()>     LegacyClaudeModel;
+		std::vector<core::agent_profile> Profiles;
 		/// Metadata reads and store writes.
 		effect_executor* Effects = nullptr;
 		/// The check's runs, which may take their whole bound: a lane of
@@ -117,6 +120,15 @@ namespace bpr::application {
 		[[nodiscard]] auto set_run_settings(core::setup_agent aAgent, std::string aModel, std::string aEffort) -> bool;
 		/// RFC-BPR-0092 Repository: the repository has a linked clone or a
 		/// recorded choice of the private copy.
+		/// \brief [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agent
+		/// list: add (and, with `aPrefer`, choose it for setup), edit, remove,
+		/// reorder and choose. A refused change answers why and keeps nothing.
+		using agent_entry_answer = std::function<void(std::optional<core::agent_entry_refusal>)>;
+		void add_agent(core::agent_entry aEntry, bool aPrefer = false, agent_entry_answer aAnswered = { });
+		void update_agent(core::agent_entry aEntry, agent_entry_answer aAnswered = { });
+		void remove_agent(std::uint32_t aId);
+		void move_agent(std::uint32_t aId, int aDelta);
+		void prefer_agent(std::uint32_t aId);
 		void set_repository_chosen(bool aChosen);
 		/// RFC-BPR-0092 Check it works: the worktree row's result.
 		void set_workspace_check(core::setup_check aCheck);

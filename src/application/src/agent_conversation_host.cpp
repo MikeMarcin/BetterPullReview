@@ -121,25 +121,76 @@ namespace bpr::application {
 	void agent_conversation_host::open(const agent_conversation_key& aKey)
 	{
 		auto& host = *Implementation;
-		if (!valid(aKey) || host.View.Key == std::optional{ aKey }) {
+		if (!valid(aKey)) {
+			return;
+		}
+		const auto samePull = host.View.Key && host.View.Key->Host == aKey.Host && host.View.Key->Owner == aKey.Owner && host.View.Key->Name == aKey.Name && host.View.Key->Number == aKey.Number;
+		if (samePull) {
 			return;
 		}
 		host.View.Key    = aKey;
 		host.View.Turns  = { };
 		host.View.Loaded = false;
 		host.publish();
-		host.off_lane([store = host.Dependencies.Store, key = aKey] { return store != nullptr ? store->load(key) : std::optional<std::vector<agent_conversation_turn>>{ }; },
-					  [self = Implementation, key = aKey](std::optional<std::optional<std::vector<agent_conversation_turn>>> aLoaded) {
-						  // Another pull request was opened while this one was read.
-						  if (self->View.Key != std::optional{ key } || self->View.Loaded) {
-							  return;
-						  }
-						  if (aLoaded && *aLoaded && self->View.Turns.empty()) {
-							  self->View.Turns = bound_conversation(std::move(**aLoaded));
-						  }
-						  self->View.Loaded = true;
-						  self->publish();
-					  });
+		struct read
+		{
+			std::uint32_t                                       Agent = 0U;
+			std::optional<std::vector<agent_conversation_turn>> Turns;
+		};
+		host.off_lane(
+			[store = host.Dependencies.Store, key = aKey]() mutable {
+				auto result = read{ .Agent = key.Agent };
+				if (store != nullptr) {
+					result.Agent = store->load_agent(key).value_or(key.Agent);
+					key.Agent    = result.Agent;
+					result.Turns = store->load(key);
+				}
+				return result;
+			},
+			[self = Implementation, key = aKey](std::optional<read> aRead) {
+				// Another pull request, or another agent, was opened meanwhile.
+				if (self->View.Key != std::optional{ key } || self->View.Loaded) {
+					return;
+				}
+				if (aRead) {
+					self->View.Key->Agent = aRead->Agent;
+					if (aRead->Turns) {
+						self->View.Turns = bound_conversation(std::move(*aRead->Turns));
+					}
+				}
+				self->View.Loaded = true;
+				self->publish();
+			});
+	}
+
+	void agent_conversation_host::switch_agent(const std::uint32_t aAgent)
+	{
+		auto& host = *Implementation;
+		if (!host.View.Key || host.View.Key->Agent == aAgent || aAgent > 64U) {
+			return;
+		}
+		host.View.Key->Agent = aAgent;
+		host.View.Turns      = { };
+		host.View.Loaded     = false;
+		host.publish();
+		host.off_lane(
+			[store = host.Dependencies.Store, key = *host.View.Key] {
+				if (store == nullptr) {
+					return std::optional<std::vector<agent_conversation_turn>>{ };
+				}
+				static_cast<void>(store->store_agent(key));
+				return store->load(key);
+			},
+			[self = Implementation, key = *host.View.Key](std::optional<std::optional<std::vector<agent_conversation_turn>>> aLoaded) {
+				if (self->View.Key != std::optional{ key } || self->View.Loaded) {
+					return;
+				}
+				if (aLoaded && *aLoaded) {
+					self->View.Turns = bound_conversation(std::move(**aLoaded));
+				}
+				self->View.Loaded = true;
+				self->publish();
+			});
 	}
 
 	void agent_conversation_host::close()

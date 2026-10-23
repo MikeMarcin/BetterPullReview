@@ -2379,6 +2379,7 @@ namespace bpr::application {
 			.Input       = frame_agent_input(aProfile.Protocol, payload),
 			.WritingOnly = aOptions.WritingOnly,
 		};
+		request.Profile = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;
 		}
@@ -2449,6 +2450,7 @@ namespace bpr::application {
 			.Input            = std::move(input),
 			.Metadata         = metadata,
 		};
+		request.Profile = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = std::string{ aDocument };
 		}

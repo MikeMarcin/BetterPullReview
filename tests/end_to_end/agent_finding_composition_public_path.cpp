@@ -17,7 +17,9 @@
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -522,15 +524,34 @@ auto main(int argc, char** argv) -> int
 	window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
 	window.home_open_action()->trigger();
 
-	auto* const panel     = window.agent_panel();
-	auto        offerings = wait_terms{ };
-	if (!wait_until_reporting(offerings, [&window, panel](wait_terms& aTerms) {
-			return aTerms.require(
-					   "files-listed",
-					   window.files_drawer()->contents_view()->model()->rowCount()
-						   != 0)
+	auto* const panel = window.agent_panel();
+	// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. With no program of its
+	// own on a built-in profile, the picker offers only the agents added; the
+	// codex-found course adds Codex from Settings, as a reviewer would, and
+	// its launch looks for the shipped bare codex as the entry's own program.
+	if (codexFound) {
+		window.agent_programs()->set_editor([](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry     = aStart;
+			entry.Protocol = core::agent_protocol::codex_jsonl_exec;
+			return entry;
+		});
+	}
+	const auto offeredCount = codexFound ? 1 : 4;
+	auto       added        = !codexFound;
+	auto       offerings    = wait_terms{ };
+	if (!wait_until_reporting(offerings, [&window, panel, offeredCount, &added](wait_terms& aTerms) {
+			const auto listed = aTerms.require(
+				"files-listed",
+				window.files_drawer()->contents_view()->model()->rowCount()
+					!= 0);
+			// Added once the review is open, so the setup has loaded first.
+			if (listed && !added) {
+				window.agent_programs()->add_agent(core::setup_agent::codex);
+				added = true;
+			}
+			return listed
 				&& aTerms.require(
-					"profiles-is-four", panel->profile_selector()->count() == 4)
+					"profiles-offered", panel->profile_selector()->count() == offeredCount)
 				&& aTerms.require(
 					"disclosure-present", !panel->disclosure_text().isEmpty());
 		})) {
@@ -660,8 +681,9 @@ auto main(int argc, char** argv) -> int
 		difPaints = std::make_unique<dif_paint_observation>(*dif);
 	}
 
-	const auto codexIndex = panel->profile_selector()->findData(
-		QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
+	const auto codexProfile = codexFound ? core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U) : core::codex_jsonl_profile_id;
+	const auto codexIndex   = panel->profile_selector()->findData(
+		QVariant::fromValue<qulonglong>(codexProfile.value()));
 	if (codexIndex < 0) {
 		if (releaseFirstSave) {
 			releaseFirstSave();

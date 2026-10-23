@@ -3,6 +3,7 @@
 
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/claude_process_wrapper.hpp"
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 
@@ -13,6 +14,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. Finds a program a launch
@@ -90,6 +92,49 @@ namespace bpr::application {
 		std::shared_ptr<const agent_program_source> Source;
 		agent_wrapper_inspector                     Inspect;
 		agent_program_locator                       Locate;
+	};
+	/// \brief [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+	/// reviewer added, as setup last published them, for the launches.
+	class agent_entry_source final
+	{
+	public:
+		void               set(std::vector<core::agent_entry> aEntries);
+		[[nodiscard]] auto current() const -> std::vector<core::agent_entry>;
+
+	private:
+		mutable std::mutex             Mutex;
+		std::vector<core::agent_entry> Entries;
+	};
+
+	inline constexpr std::string_view agent_entry_removed_message = "that agent is no longer in your list; choose another in the question field.";
+
+	/// \brief Starts an added agent as its entry says: its own program (a
+	/// popular agent's own one looked for again when it names none, and
+	/// inspected again either way), and its fixed arguments before the
+	/// protocol's own. A launch of any other profile goes to `aOthers`, the
+	/// built-in profiles' resolution, unchanged.
+	///
+	/// \details The arguments are the entry's, as saved; nothing from the
+	/// request is put into them and no shell runs them. A launch for an entry
+	/// that is gone, or whose program cannot run, ends `failed_to_start` and
+	/// starts nothing.
+	class agent_entry_process final : public agent_process_port
+	{
+	public:
+		agent_entry_process(agent_process_port& aDirect, agent_process_port& aOthers, std::shared_ptr<const agent_entry_source> aSource, agent_wrapper_inspector aInspect,
+							claude_locator aClaude, agent_program_locator aLocate);
+
+		[[nodiscard]] auto run(const agent_launch_request& aRequest, int aTimeoutMilliseconds, const agent_output_sink& aSink = { },
+							   std::stop_token aStop = { }) -> agent_run_result override;
+		void               cancel() noexcept override;
+
+	private:
+		agent_process_port&                       Direct;
+		agent_process_port&                       Others;
+		std::shared_ptr<const agent_entry_source> Source;
+		agent_wrapper_inspector                   Inspect;
+		claude_locator                            Claude;
+		agent_program_locator                     Locate;
 	};
 } // namespace bpr::application
 

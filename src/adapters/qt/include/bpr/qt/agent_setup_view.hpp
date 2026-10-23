@@ -6,7 +6,9 @@
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/core/agent_setup.hpp"
 
+#include "bpr/qt/agent_entry_dialog.hpp"
 #include <QString>
+
 #include <QWidget>
 
 #include <cstddef>
@@ -40,6 +42,9 @@ namespace bpr::qt {
 		std::function<void()>                         UsePrivateCopy;
 		std::function<void()>                         Check;
 		std::function<void()>                         Stop;
+		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. A custom agent the
+		/// reviewer described in setup: added to the list and chosen.
+		std::function<void(core::agent_entry)> AddCustomAgent;
 	};
 
 	/// \brief What the setup's words need besides the two projections.
@@ -74,6 +79,8 @@ namespace bpr::qt {
 		explicit agent_setup_view(QWidget* aParent = nullptr);
 
 		void set_intents(agent_setup_intents aIntents);
+		/// \brief How Custom agent… asks for the entry; a test answers itself.
+		void set_entry_editor(agent_entry_editor aEditor);
 		/// Called whenever `needed()` or the ready line may have changed.
 		void set_change_observer(std::function<void()> aObserver);
 
@@ -98,6 +105,10 @@ namespace bpr::qt {
 		void               build_repository(QVBoxLayout& aBody);
 		void               build_check(QVBoxLayout& aBody);
 		[[nodiscard]] auto agent_name() const -> QString;
+		/// The chosen custom agent's own name for its kind, or the plain name.
+		[[nodiscard]] auto name_for(core::setup_agent aAgent) const -> QString;
+		void               add_custom_agent();
+		agent_entry_editor Editor = default_agent_entry_editor();
 		[[nodiscard]] auto workspace_words() const -> QString;
 
 		agent_setup_intents                 Intents;

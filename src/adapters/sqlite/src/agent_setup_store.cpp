@@ -93,6 +93,25 @@ namespace bpr::adapters::sqlite {
 									"base_version INTEGER NOT NULL CHECK(base_version BETWEEN 0 AND 4294967295),"
 									"base_digest BLOB NOT NULL CHECK(length(base_digest)=32),"
 									"kept_version INTEGER CHECK(kept_version IS NULL OR kept_version BETWEEN 0 AND 4294967295)) STRICT")
+				// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+				// reviewer added, in order, and whether the single settings above
+				// were moved into them.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_entries("
+									"position INTEGER PRIMARY KEY CHECK(position BETWEEN 0 AND 15),"
+									"id INTEGER NOT NULL UNIQUE CHECK(id BETWEEN 1 AND 64),"
+									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 64),"
+									"protocol INTEGER NOT NULL CHECK(protocol BETWEEN 0 AND 3),"
+									"program TEXT NOT NULL CHECK(length(CAST(program AS BLOB)) <= 1024),"
+									"arguments TEXT NOT NULL CHECK(length(CAST(arguments AS BLOB)) <= 4200),"
+									"model TEXT NOT NULL CHECK(length(CAST(model AS BLOB)) <= 128),"
+									"effort TEXT NOT NULL CHECK(length(CAST(effort AS BLOB)) <= 16),"
+									"preset INTEGER NOT NULL CHECK(preset BETWEEN -1 AND 1)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_list("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"moved INTEGER NOT NULL CHECK(moved BETWEEN 0 AND 1),"
+									"preferred INTEGER NOT NULL CHECK(preferred BETWEEN 0 AND 64)) STRICT")
 				// [[BPR-PENDING-AQ6]], owner decision (b). Each pull request's
 				// conversation: when it was last written, and its turns in order.
 				|| !detail::execute(db,
@@ -101,7 +120,18 @@ namespace bpr::adapters::sqlite {
 									"owner TEXT NOT NULL CHECK(length(CAST(owner AS BLOB)) BETWEEN 1 AND 1024),"
 									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
 									"number INTEGER NOT NULL CHECK(number >= 1),"
+									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
 									"written INTEGER NOT NULL CHECK(written >= 0),"
+									"PRIMARY KEY(host, owner, name, number, agent)) STRICT")
+				// Owner decision 2026-10-23: the agent a pull request was last
+				// asked with, so it opens on that agent's own conversation.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversation_choice("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL CHECK(agent BETWEEN 0 AND 64),"
 									"PRIMARY KEY(host, owner, name, number)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_conversation_turns("
@@ -109,11 +139,12 @@ namespace bpr::adapters::sqlite {
 									"owner TEXT NOT NULL,"
 									"name TEXT NOT NULL,"
 									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL,"
 									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
 									"asked TEXT NOT NULL CHECK(length(CAST(asked AS BLOB)) <= 65536),"
 									"answered TEXT NOT NULL CHECK(length(CAST(answered AS BLOB)) <= 65536),"
 									"ending TEXT NOT NULL CHECK(length(CAST(ending AS BLOB)) <= 65536),"
-									"PRIMARY KEY(host, owner, name, number, position)) STRICT")) {
+									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")) {
 				return { };
 			}
 			return result;
@@ -135,6 +166,79 @@ namespace bpr::adapters::sqlite {
 		void bind(sqlite3_stmt* const aRow, const int aIndex, const std::string& aText)
 		{
 			sqlite3_bind_text(aRow, aIndex, aText.data(), static_cast<int>(aText.size()), SQLITE_TRANSIENT);
+		}
+
+		/// [[BPR-PENDING-AQ6]]. An entry's fixed arguments, one per line: an
+		/// argument holds no control character, so a line break separates them.
+		[[nodiscard]] auto join_arguments(const std::vector<std::string>& aArguments) -> std::string
+		{
+			auto joined = std::string{ };
+			for (const auto& argument : aArguments) {
+				if (!joined.empty()) {
+					joined += '\n';
+				}
+				joined += argument;
+			}
+			return joined;
+		}
+
+		[[nodiscard]] auto split_arguments(const std::string& aJoined) -> std::vector<std::string>
+		{
+			auto arguments = std::vector<std::string>{ };
+			if (aJoined.empty()) {
+				return arguments;
+			}
+			auto begin = std::size_t{ 0U };
+			while (true) {
+				const auto end = aJoined.find('\n', begin);
+				arguments.push_back(aJoined.substr(begin, end == std::string::npos ? std::string::npos : end - begin));
+				if (end == std::string::npos) {
+					break;
+				}
+				begin = end + 1U;
+			}
+			return arguments;
+		}
+
+		/// The agent list, replaced whole in one transaction.
+		[[nodiscard]] auto store_agents(sqlite3* const aDatabase, const application::agent_setup_preferences& aPreferences) -> bool
+		{
+			if (!detail::execute(aDatabase, "BEGIN IMMEDIATE")) {
+				return false;
+			}
+			auto committed = detail::execute(aDatabase, "DELETE FROM agent_entries").has_value();
+			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
+				const auto& entry = aPreferences.Agents[index];
+				auto        row   = detail::prepare(aDatabase, "INSERT INTO agent_entries VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)");
+				committed         = row.has_value();
+				if (committed) {
+					sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
+					sqlite3_bind_int64(row->Value, 2, entry.Id);
+					bind(row->Value, 3, entry.Name);
+					sqlite3_bind_int64(row->Value, 4, static_cast<std::int64_t>(entry.Protocol));
+					bind(row->Value, 5, entry.Program);
+					const auto arguments = join_arguments(entry.Arguments);
+					bind(row->Value, 6, arguments);
+					bind(row->Value, 7, entry.Model);
+					bind(row->Value, 8, entry.Effort);
+					sqlite3_bind_int64(row->Value, 9, entry.Preset ? static_cast<std::int64_t>(*entry.Preset) : -1);
+					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				auto list = detail::prepare(aDatabase, "INSERT OR REPLACE INTO agent_list VALUES(1,?1,?2)");
+				committed = list.has_value();
+				if (committed) {
+					sqlite3_bind_int64(list->Value, 1, aPreferences.AgentsMoved ? 1 : 0);
+					sqlite3_bind_int64(list->Value, 2, aPreferences.PreferredAgent);
+					committed = sqlite3_step(list->Value) == SQLITE_DONE;
+				}
+			}
+			if (!committed) {
+				static_cast<void>(detail::execute(aDatabase, "ROLLBACK"));
+				return false;
+			}
+			return detail::execute(aDatabase, "COMMIT").has_value();
 		}
 
 		class clone_link_store final : public application::clone_link_store_port
@@ -425,6 +529,31 @@ namespace bpr::adapters::sqlite {
 						loaded.CodexModel   = column_text(runtime->Value, 1).value_or(std::string{ });
 						loaded.CodexEffort  = column_text(runtime->Value, 2).value_or(std::string{ });
 					}
+					// [[BPR-PENDING-AQ6]]. The agent list, when one was kept; a
+					// list that does not read back whole is none.
+					if (auto list = detail::prepare(store->Database.get(), "SELECT moved,preferred FROM agent_list WHERE singleton=1"); list && sqlite3_step(list->Value) == SQLITE_ROW) {
+						loaded.AgentsMoved    = sqlite3_column_int64(list->Value, 0) == 1;
+						loaded.PreferredAgent = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(list->Value, 1), 0, 64));
+					}
+					if (auto rows = detail::prepare(store->Database.get(), "SELECT id,name,protocol,program,arguments,model,effort,preset FROM agent_entries ORDER BY position"); rows) {
+						while (sqlite3_step(rows->Value) == SQLITE_ROW) {
+							auto entry      = core::agent_entry{ };
+							entry.Id        = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(rows->Value, 0), 0, 64));
+							entry.Name      = column_text(rows->Value, 1).value_or(std::string{ });
+							entry.Protocol  = static_cast<core::agent_protocol>(std::clamp<std::int64_t>(sqlite3_column_int64(rows->Value, 2), 0, 3));
+							entry.Program   = column_text(rows->Value, 3).value_or(std::string{ });
+							entry.Arguments = split_arguments(column_text(rows->Value, 4).value_or(std::string{ }));
+							entry.Model     = column_text(rows->Value, 5).value_or(std::string{ });
+							entry.Effort    = column_text(rows->Value, 6).value_or(std::string{ });
+							if (const auto preset = sqlite3_column_int64(rows->Value, 7); preset >= 0) {
+								entry.Preset = static_cast<core::setup_agent>(preset);
+							}
+							loaded.Agents.push_back(std::move(entry));
+						}
+					}
+					if (core::inspect_agent_entries(loaded.Agents)) {
+						loaded.Agents.clear();
+					}
 					return application::valid(loaded) ? loaded : application::agent_setup_preferences{ };
 				} catch (...) {
 					return std::nullopt;
@@ -459,7 +588,10 @@ namespace bpr::adapters::sqlite {
 					bind(runtime->Value, 1, aPreferences.ClaudeEffort);
 					bind(runtime->Value, 2, aPreferences.CodexModel);
 					bind(runtime->Value, 3, aPreferences.CodexEffort);
-					return sqlite3_step(runtime->Value) == SQLITE_DONE;
+					if (sqlite3_step(runtime->Value) != SQLITE_DONE) {
+						return false;
+					}
+					return store_agents(store->Database.get(), aPreferences);
 				} catch (...) {
 					return false;
 				}
@@ -488,7 +620,7 @@ namespace bpr::adapters::sqlite {
 					if (!store) {
 						return std::nullopt;
 					}
-					auto row = detail::prepare(store->Database.get(), "SELECT asked,answered,ending FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 ORDER BY position");
+					auto row = detail::prepare(store->Database.get(), "SELECT asked,answered,ending FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5 ORDER BY position");
 					if (!row) {
 						return std::nullopt;
 					}
@@ -533,28 +665,28 @@ namespace bpr::adapters::sqlite {
 						return sqlite3_step(row->Value) == SQLITE_DONE;
 					};
 					const auto key       = [&](sqlite3_stmt* aRow) { bind_key(aRow, aKey); };
-					auto       committed = run("DELETE FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4", key)
-						&& run("DELETE FROM agent_conversations WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4", key);
+					auto       committed = run("DELETE FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key)
+						&& run("DELETE FROM agent_conversations WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key);
 					if (committed && !aTurns.empty()) {
-						committed = run("INSERT INTO agent_conversations SELECT ?1,?2,?3,?4,coalesce(max(written)+1,0) FROM agent_conversations", key);
+						committed = run("INSERT INTO agent_conversations SELECT ?1,?2,?3,?4,?5,coalesce(max(written)+1,0) FROM agent_conversations", key);
 						for (std::size_t index = 0U; committed && index < aTurns.size(); ++index) {
-							committed = run("INSERT INTO agent_conversation_turns VALUES(?1,?2,?3,?4,?5,?6,?7,?8)", [&](sqlite3_stmt* aRow) {
+							committed = run("INSERT INTO agent_conversation_turns VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)", [&](sqlite3_stmt* aRow) {
 								bind_key(aRow, aKey);
-								sqlite3_bind_int64(aRow, 5, static_cast<std::int64_t>(index));
-								bind(aRow, 6, aTurns[index].Asked);
-								bind(aRow, 7, aTurns[index].Answered);
-								bind(aRow, 8, aTurns[index].Ending);
+								sqlite3_bind_int64(aRow, 6, static_cast<std::int64_t>(index));
+								bind(aRow, 7, aTurns[index].Asked);
+								bind(aRow, 8, aTurns[index].Answered);
+								bind(aRow, 9, aTurns[index].Ending);
 							});
 						}
 						// The least recently written go past the bound.
 						committed = committed
 							&& detail::execute(db,
-											   "DELETE FROM agent_conversation_turns WHERE (host,owner,name,number) IN (SELECT host,owner,name,number FROM agent_conversations "
+											   "DELETE FROM agent_conversation_turns WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
 											   "ORDER BY written DESC LIMIT -1 OFFSET "
 												   + std::to_string(application::maximum_conversations) + ")")
 								   .has_value()
 							&& detail::execute(db,
-											   "DELETE FROM agent_conversations WHERE (host,owner,name,number) IN (SELECT host,owner,name,number FROM agent_conversations "
+											   "DELETE FROM agent_conversations WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
 											   "ORDER BY written DESC LIMIT -1 OFFSET "
 												   + std::to_string(application::maximum_conversations) + ")")
 								   .has_value();
@@ -576,8 +708,56 @@ namespace bpr::adapters::sqlite {
 				bind(aRow, 2, aKey.Owner);
 				bind(aRow, 3, aKey.Name);
 				sqlite3_bind_int64(aRow, 4, static_cast<std::int64_t>(aKey.Number));
+				sqlite3_bind_int64(aRow, 5, static_cast<std::int64_t>(aKey.Agent));
 			}
 
+		public:
+			[[nodiscard]] auto load_agent(const application::agent_conversation_key& aKey) -> std::optional<std::uint32_t> override
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return std::nullopt;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT agent FROM agent_conversation_choice WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4");
+					if (!row) {
+						return std::nullopt;
+					}
+					bind_key(row->Value, aKey);
+					if (sqlite3_step(row->Value) != SQLITE_ROW) {
+						return std::nullopt;
+					}
+					return static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(row->Value, 0), 0, 64));
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store_agent(const application::agent_conversation_key& aKey) -> bool override
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto row = detail::prepare(store->Database.get(), "INSERT OR REPLACE INTO agent_conversation_choice VALUES(?1,?2,?3,?4,?5)");
+					if (!row) {
+						return false;
+					}
+					bind_key(row->Value, aKey);
+					return sqlite3_step(row->Value) == SQLITE_DONE;
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
 			std::filesystem::path Root;
 		};
 	} // namespace

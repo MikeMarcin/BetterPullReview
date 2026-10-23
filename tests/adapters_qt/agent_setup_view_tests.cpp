@@ -7,18 +7,22 @@
 /// `BPR_SETUP_RENDER_DIR` set, each state is also written there as a light and
 /// a dark PNG for review.
 
+#include "bpr/qt/agent_entry_dialog.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/folder_list_editor.hpp"
 
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
@@ -27,6 +31,7 @@
 #include <QStyleFactory>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -150,6 +155,7 @@ namespace {
 				.UsePrivateCopy = [this] { Intents.emplace_back("private-copy"); },
 				.Check          = [this] { Intents.emplace_back("check"); },
 				.Stop           = [this] { Intents.emplace_back("stop"); },
+				.AddCustomAgent = [this](core::agent_entry aEntry) { Intents.push_back("custom:" + aEntry.Name + ":" + aEntry.Program + (aEntry.Arguments.empty() ? std::string{ } : ":" + aEntry.Arguments.front())); },
 			});
 		}
 
@@ -191,8 +197,13 @@ namespace {
 		expect(test.text().contains(QStringLiteral("No agent found on this computer")) && test.text().contains(QStringLiteral("Claude Code and Codex")), "it says none was found and what it looked for");
 		test.button(QStringLiteral("agentSetupInstallClaude"))->click();
 		test.button(QStringLiteral("agentSetupInstallCodex"))->click();
-		test.button(QStringLiteral("agentSetupOwnProgram"))->click();
-		expect(test.Intents == std::vector<std::string>{ "install:claude_code", "install:codex", "settings" }, "Install and Use a program I choose are intents");
+		// Owner amendment 2026-10-23: Custom agent… in setup describes a
+		// wrapper of the reviewer's own and adds it.
+		test.View.set_entry_editor([](const core::agent_entry&, QWidget*) -> std::optional<core::agent_entry> {
+			return core::agent_entry{ .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } };
+		});
+		test.button(QStringLiteral("agentSetupCustomAgent"))->click();
+		expect(test.Intents == std::vector<std::string>{ "install:claude_code", "install:codex", "custom:Work Codex:/opt/work/bin/wrapper:--codex" }, "Install and Custom agent… are intents");
 		render(test.View, QStringLiteral("none"));
 	}
 
@@ -336,19 +347,69 @@ namespace {
 
 	void test_settings_rows()
 	{
+		// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23: Settings › Agents
+		// is a list with Add agent…, Edit…, Remove and Move up and down.
 		auto programs = qt::agent_programs_panel{ };
 		auto saved    = std::vector<std::string>{ };
-		programs.set_dispatch({ .SetUp       = [&saved] { saved.emplace_back("set-up"); },
-								.SetProgram  = [&saved](const core::setup_agent aAgent, std::string aPath) { saved.push_back(std::string{ core::stable_name(aAgent) } + "=" + aPath); },
-								.SetProtocol = [&saved](const core::codex_protocol_choice aChoice) { saved.emplace_back(aChoice == core::codex_protocol_choice::jsonl ? "jsonl" : "app-server"); } });
-		programs.present({ .CodexProgram = "/opt/codex", .CodexProtocol = core::codex_protocol_choice::app_server });
-		expect(programs.codex_path()->text() == QStringLiteral("/opt/codex") && saved.empty(), "the saved Codex program shows, and showing sends nothing");
-		programs.findChild<QPushButton*>(QStringLiteral("settingsHarnessProgramSave"))->click();
-		programs.protocol()->setCurrentIndex(1);
+		programs.set_dispatch({ .SetUp = [&saved] { saved.emplace_back("set-up"); },
+								.Add =
+									[&saved](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
+										saved.push_back("add:" + aEntry.Name + (aEntry.Preset ? ":preset" : ":custom"));
+										aAnswer(std::nullopt);
+									},
+								.Update =
+									[&saved](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
+										saved.push_back("update:" + std::to_string(aEntry.Id) + ":" + aEntry.Name);
+										aAnswer(core::agent_entry_refusal::duplicate_name);
+									},
+								.Remove = [&saved](const std::uint32_t aId) { saved.push_back("remove:" + std::to_string(aId)); },
+								.Move   = [&saved](const std::uint32_t aId, const int aDelta) { saved.push_back("move:" + std::to_string(aId) + ":" + std::to_string(aDelta)); } });
+		auto preferences   = application::agent_setup_preferences{ };
+		preferences.Agents = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
+		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
+		programs.present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+		expect(programs.agent_list()->count() == 2 && programs.agent_list()->item(1)->text().contains(QStringLiteral("Work Codex")) && programs.agent_list()->item(1)->text().endsWith(QStringLiteral("--codex"))
+				   && saved.empty(),
+			   "each agent shows with its program and fixed arguments, and showing sends nothing");
+		programs.add_button()->menu()->aboutToShow();
+		const auto offered = programs.add_button()->menu()->actions();
+		expect(std::ranges::any_of(offered, [](const QAction* aItem) { return aItem->objectName() == QStringLiteral("settingsAddClaude"); })
+				   && std::ranges::none_of(offered, [](const QAction* aItem) { return aItem->objectName() == QStringLiteral("settingsAddCodex"); })
+				   && std::ranges::any_of(offered, [](const QAction* aItem) { return aItem->objectName() == QStringLiteral("settingsAddCustom"); }),
+			   "Add agent… offers Claude Code, found and not added, and a custom agent; Codex was not found");
+		programs.set_editor([](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry = aStart;
+			if (entry.Name.empty()) {
+				entry = { .Name = "Harness", .Protocol = core::agent_protocol::external_terminal, .Program = "/usr/local/bin/harness" };
+			} else if (entry.Id != 0U) {
+				entry.Name = "Work Claude";
+			}
+			return entry;
+		});
+		programs.add_agent(core::setup_agent::claude_code);
+		programs.add_agent(std::nullopt);
+		programs.agent_list()->setCurrentRow(1);
+		programs.edit_button()->click();
+		expect(programs.status()->text().contains(QStringLiteral("already has that name")), "a refused edit says why");
+		programs.up_button()->click();
+		programs.remove_button()->click();
 		programs.findChild<QPushButton*>(QStringLiteral("settingsSetUpAgent"))->click();
-		expect(saved == std::vector<std::string>{ "plain_text_harness=", "jsonl", "set-up" }, "program, protocol and Set up agent… are intents");
-		programs.show_answer(core::setup_agent::codex, core::agent_wrapper_refusal::home_relative);
-		expect(programs.findChild<QLabel*>(QStringLiteral("settingsCodexProgramStatus"))->text().contains(QStringLiteral("starts with ~")), "a refused program says why");
+		expect(saved == std::vector<std::string>{ "add:Claude Code:preset", "add:Harness:custom", "update:2:Work Claude", "move:2:-1", "remove:2", "set-up" },
+			   "add, edit, move, remove and Set up agent… are intents");
+		// The dialog: OK waits for an entry that may be kept, and the
+		// arguments are taken one per line, as written.
+		auto dialog = qt::agent_entry_dialog{ core::agent_entry{ } };
+		expect(!dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && dialog.problem()->isVisibleTo(&dialog), "an empty agent cannot be kept");
+		dialog.name()->setText(QStringLiteral("Work Codex"));
+		dialog.protocol()->setCurrentIndex(dialog.protocol()->findData(static_cast<int>(core::agent_protocol::codex_jsonl_exec)));
+		dialog.program()->setText(QStringLiteral("wrapper"));
+		expect(!dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && dialog.problem()->text().contains(QStringLiteral("full path")), "a relative program is refused with why");
+		dialog.program()->setText(QStringLiteral("/opt/work/bin/wrapper"));
+		dialog.arguments()->setPlainText(QStringLiteral("--codex\n--profile work\n"));
+		dialog.effort()->setCurrentIndex(dialog.effort()->findData(QStringLiteral("minimal")));
+		const auto described = dialog.entry();
+		expect(dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && described.Arguments == std::vector<std::string>{ "--codex", "--profile work" } && described.Effort == "minimal",
+			   "a full entry may be kept, each line one argument, and Codex's efforts offered");
 
 		auto folders = qt::clone_folders_panel{ };
 		auto asked   = std::vector<std::string>{ };

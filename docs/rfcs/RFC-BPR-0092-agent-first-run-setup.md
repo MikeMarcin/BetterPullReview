@@ -634,6 +634,45 @@ coordinator, verbatim:
   the core to deliver as such. The reply is shown without the block. A draft
   or note is made only at lines of the file on screen; for another file the
   card says to open it and try again.
+- **Amendment: agents are a list the reviewer manages.** The owner,
+  verbatim: "For the agent picker. I should be able to define more than one
+  custom agent. For example at work we have a wrapper process that you can
+  pass nothing to in order to get claude models and --codex to in order to get
+  codex models. Being able to use both is great and I would prefer to not
+  have to jump through hoops to switch between them. I also won't want to see
+  the default claude/codex apps there as we're not allowed to use them. So
+  basically i'm saying that the agent picker that we have for the wizard is
+  pretty good as a shortcut but for the actual settings it show be more like
+  "add agent" where you can pick a popular one like claude/codex if they
+  aren't already added or a custom one." An agent is an entry
+  (`core::agent_entry`): a name the reviewer chooses, a protocol (Claude
+  stream JSON, Codex App Server or JSONL, or plain text), a program (a full
+  path; empty only for a popular agent, whose own program is looked for at
+  each launch), fixed arguments (at most 16, each without a control
+  character), and a default model and effort the protocol takes. At most 16
+  entries; each launches as a fixed profile slot of its protocol, allowed
+  where that protocol's built-in profile is, and the picker offers only the
+  entries. Settings › Agents & context is the list, with **Add agent…**
+  (Claude Code and Codex when found and not added, or **Custom agent…**),
+  **Edit…**, **Remove** and reordering. Setup keeps its detect-and-pick
+  shortcut, which adds the picked agent as an entry, and gains **Custom
+  agent…**; a custom agent's program is what setup checks, with its fixed
+  arguments before the status command. The chip in the question field is
+  agent · model · effort and lists every entry, one press to switch. A launch
+  of an entry runs its program with its arguments before the protocol's own;
+  nothing from a pull request, a question or a setting is put into them and
+  no shell runs them; the program is inspected again at each launch under
+  the existing wrapper rules. The Claude process wrapper and Codex program
+  settings move into the list once, the chosen agent first.
+- **Each agent has its own session ("Yeah separate session for each agent
+  makes the most sense to me. Obviously anything we save on the PR as notes
+  or drafts are outside of that session context.").** A pull request has one
+  continuous session per agent entry. Switching agents in the chip shows that
+  agent's own thread and session, and switching back resumes it; a pull
+  request opens on the agent it was last asked with; Clear session clears
+  only the current agent's. Notes and drafts made from a card or a reply are
+  the pull request's private review state, not a session's: clearing or
+  switching never removes them, and they stay in the notes and drafts views.
 
 ## Acceptance
 

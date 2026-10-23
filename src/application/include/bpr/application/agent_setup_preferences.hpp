@@ -1,11 +1,14 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_PREFERENCES_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_SETUP_PREFERENCES_HPP
 
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 
+#include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. What setup keeps for one
@@ -30,18 +33,27 @@ namespace bpr::application {
 		/// The model and reasoning effort Codex runs with; empty: Codex's own.
 		std::string CodexModel;
 		std::string CodexEffort;
+		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+		/// reviewer added, in their order; the picker offers these and nothing
+		/// else. `AgentsMoved` says the settings above were moved into the
+		/// list once, so a removed entry does not come back.
+		std::vector<core::agent_entry> Agents;
+		bool                           AgentsMoved = false;
+		/// The entry setup last chose; 0: none.
+		std::uint32_t PreferredAgent = 0U;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};
 
 	/// \brief Whether the preferences may be stored: each program empty or
 	/// storable under the wrapper rules (`core::storable_agent_wrapper`).
-	[[nodiscard]] inline auto valid(const agent_setup_preferences& aPreferences) noexcept -> bool
+	[[nodiscard]] inline auto valid(const agent_setup_preferences& aPreferences) -> bool
 	{
 		return core::storable_agent_wrapper(aPreferences.CodexProgram) && core::storable_agent_wrapper(aPreferences.HarnessProgram)
 			&& (aPreferences.ClaudeEffort.empty() || core::valid_agent_effort(core::agent_program::claude, aPreferences.ClaudeEffort))
 			&& core::storable_claude_model(aPreferences.CodexModel)
-			&& (aPreferences.CodexEffort.empty() || core::valid_agent_effort(core::agent_program::codex, aPreferences.CodexEffort));
+			&& (aPreferences.CodexEffort.empty() || core::valid_agent_effort(core::agent_program::codex, aPreferences.CodexEffort))
+			&& !core::inspect_agent_entries(aPreferences.Agents) && aPreferences.PreferredAgent <= core::maximum_agent_entry_id;
 	}
 
 	/// \brief Where a profile's setup preferences live.

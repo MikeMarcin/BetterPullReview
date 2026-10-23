@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 
+#include "bpr/core/agent_entry.hpp"
+
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
@@ -212,6 +214,10 @@ namespace bpr::qt {
 			auto       name  = QString::fromUtf8(plain.data(), static_cast<qsizetype>(plain.size()));
 			if (profile.Protocol == core::agent_protocol::codex_jsonl_exec) {
 				name += QStringLiteral(" (JSONL)");
+			}
+			// [[BPR-PENDING-AQ6]]. An added agent is named as the reviewer named it.
+			if (core::is_agent_entry_profile(profile.Id)) {
+				name = QString::fromStdString(profile.DisplayName);
 			}
 			ProfileSelector->addItem(name, QVariant::fromValue<qulonglong>(profile.Id.value()));
 			ProfileSelector->setItemData(ProfileSelector->count() - 1, QString::fromStdString(profile.DisplayName), Qt::ToolTipRole);
