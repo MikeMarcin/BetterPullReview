@@ -114,3 +114,18 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   each agent makes the most sense to me. Obviously anything we save on the PR
   as notes or drafts are outside of that session context." Both recorded in
   the RFC; look v003 covers them.
+
+## Look v003 (2026-10-23)
+
+- Frozen from `336f3f74c` (on main `055bed96e`, with the v002 answers and
+  owner decisions (a), (b) and (c), finding cards, the agent list and a
+  session per agent); the launcher's own check reached
+  `ATTENDED_PULL_REQUEST_OPENED`. Root `/Users/jaeger/bpr0092-agent-setup-v003.onalv1pu`,
+  with the stand-in clone under `clones/review-repository`.
+- Session `2a87a6833554e6c884a78dbdb02232aa` (fresh, short; state
+  `~/.attended-review-state/bpr0092-look-v003`), served with
+  `serve --tailscale`; one question, the look:
+  - Q1 (AC1, RFC AC14), the rebuilt Agent tab: "The first time I open the
+    Agent tab it tells me what to do, and I end up asking a question that
+    the agent answers from my repository."
+- Waiting on the owner.
