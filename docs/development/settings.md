@@ -22,6 +22,13 @@ repositories**. **Observer rules** (in **Home & queue**) add other pull
 requests to your queue by repository, author or path. Both are local: nothing
 changes on GitHub.
 
+**Repositories > Clone folders** lists the folders your clones live in, such
+as `~/Documents/GitHub`. When the Agent tab sets up an agent, it looks in each
+folder, two levels down, for a clone of the pull request's repository. It reads
+only each clone's `.git/config` and `.git/HEAD`, follows no link, runs nothing
+and writes nothing. **Linked clones** lists the clone, or the private copy,
+each repository's agent works with; **Forget** one to choose again.
+
 ## Appearance
 
 **Appearance > Syntax > C++ namespaces** lists the names that read as
@@ -44,6 +51,25 @@ category and unread count, never titles, code or comment text.
 
 Agent choices and private context are picked per review, for the next request
 only. Private context is sent only when you select it.
+
+The first time you open the Agent tab, it sets up an agent in place of the
+conversation: the agent, the repository's clone and one check, then the
+question field. **Set up agent…** (here, and in the Agent tab's History menu)
+runs it again. See the [workbench specification](../ux/workbench-specification.md).
+
+Under **Agents & context**:
+
+- **Codex** is found on `PATH` and in its usual install folders. A program
+  path saved here is used instead. **Protocol** chooses App Server (the
+  default) or JSONL.
+- **A harness that reads plain text** is for a tool with no Claude or Codex
+  interface. It runs only the program path you choose here and is offered in
+  setup once one is saved.
+- **Review skill** is how the agent reviews: the `bpr-pr-review` skill, sent
+  with every review request. Edit it and **Save**; your copy is kept through
+  updates. When a newer built-in version ships you can **Compare**, **Use
+  version N** or **Keep mine**. **Restore default** saves your copy to
+  Downloads first unless you untick it.
 
 Under **Agents & context > Claude**:
 

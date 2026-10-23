@@ -2422,11 +2422,29 @@ shows its lines; **Draft a comment** copies it to a local draft at its line,
 then Ask follow-up and Add to notes, which fold into More (with Show the code,
 Draft a defect and Dismiss) when the drawer is narrow. The question field
 closes the tab with its context chips, Context and Ask (⌘↩). The tab says
-which of four states it is in: not set up ("Ask an agent about this pull
+which of its states it is in: not set up ("Ask an agent about this pull
 request. Nothing it says is published unless you make it a comment." and Set
-up an agent), working (what it reads, and Stop), head moved (Start a new
-session or Continue on the old head) and stopped (what happened, the question
-kept, Ask again and Show the log). ⌥⇧A opens the drawer on the Agent tab; ⌘I
+up an agent), setting up, working (what it reads, and Stop), head moved (Start
+a new session or Continue on the old head) and stopped (what happened, the
+question kept, Ask again and Show the log; Check again when the Ask ended
+because the workspace could not be made or the agent did not start).
+[RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md): setting up replaces the conversation the first time it is
+needed: once the agents have been looked for and the repository's link has
+been checked, and a step is missing. Its four numbered steps are Agent
+(each found agent with its path and how it was found, a refused one disabled
+with why; none found offers Install Claude Code, Install Codex and Use a
+program I choose…), Repository (the clones of the repository in the clone
+folders, Use this clone, Choose a folder…, or a private copy; with no clone
+folder, Where do your clones live? with Add a folder… and the usual folders
+that exist), Check it works (the agent's status command and the workspace,
+each with its result and what to do, Check, Stop and Check again) and Ready.
+A finished step folds to one line with Change. Look again and Agent settings
+sit at the foot. When both checks pass, the conversation shows "AGENT is
+ready" with its version and workspace, What the agent gets (the pull request,
+base and head, the changes and the named diff, the threads, the workspace, the
+review skill and what it may not do), and focuses the question field. History
+adds Set up agent… and Change repository folder…. A new window with a saved
+agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I
 and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its
 intents and the finding queue's actions are unchanged: nothing is published

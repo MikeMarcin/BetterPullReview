@@ -508,6 +508,17 @@ selected.
   check's launch, cancellation, the skill files and the saved choices. The
   agent and Git adapters own locating, inspecting and running. The widget
   raises intents and performs no file, process, network or settings effect.
+
+  > **Implementation note ([[BPR-PENDING-AQ7]], 2026-10-22).** As built, the
+  > core owns the setup state, rows, policy filtering, matching, the brief's
+  > bounds and the skill's front matter and versions; the words for each
+  > state and failure are Qt's (the repository's rule that wording lives in
+  > Qt), and a status check's bounded output is decoded in the application
+  > host with the project's bounded JSON parser, beside the launch that
+  > produced it. No Git command runs in the reviewer's clone
+  > ([[BPR-PENDING-AQ4]]). Which step the setup shows open, and whether it is
+  > in place of the conversation, is the view's presentation state, decided
+  > from the two hosts' projections.
 - The agent's authority does not grow: no new tool, environment name or
   credential field. The brief adds only what the reviewer can already read
   on GitHub. The MCP helper is unchanged and nothing in setup configures it.
@@ -634,6 +645,6 @@ closed and its protections released.
 | M4 Agent workspaces on the clone's history | BPR-PENDING-AQ4 | Done as a private workspace borrowing the clone's objects (see [the implementation note](#the-agents-worktree), owner confirmation pending in M8); only what the clone lacks copied from the application's copy; the workspace check row | AC06 and AC07 as noted, AC10 (workspace row) |
 | M5 Brief and review skill | BPR-PENDING-AQ5 | Context supplement version three with its bounds, the built-in `bpr-pr-review` skill, its profile copy and versions (the Settings editor is M6's; see the notes above) | AC08, AC09 |
 | M6 Qt setup in the Agent tab | BPR-PENDING-AQ6 | Every frame's state in the tab, light and dark, the History entries, the partly set up callouts and the Settings rows | AC01, AC11, AC12 |
-| M7 Documentation | BPR-PENDING-AQ7 | The AI agent boundary amendment (Q2), Git and epoch model, Settings and the workbench specification | All, as documented |
+| M7 Documentation | BPR-PENDING-AQ7 | Done: the AI agent boundary amendment (Q2) with the agent search, the check, the borrowed history, the brief and the review skill; the Git and epoch model's reviewer's clone; Settings; the workbench specification's setting up state | All, as documented |
 | M8 Frozen build and the owner's look | BPR-PENDING-AQ8 | A frozen build, a short attended session and the owner's look | AC14 |
 | Closeout | BPR-PENDING-AQ9 | Verify every criterion and close the RFC | All |

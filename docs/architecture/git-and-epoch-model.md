@@ -901,6 +901,19 @@ broader cross-component fault matrix. BPR-0053 retains target-native Windows
 execution. Component-only evidence does not establish Windows runtime
 behavior.
 
+### The reviewer's clone ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md))
+
+No Git command runs in a reviewer's own clone. Discovery reads a candidate's
+`.git/config` (at most 64 KiB, `include` not followed) and `.git/HEAD` through
+the workspace adapter, follows no link and writes nothing; the core parses the
+remotes and drops any user information from their URLs. A linked clone enters
+an agent workspace only as the one `objects/info/alternates` line Git reads
+from the workspace's own `.git`, so Git reads the clone's objects without
+writing to it; the clone's refs, index, stashes, configuration and checkout
+are unchanged, and no `git worktree` entry is made. The cache itself is
+unchanged: the head's missing objects are packed out of it into the workspace,
+never fetched into the clone.
+
 ## Catalog and recoverable commit protocol
 
 RFC-BPR-0003 introduces the versioned app-owned SQLite database:
