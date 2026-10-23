@@ -445,6 +445,35 @@ namespace bpr::application {
 		core::agent_session_id aSession)
 		-> std::expected<agent_finding_payload, agent_protocol_failure>;
 
+	/// \brief The fence an agent's answer opens its review findings with.
+	inline constexpr std::string_view agent_review_findings_fence = "```bpr-findings";
+
+	/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("Yep build it
+	/// like that"). The review findings an agent wrote in its answer, as the
+	/// review skill asks: the last block fenced `bpr-findings`, holding a
+	/// `findings` array (or the array alone) of objects with `path`,
+	/// `startLine` and `endLine` (one-based, inclusive, at the head unless
+	/// `side` is `left`), `severity`, `category` and `confidence` by the stable
+	/// names the structured payload uses, `claim`, and optionally `evidence`,
+	/// `consequence` and `suggestedComment`.
+	///
+	/// \details No harness lets its model add `bprFindings` to the result
+	/// frame the harness writes, so this is how a real agent returns findings.
+	/// The host states what the agent cannot know: the provider and analyzed
+	/// revisions are the session's, and a finding on a file of `aSnapshot` is
+	/// anchored to its first line in that file's frozen comparison. A finding
+	/// on any other file carries no anchor, so `core::validate_agent_finding`
+	/// delivers it unanchored rather than anywhere it was not about. An entry
+	/// that is not a finding is left out; at most
+	/// `maximum_agent_findings_per_turn` are read, from a block within
+	/// `maximum_agent_finding_payload_bytes`.
+	///
+	/// \returns The payload, or none when the answer holds no such block.
+	[[nodiscard]] auto decode_agent_review_findings(
+		std::string_view                    aAnswer,
+		const core::agent_session&          aSession,
+		const core::agent_finding_snapshot& aSnapshot) -> std::optional<agent_finding_payload>;
+
 	/// \brief Builds the next App Server message after a decoded control event.
 	[[nodiscard]] auto build_agent_protocol_followup(
 		const agent_launch_request& aRequest,

@@ -2507,6 +2507,96 @@ namespace bpr::application {
 		}
 		return payload;
 	}
+
+	auto decode_agent_review_findings(const std::string_view aAnswer, const core::agent_session& aSession, const core::agent_finding_snapshot& aSnapshot)
+		-> std::optional<agent_finding_payload>
+	{
+		const auto opened = aAnswer.rfind(agent_review_findings_fence);
+		if (opened == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto body = aAnswer.find('\n', opened);
+		if (body == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto closed = aAnswer.find("```", body + 1U);
+		const auto text   = aAnswer.substr(body + 1U, closed == std::string_view::npos ? std::string_view::npos : closed - body - 1U);
+		if (text.size() > maximum_agent_finding_payload_bytes) {
+			return std::nullopt;
+		}
+		const auto parsed = bounded_json_parser{ text }.parse();
+		if (!parsed) {
+			return std::nullopt;
+		}
+		const auto* list = parsed->Kind == json_kind::array_value ? &*parsed : member(*parsed, "findings");
+		if (list == nullptr || list->Kind != json_kind::array_value) {
+			return std::nullopt;
+		}
+		auto payload = agent_finding_payload{ .Session = aSession.Id };
+		for (const auto& element : list->Elements) {
+			if (payload.Findings.size() == maximum_agent_findings_per_turn) {
+				break;
+			}
+			if (element.Kind != json_kind::object_value) {
+				continue;
+			}
+			const auto* path       = string_member(element, "path");
+			const auto* claim      = string_member(element, "claim");
+			const auto* severity   = string_member(element, "severity");
+			const auto* category   = string_member(element, "category");
+			const auto* confidence = string_member(element, "confidence");
+			const auto  first      = decode_unsigned(member(element, "startLine"), 0xFFFF'FFFFU);
+			const auto  last       = member(element, "endLine") == nullptr ? first : decode_unsigned(member(element, "endLine"), 0xFFFF'FFFFU);
+			if (path == nullptr || path->empty() || path->size() > core::maximum_identified_path_bytes || claim == nullptr || claim->empty()
+				|| claim->size() > core::maximum_finding_claim_bytes || !first || !last || *first == 0U || *last < *first) {
+				continue;
+			}
+			const auto side = string_member(element, "side") == nullptr ? std::optional{ core::diff_side::right } : decode_side(*string_member(element, "side"));
+			const auto decodedSeverity
+				= severity == nullptr ? std::optional{ core::defect_severity::minor }
+									  : decode_named_enumerator(*severity, std::array{ core::defect_severity::trivial, core::defect_severity::minor, core::defect_severity::major, core::defect_severity::critical });
+			const auto decodedCategory   = category == nullptr ? std::optional{ core::defect_category::correctness }
+															   : decode_named_enumerator(*category, std::array{ core::defect_category::correctness, core::defect_category::security, core::defect_category::performance, core::defect_category::maintainability, core::defect_category::style, core::defect_category::documentation, core::defect_category::other });
+			const auto decodedConfidence = confidence == nullptr ? std::optional{ core::agent_finding_confidence::unstated } : decode_confidence(*confidence);
+			if (!side || !decodedSeverity || !decodedCategory || !decodedConfidence) {
+				continue;
+			}
+			const auto optionalText = [&element](const std::string_view aName, const std::size_t aMaximum) -> std::optional<std::string> {
+				const auto* found = string_member(element, aName);
+				if (found == nullptr) {
+					return std::string{ };
+				}
+				return found->size() <= aMaximum ? std::optional{ *found } : std::nullopt;
+			};
+			const auto evidence    = optionalText("evidence", core::maximum_finding_evidence_bytes);
+			const auto consequence = optionalText("consequence", core::maximum_finding_consequence_bytes);
+			const auto suggested   = optionalText("suggestedComment", core::maximum_finding_comment_bytes);
+			if (!evidence || !consequence || !suggested) {
+				continue;
+			}
+			auto finding = core::agent_finding{
+				.Provider         = aSession.Profile,
+				.Severity         = *decodedSeverity,
+				.Confidence       = *decodedConfidence,
+				.Category         = *decodedCategory,
+				.Path             = *path,
+				.Lines            = { .Begin = static_cast<std::uint32_t>(*first - 1U), .End = static_cast<std::uint32_t>(*last) },
+				.Claim            = *claim,
+				.Evidence         = *evidence,
+				.Consequence      = *consequence,
+				.SuggestedComment = suggested->empty() ? std::nullopt : suggested,
+				.AnalyzedBaseOid  = aSession.Binding.BaseOid,
+				.AnalyzedHeadOid  = aSession.Binding.HeadOid,
+			};
+			// Anchored only where the frozen snapshot holds the file; the core
+			// then checks the line against that file's line counts.
+			if (const auto frozen = std::ranges::find(aSnapshot.Files, *path, &core::agent_finding_snapshot_file::Path); frozen != aSnapshot.Files.end()) {
+				finding.Anchor.Line = core::source_line_ref{ .Comparison = frozen->Comparison, .Side = *side, .Line = static_cast<std::uint32_t>(*first - 1U) };
+			}
+			payload.Findings.push_back(std::move(finding));
+		}
+		return payload;
+	}
 #endif
 
 	auto serialize_private_finding(const core::retained_agent_finding& aRetained) -> std::string

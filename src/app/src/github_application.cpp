@@ -11472,6 +11472,110 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A private note from
+		/// the Agent tab: on one line of the shown comparison when `aLine`
+		/// names one, otherwise on the review. It belongs to the review's
+		/// private state, not to any agent session.
+		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, std::function<void(bool, const QString&)> aDone)
+		{
+			const auto answer = [aDone](const bool aSaved, const QString& aWhy) {
+				if (aDone) {
+					aDone(aSaved, aWhy);
+				}
+			};
+			if (Closing || Window == nullptr || !ReviewLedgerHost || !ReviewLedgerAvailable || aText.empty()) {
+				answer(false, QStringLiteral("no review is open"));
+				return;
+			}
+			auto note      = application::local_note_record{ };
+			note.Id        = next_private_note_id();
+			note.Note.Text = std::move(aText);
+			if (aLine) {
+				const auto        attachment = current_note_attachment();
+				const auto* const surface    = Window->comparison_surface();
+				const auto        shown      = attachment && surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == attachment->Comparison
+					? core::note_line_anchor_at(surface->current_result()->Alignment, aLine->first, aLine->second)
+					: std::nullopt;
+				if (!shown) {
+					answer(false, QStringLiteral("that line is not on screen"));
+					return;
+				}
+				note.Attachment       = *attachment;
+				note.Attachment->Line = shown;
+				if (!aPath.empty() && aPath.size() <= application::maximum_note_path_bytes) {
+					note.FilePath = std::move(aPath);
+				}
+			}
+			ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+										  if (!aStored) {
+											  answer(false, QString::fromUtf8(application::name(aStored.error().Reason).data(), static_cast<qsizetype>(application::name(aStored.error().Reason).size())));
+											  return;
+										  }
+										  refresh_agent_private_context_choices();
+										  answer(true, { });
+									  }));
+		}
+
+		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Add as draft comment,
+		/// Save as note and Dismiss on one card. A draft and a note are made
+		/// only at lines of the file on screen; for another file the card says
+		/// to open it first. Nothing is published.
+		void act_on_agent_card(const qt::agent_finding_card_request& aRequest)
+		{
+			auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
+			const auto  state = [tab, aRequest](const qt::agent_finding_card_state aState, const QString& aWhy = { }) {
+				if (tab != nullptr) {
+					tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy);
+				}
+			};
+			if (Closing || tab == nullptr) {
+				return;
+			}
+			const auto& finding = aRequest.Finding;
+			if (aRequest.Action == qt::agent_finding_card_action::dismiss || aRequest.Action == qt::agent_finding_card_action::undo_dismiss) {
+				if (aRequest.Action == qt::agent_finding_card_action::dismiss && FindingHost != nullptr) {
+					FindingHost->act({ .Session = core::agent_session_id{ aRequest.Session }, .Ordinal = aRequest.Ordinal, .Action = application::agent_finding_action::dismiss });
+				}
+				state(aRequest.Action == qt::agent_finding_card_action::dismiss ? qt::agent_finding_card_state::dismissed : qt::agent_finding_card_state::open);
+				return;
+			}
+			// The finding's first line, in the comparison on screen when that
+			// is the finding's file.
+			auto* const surface  = Window->comparison_surface();
+			const auto  side     = finding.Anchor.Line ? finding.Anchor.Line->Side : core::diff_side::right;
+			const auto  onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
+				&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			if (!onScreen) {
+				state(qt::agent_finding_card_state::refused, QStringLiteral("Open %1, then try again: a draft or note goes on its lines.").arg(QString::fromStdString(finding.Path)));
+				return;
+			}
+			const auto at = core::source_line_ref{ .Comparison = surface->current_result()->Alignment.Digest, .Side = side, .Line = finding.Lines.Begin };
+			if (aRequest.Action == qt::agent_finding_card_action::save_note) {
+				auto text = finding.Claim;
+				if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
+					text += "\n\n" + *finding.SuggestedComment;
+				}
+				save_agent_note(std::move(text), std::pair{ side, finding.Lines.Begin }, finding.Path, [state](const bool aSaved, const QString& aWhy) {
+					state(aSaved ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aSaved ? QString{ } : QStringLiteral("Not saved: %1.").arg(aWhy));
+				});
+				return;
+			}
+			const auto text    = finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim;
+			auto       refused = [state] { state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: resolve the draft open at that line first.")); };
+			auto       done    = [state] { state(qt::agent_finding_card_state::drafted); };
+			if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
+				promote_private_item(text, std::move(refused), std::move(done));
+				return;
+			}
+			// The line's own draft opens once its line is chosen, as Draft
+			// comment on a note does ([[BPR-1592]]).
+			PendingNotePromotion = pending_note_promotion{ .Text = text, .At = at, .Refused = std::move(refused), .Done = std::move(done) };
+			if (!surface->select_conversation_line(at.Side, at.Line)) {
+				PendingNotePromotion.reset();
+				state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
+			}
+		}
+
 		/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The pull request
 		/// now open, for its conversation.
 		void observe_conversation()
@@ -11635,6 +11739,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString() });
 				}
 				AgentConversation->record(std::move(kept));
+			});
+			// Owner decision 2026-10-23 ("Yep build it like that"): a card's
+			// three actions, and Save as note on a plain reply. Each makes a
+			// private draft or note in the review, never part of a session.
+			tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
+			tab->set_answer_note_dispatch([this](const QString& aText, std::function<void(bool, const QString&)> aDone) {
+				save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone));
 			});
 			tab->set_clear_session_dispatch([this] {
 				if (!Closing && AgentConversation) {
@@ -18575,6 +18686,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string           Text;
 			core::source_line_ref At;
 			std::function<void()> Refused;
+			std::function<void()> Done;
 		};
 		std::optional<pending_note_promotion>                     PendingNotePromotion;
 		std::optional<std::map<core::file_identity, std::string>> NotePaths;
@@ -18614,7 +18726,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// private review's answer, after this returns, so the result is read
 		/// there. Reading it on return refused every promotion the reviewer
 		/// then saw arrive in the draft.
-		void promote_private_item(std::string aText, std::function<void()> aRefused)
+		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { })
 		{
 			if (Closing || Window == nullptr || !ReviewDraft || !SharedDrafts
 				|| !Window->comment_action()->isEnabled() || Window->review_editor()->body_editor()->isReadOnly()) {
@@ -18636,7 +18748,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				aRefused();
 				return;
 			}
-			dispatch_review_draft(*command, [this, anchor, scope, id = command->Command.Id, text = std::move(aText), refused = std::move(aRefused)](const bool aAccepted) {
+			dispatch_review_draft(*command, [this, anchor, scope, id = command->Command.Id, text = std::move(aText), refused = std::move(aRefused), done = std::move(aDone)](const bool aAccepted) {
 				if (Closing || Window == nullptr) {
 					return;
 				}
@@ -18644,6 +18756,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					|| ReviewDraft->Id != id || ReviewDraft->Body != text
 					|| Window->review_editor()->rejected_candidate()) {
 					refused();
+					return;
+				}
+				// [[BPR-PENDING-AQ6]]. A finding card stays where it is and
+				// says Drafted; every other promotion opens the draft.
+				if (done) {
+					done();
 					return;
 				}
 				Window->tray_tabs()->setCurrentIndex(0);
@@ -18685,7 +18803,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto pending = std::move(*PendingNotePromotion);
 			PendingNotePromotion.reset();
-			promote_private_item(std::move(pending.Text), std::move(pending.Refused));
+			promote_private_item(std::move(pending.Text), std::move(pending.Refused), std::move(pending.Done));
 		}
 
 		void dispatch_private_note(const qt::private_note_intent& aIntent)

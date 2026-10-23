@@ -477,6 +477,42 @@ namespace {
 		expect(!application::build_agent_context_supplement(oversized, session()), "a brief outside its bounds refuses the build");
 	}
 
+	/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("Yep build it like
+	/// that"). The findings a real agent writes in its answer, fenced as the
+	/// review skill asks, become findings the host states the rest of: the
+	/// provider and revisions are the session's, and only a file the snapshot
+	/// froze is anchored.
+	void test_review_findings_are_read_from_the_answer()
+	{
+		const auto frozen = core::agent_finding_snapshot{
+			.Binding = session().Binding,
+			.Files   = { { .Path = "src/retry.cpp", .Comparison = identity<core::file_comparison_digest>(7U), .LeftLineCount = 50U, .RightLineCount = 60U } },
+		};
+		const auto answer = std::string{ "**Summary:** two findings.\n\n```bpr-findings\n"
+										 "{\"findings\": ["
+										 "{\"path\": \"src/retry.cpp\", \"startLine\": 42, \"endLine\": 44, \"severity\": \"major\", \"category\": \"correctness\", "
+										 "\"confidence\": \"high\", \"claim\": \"The budget resets.\", \"suggestedComment\": \"Reset once per request?\"},"
+										 "{\"path\": \"src/other.cpp\", \"startLine\": 3, \"claim\": \"Unchecked.\"},"
+										 "{\"path\": \"\", \"startLine\": 1, \"claim\": \"No path.\"},"
+										 "{\"path\": \"src/x.cpp\", \"startLine\": 1, \"claim\": \"Bad\", \"severity\": \"huge\"}"
+										 "]}\n```\n" };
+		const auto read   = application::decode_agent_review_findings(answer, session(), frozen);
+		expect(read && read->Session == session().Id && read->Findings.size() == 2U, "the two findings are read; the malformed entries are left out");
+		const auto& first = read->Findings[0];
+		expect(first.Provider == session().Profile && first.AnalyzedBaseOid == session().Binding.BaseOid && first.AnalyzedHeadOid == session().Binding.HeadOid
+				   && first.Lines.Begin == 41U && first.Lines.End == 44U && first.Severity == core::defect_severity::major && first.SuggestedComment == std::optional<std::string>{ "Reset once per request?" }
+				   && first.Anchor.Line && first.Anchor.Line->Comparison == frozen.Files.front().Comparison && first.Anchor.Line->Side == core::diff_side::right && first.Anchor.Line->Line == 41U,
+			   "a finding on the frozen file is anchored at its first line, with the session's provider and revisions");
+		expect(core::validate_agent_finding(first, frozen).State == core::agent_finding_anchor_state::anchored, "and the core finds the anchor holds");
+		const auto& second = read->Findings[1];
+		expect(!second.Anchor.Line && second.Lines.Begin == 2U && second.Lines.End == 3U && second.Severity == core::defect_severity::minor && !second.SuggestedComment,
+			   "a finding on another file has no anchor, one line, and the defaults");
+		expect(core::validate_agent_finding(second, frozen).State == core::agent_finding_anchor_state::unanchored, "so it is delivered unanchored");
+		expect(!application::decode_agent_review_findings("No block here.", session(), frozen), "an answer without the fence has no findings");
+		const auto empty = application::decode_agent_review_findings("Nothing.\n```bpr-findings\n[]\n```", session(), frozen);
+		expect(empty && empty->Findings.empty(), "an empty list is an answer with no finding");
+	}
+
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()
 	{
 		const auto encoded = application::encode_agent_supplement(built_supplement());
@@ -1457,6 +1493,7 @@ auto main() -> int
 	test_a_press_carries_the_effective_feedback_guidance_and_nothing_more();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
 	test_the_brief_crosses_after_the_version_two_fields();
+	test_review_findings_are_read_from_the_answer();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();
 	test_launch_refuses_inexact_profile_session_and_schema();

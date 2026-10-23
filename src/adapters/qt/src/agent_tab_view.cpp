@@ -714,15 +714,52 @@ namespace bpr::qt {
 		answer->set_height_observer([this, answer] { fit_answer(*answer); });
 		answer->hide();
 		column->addWidget(answer);
+		// Owner decision 2026-10-23: the turn's findings, as cards, under its answer.
+		auto* const cards = new QVBoxLayout{ };
+		cards->setSpacing(8);
+		column->addLayout(cards);
+		auto* const footerRow = new QHBoxLayout{ };
+		footerRow->setSpacing(6);
 		auto* const footer = new QLabel{ box };
 		footer->setObjectName(QStringLiteral("agentTurnFooter"));
 		footer->setForegroundRole(QPalette::PlaceholderText);
 		footer->setWordWrap(true);
-		column->addWidget(footer);
+		footerRow->addWidget(footer, 1);
+		// Save as note: the whole reply, or the part selected in it.
+		auto* const save = new quiet_push_button{ tr("Save as note"), box };
+		save->setObjectName(QStringLiteral("agentTurnSaveNote"));
+		save->setFlat(true);
+		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a private note. Nothing is published."));
+		save->hide();
+		footerRow->addWidget(save, 0, Qt::AlignTop);
+		column->addLayout(footerRow);
 		ThreadColumn->addWidget(box);
-		aTurn.Widget = box;
-		aTurn.Answer = answer;
-		aTurn.Footer = footer;
+		aTurn.Widget     = box;
+		aTurn.Answer     = answer;
+		aTurn.Footer     = footer;
+		aTurn.SaveNote   = save;
+		aTurn.CardColumn = cards;
+		connect(save, &QPushButton::clicked, this, [this, save] {
+			for (auto& kept : Turns) {
+				if (kept.SaveNote != save || !NoteDispatch) {
+					continue;
+				}
+				auto       text     = kept.AnswerText;
+				const auto selected = kept.Answer != nullptr ? kept.Answer->rendered_view()->textCursor().selectedText() : QString{ };
+				if (!selected.trimmed().isEmpty()) {
+					text = selected;
+					text.replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
+				}
+				save->setEnabled(false);
+				NoteDispatch(text, [guarded = QPointer{ save }](const bool aSaved, const QString& aWhy) {
+					if (guarded == nullptr) {
+						return;
+					}
+					guarded->setText(aSaved ? QObject::tr("Saved as a note") : QObject::tr("Not saved: %1").arg(aWhy));
+					guarded->setEnabled(!aSaved);
+				});
+			}
+		});
 	}
 
 	void agent_tab_view::set_answer(turn& aTurn, const QString& aText)
@@ -731,8 +768,14 @@ namespace bpr::qt {
 			return;
 		}
 		aTurn.AnswerText = aText;
-		aTurn.Answer->set_body(aText.toStdString(), "agent-turn");
-		aTurn.Answer->setVisible(!aText.isEmpty());
+		// The findings block is for the cards; the reply shows without it.
+		if (const auto fence = aTurn.AnswerText.lastIndexOf(QStringLiteral("```bpr-findings")); fence >= 0) {
+			const auto closed = aTurn.AnswerText.indexOf(QStringLiteral("```"), fence + 3);
+			aTurn.AnswerText.remove(fence, closed < 0 ? aTurn.AnswerText.size() - fence : closed + 3 - fence);
+			aTurn.AnswerText = aTurn.AnswerText.trimmed();
+		}
+		aTurn.Answer->set_body(aTurn.AnswerText.toStdString(), "agent-turn");
+		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty());
 		fit_answer(*aTurn.Answer);
 	}
 
@@ -754,6 +797,8 @@ namespace bpr::qt {
 			}
 		}
 		Turns.clear();
+		// A turn's cards went with its widgets.
+		std::erase_if(CardEntries, [](const card_entry& aEntry) { return aEntry.Turn.has_value(); });
 		for (const auto& shown : aTurns) {
 			auto next     = turn{ };
 			next.Question = shown.Question;
@@ -935,9 +980,15 @@ namespace bpr::qt {
 		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
 		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
 		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
-			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding below.") : tr("%1 findings below.").arg(findings));
+			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
 		}
 		current.Footer->setText(footer);
+		if (succeeded && FindingsPresented != FindingsAtTurn) {
+			claim_findings(Turns.size() - 1U);
+		}
+		if (current.SaveNote != nullptr) {
+			current.SaveNote->setVisible(succeeded && !current.AnswerText.isEmpty());
+		}
 		ClearSession->setVisible(true);
 		if (ThreadObserver) {
 			ThreadObserver(thread_turns());
@@ -1051,12 +1102,45 @@ namespace bpr::qt {
 	auto agent_tab_view::finding_cards() const -> std::vector<QWidget*>
 	{
 		auto result = std::vector<QWidget*>{ };
-		for (const auto& card : CardWidgets) {
-			if (card != nullptr) {
-				result.push_back(card);
+		for (const auto& entry : CardEntries) {
+			if (entry.Widget != nullptr) {
+				result.push_back(entry.Widget);
 			}
 		}
 		return result;
+	}
+
+	auto agent_tab_view::turn_cards(const std::size_t aTurn) const -> std::vector<QWidget*>
+	{
+		auto result = std::vector<QWidget*>{ };
+		for (const auto& entry : CardEntries) {
+			if (entry.Turn == std::optional{ aTurn } && entry.Widget != nullptr) {
+				result.push_back(entry.Widget);
+			}
+		}
+		return result;
+	}
+
+	auto agent_tab_view::finding_card_state(const std::size_t aCard) const -> agent_finding_card_state
+	{
+		return aCard < CardEntries.size() ? CardEntries[aCard].State : agent_finding_card_state::open;
+	}
+
+	void agent_tab_view::set_finding_card_dispatch(agent_finding_card_dispatch aDispatch) { CardDispatch = std::move(aDispatch); }
+
+	void agent_tab_view::set_answer_note_dispatch(agent_answer_note_dispatch aDispatch) { NoteDispatch = std::move(aDispatch); }
+
+	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
+
+	void agent_tab_view::present_finding_card_state(const std::uint64_t aSession, const std::size_t aOrdinal, const agent_finding_card_state aState, const QString& aWhy)
+	{
+		for (auto& entry : CardEntries) {
+			if (entry.Session == aSession && entry.Ordinal == aOrdinal) {
+				entry.State = aState;
+				entry.Why   = aWhy;
+				show_card_state(entry);
+			}
+		}
 	}
 
 	void agent_tab_view::rebuild_findings()
@@ -1064,155 +1148,235 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		for (auto& card : CardWidgets) {
-			if (card != nullptr) {
-				// Gone from view now; deleted once any press on it returns.
-				card->hide();
-				CardColumn->removeWidget(card);
-				card->deleteLater();
+		// The cards no turn brought: a delivery shown before any turn, or one
+		// a turn has not claimed. Cards under a turn stay with it.
+		for (auto entry = CardEntries.begin(); entry != CardEntries.end();) {
+			if (entry->Turn) {
+				++entry;
+				continue;
 			}
+			if (entry->Widget != nullptr) {
+				// Gone from view now; deleted once any press on it returns.
+				entry->Widget->hide();
+				CardColumn->removeWidget(entry->Widget);
+				entry->Widget->deleteLater();
+			}
+			entry = CardEntries.erase(entry);
 		}
-		CardWidgets.clear();
 		const auto* const delivery = Findings.shown_delivery();
-		if (delivery == nullptr) {
+		if (delivery == nullptr || ClaimedSession == std::optional{ delivery->Session.value() }) {
 			Cards->hide();
 			return;
 		}
-		const auto selected = Findings.selected_ordinal();
 		for (std::size_t ordinal = 0U; ordinal < delivery->Findings.size(); ++ordinal) {
-			const auto& finding = delivery->Findings[ordinal].Finding;
-			auto* const card    = new rounded{ rounded::look::card, Cards };
-			card->setObjectName(QStringLiteral("agentFindingCard"));
-			card->Edge      = severity_colour(finding.Severity, palette());
-			card->Selected  = selected == std::optional{ ordinal };
-			auto* const col = new QVBoxLayout{ card };
-			col->setContentsMargins(14, 10, 12, 10);
-			col->setSpacing(5);
-			auto* const meta = new QHBoxLayout{ };
-			meta->setSpacing(6);
-			auto* const severity = new QLabel{ capitalised(core::name(finding.Severity)), card };
-			auto        sevFont  = severity->font();
-			sevFont.setWeight(QFont::DemiBold);
-			severity->setFont(sevFont);
-			auto sevPalette = severity->palette();
-			sevPalette.setColor(QPalette::WindowText, severity_colour(finding.Severity, palette()));
-			severity->setPalette(sevPalette);
-			meta->addWidget(severity);
-			auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
-			kind->setForegroundRole(QPalette::PlaceholderText);
-			// The kind gives way to the anchor when the drawer is narrow.
-			kind->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-			kind->setToolTip(kind->text());
-			meta->addWidget(kind, 1);
-			auto* const where = new QLabel{ QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(finding.Lines.Begin).arg(finding.Lines.End), card };
-			where->setObjectName(QStringLiteral("agentFindingAnchor"));
-			auto code = QFont{ QStringLiteral("Menlo") };
-			code.setStyleHint(QFont::Monospace);
-			code.setPointSizeF(std::max(1.0, font().pointSizeF() * 0.86));
-			code.setWeight(QFont::DemiBold);
-			where->setFont(code);
-			where->setToolTip(QString::fromStdString(finding.Path));
-			meta->addWidget(where);
-			col->addLayout(meta);
-			auto* const claim = new QLabel{ QString::fromStdString(finding.Claim), card };
-			claim->setWordWrap(true);
-			claim->setFont(sevFont);
-			claim->setTextFormat(Qt::PlainText);
-			col->addWidget(claim);
-			if (!finding.Evidence.empty()) {
-				auto* const evidence = new QLabel{ QString::fromStdString(finding.Evidence), card };
-				evidence->setWordWrap(true);
-				evidence->setTextFormat(Qt::PlainText);
-				evidence->setForegroundRole(QPalette::PlaceholderText);
-				col->addWidget(evidence);
-			}
-			auto* const actions = new QHBoxLayout{ };
-			actions->setSpacing(6);
-			const auto act = [this, ordinal](const finding_queue_action aAction) {
-				Findings.select(ordinal);
-				if (auto* const action = Findings.action(aAction); action != nullptr) {
-					action->trigger();
-				}
+			auto entry = card_entry{
+				.Session  = delivery->Session.value(),
+				.Ordinal  = ordinal,
+				.Finding  = delivery->Findings[ordinal].Finding,
+				.Anchored = delivery->Findings[ordinal].Verdict.State == core::agent_finding_anchor_state::anchored,
 			};
-			auto* const draft = new quiet_push_button{ tr("Draft a comment"), card };
-			draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
-			draft->setDefault(true);
-			draft->setToolTip(tr("Copy this finding to a local draft at its line. Nothing is published."));
-			connect(draft, &QPushButton::clicked, this, [act] { act(finding_queue_action::convert_to_draft_comment); });
-			actions->addWidget(draft);
-			auto* const follow = new quiet_push_button{ tr("Ask follow-up"), card };
-			follow->setObjectName(QStringLiteral("agentFindingFollowUp"));
-			connect(follow, &QPushButton::clicked, this, [act] { act(finding_queue_action::ask_follow_up); });
-			actions->addWidget(follow);
-			actions->addStretch(1);
-			// Add to notes, then Ask follow-up, fold into More when the
-			// drawer is too narrow for them; fit_card_actions decides.
-			auto* const notes = new quiet_push_button{ tr("Add to notes"), card };
-			notes->setObjectName(QStringLiteral("agentFindingAddToNotes"));
-			notes->setFlat(true);
-			connect(notes, &QPushButton::clicked, this, [act] { act(finding_queue_action::add_to_private_notes); });
-			actions->addWidget(notes);
-			auto* const more = new menu_word{ card };
-			more->setObjectName(QStringLiteral("agentFindingMore"));
-			more->setText(QStringLiteral("⋯"));
-			more->setAutoRaise(true);
-			more->setPopupMode(QToolButton::InstantPopup);
-			more->setAccessibleName(tr("More finding actions"));
-			auto* const menu       = new QMenu{ more };
-			auto* const followItem = menu->addAction(tr("Ask follow-up"), this, [act] { act(finding_queue_action::ask_follow_up); });
-			followItem->setObjectName(QStringLiteral("agentFindingFollowUpItem"));
-			auto* const notesItem = menu->addAction(tr("Add to notes"), this, [act] { act(finding_queue_action::add_to_private_notes); });
-			notesItem->setObjectName(QStringLiteral("agentFindingAddToNotesItem"));
-			menu->addSeparator();
-			menu->addAction(tr("Show the code"), this, [act] { act(finding_queue_action::open_evidence); });
-			menu->addAction(tr("Draft a defect"), this, [act] { act(finding_queue_action::convert_to_draft_defect); });
-			menu->addAction(tr("Dismiss"), this, [act] { act(finding_queue_action::dismiss); });
-			more->setMenu(menu);
-			actions->addWidget(more);
-			col->addLayout(actions);
-			// Choosing a card selects its finding and shows its lines.
-			card->installEventFilter(this);
-			card->setProperty("agentFindingOrdinal", QVariant::fromValue<qulonglong>(ordinal));
-			card->setCursor(Qt::PointingHandCursor);
-			fit_card_actions(*card, card_room());
+			CardEntries.push_back(std::move(entry));
+			auto* const card = make_card(CardEntries.back(), Cards);
 			CardColumn->addWidget(card);
-			CardWidgets.emplace_back(card);
 		}
 		Cards->setVisible(!delivery->Findings.empty());
 	}
 
-	auto agent_tab_view::card_room() const -> int
+	void agent_tab_view::claim_findings(const std::size_t aTurn)
 	{
-		// The viewport, less the conversation's and the card's margins.
-		constexpr auto margins = 12 + 12 + 14 + 12;
-		return Viewport == nullptr ? 0 : Viewport->width() - margins;
-	}
-
-	void agent_tab_view::fit_card_actions(QWidget& aCard, const int aRoom)
-	{
-		auto* const draft  = aCard.findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
-		auto* const follow = aCard.findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp"));
-		auto* const notes  = aCard.findChild<QPushButton*>(QStringLiteral("agentFindingAddToNotes"));
-		auto* const more   = aCard.findChild<QToolButton*>(QStringLiteral("agentFindingMore"));
-		if (draft == nullptr || follow == nullptr || notes == nullptr || more == nullptr || more->menu() == nullptr) {
+		const auto* const delivery = Findings.shown_delivery();
+		if (delivery == nullptr || aTurn >= Turns.size() || Turns[aTurn].CardColumn == nullptr || delivery->Findings.empty()) {
 			return;
 		}
-		const auto     room       = aRoom;
-		constexpr auto gap        = 6;
-		const auto     base       = draft->sizeHint().width() + gap + more->sizeHint().width();
-		const auto     withFollow = base + gap + follow->sizeHint().width();
-		const auto     withNotes  = withFollow + gap + notes->sizeHint().width();
-		const auto     showFollow = withFollow <= room;
-		const auto     showNotes  = withNotes <= room;
-		follow->setVisible(showFollow);
-		notes->setVisible(showNotes);
-		for (auto* const item : more->menu()->actions()) {
-			if (item->objectName() == QStringLiteral("agentFindingFollowUpItem")) {
-				item->setVisible(!showFollow);
-			} else if (item->objectName() == QStringLiteral("agentFindingAddToNotesItem")) {
-				item->setVisible(!showNotes);
+		ClaimedSession = delivery->Session.value();
+		// The loose cards were this delivery's; they move under the turn.
+		rebuild_findings();
+		for (std::size_t ordinal = 0U; ordinal < delivery->Findings.size(); ++ordinal) {
+			auto entry = card_entry{
+				.Session  = delivery->Session.value(),
+				.Ordinal  = ordinal,
+				.Finding  = delivery->Findings[ordinal].Finding,
+				.Anchored = delivery->Findings[ordinal].Verdict.State == core::agent_finding_anchor_state::anchored,
+				.Turn     = aTurn,
+			};
+			CardEntries.push_back(std::move(entry));
+			auto* const card = make_card(CardEntries.back(), Turns[aTurn].Widget);
+			Turns[aTurn].CardColumn->addWidget(card);
+		}
+	}
+
+	auto agent_tab_view::make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*
+	{
+		const auto& finding = aEntry.Finding;
+		auto* const card    = new rounded{ rounded::look::card, aParent };
+		card->setObjectName(QStringLiteral("agentFindingCard"));
+		card->Edge      = severity_colour(finding.Severity, palette());
+		auto* const col = new QVBoxLayout{ card };
+		col->setContentsMargins(14, 10, 12, 10);
+		col->setSpacing(5);
+		auto* const meta = new QHBoxLayout{ };
+		meta->setSpacing(6);
+		auto* const severity = new QLabel{ capitalised(core::name(finding.Severity)), card };
+		auto        sevFont  = severity->font();
+		sevFont.setWeight(QFont::DemiBold);
+		severity->setFont(sevFont);
+		auto sevPalette = severity->palette();
+		sevPalette.setColor(QPalette::WindowText, severity_colour(finding.Severity, palette()));
+		severity->setPalette(sevPalette);
+		meta->addWidget(severity);
+		auto* const kind = new QLabel{ QStringLiteral("%1 · %2").arg(confidence_words(finding.Confidence), QString::fromUtf8(core::name(finding.Category).data(), static_cast<qsizetype>(core::name(finding.Category).size()))), card };
+		kind->setForegroundRole(QPalette::PlaceholderText);
+		// The kind gives way to the anchor when the drawer is narrow.
+		kind->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		kind->setToolTip(kind->text());
+		meta->addWidget(kind, 1);
+		// Lines are shown one-based, first and last, as an editor numbers them.
+		const auto  first = finding.Lines.Begin + 1U;
+		const auto  last  = std::max(first, finding.Lines.End);
+		auto* const where = new QLabel{ first == last ? QStringLiteral("%1:%2").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first)
+													  : QStringLiteral("%1:%2–%3").arg(QString::fromStdString(finding.Path).section(QLatin1Char{ '/' }, -1)).arg(first).arg(last),
+										card };
+		where->setObjectName(QStringLiteral("agentFindingAnchor"));
+		auto code = QFont{ QStringLiteral("Menlo") };
+		code.setStyleHint(QFont::Monospace);
+		code.setPointSizeF(std::max(1.0, font().pointSizeF() * 0.86));
+		code.setWeight(QFont::DemiBold);
+		where->setFont(code);
+		where->setToolTip(aEntry.Anchored ? QString::fromStdString(finding.Path) : tr("%1 (not the file open when the agent answered)").arg(QString::fromStdString(finding.Path)));
+		meta->addWidget(where);
+		col->addLayout(meta);
+		auto* const claim = new QLabel{ QString::fromStdString(finding.Claim), card };
+		claim->setWordWrap(true);
+		claim->setFont(sevFont);
+		claim->setTextFormat(Qt::PlainText);
+		col->addWidget(claim);
+		if (!finding.Evidence.empty()) {
+			auto* const evidence = new QLabel{ QString::fromStdString(finding.Evidence), card };
+			evidence->setWordWrap(true);
+			evidence->setTextFormat(Qt::PlainText);
+			evidence->setForegroundRole(QPalette::PlaceholderText);
+			col->addWidget(evidence);
+		}
+		if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
+			auto* const comment = new QLabel{ QString::fromStdString(*finding.SuggestedComment), card };
+			comment->setObjectName(QStringLiteral("agentFindingComment"));
+			comment->setWordWrap(true);
+			comment->setTextFormat(Qt::PlainText);
+			comment->setTextInteractionFlags(Qt::TextSelectableByMouse);
+			auto italic = comment->font();
+			italic.setItalic(true);
+			comment->setFont(italic);
+			col->addWidget(comment);
+		}
+		auto* const actions = new QHBoxLayout{ };
+		actions->setSpacing(6);
+		aEntry.Id         = NextCardId++;
+		const auto  index = aEntry.Id;
+		auto* const draft = new quiet_push_button{ tr("Add as draft comment"), card };
+		draft->setObjectName(QStringLiteral("agentFindingDraftComment"));
+		draft->setToolTip(tr("A private draft at its lines, from its suggested comment. Nothing is published."));
+		connect(draft, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::draft_comment); });
+		actions->addWidget(draft);
+		auto* const note = new quiet_push_button{ tr("Save as note"), card };
+		note->setObjectName(QStringLiteral("agentFindingSaveNote"));
+		note->setToolTip(tr("A private note on its lines, never published"));
+		connect(note, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::save_note); });
+		actions->addWidget(note);
+		auto* const dismiss = new quiet_push_button{ tr("Dismiss"), card };
+		dismiss->setObjectName(QStringLiteral("agentFindingDismiss"));
+		dismiss->setFlat(true);
+		connect(dismiss, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::dismiss); });
+		actions->addWidget(dismiss);
+		auto* const state = new QLabel{ card };
+		state->setObjectName(QStringLiteral("agentFindingState"));
+		state->setForegroundRole(QPalette::PlaceholderText);
+		state->setWordWrap(true);
+		state->hide();
+		actions->addWidget(state, 1);
+		auto* const undo = new quiet_push_button{ tr("Undo"), card };
+		undo->setObjectName(QStringLiteral("agentFindingUndo"));
+		undo->setFlat(true);
+		undo->hide();
+		connect(undo, &QPushButton::clicked, this, [this, index] { act_on_card(index, agent_finding_card_action::undo_dismiss); });
+		actions->addWidget(undo);
+		actions->addStretch(1);
+		col->addLayout(actions);
+		// Choosing a card selects its finding and shows its lines.
+		card->installEventFilter(this);
+		card->setProperty("agentFindingCard", QVariant::fromValue<qulonglong>(index));
+		card->setCursor(Qt::PointingHandCursor);
+		aEntry.Widget = card;
+		show_card_state(aEntry);
+		return card;
+	}
+
+	void agent_tab_view::show_card_state(card_entry& aEntry)
+	{
+		if (aEntry.Widget == nullptr) {
+			return;
+		}
+		auto* const card  = aEntry.Widget.data();
+		auto* const state = card->findChild<QLabel*>(QStringLiteral("agentFindingState"));
+		auto* const undo  = card->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"));
+		const auto  open  = aEntry.State == agent_finding_card_state::open || aEntry.State == agent_finding_card_state::refused;
+		for (const auto* const name : { "agentFindingDraftComment", "agentFindingSaveNote", "agentFindingDismiss" }) {
+			if (auto* const button = card->findChild<QPushButton*>(QString::fromLatin1(name)); button != nullptr) {
+				button->setVisible(open);
 			}
 		}
+		undo->setVisible(aEntry.State == agent_finding_card_state::dismissed);
+		switch (aEntry.State) {
+		case agent_finding_card_state::open:      state->clear(); break;
+		case agent_finding_card_state::working:   state->setText(tr("Working…")); break;
+		case agent_finding_card_state::drafted:   state->setText(tr("Drafted. It is a private draft until you publish it.")); break;
+		case agent_finding_card_state::noted:     state->setText(tr("Saved as a private note.")); break;
+		case agent_finding_card_state::dismissed: state->setText(tr("Dismissed.")); break;
+		case agent_finding_card_state::refused:   state->setText(aEntry.Why.isEmpty() ? tr("That could not be done.") : aEntry.Why); break;
+		}
+		state->setVisible(!state->text().isEmpty());
+		card->setProperty("agentFindingStateName", static_cast<int>(aEntry.State));
+		card->setEnabled(true);
+		card->update();
+	}
+
+	void agent_tab_view::act_on_card(const std::uint64_t aCard, const agent_finding_card_action aAction)
+	{
+		const auto found = std::ranges::find(CardEntries, aCard, &card_entry::Id);
+		if (found == CardEntries.end() || !panels_alive()) {
+			return;
+		}
+		auto& entry = *found;
+		if (aAction == agent_finding_card_action::undo_dismiss) {
+			// A dismissal made nothing, so taking it back is the card's alone.
+			entry.State = agent_finding_card_state::open;
+			show_card_state(entry);
+			if (CardDispatch) {
+				CardDispatch({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Action = aAction });
+			}
+			return;
+		}
+		if (CardDispatch) {
+			entry.State = aAction == agent_finding_card_action::dismiss ? agent_finding_card_state::dismissed : agent_finding_card_state::working;
+			show_card_state(entry);
+			CardDispatch({ .Session = entry.Session, .Ordinal = entry.Ordinal, .Finding = entry.Finding, .Action = aAction });
+			return;
+		}
+		// Without a host the queue's own actions are asked, as before.
+		const auto* const delivery = Findings.shown_delivery();
+		if (delivery == nullptr || delivery->Session.value() != entry.Session) {
+			return;
+		}
+		Findings.select(entry.Ordinal);
+		const auto queued = aAction == agent_finding_card_action::draft_comment ? finding_queue_action::convert_to_draft_comment
+			: aAction == agent_finding_card_action::save_note                   ? finding_queue_action::add_to_private_notes
+																				: finding_queue_action::dismiss;
+		if (auto* const action = Findings.action(queued); action != nullptr) {
+			action->trigger();
+		}
+		entry.State = aAction == agent_finding_card_action::draft_comment ? agent_finding_card_state::drafted
+			: aAction == agent_finding_card_action::save_note             ? agent_finding_card_state::noted
+																		  : agent_finding_card_state::dismissed;
+		show_card_state(entry);
 	}
 
 	void agent_tab_view::ask()
@@ -1395,23 +1559,22 @@ namespace bpr::qt {
 					fit_answer(*kept.Answer);
 				}
 			}
-			for (const auto& card : CardWidgets) {
-				if (card != nullptr) {
-					fit_card_actions(*card, card_room());
-				}
-			}
 			return false;
 		}
 		if (aEvent->type() == QEvent::MouseButtonRelease && aWatched->objectName() == QStringLiteral("agentFindingCard")) {
-			const auto ordinal = static_cast<std::size_t>(aWatched->property("agentFindingOrdinal").toULongLong());
-			Findings.select(ordinal);
-			if (auto* const action = Findings.action(finding_queue_action::open_evidence); action != nullptr) {
-				action->trigger();
+			const auto id    = static_cast<std::uint64_t>(aWatched->property("agentFindingCard").toULongLong());
+			const auto found = std::ranges::find(CardEntries, id, &card_entry::Id);
+			// Its lines are shown while its delivery is the one the queue holds.
+			if (const auto* const delivery = Findings.shown_delivery(); found != CardEntries.end() && delivery != nullptr && delivery->Session.value() == found->Session) {
+				Findings.select(found->Ordinal);
+				if (auto* const action = Findings.action(finding_queue_action::open_evidence); action != nullptr) {
+					action->trigger();
+				}
 			}
-			for (const auto& card : CardWidgets) {
-				if (card != nullptr) {
-					static_cast<rounded*>(card.data())->Selected = card == aWatched;
-					card->update();
+			for (const auto& entry : CardEntries) {
+				if (entry.Widget != nullptr) {
+					static_cast<rounded*>(entry.Widget.data())->Selected = entry.Widget == aWatched;
+					entry.Widget->update();
 				}
 			}
 			return true;

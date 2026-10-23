@@ -6,6 +6,8 @@
 #include <QStringList>
 #include <QWidget>
 
+#include "bpr/core/agent_finding.hpp"
+
 #include <cstddef>
 #include <functional>
 #include <optional>
@@ -73,6 +75,44 @@ namespace bpr::qt {
 		QString                                                OpenFile;
 		std::optional<std::pair<std::uint32_t, std::uint32_t>> Lines;
 	};
+
+	/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("Yep build it
+	/// like that"). What a reviewer may do with one finding card; nothing is
+	/// done by itself.
+	enum class agent_finding_card_action : std::uint8_t {
+		/// A private line draft at the finding's lines, from its suggested
+		/// comment (or its claim).
+		draft_comment,
+		/// A private note on its lines, never published.
+		save_note,
+		dismiss,
+		/// Takes a dismissal back.
+		undo_dismiss,
+	};
+
+	/// \brief What a card says once it was acted on.
+	enum class agent_finding_card_state : std::uint8_t {
+		open,
+		working,
+		drafted,
+		noted,
+		dismissed,
+		/// The action could not be done; the card says why and stays open.
+		refused,
+	};
+
+	struct agent_finding_card_request
+	{
+		/// The delivery the finding came in, and its place there.
+		std::uint64_t             Session = 0U;
+		std::size_t               Ordinal = 0U;
+		core::agent_finding       Finding;
+		agent_finding_card_action Action = agent_finding_card_action::draft_comment;
+	};
+	using agent_finding_card_dispatch = std::function<void(const agent_finding_card_request&)>;
+	/// \brief Save as note on a plain answer: the text (the whole reply, or
+	/// the selected part), and where the host says how it went.
+	using agent_answer_note_dispatch = std::function<void(const QString& aText, std::function<void(bool aSaved, const QString& aWhy)> aDone)>;
 
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
@@ -185,6 +225,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto empty_state() const noexcept -> drawer_empty_state* { return Empty; }
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return History; }
 		[[nodiscard]] auto finding_cards() const -> std::vector<QWidget*>;
+		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Where a
+		/// card's Add as draft comment, Save as note and Dismiss go, and the
+		/// state the host reports back for the card (`aWhy` with a refusal).
+		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
+		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { });
+		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
+		/// \brief Save as note on a plain answer.
+		void               set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
+		[[nodiscard]] auto turn_note_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief The cards a turn brought, under its answer.
+		[[nodiscard]] auto turn_cards(std::size_t aTurn) const -> std::vector<QWidget*>;
 		[[nodiscard]] auto ask_button() const noexcept -> QPushButton* { return Ask; }
 		[[nodiscard]] auto head_chip() const noexcept -> QLabel* { return Head; }
 
@@ -195,10 +246,32 @@ namespace bpr::qt {
 
 	private:
 		void rebuild_findings();
-		/// \brief Folds a card's actions into More when the drawer is narrow.
-		static void        fit_card_actions(QWidget& aCard, int aRoom);
-		[[nodiscard]] auto card_room() const -> int;
-		void               present_banner();
+		/// One finding card: where it came from, what it says, its state.
+		struct card_entry
+		{
+			std::uint64_t            Id      = 0U;
+			std::uint64_t            Session = 0U;
+			std::size_t              Ordinal = 0U;
+			core::agent_finding      Finding;
+			bool                     Anchored = false;
+			agent_finding_card_state State    = agent_finding_card_state::open;
+			QString                  Why;
+			/// The turn it is under; none for a card no turn brought.
+			std::optional<std::size_t> Turn;
+			QPointer<QWidget>          Widget;
+		};
+		[[nodiscard]] auto make_card(card_entry& aEntry, QWidget* aParent) -> QWidget*;
+		void               show_card_state(card_entry& aEntry);
+		void               act_on_card(std::uint64_t aCard, agent_finding_card_action aAction);
+		std::uint64_t      NextCardId = 1U;
+		/// The findings that arrived during the turn that just ended go
+		/// under its answer.
+		void                         claim_findings(std::size_t aTurn);
+		std::vector<card_entry>      CardEntries;
+		std::optional<std::uint64_t> ClaimedSession;
+		agent_finding_card_dispatch  CardDispatch;
+		agent_answer_note_dispatch   NoteDispatch;
+		void                         present_banner();
 
 		agent_launch_panel&             Launch;
 		side_chat_panel&                Chat;
@@ -242,6 +315,8 @@ namespace bpr::qt {
 			QPointer<markdown_body_view> Answer;
 			QString                      AnswerText;
 			QPointer<QLabel>             Footer;
+			QPointer<QPushButton>        SaveNote;
+			QPointer<QVBoxLayout>        CardColumn;
 		};
 		std::vector<turn> Turns;
 		QWidget*          Thread       = nullptr;
@@ -275,17 +350,16 @@ namespace bpr::qt {
 		QTimer*       Ticker = nullptr;
 		QElapsedTimer Started;
 		/// The last request ended well and nothing has run since.
-		bool                           Finished   = false;
-		QWidget*                       ReadyCard  = nullptr;
-		QLabel*                        ReadyTitle = nullptr;
-		QLabel*                        ReadyText  = nullptr;
-		QLabel*                        ReadyGets  = nullptr;
-		QPushButton*                   Ask        = nullptr;
-		QPushButton*                   Context    = nullptr;
-		QLabel*                        Chips      = nullptr;
-		QLabel*                        Log        = nullptr;
-		bool                           LogShown   = false;
-		std::vector<QPointer<QWidget>> CardWidgets;
+		bool         Finished   = false;
+		QWidget*     ReadyCard  = nullptr;
+		QLabel*      ReadyTitle = nullptr;
+		QLabel*      ReadyText  = nullptr;
+		QLabel*      ReadyGets  = nullptr;
+		QPushButton* Ask        = nullptr;
+		QPushButton* Context    = nullptr;
+		QLabel*      Chips      = nullptr;
+		QLabel*      Log        = nullptr;
+		bool         LogShown   = false;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
 		/// The panels may go first when the window closes.

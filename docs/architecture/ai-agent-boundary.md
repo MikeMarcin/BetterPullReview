@@ -222,6 +222,22 @@ version-two field and are written only when present, so a launch without a
 brief differs from version two only in its `schema` line. The agent may still
 read GitHub through its own tools.
 
+**Findings in the answer ([[BPR-PENDING-AQ6]], owner decision 2026-10-23).**
+A harness writes its own result frame, so its model cannot add `bprFindings`
+to it. The review skill therefore asks for a block fenced `bpr-findings` at
+the end of a review's answer: a `findings` array of `path`, one-based
+inclusive `startLine` and `endLine` (at the head unless `side` is `left`),
+`severity`, `category` and `confidence` by the payload's stable names,
+`claim`, and optionally `evidence`, `consequence` and `suggestedComment`.
+When a successful turn returned no structured payload,
+`application::decode_agent_review_findings` reads the last such block from
+its output (at most 32 findings within 48 KiB; an entry that is not a
+finding is left out), states the provider and analyzed base and head from
+the session, and anchors a finding to its first line only on a file the
+turn's frozen snapshot holds; any other finding has no anchor, and
+`core::validate_agent_finding` delivers it unanchored. Nothing reaches a
+draft or a note without the reviewer's gesture on its card.
+
 **The review skill (owner decision D1, Q9 A).** The method ships as an Agent
 Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into
 the application with `metadata.bpr-version`. Its text goes in every review

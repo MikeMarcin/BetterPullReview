@@ -611,6 +611,29 @@ coordinator, verbatim:
   agent's own models and effort levels, saved for the profile. `/model NAME`
   and `/effort LEVEL` (or `default`) in the field do the same and are not
   sent.
+- **Findings become cards, notes and drafts only on a gesture ("Yep build it
+  like that").** Asked how agent responses become notes, the owner approved
+  this design, which keeps RFC-BPR-0012's rule that nothing is automatic and
+  the agent's text stays a local proposal until the reviewer acts. A turn's
+  structured findings, validated and anchored by the core as RFC-BPR-0012
+  has them, are cards in the thread under that turn's answer, each with its
+  file, lines, claim, evidence and suggested comment and three actions:
+  **Add as draft comment** (a private line draft from the suggested comment,
+  through the existing promotion of private text into the line's own draft),
+  **Save as note** (a private note on those lines, never published) and
+  **Dismiss**. A plain answer offers **Save as note** for the whole reply, or
+  for the part selected in it. Once acted on, a card says Drafted, Saved as a
+  private note, or Dismissed with **Undo**; a refusal says why and leaves the
+  card open. No harness lets its model add `bprFindings` to the result frame
+  the harness writes, so the review skill (version 2) asks the agent to end a
+  review with a block fenced `bpr-findings` (path, one-based start and end
+  lines, severity, category, confidence, claim, evidence, suggested
+  comment); the host reads it from the answer, states the provider and
+  analyzed revisions from the session, anchors a finding on a file the turn
+  froze to its first line there, and leaves any other finding unanchored for
+  the core to deliver as such. The reply is shown without the block. A draft
+  or note is made only at lines of the file on screen; for another file the
+  card says to open it and try again.
 
 ## Acceptance
 

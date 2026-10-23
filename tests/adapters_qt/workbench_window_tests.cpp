@@ -13820,15 +13820,16 @@ namespace {
 		const auto cards = agent->finding_cards();
 		expect(cards.size() == 1U, "a finding is a card");
 		auto* const draft = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
-		expect(draft != nullptr && draft->text() == QStringLiteral("Draft a comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp")) != nullptr
-				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingAddToNotes")) != nullptr && cards.front()->findChild<QToolButton*>(QStringLiteral("agentFindingMore")) != nullptr,
-			   "its card offers Draft a comment, Ask follow-up, Add to notes and More");
+		// Owner decision 2026-10-23 ("Yep build it like that"): three actions.
+		expect(draft != nullptr && draft->text() == QStringLiteral("Add as draft comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote")) != nullptr
+				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")) != nullptr,
+			   "its card offers Add as draft comment, Save as note and Dismiss");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-findings.png"), "PNG"), "render saved");
 		}
 		draft->click();
 		process_events();
-		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Draft a comment asks the queue's own promotion, nothing more");
+		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Add as draft comment asks the queue's own promotion, nothing more");
 
 		// Working: what it reads, and Stop.
 		window.agent_panel()->set_running(true);
@@ -13902,7 +13903,7 @@ namespace {
 			window.finding_queue()->present(delivery);
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
-			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding below")),
+			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding, above")),
 				   "finished, the turn says what came of it rather than going quiet");
 			static_cast<void>(title);
 
@@ -13934,6 +13935,52 @@ namespace {
 				   "the thread is kept as each turn ends");
 			expect(!agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->suggestions_menu_button()->isVisible() && agent->clear_session_button()->isVisible(),
 				   "once the thread has turns the suggestions fold into a menu, and Clear session is offered");
+
+			// Owner decision 2026-10-23 ("Yep build it like that"). The review's
+			// finding is a card under its answer, with three actions; acting on
+			// it says what came of it, and a dismissal can be taken back.
+			expect(agent->turn_cards(0U).size() == 1U && agent->finding_cards().size() == 1U && agent->turn_cards(1U).empty(),
+				   "the finding the review brought is a card under that turn's answer, and only there");
+			auto cardAsks = std::vector<qt::agent_finding_card_request>{ };
+			agent->set_finding_card_dispatch([&cardAsks](const qt::agent_finding_card_request& aRequest) { cardAsks.push_back(aRequest); });
+			auto* const turnCard = agent->turn_cards(0U).front();
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+			process_events();
+			expect(cardAsks.size() == 1U && cardAsks.back().Action == qt::agent_finding_card_action::draft_comment && cardAsks.back().Finding.Claim == finding.Claim
+					   && agent->finding_card_state(0U) == qt::agent_finding_card_state::working,
+				   "Add as draft comment asks the host, and the card waits");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::drafted);
+			process_events();
+			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::drafted && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted"))
+					   && turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
+				   "drafted, the card says so and offers nothing more");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::refused, QStringLiteral("Open src/engine/renderer.cpp, then try again."));
+			process_events();
+			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote"))->isHidden(),
+				   "refused, it says why and stays open");
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss"))->click();
+			process_events();
+			expect(cardAsks.back().Action == qt::agent_finding_card_action::dismiss && agent->finding_card_state(0U) == qt::agent_finding_card_state::dismissed
+					   && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"))->isHidden(),
+				   "Dismiss says Dismissed, with Undo");
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"))->click();
+			process_events();
+			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::open && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
+				   "Undo opens the card again");
+			agent->set_finding_card_dispatch({ });
+			// A plain reply offers Save as note for the whole of it.
+			auto savedNote = QString{ };
+			agent->set_answer_note_dispatch([&savedNote](const QString& aText, std::function<void(bool, const QString&)> aDone) {
+				savedNote = aText;
+				aDone(true, { });
+			});
+			auto* const saveNote = agent->turn_note_button(1U);
+			expect(saveNote != nullptr && !saveNote->isHidden(), "a reply offers Save as note");
+			saveNote->click();
+			process_events();
+			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Saved as a note") && !saveNote->isEnabled(),
+				   "Save as note keeps the reply as a note and says so");
+			agent->set_answer_note_dispatch({ });
 
 			// Owner look v002 ("Not having a model/effort picker in this window
 			// bothers the hell out of me. I can't even do /model"). The context
@@ -13988,11 +14035,13 @@ namespace {
 			identity.InvocationGeneration = 3U;
 			window.agent_panel()->admit(identity);
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
-			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": []}\n```" });
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
 			expect(agent->turn_count() == 3U && agent->turn_question(2U) == QStringLiteral("What could this change break?") && composer->toPlainText().isEmpty(),
 				   "the suggestion is the next turn's question, exactly");
+			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
+				   "the reply is shown without its findings block, which is for the cards");
 
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-thread.png"), "PNG"), "render saved");

@@ -102,3 +102,7 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   PR with an option to clear session."; (a) "Suggested prompts described that
   way sound great." All three forks are answered; look v003 asks only the
   look question.
+- Owner decision 2026-10-23, in chat (relayed), on how agent responses become
+  notes, verbatim: "Yep build it like that." Finding cards under the answer
+  with Add as draft comment, Save as note and Dismiss; Save as note on a plain
+  reply; nothing automatic. Recorded in the RFC; look v003 covers it.

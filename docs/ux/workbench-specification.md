@@ -2431,11 +2431,16 @@ stand above the question field under "Ask about this pull request, or try:"
 path* when a file is open, What could this change break?, and Explain the
 selected lines (a–b) when lines are selected; each is sent as written, as a
 question, and once the thread has turns they are the field's Suggestions
-menu. After the thread come one card per finding: severity, likelihood
-and category, its `file:lines`, the claim and the evidence; choosing a card
-shows its lines; **Draft a comment** copies it to a local draft at its line,
-then Ask follow-up and Add to notes, which fold into More (with Show the code,
-Draft a defect and Dismiss) when the drawer is narrow. The question field
+menu. A turn's findings are cards under its answer (owner decision,
+2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
+the evidence and the suggested comment; choosing a card shows its lines.
+**Add as draft comment** makes a private draft at its lines from the
+suggested comment, **Save as note** a private note on them, and **Dismiss**
+rules it out; the card then says Drafted, Saved as a private note, or
+Dismissed with **Undo**, and a refusal says why (for another file: open it,
+then try again). A reply offers **Save as note** for the whole of it, or the
+part selected. The reply is shown without its `bpr-findings` block. Findings
+delivered with no turn come after the thread, as cards of their own. The question field
 closes the tab with the model and effort chip (owner decision (c): "opus ·
 high effort", or "Default model"; its tooltip names the program that runs and
 the model the last answer reported, and its menu chooses from the agent's own

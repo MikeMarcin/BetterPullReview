@@ -1,4 +1,14 @@
 # [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner decision 2026-10-23 ("Yep
+# build it like that"): github_application.cpp takes a finding card's Add as
+# draft comment through the existing private-text promotion into the line's
+# own draft (promote_private_item, now with an optional completion that keeps
+# the Agent tab in place), its Save as note and a reply's Save as note through
+# the existing ReviewLedgerHost::persist of a private note, and Dismiss through
+# the existing finding host. Nothing is published; no grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner decisions (a), (b) and (c) of
 # 2026-10-23: github_application.cpp composes application::agent_conversation_host
 # (a new application source on the decision lane, its store on the existing
@@ -2269,7 +2279,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"56504cebd18720f606fc1fd339feaa97305a7d37dc4d7c2b46e890ada5e92388"
+		"9365ca80c6075b09bbe9048418194b5a720062afc9189f16edb1368dbc40861a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2493,7 +2503,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ff413f2159b1954aa93a6dcc89af11276371c2bfce1d674eb13ed27dd4173436"
+        "4a80b363449183d2f86edd3af409094c3813ba236244ff6a68834c8e89b2a34c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

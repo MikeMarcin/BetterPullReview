@@ -953,6 +953,19 @@ namespace bpr::application {
 						// rather than to never learn about.
 						auto payload = std::move(result.Findings);
 						result.Findings.reset();
+						// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A
+						// harness writes its own result frame, so a real agent
+						// returns its review findings in its answer, fenced as
+						// the review skill asks; they are read against this
+						// turn's frozen snapshot and delivered like any other.
+						if (!payload.has_value() && result.Outcome == agent_run_outcome::success) {
+							auto answer = std::string{ };
+							for (const auto& event : result.Events) {
+								answer += event.Text;
+								answer += '\n';
+							}
+							payload = decode_agent_review_findings(answer, aInvocation->Identity.Session, aInvocation->Snapshot);
+						}
 						// Which revision this turn's outcome is judged
 						// against. A fresh turn is judged against the revision
 						// under review, unchanged. A continuation is judged
