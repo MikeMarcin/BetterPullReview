@@ -191,3 +191,21 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
 - Look v004's host was stopped, its candidate released and its root removed.
   v005 builds the seven notes, recorded in the RFC, and the cut-off last line
   the first screenshot showed.
+
+## Look v005 (2026-10-23)
+
+- Frozen from `a59f982ce` (on main `055bed96e`, with look v004's notes:
+  inline code coloured as the pull request's language, Go to note, models
+  with their versions, the suggestions above the field with a show/hide
+  toggle, file-and-line links, the prefilled folder line with no "Or add",
+  the answer's last line whole, and the pull request in the header); the
+  launcher's own check reached `ATTENDED_PULL_REQUEST_OPENED`. Root
+  `/Users/jaeger/bpr0092-agent-setup-v005.i823o3r4`, with the stand-in clone
+  under `clones/review-repository`.
+- Session `3bf1ae97f1f725024c467518eb4519f2` (fresh, short; state
+  `~/.attended-review-state/bpr0092-look-v005`), served with
+  `serve --tailscale`; one question, the look:
+  - Q1 (AC1, RFC AC14), the Agent tab after the v004 notes: "The first time
+    I open the Agent tab it tells me what to do, and I end up asking a
+    question that the agent answers from my repository."
+- Pending: the owner's decision.
