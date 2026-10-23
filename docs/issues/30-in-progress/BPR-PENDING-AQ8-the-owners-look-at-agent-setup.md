@@ -128,4 +128,24 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14), the rebuilt Agent tab: "The first time I open the
     Agent tab it tells me what to do, and I end up asking a question that
     the agent answers from my repository."
-- Waiting on the owner.
+- Handed back 2026-10-23: **Q1 Reject**. The owner's note, verbatim (line
+  breaks joined): "Great progress. It actually functions now. Just a bit of
+  cleanup left to do. The drawer setup wizard doesnt need the full folder list
+  editor inline there, it's fine to just add a single folder line from there.
+  The list editor was meant for settings page. This bottom menu area is a big
+  mess. We should try to syntax highlight these responses using our existing
+  syntax highlighting for code blocks from the markdown renderer. The note we
+  saved also has some not great ux at the bottom. For the chat responses I
+  would like it if we had the response contained in something we could copy
+  the whole response sort of like the claude and codex app buttons at the
+  bottom of the response. Timestamp would also be nice there." Their four
+  screenshots showed the question field's bottom row (the chip and
+  Suggestions squeezed to "Clau…fort" and "Sug…ons", "No adde" and "Contex"
+  cut off beside Ask), an answer with plain code, the saved private note's
+  footer ("Only you", delete, a clipped "Draft comment" and Save), and the
+  Claude app's answer footer (copy, a menu and "10:03 AM").
+- Look v003's host was stopped, its candidate released and its root removed.
+- Owner decisions 2026-10-23, in chat (relayed), verbatim: "Don't have a
+  timeout limit, cancel is sufficient.", then "I guess we can keep a timeout
+  as an option, but i wouldnt want it on by default for my work." Recorded in
+  the RFC; v004 builds the second.
