@@ -177,10 +177,12 @@ WIN-026, WIN-027). It also covers the outside-feed PCRE2 advisory
 The remediation route still holds: use official Qt releases, not a fork. The
 deferral itself is historical. Its own recheck trigger, a newly selected
 official Qt release, fired when Qt 6.12.0 was selected. The 0.3.x releases
-instead rely on their own independent factual dispositions. The owner has not
-said whether the deferral extends to the two Qt 6.12.0 issues that remain:
-Windows zlib `CVE-2026-85091` and `GHSA-r9hj-j2rw-4q3m`. BPR-1742
-carries that question. The deferral is not evidence of non-applicability, a
+instead rely on their own independent factual dispositions. On 2026-10-23 the
+owner extended it ([[BPR-1742]]): "Yes that decision carries over to 6.12.0
+and continues to carry over until Qt releases the fix." The deferral therefore
+covers the two Qt 6.12.0 issues that remain, Windows zlib `CVE-2026-85091` and
+`GHSA-r9hj-j2rw-4q3m`, and every later Qt release that still carries them; it
+ends when an official Qt release ships the fix. The deferral is not evidence of non-applicability, a
 fixed package, a passing scan or approval to publish. It does not cover Apple
 system zlib or D-Bus.
 
