@@ -10091,6 +10091,7 @@ auto main(int argc, char** argv) -> int
 		// test boundary: a CTest row that passes `--attended-launch` keeps the
 		// recorder.
 		fixtureOptions.AttendedWindowBrowser              = attendedLaunch && !bpr::app::inside_automated_test_boundary();
+		fixtureOptions.AttendedAgentSearch                = fixtureOptions.AttendedWindowBrowser;
 		const auto nativeNotificationProbe                = launch.has("--native-notification-probe");
 		const auto nativeNotificationAttended             = launch.has("--native-notification-attended");
 		const auto nativeNotificationRequestCut           = launch.has("--native-notification-cut-request-wire");

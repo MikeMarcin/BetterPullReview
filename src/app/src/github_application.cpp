@@ -5207,6 +5207,7 @@ namespace bpr::app {
 				DeviceWallOffsetSeconds = aFixtureOptions.DeviceWallOffsetSeconds;
 				SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
 				AttendedWindowBrowser   = aFixtureOptions.AttendedWindowBrowser;
+				AttendedAgentSearch     = aFixtureOptions.AttendedAgentSearch;
 				LabelHelper             = aFixtureOptions.LabelHelper;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
@@ -6450,6 +6451,7 @@ namespace bpr::app {
 		bool SuppressDeviceBrowser = false;
 		// [[BPR-1338]]. See `github_public_path_fixture_options`.
 		bool AttendedWindowBrowser = false;
+		bool AttendedAgentSearch   = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool LabelHelper = false;
@@ -11437,8 +11439,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 	#if defined(BPR_BUILD_TESTING)
 			// A fixture course finds only what it put on its own search PATH,
-			// never the developer's own `codex`.
-			if (CodexSearch || ClaudeSearch || Fixture) {
+			// never the developer's own `codex`; an attended look is a person's
+			// session and finds theirs ([[BPR-PENDING-AQ8]]).
+			if (!AttendedAgentSearch && (CodexSearch || ClaudeSearch || Fixture)) {
 				return [codex = CodexSearch, claude = ClaudeSearch](const core::agent_program aProgram) -> std::optional<core::agent_search_candidate> {
 					const auto& search = aProgram == core::agent_program::codex ? codex : claude;
 					if (!search) {
@@ -22245,6 +22248,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
 		decltype(github_profile_runtime::CodexSearch)&                            CodexSearch                            = Profile->CodexSearch;
+		const bool&                                                               AttendedAgentSearch                    = Profile->AttendedAgentSearch;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;

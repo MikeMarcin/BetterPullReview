@@ -500,6 +500,12 @@ namespace bpr::app::detail {
 		// `main` sets it only for `--attended-launch` outside the automated
 		// test boundary; a test that sets it substitutes the platform launch.
 		bool AttendedWindowBrowser = false;
+		/// [[BPR-PENDING-AQ8]], RFC-BPR-0092. An attended look's Agent tab looks
+		/// for this computer's own agents, as a shipped build does, so the
+		/// person can set up and ask their own Claude Code or Codex. `main` sets
+		/// it with `AttendedWindowBrowser`; every automated course keeps its
+		/// own search path and never finds the developer's agent.
+		bool AttendedAgentSearch = false;
 		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
 		// before this process has a session at all, which is the state a past
 		// grant's orderly shutdown used to leave behind: the access token

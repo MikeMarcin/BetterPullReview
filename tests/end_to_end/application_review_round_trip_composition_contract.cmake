@@ -1,3 +1,13 @@
+# [[BPR-PENDING-AQ8]] reseal (2026-10-22) over the BPR-PENDING-AQ6 reseal
+# below, linear, on this card's commit. Pinned-scope change, tests-on only:
+# github_application.cpp's locate_agent_program finds this computer's own
+# agents for an attended look (AttendedAgentSearch, which main.cpp sets with
+# AttendedWindowBrowser for --attended-launch outside the automated test
+# boundary), so the person can set up and ask their own Claude Code or Codex.
+# Every automated course keeps its own search path. No grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays
+# exact.
 # [[BPR-PENDING-AQ6]] reseal (2026-10-22) over the rebase reseal below,
 # linear, on this card's commit. Pinned-scope change, RFC-BPR-0092 M6 (owner
 # answer Q1 A): github_application.cpp, agent builds only, adopts the
