@@ -14,8 +14,8 @@ RFC_BASE_SHA: `74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc`. [Plan](plans/shared-ac
 [import](assets/shared-action-buttons-v1.LIVE_IMPORT.md).
 
 [Verification and continuation](../verification/RFC-BPR-0087.md) records the
-source checkpoints, completed technical verification and the pending separate
-integration authorization; [migration inventory](../ux/shared-action-buttons.md).
+source checkpoints, the 2026-10-22 takeover onto main and the criteria's
+evidence; [migration inventory](../ux/shared-action-buttons.md).
 
 ## Problem and grounded current behavior
 
@@ -67,8 +67,9 @@ Keep all changes in the Qt adapter and its tests/documentation; no core policy,
 settings schema, publication, authentication, release or package changes.
 
 The work stays on an isolated branch. The user's initial request authorized drafting and beginning implementation;
-the later disk-cleanup mandate authorized the whole planned rollout. Merge,
-push and release remain prohibited. Objective offscreen
+the later disk-cleanup mandate authorized the whole planned rollout. On
+2026-10-22 the owner directed the work taken over to completion, which
+authorizes its integration into main; push and release remain separate. Objective offscreen
 renders establish drawing and layout only; they do not establish native desktop
 appearance or human acceptance. Native Windows/Linux results stay explicitly
 unobserved until measured. There are no unresolved product choices for the

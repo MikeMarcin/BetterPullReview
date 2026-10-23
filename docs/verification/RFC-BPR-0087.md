@@ -1,10 +1,12 @@
 # RFC-BPR-0087 verification and continuation
 
-Current frontier: the app-wide source is complete at `81a132674`, with technical
-AC01–AC05 evidence reconciled below. BPR-1661 is verified; BPR-1662's separate
-integration authorization remains pending under the explicit no-merge/push/release
-mandate. The RFC stays **In Progress**. The initial disk pause and first-slice
-pending rows below are historical; the final proposal supersedes that frontier.
+Current frontier: the [takeover onto main](#takeover-onto-main--2026-10-22)
+on 2026-10-22. The Codex branch's seventeen commits were cherry-picked onto
+main `4e318b625`, main's newer surfaces were brought into the shared treatment,
+and the technical criteria were rechecked on the rebased candidate. AC01 waits
+on the owner's look at a frozen build. Everything above the takeover section is
+the Codex branch's history, kept as it was written; its SHAs are mapped to
+the rebased commits below.
 
 ## Initial candidate and disk pause
 
@@ -394,3 +396,136 @@ Preserve this branch, its single build and evidence for a future explicitly
 authorized integration owner. Root README and unrelated work remain untouched.
 At return, all task-owned test/gate commands are exited, writer ownership is
 released and no task-owned background process remains.
+
+## Takeover onto main — 2026-10-22
+
+Owner direction (2026-10-22, relayed by the coordinator): "pick up the work
+you think we should complete and take over it". A fresh Claude
+`rfc-implementer` took the Codex branch `codex/shared-action-buttons` over on
+branch `worktree-agent-ab5451b728f60b904`, leaving that branch and its
+worktree untouched. It loaded `frontend-design:frontend-design` before the
+visual work; BPR-1577's accepted v002 chip remains the design authority, and
+no new visual direction was introduced.
+
+### Rebase
+
+All seventeen commits were cherry-picked with `-x` onto local main
+`4e318b625` (2026-10-22). The Codex SHAs recorded above map to:
+
+| Codex | Rebased | Commit |
+|---|---|---|
+| `f2939cab8` | `04ad6a329` | Claim BPR-1659 |
+| `2660e4c63` | `8e2a0d750` | Start BPR-1659 shared Overview button treatment in Settings |
+| `602454f2c` | `b60370ecc` | Record BPR-1659 source checkpoint and disk-space verification blocker |
+| `4435e1fe4` | `e486ff919` | Resume BPR-1659 with bounded offline verification |
+| `295c4c2a9` | `d3863f2ad` | Claim BPR-1659 |
+| `9dc946997` | `8e790ec53` | Capture shared button states and isolate tab-choice scale verification |
+| `fb790ce89` | `b418a54aa` | Finish BPR-1659 |
+| `db3eee5a7` | `05e03c4c2` | Mark shared action app rollout ready |
+| `e5de4d357` | `465d676ea` | Claim BPR-1660 |
+| `81a132674` | `f39203eac` | Carry quiet secondary buttons through the Qt app |
+| `29251e68d` | `cc538026d` | Accept app-wide shared action button rollout |
+| `52662d1f2` | `fede04644` | Ready final shared button verification |
+| `bb64e195d` | `3b4be38a3` | Claim BPR-1661 |
+| `2e808fe67` | `5cd94998d` | Verify shared button interaction and style evidence |
+| `2a3b95ee9` | `d85132d42` | Ready shared button closeout proposal |
+| `f2a1889e6` | `a076b906f` | Claim BPR-1662 |
+| `12ac9a654` | `276ebf0ec` | Propose RFC-BPR-0087 closeout at authorization boundary |
+
+Only `81a132674` conflicted, in two files; every other file merged cleanly
+over main's newer work (Review drawer tabs, Compose review, About,
+reactions and Resolve, Comments drawer scrolling, in-pane suggest, off-hunk
+holds and the rest).
+
+- `source_search_panel.cpp`: an include clash only; both includes kept.
+- `release_update_panel.cpp`: main had redesigned the panel (one row, the
+  lead command as the default, Open Release Page as the manual fallback, the
+  automatic-check box). Main's layout and behaviour are kept whole and the
+  Codex migration is reapplied to it: Check Now, Later, Skip This Version,
+  Cancel and main's renamed Open Release Page are `quiet_push_button`s;
+  Download and Install and Restart keep native painting. Because main makes
+  whichever command leads the default, and a default quiet button is drawn
+  natively, the panel now calls `updateGeometry()` after each `setDefault`,
+  so a lead that changes also changes the button's measured size.
+
+Main gained button surfaces after the baseline, and these were brought into
+the shared treatment where the RFC asks (commit `f73c40dad`): About's Copy
+version info; the commit filter's Clear all filters, rematch offers and
+Commits; the split-diff strip's per-commit diffs, an exclusive choice drawn as
+Overview's Open/All; and the held comment's Convert. Retained, with reasons in
+the [inventory](../ux/shared-action-buttons.md#surfaces-added-on-main-after-the-baseline):
+About's links and dialog Close, the generated-files disclosure, Compose
+review's toolbar action, the Review drawer's tab bar, the conversation and
+reaction `QAbstractButton` chips and the discuss-header notice chip.
+`9c23301eb` adds two regression checks: the split-diff strip's diff on screen
+has the chip and the others are bare, and a quiet push button made default
+measures the native size and the chip again when it stops being the default.
+The architecture note about `button_surface` no longer calls app-wide
+adoption pending.
+
+### Verification on the rebased candidate
+
+Candidate `9c23301ebbba3cc000afe6fb8a0c6f744ad0fbe7`; macOS arm64, Qt
+6.12.0, `QT_QPA_PLATFORM=offscreen`, the registered network-deny wrappers.
+One lean dev tree in this worktree, configured offline with `-O0 -g0` and the
+main checkout's dependency cache.
+
+| Check | Result |
+|---|---|
+| Focused selector: `ctest --preset dev --output-on-failure -j 4 -R` over Overview, Settings (1x, 1.25x, 1.5x, 2x), workbench, composed GitHub, Home refusal, inline drawer and resident filters, device authorization, conversation cards and finder, epoch comparison, agent launch, diff workbench, Home list, review draft and submission editors, Profiles, Markdown body, private review, scoped prose, suggestion editor, review cycles, source search, pending veil, refresh feedback, About, drawer parts, commit filter, profile reset views, release maintenance, `qt_quiet_buttons`, `qt_feedback_label_settings`, the review submission composition and the release update public path and look, at every registered scale | **72/72 pass** (516 s). The exact selector follows the table. |
+| Reruns after the clang-tidy fixes (`80dbe6d2f`) | `qt_home_list_scale_{100,125,200}`, `qt_quiet_buttons` and `qt_feedback_label_settings` pass. |
+| Style and scale matrix: the registered commands of `qt_feedback_label_settings`, `qt_pull_request_overview_page --switch`, `qt_appearance_settings_panel --shared-buttons`, `qt_quiet_buttons` and `qt_commit_filter_view_scale_100` under `QT_STYLE_OVERRIDE` Fusion and Windows and `QT_SCALE_FACTOR` 1, 1.25 and 2 | **30/30 pass**, 558 renders, outside the repository. |
+| `python3 _coding-standard/scripts/format.py --dry-run` on the 50 changed C++ files | Pass, clang-format 22.1.8. |
+| `python3 _coding-standard/scripts/tidy.py --warnings-as-errors` on the 48 changed translation units, with this tree's compilation database | 45 pass on the first run. Three findings were fixed in `80dbe6d2f`: `performance-no-automatic-move` in `home_list.cpp` (a `const` local on main since 2026-10-12, in a file this RFC changes) and `readability-static-accessed-through-instance` in two of this RFC's tests. The three then pass. |
+| `cmake --preset core-only` (offline, `-O0 -g0`), build and `ctest --preset core-only` | 315/316 pass at `80dbe6d2f`. `documentation_structure` failed only because main had moved on (`NEXT_ID` here was BPR-1742 while main had allocated to BPR-1744); after the rebase onto `c7d82b4ea` it passes (below). |
+| `python3 scripts/verify_documentation.py --root .` and `python3 tests/scripts/verify_documentation_tests.py` | `DOCUMENTATION_OK`; 67 tests pass. |
+| Round-trip composition pins (`application_review_round_trip_composition_contract.cmake`) and the command-correctness registry | Unchanged: no `src/app` file and no pinned path changed, so nothing was resealed. |
+
+The focused selector, run with `QT_QPA_PLATFORM=offscreen`:
+
+```text
+^(qt_quiet_buttons|qt_feedback_label_settings|qt_pull_request_overview_page|qt_appearance_settings_panel|qt_settings_window(_scale_[0-9]+)?|qt_workbench_window_scale_[0-9]+|qt_composed_github_scale_[0-9]+|qt_commit_filter_view_scale_[0-9]+|qt_about_window_scale_[0-9]+|qt_review_submission_editor_scale_[0-9]+|application_release_update_(look|public_path)|qt_release_maintenance_scale_[0-9]+|qt_composed_home_refusal_scale_[0-9]+|qt_composed_inline_drawer_scale_[0-9]+|qt_composed_resident_drawer_filters|qt_device_authorization_scale_[0-9]+|qt_conversation_finder_scale_[0-9]+|qt_epoch_comparison_scale_[0-9]+|qt_agent_launch_panel|qt_diff_workbench_scale_[0-9]+|qt_home_list_scale_[0-9]+|qt_profile_management_window|qt_markdown_body_[0-9_]+|qt_private_review_panel|qt_scoped_prose_editor|qt_suggestion_editor_[0-9_]+|qt_review_cycle_view_[0-9_]+|qt_source_search_panel_scale_[0-9]+|qt_pending_veil|qt_refresh_feedback_window|qt_drawer_parts_scale_[0-9]+|qt_profile_data_reset_views|qt_conversation_cards_view|qt_review_draft_editor|application_review_submission_composition_(public_path|scale_[0-9]+))$
+```
+
+Inspected renders, all four themes present in each cell: Review in Dark at
+Fusion 1x (each row's chosen option has the chip, the others are bare words,
+Reset is a chip at rest); Comments in High contrast light at Windows 1.25x
+(Icons/Letters, Overview counts' Open/All, Load/Don't load and Reset share
+one treatment, links stay links); the split-diff strip at Fusion 2x (the diff
+on screen has the chip, the other diff is a bare word, the hidden commit stays
+italic text); the file-tree chip at Windows 2x (Hide 4444444 and Clear all
+filters bare at rest); Diagnostics keyboard focus in High contrast dark at
+Fusion 1.25x (inset ring on Verbose, the chosen Standard keeps its chip,
+destructive Clear keeps its own button); and Overview's Open/All in Light at
+Fusion 2x. Labels fit and nothing is clipped.
+
+The Codex branch's full Appearance suite failed its info-popover placement at
+Fusion 2x, unrelated to these buttons; that run was not repeated, and the
+matrix exercises Appearance through `--shared-buttons`, as before.
+
+### Criteria on the rebased candidate
+
+| Criterion | Judgment |
+|---|---|
+| AC01 | **Pending the owner.** Every technical part passes above. "Visibly ... without the heavy native bezel" is about the macOS style, which an offscreen platform does not load, so one Accept/Reject question is asked on frozen build `9c23301eb` (below). |
+| AC02 | **Pass.** The [inventory](../ux/shared-action-buttons.md) lists every button file the 2026-10-22 scan finds (55), each migrated or retained with its reason; nothing is deferred. |
+| AC03 | **Pass.** The focused selector and the reruns pass; `qt_quiet_buttons` and `qt_feedback_label_settings` keep their keyboard, default, mnemonic, exclusivity, disabled, accessibility, icon and menu, sizing and theme checks, and the two new checks pass. |
+| AC04 | **Pass** for offscreen drawing and layout, with hover, press, focus and disabled captures at 1x, 1.25x and 2x in two styles. Native macOS, Windows and Linux appearance are unobserved; Windows here is Qt's Windows style on macOS. |
+| AC05 | **Pass.** Format, tidy, core-only, documentation and focused checks pass, recorded here with their commands and revisions. |
+
+### Owner question and continuation
+
+Fresh attended session `053ec09c3451efe1c5ae725858a177fd` (state directory
+`/Users/jaeger/.mask/attended-review/owner-review-20261022-shared-buttons-v001`,
+served over Tailscale; the capability URL stays in the session state), one
+candidate, `RFC0087-AC01-shared-chip`: "Overview's Open/All and the Settings
+choices share one quiet chip", Accept or Reject, on frozen root
+`/Users/jaeger/bpr-rfc0087-shared-buttons-v001.vwv381ny` (from `9c23301eb`,
+executable SHA-256 `22e3797369653d66a69a9f117c045ed6650f64bf49933bc4aaa7e525285059ff`;
+the launcher's own `--check` reached `ATTENDED_PULL_REQUEST_OPENED`). The
+frozen root reuses the main checkout's dependency cache through a symlink at
+`src/build/.cpm-cache`. Commits after `9c23301eb` change only the clang-tidy
+fixes, which do not touch the Overview or Settings controls, and documentation.
+
+On Accept, BPR-1662 and RFC-BPR-0087 close. On Reject, the note names the
+theme and control to change, and a new frozen candidate is asked again.
