@@ -38,7 +38,7 @@ taken over; its seventeen commits were cherry-picked onto main `4e318b625`
 (the [ledger](../../verification/RFC-BPR-0087.md#takeover-onto-main--2026-10-22)
 maps every SHA), main's newer button surfaces were brought in or retained with
 reasons, and every criterion was rechecked on candidate `9c23301eb` (its
-source is that of `da892a514` after the final rebase onto `c7d82b4ea`).
+rebased equivalent is `ca5bd5f68`, on main `98acba969`).
 
 ## Remaining
 
