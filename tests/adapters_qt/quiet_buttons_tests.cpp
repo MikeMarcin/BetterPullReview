@@ -125,7 +125,11 @@ namespace {
 		quiet.setDefault(true);
 		native.setDefault(true);
 		expect(raster(quiet) == raster(native), "a default button retains native painting");
+		// The update panel's lead command becomes the default and back; its
+		// measured size follows, so the panel refreshes geometry on the change.
+		expect(quiet.sizeHint() == native.sizeHint(), "a default button keeps the native size");
 		quiet.setDefault(false);
+		expect(quiet.sizeHint() != native.sizeHint(), "a secondary button measures the shared chip again");
 		native.setDefault(false);
 		QMenu quietMenu;
 		QMenu nativeMenu;

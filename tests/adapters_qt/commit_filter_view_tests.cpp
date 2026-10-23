@@ -453,6 +453,15 @@ namespace {
 				   && strip.parts()[0]->accessibleName() == QStringLiteral("Diff 1 of 2: commit 1111111, Change the generator input, seen"),
 			   "each diff's accessible name says which it is and how far it is read");
 		render(strip, "split-strip");
+		{
+			// RFC-BPR-0087. The diffs are an exclusive choice drawn as Overview's
+			// Open/All: the one on screen has the shared chip, the others are bare.
+			const auto ground   = strip.palette().color(QPalette::Active, QPalette::Window);
+			const auto selected = strip.parts()[0]->grab().toImage();
+			const auto bare     = strip.parts()[1]->grab().toImage();
+			expect(selected.pixelColor(1, selected.height() / 2) != ground, "the diff on screen has the shared chip");
+			expect(bare.pixelColor(1, bare.height() / 2) == ground, "a diff not on screen is a bare word");
+		}
 		// Narrow, the wording shortens instead of widening the window.
 		strip.resize(420, strip.height());
 		settle();
