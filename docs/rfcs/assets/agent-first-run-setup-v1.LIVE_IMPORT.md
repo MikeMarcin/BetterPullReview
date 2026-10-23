@@ -7,10 +7,10 @@ local `main` at `92162efed`, which holds the draft as committed in
 Renumbered 2026-10-22 from RFC-BPR-0091 to RFC-BPR-0092 when the lane was
 rebased onto `main` at `4e318b625`: RFC-BPR-0091 had landed there first, for
 comment reactions and resolving conversations. The rebased slices are
-`b9492bbe2` (AQ1), `a856809fa` (AQ2), `c6b06b83a` (AQ3), `c54c8094a` (AQ4) and
-`2de8276f9` (AQ5), as rebased again onto `main` at `27d17fea5` (RFC-BPR-0087's
-shared action buttons, which the setup's new buttons use); AQ6 is `2d809039c`
-and AQ7 `fe29766ee`. Their cards and reseal notes name these identities.
+`7ae3fc4ab` (AQ1), `0e38a8866` (AQ2), `248982ca7` (AQ3), `cb358ded5` (AQ4) and
+`e5a00a2f3` (AQ5), as rebased again onto `main` at `27d17fea5` and then `b8d2ec6cf` (RFC-BPR-0087's
+shared action buttons, which the setup's new buttons use); AQ6 is `bed1fba89`
+and AQ7 `bb9d6c55f`. Their cards and reseal notes name these identities.
 
 ## Mapping
 
