@@ -8,8 +8,13 @@ Detail is in the [packaging reference](release-packaging-maintainers.md#recipien
 | Platform | Package |
 |---|---|
 | macOS 14.4+, Apple Silicon and Intel | `*-macos-universal.dmg` (or `.zip`) |
-| Windows 10/11 x64 | `*-windows-x64.msi`, per-user |
+| Windows x64 | `*-windows-x64.msi`, per-user |
 | Ubuntu 26.04 x86_64 | `*-linux-ubuntu-26.04-x64.deb`, or the per-user `*-user.tar.gz` |
+
+Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
+may work but are untested; the packages do not refuse them. Qualification on
+the tested environments is itself incomplete; see
+[Known limitations](#known-limitations).
 
 Linux runs on X11 or XWayland, not native Wayland. Install Git 2.39+ yourself;
 optional GitHub CLI support is macOS-only and needs `gh` 2.96+ and Git 2.49+.

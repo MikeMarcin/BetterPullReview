@@ -47,10 +47,11 @@ No criterion is accepted. This card stays **Blocked** on
   needs its own. Recipient access and retention are ongoing obligations.
 - **Native environments and decisions are missing.** There is no native Intel
   Mac, clean Apple Silicon account, ordinary-user Windows 11 desktop or
-  Ubuntu desktop/WSLg course. The M8/M9 native, vault and crash gaps remain.
-  Two owner decisions are pending: whether the Qt deferral extends to
-  Qt 6.12.0 (AW1), and the 2026-10-16 matrix amendment, which was never
-  adopted on main (BPR-1743).
+  Ubuntu 26.04 WSL2/WSLg course. The M8/M9 native, vault and crash gaps
+  remain. One owner decision is pending: whether the Qt deferral extends to
+  Qt 6.12.0 (AW1). The owner confirmed the 2026-10-16 matrix amendment on
+  2026-10-23 UTC (BPR-1743): Windows 11 and Ubuntu 26.04 WSL2 on JaegAW are
+  the tested environments, and others are unproven but not disallowed.
 
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence

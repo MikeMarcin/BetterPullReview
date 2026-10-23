@@ -1,5 +1,29 @@
 # RFC-BPR-0038 qualification ledger
 
+## Owner matrix confirmation, 2026-10-23
+
+[BPR-1743](../issues/60-done/BPR-1743-confirm-or-withdraw-the-october-16-qualification-matrix-amendment.md)
+asked whether the 2026-10-16 matrix amendment stands. The owner answered on
+2026-10-23 UTC: "Windows 11 and ubuntu wsl2 are tested. If it works on other
+things is unproven, but not disallowed." The
+[confirmation](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-confirmation-20261023.json)
+sits beside the unchanged
+[2026-10-16 record](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-amendment-20261016.json).
+
+The tested Windows and Linux environments are Windows 11 x64 and Ubuntu 26.04
+x86_64 under WSL2/WSLg, both on JaegAW. macOS is unchanged. Windows 10, other
+distributions and native Linux desktops are unproven but not disallowed:
+nothing refuses them and nothing claims them. The RFC matrix, BPR-0960,
+BPR-0961, BPR-0962, BPR-0973, the package guide and its maintainer reference,
+the corporate security overview and README now say so. The RFC-0014 plan
+records it as dated
+[amendment r5](../rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r5/amendment.json)
+with its M8 exit text unchanged. Shipped release notes keep their wording.
+
+This is wording and scope only. No environment is newly qualified. The M8/M9
+native, vault, crash-privacy and vulnerability gaps stay open, BPR-0958 to
+BPR-0962 stay Blocked, and all nine criteria remain open.
+
 ## Security-audit port and current-release scan recheck, 2026-10-22
 
 Under the owner's 2026-10-22 direction to finish the unmerged work, a Claude
@@ -468,10 +492,13 @@ No suppression or security waiver exists.
 Native details: BPR0958 needs a disposable clean Apple Silicon account with a
 working default Keychain and authorized authentication, complete revised-package
 rendered course, full purge and residual inspection. BPR0959 needs native Intel.
-BPR0960 needs clean Windows 10/11 non-elevated desktop/auth/high-DPI/accessibility/
-Credential Manager/purge; full PE mechanics are no longer missing, but do not
-satisfy those requirements. BPR0961 needs Ubuntu 24.04/RHEL 10 native DEB/RPM
-courses. JaegAW Windows 11 elevated SSH and Ubuntu 26.04 WSL were used and remain
+BPR0960 needs a clean JaegAW Windows 11 non-elevated desktop/auth/high-DPI/
+accessibility/Credential Manager/purge course; full PE mechanics are no longer
+missing, but do not satisfy those requirements. BPR0961 needs the Ubuntu 26.04
+WSL2/WSLg ordinary-user DEB/per-user archive course with Secret Service, rendered
+interaction, purge and removal (owner amendments 2026-10-11 and 2026-10-16;
+Ubuntu 24.04, RHEL 10 and a native Ubuntu desktop left the matrix). JaegAW
+Windows 11 elevated SSH and Ubuntu 26.04 WSL shell runs were used and remain
 valid evidence for their actual narrower operations, not substitutes.
 
 The complete development run ended 374/415 passing (41 raw failures; two

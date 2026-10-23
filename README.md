@@ -24,8 +24,11 @@ is **v0.3.1**. Downloads and corresponding source are publicly available.
 | Platform | Installer |
 |---|---|
 | macOS 14.4+ · Apple Silicon and Intel | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.dmg) |
-| Windows 10/11 · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi) |
+| Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi) |
 | Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb) |
+
+Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
+may work but are untested.
 
 On macOS, open the DMG and copy the app to `~/Applications`. On Windows, run
 the per-user MSI installer. On Ubuntu, follow the release's
