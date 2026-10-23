@@ -37,6 +37,7 @@
 
 #include <array>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -489,7 +490,11 @@ namespace {
 		expect(heading->text() == QStringLiteral("Claude") && path->text().isEmpty() && status->text().isEmpty(), "nothing is claimed before the profile publishes");
 		expect(signIn->text() == QStringLiteral("Claude and your wrapper handle sign-in. BetterPullReview never asks."),
 			   "one line says sign-in is Claude's and the wrapper's (owner, 2026-10-06: no switch)");
-		expect(page->findChildren<QCheckBox*>().size() == 1, "no sign-in switch is offered; the only check box is the private draft");
+		// [[BPR-PENDING-AQ6]]. The review skill's Restore default has its own
+		// "Save my copy to Downloads first", which is not a sign-in switch.
+		const auto boxes = page->findChildren<QCheckBox*>();
+		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy"); }) == 1,
+			   "no sign-in switch is offered; the only other check box is the private draft");
 
 		auto sent = std::vector<std::string>{ };
 		panel->set_dispatch([&sent](std::string aPath) { sent.push_back(std::move(aPath)); });

@@ -24,6 +24,8 @@
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -1212,6 +1214,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
+		/// [[BPR-PENDING-AQ6]], RFC-BPR-0092. The Agent tab's setup and its
+		/// Settings rows; an agent build adopts the setup into the tab.
+		[[nodiscard]] auto agent_setup() const noexcept -> agent_setup_view* { return AgentSetup; }
+		[[nodiscard]] auto agent_programs() const noexcept -> agent_programs_panel* { return AgentPrograms; }
+		[[nodiscard]] auto clone_folders() const noexcept -> clone_folders_panel* { return CloneFolders; }
+		[[nodiscard]] auto review_skill() const noexcept -> review_skill_panel* { return ReviewSkill; }
 		/// \brief The side chat, placed beside the agent launcher it belongs to.
 		///
 		/// \details BPR-0513. The panel is composed here because the drawer is
@@ -3013,6 +3021,10 @@ namespace bpr::qt {
 		QPointer<settings_window>                          MountedSettings;
 		writing_hooks_panel*                               WritingHooks  = nullptr;
 		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
+		agent_setup_view*                                  AgentSetup    = nullptr;
+		agent_programs_panel*                              AgentPrograms = nullptr;
+		clone_folders_panel*                               CloneFolders  = nullptr;
+		review_skill_panel*                                ReviewSkill   = nullptr;
 		std::function<void()>                              InsightsPresenter;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow = nullptr;

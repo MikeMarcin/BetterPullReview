@@ -10,6 +10,7 @@
 
 class QAbstractButton;
 class QLabel;
+class QMenu;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
@@ -18,6 +19,7 @@ class QVBoxLayout;
 
 namespace bpr::qt {
 	class agent_launch_panel;
+	class agent_setup_view;
 	class drawer_empty_state;
 	class finding_queue_view;
 	class side_chat_panel;
@@ -36,6 +38,8 @@ namespace bpr::qt {
 		/// The last invocation did not finish: what happened, the question
 		/// kept, Ask again and Show the log.
 		stopped,
+		/// [[BPR-PENDING-AQ6]]. The setup is in place of the conversation.
+		setting_up,
 	};
 
 	/// \brief [[BPR-1594]]. RFC-BPR-0085 D5: the Agent tab, the right drawer's
@@ -55,6 +59,18 @@ namespace bpr::qt {
 
 		/// \brief Set up an agent: Settings › Agents & context.
 		void set_setup_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092. Shows `aSetup` in place
+		/// of the conversation while it is needed, adds **Set up agent…** and
+		/// **Change repository folder…** to History, and offers **Check
+		/// again** when an Ask ends for a setup reason (`aCheckAgain`).
+		void adopt_setup(agent_setup_view& aSetup, std::function<void()> aCheckAgain);
+		/// \brief The ready line once setup finishes, and what the agent gets.
+		void present_ready(const QString& aTitle, const QString& aText, const QString& aGets);
+		/// \brief Called once, the first time the tab is shown: when setup
+		/// may show, the host looks for agents (RFC-BPR-0092 Q2).
+		void               set_first_shown(std::function<void()> aObserver);
+		[[nodiscard]] auto ready_card() const noexcept -> QWidget* { return ReadyCard; }
+		[[nodiscard]] auto setup_view() const noexcept -> agent_setup_view* { return SetupView; }
 		/// \brief Reads the panels again and redraws.
 		void refresh();
 		/// \brief The question field takes the keyboard.
@@ -103,11 +119,19 @@ namespace bpr::qt {
 		QWidget*                       Start        = nullptr;
 		QLabel*                        Head         = nullptr;
 		QToolButton*                   History      = nullptr;
-		QPushButton*                   Ask          = nullptr;
-		QPushButton*                   Context      = nullptr;
-		QLabel*                        Chips        = nullptr;
-		QLabel*                        Log          = nullptr;
-		bool                           LogShown     = false;
+		QMenu*                         HistoryMenu  = nullptr;
+		agent_setup_view*              SetupView    = nullptr;
+		std::function<void()>          CheckAgain;
+		std::function<void()>          FirstShown;
+		QWidget*                       ReadyCard  = nullptr;
+		QLabel*                        ReadyTitle = nullptr;
+		QLabel*                        ReadyText  = nullptr;
+		QLabel*                        ReadyGets  = nullptr;
+		QPushButton*                   Ask        = nullptr;
+		QPushButton*                   Context    = nullptr;
+		QLabel*                        Chips      = nullptr;
+		QLabel*                        Log        = nullptr;
+		bool                           LogShown   = false;
 		std::vector<QPointer<QWidget>> CardWidgets;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;

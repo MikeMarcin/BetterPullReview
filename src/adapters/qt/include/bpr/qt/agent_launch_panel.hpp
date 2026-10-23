@@ -131,6 +131,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1738]]. Why the last run stopped and what to do,
 		/// in a reviewer's words, when there is more to say than its outcome.
 		[[nodiscard]] auto stop_reason_text() const -> QString;
+		/// [[BPR-PENDING-AQ6]]. How the last request ended, while nothing runs.
+		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
@@ -165,6 +167,7 @@ namespace bpr::qt {
 		bool                                           Disclosed              = false;
 		std::optional<application::agent_draft_choice> OfferedDraft;
 		QString                                        StopReason;
+		std::optional<application::agent_run_outcome>  LastOutcome;
 		std::optional<application::agent_invocation_projection_identity>
 			ActiveInvocation;
 

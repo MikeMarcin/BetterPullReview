@@ -105,6 +105,7 @@
 	#include "bpr/application/clone_link_host.hpp"
 	#include "bpr/application/review_brief.hpp"
 	#include "bpr/application/review_skill_host.hpp"
+	#include "bpr/qt/agent_tab_view.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -9375,9 +9376,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				dependencies.SaveCopy = [](const std::string& aText) { return save_review_skill_copy(aText); };
 				dependencies.Effects  = &WorkbenchEffects;
 				dependencies.Decision = &DecisionLane;
-				ReviewSkill           = std::make_unique<application::review_skill_host>(std::move(dependencies));
+				dependencies.Publish  = [this](const application::review_skill_projection& aProjection) {
+					if (!Closing && Window != nullptr) {
+						Window->review_skill()->present(aProjection, std::string{ application::built_in_review_skill() });
+					}
+				};
+				ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));
 			}
 			ReviewSkill->load();
+			compose_agent_setup_view();
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
@@ -11536,6 +11543,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											   return;
 										   }
 										   if (aProbed) {
+											   LastWorkspaceProbeReason.reset();
 											   AgentSetup->set_workspace_check({ .State = core::setup_check_state::passed });
 											   return;
 										   }
@@ -11547,11 +11555,203 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// copy has its Repository step done.
 		void present_clone_links(const application::clone_link_projection& aProjection)
 		{
-			static_cast<void>(aProjection);
 			if (Closing || !CloneLinks || !AgentSetup) {
 				return;
 			}
+			if (Window != nullptr) {
+				Window->clone_folders()->present(aProjection);
+			}
 			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen());
+			present_setup_view();
+		}
+
+		/// [[BPR-PENDING-AQ6]], RFC-BPR-0092. The Agent tab's setup and its
+		/// Settings rows: every press is a request to the setup, clone link or
+		/// review skill host, and their projections are all the view shows.
+		void compose_agent_setup_view()
+		{
+			if (Window == nullptr || !AgentSetup || !CloneLinks || !ReviewSkill) {
+				return;
+			}
+			auto* const tab = Window->agent_tab();
+			tab->adopt_setup(*Window->agent_setup(), [this] { check_agent_setup(); });
+			// Looking for agents waits for the tab: showing the setup is what
+			// may look (owner answer Q2), and looking reads file metadata only.
+			tab->set_first_shown([this] {
+				if (!Closing && AgentSetup) {
+					AgentSetup->detect();
+				}
+			});
+			Window->agent_setup()->set_intents(qt::agent_setup_intents{
+				.Choose =
+					[this](const core::setup_agent aAgent) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->choose(aAgent);
+						}
+					},
+				.LookAgain =
+					[this] {
+						if (Closing) {
+							return;
+						}
+						if (AgentSetup) {
+							AgentSetup->detect();
+						}
+						if (CloneLinks) {
+							CloneLinks->discover();
+						}
+					},
+				.OpenSettings           = [this] { Window->open_settings(qt::settings_page::agents_and_context); },
+				.OpenRepositorySettings = [this] { Window->open_settings(qt::settings_page::repositories); },
+				.OpenInstallPage =
+					[this](const core::setup_agent aAgent) {
+						if (Profile->WindowBrowser == nullptr) {
+							return;
+						}
+						const auto* const address = aAgent == core::setup_agent::codex ? "https://github.com/openai/codex" : "https://docs.anthropic.com/en/docs/claude-code/setup";
+						try {
+							static_cast<void>(Profile->WindowBrowser->open(address));
+						} catch (...) { }
+					},
+				.ChooseClone =
+					[this](std::string aPath) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->choose_clone(std::move(aPath));
+						}
+					},
+				.AddCloneFolder =
+					[this](std::string aFolder) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->add_clone_folder(std::move(aFolder));
+						}
+					},
+				.UsePrivateCopy =
+					[this] {
+						if (!Closing && CloneLinks) {
+							CloneLinks->use_private_copy();
+						}
+					},
+				.Check = [this] { check_agent_setup(); },
+				.Stop =
+					[this] {
+						if (!Closing && AgentSetup) {
+							AgentSetup->stop();
+						}
+					},
+			});
+			Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
+				.SetUp =
+					[this] {
+						if (Window != nullptr && AgentSetup) {
+							Window->agent_setup()->begin(core::setup_step::agent);
+							AgentSetup->restart();
+						}
+					},
+				.SetProgram =
+					[this](const core::setup_agent aAgent, std::string aPath) {
+						if (Closing || !AgentSetup) {
+							return;
+						}
+						AgentSetup->set_program(aAgent, std::move(aPath), [this, aAgent](const std::optional<core::agent_wrapper_refusal> aRefusal) {
+							if (!Closing && Window != nullptr) {
+								Window->agent_programs()->show_answer(aAgent, aRefusal);
+							}
+						});
+					},
+				.SetProtocol =
+					[this](const core::codex_protocol_choice aChoice) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->set_codex_protocol(aChoice);
+						}
+					},
+			});
+			Window->clone_folders()->set_dispatch(qt::clone_folders_panel::dispatch{
+				.AddFolder =
+					[this](std::string aFolder) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->add_clone_folder(std::move(aFolder));
+						}
+					},
+				.RemoveFolder =
+					[this](const std::string& aFolder) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->remove_clone_folder(aFolder);
+						}
+					},
+				.Forget =
+					[this](const application::repository_link& aLink) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->forget(aLink);
+						}
+					},
+			});
+			const auto answered = [this](const application::review_skill_answer aAnswer) {
+				if (!Closing && Window != nullptr) {
+					Window->review_skill()->show_answer(aAnswer);
+				}
+			};
+			Window->review_skill()->set_dispatch(qt::review_skill_panel::dispatch{
+				.Save =
+					[this, answered](std::string aText) {
+						if (!Closing && ReviewSkill) {
+							ReviewSkill->save(std::move(aText), answered);
+						}
+					},
+				.UseBuiltIn =
+					[this, answered](const bool aSaveCopy) {
+						if (!Closing && ReviewSkill) {
+							ReviewSkill->use_built_in(aSaveCopy, answered);
+						}
+					},
+				.KeepMine =
+					[this, answered] {
+						if (!Closing && ReviewSkill) {
+							ReviewSkill->keep_mine(answered);
+						}
+					},
+			});
+			Window->review_skill()->present(ReviewSkill->projection(), std::string{ application::built_in_review_skill() });
+			present_setup_view();
+		}
+
+		/// [[BPR-PENDING-AQ6]]. The setup's facts beside the two projections,
+		/// and the ready line once it finishes.
+		void present_setup_view()
+		{
+			if (Closing || Window == nullptr || !AgentSetup || !CloneLinks || Window->agent_setup() == nullptr) {
+				return;
+			}
+			auto facts = qt::agent_setup_facts{ };
+			if (AgentReview) {
+				facts.Repository = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
+			}
+			const auto* const state = EpochHost != nullptr ? &EpochHost->state() : nullptr;
+			if (state != nullptr && state->AcceptedRevision) {
+				facts.Head = std::string{ core::canonical_hex(state->AcceptedRevision->Head).view() }.substr(0U, 7U);
+			}
+			facts.WorkspaceReason = LastWorkspaceProbeReason;
+			auto* const setup     = Window->agent_setup();
+			setup->present(AgentSetup->projection(), CloneLinks->projection(), facts);
+			if (!setup->take_ready()) {
+				return;
+			}
+			auto gets = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
+			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
+				gets.Number     = snapshot->PullRequest.Number.value();
+				gets.Title      = snapshot->PullRequest.Title;
+				gets.BaseBranch = snapshot->PullRequest.BaseRef;
+				gets.Files      = snapshot->Files.size();
+				gets.Threads    = snapshot->ReviewThreads.size();
+				gets.Unresolved = static_cast<std::size_t>(std::ranges::count_if(snapshot->ReviewThreads, [](const auto& aThread) { return !aThread.Resolved; }));
+			}
+			if (state != nullptr && state->AcceptedRevision) {
+				gets.Base = std::string{ core::canonical_hex(state->AcceptedRevision->Base).view() }.substr(0U, 7U);
+			}
+			if (const auto linked = linked_history_clone(false)) {
+				gets.Clone = linked->string();
+			}
+			Window->agent_tab()->present_ready(setup->ready_title(), setup->ready_text(), qt::agent_ready_gets(gets));
+			Window->agent_tab()->focus_question();
 		}
 
 		void present_agent_setup(const application::agent_setup_projection& aProjection)
@@ -11559,6 +11759,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			Window->agent_programs()->present(aProjection.Preferences);
+			present_setup_view();
 			const auto chosen  = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
 			const auto profile = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
 			Window->agent_panel()->prefer_profile(profile);

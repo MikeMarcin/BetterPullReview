@@ -334,7 +334,8 @@ namespace bpr::qt {
 					QString::fromStdString(aResult.StandardError));
 			}
 		}
-		StopReason = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
+		LastOutcome = aResult.Outcome;
+		StopReason  = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
 			? workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed))
 			: QString{ };
 		Status->setText(

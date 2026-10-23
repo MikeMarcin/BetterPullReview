@@ -1,3 +1,17 @@
+# [[BPR-PENDING-AQ6]] reseal (2026-10-22) over the rebase reseal below,
+# linear, on this card's commit. Pinned-scope change, RFC-BPR-0092 M6 (owner
+# answer Q1 A): github_application.cpp, agent builds only, adopts the
+# window's qt::agent_setup_view into the Agent tab and wires its presses, and
+# the new Settings rows' (Codex program and protocol, a plain-text harness,
+# clone folders and linked clones, the review skill's editor), to the
+# existing agent_setup_host, clone_link_host and review_skill_host, whose
+# projections are all they show. The first time the tab is shown the setup
+# host looks for agents (file metadata only, owner answer Q2). Install Claude
+# Code and Install Codex open their vendors' pages through the window's
+# existing browser port. The ready line once both checks pass reads the
+# accepted snapshot's title, files and threads. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
 # Rebase reseal (2026-10-22): BPR-PENDING-AQ1 to AQ5 rebased onto main
 # 4e318b625 (BPR-1741's reactions and Resolve conversation, whose notes
 # follow), and their RFC renumbered from RFC-BPR-0091, which main had taken,

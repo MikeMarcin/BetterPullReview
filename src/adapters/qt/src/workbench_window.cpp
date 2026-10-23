@@ -3254,6 +3254,8 @@ namespace bpr::qt {
 		// The panels' own column stays, unseen, for every control not moved.
 		AgentTab = new agent_tab_view{ *AgentPanel, *SideChat, *FindingQueue, *privateTabs->widget(0), agentPage };
 		AgentTab->set_setup_dispatch([this] { open_settings(settings_page::agents_and_context); });
+		AgentSetup = new agent_setup_view{ agentPage };
+		AgentSetup->hide();
 		agentPageLayout->addWidget(AgentTab, 1);
 		notesPurpose->hide();
 		privateTabs->hide();
@@ -4812,13 +4814,22 @@ namespace bpr::qt {
 		AgentPanel->set_configuration_observer(refresh);
 		// [[BPR-1301]]. Saved for the profile, unlike the choices above, so
 		// it sits apart under its own heading, beside the writing hooks.
+		// [[BPR-PENDING-AQ6]]. Agent setup's saved programs, beside the wrapper.
+		AgentPrograms = new agent_programs_panel{ agents };
+		column->addSpacing(12);
+		column->addWidget(AgentPrograms);
 		ClaudeWrapper = new claude_wrapper_panel{ agents };
 		column->addSpacing(12);
 		column->addWidget(ClaudeWrapper);
 		WritingHooks = new writing_hooks_panel{ agents };
 		column->addWidget(WritingHooks);
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
+		ReviewSkill = new review_skill_panel{ agents };
+		column->addSpacing(12);
+		column->addWidget(ReviewSkill);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+		CloneFolders = new clone_folders_panel;
+		SettingsWindow->adopt_panel(settings_page::repositories, CloneFolders);
 
 		auto* const storage       = new QWidget;
 		auto* const storageColumn = new QVBoxLayout{ storage };

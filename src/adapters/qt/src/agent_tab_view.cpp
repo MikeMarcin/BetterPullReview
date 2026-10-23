@@ -5,6 +5,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -29,6 +30,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <utility>
 
 namespace bpr::qt {
 	namespace {
@@ -54,6 +56,7 @@ namespace bpr::qt {
 				callout,
 				danger,
 				field,
+				ready,
 			};
 			rounded(const look aLook, QWidget* aParent)
 				: QWidget{ aParent }
@@ -79,6 +82,10 @@ namespace bpr::qt {
 				if (Look == look::callout) {
 					fill = mixed(window, palette().color(QPalette::Active, QPalette::Highlight), 0.10);
 					line = mixed(window, palette().color(QPalette::Active, QPalette::Highlight), 0.30);
+				} else if (Look == look::ready) {
+					const auto green = dark(palette()) ? QColor{ 0x3F, 0xB9, 0x50 } : QColor{ 0x1A, 0x7F, 0x37 };
+					fill             = mixed(window, green, 0.10);
+					line             = mixed(window, green, 0.35);
 				} else if (Look == look::danger) {
 					const auto red = dark(palette()) ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
 					fill           = mixed(window, red, 0.10);
@@ -214,6 +221,7 @@ namespace bpr::qt {
 		History->setAutoRaise(true);
 		History->setPopupMode(QToolButton::InstantPopup);
 		auto* const historyMenu = new QMenu{ History };
+		HistoryMenu             = historyMenu;
 		historyMenu->setObjectName(QStringLiteral("agentHistoryMenu"));
 		historyMenu->addAction(Chat.new_session_action());
 		historyMenu->addAction(Chat.continue_old_revision_action());
@@ -296,6 +304,53 @@ namespace bpr::qt {
 		Log->hide();
 		bannerCol->addWidget(Log);
 		contentCol->addWidget(Banner);
+		// [[BPR-PENDING-AQ6]]. The ready line once setup finishes, and what
+		// the agent gets with each question.
+		ReadyCard = new rounded{ rounded::look::ready, content };
+		ReadyCard->setObjectName(QStringLiteral("agentReadyCard"));
+		auto* const readyCol = new QVBoxLayout{ ReadyCard };
+		readyCol->setContentsMargins(12, 10, 12, 10);
+		readyCol->setSpacing(4);
+		auto* const readyTop = new QHBoxLayout{ };
+		ReadyTitle           = new QLabel{ ReadyCard };
+		ReadyTitle->setObjectName(QStringLiteral("agentReadyTitle"));
+		ReadyTitle->setFont(bold);
+		ReadyTitle->setWordWrap(true);
+		readyTop->addWidget(ReadyTitle, 1);
+		auto* const dismiss = new QToolButton{ ReadyCard };
+		dismiss->setObjectName(QStringLiteral("agentReadyDismiss"));
+		dismiss->setAutoRaise(true);
+		dismiss->setText(QString{ QChar{ 0x2715 } });
+		dismiss->setAccessibleName(tr("Dismiss"));
+		connect(dismiss, &QToolButton::clicked, ReadyCard, &QWidget::hide);
+		readyTop->addWidget(dismiss, 0, Qt::AlignTop);
+		readyCol->addLayout(readyTop);
+		ReadyText = new QLabel{ ReadyCard };
+		ReadyText->setObjectName(QStringLiteral("agentReadyText"));
+		ReadyText->setWordWrap(true);
+		ReadyText->setTextFormat(Qt::PlainText);
+		readyCol->addWidget(ReadyText);
+		auto* const gets = new QToolButton{ ReadyCard };
+		gets->setObjectName(QStringLiteral("agentReadyGetsToggle"));
+		gets->setText(tr("What the agent gets"));
+		gets->setCheckable(true);
+		gets->setChecked(true);
+		gets->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		gets->setArrowType(Qt::DownArrow);
+		gets->setAutoRaise(true);
+		readyCol->addWidget(gets, 0, Qt::AlignLeft);
+		ReadyGets = new QLabel{ ReadyCard };
+		ReadyGets->setObjectName(QStringLiteral("agentReadyGets"));
+		ReadyGets->setWordWrap(true);
+		ReadyGets->setTextFormat(Qt::PlainText);
+		ReadyGets->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		readyCol->addWidget(ReadyGets);
+		connect(gets, &QToolButton::toggled, this, [this, gets](const bool aOpen) {
+			ReadyGets->setVisible(aOpen);
+			gets->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
+		});
+		ReadyCard->hide();
+		contentCol->addWidget(ReadyCard);
 		// Start: run a review that finds findings, when none are shown.
 		Start                = new QWidget{ content };
 		auto* const startRow = new QHBoxLayout{ Start };
@@ -427,7 +482,41 @@ namespace bpr::qt {
 			Pages->setCurrentWidget(HistoryPage);
 			return;
 		}
-		Pages->setCurrentWidget(State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty) : Conversation);
+		Pages->setCurrentWidget(State == agent_tab_state::setting_up       ? static_cast<QWidget*>(SetupView)
+									: State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)
+																		   : Conversation);
+	}
+
+	void agent_tab_view::adopt_setup(agent_setup_view& aSetup, std::function<void()> aCheckAgain)
+	{
+		SetupView  = &aSetup;
+		CheckAgain = std::move(aCheckAgain);
+		Pages->addWidget(SetupView);
+		SetupView->set_change_observer([this] { refresh(); });
+		HistoryMenu->addSeparator();
+		auto* const again = HistoryMenu->addAction(tr("Set up agent…"));
+		again->setObjectName(QStringLiteral("agentSetUpAgainAction"));
+		connect(again, &QAction::triggered, this, [this] {
+			if (SetupView != nullptr) {
+				SetupView->begin(core::setup_step::agent);
+			}
+		});
+		auto* const folder = HistoryMenu->addAction(tr("Change repository folder…"));
+		folder->setObjectName(QStringLiteral("agentChangeRepositoryAction"));
+		connect(folder, &QAction::triggered, this, [this] {
+			if (SetupView != nullptr) {
+				SetupView->begin(core::setup_step::repository);
+			}
+		});
+		refresh();
+	}
+
+	void agent_tab_view::present_ready(const QString& aTitle, const QString& aText, const QString& aGets)
+	{
+		ReadyTitle->setText(aTitle);
+		ReadyText->setText(aText);
+		ReadyGets->setText(aGets);
+		ReadyCard->setVisible(!aTitle.isEmpty());
 	}
 
 	void agent_tab_view::refresh()
@@ -440,13 +529,16 @@ namespace bpr::qt {
 		const auto status  = Launch.status_text();
 		const auto failed  = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
 		const auto moved   = !Chat.offered_continuations().empty();
-		State              = !setUp ? agent_tab_state::not_set_up
-			: running               ? agent_tab_state::working
-			: moved                 ? agent_tab_state::head_moved
-			: failed                ? agent_tab_state::stopped
-									: agent_tab_state::idle;
-		if (Pages->currentWidget() != HistoryPage) {
-			Pages->setCurrentWidget(State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty) : Conversation);
+		const auto setting = SetupView != nullptr && SetupView->needed();
+		State              = setting ? agent_tab_state::setting_up
+			: !setUp                 ? agent_tab_state::not_set_up
+			: running                ? agent_tab_state::working
+			: moved                  ? agent_tab_state::head_moved
+			: failed                 ? agent_tab_state::stopped
+									 : agent_tab_state::idle;
+		if (Pages->currentWidget() != HistoryPage || setting) {
+			Pages->setCurrentWidget(setting ? static_cast<QWidget*>(SetupView) : State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)
+																													  : Conversation);
 		}
 		// The head the session reads, short; its state in the tooltip.
 		auto head = Chat.head_oid_text().trimmed();
@@ -484,6 +576,7 @@ namespace bpr::qt {
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
 		switch (State) {
 		case agent_tab_state::not_set_up:
+		case agent_tab_state::setting_up:
 		case agent_tab_state::idle:
 			Banner->hide();
 			return;
@@ -510,6 +603,18 @@ namespace bpr::qt {
 																	: tr("%1 Your question is kept.").arg(Launch.stop_reason_text()));
 			BannerFirst->setText(tr("Ask again"));
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
+			// [[BPR-PENDING-AQ6]], RFC-BPR-0092 Partly set up. An Ask that ended
+			// for a setup reason offers that check again, then the setup's
+			// words, rather than only asking again. The question is kept.
+			if (SetupView != nullptr && CheckAgain
+				&& (Launch.last_outcome() == application::agent_run_outcome::workspace_unavailable || Launch.last_outcome() == application::agent_run_outcome::failed_to_start)) {
+				BannerFirst->disconnect();
+				BannerFirst->setText(tr("Check again"));
+				connect(BannerFirst, &QPushButton::clicked, this, [this] {
+					SetupView->begin(core::setup_step::check);
+					CheckAgain();
+				});
+			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;
@@ -719,7 +824,20 @@ namespace bpr::qt {
 	void agent_tab_view::showEvent(QShowEvent* aEvent)
 	{
 		QWidget::showEvent(aEvent);
+		if (FirstShown) {
+			const auto observer = std::exchange(FirstShown, { });
+			observer();
+		}
 		refresh();
+	}
+
+	void agent_tab_view::set_first_shown(std::function<void()> aObserver)
+	{
+		FirstShown = std::move(aObserver);
+		if (FirstShown && isVisible()) {
+			const auto observer = std::exchange(FirstShown, { });
+			observer();
+		}
 	}
 
 	void agent_tab_view::changeEvent(QEvent* aEvent)

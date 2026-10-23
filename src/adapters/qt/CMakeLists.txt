@@ -58,6 +58,8 @@ add_library(
         src/defect_card_view.cpp
         src/private_notes_panel.cpp
         src/agent_tab_view.cpp
+        src/agent_setup_view.cpp
+        src/agent_setup_settings.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp

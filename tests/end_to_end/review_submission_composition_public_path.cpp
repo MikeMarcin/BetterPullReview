@@ -1,6 +1,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/destructive_question.hpp"
@@ -444,6 +445,17 @@ auto main(int argc, char** argv) -> int
 				expect(window.tray_tabs()->accessibleTabName(3) == QStringLiteral("Agent") && agent != nullptr && agent->isVisible()
 						   && agent->isAncestorOf(window.side_chat()->composer()) && legacyPages != nullptr && !legacyPages->isVisible() && !notes->isVisible(),
 					   "the accepted Agent tab owns the question field; legacy nested pages and Notes are hidden");
+#if defined(BPR_AGENT_INTEGRATIONS)
+				// [[BPR-PENDING-AQ6]], RFC-BPR-0092 AC01. Shown for the first time on
+				// a fixture with no agent on its search path and no agent chosen, the
+				// tab looks (file metadata only) and shows the setup, not a
+				// conversation; nothing was asked, so nothing ran.
+				wait([&] { return agent->state() == qt::agent_tab_state::setting_up && agent->setup_view() != nullptr && agent->setup_view()->isVisible(); },
+					 "the first look at the Agent tab shows the setup in place of the conversation");
+				expect(agent->setup_view()->open_step() == core::setup_step::agent && agent->setup_view()->step_text().contains(QStringLiteral("No agent found on this computer"))
+						   && !window.side_chat()->composer()->isVisible(),
+					   "the setup's Agent step says no agent was found, and the question field is not offered yet");
+#endif
 				window.tray_tabs()->setCurrentIndex(1);
 				QApplication::processEvents();
 				if (argc > 1) {

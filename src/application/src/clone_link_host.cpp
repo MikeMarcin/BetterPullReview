@@ -112,7 +112,8 @@ namespace bpr::application {
 		{
 			const auto generation = ++VerifyGeneration;
 			Projection.Linked.reset();
-			Projection.Problem = clone_link_problem::none;
+			Projection.Problem   = clone_link_problem::none;
+			Projection.Verifying = false;
 			if (!Projection.Repository) {
 				publish();
 				return;
@@ -123,6 +124,7 @@ namespace bpr::application {
 				publish();
 				return;
 			}
+			Projection.Verifying = true;
 			publish();
 			auto clonePath = remembered->Path;
 			off_lane(
@@ -131,6 +133,7 @@ namespace bpr::application {
 					if (generation != self->VerifyGeneration || !self->Projection.Repository) {
 						return;
 					}
+					self->Projection.Verifying = false;
 					if (!aRead) {
 						self->Projection.Problem = clone_link_problem::not_a_clone;
 					} else {
@@ -240,7 +243,8 @@ namespace bpr::application {
 				if (aLoaded.Links) {
 					self->Projection.Links = std::move(*aLoaded.Links);
 				}
-				self->Existing = std::move(aLoaded.Existing);
+				self->Existing          = std::move(aLoaded.Existing);
+				self->Projection.Loaded = true;
 				self->verify();
 			});
 	}

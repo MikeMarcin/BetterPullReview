@@ -1,0 +1,326 @@
+/// \file
+/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092. The Agent tab's setup and its
+/// Settings rows, offscreen: each state's words and actions from the two
+/// projections, the setup showing only once a step is known to be missing,
+/// the ready line once both checks pass, every press an intent, and the
+/// Settings rows for programs, clone folders and the review skill. With
+/// `BPR_SETUP_RENDER_DIR` set, each state is also written there as a light and
+/// a dark PNG for review.
+
+#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
+
+#include <QApplication>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDir>
+#include <QLabel>
+#include <QLineEdit>
+#include <QListWidget>
+#include <QPalette>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QRadioButton>
+#include <QStyleFactory>
+
+#include <cstdlib>
+#include <functional>
+#include <iostream>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace {
+	using namespace bpr;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	[[nodiscard]] auto dark_palette() -> QPalette
+	{
+		auto palette = QPalette{ };
+		palette.setColor(QPalette::Window, QColor{ 0x1F, 0x23, 0x28 });
+		palette.setColor(QPalette::WindowText, QColor{ 0xE6, 0xED, 0xF3 });
+		palette.setColor(QPalette::Base, QColor{ 0x16, 0x1B, 0x22 });
+		palette.setColor(QPalette::Text, QColor{ 0xE6, 0xED, 0xF3 });
+		palette.setColor(QPalette::Button, QColor{ 0x2D, 0x33, 0x3B });
+		palette.setColor(QPalette::ButtonText, QColor{ 0xE6, 0xED, 0xF3 });
+		palette.setColor(QPalette::Highlight, QColor{ 0x2F, 0x81, 0xF7 });
+		palette.setColor(QPalette::HighlightedText, QColor{ 0xFF, 0xFF, 0xFF });
+		palette.setColor(QPalette::PlaceholderText, QColor{ 0x8B, 0x94, 0x9E });
+		palette.setColor(QPalette::Link, QColor{ 0x58, 0xA6, 0xFF });
+		return palette;
+	}
+
+	void render(QWidget& aWidget, const QString& aName)
+	{
+		const auto folder = qEnvironmentVariable("BPR_SETUP_RENDER_DIR");
+		if (folder.isEmpty()) {
+			return;
+		}
+		QDir{ }.mkpath(folder);
+		const auto light = aWidget.palette();
+		for (const auto& [suffix, palette] : { std::pair{ QStringLiteral("light"), light }, std::pair{ QStringLiteral("dark"), dark_palette() } }) {
+			aWidget.setPalette(palette);
+			aWidget.resize(420, 760);
+			aWidget.show();
+			QApplication::processEvents();
+			static_cast<void>(aWidget.grab().save(folder + QStringLiteral("/") + aName + QStringLiteral("-") + suffix + QStringLiteral(".png")));
+		}
+		aWidget.setPalette(light);
+	}
+
+	[[nodiscard]] auto row(const core::setup_agent aAgent, std::string aPath, const core::agent_found_how aHow, const bool aPermitted = true) -> core::agent_setup_row
+	{
+		auto value              = core::agent_setup_row{ };
+		value.Agent             = aAgent;
+		value.Path              = std::move(aPath);
+		value.How               = aHow;
+		value.Verdict.Permitted = aPermitted;
+		return value;
+	}
+
+	struct fixture
+	{
+		qt::agent_setup_view                View;
+		application::agent_setup_projection Setup;
+		application::clone_link_projection  Clones;
+		qt::agent_setup_facts               Facts{ .Repository = "bpr-fixtures/engine", .Head = "7f3a9c1" };
+		std::vector<std::string>            Intents;
+
+		fixture()
+		{
+			Setup.Detected    = true;
+			Setup.Searched    = { core::setup_agent::claude_code, core::setup_agent::codex };
+			Clones.Loaded     = true;
+			Clones.Repository = application::clone_repository{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine" };
+			View.set_intents(qt::agent_setup_intents{
+				.Choose                 = [this](const core::setup_agent aAgent) { Intents.push_back("choose:" + std::string{ core::stable_name(aAgent) }); },
+				.LookAgain              = [this] { Intents.emplace_back("look-again"); },
+				.OpenSettings           = [this] { Intents.emplace_back("settings"); },
+				.OpenRepositorySettings = [this] { Intents.emplace_back("repository-settings"); },
+				.OpenInstallPage        = [this](const core::setup_agent aAgent) { Intents.push_back("install:" + std::string{ core::stable_name(aAgent) }); },
+				.ChooseClone            = [this](std::string aPath) { Intents.push_back("clone:" + aPath); },
+				.AddCloneFolder         = [this](std::string aFolder) { Intents.push_back("folder:" + aFolder); },
+				.UsePrivateCopy         = [this] { Intents.emplace_back("private-copy"); },
+				.Check                  = [this] { Intents.emplace_back("check"); },
+				.Stop                   = [this] { Intents.emplace_back("stop"); },
+			});
+		}
+
+		void show()
+		{
+			Setup.Step = core::current_setup_step(Setup.State);
+			View.present(Setup, Clones, Facts);
+			QApplication::processEvents();
+		}
+
+		[[nodiscard]] auto button(const QString& aName) const -> QPushButton* { return View.findChild<QPushButton*>(aName); }
+		[[nodiscard]] auto text() const -> QString { return View.step_text(); }
+	};
+
+	void test_setup_waits_until_a_step_is_known_missing()
+	{
+		auto test           = fixture{ };
+		test.Setup.Detected = false;
+		test.show();
+		expect(!test.View.needed(), "before the agents are looked for, the setup does not take the tab");
+		test.Setup.Detected   = true;
+		test.Clones.Verifying = true;
+		test.show();
+		expect(!test.View.needed(), "nor while the repository's link is being checked again");
+		test.Clones.Verifying             = false;
+		test.Setup.State.Rows             = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path) };
+		test.Setup.State.Chosen           = core::setup_agent::claude_code;
+		test.Clones.Linked                = application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .Path = "/Users/me/src/engine", .Remote = "origin" };
+		test.Setup.State.RepositoryChosen = true;
+		test.show();
+		expect(!test.View.needed(), "a saved agent and a serving link open on the conversation: no setup for a new window");
+	}
+
+	void test_no_agent_found()
+	{
+		auto test = fixture{ };
+		test.show();
+		expect(test.View.needed() && test.View.open_step() == core::setup_step::agent, "with no agent the setup shows its Agent step");
+		expect(test.text().contains(QStringLiteral("No agent found on this computer")) && test.text().contains(QStringLiteral("Claude Code and Codex")), "it says none was found and what it looked for");
+		test.button(QStringLiteral("agentSetupInstallClaude"))->click();
+		test.button(QStringLiteral("agentSetupInstallCodex"))->click();
+		test.button(QStringLiteral("agentSetupOwnProgram"))->click();
+		expect(test.Intents == std::vector<std::string>{ "install:claude_code", "install:codex", "settings" }, "Install and Use a program I choose are intents");
+		render(test.View, QStringLiteral("none"));
+	}
+
+	void test_two_agents_and_a_refused_one()
+	{
+		auto test             = fixture{ };
+		test.Setup.State.Rows = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path),
+								  row(core::setup_agent::codex, "/Users/me/.local/bin/codex", core::agent_found_how::usual_folder, false) };
+		test.show();
+		const auto choices = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupAgentChoice"));
+		expect(choices.size() == 2 && choices[0]->isEnabled() && !choices[1]->isEnabled() && !choices[0]->isChecked(), "both rows show, the refused one disabled, none chosen yet");
+		expect(test.text().contains(QStringLiteral("Found on PATH.")) && test.text().contains(QStringLiteral("Not allowed for this pull request's host.")), "each row says how it was found or why it is refused");
+		choices[0]->click();
+		expect(test.Intents == std::vector<std::string>{ "choose:claude_code" }, "choosing is an intent");
+		render(test.View, QStringLiteral("two"));
+	}
+
+	void test_repository_states()
+	{
+		auto test               = fixture{ };
+		test.Setup.State.Rows   = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path) };
+		test.Setup.State.Chosen = core::setup_agent::claude_code;
+		test.Clones.Suggestions = { "/Users/me/Documents/GitHub" };
+		test.show();
+		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
+		test.button(QStringLiteral("agentSetupSuggestedFolder"))->click();
+		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub", "a suggested folder is added in one press");
+		render(test.View, QStringLiteral("nofolders"));
+
+		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
+		test.Clones.Discovered = true;
+		test.show();
+		expect(test.text().contains(QStringLiteral("No clone of bpr-fixtures/engine in your clone folders")), "none found says so");
+		test.button(QStringLiteral("agentSetupPrivateCopy"))->click();
+		expect(test.Intents.back() == "private-copy", "the private copy is one press away");
+		render(test.View, QStringLiteral("noclone"));
+
+		test.Clones.Matches = { core::clone_match{ .Path = "/Users/me/Documents/GitHub/engine", .Folder = "/Users/me/Documents/GitHub", .Remote = "origin", .Location = "github.com/bpr-fixtures/engine", .Branch = "main" },
+								core::clone_match{ .Path = "/Users/me/src/engine-old", .Folder = "/Users/me/src", .Remote = "upstream", .Location = "github.com/bpr-fixtures/engine", .Branch = "spike/retry" } };
+		test.show();
+		auto clones = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupCloneChoice"));
+		expect(clones.size() == 2 && !test.button(QStringLiteral("agentSetupUseClone"))->isEnabled(), "two clones: none is chosen until the reviewer picks one");
+		clones[0]->click();
+		QApplication::processEvents();
+		test.button(QStringLiteral("agentSetupUseClone"))->click();
+		expect(test.Intents.back() == "clone:/Users/me/Documents/GitHub/engine", "Use this clone links the chosen one");
+		render(test.View, QStringLiteral("repo"));
+	}
+
+	void test_check_and_ready()
+	{
+		auto test               = fixture{ };
+		test.Setup.State.Rows   = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path) };
+		test.Setup.State.Chosen = core::setup_agent::claude_code;
+		test.show();
+		expect(test.View.needed(), "the setup took the tab at the Repository step");
+		test.Clones.Linked                = application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .Path = "/Users/me/Documents/GitHub/engine", .Remote = "origin" };
+		test.Setup.State.RepositoryChosen = true;
+		test.show();
+		expect(test.View.needed() && test.View.open_step() == core::setup_step::check, "once begun, the setup stays until it is checked");
+		expect(test.text().contains(QStringLiteral("claude auth status")) && test.text().contains(QStringLiteral("Claude Code is signed in")) && test.text().contains(QStringLiteral("at 7f3a9c1")),
+			   "Check it works names the command it runs and its two rows");
+		test.button(QStringLiteral("agentSetupCheck"))->click();
+		expect(test.Intents.back() == "check", "Check is an intent");
+		render(test.View, QStringLiteral("check"));
+
+		test.Setup.State.AgentCheck     = core::fail_check(core::agent_setup_failure::not_signed_in);
+		test.Setup.State.WorkspaceCheck = core::fail_check(core::agent_setup_failure::workspace_unavailable);
+		test.Facts.WorkspaceReason      = application::agent_workspace_unavailable_reason::connection_failed;
+		test.show();
+		expect(test.text().contains(QStringLiteral("Claude Code isn't signed in")) && test.text().contains(QStringLiteral("claude auth login")) && test.text().contains(QStringLiteral("GitHub could not be reached"))
+				   && test.button(QStringLiteral("agentSetupCheck"))->text() == QStringLiteral("Check again"),
+			   "each failed row says what failed and what to do, with Check again");
+		expect(!test.text().contains(QStringLiteral("not_signed_in")) && !test.text().contains(QStringLiteral("workspace_unavailable")), "no stable code is shown");
+		render(test.View, QStringLiteral("signin"));
+
+		test.Setup.Checking = true;
+		test.show();
+		test.button(QStringLiteral("agentSetupStop"))->click();
+		expect(test.Intents.back() == "stop", "a running check can be stopped");
+		test.Setup.Checking             = false;
+		test.Setup.State.AgentCheck     = { .State = core::setup_check_state::passed, .Version = "2.1.296" };
+		test.Setup.State.WorkspaceCheck = { .State = core::setup_check_state::passed };
+		test.show();
+		expect(!test.View.needed() && test.View.take_ready() && !test.View.take_ready(), "both checks passed: the setup gives way, once, to the ready line");
+		expect(test.View.ready_title() == QStringLiteral("Claude Code is ready") && test.View.ready_text().contains(QStringLiteral("version 2.1.296")), "the ready line names the agent and version");
+		const auto gets = qt::agent_ready_gets({ .Repository = "bpr-fixtures/engine", .Number = 22U, .Title = "Clamp device scale", .BaseBranch = "main", .Base = "51d2dad", .Head = "7f3a9c1", .Files = 18U, .Threads = 6U, .Unresolved = 2U, .Clone = "/Users/me/Documents/GitHub/engine" });
+		expect(gets.contains(QStringLiteral("bpr-fixtures/engine #22")) && gets.contains(QStringLiteral("git diff 51d2dad...7f3a9c1")) && gets.contains(QStringLiteral("6 review threads, 2 unresolved")),
+			   "What the agent gets states the brief");
+
+		test.View.begin(core::setup_step::repository);
+		expect(test.View.needed() && test.View.open_step() == core::setup_step::repository, "Change repository folder… opens that step again");
+	}
+
+	void test_settings_rows()
+	{
+		auto programs = qt::agent_programs_panel{ };
+		auto saved    = std::vector<std::string>{ };
+		programs.set_dispatch({ .SetUp       = [&saved] { saved.emplace_back("set-up"); },
+								.SetProgram  = [&saved](const core::setup_agent aAgent, std::string aPath) { saved.push_back(std::string{ core::stable_name(aAgent) } + "=" + aPath); },
+								.SetProtocol = [&saved](const core::codex_protocol_choice aChoice) { saved.emplace_back(aChoice == core::codex_protocol_choice::jsonl ? "jsonl" : "app-server"); } });
+		programs.present({ .CodexProgram = "/opt/codex", .CodexProtocol = core::codex_protocol_choice::app_server });
+		expect(programs.codex_path()->text() == QStringLiteral("/opt/codex") && saved.empty(), "the saved Codex program shows, and showing sends nothing");
+		programs.findChild<QPushButton*>(QStringLiteral("settingsHarnessProgramSave"))->click();
+		programs.protocol()->setCurrentIndex(1);
+		programs.findChild<QPushButton*>(QStringLiteral("settingsSetUpAgent"))->click();
+		expect(saved == std::vector<std::string>{ "plain_text_harness=", "jsonl", "set-up" }, "program, protocol and Set up agent… are intents");
+		programs.show_answer(core::setup_agent::codex, core::agent_wrapper_refusal::home_relative);
+		expect(programs.findChild<QLabel*>(QStringLiteral("settingsCodexProgramStatus"))->text().contains(QStringLiteral("starts with ~")), "a refused program says why");
+
+		auto folders = qt::clone_folders_panel{ };
+		auto asked   = std::vector<std::string>{ };
+		folders.set_dispatch({ .AddFolder    = [&asked](std::string aFolder) { asked.push_back("add " + aFolder); },
+							   .RemoveFolder = [&asked](const std::string& aFolder) { asked.push_back("remove " + aFolder); },
+							   .Forget       = [&asked](const application::repository_link& aLink) { asked.push_back("forget " + aLink.Name); } });
+		auto clones    = application::clone_link_projection{ };
+		clones.Folders = { "/Users/me/src", "/Users/me/Documents/GitHub" };
+		clones.Links   = { application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .PrivateCopy = true } };
+		folders.present(clones);
+		expect(folders.folders()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
+		folders.folders()->setCurrentRow(1);
+		folders.findChild<QPushButton*>(QStringLiteral("settingsRemoveCloneFolder"))->click();
+		folders.links()->setCurrentRow(0);
+		folders.findChild<QPushButton*>(QStringLiteral("settingsForgetLink"))->click();
+		expect(asked == std::vector<std::string>{ "remove /Users/me/Documents/GitHub", "forget engine" }, "Remove and Forget name what they act on");
+
+		auto skill   = qt::review_skill_panel{ };
+		auto pressed = std::vector<std::string>{ };
+		skill.set_dispatch({ .Save       = [&pressed](std::string aText) { pressed.push_back("save " + aText); },
+							 .UseBuiltIn = [&pressed](const bool aCopy) { pressed.emplace_back(aCopy ? "built-in with copy" : "built-in"); },
+							 .KeepMine   = [&pressed] { pressed.emplace_back("keep"); } });
+		auto view            = application::review_skill_projection{ };
+		view.Source          = core::review_skill_source::profile_copy;
+		view.Text            = "---\nname: bpr-pr-review\n---\nmine";
+		view.BuiltInVersion  = 2U;
+		view.CopyBaseVersion = 1U;
+		view.Offer           = 2U;
+		view.Generation      = 1U;
+		skill.present(view, "built-in text");
+		expect(skill.editor()->toPlainText() == QString::fromStdString(view.Text) && !skill.offer()->isHidden() && skill.findChild<QPushButton*>(QStringLiteral("reviewSkillUseVersion"))->text() == QStringLiteral("Use version 2"),
+			   "the copy shows with the newer version's offer");
+		skill.findChild<QPushButton*>(QStringLiteral("reviewSkillKeepMine"))->click();
+		skill.findChild<QPushButton*>(QStringLiteral("reviewSkillUseVersion"))->click();
+		skill.findChild<QCheckBox*>(QStringLiteral("reviewSkillKeepCopy"))->setChecked(false);
+		skill.findChild<QPushButton*>(QStringLiteral("reviewSkillRestore"))->click();
+		skill.editor()->setPlainText(QStringLiteral("edited"));
+		skill.findChild<QPushButton*>(QStringLiteral("reviewSkillSave"))->click();
+		expect(pressed == std::vector<std::string>{ "keep", "built-in with copy", "built-in", "save edited" }, "Keep mine, Use version N, Restore default and Save are intents");
+		view.Refusal    = core::review_skill_refusal::name_changed;
+		view.Generation = 2U;
+		skill.present(view, "built-in text");
+		expect(skill.editor()->toPlainText() == QStringLiteral("edited") && skill.status_text().contains(QStringLiteral("must stay bpr-pr-review")), "a refused save keeps the text and says why");
+		skill.show_answer(application::review_skill_answer::copy_failed);
+		expect(skill.status_text().contains(QStringLiteral("nothing was removed")), "a failed Downloads copy says nothing was removed");
+	}
+} // namespace
+
+auto main(int argc, char** argv) -> int
+{
+	QApplication application{ argc, argv };
+	QApplication::setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
+	test_setup_waits_until_a_step_is_known_missing();
+	test_no_agent_found();
+	test_two_agents_and_a_refused_one();
+	test_repository_states();
+	test_check_and_ready();
+	test_settings_rows();
+	std::cout << "agent-setup-view-tests:pass\n";
+	return EXIT_SUCCESS;
+}
