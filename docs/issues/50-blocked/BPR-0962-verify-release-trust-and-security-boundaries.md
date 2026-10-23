@@ -33,7 +33,7 @@ No criterion is accepted. This card stays **Blocked** on
   - Windows bundled zlib `CVE-2026-85091` (High, three rows) is unpatched in
     Qt 6.12.0. It rests on a closed-caller disposition only.
   - PCRE2 `GHSA-r9hj-j2rw-4q3m` / `CVE-2026-103111`, which the feed omits,
-    has no Qt 6.12.0 disposition (BPR-PENDING-AW1).
+    has no Qt 6.12.0 disposition (BPR-1742).
   - Coverage is incomplete, with 52, 44 and 61 flagged package rows.
   - Complete sanitizer and fuzz coverage, secret scanning and crash canaries
     with real resident material have not been run.
@@ -50,7 +50,7 @@ No criterion is accepted. This card stays **Blocked** on
   Ubuntu desktop/WSLg course. The M8/M9 native, vault and crash gaps remain.
   Two owner decisions are pending: whether the Qt deferral extends to
   Qt 6.12.0 (AW1), and the 2026-10-16 matrix amendment, which was never
-  adopted on main (BPR-PENDING-AW2).
+  adopted on main (BPR-1743).
 
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence

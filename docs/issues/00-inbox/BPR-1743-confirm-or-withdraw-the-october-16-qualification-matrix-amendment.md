@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AW2"
+id: "BPR-1743"
 title: "Confirm or withdraw the 2026-10-16 qualification-matrix amendment"
 status: "Inbox"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P2"
 platforms: ["win","linux"]
-metadata: {"found_by":"RFC-0038 security-audit port, 2026-10-22","found_at":"4e318b625","related_cards":["BPR-0960","BPR-0961","BPR-0962","BPR-0973"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1742--BPR-1743--04a7cd1de032.json","found_by":"RFC-0038 security-audit port, 2026-10-22","found_at":"4e318b625","related_cards":["BPR-0960","BPR-0961","BPR-0962","BPR-0973"]}
 ---
 
-# BPR-PENDING-AW2: Confirm or withdraw the 2026-10-16 qualification-matrix amendment
+# BPR-1743: Confirm or withdraw the 2026-10-16 qualification-matrix amendment
 
 ## Finding
 

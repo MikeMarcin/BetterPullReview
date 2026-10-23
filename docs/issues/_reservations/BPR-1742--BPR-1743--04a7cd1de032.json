@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1742",
+    "BPR-1743"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-0038 port follow-ups",
+  "created": "2026-10-23T00:08:41.256261+00:00",
+  "base": "2fce2b4289a8c594b8b88af5b0be769861ce3d46"
+}

@@ -50,7 +50,7 @@ plan, BPR-0959, BPR-0960, BPR-0961 and BPR-0973, the package guide and the
 security overview. They carried the 2026-10-16 owner matrix amendment, which
 removed Windows 10 qualification and limited Linux claims to WSL2/WSLg. Main
 never adopted that amendment. Main's RFC and README still say Windows 10/11.
-BPR-PENDING-AW2 asks the owner to confirm or withdraw it.
+BPR-1743 asks the owner to confirm or withdraw it.
 
 **Dropped:** the branch's wizard definitions, milestone bindings, strategy
 selection and Codex session state. They were superseded by the 0.3.x release
@@ -117,7 +117,7 @@ Still open:
   extension immunity". No record of v0.3.1, v0.3.2 or this repository on
   this Mac carries that to Qt 6.12.0. The v0.3.1 reviews covered only the
   raw rows, and the PCRE2 rows had gone.
-  BPR-PENDING-AW1 carries it.
+  BPR-1742 carries it.
 
 ### What still blocks BPR-0962
 

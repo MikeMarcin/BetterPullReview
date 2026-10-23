@@ -179,7 +179,7 @@ deferral itself is historical. Its own recheck trigger, a newly selected
 official Qt release, fired when Qt 6.12.0 was selected. The 0.3.x releases
 instead rely on their own independent factual dispositions. The owner has not
 said whether the deferral extends to the two Qt 6.12.0 issues that remain:
-Windows zlib `CVE-2026-85091` and `GHSA-r9hj-j2rw-4q3m`. BPR-PENDING-AW1
+Windows zlib `CVE-2026-85091` and `GHSA-r9hj-j2rw-4q3m`. BPR-1742
 carries that question. The deferral is not evidence of non-applicability, a
 fixed package, a passing scan or approval to publish. It does not cover Apple
 system zlib or D-Bus.
