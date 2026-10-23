@@ -1,4 +1,9 @@
 # Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-PENDING-AQ1 to AQ8)
+# rebased onto main ee99318f4 (BPR-1746, whose own notes follow). github_application.cpp
+# holds both lines of work with no overlapping hunk; the per-card notes below
+# name the rebased slices. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-PENDING-AQ1 to AQ8)
 # rebased onto main b8d2ec6cf, whose own notes follow. github_application.cpp
 # holds both lines of work with no overlapping hunk; the per-card notes below
 # name the rebased slices. Full and manifest pins bind these bytes; mutation
@@ -36,7 +41,7 @@
 # the rebased identities. Full and manifest pins bind these bytes; mutation
 # 16d135419 stays exact.
 # [[BPR-PENDING-AQ5]] reseal (2026-10-22) over the BPR-PENDING-AQ4 reseal
-# below (cb358ded5), linear, on this card's commit. Pinned-scope change,
+# below (0de83a192), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M5 (owner decision D1, answer Q9 A): github_application.cpp,
 # agent builds only, gives every review request (each entry point but a
 # comment-workshop press, never a writing request) the review brief:
@@ -54,7 +59,7 @@
 # source. Full and manifest pins bind these bytes; mutation 16d135419 stays
 # exact.
 # [[BPR-PENDING-AQ4]] reseal (2026-10-22) over the BPR-PENDING-AQ3 reseal
-# below (248982ca7), linear, on this card's commit. Pinned-scope change,
+# below (8d8c0f097), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M4 (owner answer Q7 of 2026-10-22): github_application.cpp,
 # agent builds only, gives each agent workspace request the linked clone the
 # repository's link names (an absolute path, or none for the private copy),
@@ -68,7 +73,7 @@
 # src/app source. Full and manifest pins bind these bytes; mutation 16d135419
 # stays exact.
 # [[BPR-PENDING-AQ3]] reseal (2026-10-22) over the BPR-PENDING-AQ2 reseal
-# below (0e38a8866), linear, on this card's commit. Pinned-scope change,
+# below (49f9b3745), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M3 (owner decision D2 of 2026-10-22): github_application.cpp,
 # agent builds only, composes the profile's clone folders and repository
 # links: adapters::sqlite::make_clone_link_store over the same agent-setup
@@ -84,7 +89,7 @@
 # path changes; no new src/app source. Full and manifest pins bind these
 # bytes; mutation 16d135419 stays exact.
 # [[BPR-PENDING-AQ2]] reseal (2026-10-22) over the BPR-PENDING-AQ1 reseal
-# below (7ae3fc4ab), linear, on this card's commit. Pinned-scope change,
+# below (1fcb50f4e), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M2 (owner answers Q2 and Q3 A of 2026-10-22):
 # github_application.cpp, agent builds only, composes the profile's agent
 # setup: adapters::sqlite::make_agent_setup_store over the application data
@@ -2233,7 +2238,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"d7325078364fd29979da433cf5cb42c1c5592c69bae2776e853e78ad1b408b03"
+		"0447363a41665be7d7db6f1c4ee86745dac565a5fcd9c25a57762bc0ad167939"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2457,7 +2462,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "941942272c42ba1bb4939f899569b81b16779d4105591a79c38cf7eeba3da9d0"
+        "8cd1f4c7e6213d9deefa5232b60880a5aa468c0ca4e1fead0ceb4d97bed8af32"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
