@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_setup_view.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include <QApplication>
 #include <QClipboard>
 #include <QDir>
@@ -530,7 +532,7 @@ namespace bpr::qt {
 			auto* const installs = new QHBoxLayout{ };
 			for (const auto& [label, agent, name] : { std::tuple{ tr("Install Claude Code"), core::setup_agent::claude_code, QStringLiteral("agentSetupInstallClaude") },
 													  std::tuple{ tr("Install Codex"), core::setup_agent::codex, QStringLiteral("agentSetupInstallCodex") } }) {
-				auto* const button = new QPushButton{ label, parent };
+				auto* const button = new quiet_push_button{ label, parent };
 				button->setObjectName(name);
 				const auto target = agent;
 				connect(button, &QPushButton::clicked, this, [this, target] {
@@ -669,7 +671,7 @@ namespace bpr::qt {
 			});
 			row->addWidget(add);
 			for (const auto& suggestion : Clones.Suggestions) {
-				auto* const button = new QPushButton{ shown_path(suggestion), parent };
+				auto* const button = new quiet_push_button{ shown_path(suggestion), parent };
 				button->setObjectName(QStringLiteral("agentSetupSuggestedFolder"));
 				button->setToolTip(tr("Add %1 to your clone folders").arg(text_of(suggestion)));
 				connect(button, &QPushButton::clicked, this, [this, suggestion] {
@@ -765,7 +767,7 @@ namespace bpr::qt {
 			}
 		});
 		row->addWidget(use);
-		auto* const choose = new QPushButton{ tr("Choose a folder…"), parent };
+		auto* const choose = new quiet_push_button{ tr("Choose a folder…"), parent };
 		choose->setObjectName(QStringLiteral("agentSetupChooseFolder"));
 		choose->setFlat(true);
 		connect(choose, &QPushButton::clicked, this, chooseFolder);
@@ -842,7 +844,7 @@ namespace bpr::qt {
 				command->setFont(code_font(font()));
 				command->setTextInteractionFlags(Qt::TextSelectableByMouse);
 				line->addWidget(command);
-				auto* const copy = new QPushButton{ tr("Copy"), parent };
+				auto* const copy = new quiet_push_button{ tr("Copy"), parent };
 				copy->setObjectName(QStringLiteral("agentSetupCopyCommand"));
 				const auto text = sign_in_command(agent);
 				connect(copy, &QPushButton::clicked, this, [text] { QApplication::clipboard()->setText(text); });
@@ -858,7 +860,7 @@ namespace bpr::qt {
 		}
 		auto* const buttons = new QHBoxLayout{ };
 		if (Setup.Checking) {
-			auto* const stop = new QPushButton{ tr("Stop"), parent };
+			auto* const stop = new quiet_push_button{ tr("Stop"), parent };
 			stop->setObjectName(QStringLiteral("agentSetupStop"));
 			connect(stop, &QPushButton::clicked, this, [this] {
 				if (Intents.Stop) {

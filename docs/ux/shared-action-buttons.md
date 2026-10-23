@@ -97,6 +97,17 @@ rebase onto `4e318b625`:
 | [generated_files_view.cpp](../../src/adapters/qt/src/generated_files_view.cpp) | Retain the group Toggle: an arrow disclosure with the folder row's ink and weight, which `quiet_tool_button` would draw natively anyway. |
 | [workbench_window.cpp](../../src/adapters/qt/src/workbench_window.cpp) | Main's Compose review (BPR-1700) is a Review-bar toolbar action with its own lead and kept-draft marks, and the Review drawer's tabs (BPR-1684) are a tab bar; both retain their toolbar and navigation treatment. |
 
+## Surfaces added by agent setup
+
+[RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md)'s agent setup
+([[BPR-PENDING-AQ6]]) adds these, built on the shared classes from the start:
+
+| Translation unit | Disposition and controls |
+|---|---|
+| [agent_setup_view.cpp](../../src/adapters/qt/src/agent_setup_view.cpp) | Shared: Install Claude Code, Install Codex, the suggested clone folders, Choose a folder…, Copy (the sign-in command) and Stop. Retain each step's primary default action (Check and Check again, Use this clone, Add a folder…, Choose its folder…), the agent and clone radio choices, and `link_push`: hyperlink-style Change, Look again, Agent settings, Use another program…, Use a private copy and Edit clone folders…, drawn in the palette's link colour. |
+| [agent_setup_settings.cpp](../../src/adapters/qt/src/agent_setup_settings.cpp) | Shared: Set up agent…, Choose…, Remove (a clone folder, which deletes nothing on disk), Compare, Keep mine and Restore default. Retain Save (the programs and the review skill), Add a folder… and Use version N (it replaces the edited copy, saved to Downloads first), and Forget (it removes a remembered link, as Forget server does). |
+| [agent_tab_view.cpp](../../src/adapters/qt/src/agent_tab_view.cpp) | The ready line's What the agent gets is a `disclosure_button`; its icon-only dismiss is retained. Check again, which takes `BannerFirst`'s place after an Ask that ended for a setup reason, keeps that primary treatment. |
+
 ## Dedicated specialized implementations
 
 A broader scan against immutable baseline `74ef7f4fb` also finds these four

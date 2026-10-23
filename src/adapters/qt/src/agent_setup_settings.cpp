@@ -1,5 +1,7 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
@@ -60,7 +62,7 @@ namespace bpr::qt {
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(heading(tr("Agent setup"), this));
-		auto* const setUp = new QPushButton{ tr("Set up agent…"), this };
+		auto* const setUp = new quiet_push_button{ tr("Set up agent…"), this };
 		setUp->setObjectName(QStringLiteral("settingsSetUpAgent"));
 		connect(setUp, &QPushButton::clicked, this, [this] {
 			if (Dispatch.SetUp) {
@@ -75,7 +77,7 @@ namespace bpr::qt {
 			aField->setObjectName(aName);
 			aField->setPlaceholderText(tr("An absolute path to the program"));
 			row->addWidget(aField, 1);
-			auto* const choose = new QPushButton{ tr("Choose…"), this };
+			auto* const choose = new quiet_push_button{ tr("Choose…"), this };
 			connect(choose, &QPushButton::clicked, this, [this, field = aField] {
 				const auto chosen = QFileDialog::getOpenFileName(this, tr("Choose the program"), field->text());
 				if (!chosen.isEmpty()) {
@@ -162,7 +164,7 @@ namespace bpr::qt {
 			}
 		});
 		row->addWidget(add);
-		Remove = new QPushButton{ tr("Remove"), this };
+		Remove = new quiet_push_button{ tr("Remove"), this };
 		Remove->setObjectName(QStringLiteral("settingsRemoveCloneFolder"));
 		connect(Remove, &QPushButton::clicked, this, [this] {
 			const auto at = Folders->currentRow();
@@ -231,7 +233,7 @@ namespace bpr::qt {
 		OfferText = new QLabel{ Offer };
 		OfferText->setObjectName(QStringLiteral("reviewSkillOfferText"));
 		offerRow->addWidget(OfferText, 1);
-		auto* const compare = new QPushButton{ tr("Compare"), Offer };
+		auto* const compare = new quiet_push_button{ tr("Compare"), Offer };
 		compare->setObjectName(QStringLiteral("reviewSkillCompare"));
 		compare->setCheckable(true);
 		offerRow->addWidget(compare);
@@ -243,7 +245,7 @@ namespace bpr::qt {
 			}
 		});
 		offerRow->addWidget(UseVersion);
-		auto* const keep = new QPushButton{ tr("Keep mine"), Offer };
+		auto* const keep = new quiet_push_button{ tr("Keep mine"), Offer };
 		keep->setObjectName(QStringLiteral("reviewSkillKeepMine"));
 		connect(keep, &QPushButton::clicked, this, [this] {
 			if (Dispatch.KeepMine) {
@@ -277,7 +279,7 @@ namespace bpr::qt {
 			}
 		});
 		row->addWidget(save);
-		auto* const restore = new QPushButton{ tr("Restore default"), this };
+		auto* const restore = new quiet_push_button{ tr("Restore default"), this };
 		restore->setObjectName(QStringLiteral("reviewSkillRestore"));
 		connect(restore, &QPushButton::clicked, this, [this] {
 			if (Dispatch.UseBuiltIn) {

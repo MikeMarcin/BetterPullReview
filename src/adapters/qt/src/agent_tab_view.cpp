@@ -6,6 +6,7 @@
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -330,14 +331,11 @@ namespace bpr::qt {
 		ReadyText->setWordWrap(true);
 		ReadyText->setTextFormat(Qt::PlainText);
 		readyCol->addWidget(ReadyText);
-		auto* const gets = new QToolButton{ ReadyCard };
+		auto* const gets = new disclosure_button{ ReadyCard };
 		gets->setObjectName(QStringLiteral("agentReadyGetsToggle"));
 		gets->setText(tr("What the agent gets"));
 		gets->setCheckable(true);
 		gets->setChecked(true);
-		gets->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-		gets->setArrowType(Qt::DownArrow);
-		gets->setAutoRaise(true);
 		readyCol->addWidget(gets, 0, Qt::AlignLeft);
 		ReadyGets = new QLabel{ ReadyCard };
 		ReadyGets->setObjectName(QStringLiteral("agentReadyGets"));
@@ -345,10 +343,7 @@ namespace bpr::qt {
 		ReadyGets->setTextFormat(Qt::PlainText);
 		ReadyGets->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		readyCol->addWidget(ReadyGets);
-		connect(gets, &QToolButton::toggled, this, [this, gets](const bool aOpen) {
-			ReadyGets->setVisible(aOpen);
-			gets->setArrowType(aOpen ? Qt::DownArrow : Qt::RightArrow);
-		});
+		connect(gets, &QToolButton::toggled, ReadyGets, &QWidget::setVisible);
 		ReadyCard->hide();
 		contentCol->addWidget(ReadyCard);
 		// Start: run a review that finds findings, when none are shown.
