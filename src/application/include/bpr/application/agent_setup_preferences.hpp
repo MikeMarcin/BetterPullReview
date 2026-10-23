@@ -23,6 +23,13 @@ namespace bpr::application {
 		std::string HarnessProgram;
 		/// Q4: which of Codex's protocols a Codex launch speaks.
 		core::codex_protocol_choice CodexProtocol = core::codex_protocol_choice::app_server;
+		/// [[BPR-PENDING-AQ6]], owner look v002. The effort Claude Code runs at
+		/// (`--effort`); empty: Claude's own setting. Claude's model is the
+		/// profile's existing Claude › Model setting.
+		std::string ClaudeEffort;
+		/// The model and reasoning effort Codex runs with; empty: Codex's own.
+		std::string CodexModel;
+		std::string CodexEffort;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};
@@ -31,7 +38,10 @@ namespace bpr::application {
 	/// storable under the wrapper rules (`core::storable_agent_wrapper`).
 	[[nodiscard]] inline auto valid(const agent_setup_preferences& aPreferences) noexcept -> bool
 	{
-		return core::storable_agent_wrapper(aPreferences.CodexProgram) && core::storable_agent_wrapper(aPreferences.HarnessProgram);
+		return core::storable_agent_wrapper(aPreferences.CodexProgram) && core::storable_agent_wrapper(aPreferences.HarnessProgram)
+			&& (aPreferences.ClaudeEffort.empty() || core::valid_agent_effort(core::agent_program::claude, aPreferences.ClaudeEffort))
+			&& core::storable_claude_model(aPreferences.CodexModel)
+			&& (aPreferences.CodexEffort.empty() || core::valid_agent_effort(core::agent_program::codex, aPreferences.CodexEffort));
 	}
 
 	/// \brief Where a profile's setup preferences live.

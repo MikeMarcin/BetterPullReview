@@ -1,3 +1,15 @@
+# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v002: github_application.cpp
+# presents to the Agent tab what each agent runs with (its program, model and
+# effort, Claude's model being the existing Claude › Model preference) and
+# takes its model and effort changes, and /model and /effort, to the existing
+# workbench preference (Claude's model) and agent_setup_host::set_run_settings
+# (Claude's effort, Codex's model and effort, kept in agent-setup.sqlite3). A
+# request then names those settings in its requested runtime settings, which
+# the existing launch admission validates and passes as --effort, or -m and
+# -c model_reasoning_effort for Codex exec. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the rebase reseal below,
 # linear, on this card's commit. Pinned-scope change, owner look v002:
 # github_application.cpp hands the setup's and Settings' new Visual
@@ -2246,7 +2258,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"7022ef8644fc0b1bdfdd45231e71effa6aefb4eb28ebe0aad6b15bc119e57327"
+		"533d9da3f7fe3ab861992ad1c128d133e93624560d6dd298bd6a4d334e31c18b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2470,7 +2482,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6d09166d5f6ffe6f1b7fe89e49f73b711c985f373684ffca6ca3259be75e5f59"
+        "abc66d40221a2c5487271f69cbc1ae54000f510f9a396b9665fbd522172be551"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

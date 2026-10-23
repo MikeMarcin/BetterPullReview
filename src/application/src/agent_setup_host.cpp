@@ -424,6 +424,33 @@ namespace bpr::application {
 		host.publish();
 	}
 
+	auto agent_setup_host::set_run_settings(const core::setup_agent aAgent, std::string aModel, std::string aEffort) -> bool
+	{
+		auto& host = *Implementation;
+		auto  next = host.Projection.Preferences;
+		switch (aAgent) {
+		case core::setup_agent::claude_code:
+			next.ClaudeEffort = std::move(aEffort);
+			break;
+		case core::setup_agent::codex:
+			next.CodexModel  = std::move(aModel);
+			next.CodexEffort = std::move(aEffort);
+			break;
+		case core::setup_agent::plain_text_harness:
+			return false;
+		}
+		if (!valid(next)) {
+			return false;
+		}
+		if (next == host.Projection.Preferences) {
+			return true;
+		}
+		host.Projection.Preferences = std::move(next);
+		host.save();
+		host.publish();
+		return true;
+	}
+
 	void agent_setup_host::set_repository_chosen(const bool aChosen)
 	{
 		auto& host = *Implementation;

@@ -2414,9 +2414,23 @@ changes says so once and discards on the second press. Notes stays available
 with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
 follows Tour, its spark beside its name. Its context row names the agent, the head its
 session reads, the scope in words (Selected lines, This file, Pull request,
-Repository) and History, a menu with a new session, continuing on an earlier
-head, the private history and runs, and the sessions. Below it the
-conversation holds the replies and one card per finding: severity, likelihood
+Repository), the model and effort the agent runs with, and History, a menu
+with a new session, continuing on an earlier head, the private history and
+runs, and the sessions. The model and effort control names both ("opus, high
+effort", or the agent's own defaults); its tooltip names the program that runs
+and the model the last answer reported, and its menu chooses from the agent's
+own models and effort levels or Other…, saved for the profile. `/model NAME`,
+`/effort LEVEL` (or `default`) in the question field do the same without
+asking anything; `/model` or `/effort` alone opens the menu, and a level the
+agent does not take is refused with the ones it does. Below it the
+conversation is a thread ([[BPR-PENDING-AQ6]], owner look v002): each turn is
+what was asked, or Review this pull request, the agent's answer as it writes
+it, and how the turn ended (who answered, in how long, the model it reported,
+the cost when the harness said, and how many findings); the question field
+clears once a question is sent. With nothing asked yet, Review this pull
+request says what it does (the agent reviews every change with the review
+skill; its review appears in the thread and findings become cards). After
+the thread come one card per finding: severity, likelihood
 and category, its `file:lines`, the claim and the evidence; choosing a card
 shows its lines; **Draft a comment** copies it to a local draft at its line,
 then Ask follow-up and Add to notes, which fold into More (with Show the code,

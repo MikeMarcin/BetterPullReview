@@ -5,7 +5,10 @@
 #include <QPointer>
 #include <QWidget>
 
+#include <cstddef>
 #include <functional>
+#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -27,6 +30,32 @@ namespace bpr::qt {
 	class side_chat_panel;
 
 	/// \brief [[BPR-1594]]. What the Agent tab says about its agent.
+	/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("I really have no clue
+	/// what my agent will be actually doing"). What one agent runs with, for
+	/// the tab's model and effort control.
+	struct agent_run_settings
+	{
+		/// The profile these settings are for.
+		std::uint64_t Profile = 0U;
+		/// The agent's plain name and the program that runs.
+		QString Agent;
+		QString Program;
+		bool    ModelChoosable  = false;
+		bool    EffortChoosable = false;
+		/// Empty: the agent's own default.
+		std::string Model;
+		std::string Effort;
+		/// Models to offer by name (value, label), besides Other….
+		std::vector<std::pair<std::string, QString>> Models;
+		std::vector<std::string>                     Efforts;
+		/// Why the settings cannot be chosen, when they cannot.
+		QString Note;
+	};
+
+	/// \brief A change to the model, the effort, or both; empty is the
+	/// agent's own default. Answers whether the host took it.
+	using agent_run_settings_dispatch = std::function<bool(std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort)>;
+
 	enum class agent_tab_state : std::uint8_t {
 		/// No agent is set up: the tab offers Set up an agent.
 		not_set_up,
@@ -70,9 +99,30 @@ namespace bpr::qt {
 		void present_ready(const QString& aTitle, const QString& aText, const QString& aGets);
 		/// \brief Called once, the first time the tab is shown: when setup
 		/// may show, the host looks for agents (RFC-BPR-0092 Q2).
-		void               set_first_shown(std::function<void()> aObserver);
+		void set_first_shown(std::function<void()> aObserver);
+		/// \brief The model and effort each agent runs with, and where a change
+		/// goes. The control in the context row shows the chosen agent's.
+		void               present_run_settings(std::vector<agent_run_settings> aSettings);
+		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
+		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief `/model NAME`, `/effort LEVEL` (or `default`), and `/model`
+		/// or `/effort` alone to open the control. Answers whether the text
+		/// was such a command, which is then not sent to the agent.
+		auto               run_slash_command(const QString& aText) -> bool;
+		[[nodiscard]] auto run_settings_text() const -> QString;
 		[[nodiscard]] auto ready_card() const noexcept -> QWidget* { return ReadyCard; }
 		[[nodiscard]] auto setup_view() const noexcept -> agent_setup_view* { return SetupView; }
+		/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("Is it not meant to
+		/// work like the claude code vscode plugin where it's like a chat
+		/// thread?"). The conversation's turns, oldest first: what was asked
+		/// (or "Review this pull request"), the agent's answer as it streams,
+		/// and how the turn ended.
+		[[nodiscard]] auto conversation_thread() const noexcept -> QWidget* { return Thread; }
+		[[nodiscard]] auto turn_count() const noexcept -> std::size_t { return Turns.size(); }
+		[[nodiscard]] auto turn_answer(std::size_t aTurn) const -> QString;
+		[[nodiscard]] auto turn_question(std::size_t aTurn) const -> QString;
+		[[nodiscard]] auto turn_footer(std::size_t aTurn) const -> QString;
+		[[nodiscard]] auto review_button() const noexcept -> QPushButton* { return Review; }
 		/// \brief Reads the panels again and redraws.
 		void refresh();
 		/// \brief The question field takes the keyboard.
@@ -100,33 +150,61 @@ namespace bpr::qt {
 		[[nodiscard]] auto card_room() const -> int;
 		void               present_banner();
 
-		agent_launch_panel&   Launch;
-		side_chat_panel&      Chat;
-		finding_queue_view&   Findings;
-		QWidget&              HistoryPanel;
-		std::function<void()> Setup;
-		agent_tab_state       State        = agent_tab_state::not_set_up;
-		QStackedWidget*       Pages        = nullptr;
-		drawer_empty_state*   Empty        = nullptr;
-		QWidget*              Conversation = nullptr;
-		QWidget*              HistoryPage  = nullptr;
-		QWidget*              Banner       = nullptr;
-		QLabel*               BannerTitle  = nullptr;
-		QLabel*               BannerText   = nullptr;
-		QPushButton*          BannerFirst  = nullptr;
-		QPushButton*          BannerSecond = nullptr;
-		QWidget*              Cards        = nullptr;
-		QWidget*              Viewport     = nullptr;
-		QVBoxLayout*          CardColumn   = nullptr;
-		QWidget*              Start        = nullptr;
-		QLabel*               Head         = nullptr;
-		QToolButton*          History      = nullptr;
-		QMenu*                HistoryMenu  = nullptr;
-		agent_setup_view*     SetupView    = nullptr;
-		std::function<void()> CheckAgain;
-		std::function<void()> FirstShown;
-		QTimer*               Ticker = nullptr;
-		QElapsedTimer         Started;
+		agent_launch_panel&             Launch;
+		side_chat_panel&                Chat;
+		finding_queue_view&             Findings;
+		QWidget&                        HistoryPanel;
+		std::function<void()>           Setup;
+		agent_tab_state                 State        = agent_tab_state::not_set_up;
+		QStackedWidget*                 Pages        = nullptr;
+		drawer_empty_state*             Empty        = nullptr;
+		QWidget*                        Conversation = nullptr;
+		QWidget*                        HistoryPage  = nullptr;
+		QWidget*                        Banner       = nullptr;
+		QLabel*                         BannerTitle  = nullptr;
+		QLabel*                         BannerText   = nullptr;
+		QPushButton*                    BannerFirst  = nullptr;
+		QPushButton*                    BannerSecond = nullptr;
+		QWidget*                        Cards        = nullptr;
+		QWidget*                        Viewport     = nullptr;
+		QVBoxLayout*                    CardColumn   = nullptr;
+		QWidget*                        Start        = nullptr;
+		QLabel*                         Head         = nullptr;
+		QToolButton*                    History      = nullptr;
+		QMenu*                          HistoryMenu  = nullptr;
+		agent_setup_view*               SetupView    = nullptr;
+		std::function<void()>           CheckAgain;
+		std::function<void()>           FirstShown;
+		std::vector<agent_run_settings> RunSettingsShown;
+		agent_run_settings_dispatch     RunSettingsDispatch;
+		QToolButton*                    RunSettings = nullptr;
+		QLabel*                         Notice      = nullptr;
+		[[nodiscard]] auto              current_run_settings() const -> const agent_run_settings*;
+		void                            present_run_settings_button();
+		void                            ask();
+		/// One question and its answer.
+		struct turn
+		{
+			QString           Question;
+			bool              Review = false;
+			bool              Done   = false;
+			QPointer<QWidget> Widget;
+			QPointer<QLabel>  Answer;
+			QPointer<QLabel>  Footer;
+		};
+		std::vector<turn> Turns;
+		QWidget*          Thread       = nullptr;
+		QVBoxLayout*      ThreadColumn = nullptr;
+		QPushButton*      Review       = nullptr;
+		/// What the next admitted request is: a question typed, or a review.
+		std::optional<QString> PendingQuestion;
+		bool                   PendingReview = false;
+		int                    LastPhase     = 0;
+		void                   begin_turn();
+		void                   update_turn();
+		void                   progress();
+		QTimer*                Ticker = nullptr;
+		QElapsedTimer          Started;
 		/// The last request ended well and nothing has run since.
 		bool                           Finished   = false;
 		QWidget*                       ReadyCard  = nullptr;

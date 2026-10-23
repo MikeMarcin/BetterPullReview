@@ -361,6 +361,10 @@ namespace bpr::application {
 		/// undecoded so that the shared loop, rather than the frame reader, is
 		/// the one place a payload becomes findings.
 		finding_payload,
+		/// [[BPR-PENDING-AQ6]]. What the harness says the turn cost, in US
+		/// dollars as the decimal it wrote; Claude Code's result frame names
+		/// it `total_cost_usd`.
+		usage_report,
 	};
 
 	struct agent_protocol_event
@@ -539,6 +543,9 @@ namespace bpr::application {
 		core::agent_runtime_metadata                 Metadata;
 		std::vector<core::agent_provenance_conflict> ProvenanceConflicts;
 		std::vector<std::string>                     AssistantItems;
+		/// [[BPR-PENDING-AQ6]]. The turn's cost as the harness reported it, a
+		/// decimal of US dollars; absent when it reported none.
+		std::optional<std::string> ReportedCostUsd;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

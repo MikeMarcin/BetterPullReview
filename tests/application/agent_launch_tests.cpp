@@ -1268,8 +1268,8 @@ namespace {
 			}
 			expect(!application::build_agent_launch(selectedProfile, supplement, reader(), bad), "snapshot/source/settings mismatch refuses before launch");
 		}
-		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
-			auto       unsupported            = profile(protocol);
+		{
+			auto       unsupported            = profile(core::agent_protocol::external_terminal);
 			const auto requested              = application::build_agent_launch(unsupported, built_supplement(), reader(), { .Requested = { "model", "high" } });
 			unsupported.DefaultSettings.Model = "default";
 			const auto configured             = application::build_agent_launch(unsupported, built_supplement(), reader());
@@ -1277,12 +1277,27 @@ namespace {
 					   && configured.error() == requested.error(),
 				   "unsupported explicit requested/default settings refuse rather than becoming claims");
 		}
+		// [[BPR-PENDING-AQ6]], owner look v002. Codex's exec takes a model and
+		// a reasoning effort, and Claude an effort, each as its own argument;
+		// a level outside the agent's own vocabulary refuses.
+		{
+			const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { "gpt-5", "high" } });
+			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-" }, "Codex exec runs the chosen model at the chosen effort");
+			const auto badExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max" } });
+			expect(!badExec && badExec.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort Codex does not take refuses");
+			const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "opus", "xhigh" } });
+			expect(claude && std::ranges::search(claude->Arguments, std::vector<std::string>{ "--model", "opus", "--effort", "xhigh" }).begin() != claude->Arguments.end(),
+				   "Claude runs the chosen model at the chosen effort");
+			const auto badClaude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { std::nullopt, "minimal" } });
+			expect(!badClaude && badClaude.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort Claude does not take refuses");
+		}
 		selectedProfile.DefaultSettings.Model = std::string(257, 'x');
 		expect(!application::build_agent_launch(selectedProfile, built_supplement(), reader()), "oversized configured setting refused");
 	}
 
-	/// [[BPR-1375]]. Claude takes a model as `--model` and nothing else:
-	/// an effort, or a name that could read as an option, refuses.
+	/// [[BPR-1375]]. Claude takes a model as `--model`, and
+	/// ([[BPR-PENDING-AQ6]]) an effort of its own levels as `--effort`: a
+	/// name or level that could read as an option refuses.
 	void test_claude_takes_only_a_model_as_one_argument()
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
@@ -1295,8 +1310,12 @@ namespace {
 		const auto fromProfile           = application::build_agent_launch(configured, built_supplement(), reader());
 		expect(fromProfile && std::ranges::find(fromProfile->Arguments, "sonnet") - std::ranges::find(fromProfile->Arguments, "--model") == 1,
 			   "a configured Claude model is passed the same way");
+		// [[BPR-PENDING-AQ6]]: Claude Code 2.1 takes `--effort` too, one of its
+		// own five levels; anything else still refuses.
 		const auto withEffort = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", "high" } });
-		expect(!withEffort && withEffort.error() == application::agent_launch_failure::unsupported_runtime_settings, "Claude takes no effort setting");
+		expect(withEffort && withEffort->Arguments.back() == "high" && withEffort->Arguments[withEffort->Arguments.size() - 2U] == "--effort", "Claude takes its effort as one argument after --effort");
+		const auto badEffort = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", "--verbose" } });
+		expect(!badEffort && badEffort.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that is not one of Claude's levels refuses");
 		for (const auto* hostile : { "--dangerously-skip-permissions", "-x", "claude sonnet", "model\nnext", "\"quoted\"", "" }) {
 			const auto refused = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { std::string{ hostile }, { } } });
 			expect(!refused, "a model name that is not one plain argument refuses before launch");

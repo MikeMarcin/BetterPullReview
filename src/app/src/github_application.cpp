@@ -9293,6 +9293,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// [[BPR-1375]]. The next Claude request names this model.
 					ClaudeModel = aPreferences.ClaudeModel;
 					Window->claude_wrapper()->present_model(aPreferences.ClaudeModel);
+					present_run_settings();
 #endif
 				}
 			});
@@ -11578,6 +11579,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto* const tab = Window->agent_tab();
 			tab->adopt_setup(*Window->agent_setup(), [this] { check_agent_setup(); });
+			tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+				return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
+			});
 			// Looking for agents waits for the tab: showing the setup is what
 			// may look (owner answer Q2), and looking reads file metadata only.
 			tab->set_first_shown([this] {
@@ -11757,12 +11761,87 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->agent_tab()->focus_question();
 		}
 
+		/// [[BPR-PENDING-AQ6]], owner look v002. What each agent runs with, for
+		/// the Agent tab's model and effort control and its /model and /effort.
+		void present_run_settings()
+		{
+			if (Closing || Window == nullptr || !AgentSetup) {
+				return;
+			}
+			const auto setup   = AgentSetup->projection();
+			const auto program = [&setup](const core::setup_agent aAgent) {
+				const auto found = std::ranges::find_if(setup.State.Rows, [aAgent](const core::agent_setup_row& aRow) { return aRow.Agent == aAgent; });
+				return found == setup.State.Rows.end() ? QString{ } : QString::fromStdString(found->Path);
+			};
+			auto claude            = qt::agent_run_settings{ };
+			claude.Profile         = core::claude_stream_json_profile_id.value();
+			claude.Agent           = QStringLiteral("Claude Code");
+			claude.Program         = program(core::setup_agent::claude_code);
+			claude.ModelChoosable  = true;
+			claude.EffortChoosable = true;
+			claude.Model           = ClaudeModel;
+			claude.Effort          = setup.Preferences.ClaudeEffort;
+			claude.Models          = { { "opus", QStringLiteral("Opus") }, { "sonnet", QStringLiteral("Sonnet") }, { "haiku",
+																													 QStringLiteral("Haiku") } };
+			claude.Efforts         = { "low", "medium", "high", "xhigh", "max" };
+			auto codex             = qt::agent_run_settings{ };
+			codex.Agent            = QStringLiteral("Codex");
+			codex.Program          = program(core::setup_agent::codex);
+			codex.ModelChoosable   = true;
+			codex.EffortChoosable  = true;
+			codex.Model            = setup.Preferences.CodexModel;
+			codex.Effort           = setup.Preferences.CodexEffort;
+			codex.Efforts          = { "minimal", "low", "medium", "high", "xhigh" };
+			auto appServer         = codex;
+			appServer.Profile      = core::codex_app_server_profile_id.value();
+			auto jsonl             = codex;
+			jsonl.Profile          = core::codex_jsonl_profile_id.value();
+			auto harness           = qt::agent_run_settings{ };
+			harness.Profile        = core::external_terminal_profile_id.value();
+			harness.Agent          = QStringLiteral("The plain-text harness");
+			harness.Program        = QString::fromStdString(setup.Preferences.HarnessProgram);
+			harness.Note           = QStringLiteral("A plain-text harness chooses its own model and effort.");
+			Window->agent_tab()->present_run_settings({ claude, appServer, jsonl, harness });
+		}
+
+		[[nodiscard]] auto apply_run_settings(const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) -> bool
+		{
+			if (Closing || !AgentSetup) {
+				return false;
+			}
+			const auto preferences = AgentSetup->projection().Preferences;
+			if (aProfile == core::claude_stream_json_profile_id.value()) {
+				if (aModel && !core::storable_claude_model(*aModel)) {
+					return false;
+				}
+				if (aEffort && !aEffort->empty() && !core::valid_agent_effort(core::agent_program::claude, *aEffort)) {
+					return false;
+				}
+				if (aModel && !Profile->WorkbenchPreferences->apply_claude_model(*aModel)) {
+					return false;
+				}
+				if (aModel) {
+					ClaudeModel = *aModel;
+				}
+				const auto taken = !aEffort || AgentSetup->set_run_settings(core::setup_agent::claude_code, { }, std::move(*aEffort));
+				present_run_settings();
+				return taken;
+			}
+			if (aProfile == core::codex_app_server_profile_id.value() || aProfile == core::codex_jsonl_profile_id.value()) {
+				const auto taken = AgentSetup->set_run_settings(core::setup_agent::codex, aModel.value_or(preferences.CodexModel), aEffort.value_or(preferences.CodexEffort));
+				present_run_settings();
+				return taken;
+			}
+			return false;
+		}
+
 		void present_agent_setup(const application::agent_setup_projection& aProjection)
 		{
 			if (Closing || Window == nullptr) {
 				return;
 			}
 			Window->agent_programs()->present(aProjection.Preferences);
+			present_run_settings();
 			present_setup_view();
 			const auto chosen  = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
 			const auto profile = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
@@ -19063,6 +19142,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto requested = PrivateRequested;
 			if (aProfile == core::claude_stream_json_profile_id && !requested.Model && !ClaudeModel.empty()) {
 				requested.Model = ClaudeModel;
+			}
+			// [[BPR-PENDING-AQ6]], owner look v002. The model and effort the tab
+			// shows are the ones this request runs with.
+			if (AgentSetup) {
+				const auto preferences = AgentSetup->projection().Preferences;
+				if (aProfile == core::claude_stream_json_profile_id && !requested.Effort && !preferences.ClaudeEffort.empty()) {
+					requested.Effort = preferences.ClaudeEffort;
+				}
+				if ((aProfile == core::codex_app_server_profile_id || aProfile == core::codex_jsonl_profile_id) && !aWritingOnly) {
+					if (!requested.Model && !preferences.CodexModel.empty()) {
+						requested.Model = preferences.CodexModel;
+					}
+					if (!requested.Effort && !preferences.CodexEffort.empty()) {
+						requested.Effort = preferences.CodexEffort;
+					}
+				}
 			}
 			if (!aWritingOnly && !privateRun && PrivateReview) {
 				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());

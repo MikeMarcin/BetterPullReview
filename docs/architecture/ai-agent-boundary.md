@@ -1254,8 +1254,8 @@ none of these four transports has a typed content-self-report field.
 | Protocol | Requested/default settings sent | Reported facts admitted | Unknown facts |
 |---|---|---|---|
 | Codex App Server | `thread/start.params.model`; `turn/start.params.model` and `.effort` | `thread/start.result.model`, `.reasoningEffort`, `.thread.id`; `turn/start.result.turn.id` | Tool version, remote session/run, content-self-report |
-| Codex JSONL exec | Explicit settings refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
-| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort refuses as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model` | Effort, remote thread/turn/run, content-self-report |
+| Codex JSONL exec | Model as `-m NAME` and effort as `-c model_reasoning_effort="LEVEL"` ([[BPR-PENDING-AQ6]]; names `core::valid_claude_model` admits, levels `minimal`, `low`, `medium`, `high`, `xhigh`); others refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
+| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort as `--effort LEVEL` ([[BPR-PENDING-AQ6]]; `low`, `medium`, `high`, `xhigh`, `max`), any other refusing as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model`; the result frame's `total_cost_usd`, a plain decimal only, as the run's reported cost | Effort, remote thread/turn/run, content-self-report |
 | External terminal | Explicit settings refuse as `unsupported_runtime_settings` | None | All runtime facts |
 
 These are field-specific observations, not provider-execution attestation.

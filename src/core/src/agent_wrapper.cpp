@@ -1,6 +1,7 @@
 #include "bpr/core/agent_wrapper.hpp"
 
 #include <algorithm>
+#include <array>
 
 namespace bpr::core {
 	static_assert(maximum_agent_wrapper_bytes == 1024U, "describe(too_long) names the bound");
@@ -93,6 +94,17 @@ namespace bpr::core {
 	auto storable_claude_model(const std::string_view aModel) noexcept -> bool
 	{
 		return aModel.empty() || valid_claude_model(aModel);
+	}
+
+	auto valid_agent_effort(const agent_program aProgram, const std::string_view aEffort) noexcept -> bool
+	{
+		constexpr auto claude = std::array<std::string_view, 5>{ "low", "medium", "high", "xhigh", "max" };
+		constexpr auto codex  = std::array<std::string_view, 5>{ "minimal", "low", "medium", "high", "xhigh" };
+		switch (aProgram) {
+		case agent_program::claude: return std::ranges::find(claude, aEffort) != claude.end();
+		case agent_program::codex:  return std::ranges::find(codex, aEffort) != codex.end();
+		}
+		return false;
 	}
 
 	auto describe(const agent_wrapper_refusal aRefusal) noexcept -> std::string_view

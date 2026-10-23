@@ -141,6 +141,14 @@ namespace bpr::core {
 		codex,
 	};
 
+	/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("Not having a model/effort
+	/// picker in this window bothers the hell out of me"). Whether text names
+	/// an effort the agent's own command line takes: Claude Code's `--effort`
+	/// (`low`, `medium`, `high`, `xhigh`, `max`) or Codex's
+	/// `model_reasoning_effort` (`minimal`, `low`, `medium`, `high`, `xhigh`).
+	/// A plain-text harness takes none.
+	[[nodiscard]] auto valid_agent_effort(agent_program aProgram, std::string_view aEffort) noexcept -> bool;
+
 	/// \brief Where a searched-for program was found. One answer for every
 	/// program, so `claude_found_in` keeps its name for the Claude rows.
 	using agent_found_in = claude_found_in;

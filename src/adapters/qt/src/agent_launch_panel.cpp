@@ -282,6 +282,7 @@ namespace bpr::qt {
 			QStringLiteral("Not started: %1")
 				.arg(QString::fromUtf8(aReason.data(), static_cast<qsizetype>(aReason.size()))));
 		update_actions();
+		progressed();
 	}
 
 	void agent_launch_panel::admit(
@@ -368,7 +369,14 @@ namespace bpr::qt {
 			}
 		}
 		LastOutcome = aResult.Outcome;
-		StopReason  = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
+		LastModel.clear();
+		for (const auto& report : aResult.Metadata.ProtocolReported) {
+			if (report.Settings.Model) {
+				LastModel = QString::fromStdString(*report.Settings.Model);
+			}
+		}
+		LastCost   = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		StopReason = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
 			? workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed))
 			: QString{ };
 		Status->setText(

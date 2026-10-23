@@ -765,6 +765,21 @@ namespace {
 		claude.Output          = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string{ R"({"type":"system","subtype":"init","session_id":"s"})" } + "\n" + message + message + R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"summary must not repeat"})" + "\n" } };
 		result                 = run(agent_protocol::claude_stream_json, claude);
 		expect(result.Outcome == agent_run_outcome::success && result.AssistantItems == std::vector<std::string>{ "one", "two" }, "Claude keeps assistant blocks once and excludes result summary");
+		expect(!result.ReportedCostUsd, "a result frame that names no cost reports none");
+		// [[BPR-PENDING-AQ6]], owner look v002. The turn's cost, as Claude
+		// writes it in the result frame, and nothing that is not a plain decimal.
+		fake_transport costed;
+		costed.Output = { { .Status = agent_protocol_pipe_read_status::data,
+							.Bytes  = std::string{ R"({"type":"system","subtype":"init","session_id":"s"})" } + "\n" + message
+								+ R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"done","total_cost_usd":0.0423})" + "\n" } };
+		result        = run(agent_protocol::claude_stream_json, costed);
+		expect(result.Outcome == agent_run_outcome::success && result.ReportedCostUsd == "0.0423", "Claude's reported cost reaches the run result");
+		fake_transport signedCost;
+		signedCost.Output = { { .Status = agent_protocol_pipe_read_status::data,
+								.Bytes  = std::string{ R"({"type":"system","subtype":"init","session_id":"s"})" } + "\n" + message
+									+ R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"done","total_cost_usd":-1e3})" + "\n" } };
+		result            = run(agent_protocol::claude_stream_json, signedCost);
+		expect(result.Outcome == agent_run_outcome::success && !result.ReportedCostUsd, "a cost that is not a plain decimal is left out");
 		agent_protocol_decoder app{ agent_protocol::codex_app_server };
 		expect(app.push("{\"id\":0,\"result\":{}}\n").has_value() && app.acknowledge_followup(agent_protocol_event_kind::initialization_complete).has_value(), "App Server initialization");
 		expect(app.push("{\"id\":1,\"result\":{\"thread\":{\"id\":\"t\"}}}\n").has_value() && app.acknowledge_followup(agent_protocol_event_kind::context_channel_ready).has_value(), "App Server thread");

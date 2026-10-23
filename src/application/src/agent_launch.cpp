@@ -963,8 +963,15 @@ namespace bpr::application {
 				if (!aSawAssistant || string_member(aRoot, "result") == nullptr) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				aPhase = 2U;
-				return payload_events(aRoot, aFrame);
+				aPhase      = 2U;
+				auto events = payload_events(aRoot, aFrame);
+				// [[BPR-PENDING-AQ6]]. The turn's cost, when Claude says it: a
+				// plain non-negative decimal only, never a value it did not write.
+				if (const auto* cost = member(aRoot, "total_cost_usd"); cost != nullptr && cost->Kind == json_kind::number_value && !cost->Text.empty() && cost->Text.size() <= 24U
+					&& std::ranges::all_of(cost->Text, [](const char aByte) { return (aByte >= '0' && aByte <= '9') || aByte == '.'; })) {
+					events.push_back({ .Kind = agent_protocol_event_kind::usage_report, .Text = cost->Text });
+				}
+				return events;
 			}
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
@@ -2203,8 +2210,17 @@ namespace bpr::application {
 			if (aProtocol == core::agent_protocol::codex_app_server) {
 				return true;
 			}
+			// [[BPR-PENDING-AQ6]], owner look v002: Claude Code also takes an
+			// effort as `--effort`, and Codex's exec a model and a reasoning
+			// effort, each one argument of a closed vocabulary or a name
+			// `core::valid_claude_model` admits.
 			if (aProtocol == core::agent_protocol::claude_stream_json) {
-				return !aSettings.Effort && (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
+				return (!aSettings.Effort || core::valid_agent_effort(core::agent_program::claude, *aSettings.Effort))
+					&& (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
+			}
+			if (aProtocol == core::agent_protocol::codex_jsonl_exec) {
+				return (!aSettings.Effort || core::valid_agent_effort(core::agent_program::codex, *aSettings.Effort))
+					&& (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
 			}
 			return !aSettings.Model && !aSettings.Effort;
 		}
@@ -2213,6 +2229,21 @@ namespace bpr::application {
 			if (aSettings.Model) {
 				aArguments.emplace_back("--model");
 				aArguments.push_back(*aSettings.Model);
+			}
+			if (aSettings.Effort) {
+				aArguments.emplace_back("--effort");
+				aArguments.push_back(*aSettings.Effort);
+			}
+		}
+		void append_codex_exec_settings(std::vector<std::string>& aArguments, const core::agent_setting_facts& aSettings)
+		{
+			if (aSettings.Model) {
+				aArguments.emplace_back("-m");
+				aArguments.push_back(*aSettings.Model);
+			}
+			if (aSettings.Effort) {
+				aArguments.emplace_back("-c");
+				aArguments.push_back("model_reasoning_effort=\"" + *aSettings.Effort + "\"");
 			}
 		}
 		[[nodiscard]] auto settings_json(const core::agent_runtime_metadata& aMetadata) -> std::string
@@ -2309,6 +2340,7 @@ namespace bpr::application {
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
 			arguments.emplace_back("--json");
+			append_codex_exec_settings(arguments, settings);
 			arguments.emplace_back("-");
 			break;
 		case core::agent_protocol::claude_stream_json:
@@ -2561,7 +2593,8 @@ namespace bpr::application {
 			return app_server_turn_input(aRequest.DeferredContext, aControl.Text, aRequest.Metadata);
 		}
 		case agent_protocol_event_kind::output:
-		case agent_protocol_event_kind::finding_payload: break;
+		case agent_protocol_event_kind::finding_payload:
+		case agent_protocol_event_kind::usage_report:    break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}

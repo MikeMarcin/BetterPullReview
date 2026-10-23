@@ -144,6 +144,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto latest_output_line() const -> QString;
 		/// Called whenever the request's phase, output or end changes.
 		void add_progress_observer(std::function<void()> aObserver);
+		/// [[BPR-PENDING-AQ6]], owner look v002. What the last request's agent
+		/// reported running: its model, and its cost when the harness said.
+		[[nodiscard]] auto last_reported_model() const -> QString { return LastModel; }
+		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
 		/// [[BPR-PENDING-AQ6]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		[[nodiscard]] auto output_text() const -> QString;
@@ -181,6 +185,8 @@ namespace bpr::qt {
 		std::optional<application::agent_draft_choice> OfferedDraft;
 		QString                                        StopReason;
 		std::optional<application::agent_run_outcome>  LastOutcome;
+		QString                                        LastModel;
+		QString                                        LastCost;
 		phase                                          Phase = phase::idle;
 		std::vector<std::function<void()>>             ProgressObservers;
 		void                                           progressed();

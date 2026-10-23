@@ -13,9 +13,12 @@
 
 #include <QAbstractItemModel>
 #include <QAction>
+#include <QActionGroup>
 #include <QComboBox>
 #include <QEvent>
 #include <QHBoxLayout>
+#include <QInputDialog>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
 #include <QMenu>
@@ -205,6 +208,14 @@ namespace bpr::qt {
 		profiles->setToolTip(tr("The agent this tab asks"));
 		profiles->setSizeAdjustPolicy(QComboBox::AdjustToContents);
 		row->addWidget(profiles);
+		// Owner look v002: the model and effort the agent runs with, beside
+		// the agent, and what will run in its tooltip.
+		RunSettings = new menu_word{ context };
+		RunSettings->setObjectName(QStringLiteral("agentRunSettings"));
+		RunSettings->setAccessibleName(tr("Model and effort"));
+		RunSettings->setMenu(new QMenu{ RunSettings });
+		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] { present_run_settings_button(); });
+		row->addWidget(RunSettings);
 		Head = chip_label(context, QStringLiteral("agentHeadChip"));
 		Head->setToolTip(tr("The head the session reads"));
 		row->addWidget(Head);
@@ -358,16 +369,34 @@ namespace bpr::qt {
 		Start                = new QWidget{ content };
 		auto* const startRow = new QHBoxLayout{ Start };
 		startRow->setContentsMargins(0, 0, 0, 0);
-		auto* const startWords = new QLabel{ tr("Ask a question below, or let the agent review the pull request for findings."), Start };
+		// Owner look v002 ("This Ask the Agent button is confusing"): the
+		// one-click action says what it does.
+		auto* const startColumn = new QVBoxLayout{ };
+		startColumn->setSpacing(4);
+		Review = new quiet_push_button{ tr("Review this pull request"), Start };
+		Review->setObjectName(QStringLiteral("agentReviewButton"));
+		Review->setToolTip(tr("The agent reviews every change in the pull request with your review skill"));
+		connect(Review, &QPushButton::clicked, this, [this] {
+			PendingReview = true;
+			PendingQuestion.reset();
+			Launch.start_action()->trigger();
+		});
+		startColumn->addWidget(Review, 0, Qt::AlignLeft);
+		auto* const startWords = new QLabel{ tr("The agent reviews the whole pull request with your review skill. Its review appears here, and any findings become cards you can draft comments from. Or ask your own question below."), Start };
+		startWords->setObjectName(QStringLiteral("agentReviewExplanation"));
 		startWords->setWordWrap(true);
 		startWords->setForegroundRole(QPalette::PlaceholderText);
-		startRow->addWidget(startWords, 1);
-		auto* const review = new QToolButton{ Start };
-		review->setObjectName(QStringLiteral("agentReviewButton"));
-		review->setDefaultAction(Launch.start_action());
-		review->setToolButtonStyle(Qt::ToolButtonTextOnly);
-		startRow->addWidget(review, 0, Qt::AlignTop);
+		startColumn->addWidget(startWords);
+		startRow->addLayout(startColumn, 1);
 		contentCol->addWidget(Start);
+		// The thread: each question and its answer, oldest first.
+		Thread = new QWidget{ content };
+		Thread->setObjectName(QStringLiteral("agentThread"));
+		ThreadColumn = new QVBoxLayout{ Thread };
+		ThreadColumn->setContentsMargins(0, 0, 0, 0);
+		ThreadColumn->setSpacing(10);
+		Thread->hide();
+		contentCol->addWidget(Thread);
 		auto* const replies = Chat.replies_list();
 		Borrowed.emplace_back(replies, replies->parentWidget());
 		replies->setParent(content);
@@ -376,6 +405,7 @@ namespace bpr::qt {
 		replies->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
 		replies->viewport()->setAutoFillBackground(false);
 		contentCol->addWidget(replies);
+		replies->hide();
 		Cards      = new QWidget{ content };
 		CardColumn = new QVBoxLayout{ Cards };
 		CardColumn->setContentsMargins(0, 0, 0, 0);
@@ -417,7 +447,21 @@ namespace bpr::qt {
 		Ask->setObjectName(QStringLiteral("agentAsk"));
 		Ask->setDefault(true);
 		Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
-		connect(Ask, &QPushButton::clicked, Chat.send_action(), &QAction::trigger);
+		connect(Ask, &QPushButton::clicked, this, [this] { this->ask(); });
+		// Return with Command or Control asks from the field, as Ask does, so a
+		// slash command is read the same way from either.
+		composer->installEventFilter(this);
+		Notice = new QLabel{ field };
+		Notice->setObjectName(QStringLiteral("agentComposerNotice"));
+		Notice->setWordWrap(true);
+		Notice->setForegroundRole(QPalette::PlaceholderText);
+		Notice->hide();
+		fieldCol->insertWidget(1, Notice);
+		// What was asked is read when it is sent, by Ask or by the keyboard.
+		connect(Chat.send_action(), &QAction::triggered, this, [this] {
+			PendingQuestion = Chat.composer()->toPlainText().trimmed();
+			PendingReview   = false;
+		});
 		askRow->addWidget(Ask);
 		fieldCol->addLayout(askRow);
 		askCol->addWidget(field);
@@ -453,10 +497,13 @@ namespace bpr::qt {
 		// [[BPR-PENDING-AQ6]], owner look v001 ("no indication anything
 		// happened"). The working line follows the request as it moves, with
 		// the time it has taken, so a long run never looks like nothing.
-		Launch.add_progress_observer(again);
+		Launch.add_progress_observer([this] { progress(); });
 		Ticker = new QTimer{ this };
 		Ticker->setInterval(1000);
-		connect(Ticker, &QTimer::timeout, this, [this] { present_banner(); });
+		connect(Ticker, &QTimer::timeout, this, [this] {
+			present_banner();
+			update_turn();
+		});
 		refresh();
 	}
 
@@ -575,15 +622,138 @@ namespace bpr::qt {
 		Ask->setEnabled(Chat.send_action()->isEnabled());
 		present_banner();
 		rebuild_findings();
-		Start->setVisible(State == agent_tab_state::idle && Findings.finding_count() == 0U && Chat.replies_list()->count() == 0);
-		// The replies take the height of their rows, not a list's default.
-		auto* const replies = Chat.replies_list();
-		replies->setVisible(replies->count() > 0);
-		auto rows = 0;
-		for (auto row = 0; row < replies->count(); ++row) {
-			rows += replies->sizeHintForRow(row);
+		Start->setVisible(State == agent_tab_state::idle && Findings.finding_count() == 0U && Turns.empty());
+		Thread->setVisible(!Turns.empty());
+		update_turn();
+	}
+
+	void agent_tab_view::progress()
+	{
+		if (!panels_alive()) {
+			return;
 		}
-		replies->setFixedHeight(rows + (2 * replies->frameWidth()));
+		const auto phase = static_cast<int>(Launch.current_phase());
+		if (phase != LastPhase) {
+			if (LastPhase == static_cast<int>(agent_launch_panel::phase::idle) && phase == static_cast<int>(agent_launch_panel::phase::preparing)) {
+				begin_turn();
+			}
+			LastPhase = phase;
+			refresh();
+			return;
+		}
+		present_banner();
+		update_turn();
+	}
+
+	void agent_tab_view::begin_turn()
+	{
+		auto next = turn{ };
+		if (PendingReview || !PendingQuestion) {
+			next.Review   = true;
+			next.Question = tr("Review this pull request");
+		} else {
+			next.Question = *PendingQuestion;
+			// Sent: the field is ready for the next question.
+			Chat.composer()->clear();
+		}
+		PendingQuestion.reset();
+		PendingReview   = false;
+		auto* const box = new QWidget{ Thread };
+		box->setObjectName(QStringLiteral("agentTurn"));
+		auto* const column = new QVBoxLayout{ box };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->setSpacing(4);
+		auto* const asked = new rounded{ rounded::look::field, box };
+		asked->setObjectName(QStringLiteral("agentTurnQuestion"));
+		auto* const askedColumn = new QVBoxLayout{ asked };
+		askedColumn->setContentsMargins(10, 6, 10, 6);
+		auto* const question = new QLabel{ next.Question, asked };
+		question->setWordWrap(true);
+		question->setTextFormat(Qt::PlainText);
+		question->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		if (next.Review) {
+			auto italic = question->font();
+			italic.setItalic(true);
+			question->setFont(italic);
+		}
+		askedColumn->addWidget(question);
+		column->addWidget(asked, 0, Qt::AlignRight);
+		auto* const answer = new QLabel{ box };
+		answer->setObjectName(QStringLiteral("agentTurnAnswer"));
+		answer->setWordWrap(true);
+		answer->setTextFormat(Qt::PlainText);
+		answer->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		column->addWidget(answer);
+		auto* const footer = new QLabel{ box };
+		footer->setObjectName(QStringLiteral("agentTurnFooter"));
+		footer->setForegroundRole(QPalette::PlaceholderText);
+		footer->setWordWrap(true);
+		column->addWidget(footer);
+		ThreadColumn->addWidget(box);
+		next.Widget = box;
+		next.Answer = answer;
+		next.Footer = footer;
+		Turns.push_back(std::move(next));
+		Thread->show();
+	}
+
+	void agent_tab_view::update_turn()
+	{
+		if (Turns.empty() || Turns.back().Done || Turns.back().Answer == nullptr || Turns.back().Footer == nullptr) {
+			return;
+		}
+		auto&      current = Turns.back();
+		const auto agent   = Launch.profile_selector()->currentText();
+		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
+		const auto elapsed = QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
+		const auto written = Launch.output_text().trimmed();
+		switch (Launch.current_phase()) {
+		case agent_launch_panel::phase::preparing:
+			current.Answer->setText(written);
+			current.Answer->setVisible(!written.isEmpty());
+			current.Footer->setText(tr("%1 is making its workspace at the head, %2.").arg(agent, elapsed));
+			return;
+		case agent_launch_panel::phase::running:
+			current.Answer->setText(written);
+			current.Answer->setVisible(!written.isEmpty());
+			current.Footer->setText(written.isEmpty() ? tr("%1 is thinking, %2.").arg(agent, elapsed) : tr("%1 is writing, %2.").arg(agent, elapsed));
+			return;
+		case agent_launch_panel::phase::idle:
+			break;
+		}
+		// The request ended: say what came of it.
+		current.Done          = true;
+		const auto findings   = Findings.finding_count();
+		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
+		const auto stopReason = Launch.stop_reason_text();
+		if (succeeded) {
+			current.Answer->setText(written.isEmpty() ? tr("%1 finished without writing an answer.").arg(agent) : written);
+		} else {
+			current.Answer->setText(!stopReason.isEmpty() ? stopReason : tr("%1 stopped before answering: %2.").arg(agent, Launch.status_text()));
+		}
+		current.Answer->show();
+		auto ran = agent;
+		if (!Launch.last_reported_model().isEmpty()) {
+			ran = tr("%1 (%2)").arg(agent, Launch.last_reported_model());
+		}
+		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
+		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
+		if (succeeded && findings > 0U) {
+			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding below.") : tr("%1 findings below.").arg(findings));
+		}
+		current.Footer->setText(footer);
+	}
+
+	auto agent_tab_view::turn_answer(const std::size_t aTurn) const -> QString
+	{
+		return aTurn < Turns.size() && Turns[aTurn].Answer != nullptr ? Turns[aTurn].Answer->text() : QString{ };
+	}
+
+	auto agent_tab_view::turn_question(const std::size_t aTurn) const -> QString { return aTurn < Turns.size() ? Turns[aTurn].Question : QString{ }; }
+
+	auto agent_tab_view::turn_footer(const std::size_t aTurn) const -> QString
+	{
+		return aTurn < Turns.size() && Turns[aTurn].Footer != nullptr ? Turns[aTurn].Footer->text() : QString{ };
 	}
 
 	void agent_tab_view::present_banner()
@@ -604,7 +774,7 @@ namespace bpr::qt {
 			Banner->hide();
 			return;
 		case agent_tab_state::idle: {
-			if (!Finished) {
+			if (!Finished || !Turns.empty()) {
 				Banner->hide();
 				return;
 			}
@@ -845,8 +1015,175 @@ namespace bpr::qt {
 		}
 	}
 
+	void agent_tab_view::ask()
+	{
+		if (!panels_alive()) {
+			return;
+		}
+		if (run_slash_command(Chat.composer()->toPlainText().trimmed())) {
+			return;
+		}
+		Notice->hide();
+		Chat.send_action()->trigger();
+	}
+
+	void agent_tab_view::present_run_settings(std::vector<agent_run_settings> aSettings)
+	{
+		RunSettingsShown = std::move(aSettings);
+		present_run_settings_button();
+	}
+
+	void agent_tab_view::set_run_settings_dispatch(agent_run_settings_dispatch aDispatch) { RunSettingsDispatch = std::move(aDispatch); }
+
+	auto agent_tab_view::current_run_settings() const -> const agent_run_settings*
+	{
+		const auto profile = Launch.selected_profile();
+		if (!profile) {
+			return nullptr;
+		}
+		const auto found = std::ranges::find_if(RunSettingsShown, [&profile](const agent_run_settings& aSettings) { return aSettings.Profile == profile->value(); });
+		return found == RunSettingsShown.end() ? nullptr : &*found;
+	}
+
+	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->text(); }
+
+	void agent_tab_view::present_run_settings_button()
+	{
+		const auto* const settings = current_run_settings();
+		RunSettings->setVisible(settings != nullptr);
+		if (settings == nullptr) {
+			return;
+		}
+		const auto model  = settings->Model.empty() ? tr("default model") : QString::fromStdString(settings->Model);
+		const auto effort = settings->Effort.empty() ? tr("default effort") : tr("%1 effort").arg(QString::fromStdString(settings->Effort));
+		RunSettings->setText(settings->ModelChoosable || settings->EffortChoosable ? QStringLiteral("%1, %2").arg(model, effort) : tr("its own model"));
+		auto tip = tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program);
+		if (settings->ModelChoosable) {
+			tip += QStringLiteral("\n") + (settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
+		}
+		if (settings->EffortChoosable) {
+			tip += QStringLiteral("\n") + (settings->Effort.empty() ? tr("Effort: the agent's own default") : tr("Effort: %1").arg(QString::fromStdString(settings->Effort)));
+		}
+		if (!settings->Note.isEmpty()) {
+			tip += QStringLiteral("\n") + settings->Note;
+		}
+		if (!Launch.last_reported_model().isEmpty()) {
+			tip += QStringLiteral("\n") + tr("Last answer ran %1").arg(Launch.last_reported_model());
+		}
+		RunSettings->setToolTip(tip);
+		auto* const menu = RunSettings->menu();
+		menu->clear();
+		auto* const what = menu->addAction(tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program));
+		what->setEnabled(false);
+		if (!settings->Note.isEmpty()) {
+			menu->addAction(settings->Note)->setEnabled(false);
+		}
+		const auto profile = settings->Profile;
+		const auto apply   = [this, profile](std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+			if (RunSettingsDispatch && !RunSettingsDispatch(profile, std::move(aModel), std::move(aEffort))) {
+				Notice->setText(tr("The agent doesn't take that setting."));
+				Notice->show();
+			}
+		};
+		if (settings->ModelChoosable) {
+			auto* const models = menu->addMenu(tr("Model"));
+			models->setObjectName(QStringLiteral("agentRunSettingsModels"));
+			auto* const group = new QActionGroup{ models };
+			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
+				auto* const action = models->addAction(aLabel);
+				action->setCheckable(true);
+				action->setChecked(settings->Model == aValue);
+				group->addAction(action);
+				connect(action, &QAction::triggered, this, [apply, aValue] { apply(aValue, std::nullopt); });
+			};
+			add({ }, tr("Default (the agent's own setting)"));
+			for (const auto& [value, label] : settings->Models) {
+				add(value, label);
+			}
+			const auto known = settings->Model.empty() || std::ranges::any_of(settings->Models, [&settings](const auto& aModel) { return aModel.first == settings->Model; });
+			if (!known) {
+				add(settings->Model, QString::fromStdString(settings->Model));
+			}
+			connect(models->addAction(tr("Other…")), &QAction::triggered, this, [this, apply, current = settings->Model] {
+				auto       accepted = false;
+				const auto name     = QInputDialog::getText(this, tr("Model"), tr("The model's name, as the agent's --model takes it:"), QLineEdit::Normal, QString::fromStdString(current), &accepted).trimmed();
+				if (accepted) {
+					apply(name.toStdString(), std::nullopt);
+				}
+			});
+		}
+		if (settings->EffortChoosable) {
+			auto* const efforts = menu->addMenu(tr("Effort"));
+			efforts->setObjectName(QStringLiteral("agentRunSettingsEfforts"));
+			auto* const group = new QActionGroup{ efforts };
+			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
+				auto* const action = efforts->addAction(aLabel);
+				action->setCheckable(true);
+				action->setChecked(settings->Effort == aValue);
+				group->addAction(action);
+				connect(action, &QAction::triggered, this, [apply, aValue] { apply(std::nullopt, aValue); });
+			};
+			add({ }, tr("Default (the agent's own setting)"));
+			for (const auto& level : settings->Efforts) {
+				add(level, QString::fromStdString(level));
+			}
+		}
+		menu->addSeparator();
+		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
+	}
+
+	auto agent_tab_view::run_slash_command(const QString& aText) -> bool
+	{
+		if (!aText.startsWith(QLatin1Char{ '/' })) {
+			return false;
+		}
+		const auto words   = aText.mid(1).split(QLatin1Char{ ' ' }, Qt::SkipEmptyParts);
+		const auto command = words.isEmpty() ? QString{ } : words.front().toLower();
+		if (command != QStringLiteral("model") && command != QStringLiteral("effort")) {
+			return false;
+		}
+		const auto* const settings = current_run_settings();
+		const auto        isModel  = command == QStringLiteral("model");
+		Notice->show();
+		if (settings == nullptr || (isModel ? !settings->ModelChoosable : !settings->EffortChoosable)) {
+			Notice->setText(isModel ? tr("This agent chooses its own model.") : tr("This agent has no effort setting."));
+			return true;
+		}
+		if (words.size() < 2) {
+			RunSettings->showMenu();
+			Notice->setText(isModel ? tr("Choose a model, or type /model NAME.") : tr("Choose an effort, or type /effort LEVEL."));
+			return true;
+		}
+		auto value = words.at(1).toStdString();
+		if (value == "default") {
+			value.clear();
+		}
+		const auto taken = RunSettingsDispatch && (isModel ? RunSettingsDispatch(settings->Profile, value, std::nullopt) : RunSettingsDispatch(settings->Profile, std::nullopt, value));
+		if (!taken) {
+			Notice->setText(isModel ? tr("%1 isn't a model name the agent takes.").arg(words.at(1)) : tr("%1 isn't an effort this agent takes. It takes %2.").arg(words.at(1), QString::fromStdString([&settings] {
+																																									  auto list = std::string{ };
+																																									  for (const auto& effort : settings->Efforts) {
+																																										  list += (list.empty() ? "" : ", ") + effort;
+																																									  }
+																																									  return list;
+																																								  }())));
+			return true;
+		}
+		Chat.composer()->clear();
+		Notice->setText(isModel ? (value.empty() ? tr("The next question runs on the agent's own model.") : tr("The next question runs on %1.").arg(QString::fromStdString(value)))
+								: (value.empty() ? tr("The next question runs at the agent's own effort.") : tr("The next question runs at %1 effort.").arg(QString::fromStdString(value))));
+		return true;
+	}
+
 	auto agent_tab_view::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
+		if (aEvent->type() == QEvent::KeyPress && aWatched == Chat.composer()) {
+			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0) {
+				ask();
+				return true;
+			}
+		}
 		if (aEvent->type() == QEvent::Resize && aWatched == Viewport) {
 			for (const auto& card : CardWidgets) {
 				if (card != nullptr) {

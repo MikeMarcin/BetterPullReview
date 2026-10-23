@@ -78,6 +78,13 @@ namespace bpr::adapters::sqlite {
 									"remote TEXT NOT NULL CHECK(length(CAST(remote AS BLOB)) <= 1024),"
 									"private_copy INTEGER NOT NULL CHECK(private_copy BETWEEN 0 AND 1),"
 									"PRIMARY KEY(host, repository, owner, name)) STRICT")
+				// [[BPR-PENDING-AQ6]]. The model and effort each agent runs with.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_runtime("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"claude_effort TEXT NOT NULL CHECK(length(CAST(claude_effort AS BLOB)) <= 16),"
+									"codex_model TEXT NOT NULL CHECK(length(CAST(codex_model AS BLOB)) <= 128),"
+									"codex_effort TEXT NOT NULL CHECK(length(CAST(codex_effort AS BLOB)) <= 16)) STRICT")
 				// [[BPR-PENDING-AQ5]]. The profile's edited review skill.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS review_skill("
@@ -390,6 +397,13 @@ namespace bpr::adapters::sqlite {
 					loaded.CodexProtocol  = static_cast<core::codex_protocol_choice>(protocol);
 					loaded.CodexProgram   = std::move(*codex);
 					loaded.HarnessProgram = std::move(*harness);
+					// [[BPR-PENDING-AQ6]]. The run settings, when any were saved.
+					if (auto runtime = detail::prepare(store->Database.get(), "SELECT claude_effort,codex_model,codex_effort FROM agent_runtime WHERE singleton=1");
+						runtime && sqlite3_step(runtime->Value) == SQLITE_ROW) {
+						loaded.ClaudeEffort = column_text(runtime->Value, 0).value_or(std::string{ });
+						loaded.CodexModel   = column_text(runtime->Value, 1).value_or(std::string{ });
+						loaded.CodexEffort  = column_text(runtime->Value, 2).value_or(std::string{ });
+					}
 					return application::valid(loaded) ? loaded : application::agent_setup_preferences{ };
 				} catch (...) {
 					return std::nullopt;
@@ -414,7 +428,17 @@ namespace bpr::adapters::sqlite {
 					sqlite3_bind_int64(row->Value, 2, static_cast<std::int64_t>(aPreferences.CodexProtocol));
 					sqlite3_bind_text(row->Value, 3, aPreferences.CodexProgram.data(), static_cast<int>(aPreferences.CodexProgram.size()), SQLITE_TRANSIENT);
 					sqlite3_bind_text(row->Value, 4, aPreferences.HarnessProgram.data(), static_cast<int>(aPreferences.HarnessProgram.size()), SQLITE_TRANSIENT);
-					return sqlite3_step(row->Value) == SQLITE_DONE;
+					if (sqlite3_step(row->Value) != SQLITE_DONE) {
+						return false;
+					}
+					auto runtime = detail::prepare(store->Database.get(), "INSERT OR REPLACE INTO agent_runtime VALUES(1,?1,?2,?3)");
+					if (!runtime) {
+						return false;
+					}
+					bind(runtime->Value, 1, aPreferences.ClaudeEffort);
+					bind(runtime->Value, 2, aPreferences.CodexModel);
+					bind(runtime->Value, 3, aPreferences.CodexEffort);
+					return sqlite3_step(runtime->Value) == SQLITE_DONE;
 				} catch (...) {
 					return false;
 				}

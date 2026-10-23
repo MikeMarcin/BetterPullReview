@@ -308,6 +308,8 @@ namespace bpr::adapters::agent::detail {
 						if (has_cause()) {
 							return;
 						}
+					} else if (message.Kind == application::agent_protocol_event_kind::usage_report) {
+						Result.ReportedCostUsd = message.Text;
 					} else {
 						process_control(message);
 						if (has_cause()) {

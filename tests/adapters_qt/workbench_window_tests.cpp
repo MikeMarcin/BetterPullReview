@@ -13862,10 +13862,73 @@ namespace {
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-working.png"), "PNG"), "render saved");
 			}
+			expect(agent->turn_count() == 1U && agent->turn_question(0U) == QStringLiteral("Review this pull request") && agent->turn_answer(0U) == QStringLiteral("Reading src/engine/renderer.cpp")
+					   && agent->turn_footer(0U).contains(QStringLiteral("is writing")),
+				   "the request is a turn in the thread, its answer streaming in as the agent writes");
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
-			expect(agent->state() == qt::agent_tab_state::idle && agent->banner()->isVisible() && title().endsWith(QStringLiteral("finished")) && text().contains(QStringLiteral("1 finding")),
-				   "finished, it says what came of it rather than going quiet");
+			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding below")),
+				   "finished, the turn says what came of it rather than going quiet");
+			static_cast<void>(title);
+
+			// Owner look v002 ("I asked 'Does this work?' and it thought for a
+			// while and said nothing. It also kept my question in the question
+			// box"). A chat answer with no finding is prose; it is the turn's
+			// answer, and the question field is cleared once the question is
+			// sent.
+			window.side_chat()->composer()->setPlainText(QStringLiteral("Does this work?"));
+			window.side_chat()->send_action()->setEnabled(true);
+			window.side_chat()->send_action()->trigger();
+			identity.InvocationGeneration = 2U;
+			window.agent_panel()->admit(identity);
+			process_events();
+			expect(agent->turn_count() == 2U && agent->turn_question(1U) == QStringLiteral("Does this work?") && window.side_chat()->composer()->toPlainText().isEmpty(),
+				   "the sent question is the next turn and leaves the field empty");
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Yes. The retry budget is reset once per frame." });
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+			process_events();
+			expect(agent->turn_answer(1U) == QStringLiteral("Yes. The retry budget is reset once per frame.") && agent->turn_footer(1U).contains(QStringLiteral("answered in")),
+				   "the agent's prose answer is shown, though it carried no finding");
+			expect(agent->turn_answer(0U) == QStringLiteral("Reading src/engine/renderer.cpp"), "and the earlier turn keeps its own answer");
+
+			// Owner look v002 ("Not having a model/effort picker in this window
+			// bothers the hell out of me. I can't even do /model"). The context
+			// row says what will run; the menu and /model and /effort change it.
+			auto asked               = std::vector<std::string>{ };
+			auto settings            = qt::agent_run_settings{ .Profile = window.agent_panel()->selected_profile()->value(), .Agent = QStringLiteral("Codex"), .Program = QStringLiteral("/Users/me/.local/bin/codex") };
+			settings.ModelChoosable  = true;
+			settings.EffortChoosable = true;
+			settings.Efforts         = { "minimal", "low", "medium", "high", "xhigh" };
+			agent->present_run_settings({ settings });
+			agent->set_run_settings_dispatch([&asked, &settings](const std::uint64_t, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+				if (aEffort && !aEffort->empty() && std::ranges::find(settings.Efforts, *aEffort) == settings.Efforts.end()) {
+					return false;
+				}
+				asked.push_back((aModel ? "model=" + *aModel : std::string{ }) + (aEffort ? "effort=" + *aEffort : std::string{ }));
+				return true;
+			});
+			process_events();
+			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("default model, default effort")
+					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
+				   "the row names the model and effort, and its tooltip the program that runs");
+			auto* const composer = window.side_chat()->composer();
+			composer->setPlainText(QStringLiteral("/effort high"));
+			agent->ask_button()->setEnabled(true);
+			agent->ask_button()->click();
+			process_events();
+			expect(asked == std::vector<std::string>{ "effort=high" } && composer->toPlainText().isEmpty() && agent->turn_count() == 2U, "/effort high changes the effort, is not sent, and clears the field");
+			composer->setPlainText(QStringLiteral("/effort turbo"));
+			agent->ask_button()->click();
+			process_events();
+			expect(asked.size() == 1U && composer->toPlainText() == QStringLiteral("/effort turbo")
+					   && agent->findChild<QLabel*>(QStringLiteral("agentComposerNotice"))->text().contains(QStringLiteral("minimal, low, medium, high, xhigh")),
+				   "an effort the agent does not take is refused with the ones it does");
+			composer->setPlainText(QStringLiteral("/model gpt-5"));
+			agent->ask_button()->click();
+			process_events();
+			expect(asked.back() == "model=gpt-5", "/model NAME changes the model");
+			composer->clear();
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-finished.png"), "PNG"), "render saved");
 			}

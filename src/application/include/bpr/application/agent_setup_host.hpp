@@ -109,6 +109,12 @@ namespace bpr::application {
 		/// adapter inspected it; empty clears it. Answers on the decision lane.
 		void set_program(core::setup_agent aAgent, std::string aPath, std::function<void(std::optional<core::agent_wrapper_refusal>)> aAnswered = { });
 		void set_codex_protocol(core::codex_protocol_choice aChoice);
+		/// \brief [[BPR-PENDING-AQ6]], owner look v002. Saves the model and
+		/// effort a Codex launch runs with, or the effort of a Claude launch
+		/// (Claude's model has its own setting); empty is the agent's own
+		/// default. Text the agent's command line would not take is refused
+		/// and nothing changes.
+		[[nodiscard]] auto set_run_settings(core::setup_agent aAgent, std::string aModel, std::string aEffort) -> bool;
 		/// RFC-BPR-0092 Repository: the repository has a linked clone or a
 		/// recorded choice of the private copy.
 		void set_repository_chosen(bool aChosen);
