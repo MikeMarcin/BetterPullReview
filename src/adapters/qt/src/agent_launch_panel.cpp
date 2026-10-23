@@ -1,5 +1,6 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 
+#include "bpr/core/agent_setup.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAction>
@@ -205,9 +206,15 @@ namespace bpr::qt {
 	{
 		ProfileSelector->clear();
 		for (const auto& profile : aProfiles) {
-			ProfileSelector->addItem(
-				QString::fromStdString(profile.DisplayName),
-				QVariant::fromValue<qulonglong>(profile.Id.value()));
+			// [[BPR-PENDING-AQ6]], RFC-BPR-0092 Q4: the menu says the agent's
+			// plain name, as the setup does.
+			const auto plain = core::plain_name(core::setup_agent_of(profile.Protocol));
+			auto       name  = QString::fromUtf8(plain.data(), static_cast<qsizetype>(plain.size()));
+			if (profile.Protocol == core::agent_protocol::codex_jsonl_exec) {
+				name += QStringLiteral(" (JSONL)");
+			}
+			ProfileSelector->addItem(name, QVariant::fromValue<qulonglong>(profile.Id.value()));
+			ProfileSelector->setItemData(ProfileSelector->count() - 1, QString::fromStdString(profile.DisplayName), Qt::ToolTipRole);
 		}
 		// A placeholder keeps QComboBox at -1; retain the offered first choice,
 		// or the profile setup saved when it is offered.
@@ -289,7 +296,30 @@ namespace bpr::qt {
 		Output->clear();
 		StopReason.clear();
 		Status->setText(QStringLiteral("Preparing agent invocation"));
+		Phase = phase::preparing;
 		set_running(true);
+		progressed();
+	}
+
+	auto agent_launch_panel::latest_output_line() const -> QString
+	{
+		const auto text      = Output->toPlainText().trimmed();
+		const auto lineBreak = text.lastIndexOf(QLatin1Char{ '\n' });
+		return lineBreak < 0 ? text : text.mid(lineBreak + 1);
+	}
+
+	void agent_launch_panel::add_progress_observer(std::function<void()> aObserver)
+	{
+		if (aObserver) {
+			ProgressObservers.push_back(std::move(aObserver));
+		}
+	}
+
+	void agent_launch_panel::progressed()
+	{
+		for (const auto& observer : ProgressObservers) {
+			observer();
+		}
 	}
 
 	void agent_launch_panel::start(
@@ -303,7 +333,9 @@ namespace bpr::qt {
 		Status->setText(
 			QStringLiteral("Running in %1")
 				.arg(QString::fromStdString(aWorkspace.Path)));
+		Phase = phase::running;
 		set_running(true);
+		progressed();
 	}
 
 	void agent_launch_panel::stream(
@@ -316,6 +348,7 @@ namespace bpr::qt {
 			return;
 		}
 		Output->appendPlainText(QString::fromStdString(aEvent.Text));
+		progressed();
 	}
 
 	void agent_launch_panel::finish(
@@ -341,8 +374,10 @@ namespace bpr::qt {
 		Status->setText(
 			QStringLiteral("Finished: %1")
 				.arg(QString::fromUtf8(application::name(aResult.Outcome))));
+		Phase = phase::idle;
 		set_running(false);
 		ActiveInvocation.reset();
+		progressed();
 	}
 
 	void agent_launch_panel::present_session_catalog(

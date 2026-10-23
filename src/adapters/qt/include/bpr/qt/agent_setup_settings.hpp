@@ -22,6 +22,31 @@ class QPlainTextEdit;
 class QPushButton;
 
 namespace bpr::qt {
+	/// \brief [[BPR-PENDING-AQ6]], owner look v001 ("add a folder was a text
+	/// entry first with a file browser option on the text line"). A folder
+	/// path to type, **Browse…** on the same line to fill it, and **Add**.
+	///
+	/// \details A leading `~` is read as the home folder; anything else that
+	/// is not an absolute path is refused here with what to write, and the
+	/// field keeps the text. Adding is a request; the host decides.
+	class folder_entry final : public QWidget
+	{
+	public:
+		explicit folder_entry(QWidget* aParent = nullptr);
+		void               set_add(std::function<void(std::string)> aAdd);
+		[[nodiscard]] auto field() const noexcept -> QLineEdit* { return Field; }
+		[[nodiscard]] auto add_button() const noexcept -> QPushButton* { return Add; }
+		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
+
+	private:
+		void add();
+
+		std::function<void(std::string)> Adder;
+		QLineEdit*                       Field  = nullptr;
+		QPushButton*                     Add    = nullptr;
+		QLabel*                          Status = nullptr;
+	};
+
 	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner answer Q5). Settings ›
 	/// Agents & context: **Set up agent…**, the Codex program and protocol,
 	/// and a harness that reads plain text.
@@ -79,6 +104,7 @@ namespace bpr::qt {
 		application::clone_link_projection Shown;
 		QListWidget*                       Folders = nullptr;
 		QListWidget*                       Links   = nullptr;
+		folder_entry*                      Entry   = nullptr;
 		QPushButton*                       Remove  = nullptr;
 		QPushButton*                       Forget  = nullptr;
 	};

@@ -13839,6 +13839,53 @@ namespace {
 		process_events();
 		agent->refresh();
 
+		// [[BPR-PENDING-AQ6]], owner look v001 ("no indication anything
+		// happened"). The working line follows the request's own projection:
+		// the workspace, then the run with its time and latest line, then a
+		// finished line that says what came of it.
+		{
+			auto identity                 = application::agent_invocation_projection_identity{ };
+			identity.ApplicationSession   = core::application_session_id{ 1U };
+			identity.Session.Id           = core::agent_session_id{ 8U };
+			identity.InvocationGeneration = 1U;
+			const auto text               = [agent] { return agent->findChild<QLabel*>(QStringLiteral("agentStateText"))->text(); };
+			const auto title              = [agent] { return agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text(); };
+			window.agent_panel()->admit(identity);
+			process_events();
+			expect(agent->state() == qt::agent_tab_state::working && text().contains(QStringLiteral("Making the agent's workspace")), "admitted, the tab says the workspace is being made");
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			process_events();
+			expect(text().startsWith(QStringLiteral("Running, 0:0")) && text().contains(QStringLiteral("appear here when it finishes")), "running, it says so with the time it has taken");
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Reading src/engine/renderer.cpp" });
+			process_events();
+			expect(text().contains(QStringLiteral("Latest: Reading src/engine/renderer.cpp")), "and shows the agent's latest line as it writes");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-working.png"), "PNG"), "render saved");
+			}
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+			process_events();
+			expect(agent->state() == qt::agent_tab_state::idle && agent->banner()->isVisible() && title().endsWith(QStringLiteral("finished")) && text().contains(QStringLiteral("1 finding")),
+				   "finished, it says what came of it rather than going quiet");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-finished.png"), "PNG"), "render saved");
+			}
+			// Owner look v001: after the check, the ready line alone; its
+			// details wait under one collapsed disclosure.
+			agent->present_ready(QStringLiteral("Claude Code is ready"), QStringLiteral("Signed in, version 2.1.296."), QStringLiteral("Pull request: octo-org/review-repository #17"));
+			process_events();
+			auto* const details = agent->ready_card()->findChild<QToolButton*>(QStringLiteral("agentReadyGetsToggle"));
+			expect(agent->ready_card()->isVisible() && details != nullptr && !details->isChecked() && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyText"))->isVisible()
+					   && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(),
+				   "the ready card shows its line and keeps the details collapsed");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-ready.png"), "PNG"), "render saved");
+			}
+			details->click();
+			process_events();
+			expect(agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(), "and opens them on request");
+			agent->present_ready({ }, { }, { });
+		}
+
 		// The code's menu asks about the lines.
 		const auto diff = computed_comparison("int a = 1;\nint b = 2;\n", "int a = 1;\nint b = 20;\n", 0U);
 		static_cast<void>(publish_fixture(window, diff));

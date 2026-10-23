@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_TAB_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_TAB_VIEW_HPP
 
+#include <QElapsedTimer>
 #include <QPointer>
 #include <QWidget>
 
@@ -11,6 +12,7 @@
 class QAbstractButton;
 class QLabel;
 class QMenu;
+class QTimer;
 class QPushButton;
 class QScrollArea;
 class QStackedWidget;
@@ -98,31 +100,35 @@ namespace bpr::qt {
 		[[nodiscard]] auto card_room() const -> int;
 		void               present_banner();
 
-		agent_launch_panel&            Launch;
-		side_chat_panel&               Chat;
-		finding_queue_view&            Findings;
-		QWidget&                       HistoryPanel;
-		std::function<void()>          Setup;
-		agent_tab_state                State        = agent_tab_state::not_set_up;
-		QStackedWidget*                Pages        = nullptr;
-		drawer_empty_state*            Empty        = nullptr;
-		QWidget*                       Conversation = nullptr;
-		QWidget*                       HistoryPage  = nullptr;
-		QWidget*                       Banner       = nullptr;
-		QLabel*                        BannerTitle  = nullptr;
-		QLabel*                        BannerText   = nullptr;
-		QPushButton*                   BannerFirst  = nullptr;
-		QPushButton*                   BannerSecond = nullptr;
-		QWidget*                       Cards        = nullptr;
-		QWidget*                       Viewport     = nullptr;
-		QVBoxLayout*                   CardColumn   = nullptr;
-		QWidget*                       Start        = nullptr;
-		QLabel*                        Head         = nullptr;
-		QToolButton*                   History      = nullptr;
-		QMenu*                         HistoryMenu  = nullptr;
-		agent_setup_view*              SetupView    = nullptr;
-		std::function<void()>          CheckAgain;
-		std::function<void()>          FirstShown;
+		agent_launch_panel&   Launch;
+		side_chat_panel&      Chat;
+		finding_queue_view&   Findings;
+		QWidget&              HistoryPanel;
+		std::function<void()> Setup;
+		agent_tab_state       State        = agent_tab_state::not_set_up;
+		QStackedWidget*       Pages        = nullptr;
+		drawer_empty_state*   Empty        = nullptr;
+		QWidget*              Conversation = nullptr;
+		QWidget*              HistoryPage  = nullptr;
+		QWidget*              Banner       = nullptr;
+		QLabel*               BannerTitle  = nullptr;
+		QLabel*               BannerText   = nullptr;
+		QPushButton*          BannerFirst  = nullptr;
+		QPushButton*          BannerSecond = nullptr;
+		QWidget*              Cards        = nullptr;
+		QWidget*              Viewport     = nullptr;
+		QVBoxLayout*          CardColumn   = nullptr;
+		QWidget*              Start        = nullptr;
+		QLabel*               Head         = nullptr;
+		QToolButton*          History      = nullptr;
+		QMenu*                HistoryMenu  = nullptr;
+		agent_setup_view*     SetupView    = nullptr;
+		std::function<void()> CheckAgain;
+		std::function<void()> FirstShown;
+		QTimer*               Ticker = nullptr;
+		QElapsedTimer         Started;
+		/// The last request ended well and nothing has run since.
+		bool                           Finished   = false;
 		QWidget*                       ReadyCard  = nullptr;
 		QLabel*                        ReadyTitle = nullptr;
 		QLabel*                        ReadyText  = nullptr;

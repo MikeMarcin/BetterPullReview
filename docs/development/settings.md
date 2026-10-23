@@ -23,7 +23,8 @@ requests to your queue by repository, author or path. Both are local: nothing
 changes on GitHub.
 
 **Repositories > Clone folders** lists the folders your clones live in, such
-as `~/Documents/GitHub`. When the Agent tab sets up an agent, it looks in each
+as `~/Documents/GitHub`. Type a folder's path, or use **Browse…** on the same
+line, then **Add**. When the Agent tab sets up an agent, it looks in each
 folder, two levels down, for a clone of the pull request's repository. It reads
 only each clone's `.git/config` and `.git/HEAD`, follows no link, runs nothing
 and writes nothing. **Linked clones** lists the clone, or the private copy,

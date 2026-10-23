@@ -181,6 +181,19 @@ namespace {
 		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
 		test.button(QStringLiteral("agentSetupSuggestedFolder"))->click();
 		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub", "a suggested folder is added in one press");
+		// Owner look v001: a folder is typed first, Browse… on its line.
+		auto* const entry = dynamic_cast<qt::folder_entry*>(test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")));
+		expect(entry != nullptr && entry->findChild<QPushButton*>(QStringLiteral("folderEntryBrowse")) != nullptr && !entry->add_button()->isEnabled(),
+			   "the folder is a text field with Browse… beside it, and Add waits for a path");
+		if (entry == nullptr) {
+			return;
+		}
+		entry->field()->setText(QStringLiteral("work/clones"));
+		entry->add_button()->click();
+		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub" && entry->status()->text().contains(QStringLiteral("full path")), "a relative path is refused with what to write");
+		entry->field()->setText(QStringLiteral("~/src"));
+		entry->add_button()->click();
+		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(), "~ is the home folder, and Add is the intent");
 		render(test.View, QStringLiteral("nofolders"));
 
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
@@ -269,6 +282,16 @@ namespace {
 		folders.set_dispatch({ .AddFolder    = [&asked](std::string aFolder) { asked.push_back("add " + aFolder); },
 							   .RemoveFolder = [&asked](const std::string& aFolder) { asked.push_back("remove " + aFolder); },
 							   .Forget       = [&asked](const application::repository_link& aLink) { asked.push_back("forget " + aLink.Name); } });
+		auto* const added = dynamic_cast<qt::folder_entry*>(folders.findChild<QWidget*>(QStringLiteral("settingsAddCloneFolder")));
+		expect(added != nullptr, "Settings › Repositories has the folder entry");
+		if (added == nullptr) {
+			return;
+		}
+		added->field()->setText(QStringLiteral("/Volumes/work"));
+		added->add_button()->click();
+		expect(asked == std::vector<std::string>{ "add " + QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString() } && added->status()->text().contains(QStringLiteral("Added")),
+			   "Settings adds a typed folder too, and says so");
+		asked.clear();
 		auto clones    = application::clone_link_projection{ };
 		clones.Folders = { "/Users/me/src", "/Users/me/Documents/GitHub" };
 		clones.Links   = { application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .PrivateCopy = true } };

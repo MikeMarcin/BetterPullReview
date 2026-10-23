@@ -7,6 +7,7 @@
 #include <QWidget>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <span>
@@ -131,6 +132,18 @@ namespace bpr::qt {
 		/// \brief [[BPR-1738]]. Why the last run stopped and what to do,
 		/// in a reviewer's words, when there is more to say than its outcome.
 		[[nodiscard]] auto stop_reason_text() const -> QString;
+		/// \brief [[BPR-PENDING-AQ6]], owner look v001. Where the running
+		/// request is: its workspace being made, or the agent running.
+		enum class phase : std::uint8_t {
+			idle,
+			preparing,
+			running,
+		};
+		[[nodiscard]] auto current_phase() const noexcept -> phase { return Phase; }
+		/// The last line the agent wrote, for a live line while it works.
+		[[nodiscard]] auto latest_output_line() const -> QString;
+		/// Called whenever the request's phase, output or end changes.
+		void add_progress_observer(std::function<void()> aObserver);
 		/// [[BPR-PENDING-AQ6]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		[[nodiscard]] auto output_text() const -> QString;
@@ -168,6 +181,9 @@ namespace bpr::qt {
 		std::optional<application::agent_draft_choice> OfferedDraft;
 		QString                                        StopReason;
 		std::optional<application::agent_run_outcome>  LastOutcome;
+		phase                                          Phase = phase::idle;
+		std::vector<std::function<void()>>             ProgressObservers;
+		void                                           progressed();
 		std::optional<application::agent_invocation_projection_identity>
 			ActiveInvocation;
 

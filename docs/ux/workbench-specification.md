@@ -2424,7 +2424,10 @@ Draft a defect and Dismiss) when the drawer is narrow. The question field
 closes the tab with its context chips, Context and Ask (⌘↩). The tab says
 which of its states it is in: not set up ("Ask an agent about this pull
 request. Nothing it says is published unless you make it a comment." and Set
-up an agent), setting up, working (what it reads, and Stop), head moved (Start
+up an agent), setting up, working (whether its workspace is being made or the
+agent is running, the time it has taken, its latest line, and Stop), finished
+(how many findings, or that its answer is below, or that it found nothing),
+head moved (Start
 a new session or Continue on the old head) and stopped (what happened, the
 question kept, Ask again and Show the log; Check again when the Ask ended
 because the workspace could not be made or the agent did not start).
@@ -2435,14 +2438,15 @@ been checked, and a step is missing. Its four numbered steps are Agent
 with why; none found offers Install Claude Code, Install Codex and Use a
 program I choose…), Repository (the clones of the repository in the clone
 folders, Use this clone, Choose a folder…, or a private copy; with no clone
-folder, Where do your clones live? with Add a folder… and the usual folders
-that exist), Check it works (the agent's status command and the workspace,
+folder, Where do your clones live? with a folder path to type, Browse… on the
+same line, Add, and the usual folders that exist), Check it works (the agent's status command and the workspace,
 each with its result and what to do, Check, Stop and Check again) and Ready.
 A finished step folds to one line with Change. Look again and Agent settings
 sit at the foot. When both checks pass, the conversation shows "AGENT is
-ready" with its version and workspace, What the agent gets (the pull request,
-base and head, the changes and the named diff, the threads, the workspace, the
-review skill and what it may not do), and focuses the question field. History
+ready" and focuses the question field; its version and workspace and what the
+agent gets (the pull request, base and head, the changes and the named diff,
+the threads, the workspace, the review skill and what it may not do) wait
+under one collapsed disclosure. History
 adds Set up agent… and Change repository folder…. A new window with a saved
 agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I
 and the code's context menu "Ask about these lines" open it with the selected

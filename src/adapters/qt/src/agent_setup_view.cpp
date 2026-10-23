@@ -1,5 +1,6 @@
 #include "bpr/qt/agent_setup_view.hpp"
 
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
@@ -661,15 +662,19 @@ namespace bpr::qt {
 			ask->setFont(bold);
 			aBody.addWidget(ask);
 			aBody.addWidget(muted(tr("The agent reads more than the diff: callers, tests, history. Add the folder your clones are in, and BetterPullReview looks there for a clone of %1. It reads only each clone's Git configuration and runs nothing.").arg(name), parent));
-			auto* const row = new QHBoxLayout{ };
-			auto* const add = primary_button(tr("Add a folder…"), parent, QStringLiteral("agentSetupAddFolder"));
-			connect(add, &QPushButton::clicked, this, [this] {
-				const auto folder = QFileDialog::getExistingDirectory(this, tr("Add a clone folder"), QDir::homePath());
-				if (!folder.isEmpty() && Intents.AddCloneFolder) {
-					Intents.AddCloneFolder(QDir::toNativeSeparators(folder).toStdString());
+			// Owner look v001: a folder to type first, Browse… on its line.
+			auto* const entry = new folder_entry{ parent };
+			entry->setObjectName(QStringLiteral("agentSetupAddFolder"));
+			entry->set_add([this](std::string aFolder) {
+				if (Intents.AddCloneFolder) {
+					Intents.AddCloneFolder(std::move(aFolder));
 				}
 			});
-			row->addWidget(add);
+			aBody.addWidget(entry);
+			auto* const row = new QHBoxLayout{ };
+			if (!Clones.Suggestions.empty()) {
+				row->addWidget(muted(tr("Or add:"), parent));
+			}
 			for (const auto& suggestion : Clones.Suggestions) {
 				auto* const button = new quiet_push_button{ shown_path(suggestion), parent };
 				button->setObjectName(QStringLiteral("agentSetupSuggestedFolder"));

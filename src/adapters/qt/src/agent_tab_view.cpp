@@ -27,6 +27,7 @@
 #include <QStackedWidget>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -326,24 +327,31 @@ namespace bpr::qt {
 		connect(dismiss, &QToolButton::clicked, ReadyCard, &QWidget::hide);
 		readyTop->addWidget(dismiss, 0, Qt::AlignTop);
 		readyCol->addLayout(readyTop);
+		// Owner look v001: the ready line alone; the check's details and what
+		// the agent gets wait, folded, under one disclosure.
+		auto* const gets = new disclosure_button{ ReadyCard };
+		gets->setObjectName(QStringLiteral("agentReadyGetsToggle"));
+		gets->setText(tr("Details and what the agent gets"));
+		gets->setCheckable(true);
+		gets->setChecked(false);
+		readyCol->addWidget(gets, 0, Qt::AlignLeft);
 		ReadyText = new QLabel{ ReadyCard };
 		ReadyText->setObjectName(QStringLiteral("agentReadyText"));
 		ReadyText->setWordWrap(true);
 		ReadyText->setTextFormat(Qt::PlainText);
+		ReadyText->hide();
 		readyCol->addWidget(ReadyText);
-		auto* const gets = new disclosure_button{ ReadyCard };
-		gets->setObjectName(QStringLiteral("agentReadyGetsToggle"));
-		gets->setText(tr("What the agent gets"));
-		gets->setCheckable(true);
-		gets->setChecked(true);
-		readyCol->addWidget(gets, 0, Qt::AlignLeft);
 		ReadyGets = new QLabel{ ReadyCard };
 		ReadyGets->setObjectName(QStringLiteral("agentReadyGets"));
 		ReadyGets->setWordWrap(true);
 		ReadyGets->setTextFormat(Qt::PlainText);
 		ReadyGets->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		ReadyGets->hide();
 		readyCol->addWidget(ReadyGets);
-		connect(gets, &QToolButton::toggled, ReadyGets, &QWidget::setVisible);
+		connect(gets, &QToolButton::toggled, this, [this](const bool aOpen) {
+			ReadyText->setVisible(aOpen);
+			ReadyGets->setVisible(aOpen);
+		});
 		ReadyCard->hide();
 		contentCol->addWidget(ReadyCard);
 		// Start: run a review that finds findings, when none are shown.
@@ -442,6 +450,13 @@ namespace bpr::qt {
 			connect(action, &QAction::changed, this, again);
 		}
 		connect(profiles, &QComboBox::currentIndexChanged, this, again);
+		// [[BPR-PENDING-AQ6]], owner look v001 ("no indication anything
+		// happened"). The working line follows the request as it moves, with
+		// the time it has taken, so a long run never looks like nothing.
+		Launch.add_progress_observer(again);
+		Ticker = new QTimer{ this };
+		Ticker->setInterval(1000);
+		connect(Ticker, &QTimer::timeout, this, [this] { present_banner(); });
 		refresh();
 	}
 
@@ -519,18 +534,31 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		const auto setUp   = Launch.profile_selector()->count() > 0;
-		const auto running = Launch.cancel_action()->isEnabled();
-		const auto status  = Launch.status_text();
-		const auto failed  = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
-		const auto moved   = !Chat.offered_continuations().empty();
-		const auto setting = SetupView != nullptr && SetupView->needed();
-		State              = setting ? agent_tab_state::setting_up
-			: !setUp                 ? agent_tab_state::not_set_up
-			: running                ? agent_tab_state::working
-			: moved                  ? agent_tab_state::head_moved
-			: failed                 ? agent_tab_state::stopped
-									 : agent_tab_state::idle;
+		const auto setUp      = Launch.profile_selector()->count() > 0;
+		const auto running    = Launch.cancel_action()->isEnabled();
+		const auto status     = Launch.status_text();
+		const auto failed     = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
+		const auto moved      = !Chat.offered_continuations().empty();
+		const auto setting    = SetupView != nullptr && SetupView->needed();
+		const auto wasWorking = State == agent_tab_state::working;
+		State                 = setting ? agent_tab_state::setting_up
+			: !setUp                    ? agent_tab_state::not_set_up
+			: running                   ? agent_tab_state::working
+			: moved                     ? agent_tab_state::head_moved
+			: failed                    ? agent_tab_state::stopped
+										: agent_tab_state::idle;
+		if (State == agent_tab_state::working && !wasWorking) {
+			Started.start();
+			Ticker->start();
+			ReadyCard->hide();
+		} else if (State != agent_tab_state::working && wasWorking) {
+			Ticker->stop();
+			// A request that just ended says so, whatever it found.
+			Finished = Launch.last_outcome() == application::agent_run_outcome::success;
+		}
+		if (State == agent_tab_state::working) {
+			Finished = false;
+		}
 		if (Pages->currentWidget() != HistoryPage || setting) {
 			Pages->setCurrentWidget(setting ? static_cast<QWidget*>(SetupView) : State == agent_tab_state::not_set_up ? static_cast<QWidget*>(Empty)
 																													  : Conversation);
@@ -567,21 +595,49 @@ namespace bpr::qt {
 		callout->Look       = State == agent_tab_state::stopped ? rounded::look::danger : rounded::look::callout;
 		BannerFirst->disconnect();
 		BannerSecond->disconnect();
+		BannerFirst->show();
 		BannerSecond->show();
 		Log->setVisible(LogShown && State == agent_tab_state::stopped);
 		switch (State) {
 		case agent_tab_state::not_set_up:
 		case agent_tab_state::setting_up:
-		case agent_tab_state::idle:
 			Banner->hide();
 			return;
-		case agent_tab_state::working:
+		case agent_tab_state::idle: {
+			if (!Finished) {
+				Banner->hide();
+				return;
+			}
+			callout->Look    = rounded::look::ready;
+			const auto count = Findings.finding_count();
+			BannerTitle->setText(tr("%1 finished").arg(Launch.profile_selector()->currentText()));
+			BannerText->setText(count > 0U                             ? (count == 1U ? tr("1 finding below. Draft a comment from it, or ask a follow-up.") : tr("%1 findings below. Draft a comment from one, or ask a follow-up.").arg(count))
+									: Chat.replies_list()->count() > 0 ? tr("Its answer is below. Ask a follow-up in the question field.")
+																	   : tr("It found nothing to report. Ask a question below."));
+			BannerFirst->hide();
+			BannerSecond->hide();
+			Banner->show();
+			Banner->update();
+			return;
+		}
+		case agent_tab_state::working: {
 			BannerTitle->setText(tr("%1 is working").arg(Launch.profile_selector()->currentText()));
-			BannerText->setText(Launch.status_text());
+			const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
+			const auto elapsed = QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
+			auto       line    = Launch.current_phase() == agent_launch_panel::phase::running
+				? tr("Running, %1. The answer and any findings appear here when it finishes.").arg(elapsed)
+				: tr("Making the agent's workspace at the head, %1.").arg(elapsed);
+			const auto latest  = Launch.latest_output_line();
+			if (!latest.isEmpty()) {
+				line += QStringLiteral("\n") + tr("Latest: %1").arg(latest.left(160));
+			}
+			BannerText->setText(line);
 			BannerFirst->setText(tr("Stop"));
+			BannerFirst->show();
 			connect(BannerFirst, &QPushButton::clicked, Launch.cancel_action(), &QAction::trigger);
 			BannerSecond->hide();
 			break;
+		}
 		case agent_tab_state::head_moved:
 			BannerTitle->setText(tr("This session read %1").arg(Head->text()));
 			BannerText->setText(tr("The pull request has moved on. Its findings stay anchored to the head it read."));
