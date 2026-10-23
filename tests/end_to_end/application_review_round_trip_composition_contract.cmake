@@ -1,3 +1,16 @@
+# [[BPR-PENDING-AX]] reseal (2026-10-23) over last matching main b8d2ec6cf,
+# linear. Pinned-scope commit cb4cbfd9c (the owner's decision of 2026-10-23,
+# "Oh yeah sure let gh allow that."): github_application.cpp feeds GitHub's
+# viewerCanReply and the pull request's lock, now read with the conversation,
+# into core::decide_thread_reply (thread_reply_facts_of), and
+# begin_review_reply makes no draft for a thread the core refuses.
+# github_public_path_fixture.cpp and large_review_fixture.hpp, test-only, serve
+# viewerCanReply and locked as the recorded fixtures now do, and the large
+# review's read shape asks for them. The reply write the CLI connection now
+# admits is the adapter's (gh_cli_transport.cpp), outside src/app. No
+# credential, provider selection, ledger write or source-inventory change; the
+# production make_live_review_mutation_provider call is untouched. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-23): the only src/app change since the BPR-1745 note below
 # is renaming its [[BPR-PENDING-AT]] comment tags to [[BPR-1745]]; no code change.
 # [[BPR-1745]] reseal (2026-10-22) over last matching main 27d17fea5,
@@ -2098,7 +2111,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"d26e95cc4b36fc28a593e04eac77fda184409f50966f0e44a8125eb047e111eb"
+		"081123c22d70493b7362ade34487a7799dcb5fedf8ce148173a4be168f0f025d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2322,7 +2335,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "6ad4c388f388b5d51a7d8235815a593f15d246753d82fb4844622acd3142ff19"
+        "eef2aae5a884a2fd8a19b2003f7607af61ca7a7824215e48f4b95902c8f711a0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
