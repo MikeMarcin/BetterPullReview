@@ -283,7 +283,7 @@ namespace bpr::application {
 		}
 
 		/// [[BPR-1680]]. A read's end, with what it says it cost and
-		/// ([[BPR-PENDING-AU]]) how long its answer waited for this lane.
+		/// ([[BPR-1744]]) how long its answer waited for this lane.
 		void record_read(const job& aJob, const personal_discovery_completion& aCompletion, const std::uint32_t aDecisionMilliseconds)
 		{
 			const auto cost                  = cost_of(aCompletion);
@@ -793,7 +793,7 @@ namespace bpr::application {
 					// The lane outlives the host, so a completion is always
 					// posted; only the lane's turn reads the host, and only if
 					// it still exists.
-					// [[BPR-PENDING-AU]]. The answer's wait for the lane is timed
+					// [[BPR-1744]]. The answer's wait for the lane is timed
 					// on the steady clock, which needs nothing the host owns.
 					Provider.discover(std::move(next.Request), [&lane = DecisionLane, weak = weak_from_this(), request](personal_discovery_completion aCompletion) {
 						lane.post([weak, request, answered = std::chrono::steady_clock::now(), completion = std::move(aCompletion)]() mutable {
@@ -1142,7 +1142,7 @@ namespace bpr::application {
 		std::uint32_t CycleFailedReads = 0U;
 		std::uint32_t CycleRequests    = 0U;
 		std::uint32_t CycleWait        = 0U;
-		/// [[BPR-PENDING-AU]]. Its reads' summed timing split and answer counts.
+		/// [[BPR-1744]]. Its reads' summed timing split and answer counts.
 		personal_discovery_cost CycleCost;
 		std::uint32_t           CycleDecision  = 0U;
 		bool                    CycleRunning   = false;

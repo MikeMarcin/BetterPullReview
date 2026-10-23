@@ -367,7 +367,7 @@ backoff_s=N`. A read's end carries the wire requests it sent, how long it
 waited for its turn on the provider's lane and how long it then ran, as the
 provider measured them (`personal_discovery_cost`); on a GitHub CLI connection
 each of those requests also costs the account lease's viewer reads, which are
-not counted. [[BPR-PENDING-AU]] splits the run: `credential_ms` is the start
+not counted. [[BPR-1744]] splits the run: `credential_ms` is the start
 of its account operation (on a CLI connection a `gh` credential process),
 `wire_ms` the time its requests spent in the transport, lease checks and
 process start included, so the rest of the run is local work, and

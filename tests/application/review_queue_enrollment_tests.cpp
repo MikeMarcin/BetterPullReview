@@ -1610,13 +1610,13 @@ namespace {
 				expect(event.Operation == application::diagnostic_operation::discovery && parsed.has_value() && event.Request == 0U && event.WindowSession == 0U,
 					   "every discovery event is a discovery line with no request or window identity");
 				result.push_back(*parsed);
-				// [[BPR-PENDING-AU]]. Measured on the steady clock, so only
+				// [[BPR-1744]]. Measured on the steady clock, so only
 				// `decisions()` reports it.
 				result.back().DecisionMilliseconds = 0U;
 			}
 			return result;
 		}
-		/// [[BPR-PENDING-AU]]. Each line's wait for the decision lane, in order.
+		/// [[BPR-1744]]. Each line's wait for the decision lane, in order.
 		[[nodiscard]] auto decisions() const -> std::vector<std::uint32_t>
 		{
 			auto result = std::vector<std::uint32_t>{ };
@@ -2241,7 +2241,7 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
-	/// [[BPR-PENDING-AU]]. How long an answer waited for the decision lane is
+	/// [[BPR-1744]]. How long an answer waited for the decision lane is
 	/// its read's `decision_ms`, apart from the provider's wait and run, and
 	/// the refresh's end sums it.
 	void test_discovery_records_the_decision_lane_wait()
@@ -2555,7 +2555,7 @@ namespace {
 				   && limited.RetryAfterSeconds == std::optional<std::uint32_t>{ 120U } && limited.LastSuccess == std::optional<std::int64_t>{ 1'000 },
 			   "a rate limit leaves the list stale with its last success and how long to wait");
 		expect(fixture.Provider.Requests.size() == cycleStart + 2U && fixture.Provider.Cancelled.size() == 1U, "the rest of that refresh is cancelled, not sent");
-		// [[BPR-PENDING-AU]]. The refresh's end says how long the limit holds.
+		// [[BPR-1744]]. The refresh's end says how long the limit holds.
 		const auto stopped = fixture.Diagnostics.lines().back();
 		expect(stopped.Scope == core::discovery_diagnosis_scope::refresh && stopped.State == core::discovery_diagnosis_state::stopped && stopped.BackoffSeconds == 120U,
 			   "a refresh a rate limit stopped ends with the backoff it leaves");

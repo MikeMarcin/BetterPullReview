@@ -195,7 +195,7 @@ namespace {
 			std::this_thread::sleep_for(BackgroundBegin);
 			return std::shared_ptr<github_wire_transport_port>{ };
 		}
-		/// [[BPR-PENDING-AU]]. How long beginning a background operation takes.
+		/// [[BPR-1744]]. How long beginning a background operation takes.
 		std::chrono::milliseconds                                     BackgroundBegin{ 0 };
 		std::size_t                                                   BackgroundLanes = 0U;
 		std::vector<std::size_t>                                      BackgroundOperations;
@@ -3012,7 +3012,7 @@ namespace {
 		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front()),
 			   "cancelling a queued discovery read still delivers exactly one terminal");
 
-		// [[BPR-PENDING-AU]]. A read's cost splits out its time in the
+		// [[BPR-1744]]. A read's cost splits out its time in the
 		// transport and counts its answers by kind: 403, 429, 5xx, timeout.
 		for (const auto answer : { 403, 429, 502, 0 }) {
 			completions.clear();

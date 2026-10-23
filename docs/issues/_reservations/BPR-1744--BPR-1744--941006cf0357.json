@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1744"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Merge the home refresh diagnostics branch",
+  "created": "2026-10-23T00:20:50.289985+00:00",
+  "base": "1ec630412e738939eec51fe4b0e9b923f602347b"
+}

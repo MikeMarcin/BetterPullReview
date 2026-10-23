@@ -451,7 +451,7 @@ namespace {
 		expect(text.contains(QStringLiteral("not private")) && !text.contains(QStringLiteral("changed")),
 			   "the panel names a refusal for privacy, not a changed selection");
 	}
-	/// [[BPR-PENDING-AU]]. Each platform's button order, forced on the box.
+	/// [[BPR-1744]]. Each platform's button order, forced on the box.
 	class dialog_button_layout final : public QProxyStyle
 	{
 	public:
@@ -466,7 +466,7 @@ namespace {
 	private:
 		QDialogButtonBox::ButtonLayout Layout;
 	};
-	/// \brief [[BPR-PENDING-AU]]. The export dialog's Save is the box's accept
+	/// \brief [[BPR-1744]]. The export dialog's Save is the box's accept
 	/// button, so on every platform it sits with Cancel at the right end, not
 	/// alone at the left as an action button does on macOS.
 	void save_sits_beside_cancel()

@@ -60,7 +60,7 @@ namespace bpr::core {
 	/// submitted and the ones that failed, and sums its reads' requests and
 	/// lane waits, and `RunMilliseconds` is the whole refresh.
 	///
-	/// [[BPR-PENDING-AU]]. The timing split and answer counts say where a
+	/// [[BPR-1744]]. The timing split and answer counts say where a
 	/// read's run went and why it may have been slow. `CredentialMilliseconds` is the run's
 	/// start of its account operation (a GitHub CLI credential is a `gh`
 	/// process of its own); `WireMilliseconds` is the time its requests spent

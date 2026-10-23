@@ -181,7 +181,7 @@ namespace {
 			}
 			const auto detail = std::string_view{ log }.substr(start + key.size(), end - start - key.size());
 			const auto line   = core::parse_discovery_diagnosis(detail);
-			// [[BPR-PENDING-AU]]. This build writes every line with its
+			// [[BPR-1744]]. This build writes every line with its
 			// timing split and answer counts, and a read's wire time is
 			// part of its run.
 			expect(line.has_value() && detail.contains(" credential_ms=") && detail.contains(" backoff_s=")

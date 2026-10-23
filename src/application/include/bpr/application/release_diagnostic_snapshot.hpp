@@ -46,7 +46,7 @@ namespace bpr::application {
 	/// unknown prose/records are omitted, never copied. Capture supplies this session's flush cutoff.
 	/// [[BPR-1717]]. Records are written oldest first by time; over the record or byte
 	/// limit the oldest are left out, so the newest (the session being exported) are kept.
-	/// [[BPR-PENDING-AU]]. The running session (`aCapture.Session`) counts as the newest
+	/// [[BPR-1744]]. The running session (`aCapture.Session`) counts as the newest
 	/// whatever its clock says and is written last, in sequence order. The header counts unclassified and over-limit omissions apart, with the `aUnreadFiles`
 	/// the reader left out to stay within the input limit. [[BPR-1722]]. The
 	/// header names when it was taken (`aStamp`) and the running build

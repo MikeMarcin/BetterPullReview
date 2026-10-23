@@ -531,7 +531,7 @@ namespace bpr::application {
 			/// carry no time and count as the oldest. Events order by time, then
 			/// session and sequence, which the duplicate check makes unique.
 			///
-			/// [[BPR-PENDING-AU]]. The running session (`aCurrent`) is the
+			/// [[BPR-1744]]. The running session (`aCurrent`) is the
 			/// newest whatever its clock says, and its records order by
 			/// sequence, so a wall clock set back cannot make its latest
 			/// records look older than another session's and leave them out.

@@ -40,7 +40,7 @@ namespace {
 			   "a read's line names its keys in their fixed order");
 		expect(parse_discovery_diagnosis(text) == read, "the line reads back as the same diagnosis");
 
-		// [[BPR-PENDING-AU]]. The timing split and answer counts follow in
+		// [[BPR-1744]]. The timing split and answer counts follow in
 		// their fixed order; a line written before them still reads.
 		auto timed                   = read;
 		timed.CredentialMilliseconds = 700U;

@@ -147,7 +147,7 @@ namespace bpr::application {
 	/// \brief [[BPR-1680]]. What one discovery read cost, for the diagnostics
 	/// log: the wire requests it sent, how long it waited for its turn on the
 	/// provider's lane after it was submitted, and how long it then ran.
-	/// [[BPR-PENDING-AU]]. Of that run, how long its account operation took
+	/// [[BPR-1744]]. Of that run, how long its account operation took
 	/// to begin and how long its requests spent in the transport, and how
 	/// many of its answers were HTTP 403, 429 or 5xx or timed out, optional
 	/// reads' included (`core::discovery_diagnosis`).

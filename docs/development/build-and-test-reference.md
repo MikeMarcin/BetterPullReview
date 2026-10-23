@@ -3445,7 +3445,7 @@ detail is one line of fixed keys, enums and decimal counts from
 pull_requests=N reads=N failed=N requests=N wait_ms=N run_ms=N credential_ms=N
 wire_ms=N decision_ms=N http_403=N http_429=N http_5xx=N timeouts=N
 backoff_s=N`. A read's end counts its wire requests and splits its time into
-the wait for the provider's lane and the run, and ([[BPR-PENDING-AU]]) of the
+the wait for the provider's lane and the run, and ([[BPR-1744]]) of the
 run the account operation's start and the time in the transport, then its
 answer's wait for the decision lane; it counts its 403, 429 and 5xx answers
 and timeouts. A refresh's end sums them and gives its duration, how it ended

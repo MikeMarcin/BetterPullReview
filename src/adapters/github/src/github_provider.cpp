@@ -353,7 +353,7 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 			{
 				Requests.fetch_add(1U, std::memory_order_relaxed);
-				// [[BPR-PENDING-AU]]. Its time in the transport and what kind of
+				// [[BPR-1744]]. Its time in the transport and what kind of
 				// answer it was; a request that throws counts only its time.
 				const auto started = std::chrono::steady_clock::now();
 				struct wire_time
@@ -3051,7 +3051,7 @@ namespace bpr::adapters::github::detail {
 						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;
 					}
-					// [[BPR-PENDING-AU]]. Beginning the operation acquires the
+					// [[BPR-1744]]. Beginning the operation acquires the
 					// credential, on a GitHub CLI account with a process of its own.
 					const auto beginning = std::chrono::steady_clock::now();
 					auto       operation = lane ? accountTransport->Transport->begin_background_operation(*lane, job->Stop.get_token())
