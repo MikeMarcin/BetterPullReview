@@ -52,3 +52,14 @@ for Qt 6.11.2 and the 0.2.x packages. Its recheck trigger fired when Qt
 
 No Qt fork or private patch. A fix arrives through an official Qt release.
 This card grants no release, trust or security-owner approval.
+
+## Owner decision, 2026-10-23
+
+AC2 is answered in chat: "Yes that decision carries over to 6.12.0 and
+continues to carry over until Qt releases the fix." The 2026-10-16 known-issue
+deferral covers this advisory and Windows bundled zlib `CVE-2026-85091` on Qt
+6.12.0 and on every later Qt release that still carries them, until an
+official Qt release ships the fix. The [release policy](../../security/release-policy.md#owner-decision-on-known-upstream-qt-issues-2026-10-16)
+records it. AC1 (an independent reviewer's per-artifact decision) and AC3 (the
+next release's security record naming the advisory) remain open; this grants
+no release or security-owner approval.
