@@ -129,7 +129,10 @@ namespace bpr::application {
 		void remove_agent(std::uint32_t aId);
 		void move_agent(std::uint32_t aId, int aDelta);
 		void prefer_agent(std::uint32_t aId);
-		void set_repository_chosen(bool aChosen);
+		/// \brief Owner decision 2026-10-23: the run time limit in minutes,
+		/// 0 for none. Answers whether it was taken.
+		[[nodiscard]] auto set_run_limit(std::uint32_t aMinutes) -> bool;
+		void               set_repository_chosen(bool aChosen);
 		/// RFC-BPR-0092 Check it works: the worktree row's result.
 		void set_workspace_check(core::setup_check aCheck);
 		/// Asks for setup again: the chosen agent stays selected, the checks

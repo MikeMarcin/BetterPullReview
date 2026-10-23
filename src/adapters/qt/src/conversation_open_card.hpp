@@ -193,6 +193,7 @@ namespace bpr::qt {
 		/// joined to its right edge squares that edge.
 		void               set_joined(bool aJoined);
 		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;

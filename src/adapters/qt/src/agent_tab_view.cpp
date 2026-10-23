@@ -7,6 +7,8 @@
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
@@ -16,13 +18,18 @@
 #include <QAbstractItemModel>
 #include <QAction>
 #include <QActionGroup>
+#include <QClipboard>
 #include <QComboBox>
+#include <QDateTime>
+#include <QEnterEvent>
 #include <QEvent>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -127,16 +134,115 @@ namespace bpr::qt {
 				setPopupMode(QToolButton::InstantPopup);
 			}
 
+			/// Owner look v003: a word that may shorten, but never below a few
+			/// letters, so a narrow row keeps every other control whole.
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				const auto hint = QToolButton::sizeHint();
+				return { std::min(hint.width(), fontMetrics().horizontalAdvance(QStringLiteral("Mmmm…")) + 12), hint.height() };
+			}
+
+			/// Drawn as a rounded pill in the field's own colours, as the
+			/// agent drawers draw their model chip.
+			bool Pill = false;
+
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
+				if (Pill) {
+					auto       painter = QPainter{ this };
+					const auto ink     = palette().color(QPalette::Active, QPalette::WindowText);
+					const auto base    = palette().color(QPalette::Active, QPalette::Base);
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(mixed(base, ink, underMouse() || isDown() ? 0.16 : 0.08));
+					const auto box = QRectF{ rect() }.adjusted(0.5, 1.5, -0.5, -1.5);
+					painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
+					if (!icon().isNull() && text().isEmpty()) {
+						const auto side = std::min(16, height() - 6);
+						icon().paint(&painter, QRect{ (width() - side) / 2, (height() - side) / 2, side, side });
+						return;
+					}
+					painter.setPen(ink);
+					painter.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 20)));
+					return;
+				}
 				auto painter = QStylePainter{ this };
 				auto option  = QStyleOptionToolButton{ };
 				initStyleOption(&option);
 				option.features &= ~QStyleOptionToolButton::HasMenu;
+				option.text = fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 12));
 				painter.drawComplexControl(QStyle::CC_ToolButton, option);
 			}
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto hint = QToolButton::sizeHint();
+				if (!Pill) {
+					return hint;
+				}
+				const auto wide = text().isEmpty() ? 28 : fontMetrics().horizontalAdvance(text()) + 22;
+				return { wide, std::max(hint.height(), fontMetrics().height() + 8) };
+			}
+
+			void enterEvent(QEnterEvent* aEvent) override
+			{
+				QToolButton::enterEvent(aEvent);
+				update();
+			}
+			void leaveEvent(QEvent* aEvent) override
+			{
+				QToolButton::leaveEvent(aEvent);
+				update();
+			}
 		};
+
+		/// \brief A thin rule inside the question field, in its outline's colour.
+		class rule_line final : public QWidget
+		{
+		public:
+			explicit rule_line(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				setFixedHeight(1);
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.fillRect(rect(), mixed(palette().color(QPalette::Active, QPalette::Base), palette().color(QPalette::Active, QPalette::WindowText), 0.14));
+			}
+		};
+
+		/// \brief Owner look v003 ("Timestamp would also be nice"): a time
+		/// as near words, the whole of it on hover.
+		[[nodiscard]] auto relative_time(const QDateTime& aWhen) -> QString
+		{
+			if (!aWhen.isValid()) {
+				return { };
+			}
+			const auto now     = QDateTime::currentDateTime();
+			const auto seconds = aWhen.secsTo(now);
+			if (seconds < 60) {
+				return QObject::tr("just now");
+			}
+			if (seconds < 3600) {
+				return QObject::tr("%n min ago", nullptr, static_cast<int>(seconds / 60));
+			}
+			const auto local = aWhen.toLocalTime();
+			if (local.date() == now.date()) {
+				return QLocale{ }.toString(local.time(), QLocale::ShortFormat);
+			}
+			return QLocale{ }.toString(local, QLocale::ShortFormat);
+		}
+
+		void show_time(QLabel& aLabel, const QDateTime& aWhen)
+		{
+			aLabel.setText(relative_time(aWhen));
+			aLabel.setToolTip(aWhen.isValid() ? QLocale{ }.toString(aWhen.toLocalTime(), QLocale::LongFormat) : QString{ });
+			aLabel.setVisible(aWhen.isValid());
+		}
 
 		/// \brief A quiet chip: the agent's head, the scope, a context.
 		[[nodiscard]] auto chip_label(QWidget* aParent, const QString& aName) -> QLabel*
@@ -214,32 +320,22 @@ namespace bpr::qt {
 		// Owner amendment 2026-10-23: the agent is switched from the chip in
 		// the question field; the selector stays the one choice, unseen.
 		profiles->hide();
+		// Owner look v003 and the VS Code agent drawers: the session's title,
+		// then History and New session as icons.
+		SessionTitle = new QLabel{ tr("Agent"), context };
+		SessionTitle->setObjectName(QStringLiteral("agentSessionTitle"));
+		SessionTitle->setTextFormat(Qt::PlainText);
+		SessionTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		auto titleFont = SessionTitle->font();
+		titleFont.setWeight(QFont::DemiBold);
+		SessionTitle->setFont(titleFont);
+		row->addWidget(SessionTitle, 1);
 		Head = chip_label(context, QStringLiteral("agentHeadChip"));
 		Head->setToolTip(tr("The head the session reads"));
+		Head->setForegroundRole(QPalette::PlaceholderText);
 		row->addWidget(Head);
-		auto* const scope = Chat.scope_selector();
-		Borrowed.emplace_back(scope, scope->parentWidget());
-		scope->setParent(context);
-		scope->setToolTip(tr("What the agent may read"));
-		scope->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-		row->addWidget(scope);
-		row->addStretch(1);
-		// Owner decision (b) 2026-10-23: one continuous session per pull
-		// request, with an option to clear it.
-		ClearSession = new quiet_tool_button{ context };
-		ClearSession->setObjectName(QStringLiteral("agentClearSession"));
-		ClearSession->setAutoRaise(true);
-		ClearSession->setText(tr("Clear"));
-		ClearSession->setAccessibleName(tr("Clear session"));
-		ClearSession->setToolTip(tr("Clear session: empty the thread and start the next question afresh"));
-		connect(ClearSession, &QToolButton::clicked, this, [this] { clear_session(); });
-		row->addWidget(ClearSession);
-		History = new menu_word{ context };
-		History->setObjectName(QStringLiteral("agentHistory"));
-		History->setText(tr("History"));
-		History->setToolTip(tr("Sessions, sessions on earlier heads and private runs"));
+		History = make_drawer_tool(context, drawer_icon(drawer_glyph::history, palette()), tr("History: sessions, earlier heads and private runs"), QStringLiteral("agentHistory"));
 		History->setAccessibleName(tr("History"));
-		History->setAutoRaise(true);
 		History->setPopupMode(QToolButton::InstantPopup);
 		auto* const historyMenu = new QMenu{ History };
 		HistoryMenu             = historyMenu;
@@ -260,6 +356,13 @@ namespace bpr::qt {
 		connect(historyMenu, &QMenu::aboutToShow, this, [this, sessions] { sessions->setText(Launch.session_catalog_text()); });
 		History->setMenu(historyMenu);
 		row->addWidget(History);
+		// Owner decision (b) 2026-10-23: a new session clears the current
+		// agent's thread.
+		ClearSession = make_drawer_tool(context, drawer_icon(drawer_glyph::new_session, palette()), tr("New session: clear this agent's thread and start the next question afresh"),
+										QStringLiteral("agentClearSession"));
+		ClearSession->setAccessibleName(tr("Clear session"));
+		connect(ClearSession, &QToolButton::clicked, this, [this] { clear_session(); });
+		row->addWidget(ClearSession);
 		column->addWidget(context);
 
 		Pages = new QStackedWidget{ this };
@@ -377,6 +480,27 @@ namespace bpr::qt {
 		});
 		ReadyCard->hide();
 		contentCol->addWidget(ReadyCard);
+		// Owner look v003: with nothing asked, an icon and a line, as the
+		// agent drawers show it; the suggested prompts wait above the field.
+		EmptyIntro              = new QWidget{ content };
+		auto* const introColumn = new QVBoxLayout{ EmptyIntro };
+		introColumn->setContentsMargins(0, 36, 0, 12);
+		introColumn->setSpacing(6);
+		auto* const introIcon = new QLabel{ EmptyIntro };
+		introIcon->setObjectName(QStringLiteral("agentEmptyIcon"));
+		introIcon->setPixmap(drawer_icon(drawer_glyph::agent, palette()).pixmap(32, 32));
+		introColumn->addWidget(introIcon, 0, Qt::AlignHCenter);
+		auto* const introTitle = new QLabel{ tr("Ask about this pull request"), EmptyIntro };
+		introTitle->setObjectName(QStringLiteral("agentEmptyTitle"));
+		introTitle->setFont(bold);
+		introColumn->addWidget(introTitle, 0, Qt::AlignHCenter);
+		auto* const introText = new QLabel{ tr("The agent reads the pull request at its head. Nothing it says is published unless you make it a comment."), EmptyIntro };
+		introText->setWordWrap(true);
+		introText->setAlignment(Qt::AlignHCenter);
+		introText->setForegroundRole(QPalette::PlaceholderText);
+		introColumn->addWidget(introText);
+		EmptyIntro->hide();
+		contentCol->addWidget(EmptyIntro);
 		// The thread: each question and its answer, oldest first.
 		Thread = new QWidget{ content };
 		Thread->setObjectName(QStringLiteral("agentThread"));
@@ -422,10 +546,22 @@ namespace bpr::qt {
 		suggestLine->setWordWrap(true);
 		SuggestionColumn->addWidget(suggestLine);
 		askCol->addWidget(Suggestions);
+		// Owner look v003 ("This bottom menu area is a big mess") and the
+		// Claude Code and Codex composers: one rounded field. Any added
+		// context, the words, a thin rule, and one row: Context and
+		// Suggestions as icons and what the agent may read on the left; the
+		// agent · model · effort pill and Send on the right.
 		auto* const field    = new rounded{ rounded::look::field, ask };
+		Field                = field;
 		auto* const fieldCol = new QVBoxLayout{ field };
-		fieldCol->setContentsMargins(8, 6, 8, 6);
+		fieldCol->setContentsMargins(8, 6, 6, 6);
 		fieldCol->setSpacing(4);
+		field->installEventFilter(this);
+		Chips = chip_label(field, QStringLiteral("agentContextChips"));
+		Chips->setForegroundRole(QPalette::PlaceholderText);
+		Chips->setWordWrap(true);
+		Chips->hide();
+		fieldCol->addWidget(Chips);
 		auto* const composer = Chat.composer();
 		Borrowed.emplace_back(composer, composer->parentWidget());
 		composer->setParent(field);
@@ -434,49 +570,63 @@ namespace bpr::qt {
 		composer->setMaximumHeight(90);
 		composer->viewport()->setAutoFillBackground(false);
 		fieldCol->addWidget(composer);
-		auto* const askRow = new QHBoxLayout{ };
-		askRow->setSpacing(6);
-		// Owner decision (c) 2026-10-23 ("A chip in the message box like VS
-		// Code"): the model and effort the agent runs with, in the field, and
-		// what will run in its tooltip.
-		RunSettings = new menu_word{ field };
-		RunSettings->setObjectName(QStringLiteral("agentRunSettings"));
-		RunSettings->setAccessibleName(tr("Model and effort"));
-		RunSettings->setMenu(new QMenu{ RunSettings });
-		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] { present_run_settings_button(); });
-		askRow->addWidget(RunSettings);
-		// Once the thread has turns the suggestions fold into this menu.
-		SuggestionsMenu = new menu_word{ field };
-		SuggestionsMenu->setObjectName(QStringLiteral("agentSuggestionsMenu"));
-		SuggestionsMenu->setText(tr("Suggestions"));
-		SuggestionsMenu->setAccessibleName(tr("Suggested prompts"));
-		SuggestionsMenu->setMenu(new QMenu{ SuggestionsMenu });
-		SuggestionsMenu->hide();
-		askRow->addWidget(SuggestionsMenu);
-		Chips = chip_label(field, QStringLiteral("agentContextChips"));
-		Chips->setForegroundRole(QPalette::PlaceholderText);
-		askRow->addWidget(Chips, 1);
-		Context = new quiet_push_button{ tr("Context"), field };
-		Context->setObjectName(QStringLiteral("agentAddContext"));
-		Context->setFlat(true);
-		Context->setToolTip(Chat.add_context_action()->toolTip().isEmpty() ? tr("Attach the lines selected in the code") : Chat.add_context_action()->toolTip());
-		connect(Context, &QPushButton::clicked, Chat.add_context_action(), &QAction::trigger);
-		askRow->addWidget(Context);
-		Ask = new QPushButton{ tr("Ask"), field };
-		Ask->setObjectName(QStringLiteral("agentAsk"));
-		Ask->setDefault(true);
-		Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
-		connect(Ask, &QPushButton::clicked, this, [this] { this->ask(); });
-		// Return with Command or Control asks from the field, as Ask does, so a
-		// slash command is read the same way from either.
-		composer->installEventFilter(this);
 		Notice = new QLabel{ field };
 		Notice->setObjectName(QStringLiteral("agentComposerNotice"));
 		Notice->setWordWrap(true);
 		Notice->setForegroundRole(QPalette::PlaceholderText);
 		Notice->hide();
-		fieldCol->insertWidget(1, Notice);
-		// What was asked is read when it is sent, by Ask or by the keyboard.
+		fieldCol->addWidget(Notice);
+		auto* const rule = new rule_line{ field };
+		rule->setObjectName(QStringLiteral("agentComposerRule"));
+		fieldCol->addWidget(rule);
+		auto* const askRow = new QHBoxLayout{ };
+		askRow->setSpacing(2);
+		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), Chat.add_context_action()->toolTip().isEmpty() ? tr("Add the lines selected in the code") : Chat.add_context_action()->toolTip(),
+								   QStringLiteral("agentAddContext"));
+		connect(Context, &QToolButton::clicked, Chat.add_context_action(), &QAction::trigger);
+		askRow->addWidget(Context);
+		// Once the thread has turns the suggestions fold into this menu.
+		SuggestionsMenu = make_drawer_tool(field, drawer_icon(drawer_glyph::agent, palette()), tr("Suggested prompts"), QStringLiteral("agentSuggestionsMenu"));
+		SuggestionsMenu->setPopupMode(QToolButton::InstantPopup);
+		SuggestionsMenu->setMenu(new QMenu{ SuggestionsMenu });
+		SuggestionsMenu->hide();
+		askRow->addWidget(SuggestionsMenu);
+		auto* const scope = Chat.scope_selector();
+		Borrowed.emplace_back(scope, scope->parentWidget());
+		scope->setParent(field);
+		scope->setToolTip(tr("What the agent may read"));
+		scope->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+		scope->setFrame(false);
+		askRow->addWidget(scope);
+		askRow->addStretch(1);
+		// Owner decision (c) and amendment 2026-10-23: the agent, model and
+		// effort as a pill in the field; an icon alone when the field is narrow.
+		RunSettings = new menu_word{ field };
+		RunSettings->setObjectName(QStringLiteral("agentRunSettings"));
+		RunSettings->setAccessibleName(tr("Agent, model and effort"));
+		RunSettings->setMenu(new QMenu{ RunSettings });
+		RunSettings->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+		static_cast<menu_word*>(RunSettings)->Pill = true;
+		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] { present_run_settings_button(); });
+		askRow->addWidget(RunSettings);
+		Ask = new QPushButton{ field };
+		Ask->setObjectName(QStringLiteral("agentAsk"));
+		Ask->setDefault(true);
+		Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+		Ask->setAccessibleName(tr("Send"));
+		Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		// Send, or Stop while the agent works: one place, always in reach.
+		connect(Ask, &QPushButton::clicked, this, [this] {
+			if (State == agent_tab_state::working) {
+				Launch.cancel_action()->trigger();
+				return;
+			}
+			this->ask();
+		});
+		// Return with Command or Control asks from the field, as Send does,
+		// so a slash command is read the same way from either.
+		composer->installEventFilter(this);
+		// What was asked is read when it is sent, by Send or by the keyboard.
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion = Chat.composer()->toPlainText().trimmed();
 			PendingReview   = false;
@@ -519,6 +669,11 @@ namespace bpr::qt {
 		// happened"). The working line follows the request as it moves, with
 		// the time it has taken, so a long run never looks like nothing.
 		Launch.add_progress_observer([this] { progress(); });
+		// The turns' times read as near words; a minute refreshes them.
+		auto* const minutes = new QTimer{ this };
+		minutes->setInterval(60'000);
+		connect(minutes, &QTimer::timeout, this, [this] { refresh_times(); });
+		minutes->start();
 		Ticker = new QTimer{ this };
 		Ticker->setInterval(1000);
 		connect(Ticker, &QTimer::timeout, this, [this] {
@@ -639,11 +794,27 @@ namespace bpr::qt {
 		Head->setText(head.left(7));
 		Head->setVisible(!head.isEmpty() && head != QStringLiteral("—"));
 		Head->setToolTip(tr("The head the session reads. %1").arg(Chat.session_state_text()));
+		// The added context, above the words, only when there is some.
 		Chips->setText(Chat.chips_text());
-		Ask->setEnabled(Chat.send_action()->isEnabled());
+		Chips->setVisible(Chat.chip_count() > 0U);
+		// Send, or Stop while the agent works.
+		if (State == agent_tab_state::working) {
+			Ask->setIcon({ });
+			Ask->setText(tr("Stop"));
+			Ask->setAccessibleName(tr("Stop"));
+			Ask->setToolTip(tr("Stop the agent"));
+			Ask->setEnabled(Launch.cancel_action()->isEnabled());
+		} else {
+			Ask->setText({ });
+			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+			Ask->setAccessibleName(tr("Send"));
+			Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			Ask->setEnabled(Chat.send_action()->isEnabled());
+		}
 		present_banner();
 		rebuild_findings();
 		Thread->setVisible(!Turns.empty());
+		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
 		ClearSession->setVisible(!Turns.empty());
 		ClearSession->setEnabled(State != agent_tab_state::working);
 		refresh_suggestions();
@@ -682,6 +853,7 @@ namespace bpr::qt {
 		PendingQuestion.reset();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
+		next.AskedAt   = QDateTime::currentDateTime();
 		add_turn_widgets(next);
 		Turns.push_back(std::move(next));
 		Thread->show();
@@ -689,11 +861,20 @@ namespace bpr::qt {
 
 	void agent_tab_view::add_turn_widgets(turn& aTurn)
 	{
+		aTurn.Serial    = NextSerial++;
 		auto* const box = new QWidget{ Thread };
 		box->setObjectName(QStringLiteral("agentTurn"));
 		auto* const column = new QVBoxLayout{ box };
 		column->setContentsMargins(0, 0, 0, 0);
 		column->setSpacing(4);
+		// Owner look v003 and the agent drawers: the question in an outlined
+		// bubble, its time right-aligned above it.
+		auto* const askedTime = new QLabel{ box };
+		askedTime->setObjectName(QStringLiteral("agentTurnAskedTime"));
+		askedTime->setForegroundRole(QPalette::PlaceholderText);
+		askedTime->setAlignment(Qt::AlignRight);
+		column->addWidget(askedTime);
+		show_time(*askedTime, aTurn.AskedAt);
 		auto* const asked = new rounded{ rounded::look::field, box };
 		asked->setObjectName(QStringLiteral("agentTurnQuestion"));
 		auto* const askedColumn = new QVBoxLayout{ asked };
@@ -709,39 +890,71 @@ namespace bpr::qt {
 		}
 		askedColumn->addWidget(question);
 		column->addWidget(asked);
+		// Owner look v003 ("the response contained in something we could
+		// copy"): the reply in its own card, its footer as the agent apps
+		// have it: Copy and Save as note, then who answered and when.
+		auto* const reply = new rounded{ rounded::look::card, box };
+		reply->setObjectName(QStringLiteral("agentTurnReply"));
+		auto* const replyColumn = new QVBoxLayout{ reply };
+		replyColumn->setContentsMargins(12, 8, 10, 6);
+		replyColumn->setSpacing(6);
 		// Owner decision (a): the answer reads as the agent wrote it, its
-		// Markdown rendered in place; links and images do nothing.
-		auto* const answer = new markdown_body_view{ box };
+		// Markdown rendered in place, its code coloured as comments' are;
+		// links and images do nothing.
+		auto* const answer = new markdown_body_view{ reply };
 		answer->setObjectName(QStringLiteral("agentTurnAnswer"));
 		answer->set_in_place(true);
 		answer->set_height_observer([this, answer] { fit_answer(*answer); });
+		dress_answer(*answer);
 		answer->hide();
-		column->addWidget(answer);
+		replyColumn->addWidget(answer);
 		// Owner decision 2026-10-23: the turn's findings, as cards, under its answer.
 		auto* const cards = new QVBoxLayout{ };
 		cards->setSpacing(8);
-		column->addLayout(cards);
-		auto* const footerRow = new QHBoxLayout{ };
-		footerRow->setSpacing(6);
-		auto* const footer = new QLabel{ box };
+		replyColumn->addLayout(cards);
+		// While the agent works, and how it ended: one quiet line.
+		auto* const footer = new QLabel{ reply };
 		footer->setObjectName(QStringLiteral("agentTurnFooter"));
 		footer->setForegroundRole(QPalette::PlaceholderText);
 		footer->setWordWrap(true);
-		footerRow->addWidget(footer, 1);
+		replyColumn->addWidget(footer);
+		auto* const footerRow = new QHBoxLayout{ };
+		footerRow->setSpacing(2);
+		auto* const copy = make_drawer_tool(reply, drawer_icon(drawer_glyph::copy, palette()), tr("Copy the response as Markdown"), QStringLiteral("agentTurnCopy"));
+		copy->hide();
+		footerRow->addWidget(copy);
 		// Save as note: the whole reply, or the part selected in it.
-		auto* const save = new quiet_push_button{ tr("Save as note"), box };
+		auto* const save = new quiet_push_button{ tr("Save as note"), reply };
 		save->setObjectName(QStringLiteral("agentTurnSaveNote"));
 		save->setFlat(true);
 		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a private note. Nothing is published."));
 		save->hide();
-		footerRow->addWidget(save, 0, Qt::AlignTop);
-		column->addLayout(footerRow);
+		footerRow->addWidget(save);
+		footerRow->addStretch(1);
+		auto* const answeredTime = new QLabel{ reply };
+		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
+		answeredTime->setForegroundRole(QPalette::PlaceholderText);
+		answeredTime->hide();
+		footerRow->addWidget(answeredTime);
+		replyColumn->addLayout(footerRow);
+		column->addWidget(reply);
 		ThreadColumn->addWidget(box);
-		aTurn.Widget     = box;
-		aTurn.Answer     = answer;
-		aTurn.Footer     = footer;
-		aTurn.SaveNote   = save;
-		aTurn.CardColumn = cards;
+		aTurn.Widget       = box;
+		aTurn.Answer       = answer;
+		aTurn.Footer       = footer;
+		aTurn.SaveNote     = save;
+		aTurn.CardColumn   = cards;
+		aTurn.Copy         = copy;
+		aTurn.AskedTime    = askedTime;
+		aTurn.AnsweredTime = answeredTime;
+		connect(copy, &QToolButton::clicked, this, [this, copy] {
+			for (const auto& kept : Turns) {
+				if (kept.Copy == copy) {
+					QGuiApplication::clipboard()->setText(kept.AnswerText);
+					copy->setToolTip(tr("Copied"));
+				}
+			}
+		});
 		connect(save, &QPushButton::clicked, this, [this, save] {
 			for (auto& kept : Turns) {
 				if (kept.SaveNote != save || !NoteDispatch) {
@@ -777,7 +990,7 @@ namespace bpr::qt {
 			aTurn.AnswerText.remove(fence, closed < 0 ? aTurn.AnswerText.size() - fence : closed + 3 - fence);
 			aTurn.AnswerText = aTurn.AnswerText.trimmed();
 		}
-		aTurn.Answer->set_body(aTurn.AnswerText.toStdString(), "agent-turn");
+		aTurn.Answer->set_body(aTurn.AnswerText.toStdString(), "agent-turn-" + std::to_string(aTurn.Serial));
 		aTurn.Answer->setVisible(!aTurn.AnswerText.isEmpty());
 		fit_answer(*aTurn.Answer);
 	}
@@ -803,12 +1016,15 @@ namespace bpr::qt {
 		// A turn's cards went with its widgets.
 		std::erase_if(CardEntries, [](const card_entry& aEntry) { return aEntry.Turn.has_value(); });
 		for (const auto& shown : aTurns) {
-			auto next     = turn{ };
-			next.Question = shown.Question;
-			next.Done     = true;
+			auto next       = turn{ };
+			next.Question   = shown.Question;
+			next.Done       = true;
+			next.AskedAt    = shown.AskedAt;
+			next.AnsweredAt = shown.AnsweredAt;
 			add_turn_widgets(next);
 			set_answer(next, shown.Answer);
 			next.Footer->setText(shown.Footer);
+			settle_reply_footer(next, true);
 			Turns.push_back(std::move(next));
 		}
 		Finished = false;
@@ -822,7 +1038,11 @@ namespace bpr::qt {
 		auto result = std::vector<agent_thread_turn>{ };
 		for (const auto& kept : Turns) {
 			if (kept.Done) {
-				result.push_back({ .Question = kept.Question, .Answer = kept.AnswerText, .Footer = kept.Footer != nullptr ? kept.Footer->text() : QString{ } });
+				result.push_back({ .Question   = kept.Question,
+								   .Answer     = kept.AnswerText,
+								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
+								   .AskedAt    = kept.AskedAt,
+								   .AnsweredAt = kept.AnsweredAt });
 			}
 		}
 		return result;
@@ -957,12 +1177,17 @@ namespace bpr::qt {
 		switch (Launch.current_phase()) {
 		case agent_launch_panel::phase::preparing:
 			set_answer(current, written);
-			current.Footer->setText(tr("%1 is making its workspace at the head, %2.").arg(agent, elapsed));
+			current.Footer->setText(QStringLiteral("● ") + tr("%1 is making its workspace at the head, %2.").arg(agent, elapsed));
 			return;
-		case agent_launch_panel::phase::running:
+		case agent_launch_panel::phase::running: {
 			set_answer(current, written);
-			current.Footer->setText(written.isEmpty() ? tr("%1 is thinking, %2.").arg(agent, elapsed) : tr("%1 is writing, %2.").arg(agent, elapsed));
+			auto line = written.isEmpty() ? tr("%1 is thinking, %2.").arg(agent, elapsed) : tr("%1 is writing, %2.").arg(agent, elapsed);
+			if (const auto latest = Launch.latest_output_line(); written.isEmpty() && !latest.isEmpty()) {
+				line += QStringLiteral(" ") + latest.left(120);
+			}
+			current.Footer->setText(QStringLiteral("● ") + line);
 			return;
+		}
 		case agent_launch_panel::phase::idle:
 			break;
 		}
@@ -986,6 +1211,8 @@ namespace bpr::qt {
 			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
 		}
 		current.Footer->setText(footer);
+		current.AnsweredAt = QDateTime::currentDateTime();
+		settle_reply_footer(current, succeeded);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
 			claim_findings(Turns.size() - 1U);
 		}
@@ -995,6 +1222,91 @@ namespace bpr::qt {
 		ClearSession->setVisible(true);
 		if (ThreadObserver) {
 			ThreadObserver(thread_turns());
+		}
+	}
+
+	void agent_tab_view::settle_reply_footer(turn& aTurn, const bool aSucceeded)
+	{
+		// Stopped reads as the agent drawers' Interrupted: in italics.
+		if (aTurn.Footer != nullptr) {
+			auto font = aTurn.Footer->font();
+			font.setItalic(!aSucceeded);
+			aTurn.Footer->setFont(font);
+		}
+		if (aTurn.Copy != nullptr) {
+			aTurn.Copy->setVisible(!aTurn.AnswerText.isEmpty());
+		}
+		if (aTurn.SaveNote != nullptr) {
+			aTurn.SaveNote->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty());
+		}
+		if (aTurn.AnsweredTime != nullptr) {
+			show_time(*aTurn.AnsweredTime, aTurn.AnsweredAt);
+		}
+	}
+
+	void agent_tab_view::refresh_times()
+	{
+		for (const auto& kept : Turns) {
+			if (kept.AskedTime != nullptr) {
+				show_time(*kept.AskedTime, kept.AskedAt);
+			}
+			if (kept.AnsweredTime != nullptr && kept.Done) {
+				show_time(*kept.AnsweredTime, kept.AnsweredAt);
+			}
+		}
+	}
+
+	auto agent_tab_view::turn_copy_button(const std::size_t aTurn) const -> QToolButton* { return aTurn < Turns.size() ? Turns[aTurn].Copy.data() : nullptr; }
+
+	auto agent_tab_view::turn_time(const std::size_t aTurn) const -> QLabel* { return aTurn < Turns.size() ? Turns[aTurn].AnsweredTime.data() : nullptr; }
+
+	void agent_tab_view::set_session_title(const QString& aTitle)
+	{
+		SessionTitle->setText(aTitle.isEmpty() ? tr("Agent") : aTitle);
+		SessionTitle->setToolTip(aTitle);
+	}
+
+	void agent_tab_view::dress_answer(markdown_body_view& aAnswer) const
+	{
+		if (CodeFont) {
+			aAnswer.set_code_font(*CodeFont, 4.0 * QFontMetricsF{ *CodeFont }.horizontalAdvance(QLatin1Char{ ' ' }));
+		}
+		if (CodeTheme) {
+			aAnswer.set_code_theme(*CodeTheme);
+		}
+		if (CodeDispatch) {
+			aAnswer.set_code_syntax_dispatch(CodeDispatch);
+		}
+	}
+
+	void agent_tab_view::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		CodeDispatch = std::move(aDispatch);
+		for (const auto& kept : Turns) {
+			if (kept.Answer != nullptr) {
+				kept.Answer->set_code_syntax_dispatch(CodeDispatch);
+				kept.Answer->request_code_syntax();
+			}
+		}
+	}
+
+	void agent_tab_view::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		for (const auto& kept : Turns) {
+			if (kept.Answer != nullptr) {
+				kept.Answer->apply_code_syntax(aSpans);
+			}
+		}
+	}
+
+	void agent_tab_view::adopt_appearance(const appearance_profile& aProfile)
+	{
+		CodeFont  = aProfile.code_font();
+		CodeTheme = markdown_code_theme{ .Colors = code_role_colors_of(aProfile.palette()), .Variant = aProfile.variant() };
+		for (const auto& kept : Turns) {
+			if (kept.Answer != nullptr) {
+				dress_answer(*kept.Answer);
+			}
 		}
 	}
 
@@ -1045,6 +1357,12 @@ namespace bpr::qt {
 			return;
 		}
 		case agent_tab_state::working: {
+			// Owner look v003: the turn's own quiet line says it works, and
+			// Stop is the field's Send; a turn shown makes the banner needless.
+			if (!Turns.empty()) {
+				Banner->hide();
+				return;
+			}
 			BannerTitle->setText(tr("%1 is working").arg(Launch.profile_selector()->currentText()));
 			const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
 			const auto elapsed = QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
@@ -1412,7 +1730,19 @@ namespace bpr::qt {
 		return found == RunSettingsShown.end() ? nullptr : &*found;
 	}
 
-	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->text(); }
+	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->property("agentRunSettingsText").toString(); }
+
+	void agent_tab_view::fit_run_settings()
+	{
+		// A narrow field keeps the pill as an icon with its words in the
+		// tooltip, as the Codex composer does.
+		const auto full   = RunSettings->property("agentRunSettingsText").toString();
+		const auto narrow = Field != nullptr && Field->width() > 0 && Field->width() < 300;
+		RunSettings->setText(narrow ? QString{ } : full);
+		RunSettings->setIcon(narrow ? drawer_icon(drawer_glyph::agent, palette()) : QIcon{ });
+		RunSettings->setToolTip(narrow ? tr("Choose the agent and model: %1").arg(full) + QStringLiteral("\n") + RunSettingsTip : RunSettingsTip);
+		RunSettings->updateGeometry();
+	}
 
 	void agent_tab_view::present_run_settings_button()
 	{
@@ -1429,7 +1759,11 @@ namespace bpr::qt {
 			shown += QStringLiteral(" · ") + tr("%1 effort").arg(QString::fromStdString(settings->Effort));
 		}
 		// Owner amendment 2026-10-23: agent · model · effort.
-		RunSettings->setText(settings->Agent + QStringLiteral(" · ") + (!(settings->ModelChoosable || settings->EffortChoosable) ? tr("its own model") : shown));
+		const auto full = settings->Agent + QStringLiteral(" · ") + (!(settings->ModelChoosable || settings->EffortChoosable) ? tr("its own model") : shown);
+		RunSettings->setProperty("agentRunSettingsText", full);
+		// The whole words, shortened when the row is narrow (menu_word).
+		RunSettings->setAccessibleName(tr("Agent, model and effort: %1").arg(full));
+		fit_run_settings();
 		auto tip = tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program);
 		if (settings->ModelChoosable) {
 			tip += QStringLiteral("\n") + (settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
@@ -1443,7 +1777,8 @@ namespace bpr::qt {
 		if (!Launch.last_reported_model().isEmpty()) {
 			tip += QStringLiteral("\n") + tr("Last answer ran %1").arg(Launch.last_reported_model());
 		}
-		RunSettings->setToolTip(tip);
+		RunSettingsTip = tip;
+		fit_run_settings();
 		auto* const menu = RunSettings->menu();
 		menu->clear();
 		// Every agent added, one press away; each keeps its own conversation
@@ -1583,6 +1918,10 @@ namespace bpr::qt {
 				ask();
 				return true;
 			}
+		}
+		if (aEvent->type() == QEvent::Resize && aWatched == Field) {
+			fit_run_settings();
+			return false;
 		}
 		if (aEvent->type() == QEvent::Resize && aWatched == Viewport) {
 			for (const auto& kept : Turns) {

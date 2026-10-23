@@ -15,6 +15,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -140,6 +141,27 @@ namespace bpr::qt {
 		Status = note({ }, this);
 		Status->setObjectName(QStringLiteral("settingsAgentStatus"));
 		column->addWidget(Status);
+		// Owner decision 2026-10-23 ("I guess we can keep a timeout as an
+		// option, but i wouldnt want it on by default"): off unless chosen.
+		auto* const limitRow = new QHBoxLayout{ };
+		RunLimitOn           = new QCheckBox{ tr("Stop a run after"), this };
+		RunLimitOn->setObjectName(QStringLiteral("settingsRunLimitOn"));
+		limitRow->addWidget(RunLimitOn);
+		RunLimit = new QSpinBox{ this };
+		RunLimit->setObjectName(QStringLiteral("settingsRunLimitMinutes"));
+		RunLimit->setRange(1, static_cast<int>(application::maximum_run_limit_minutes));
+		RunLimit->setValue(10);
+		RunLimit->setSuffix(tr(" min"));
+		RunLimit->setEnabled(false);
+		limitRow->addWidget(RunLimit);
+		limitRow->addStretch(1);
+		column->addLayout(limitRow);
+		column->addWidget(note(tr("Off, a run goes on until the agent finishes or you press Stop."), this));
+		connect(RunLimitOn, &QCheckBox::toggled, this, [this](const bool aOn) {
+			RunLimit->setEnabled(aOn);
+			send_run_limit();
+		});
+		connect(RunLimit, &QSpinBox::editingFinished, this, [this] { send_run_limit(); });
 		column->addSpacing(8);
 		auto* const setUp = new quiet_push_button{ tr("Set up agent…"), this };
 		setUp->setObjectName(QStringLiteral("settingsSetUpAgent"));
@@ -153,6 +175,13 @@ namespace bpr::qt {
 	}
 
 	void agent_programs_panel::set_dispatch(dispatch aDispatch) { Dispatch = std::move(aDispatch); }
+
+	void agent_programs_panel::send_run_limit()
+	{
+		if (Dispatch.SetRunLimit) {
+			static_cast<void>(Dispatch.SetRunLimit(RunLimitOn->isChecked() ? static_cast<std::uint32_t>(RunLimit->value()) : 0U));
+		}
+	}
 
 	void agent_programs_panel::set_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
 
@@ -186,7 +215,16 @@ namespace bpr::qt {
 
 	void agent_programs_panel::present(const application::agent_setup_preferences& aPreferences, std::vector<core::agent_detection> aFound)
 	{
-		Found             = std::move(aFound);
+		Found = std::move(aFound);
+		{
+			const auto blockToggle  = QSignalBlocker{ RunLimitOn };
+			const auto blockMinutes = QSignalBlocker{ RunLimit };
+			RunLimitOn->setChecked(aPreferences.RunLimitMinutes != 0U);
+			RunLimit->setEnabled(aPreferences.RunLimitMinutes != 0U);
+			if (aPreferences.RunLimitMinutes != 0U && !RunLimit->hasFocus()) {
+				RunLimit->setValue(static_cast<int>(aPreferences.RunLimitMinutes));
+			}
+		}
 		const auto keptId = selected() != nullptr ? selected()->Id : 0U;
 		Agents            = aPreferences.Agents;
 		const auto block  = QSignalBlocker{ List };
@@ -196,6 +234,9 @@ namespace bpr::qt {
 			auto line = text_of(entry.Name) + QStringLiteral(" — ") + QDir::toNativeSeparators(entry.Program.empty() ? tr("its own program") : text_of(entry.Program));
 			for (const auto& argument : entry.Arguments) {
 				line += QStringLiteral(" ") + text_of(argument);
+			}
+			if (!entry.Model.empty() || !entry.Effort.empty()) {
+				line += QStringLiteral(" · ") + (entry.Model.empty() ? tr("default model") : text_of(entry.Model)) + (entry.Effort.empty() ? QString{ } : QStringLiteral(" · ") + text_of(entry.Effort));
 			}
 			auto* const item = new QListWidgetItem{ line, List };
 			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(entry.Id));

@@ -11494,6 +11494,41 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A card's action
+		/// waiting for its file to open in Review: tried again until the file
+		/// is on screen, then given up with words after about ten seconds.
+		struct pending_card_open
+		{
+			qt::agent_finding_card_request Request;
+			int                            Tries = 0;
+		};
+		std::optional<pending_card_open> PendingCardOpen;
+
+		void resume_card_open()
+		{
+			if (Closing || Window == nullptr || !PendingCardOpen) {
+				return;
+			}
+			const auto* const surface  = Window->comparison_surface();
+			const auto&       finding  = PendingCardOpen->Request.Finding;
+			const auto        onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
+				&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			if (onScreen) {
+				auto request = std::move(PendingCardOpen->Request);
+				PendingCardOpen.reset();
+				act_on_agent_card(request);
+				return;
+			}
+			if (++PendingCardOpen->Tries > 40) {
+				const auto request = std::move(PendingCardOpen->Request);
+				PendingCardOpen.reset();
+				Window->agent_tab()->present_finding_card_state(request.Session, request.Ordinal, qt::agent_finding_card_state::refused,
+																QStringLiteral("%1 did not open, so nothing was made.").arg(QString::fromStdString(request.Finding.Path)));
+				return;
+			}
+			QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
+		}
+
 		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A private note from
 		/// the Agent tab: on one line of the shown comparison when `aLine`
 		/// names one, otherwise on the review. It belongs to the review's
@@ -11567,8 +11602,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto  side     = finding.Anchor.Line ? finding.Anchor.Line->Side : core::diff_side::right;
 			const auto  onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
 				&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			// Owner decision 2026-10-23: another file is opened in Review first,
+			// then the draft or note is made at its line.
 			if (!onScreen) {
-				state(qt::agent_finding_card_state::refused, QStringLiteral("Open %1, then try again: a draft or note goes on its lines.").arg(QString::fromStdString(finding.Path)));
+				if (!Window->open_file_in_review(QString::fromStdString(finding.Path))) {
+					state(qt::agent_finding_card_state::refused, QStringLiteral("%1 is not in this pull request at its current head, so there is no line to put it on.").arg(QString::fromStdString(finding.Path)));
+					return;
+				}
+				state(qt::agent_finding_card_state::working);
+				PendingCardOpen = pending_card_open{ .Request = aRequest };
+				QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
+				return;
+			}
+			// The line must be one the file has at the current head.
+			const auto& shownAlignment = surface->current_result()->Alignment;
+			const auto  lineCount      = side == core::diff_side::left ? shownAlignment.LeftLineCount : shownAlignment.RightLineCount;
+			if (finding.Lines.Begin >= lineCount) {
+				state(qt::agent_finding_card_state::refused,
+					  QStringLiteral("Line %1 is not in %2 at the current head, so nothing was made.").arg(finding.Lines.Begin + 1U).arg(QString::fromStdString(finding.Path)));
 				return;
 			}
 			const auto at = core::source_line_ref{ .Comparison = surface->current_result()->Alignment.Digest, .Side = side, .Line = finding.Lines.Begin };
@@ -11605,7 +11656,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			auto offered = std::vector<core::agent_profile>{ };
 			if (AgentSetup) {
-				for (const auto& entry : AgentSetup->projection().Preferences.Agents) {
+				const auto listed = AgentSetup->projection().Preferences.Agents;
+				for (const auto& entry : listed) {
 					const auto slot = core::entry_profile_id(entry);
 					if (std::ranges::find(HostOfferedProfiles, slot, &core::agent_profile::Id) != HostOfferedProfiles.end()) {
 						offered.push_back(core::entry_profile(entry));
@@ -11620,6 +11672,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			return offered;
+		}
+
+		/// Owner decision 2026-10-23: the run time limit the reviewer set, or
+		/// none (the default), when the run goes until the agent finishes.
+		[[nodiscard]] auto run_limit_milliseconds() const -> std::optional<int>
+		{
+			const auto minutes = AgentSetup ? AgentSetup->projection().Preferences.RunLimitMinutes : 0U;
+			return minutes == 0U ? std::nullopt : std::optional{ static_cast<int>(minutes) * 60'000 };
 		}
 
 		/// Owner decision 2026-10-23 ("separate session for each agent"): the
@@ -11639,6 +11699,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			if (!Closing && AgentConversation) {
 				AgentConversation->switch_agent(current_conversation_agent());
+			}
+			// Send to Agent defaults to the agent the pull request's session uses.
+			if (!Closing && CycleDesktop && Window != nullptr) {
+				if (const auto selected = Window->agent_panel()->selected_profile(); selected && core::is_agent_entry_profile(*selected)) {
+					CycleDesktop->prefer_send_profile(selected);
+				}
 			}
 		}
 
@@ -11869,7 +11935,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							AgentSetup->detect();
 						}
 						if (CloneLinks) {
-							CloneLinks->discover();
+							CloneLinks->look_again();
 						}
 					},
 				.OpenSettings           = [this] { Window->open_settings(qt::settings_page::agents_and_context); },
@@ -11959,6 +12025,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							AgentSetup->move_agent(aId, aDelta);
 						}
 					},
+				.SetRunLimit = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
 				.SetProgram =
 					[this](const core::setup_agent aAgent, std::string aPath) {
 						if (Closing || !AgentSetup) {
@@ -12202,18 +12269,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The launches use
 			// the list as published, and the picker offers it.
 			AgentEntries->set(aProjection.Preferences.Agents);
+			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
 			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
 			const auto  profile     = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
 			const auto  preferredAt = std::ranges::find(aProjection.Preferences.Agents, aProjection.Preferences.PreferredAgent, &core::agent_entry::Id);
 			const auto* preferred   = aProjection.Preferences.PreferredAgent == 0U || preferredAt == aProjection.Preferences.Agents.end() ? nullptr : &*preferredAt;
 			Window->agent_panel()->prefer_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
 			Window->agent_panel()->offer_profiles(offered_agent_profiles());
+			// Owner decision 2026-10-23: Send to Agent offers the same list.
+			if (CycleDesktop) {
+				CycleDesktop->offer_agents(aProjection.Preferences.Agents);
+			}
 			present_run_settings();
 			present_setup_view();
-			observe_conversation_agent();
 			if (CycleDesktop) {
-				CycleDesktop->prefer_send_profile(profile);
+				CycleDesktop->prefer_send_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
 			}
+			observe_conversation_agent();
 		}
 #endif
 		void cancel_writing()
@@ -12254,11 +12326,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			return core::writing_digest(key);
 		}
+		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. The agent
+		/// tour writing asks: the one chosen in the Agent tab when it speaks
+		/// Claude Code's stream JSON (tool-free writing needs it), otherwise the
+		/// first added agent that does.
+		[[nodiscard]] auto writing_agent() const -> std::optional<core::agent_profile_id>
+		{
+			const auto selected = Window->agent_panel()->selected_profile();
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// A built-in profile chosen (a course's own program) is asked as is.
+			if (selected && (writes_tool_free(*selected) || !core::is_agent_entry_profile(*selected))) {
+				return selected;
+			}
+			if (AgentSetup) {
+				const auto listed = AgentSetup->projection().Preferences.Agents;
+				for (const auto& entry : listed) {
+					if (entry.Protocol == core::agent_protocol::claude_stream_json) {
+						return core::entry_profile_id(entry);
+					}
+				}
+			}
+			// None speaks it: the chosen one, which is then refused with why.
+			return selected;
+#else
+			return selected;
+#endif
+		}
+
+		/// Whether a profile may run tool-free writing: Claude's stream JSON.
+		[[nodiscard]] auto writes_tool_free(const core::agent_profile_id aProfile) const -> bool
+		{
+#if defined(BPR_AGENT_INTEGRATIONS)
+			if (core::is_agent_entry_profile(aProfile)) {
+				if (!AgentSetup) {
+					return false;
+				}
+				const auto        agents = AgentSetup->projection().Preferences.Agents;
+				const auto* const entry  = core::entry_of_profile(agents, aProfile);
+				return entry != nullptr && entry->Protocol == core::agent_protocol::claude_stream_json;
+			}
+#endif
+			return aProfile == core::claude_stream_json_profile_id;
+		}
+
 		auto writing_target(core::writing_hook aHook, const qt::prose_capture& aCapture) const -> std::optional<core::writing_target>
 		{
 			const auto& draft = Window->tour_editor()->shown().Draft;
 			const auto& prefs = Profile->WorkbenchPreferences->accepted();
-			const auto  agent = Window->agent_panel()->selected_profile();
+			const auto  agent = writing_agent();
 			if (!draft || !prefs || !agent || !EpochHost || !TourOwner || draft->Owner != *TourOwner || !current(DraftWindow)) {
 				return std::nullopt;
 			}
@@ -12394,9 +12509,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 			}
-			if (target->Agent != core::claude_stream_json_profile_id) {
+			if (!writes_tool_free(target->Agent)) {
 				WritingState.cancel();
-				Window->tour_editor()->show_writing_notice(QStringLiteral("This selected agent has no qualified tool-free writing mode. Select Approved Claude stream JSON in Agents & context, or keep writing manually."));
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This agent has no qualified tool-free writing mode: writing needs one that speaks Claude Code's stream JSON. Add one in Settings › Agents & context, or keep writing manually."));
 				return;
 			}
 			if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
@@ -12568,9 +12683,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			cancel_writing();
 			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
-			const auto  selected = Window->agent_panel()->selected_profile();
-			if (!prefs || !selected || *selected != core::claude_stream_json_profile_id || !agent_idle()) {
-				Window->writing_hooks()->show_notice("Select Approved Claude stream JSON for tool-free writing tests; wait for any running request.");
+			const auto  selected = writing_agent();
+			if (!prefs || !selected || !writes_tool_free(*selected) || !agent_idle()) {
+				Window->writing_hooks()->show_notice("Add an agent that speaks Claude Code's stream JSON in Settings › Agents & context for tool-free writing tests; wait for any running request.");
 				return;
 			}
 			core::writing_request request;
@@ -19385,7 +19500,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// [[BPR-PENDING-AQ6]], owner decision (b). The conversation so
 				// far about this pull request, so a follow-up continues it.
 				if (AgentConversation) {
-					for (const auto& turn : AgentConversation->projection().Turns) {
+					const auto earlier = AgentConversation->projection().Turns;
+					for (const auto& turn : earlier) {
 						brief.Conversation.push_back({ .Asked = turn.Asked, .Answered = turn.Answered });
 					}
 				}
@@ -19570,6 +19686,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.RequestedSettings      = std::move(requested),
 				.PrivateRun             = std::move(privateRun),
 				.HistoryClone           = linked_history_clone(aWritingOnly),
+				// Owner decision 2026-10-23: a time limit only when the reviewer set one.
+				.RunLimitMilliseconds = run_limit_milliseconds(),
 			});
 			return true;
 		}
@@ -21590,6 +21708,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
 			}
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-PENDING-AQ6]], owner look v003. The agent's answers' code in
+			// the panes' colours and code font.
+			if (auto* const agent = Window->agent_tab(); agent != nullptr) {
+				agent->adopt_appearance(*AppearanceProfile);
+			}
+#endif
 			// [[BPR-1156]]. Suggest change paints its code in the panes' role colours.
 			if (CycleDesktop) {
 				CycleDesktop->adopt_appearance(*AppearanceProfile);

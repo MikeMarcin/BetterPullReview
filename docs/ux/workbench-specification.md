@@ -2412,16 +2412,24 @@ its other is **Draft comment**, which copies it to a local draft at its own line
 nothing is published until the existing explicit Publish. Esc on unsaved
 changes says so once and discards on the second press. Notes stays available
 with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
-follows Tour, its spark beside its name. Its context row names the agent, the head its
-session reads, the scope in words (Selected lines, This file, Pull request,
-Repository), **Clear** once the thread has turns, and History, a menu with
-Clear session, a new session, continuing on an earlier head, the private
-history and runs, and the sessions. Below it the conversation is a thread
-([[BPR-PENDING-AQ6]], owner look v002): each turn is what was asked, the
-agent's answer as it writes it (its Markdown rendered; links and images do
-nothing), and how the turn ended (who answered, in how long, the model it
-reported, the cost when the harness said, and the findings that turn
-brought); the question field clears once a question is sent. The thread is
+follows Tour, its spark beside its name. Its header (owner look v003, after the
+agent drawers' convention) is the session's title, the pull request's number
+and title, the head its session reads, and two icons: History (Clear session,
+a new session, continuing on an earlier head, the private history and runs,
+and the sessions) and New session, which clears the current agent's thread.
+Below it the conversation is a thread ([[BPR-PENDING-AQ6]], owner looks v002
+and v003): each turn is what was asked, in an outlined bubble with its time
+right-aligned above it, then the agent's reply in its own card: the answer
+as it writes it (its Markdown rendered, fenced code coloured by the shared
+Markdown code host as comments' code is; links and images do nothing), the
+turn's finding cards, one quiet line while the agent works ("● Claude Code is
+thinking, 0:05.") and how the turn ended (who answered, in how long, the
+model it reported, the cost when the harness said, and the findings that turn
+brought; in italics when it stopped), and a footer of Copy (the whole reply
+as Markdown), Save as note and the reply's time (near words, the whole time
+on hover). With nothing asked, the conversation shows an icon and "Ask about
+this pull request" with one line under it. The question field clears once a
+question is sent. The thread is
 one conversation per pull request and agent (owner decisions, 2026-10-23):
 it is kept for the pull request and shown again when it is opened again, on
 the agent it was last asked with; switching agents shows that agent's own
@@ -2444,13 +2452,17 @@ Dismissed with **Undo**, and a refusal says why (for another file: open it,
 then try again). A reply offers **Save as note** for the whole of it, or the
 part selected. The reply is shown without its `bpr-findings` block. Findings
 delivered with no turn come after the thread, as cards of their own. The question field
-closes the tab with the agent chip (owner decision (c) and amendment,
-2026-10-23: "Work Codex · gpt-5 · high effort", or "Claude Code · Default
-model"; its tooltip names the program that runs and the model the last answer
-reported, and its menu lists every agent added in Settings › Agents & context,
-one press to switch, then the agent's own models and effort levels or
-Other…, kept with that agent), Suggestions once
-the thread has turns, its context chips, Context and Ask (⌘↩). `/model NAME`
+closes the tab (owner look v003, after the Claude Code and Codex
+composers): one rounded field holding any added context, the words, a thin
+rule, and one row: Context (+) and, once the thread has turns, Suggestions as
+icons and what the agent may read on the left; on the right the agent pill
+(owner decision (c) and amendment, 2026-10-23: "Work Codex · gpt-5 · high
+effort", or "Claude Code · Default model", an icon alone when the field is
+narrower than 300 points; its tooltip names the program that runs and the
+model the last answer reported, and its menu lists every agent added in
+Settings › Agents & context, one press to switch, then the agent's own models
+and effort levels or Other…, kept with that agent) and Send (⌘↩), which is
+Stop while the agent works. `/model NAME`
 and `/effort LEVEL` (or `default`) in the question field do what the chip
 does without asking anything; `/model` or `/effort` alone opens the chip's
 menu, and a level the agent does not take is refused with the ones it does.
@@ -2470,12 +2482,12 @@ been checked, and a step is missing. Its four numbered steps are Agent
 (each found agent as a card the whole of which chooses it, by click or Space
 or Return, with its path and how it was found, a refused one disabled with
 why; Change keeps the agent already chosen a choice and offers Continue with
-it; none found offers Install Claude Code, Install Codex and Use a
-program I choose…), Repository (the clones of the repository in the clone
-folders, Use this clone, Choose a folder…, or a private copy; with no clone
-folder, Where do your clones live? with Visual Studio's folder list (New
-folder, Remove, Move down and Move up above rows edited in place, each with
-… to browse) and the usual folders that exist), Check it works (the agent's status command and the workspace,
+it, and Custom agent… for a program of the reviewer's own; none found
+offers Install Claude Code, Install Codex and Custom agent…), Repository (the
+clones of the repository in the clone folders, Use this clone, Choose a
+folder…, or a private copy; with no clone folder, Where do your clones live?
+with one folder line, typed or Browse…, then Add (owner look v003; the full
+folder list is Settings › Repositories'), and the usual folders that exist), Check it works (the agent's status command and the workspace,
 each with its result and what to do, Check, Stop and Check again) and Ready.
 A finished step folds to one line with Change, and a step already reached
 opens from its header. Look again and Agent settings

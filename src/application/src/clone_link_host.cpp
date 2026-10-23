@@ -261,7 +261,7 @@ namespace bpr::application {
 		host.verify();
 	}
 
-	void clone_link_host::discover() { Implementation->discover(); }
+	void clone_link_host::look_again() { Implementation->discover(); }
 
 	void clone_link_host::set_clone_folders(std::vector<std::string> aFolders)
 	{

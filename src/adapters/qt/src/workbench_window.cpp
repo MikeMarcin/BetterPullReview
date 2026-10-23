@@ -4823,9 +4823,12 @@ namespace bpr::qt {
 		AgentPrograms = new agent_programs_panel{ agents };
 		column->addSpacing(12);
 		column->addWidget(AgentPrograms);
-		ClaudeWrapper = new claude_wrapper_panel{ agents };
-		column->addSpacing(12);
-		column->addWidget(ClaudeWrapper);
+		// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: the Claude process
+		// wrapper and model rows are gone from Settings; their values moved
+		// into the agent list. The panel stays unshown, for the profile's
+		// saved values that move once.
+		ClaudeWrapper = new claude_wrapper_panel{ this };
+		ClaudeWrapper->hide();
 		WritingHooks = new writing_hooks_panel{ agents };
 		column->addWidget(WritingHooks);
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
@@ -8757,6 +8760,18 @@ namespace bpr::qt {
 		if (Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
 		}
+	}
+
+	auto workbench_window::open_file_in_review(const QString& aPath) -> bool
+	{
+		const auto file = file_for_path(aPath);
+		if (!file || !Dispatch) {
+			return false;
+		}
+		choose_home(false);
+		choose_modality(review_modality::review);
+		Dispatch(core::select_workbench_file_intent{ .File = *file });
+		return true;
 	}
 
 	void workbench_window::resume_private_note_open()
@@ -14102,6 +14117,10 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_code_syntax_dispatch(relay);
 		}
+		// [[BPR-PENDING-AQ6]], owner look v003: the agent's answers' code too.
+		if (AgentTab != nullptr) {
+			AgentTab->set_code_syntax_dispatch(relay);
+		}
 	}
 
 	void workbench_window::apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans)
@@ -14112,6 +14131,9 @@ namespace bpr::qt {
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->apply_markdown_code_syntax(aSpans);
+		}
+		if (AgentTab != nullptr) {
+			AgentTab->apply_code_syntax(aSpans);
 		}
 	}
 

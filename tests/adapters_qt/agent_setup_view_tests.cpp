@@ -28,6 +28,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QSpinBox>
 #include <QStyleFactory>
 #include <QToolButton>
 
@@ -265,19 +266,23 @@ namespace {
 		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
 		test.button(QStringLiteral("agentSetupSuggestedFolder"))->click();
 		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub", "a suggested folder is added in one press");
-		// Owner look v002: Visual Studio's folder list, edited in place.
-		auto* const list = dynamic_cast<qt::folder_list_editor*>(test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")));
-		expect(list != nullptr && list->new_button()->isEnabled() && !list->remove_button()->isEnabled() && !list->up_button()->isEnabled(),
-			   "no folder yet: New folder is offered, Remove and the moves wait for a row");
-		if (list == nullptr) {
+		// Owner look v003: one folder line in setup, typed or browsed, then
+		// Add; the list editor is Settings' alone.
+		auto* const path = test.View.findChild<QLineEdit*>(QStringLiteral("agentSetupFolderPath"));
+		auto* const add  = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFolderAdd"));
+		expect(path != nullptr && add != nullptr && !add->isEnabled() && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFolderBrowse")) != nullptr
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")) == nullptr,
+			   "no folder yet: one folder line with Browse and Add, which waits for a path");
+		if (path == nullptr || add == nullptr) {
 			return;
 		}
-		const auto typed = type_row(*list, QStringLiteral("work/clones"));
-		expect(typed && test.Intents.back() == "folder:/Users/me/Documents/GitHub" && list->status()->text().contains(QStringLiteral("full path"))
-				   && list->list()->count() == 0,
-			   "a relative path is refused with what to write, and its new row goes");
-		expect(type_row(*list, QStringLiteral("~/src")) && test.Intents.back() == "folders:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(),
-			   "~ is the home folder, and the new list is the intent");
+		path->setText(QStringLiteral("work/clones"));
+		add->click();
+		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub" && test.View.findChild<QLabel*>(QStringLiteral("agentSetupFolderStatus"))->text().contains(QStringLiteral("full path")),
+			   "a relative path is refused with what to write");
+		path->setText(QStringLiteral("~/src"));
+		add->click();
+		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(), "~ is the home folder, and Add adds the folder");
 		render(test.View, QStringLiteral("nofolders"));
 
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
@@ -363,7 +368,12 @@ namespace {
 										aAnswer(core::agent_entry_refusal::duplicate_name);
 									},
 								.Remove = [&saved](const std::uint32_t aId) { saved.push_back("remove:" + std::to_string(aId)); },
-								.Move   = [&saved](const std::uint32_t aId, const int aDelta) { saved.push_back("move:" + std::to_string(aId) + ":" + std::to_string(aDelta)); } });
+								.Move   = [&saved](const std::uint32_t aId, const int aDelta) { saved.push_back("move:" + std::to_string(aId) + ":" + std::to_string(aDelta)); },
+								.SetRunLimit =
+									[&saved](const std::uint32_t aMinutes) {
+										saved.push_back("limit:" + std::to_string(aMinutes));
+										return true;
+									} });
 		auto preferences   = application::agent_setup_preferences{ };
 		preferences.Agents = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
 		preferences.Agents = *core::add_agent_entry(preferences.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } });
@@ -396,6 +406,15 @@ namespace {
 		programs.findChild<QPushButton*>(QStringLiteral("settingsSetUpAgent"))->click();
 		expect(saved == std::vector<std::string>{ "add:Claude Code:preset", "add:Harness:custom", "update:2:Work Claude", "move:2:-1", "remove:2", "set-up" },
 			   "add, edit, move, remove and Set up agent… are intents");
+		// Owner decision 2026-10-23: the run time limit is off unless chosen.
+		expect(!programs.run_limit_toggle()->isChecked() && !programs.run_limit_minutes()->isEnabled(), "with none set, runs have no time limit");
+		programs.run_limit_toggle()->setChecked(true);
+		programs.run_limit_toggle()->setChecked(false);
+		expect(saved.size() >= 2U && saved[saved.size() - 2U] == "limit:10" && saved.back() == "limit:0", "turning it on sends a limit, and off sends none");
+		auto limited            = preferences;
+		limited.RunLimitMinutes = 30U;
+		programs.present(limited);
+		expect(programs.run_limit_toggle()->isChecked() && programs.run_limit_minutes()->value() == 30, "a saved limit shows");
 		// The dialog: OK waits for an entry that may be kept, and the
 		// arguments are taken one per line, as written.
 		auto dialog = qt::agent_entry_dialog{ core::agent_entry{ } };
@@ -407,8 +426,10 @@ namespace {
 		dialog.program()->setText(QStringLiteral("/opt/work/bin/wrapper"));
 		dialog.arguments()->setPlainText(QStringLiteral("--codex\n--profile work\n"));
 		dialog.effort()->setCurrentIndex(dialog.effort()->findData(QStringLiteral("minimal")));
+		dialog.check()->setPlainText(QStringLiteral("--codex\nlogin\nstatus"));
 		const auto described = dialog.entry();
-		expect(dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && described.Arguments == std::vector<std::string>{ "--codex", "--profile work" } && described.Effort == "minimal",
+		expect(dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && described.Arguments == std::vector<std::string>{ "--codex", "--profile work" } && described.Effort == "minimal"
+				   && described.CheckArguments == std::vector<std::string>{ "--codex", "login", "status" },
 			   "a full entry may be kept, each line one argument, and Codex's efforts offered");
 
 		auto folders = qt::clone_folders_panel{ };

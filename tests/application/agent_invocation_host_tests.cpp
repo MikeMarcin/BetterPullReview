@@ -280,12 +280,13 @@ namespace {
 	public:
 		[[nodiscard]] auto run(
 			const application::agent_launch_request& aRequest,
-			const int,
-			const application::agent_output_sink& aSink,
-			const std::stop_token                 aStop)
+			const int                                aTimeout,
+			const application::agent_output_sink&    aSink,
+			const std::stop_token                    aStop)
 			-> application::agent_run_result override
 		{
 			++Starts;
+			LastTimeout       = aTimeout;
 			LastRequest       = aRequest;
 			LastStopRequested = aStop.stop_requested();
 			if (AfterStart) {
@@ -321,6 +322,7 @@ namespace {
 
 		std::size_t                                      Starts            = 0U;
 		std::size_t                                      Cancels           = 0U;
+		int                                              LastTimeout       = 0;
 		bool                                             LastStopRequested = false;
 		std::optional<application::agent_launch_request> LastRequest;
 		std::function<void()>                            AfterStart;
@@ -1693,6 +1695,24 @@ namespace {
 		}
 	}
 
+	/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("I guess we can keep a
+	/// timeout as an option, but i wouldnt want it on by default for my
+	/// work"). A run is given no time limit unless the request names one.
+	void test_a_run_has_no_time_limit_unless_one_is_set()
+	{
+		for (const auto limit : { std::optional<int>{ }, std::optional<int>{ 600'000 } }) {
+			auto       test   = harness{ };
+			const auto hostId = core::git_host_id{ 1U };
+			test.Host.observe(core::application_session_id{ 1U }, authority(hostId), binding(hostId));
+			auto asked                 = request(hostId, core::external_terminal_profile_id);
+			asked.RunLimitMilliseconds = limit;
+			test.Host.dispatch(std::move(asked));
+			test.settle();
+			expect(test.Processes.Starts == 1U && test.Processes.LastTimeout == limit.value_or(application::agent_run_without_limit),
+				   limit ? "a limit the reviewer set is the launcher's" : "with none set the launcher waits as long as it can: no limit");
+		}
+	}
+
 	/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Check it works. The workspace probe
 	/// makes and removes the workspace an Ask would make, admits no session,
 	/// starts no process, answers on the decision lane and holds quiescence
@@ -1754,6 +1774,7 @@ auto main() -> int
 	test_a_promoted_finding_reaches_only_the_note_authority();
 	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
 	test_the_brief_names_the_workspace_that_was_made();
+	test_a_run_has_no_time_limit_unless_one_is_set();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

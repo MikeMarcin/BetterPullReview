@@ -250,7 +250,6 @@ namespace bpr::qt {
 		QLabel*                                             CardState       = nullptr;
 		QLabel*                                             Status          = nullptr;
 		QLabel*                                             Notice          = nullptr;
-		QLabel*                                             OnlyYou         = nullptr;
 		QPlainTextEdit*                                     Body            = nullptr;
 		QAbstractButton*                                    SaveButton      = nullptr;
 		QAbstractButton*                                    DraftButton     = nullptr;

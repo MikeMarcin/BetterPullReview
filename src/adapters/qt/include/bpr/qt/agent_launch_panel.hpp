@@ -84,6 +84,9 @@ namespace bpr::qt {
 
 		void set_dispatch(agent_intent_dispatch aDispatch);
 		void set_configuration_observer(std::function<void()> aObserver);
+		/// \brief Owner decision 2026-10-23: the run time limit the reviewer
+		/// set (0 for none), so a run it ends says so plainly.
+		void set_run_limit_minutes(std::uint32_t aMinutes) noexcept { RunLimitMinutes = aMinutes; }
 
 		/// \brief Offers the profiles this host permits, and no others.
 		///
@@ -164,6 +167,7 @@ namespace bpr::qt {
 		void update_actions();
 
 		std::function<void()> ConfigurationObserver;
+		std::uint32_t         RunLimitMinutes = 0U;
 		agent_intent_dispatch Dispatch;
 		QComboBox*            ProfileSelector = nullptr;
 		/// [[BPR-PENDING-AQ2]]. Selected whenever it is offered.

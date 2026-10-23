@@ -404,24 +404,20 @@ namespace bpr::qt {
 		Status->setForegroundRole(QPalette::PlaceholderText);
 		Status->hide();
 		column->addWidget(Status);
+		// [[BPR-PENDING-AQ6]], owner look v003 ("The note we saved also has
+		// some not great ux at the bottom"): the header's lock already says the
+		// note is private, so the foot holds the actions alone: Delete on the
+		// left, then Discard changes, Draft comment and Save, whole at any
+		// width the drawer allows.
 		auto* const foot = new QHBoxLayout{ };
 		foot->setSpacing(6);
-		auto* const onlyLock = new QLabel{ Card };
-		onlyLock->setObjectName(QStringLiteral("privateNoteOnlyYouLock"));
-		onlyLock->setPixmap(conversation_icon(conversation_glyph::lock, colours.Faint).pixmap(12, 12));
-		foot->addWidget(onlyLock);
-		OnlyYou = new QLabel{ tr("Only you"), Card };
-		OnlyYou->setObjectName(QStringLiteral("privateNoteOnlyYou"));
-		OnlyYou->setForegroundRole(QPalette::PlaceholderText);
-		OnlyYou->setToolTip(tr("Private: only you see this note, and nothing here is published."));
-		foot->addWidget(OnlyYou);
-		foot->addStretch(1);
 		auto* const remove = new note_tool{ conversation_glyph::trash, Card };
 		remove->setObjectName(QStringLiteral("privateNoteDelete"));
 		remove->setToolTip(tr("Delete note"));
 		remove->setAccessibleName(tr("Delete note"));
 		DeleteButton = remove;
 		foot->addWidget(DeleteButton);
+		foot->addStretch(1);
 		auto* const discard = new note_button{ note_button::kind::secondary, tr("Discard changes"), Card };
 		discard->setObjectName(QStringLiteral("privateNoteDiscard"));
 		discard->set_style(style);
@@ -432,9 +428,10 @@ namespace bpr::qt {
 		draft->set_style(style);
 		DraftButton = draft;
 		foot->addWidget(DraftButton);
-		auto* const save = new note_button{ note_button::kind::primary, QStringLiteral("%1  %2").arg(tr("Save"), QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)), Card };
+		auto* const save = new note_button{ note_button::kind::primary, tr("Save"), Card };
 		save->setObjectName(QStringLiteral("privateNoteSave"));
 		save->setAccessibleName(tr("Save"));
+		save->setToolTip(tr("Save (%1). Only you see this note; nothing here is published.").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 		save->set_style(style);
 		SaveButton = save;
 		foot->addWidget(SaveButton);
@@ -1159,7 +1156,7 @@ namespace bpr::qt {
 		for (auto* const button : { DiscardButton, DraftButton, SaveButton }) {
 			static_cast<note_button*>(button)->set_style(style);
 		}
-		for (const auto* name : { "privateNoteLock", "privateNoteOnlyYouLock" }) {
+		for (const auto* name : { "privateNoteLock" }) {
 			if (auto* const lock = Card->findChild<QLabel*>(QString::fromLatin1(name)); lock != nullptr) {
 				lock->setPixmap(conversation_icon(conversation_glyph::lock, colours.Faint).pixmap(12, 12));
 			}

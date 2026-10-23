@@ -171,7 +171,7 @@ namespace bpr::application {
 		/// The repository of the review now open, or none.
 		void observe_repository(std::optional<clone_repository> aRepository);
 		/// Looks in the listed folders for this repository's clones.
-		void discover();
+		void look_again();
 		void set_clone_folders(std::vector<std::string> aFolders);
 		void add_clone_folder(std::string aFolder);
 		void remove_clone_folder(const std::string& aFolder);

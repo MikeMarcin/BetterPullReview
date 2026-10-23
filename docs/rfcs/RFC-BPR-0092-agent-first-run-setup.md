@@ -673,6 +673,45 @@ coordinator, verbatim:
   only the current agent's. Notes and drafts made from a card or a reply are
   the pull request's private review state, not a session's: clearing or
   switching never removes them, and they stay in the notes and drafts views.
+- **No run time limit by default ("Don't have a timeout limit, cancel is
+  sufficient.", then "I guess we can keep a timeout as an option, but i
+  wouldnt want it on by default for my work.").** The second replaces the
+  first. The 120-second run limit is gone: a run goes on until the agent
+  finishes or the reviewer presses Stop, which is always in reach (the
+  question field's Send becomes Stop) and stops the process group through
+  the existing supervision; closing the window or quitting still stops it,
+  and the run's time stays shown. Settings › Agents & context has **Stop a
+  run after N min**, one limit for every agent (simpler than per agent),
+  off by default and for every profile that had none; a run it ends stops as
+  Stop does and says so. "No limit" is the longest wait the launchers' `int`
+  of milliseconds can name, a little under 25 days. The setup's own sign-in
+  check keeps its 15-second bound: it is a probe, not a run.
+- **The owner's three recommendations ("Go with your recommendation for the
+  3 decisions").**
+  1. The Claude › Process wrapper and Model settings are removed; their
+     values moved into the Claude Code agent. Tour writing asks the agent
+     chosen in the Agent tab when it speaks Claude Code's stream JSON,
+     otherwise the first in the list that does; Review Cycles Send to Agent
+     offers the list's agents, the pull request's current one first.
+  2. A custom agent's setup check confirms only that its program can be
+     launched; an entry may name its own check, fixed arguments run under
+     the same no-shell rules, which must exit 0. Claude Code and Codex keep
+     their sign-in status check.
+  3. When a finding's file is not the one on screen, Add as draft comment
+     and Save as note open that file in Review, go to the line, then make the
+     draft or note; when the file or the line is not there at the current
+     head, the card says so and stays open.
+- **Look v003's cleanup (Reject, "Great progress. It actually functions
+  now.").** Setup's Repository step adds one folder (a line with Browse…,
+  then Add); the folder list is Settings' alone. The question field is one
+  rounded field with one row under the words, after the Claude Code and
+  Codex composers: Context and Suggestions as icons and what the agent may
+  read, then the agent pill and Send (Stop while it works), the pill an icon
+  alone when narrow. The header is the session's title with History and New
+  session as icons. Each reply is a card with Copy (the whole reply as
+  Markdown), Save as note and its time, its code coloured by the shared
+  Markdown code host as comments' code is. A saved note's foot is its
+  actions alone, none cut short.
 
 ## Acceptance
 

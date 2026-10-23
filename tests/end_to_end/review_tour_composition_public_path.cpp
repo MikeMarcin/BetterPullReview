@@ -523,27 +523,27 @@ auto main(int argc, char** argv) -> int
 			};
 
 			select_file(window, "review.cpp");
-			wait([&] { return selector->count() > 0; }, "agent offerings follow accepted source");
-			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())));
-			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
-			auto* rows  = window.claude_wrapper();
-			auto* found = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperFound"));
-			if (std::string_view{ argv[3] } != "-") {
-				rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"))->setText(QString::fromLocal8Bit(argv[3]));
-				rows->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"))->click();
-				wait([&] { return rows->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"))->text() == QStringLiteral("Saved for this profile."); }, "the wrapper is saved for the profile");
-			}
-			// [[BPR-1375]]. argv[4], when given, is the Claude model saved
-			// through the real Settings row and passed as `--model`.
-			if (argc > 4) {
-				rows->findChild<QLineEdit*>(QStringLiteral("claudeModel"))->setText(QString::fromLocal8Bit(argv[4]));
-				rows->findChild<QPushButton*>(QStringLiteral("claudeModelSave"))->click();
-				wait([&] { return rows->findChild<QLabel*>(QStringLiteral("claudeModelStatus"))->text() == QStringLiteral("Saved for this profile."); }, "the model is saved for the profile");
-			}
-			window.settings()->present(qt::settings_page::agents_and_context);
-			// The found line is looked up when shown; a saved wrapper hides it.
-			static_cast<void>(e2e::wait_until_plain([&] { return !found->isVisibleTo(rows) || !found->text().isEmpty(); }, std::chrono::milliseconds{ 5'000 }));
-			report("settings", { { QStringLiteral("found_line"), found->isVisibleTo(rows) ? found->text() : QString{ } }, { QStringLiteral("wrapper"), rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"))->text() }, { QStringLiteral("model"), rows->findChild<QLineEdit*>(QStringLiteral("claudeModel"))->text() } });
+			// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: Claude Code is an
+			// agent in the list, its program and model on its entry.
+			const auto installedProgram = std::string_view{ argv[3] } != "-" ? std::string{ argv[3] } : std::string{ };
+			const auto installedModel   = argc > 4 ? std::string{ argv[4] } : std::string{ };
+			window.agent_programs()->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+				auto entry    = aStart;
+				entry.Program = installedProgram;
+				entry.Model   = installedModel;
+				return entry;
+			});
+			const auto installedClaude = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+			wait([&] {
+				if (selector->findData(QVariant::fromValue<qulonglong>(installedClaude.value())) < 0) {
+					window.agent_programs()->add_agent(core::setup_agent::claude_code);
+				}
+				return selector->findData(QVariant::fromValue<qulonglong>(installedClaude.value())) >= 0;
+			},
+				 "the added Claude Code is offered");
+			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(installedClaude.value())));
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == installedClaude; }, "writing host ready");
+			report("settings", { { QStringLiteral("program"), QString::fromStdString(installedProgram) }, { QStringLiteral("model"), QString::fromStdString(installedModel) } });
 			window.settings()->hide();
 			window.activateWindow();
 			wait([&] { return window.isActiveWindow(); }, "the workbench is active again after Settings");
@@ -707,12 +707,32 @@ auto main(int argc, char** argv) -> int
 		// supervised launcher and the restricted protocol. The wrapper is
 		// still there after a restart.
 		if (wrapperCourse) {
+			// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Tour writing asks
+			// the agent chosen in the list. Claude Code, added with no program
+			// of its own, runs the claude a launch finds; its own program, saved
+			// on its entry, wins; and its model is passed as --model.
 			auto* panel    = window.agent_panel();
 			auto* selector = panel->profile_selector();
+			auto* agents   = window.agent_programs();
+			auto  program  = std::string{ };
+			auto  model    = std::string{ };
+			agents->set_editor([&](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+				auto entry    = aStart;
+				entry.Program = program;
+				entry.Model   = model;
+				return entry;
+			});
 			select_file(window, "review.cpp");
-			wait([&] { return selector->count() > 0; }, "agent offerings follow accepted source");
-			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())));
-			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
+			const auto claude = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+			wait([&] {
+				if (selector->findData(QVariant::fromValue<qulonglong>(claude.value())) < 0) {
+					agents->add_agent(core::setup_agent::claude_code);
+				}
+				return selector->findData(QVariant::fromValue<qulonglong>(claude.value())) >= 0;
+			},
+				 "the added Claude Code is offered");
+			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(claude.value())));
+			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == claude; }, "writing host ready");
 			window.open_review_tour();
 			editor.show_problem();
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
@@ -722,21 +742,11 @@ auto main(int argc, char** argv) -> int
 			saved(editor);
 			const auto run    = [&] {const auto before=access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;magic->click();wait([&]{const auto evidence=access::agent_invocation_evidence(*application);return evidence.AgentProcessLauncherInvocations>before && evidence.Quiescent;},"writing child process and cleanup finish");saved(editor); };
 			const auto select = [&] {auto cursor=prose->textCursor();cursor.setPosition(3);cursor.setPosition(7,QTextCursor::KeepAnchor);prose->setTextCursor(cursor); };
-			auto*      rows   = window.claude_wrapper();
-			auto*      path   = rows->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
-			auto*      save   = rows->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"));
-			auto*      answer = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"));
-			auto*      found  = rows->findChild<QLabel*>(QStringLiteral("claudeWrapperFound"));
-			const auto look   = [&](const QString& aLine, const char* aWhat) {
-				window.settings()->hide();
-				window.settings()->present(qt::settings_page::agents_and_context);
-				wait([&] { return found->text() == aLine && found->isVisible(); }, aWhat);
-				window.settings()->hide();
-				// Writing assistance answers only its active window.
-				window.activateWindow();
-				wait([&] { return window.isActiveWindow(); }, "the workbench is active again after Settings");
+			const auto edit   = [&](const char* aWhat) {
+				agents->agent_list()->setCurrentRow(0);
+				agents->edit_button()->click();
+				wait([&] { return !agents->status()->text().isEmpty(); }, aWhat);
 			};
-			look(QStringLiteral("claude not found on PATH or in the usual install folders; set a wrapper."), "Settings says no claude was found");
 			select();
 			const auto captured = *prose->capture();
 			const auto before   = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
@@ -744,57 +754,51 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return status->text() == QStringLiteral("Assistance did not complete; your text is unchanged.") && access::agent_invocation_evidence(*application).Quiescent; },
 				 "the request with no claude found ends");
 			expect(prose->raw() == captured.Raw && access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == before,
-				   "failing-before control: with no wrapper and no claude found nothing starts and nothing changes");
+				   "failing-before control: with no program of its own and no claude found nothing starts and nothing changes");
 			// The scoped writing agent, put on the course's PATH as claude.
 			const auto claudeOnPath = claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string());
 			std::filesystem::copy_file(argv[2], claudeOnPath);
-			look(QStringLiteral("Using %1 (found on PATH).").arg(QString::fromStdString(claudeOnPath.string())), "Settings names the claude found on PATH");
 			select();
 			const auto viaPath = *prose->capture();
 			run();
 			expect(prose->raw() == viaPath.Raw.substr(0, viaPath.Selection.Begin) + "Rewritten 😀\r\nexact." + viaPath.Raw.substr(viaPath.Selection.End),
-				   "with no wrapper the same writing request runs the claude found on PATH");
+				   "with no program of its own the same writing request runs the claude found on PATH");
 			std::filesystem::remove(claudeOnPath);
-			path->setText(QStringLiteral("relative/agent"));
-			save->click();
-			wait([&] { return answer->text().startsWith(QStringLiteral("Not saved.")); }, "a relative wrapper is answered");
-			expect(answer->text() == QStringLiteral("Not saved. The path is not absolute; write the full path from the root."), "a relative wrapper is refused in one line");
-			path->setText(QString::fromLocal8Bit(argv[2]));
-			save->click();
-			wait([&] { return answer->text() == QStringLiteral("Saved for this profile."); }, "the wrapper is saved for the profile");
-			expect(!found->isVisibleTo(rows), "a saved wrapper wins: Settings names no PATH claude");
+			program = "relative/agent";
+			edit("a relative program is answered");
+			expect(agents->status()->text() == QString::fromUtf8(core::describe(core::agent_entry_refusal::invalid_program).data()), "a relative program is refused in one line");
+			program = argv[2];
+			agents->status()->clear();
+			edit("the program is saved on the entry");
+			expect(agents->status()->text() == QStringLiteral("Saved."), "the entry's own program is saved");
 			select();
-			const auto viaWrapper = *prose->capture();
+			const auto viaProgram = *prose->capture();
 			run();
-			const auto expected = viaWrapper.Raw.substr(0, viaWrapper.Selection.Begin) + "Rewritten 😀\r\nexact." + viaWrapper.Raw.substr(viaWrapper.Selection.End);
+			const auto expected = viaProgram.Raw.substr(0, viaProgram.Selection.Begin) + "Rewritten 😀\r\nexact." + viaProgram.Raw.substr(viaProgram.Selection.End);
 			if (prose->raw() != expected) {
 				std::cerr << "writing status: " << status->text().toStdString() << " agent: " << panel->status_text().toStdString() << '\n';
 			}
-			expect(prose->raw() == expected, "the same writing request runs the saved wrapper with Claude's exact tool-free arguments");
-			// [[BPR-1375]]. The profile's Claude model, saved through its row,
-			// is passed as `--model`; a name that could read as an option is
-			// refused before it is stored.
-			auto* model       = rows->findChild<QLineEdit*>(QStringLiteral("claudeModel"));
-			auto* modelSave   = rows->findChild<QPushButton*>(QStringLiteral("claudeModelSave"));
-			auto* modelStatus = rows->findChild<QLabel*>(QStringLiteral("claudeModelStatus"));
-			model->setText(QStringLiteral("--dangerously-skip-permissions"));
-			modelSave->click();
-			expect(modelStatus->text().startsWith(QStringLiteral("Not saved. Use the model's name")), "a model name that reads as an option is refused");
-			model->setText(QStringLiteral("claude-sonnet-5-5"));
-			modelSave->click();
-			wait([&] { return modelStatus->text() == QStringLiteral("Saved for this profile."); }, "the model is saved for the profile");
+			expect(prose->raw() == expected, "the same writing request runs the entry's own program with Claude's exact tool-free arguments");
+			// [[BPR-1375]]. The entry's model is passed as --model; a name that
+			// could read as an option is refused before it is stored.
+			model = "--dangerously-skip-permissions";
+			agents->status()->clear();
+			edit("an option-like model is answered");
+			expect(agents->status()->text() == QString::fromUtf8(core::describe(core::agent_entry_refusal::invalid_model).data()), "a model name that reads as an option is refused");
+			model = "claude-sonnet-5-5";
+			agents->status()->clear();
+			edit("the model is saved on the entry");
 			select();
 			const auto viaModel = *prose->capture();
 			run();
 			expect(prose->raw() == viaModel.Raw.substr(0, viaModel.Selection.Begin) + "Model claude-sonnet-5-5." + viaModel.Raw.substr(viaModel.Selection.End),
-				   "the writing request names the saved model with --model");
+				   "the writing request names the entry's model with --model");
 			shutdown(*application);
 			application.reset();
 			application    = make();
-			auto* reopened = application->window().claude_wrapper()->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
-			wait([&] { return reopened->text() == QString::fromLocal8Bit(argv[2]); }, "the wrapper survives a restart");
-			auto* reopenedModel = application->window().claude_wrapper()->findChild<QLineEdit*>(QStringLiteral("claudeModel"));
-			wait([&] { return reopenedModel->text() == QStringLiteral("claude-sonnet-5-5"); }, "the model survives a restart");
+			auto* reopened = application->window().agent_programs()->agent_list();
+			wait([&] { return reopened->count() == 1 && reopened->item(0)->text().contains(QString::fromLocal8Bit(argv[2])) && reopened->item(0)->text().contains(QStringLiteral("claude-sonnet-5-5")); },
+				 "the entry's program and model survive a restart");
 			shutdown(*application);
 			std::cout << "review-tour-writing-wrapper:pass\n";
 			return EXIT_SUCCESS;

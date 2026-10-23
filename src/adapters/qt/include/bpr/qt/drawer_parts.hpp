@@ -105,6 +105,19 @@ namespace bpr::qt {
 		agent,
 		/// [[BPR-1592]]. Two commits joined into a third: the pull request.
 		pull_request,
+		/// [[BPR-PENDING-AQ6]], owner look v003. Two pages, one over the
+		/// other: copy.
+		copy,
+		/// A plus: add context.
+		plus,
+		/// An arrow turning back on itself: clear and start again.
+		clear,
+		/// An arrow up: send.
+		send,
+		/// A clock with an arrow round it: history.
+		history,
+		/// A square with a pen: a new session.
+		new_session,
 	};
 	[[nodiscard]] auto drawer_icon(drawer_glyph aGlyph, const QPalette& aPalette) -> QIcon;
 

@@ -23,6 +23,7 @@ class QLineEdit;
 class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
+class QSpinBox;
 
 namespace bpr::qt {
 	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092, owner amendment 2026-10-23
@@ -42,6 +43,9 @@ namespace bpr::qt {
 			std::function<void(core::agent_entry, answer)> Update;
 			std::function<void(std::uint32_t)>             Remove;
 			std::function<void(std::uint32_t, int)>        Move;
+			/// Owner decision 2026-10-23: the run time limit in minutes, 0 for
+			/// none. Answers whether it was taken.
+			std::function<bool(std::uint32_t)> SetRunLimit;
 			/// Kept for the built-in profiles: an empty path clears it.
 			std::function<void(core::setup_agent, std::string)> SetProgram;
 			std::function<void(core::codex_protocol_choice)>    SetProtocol;
@@ -67,6 +71,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto up_button() const noexcept -> QPushButton* { return UpButton; }
 		[[nodiscard]] auto down_button() const noexcept -> QPushButton* { return DownButton; }
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
+		[[nodiscard]] auto run_limit_toggle() const noexcept -> QCheckBox* { return RunLimitOn; }
+		[[nodiscard]] auto run_limit_minutes() const noexcept -> QSpinBox* { return RunLimit; }
 
 	private:
 		void                               settle_buttons();
@@ -82,6 +88,9 @@ namespace bpr::qt {
 		QPushButton*                       UpButton     = nullptr;
 		QPushButton*                       DownButton   = nullptr;
 		QLabel*                            Status       = nullptr;
+		QCheckBox*                         RunLimitOn   = nullptr;
+		QSpinBox*                          RunLimit     = nullptr;
+		void                               send_run_limit();
 	};
 
 	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner decision D2). Settings ›

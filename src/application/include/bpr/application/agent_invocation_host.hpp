@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -72,9 +73,19 @@ namespace bpr::application {
 		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. The reviewer's linked clone,
 		/// whose history the session's workspace borrows read-only.
 		std::optional<std::filesystem::path> HistoryClone;
+		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("I guess we can keep
+		/// a timeout as an option, but i wouldnt want it on by default for my
+		/// work"): the run's time limit when the reviewer set one; none runs
+		/// until the agent finishes or Stop.
+		std::optional<int> RunLimitMilliseconds;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
+
+	/// \brief What "no limit" is to the process launchers: the longest wait
+	/// an `int` of milliseconds can name, a little under 25 days. A run that
+	/// long is ended only by Stop, closing the window or quitting.
+	inline constexpr int agent_run_without_limit = std::numeric_limits<int>::max();
 
 	/// \brief Exact identity admitted for one invocation's UI projections.
 	struct agent_invocation_projection_identity

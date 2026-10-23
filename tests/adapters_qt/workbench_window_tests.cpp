@@ -61,6 +61,7 @@
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QGuiApplication>
 #include <QHelpEvent>
 #include <QIcon>
 #include <QImage>
@@ -13878,17 +13879,20 @@ namespace {
 			identity.ApplicationSession   = core::application_session_id{ 1U };
 			identity.Session.Id           = core::agent_session_id{ 8U };
 			identity.InvocationGeneration = 1U;
-			const auto text               = [agent] { return agent->findChild<QLabel*>(QStringLiteral("agentStateText"))->text(); };
 			const auto title              = [agent] { return agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text(); };
 			window.agent_panel()->admit(identity);
 			process_events();
-			expect(agent->state() == qt::agent_tab_state::working && text().contains(QStringLiteral("Making the agent's workspace")), "admitted, the tab says the workspace is being made");
+			// Owner look v003: the turn's own quiet line says what is happening,
+			// and the field's Send is Stop while the agent works.
+			expect(agent->state() == qt::agent_tab_state::working && agent->turn_footer(0U).contains(QStringLiteral("is making its workspace")) && !agent->banner()->isVisible()
+					   && agent->ask_button()->text() == QStringLiteral("Stop"),
+				   "admitted, the turn says the workspace is being made, and Send is Stop");
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
 			process_events();
-			expect(text().startsWith(QStringLiteral("Running, 0:0")) && text().contains(QStringLiteral("appear here when it finishes")), "running, it says so with the time it has taken");
+			expect(agent->turn_footer(0U).startsWith(QStringLiteral("● ")) && agent->turn_footer(0U).contains(QStringLiteral("is thinking, 0:0")), "running, it says so with the time it has taken");
 			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Reading src/engine/renderer.cpp" });
 			process_events();
-			expect(text().contains(QStringLiteral("Latest: Reading src/engine/renderer.cpp")), "and shows the agent's latest line as it writes");
+			expect(agent->turn_footer(0U).contains(QStringLiteral("is writing")), "and says it writes as the answer streams");
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-working.png"), "PNG"), "render saved");
 			}
@@ -13968,6 +13972,9 @@ namespace {
 			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::open && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
 				   "Undo opens the card again");
 			agent->set_finding_card_dispatch({ });
+			// Owner decision 2026-10-23: a finding on another file opens it in Review
+			// first; a path the pull request does not have is answered as such.
+			expect(!window.open_file_in_review(QStringLiteral("not/in/this/pull/request.cpp")), "a file the pull request does not have is not opened");
 			// A plain reply offers Save as note for the whole of it.
 			auto savedNote = QString{ };
 			agent->set_answer_note_dispatch([&savedNote](const QString& aText, std::function<void(bool, const QString&)> aDone) {
@@ -13981,6 +13988,17 @@ namespace {
 			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Saved as a note") && !saveNote->isEnabled(),
 				   "Save as note keeps the reply as a note and says so");
 			agent->set_answer_note_dispatch({ });
+			// Owner look v003 ("something we could copy the whole response ...
+			// Timestamp would also be nice"): each reply has Copy and its time.
+			auto* const copy = agent->turn_copy_button(1U);
+			expect(copy != nullptr && !copy->isHidden(), "a reply offers Copy");
+			copy->click();
+			expect(QGuiApplication::clipboard()->text() == agent->turn_answer(1U), "Copy copies the whole response as written");
+			expect(agent->turn_time(1U) != nullptr && !agent->turn_time(1U)->isHidden() && agent->turn_time(1U)->text() == QStringLiteral("just now")
+					   && !agent->turn_time(1U)->toolTip().isEmpty(),
+				   "and says when it answered, the whole time on hover");
+			agent->set_session_title(QStringLiteral("#17 Keep review snapshots deterministic"));
+			expect(agent->session_title()->text() == QStringLiteral("#17 Keep review snapshots deterministic"), "the header names the session");
 
 			// Owner look v002 ("Not having a model/effort picker in this window
 			// bothers the hell out of me. I can't even do /model"). The context
@@ -14099,6 +14117,13 @@ namespace {
 			expect(agent->turn_count() == 1U && agent->turn_question(0U) == QStringLiteral("Does this work?") && agent->turn_answer(0U) == QStringLiteral("Yes.")
 					   && agent->turn_footer(0U) == QStringLiteral("Claude Code answered in 0:12.") && observedThread.empty(),
 				   "a kept thread is shown again as it was, without being kept again");
+			// The answers' code is coloured by the shared Markdown code host.
+			auto codeAsks = std::size_t{ 0U };
+			agent->set_code_syntax_dispatch([&codeAsks](std::vector<application::markdown_code_syntax_request> aRequests) { codeAsks += aRequests.size(); });
+			agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```"), .Footer = QStringLiteral("answered") } });
+			process_events();
+			expect(codeAsks > 0U, "a reply's fenced code asks the code host for its colours");
+			agent->set_code_syntax_dispatch({ });
 			agent->present_thread({ });
 			agent->set_clear_session_dispatch({ });
 			agent->set_clear_confirmation({ });

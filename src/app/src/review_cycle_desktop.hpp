@@ -126,6 +126,10 @@ namespace bpr::app {
 		/// is offered first; the others keep their order. Absent, the order is
 		/// the one given.
 		void prefer_send_profile(std::optional<core::agent_profile_id> aProfile);
+		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Send to Agent
+		/// offers the agents the reviewer added and launches each as its entry
+		/// says; with none added the profiles given stay.
+		void offer_agents(std::vector<core::agent_entry> aEntries);
 		/// \brief Replaces where the account comes from, keeping the catalog.
 		void set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount);
 		/// \brief What this window holds of cycle `aCycle`'s round draft that
@@ -199,6 +203,8 @@ namespace bpr::app {
 		/// `SendProcesses` gives Codex and the plain-text harness a program.
 		std::unique_ptr<application::agent_process_port>     SendClaude;
 		std::unique_ptr<application::agent_process_port>     SendProcesses;
+		std::shared_ptr<application::agent_entry_source>     SendEntries;
+		std::unique_ptr<application::agent_process_port>     SendEntryProcess;
 		std::unique_ptr<worker_executor>                     SendLane;
 		std::shared_ptr<application::review_cycle_sender>    Sender;
 		std::unique_ptr<application::review_cycle_workbench> Host;

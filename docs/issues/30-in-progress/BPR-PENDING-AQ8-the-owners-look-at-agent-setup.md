@@ -149,3 +149,7 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   timeout limit, cancel is sufficient.", then "I guess we can keep a timeout
   as an option, but i wouldnt want it on by default for my work." Recorded in
   the RFC; v004 builds the second.
+- Owner decision 2026-10-23, in chat (relayed), verbatim: "Go with your
+  recommendation for the 3 decisions" (the old Claude wrapper settings onto
+  the agent list, a custom agent's setup check, and drafting on another
+  file). Recorded in the RFC; v004 builds all three.

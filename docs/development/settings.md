@@ -83,17 +83,23 @@ Under **Agents & context**:
   version N** or **Keep mine**. **Restore default** saves your copy to
   Downloads first unless you untick it.
 
-Under **Agents & context > Claude**:
+The Claude process wrapper and Claude model rows are gone (owner decision,
+2026-10-23): a profile's saved wrapper and model moved into its Claude Code
+agent, whose program and model the list's **Edit…** changes. Tour writing
+asks the agent chosen in the Agent tab when it speaks Claude Code's stream
+JSON, otherwise the first one in the list that does, and Review Cycles **Send
+to Agent** offers the list's agents, the Agent tab's current one first. Each
+agent's model and effort show in the Agent tab's question field, where the
+chip and `/model` and `/effort` set them. BetterPullReview never handles an
+agent's sign-in.
 
-- **Process wrapper** is the full path to a program to run instead of
-  `claude`, for example one that sets up your provider first. Left empty,
-  BetterPullReview uses the first `claude` on `PATH` or in the usual install
-  folders, and says which.
-- **Model** is passed to Claude as `--model`. An added agent keeps its own
-  model and effort instead: the chip in the Agent tab's question field shows
-  and sets them, and `/model` and `/effort` in its question field do the
-  same. Review Cycles **Send to Agent** does not use them yet.
-- BetterPullReview never handles Claude's sign-in.
+- **Check** (in Add agent… and Edit…, for a custom agent only) is an optional
+  check of the agent's own: fixed arguments setup runs its program with, which
+  must exit 0. Empty, setup checks only that the program can be launched.
+  Claude Code and Codex keep their sign-in status check.
+- **Stop a run after N min** is off by default: a run goes on until the agent
+  finishes or you press Stop. On, it is one limit for every agent; a run it
+  ends says so.
 
 ### Review preparation writing hooks
 

@@ -239,6 +239,17 @@ and no credential is involved. A pull request's conversation is kept per
 agent (`agent_conversation_key::Agent`), so a follow-up carries only its own
 agent's earlier turns.
 
+**No run time limit by default ([[BPR-PENDING-AQ6]], owner decision
+2026-10-23).** A run has no time limit unless the reviewer sets one in
+Settings › Agents & context (one limit for every agent, in minutes, kept in
+`agent-setup.sqlite3`); with none, the launcher is given
+`application::agent_run_without_limit`, the longest wait an `int` of
+milliseconds names. Stop, closing the window and quitting end a run as
+before, through the same process-group supervision; output, workspace and
+frame bounds are unchanged and are not time limits. A custom agent's setup
+check runs only its program's own check arguments, fixed and without a
+shell, and must exit 0; with none it only inspects the program.
+
 **Findings in the answer ([[BPR-PENDING-AQ6]], owner decision 2026-10-23).**
 A harness writes its own result frame, so its model cannot add `bprFindings`
 to it. The review skill therefore asks for a block fenced `bpr-findings` at

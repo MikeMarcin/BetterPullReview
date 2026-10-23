@@ -34,6 +34,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto program() const noexcept -> QLineEdit* { return Program; }
 		[[nodiscard]] auto arguments() const noexcept -> QPlainTextEdit* { return Arguments; }
 		[[nodiscard]] auto model() const noexcept -> QLineEdit* { return Model; }
+		[[nodiscard]] auto check() const noexcept -> QPlainTextEdit* { return Check; }
 		[[nodiscard]] auto effort() const noexcept -> QComboBox* { return Effort; }
 		[[nodiscard]] auto problem() const noexcept -> QLabel* { return Problem; }
 		[[nodiscard]] auto buttons() const noexcept -> QDialogButtonBox* { return Buttons; }
@@ -47,6 +48,7 @@ namespace bpr::qt {
 		QComboBox*        Protocol  = nullptr;
 		QLineEdit*        Program   = nullptr;
 		QPlainTextEdit*   Arguments = nullptr;
+		QPlainTextEdit*   Check     = nullptr;
 		QLineEdit*        Model     = nullptr;
 		QComboBox*        Effort    = nullptr;
 		QLabel*           Problem   = nullptr;

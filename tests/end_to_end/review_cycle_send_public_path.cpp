@@ -4,6 +4,7 @@
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/review_cycle_response.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -569,6 +570,50 @@ namespace {
 		desktop.shutdown();
 		settle(lanes);
 	}
+
+	void sends_through_an_added_agent(const std::filesystem::path& aFixture, const std::filesystem::path& aProfileRoot, const std::filesystem::path& aScratch)
+	{
+		// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: Send to Agent offers
+		// the agents added to the list, each run as its entry says.
+		const auto project = aScratch / "entry-project";
+		write_file(project / "README.md", "# Wrapped\n");
+		const auto folder = aScratch / "entry";
+		std::filesystem::create_directories(folder);
+		const auto wrapper = folder / ("claude-gateway" + aFixture.extension().string());
+		std::filesystem::copy_file(aFixture, wrapper);
+
+		auto lanes  = application::manual_executor{ };
+		auto window = qt::workbench_window{ };
+		window.resize(1280, 800);
+		window.show();
+		auto       desktop = app::review_cycle_desktop{ window, aProfileRoot, core::bpr_profile_id{ 1 }, lanes, lanes, { }, &lanes };
+		const auto added   = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = wrapper.string() });
+		desktop.offer_agents(added);
+		auto* const page = open_cycle(desktop, window, lanes, project);
+		desktop.host().comment({ .Primary = core::cycle_whole_target{ }, .Body = "Run what I chose." });
+		settle(lanes);
+		const auto subject = *desktop.host().selected();
+		static_cast<void>(settle_store<application::cycle_write_receipt>(aProfileRoot, subject, [](auto& aRuntime, auto aDone) {
+			auto bytes = std::array<std::uint8_t, 32>{ };
+			bytes[0]   = 0xC8;
+			aRuntime.set_channel_permission(application::cycle_operation_id{ bytes }, core::cycle_data_classification::unclassified, core::cycle_disclosure_channel::agent_adapter,
+											core::cycle_channel_permission::allowed, std::move(aDone));
+		}));
+		auto* const sheet = compose(*page, lanes);
+		sheet->route_button(core::cycle_share_route::send_to_agent)->click();
+		settle(lanes);
+		choose(*sheet, core::entry_profile_id(added.front()), { });
+		const auto document = desktop.host().projection().Share->Document;
+		sheet->send_button()->click();
+		wait_for_send(desktop, lanes);
+		expect(sends_in(folder) == 1U && read_file(folder / "send-1.args") == "-p\n--input-format\nstream-json\n--output-format\nstream-json\n--verbose",
+			   "the added agent's own program ran, with exactly Claude's arguments");
+		expect(framed_text(read_file(folder / "send-1.stdin")) == QString::fromStdString(document), "and read the round exactly as Claude would");
+		expect(contains(sheet->status()->text(), QStringLiteral("Claude finished its turn on F1")), "the send finished as Claude's: " + sheet->status()->text().toStdString());
+		close_sheet(*sheet, lanes);
+		desktop.shutdown();
+		settle(lanes);
+	}
 }
 #endif
 
@@ -588,6 +633,7 @@ try {
 	expect(!arguments.empty(), "the stand-in harness is named");
 	sends_through_the_real_adapter(std::filesystem::path{ arguments.front() }, root, scratch.path());
 	sends_through_a_wrapper(std::filesystem::path{ arguments.front() }, root, scratch.path());
+	sends_through_an_added_agent(std::filesystem::path{ arguments.front() }, root, scratch.path());
 #else
 	const auto reopen = option("--reopen");
 	reads_without_the_adapter(reopen ? *reopen : root, scratch.path(), reopen.has_value());

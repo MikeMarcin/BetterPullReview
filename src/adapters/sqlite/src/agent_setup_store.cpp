@@ -106,7 +106,13 @@ namespace bpr::adapters::sqlite {
 									"arguments TEXT NOT NULL CHECK(length(CAST(arguments AS BLOB)) <= 4200),"
 									"model TEXT NOT NULL CHECK(length(CAST(model AS BLOB)) <= 128),"
 									"effort TEXT NOT NULL CHECK(length(CAST(effort AS BLOB)) <= 16),"
-									"preset INTEGER NOT NULL CHECK(preset BETWEEN -1 AND 1)) STRICT")
+									"preset INTEGER NOT NULL CHECK(preset BETWEEN -1 AND 1),"
+									"check_arguments TEXT NOT NULL CHECK(length(CAST(check_arguments AS BLOB)) <= 4200)) STRICT")
+				// Owner decision 2026-10-23: the run time limit; none means off.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_run_limit("
+									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
+									"minutes INTEGER NOT NULL CHECK(minutes BETWEEN 0 AND 1440)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_list("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -209,7 +215,7 @@ namespace bpr::adapters::sqlite {
 			auto committed = detail::execute(aDatabase, "DELETE FROM agent_entries").has_value();
 			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
 				const auto& entry = aPreferences.Agents[index];
-				auto        row   = detail::prepare(aDatabase, "INSERT INTO agent_entries VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)");
+				auto        row   = detail::prepare(aDatabase, "INSERT INTO agent_entries VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)");
 				committed         = row.has_value();
 				if (committed) {
 					sqlite3_bind_int64(row->Value, 1, static_cast<std::int64_t>(index));
@@ -222,7 +228,17 @@ namespace bpr::adapters::sqlite {
 					bind(row->Value, 7, entry.Model);
 					bind(row->Value, 8, entry.Effort);
 					sqlite3_bind_int64(row->Value, 9, entry.Preset ? static_cast<std::int64_t>(*entry.Preset) : -1);
+					const auto check = join_arguments(entry.CheckArguments);
+					bind(row->Value, 10, check);
 					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				auto limit = detail::prepare(aDatabase, "INSERT OR REPLACE INTO agent_run_limit VALUES(1,?1)");
+				committed  = limit.has_value();
+				if (committed) {
+					sqlite3_bind_int64(limit->Value, 1, aPreferences.RunLimitMinutes);
+					committed = sqlite3_step(limit->Value) == SQLITE_DONE;
 				}
 			}
 			if (committed) {
@@ -535,7 +551,7 @@ namespace bpr::adapters::sqlite {
 						loaded.AgentsMoved    = sqlite3_column_int64(list->Value, 0) == 1;
 						loaded.PreferredAgent = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(list->Value, 1), 0, 64));
 					}
-					if (auto rows = detail::prepare(store->Database.get(), "SELECT id,name,protocol,program,arguments,model,effort,preset FROM agent_entries ORDER BY position"); rows) {
+					if (auto rows = detail::prepare(store->Database.get(), "SELECT id,name,protocol,program,arguments,model,effort,preset,check_arguments FROM agent_entries ORDER BY position"); rows) {
 						while (sqlite3_step(rows->Value) == SQLITE_ROW) {
 							auto entry      = core::agent_entry{ };
 							entry.Id        = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(rows->Value, 0), 0, 64));
@@ -548,11 +564,15 @@ namespace bpr::adapters::sqlite {
 							if (const auto preset = sqlite3_column_int64(rows->Value, 7); preset >= 0) {
 								entry.Preset = static_cast<core::setup_agent>(preset);
 							}
+							entry.CheckArguments = split_arguments(column_text(rows->Value, 8).value_or(std::string{ }));
 							loaded.Agents.push_back(std::move(entry));
 						}
 					}
 					if (core::inspect_agent_entries(loaded.Agents)) {
 						loaded.Agents.clear();
+					}
+					if (auto limit = detail::prepare(store->Database.get(), "SELECT minutes FROM agent_run_limit WHERE singleton=1"); limit && sqlite3_step(limit->Value) == SQLITE_ROW) {
+						loaded.RunLimitMinutes = static_cast<std::uint32_t>(std::clamp<std::int64_t>(sqlite3_column_int64(limit->Value, 0), 0, 1440));
 					}
 					return application::valid(loaded) ? loaded : application::agent_setup_preferences{ };
 				} catch (...) {

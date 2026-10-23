@@ -129,12 +129,13 @@ try {
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by conversations");
 
 	// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agent list.
-	auto listed           = *store->load();
-	listed.Agents         = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
-	listed.Agents         = *core::add_agent_entry(listed.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex", "--profile=work" }, .Effort = "high" });
-	listed.Agents         = *core::add_agent_entry(listed.Agents, core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }));
-	listed.AgentsMoved    = true;
-	listed.PreferredAgent = 2U;
+	auto listed            = *store->load();
+	listed.Agents          = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
+	listed.Agents          = *core::add_agent_entry(listed.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex", "--profile=work" }, .Effort = "high", .CheckArguments = { "--codex", "login", "status" } });
+	listed.Agents          = *core::add_agent_entry(listed.Agents, core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }));
+	listed.AgentsMoved     = true;
+	listed.RunLimitMinutes = 45U;
+	listed.PreferredAgent  = 2U;
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");

@@ -1,12 +1,15 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_TAB_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_TAB_VIEW_HPP
 
+#include <QDateTime>
 #include <QElapsedTimer>
+#include <QFont>
 #include <QPointer>
 #include <QStringList>
 #include <QWidget>
 
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -31,6 +34,7 @@ namespace bpr::qt {
 	class drawer_empty_state;
 	class finding_queue_view;
 	class markdown_body_view;
+	class appearance_profile;
 	class side_chat_panel;
 
 	/// \brief [[BPR-1594]]. What the Agent tab says about its agent.
@@ -63,6 +67,9 @@ namespace bpr::qt {
 		QString Question;
 		QString Answer;
 		QString Footer;
+		/// When it was asked and answered; invalid when not known.
+		QDateTime AskedAt;
+		QDateTime AnsweredAt;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
@@ -173,6 +180,16 @@ namespace bpr::qt {
 		/// was such a command, which is then not sent to the agent.
 		auto               run_slash_command(const QString& aText) -> bool;
 		[[nodiscard]] auto run_settings_text() const -> QString;
+		/// \brief Owner look v003. The session's title in the header (the
+		/// pull request's), a reply's Copy and its time, and the answers' code
+		/// coloured as comments' code is (the shared Markdown code host).
+		void               set_session_title(const QString& aTitle);
+		[[nodiscard]] auto session_title() const noexcept -> QLabel* { return SessionTitle; }
+		[[nodiscard]] auto turn_copy_button(std::size_t aTurn) const -> QToolButton*;
+		[[nodiscard]] auto turn_time(std::size_t aTurn) const -> QLabel*;
+		void               set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		void               apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
+		void               adopt_appearance(const appearance_profile& aProfile);
 		/// \brief Owner amendment 2026-10-23: switches to another added agent,
 		/// as its row in the chip's menu does. Refused while one runs.
 		auto               choose_agent(std::uint64_t aProfile) -> bool;
@@ -320,13 +337,32 @@ namespace bpr::qt {
 			QPointer<QLabel>             Footer;
 			QPointer<QPushButton>        SaveNote;
 			QPointer<QVBoxLayout>        CardColumn;
+			QPointer<QToolButton>        Copy;
+			QPointer<QLabel>             AskedTime;
+			QPointer<QLabel>             AnsweredTime;
+			QDateTime                    AskedAt;
+			QDateTime                    AnsweredAt;
+			/// Names the answer's body, so its code is coloured as its own.
+			std::uint64_t Serial = 0U;
 		};
 		std::vector<turn> Turns;
 		QWidget*          Thread       = nullptr;
 		QVBoxLayout*      ThreadColumn = nullptr;
 		/// Each turn's widgets, made for a new or restored turn.
-		auto add_turn_widgets(turn& aTurn) -> void;
-		void set_answer(turn& aTurn, const QString& aText);
+		auto                                                                        add_turn_widgets(turn& aTurn) -> void;
+		void                                                                        set_answer(turn& aTurn, const QString& aText);
+		void                                                                        settle_reply_footer(turn& aTurn, bool aSucceeded);
+		void                                                                        refresh_times();
+		void                                                                        dress_answer(markdown_body_view& aAnswer) const;
+		void                                                                        fit_run_settings();
+		QLabel*                                                                     SessionTitle = nullptr;
+		QWidget*                                                                    EmptyIntro   = nullptr;
+		QWidget*                                                                    Field        = nullptr;
+		QString                                                                     RunSettingsTip;
+		std::optional<QFont>                                                        CodeFont;
+		std::optional<markdown_code_theme>                                          CodeTheme;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
+		std::uint64_t                                                               NextSerial = 1U;
 		/// The answer is as tall as its text at the thread's width.
 		void                                                fit_answer(markdown_body_view& aAnswer) const;
 		std::function<void(std::vector<agent_thread_turn>)> ThreadObserver;
@@ -359,7 +395,7 @@ namespace bpr::qt {
 		QLabel*      ReadyText  = nullptr;
 		QLabel*      ReadyGets  = nullptr;
 		QPushButton* Ask        = nullptr;
-		QPushButton* Context    = nullptr;
+		QToolButton* Context    = nullptr;
 		QLabel*      Chips      = nullptr;
 		QLabel*      Log        = nullptr;
 		bool         LogShown   = false;

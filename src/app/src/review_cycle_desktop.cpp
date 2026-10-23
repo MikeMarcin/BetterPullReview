@@ -359,15 +359,21 @@ namespace bpr::app {
 		// [[BPR-1301]]. A Claude send runs the profile's wrapper when one is
 		// saved, exactly as every other Claude launch of the window does, and
 		// with none saved the claude found on PATH (owner, 2026-10-07).
-		SendLauncher = std::make_unique<adapters::agent::agent_process_launcher>();
-		SendClaude   = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper,
-																			 std::move(aLocateClaude));
+		SendLauncher             = std::make_unique<adapters::agent::agent_process_launcher>();
+		auto       entryClaude   = aLocateClaude;
+		const auto entryPrograms = aLocatePrograms;
+		SendClaude               = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper,
+																						 std::move(aLocateClaude));
 		// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. A Codex or plain-text harness
 		// send runs the program the window's launches run.
 		SendProcesses = std::make_unique<application::located_agent_process>(*SendClaude, std::move(aPrograms), &adapters::agent::inspect_claude_process_wrapper,
 																			 std::move(aLocatePrograms));
-		SendLane      = std::make_unique<worker_executor>();
-		Sender        = std::make_shared<application::agent_round_sender>(*SendProcesses, [](const std::string& aName) -> std::optional<std::string> {
+		// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: an added agent runs
+		// its own program with its fixed arguments, as in the Agent tab.
+		SendEntries      = std::make_shared<application::agent_entry_source>();
+		SendEntryProcess = std::make_unique<application::agent_entry_process>(*SendLauncher, *SendProcesses, SendEntries, &adapters::agent::inspect_claude_process_wrapper, std::move(entryClaude), entryPrograms);
+		SendLane         = std::make_unique<worker_executor>();
+		Sender           = std::make_shared<application::agent_round_sender>(*SendEntryProcess, [](const std::string& aName) -> std::optional<std::string> {
 			if (!qEnvironmentVariableIsSet(aName.c_str())) {
 				return std::nullopt;
 			}
@@ -501,6 +507,21 @@ namespace bpr::app {
 		}
 		PreferredSendProfile = aProfile;
 		set_send_profiles(SendProfiles);
+	}
+
+	void review_cycle_desktop::offer_agents(std::vector<core::agent_entry> aEntries)
+	{
+		if (!SendEntries) {
+			return;
+		}
+		auto profiles = std::vector<core::agent_profile>{ };
+		for (const auto& entry : aEntries) {
+			profiles.push_back(core::entry_profile(entry));
+		}
+		SendEntries->set(std::move(aEntries));
+		if (!profiles.empty()) {
+			set_send_profiles(std::move(profiles));
+		}
 	}
 
 	void review_cycle_desktop::set_send_profiles(std::vector<core::agent_profile> aProfiles)

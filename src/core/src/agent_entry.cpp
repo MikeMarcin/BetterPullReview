@@ -122,9 +122,17 @@ namespace bpr::core {
 		if (aEntry.Arguments.size() > maximum_agent_entry_arguments) {
 			return agent_entry_refusal::too_many_arguments;
 		}
-		if (std::ranges::any_of(aEntry.Arguments, [](const std::string& aArgument) {
-				return aArgument.empty() || aArgument.size() > maximum_agent_entry_argument_bytes || !plain_text(aArgument);
-			})) {
+		const auto badArgument = [](const std::string& aArgument) {
+			return aArgument.empty() || aArgument.size() > maximum_agent_entry_argument_bytes || !plain_text(aArgument);
+		};
+		if (std::ranges::any_of(aEntry.Arguments, badArgument)) {
+			return agent_entry_refusal::invalid_argument;
+		}
+		// A check of its own is a custom agent's, under the same rules.
+		if (aEntry.CheckArguments.size() > maximum_agent_entry_arguments) {
+			return agent_entry_refusal::too_many_arguments;
+		}
+		if (std::ranges::any_of(aEntry.CheckArguments, badArgument) || (aEntry.Preset && !aEntry.CheckArguments.empty())) {
 			return agent_entry_refusal::invalid_argument;
 		}
 		const auto program = entry_settings_program(aEntry.Protocol);

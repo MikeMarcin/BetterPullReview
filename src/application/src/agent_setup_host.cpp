@@ -434,6 +434,20 @@ namespace bpr::application {
 		host.publish();
 	}
 
+	auto agent_setup_host::set_run_limit(const std::uint32_t aMinutes) -> bool
+	{
+		auto& host = *Implementation;
+		if (aMinutes > maximum_run_limit_minutes) {
+			return false;
+		}
+		if (host.Projection.Preferences.RunLimitMinutes != aMinutes) {
+			host.Projection.Preferences.RunLimitMinutes = aMinutes;
+			host.save();
+			host.publish();
+		}
+		return true;
+	}
+
 	void agent_setup_host::prefer_agent(const std::uint32_t aId)
 	{
 		auto& host = *Implementation;
@@ -460,6 +474,45 @@ namespace bpr::application {
 		host.Projection.State.AgentCheck = { .State = core::setup_check_state::running };
 		host.Projection.CheckDetail.clear();
 		host.publish();
+		// Owner decision 2026-10-23. A custom agent's check is that its
+		// program can be launched and, when it names one, that its own check
+		// exits 0; a popular agent keeps its sign-in status check.
+		if (const auto* const entry = host.preferred_entry(); entry != nullptr && !entry->Preset && core::setup_agent_of(entry->Protocol) == agent) {
+			const auto profile = std::ranges::find(host.Dependencies.Profiles, entry->Protocol, &core::agent_profile::Protocol);
+			auto       own     = std::optional<agent_launch_request>{ };
+			if (!entry->CheckArguments.empty() && profile != host.Dependencies.Profiles.end()) {
+				own              = agent_launch_request{ };
+				own->Protocol    = core::agent_protocol::external_terminal;
+				own->Session     = core::agent_session_id{ 1U };
+				own->Executable  = path;
+				own->Arguments   = entry->CheckArguments;
+				own->WritingOnly = true;
+				own->Environment = materialize_agent_environment(*profile, host.Dependencies.Parent);
+			}
+			struct custom
+			{
+				core::setup_check Check;
+				std::string       Detail;
+			};
+			host.off_lane(
+				host.Dependencies.Checks,
+				[inspect = host.Dependencies.Inspect, process = host.Dependencies.Process, path, check = std::move(own), stop = host.CheckStop.get_token()]() mutable {
+					const auto refusal = inspect ? inspect(path) : std::optional{ core::agent_wrapper_refusal::missing };
+					if (refusal) {
+						return custom{ .Check = core::fail_check(core::agent_setup_failure::program_refused), .Detail = std::string{ core::describe(*refusal) } };
+					}
+					if (!check || process == nullptr) {
+						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed } };
+					}
+					const auto ran = process->run(*check, agent_status_timeout_milliseconds, { }, stop);
+					if (ran.Outcome == agent_run_outcome::success) {
+						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed } };
+					}
+					return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran) };
+				},
+				[self = Implementation, generation, agent](custom aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail)); });
+			return;
+		}
 		if (agent == core::setup_agent::plain_text_harness) {
 			// No status command: the check is that its program can run now.
 			host.off_lane(

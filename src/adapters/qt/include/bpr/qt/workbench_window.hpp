@@ -965,6 +965,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
 		/// \brief [[BPR-1594]]. The Agent tab, and its two keys' actions.
 		[[nodiscard]] auto agent_tab() const noexcept -> agent_tab_view* { return AgentTab; }
+		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Opens one of
+		/// the pull request's files in Review, as choosing it in Files does, for
+		/// a finding card's draft or note at its lines. False when the path is
+		/// not one of the pull request's files now.
+		auto               open_file_in_review(const QString& aPath) -> bool;
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
 		void               open_review_tour();

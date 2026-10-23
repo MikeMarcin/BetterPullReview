@@ -81,6 +81,20 @@ namespace bpr::qt {
 		}
 		Arguments->setPlainText(joined.join(QLatin1Char{ '\n' }));
 		form->addRow(tr("Arguments"), Arguments);
+		// Owner decision 2026-10-23: a custom agent's own check, optional.
+		Check = new QPlainTextEdit{ this };
+		Check->setObjectName(QStringLiteral("agentEntryCheck"));
+		Check->setPlaceholderText(tr("Optional, one per line, such as --version"));
+		Check->setToolTip(tr("Setup runs the program with these arguments, and it must exit 0. Empty: setup checks only that the program can start."));
+		Check->setMaximumHeight(56);
+		Check->setTabChangesFocus(true);
+		auto check = QStringList{ };
+		for (const auto& argument : aEntry.CheckArguments) {
+			check << text_of(argument);
+		}
+		Check->setPlainText(check.join(QLatin1Char{ '\n' }));
+		Check->setEnabled(!aEntry.Preset);
+		form->addRow(tr("Check"), Check);
 		Model = new QLineEdit{ text_of(aEntry.Model), this };
 		Model->setObjectName(QStringLiteral("agentEntryModel"));
 		Model->setPlaceholderText(tr("Empty: the agent's own default"));
@@ -106,6 +120,7 @@ namespace bpr::qt {
 		connect(Name, &QLineEdit::textChanged, this, [this] { settle(); });
 		connect(Program, &QLineEdit::textChanged, this, [this] { settle(); });
 		connect(Arguments, &QPlainTextEdit::textChanged, this, [this] { settle(); });
+		connect(Check, &QPlainTextEdit::textChanged, this, [this] { settle(); });
 		connect(Model, &QLineEdit::textChanged, this, [this] { settle(); });
 		connect(Effort, &QComboBox::currentIndexChanged, this, [this] { settle(); });
 		connect(Protocol, &QComboBox::currentIndexChanged, this, [this] {
@@ -144,12 +159,22 @@ namespace bpr::qt {
 				result.Arguments.push_back(line.trimmed().toStdString());
 			}
 		}
+		result.CheckArguments.clear();
+		for (const auto& line : Check->toPlainText().split(QLatin1Char{ '\n' })) {
+			if (!line.trimmed().isEmpty()) {
+				result.CheckArguments.push_back(line.trimmed().toStdString());
+			}
+		}
 		result.Model  = Model->isEnabled() ? Model->text().trimmed().toStdString() : std::string{ };
 		result.Effort = Effort->currentData().toString().toStdString();
 		// A popular agent whose protocol was changed is a custom one now.
 		const auto codex = result.Protocol == core::agent_protocol::codex_app_server || result.Protocol == core::agent_protocol::codex_jsonl_exec;
 		if ((result.Preset == core::setup_agent::claude_code && result.Protocol != core::agent_protocol::claude_stream_json) || (result.Preset == core::setup_agent::codex && !codex)) {
 			result.Preset.reset();
+		}
+		// A popular agent keeps its sign-in check.
+		if (result.Preset) {
+			result.CheckArguments.clear();
 		}
 		return result;
 	}

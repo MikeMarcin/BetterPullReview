@@ -1,6 +1,5 @@
 #include "bpr/qt/agent_setup_view.hpp"
 
-#include "bpr/qt/folder_list_editor.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
@@ -12,6 +11,7 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -838,15 +838,56 @@ namespace bpr::qt {
 			ask->setFont(bold);
 			aBody.addWidget(ask);
 			aBody.addWidget(muted(tr("The agent reads more than the diff: callers, tests, history. Add the folder your clones are in, and BetterPullReview looks there for a clone of %1. It reads only each clone's Git configuration and runs nothing.").arg(name), parent));
-			// Owner look v002: Visual Studio's folder list, edited in place.
-			auto* const list = new folder_list_editor{ parent };
-			list->setObjectName(QStringLiteral("agentSetupAddFolder"));
-			list->set_change([this](std::vector<std::string> aFolders) {
-				if (Intents.SetCloneFolders) {
-					Intents.SetCloneFolders(std::move(aFolders));
+			// Owner look v003 ("it's fine to just add a single folder line
+			// from there. The list editor was meant for settings page"): one
+			// folder, typed or browsed, then Add.
+			auto* const line = new QHBoxLayout{ };
+			line->setSpacing(6);
+			auto* const path = new QLineEdit{ parent };
+			path->setObjectName(QStringLiteral("agentSetupFolderPath"));
+			path->setPlaceholderText(QDir::toNativeSeparators(QStringLiteral("~/Documents/GitHub")));
+			path->setAccessibleName(tr("The folder your clones are in"));
+			line->addWidget(path, 1);
+			auto* const browse = new quiet_push_button{ tr("Browse…"), parent };
+			browse->setObjectName(QStringLiteral("agentSetupFolderBrowse"));
+			line->addWidget(browse);
+			auto* const add = primary_button(tr("Add"), parent, QStringLiteral("agentSetupFolderAdd"));
+			add->setEnabled(false);
+			line->addWidget(add);
+			aBody.addLayout(line);
+			auto* const status = muted({ }, parent);
+			status->setObjectName(QStringLiteral("agentSetupFolderStatus"));
+			status->hide();
+			aBody.addWidget(status);
+			connect(path, &QLineEdit::textChanged, add, [add, status](const QString& aText) {
+				add->setEnabled(!aText.trimmed().isEmpty());
+				status->hide();
+			});
+			connect(browse, &QPushButton::clicked, this, [this, path] {
+				const auto folder = QFileDialog::getExistingDirectory(this, tr("Choose the folder your clones are in"), QDir::homePath());
+				if (!folder.isEmpty()) {
+					path->setText(QDir::toNativeSeparators(folder));
 				}
 			});
-			aBody.addWidget(list);
+			const auto submit = [this, path, status] {
+				auto typed = path->text().trimmed();
+				if (typed == QStringLiteral("~") || typed.startsWith(QStringLiteral("~/")) || typed.startsWith(QStringLiteral("~\\"))) {
+					typed = QDir::homePath() + typed.mid(1);
+				}
+				if (typed.isEmpty()) {
+					return;
+				}
+				if (!QDir::isAbsolutePath(typed)) {
+					status->setText(tr("Type the folder's full path, such as %1.").arg(QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/Documents/GitHub"))));
+					status->show();
+					return;
+				}
+				if (Intents.AddCloneFolder) {
+					Intents.AddCloneFolder(QDir::toNativeSeparators(QDir::cleanPath(typed)).toStdString());
+				}
+			};
+			connect(add, &QPushButton::clicked, this, submit);
+			connect(path, &QLineEdit::returnPressed, this, submit);
 			auto* const row = new QHBoxLayout{ };
 			if (!Clones.Suggestions.empty()) {
 				row->addWidget(muted(tr("Or add:"), parent));

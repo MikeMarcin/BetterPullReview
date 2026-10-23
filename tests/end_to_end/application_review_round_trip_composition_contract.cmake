@@ -1,4 +1,16 @@
 # [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v003 and decisions of
+# 2026-10-23: github_application.cpp gives the Agent tab the profile's code
+# appearance; passes the reviewer's optional run time limit (none by default)
+# to the existing agent host; takes tour writing and Review Cycles Send to
+# Agent onto the agent list (review_cycle_desktop.cpp starts an added agent
+# through application::agent_entry_process in front of its existing ports);
+# and, for a finding card on a file not on screen, opens that file in Review
+# through the window's existing file selection, then makes the draft or note
+# at the line as before. No grant, target, provider, credential, mutation or
+# publication path changes; no new src/app source. Full and manifest pins bind
+# these bytes; mutation 16d135419 stays exact.
+# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner amendment 2026-10-23 (agents
 # are a list) and decision (a session per agent): github_application.cpp
 # tells every host the agent-entry profile slots (core::agent_entry_profiles,
@@ -2292,7 +2304,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"d0ebcf32abff87c73dc91e76551679e384ea95259bb9142aff52c38c23c5b9ea"
+		"14a22b7a4670f7a85456b9cd2bfffb43397c6a5373e9c32c55ecadd45c903cac"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2516,7 +2528,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "93bb85c53bb76875c8c9b1fde5e45aa30052dce6150746cb5831d3e2b3200b9a"
+        "f4ee85e895c14f4ac6923301ef292ab30668905e35370398a7f1abe5a7ffe152"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

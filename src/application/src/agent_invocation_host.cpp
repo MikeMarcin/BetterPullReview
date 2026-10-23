@@ -803,10 +803,12 @@ namespace bpr::application {
 				}
 				post_start(aInvocation, *workspace);
 				++ProcessStarts;
-				const auto weak   = weak_from_this();
-				auto       result = Processes.run(
+				const auto weak = weak_from_this();
+				// Owner decision 2026-10-23: no time limit unless the reviewer
+				// set one; Stop is always there.
+				auto result = Processes.run(
 					*launch,
-					120'000,
+					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
 						if (auto self = weak.lock()) {
 							self->post_stream(aInvocation, aEvent);

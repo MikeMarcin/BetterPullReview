@@ -49,6 +49,11 @@ namespace bpr::core {
 		/// The popular agent it was added as (Claude Code or Codex); none for
 		/// a custom agent.
 		std::optional<setup_agent> Preset;
+		/// Owner decision 2026-10-23: a custom agent's own check, fixed
+		/// arguments its program is run with by setup and must exit 0 to; none
+		/// checks only that the program can be launched. A popular agent keeps
+		/// its sign-in status check and has none.
+		std::vector<std::string> CheckArguments;
 
 		auto operator<=>(const agent_entry&) const = default;
 	};

@@ -354,12 +354,30 @@ namespace {
 		const auto rows = again.state().State.Rows;
 		const auto row  = std::ranges::find(rows, setup_agent::codex, &core::agent_setup_row::Agent);
 		expect(row != rows.end() && row->Path == "/opt/work/bin/wrapper", "its program is the Codex row's, in place of the codex found");
-		again.Process.Answers = { said(application::agent_run_outcome::success, "Logged in using ChatGPT"), said(application::agent_run_outcome::success, "codex-cli 0.163.0") };
+		// Owner decision 2026-10-23: a custom agent's check is that its program
+		// can be launched; nothing runs unless it names a check of its own.
 		again.Host->check();
 		again.settle();
-		expect(!again.Process.Requests.empty() && again.Process.Requests.front().Executable == "/opt/work/bin/wrapper"
-				   && again.Process.Requests.front().Arguments == std::vector<std::string>{ "--codex", "login", "status" },
-			   "the check runs its program with its fixed arguments before the status command");
+		expect(again.Process.Requests.empty() && again.state().State.AgentCheck.State == setup_check_state::passed && again.Inspected.back() == "/opt/work/bin/wrapper",
+			   "a custom agent with no check of its own passes once its program can be launched, running nothing");
+		auto own           = again.state().Preferences.Agents.front();
+		own.CheckArguments = { "--codex", "login", "status" };
+		again.Host->update_agent(own);
+		again.settle();
+		again.Process.Answers = { said(application::agent_run_outcome::nonzero_exit, "Not logged in", 1) };
+		again.Host->check();
+		again.settle();
+		expect(again.Process.Requests.size() == 1U && again.Process.Requests.front().Executable == "/opt/work/bin/wrapper"
+				   && again.Process.Requests.front().Arguments == std::vector<std::string>{ "--codex", "login", "status" } && again.state().State.AgentCheck.State == setup_check_state::failed,
+			   "its own check runs its program with exactly those arguments, and must exit 0");
+		again.Process.Answers = { said(application::agent_run_outcome::success, "Logged in") };
+		again.Host->check();
+		again.settle();
+		expect(again.state().State.AgentCheck.State == setup_check_state::passed, "and passes when it does");
+		auto preset           = core::preset_agent_entry(setup_agent::claude_code, core::codex_protocol_choice::app_server, { });
+		preset.Id             = 1U;
+		preset.CheckArguments = { "--version" };
+		expect(core::inspect_agent_entry(preset) == core::agent_entry_refusal::invalid_argument, "a popular agent keeps its sign-in check and takes no check of its own");
 		answer = std::nullopt;
 		again.Host->add_agent({ .Name = "Relative", .Protocol = core::agent_protocol::claude_stream_json, .Program = "wrapper" }, false,
 							  [&answer](const std::optional<core::agent_entry_refusal> aRefusal) { answer = aRefusal; });

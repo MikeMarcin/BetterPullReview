@@ -41,9 +41,15 @@ namespace bpr::application {
 		bool                           AgentsMoved = false;
 		/// The entry setup last chose; 0: none.
 		std::uint32_t PreferredAgent = 0U;
+		/// Owner decision 2026-10-23: a time limit on each agent run, in
+		/// minutes, for every agent; 0, the default, is no limit.
+		std::uint32_t RunLimitMinutes = 0U;
 
 		auto operator<=>(const agent_setup_preferences&) const = default;
 	};
+
+	/// \brief The longest run time limit a reviewer may set: a day.
+	inline constexpr std::uint32_t maximum_run_limit_minutes = 24U * 60U;
 
 	/// \brief Whether the preferences may be stored: each program empty or
 	/// storable under the wrapper rules (`core::storable_agent_wrapper`).
@@ -53,7 +59,8 @@ namespace bpr::application {
 			&& (aPreferences.ClaudeEffort.empty() || core::valid_agent_effort(core::agent_program::claude, aPreferences.ClaudeEffort))
 			&& core::storable_claude_model(aPreferences.CodexModel)
 			&& (aPreferences.CodexEffort.empty() || core::valid_agent_effort(core::agent_program::codex, aPreferences.CodexEffort))
-			&& !core::inspect_agent_entries(aPreferences.Agents) && aPreferences.PreferredAgent <= core::maximum_agent_entry_id;
+			&& !core::inspect_agent_entries(aPreferences.Agents) && aPreferences.PreferredAgent <= core::maximum_agent_entry_id
+			&& aPreferences.RunLimitMinutes <= maximum_run_limit_minutes;
 	}
 
 	/// \brief Where a profile's setup preferences live.

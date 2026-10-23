@@ -1074,6 +1074,12 @@ namespace bpr::qt {
 		update();
 	}
 
+	auto note_button::minimumSizeHint() const -> QSize
+	{
+		// [[BPR-PENDING-AQ6]], owner look v003: a pill is never cut short.
+		return Kind == kind::reply_field ? QSize{ 80, sizeHint().height() } : sizeHint();
+	}
+
 	auto note_button::sizeHint() const -> QSize
 	{
 		const auto metrics = QFontMetrics{ font() };
