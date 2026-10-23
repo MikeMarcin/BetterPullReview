@@ -1185,6 +1185,12 @@ namespace {
 			fact{ capability::unresolve_review_thread,
 				  state::supported,
 				  source::observed_contract },
+			fact{ capability::reply_permission,
+				  state::supported,
+				  source::observed_contract },
+			fact{ capability::conversation_lock,
+				  state::supported,
+				  source::observed_contract },
 		};
 	}
 
@@ -1262,10 +1268,12 @@ namespace {
 			.Reviews                   = { },
 			.ReviewThreadsAvailability = application::github_collection_availability::available,
 			.ReviewThreads             = { },
-			.IssueComments             = { },
-			.Checks                    = { },
-			.SearchResults             = { },
-			.CapabilityEvidence        = {
+			// [[BPR-PENDING-AX]]. Read when the shape asks for it.
+			.ConversationLock   = aRequest.CapabilityEvidence.ReadShape.ConversationLock ? application::github_conversation_lock::unlocked : application::github_conversation_lock::unavailable,
+			.IssueComments      = { },
+			.Checks             = { },
+			.SearchResults      = { },
+			.CapabilityEvidence = {
 				.Capabilities    = aRequest.CapabilityEvidence.Capabilities,
 				.Revision        = aRequest.CapabilityEvidence.Revision,
 				.ReadShape       = aRequest.CapabilityEvidence.ReadShape,
@@ -1319,7 +1327,9 @@ namespace {
 			.Outdated                  = false,
 			.ViewerResolvePermission   = application::github_permission_state::denied,
 			.ViewerUnresolvePermission = application::github_permission_state::allowed,
-			.Comments                  = {
+			// [[BPR-PENDING-AX]]. Read when the shape asks for it.
+			.ViewerReplyPermission = aRequest.CapabilityEvidence.ReadShape.ReplyPermission ? application::github_permission_state::allowed : application::github_permission_state::unavailable,
+			.Comments              = {
 				application::github_review_comment_record{
 					.Comment      = application::github_comment_id{ "review-comment-1" },
 					.ReplyTo      = std::nullopt,

@@ -1944,6 +1944,97 @@ namespace {
 		view.hide();
 	}
 
+	// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` and the lock, read with
+	// the conversation, refuse a reply that could not succeed before it is
+	// written: no Reply field, a quiet line saying why, and the menu's Reply
+	// disabled with the same words. A collaborator on a locked pull request,
+	// and a thread whose permission was not read, keep Reply.
+	void test_a_thread_github_refuses_offers_no_reply()
+	{
+		using availability              = application::github_conversation_anchor_availability;
+		auto locked                     = thread("t-locked", "src/a.cpp", 10U);
+		locked.ViewerCanReply           = false;
+		locked.ConversationLocked       = true;
+		auto denied                     = thread("t-denied", "src/a.cpp", 12U);
+		denied.ViewerCanReply           = false;
+		denied.ConversationLocked       = false;
+		auto collaborator               = thread("t-collaborator", "src/a.cpp", 14U);
+		collaborator.ViewerCanReply     = true;
+		collaborator.ConversationLocked = true;
+		auto outdated                   = thread("t-outdated", "src/b.cpp", 4U);
+		outdated.Line                   = std::nullopt;
+		outdated.OriginalLine           = 4U;
+		outdated.AnchorAvailability     = availability::outdated_revision;
+		outdated.Outdated               = true;
+		outdated.ViewerCanReply         = false;
+		outdated.ConversationLocked     = true;
+		const auto unread               = thread("t-unread", "src/a.cpp", 16U);
+
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		view.adopt({ locked, reply("c-locked", "t-locked", "a", "first"), denied, reply("c-denied", "t-denied", "b", "second"), collaborator,
+					 reply("c-collaborator", "t-collaborator", "c", "third"), outdated, reply("c-outdated", "t-outdated", "d", "fourth"), unread,
+					 reply("c-unread", "t-unread", "e", "fifth") });
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		auto pressed = std::vector<std::string>{ };
+		view.set_action_dispatch([&pressed](const qt::card_action aAction, const std::string& aId) {
+			if (aAction == qt::card_action::reply) {
+				pressed.push_back(aId);
+			}
+		});
+		QApplication::processEvents();
+		const auto card = [&view](const std::string& aId) { return *std::ranges::find(view.cards(), aId, &qt::thread_card::Id); };
+		expect(card("t-locked").ReplyRefusal == core::thread_reply_refusal::locked && card("t-denied").ReplyRefusal == core::thread_reply_refusal::viewer_cannot_reply
+				   && card("t-outdated").ReplyRefusal == core::thread_reply_refusal::locked && !card("t-outdated").ReplyOnThread,
+			   "the core refuses the threads GitHub refuses, and says whether the lock is why");
+		expect(card("t-collaborator").ReplyRefusal == core::thread_reply_refusal::none && card("t-unread").ReplyRefusal == core::thread_reply_refusal::none,
+			   "a collaborator on a locked pull request, and a thread whose permission was not read, are not refused");
+
+		const auto menuReply = [&view](const std::string& aId) -> std::pair<bool, QString> {
+			auto* const menu  = view.thread_menu(aId);
+			const auto  items = menu != nullptr ? menu->actions() : QList<QAction*>{ };
+			const auto  found = std::ranges::find_if(items, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Reply"); });
+			auto        state = found != items.end() ? std::pair{ (*found)->isEnabled(), (*found)->toolTip() } : std::pair{ true, QString{ } };
+			delete menu;
+			return state;
+		};
+		const auto lockedWords = QStringLiteral("This conversation is locked. Only collaborators can reply.");
+		const auto deniedWords = QStringLiteral("GitHub doesn't let you reply in this thread.");
+		expect(menuReply("t-locked") == std::pair{ false, lockedWords } && menuReply("t-denied") == std::pair{ false, deniedWords },
+			   "the menu's Reply is disabled and says why");
+		expect(menuReply("t-collaborator").first && menuReply("t-unread").first, "the others keep the menu's Reply");
+		expect(qt::thread_reply_refusal_text(core::thread_reply_refusal::locked) == lockedWords
+				   && qt::thread_reply_refusal_text(core::thread_reply_refusal::anonymous_read).isEmpty(),
+			   "only GitHub's own refusals have words here");
+
+		for (const auto& [id, words] : { std::pair{ std::string{ "t-locked" }, lockedWords }, std::pair{ std::string{ "t-denied" }, deniedWords }, std::pair{ std::string{ "t-outdated" }, lockedWords } }) {
+			view.open_thread(id);
+			QApplication::processEvents();
+			auto* const field   = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			auto* const refusal = view.open_card()->findChild<QLabel*>(QStringLiteral("threadReplyRefusal"));
+			expect(field == nullptr && refusal != nullptr && refusal->isVisibleTo(view.open_card()) && refusal->text() == words && refusal->accessibleName() == words,
+				   "a refused thread shows no Reply field, and one line says why");
+			expect(refusal != nullptr && refusal->palette().color(QPalette::WindowText) != view.palette().color(QPalette::WindowText)
+					   && refusal->font().pointSizeF() < view.open_card()->font().pointSizeF(),
+				   "the line is quiet: smaller, in the secondary ink");
+			if (const auto path = qEnvironmentVariable("BPR_REPLY_REFUSAL_PNG"); !path.isEmpty() && id == "t-locked") {
+				view.grab().save(path);
+			}
+			view.close_thread();
+			QApplication::processEvents();
+		}
+		view.open_thread("t-collaborator");
+		QApplication::processEvents();
+		auto* const field = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+		expect(field != nullptr && view.open_card()->findChild<QLabel*>(QStringLiteral("threadReplyRefusal")) == nullptr, "a collaborator keeps the Reply field");
+		field->click();
+		QApplication::processEvents();
+		expect(pressed == std::vector<std::string>{ "t-collaborator" }, "and Reply asks for the reply");
+		view.hide();
+	}
+
 	void test_a_reply_suggestion_is_marked_native_or_text_only()
 	{
 		using availability          = application::github_conversation_anchor_availability;
@@ -2551,6 +2642,7 @@ auto main(int argc, char** argv) -> int
 	test_reply_in_place_has_the_composers_label_controls();
 	test_a_reply_suggestion_is_marked_native_or_text_only();
 	test_an_outdated_thread_takes_a_reply_with_a_quiet_note();
+	test_a_thread_github_refuses_offers_no_reply();
 	test_published_suggestions_show_against_their_lines();
 	test_endpoint_changes_retain_exact_body_annotations();
 	test_unchanged_refresh_retains_measured_notes();

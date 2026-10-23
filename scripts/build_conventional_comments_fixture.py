@@ -90,6 +90,7 @@ def thread_node(identity: str, path: str, line: int, posts: tuple[tuple[str, str
         "isOutdated": False,
         "viewerCanResolve": True,
         "viewerCanUnresolve": False,
+        "viewerCanReply": True,
         "subjectType": "LINE",
         "path": path,
         "diffSide": "RIGHT",

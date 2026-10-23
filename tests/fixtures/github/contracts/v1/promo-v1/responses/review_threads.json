@@ -38,6 +38,7 @@
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_512",
+				"locked": false,
 				"reviewThreads": {
 					"nodes": [
 						{
@@ -101,6 +102,7 @@
 							"originalLine": 36,
 							"path": "src/render/frame_pacer.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -180,6 +182,7 @@
 							"originalLine": 30,
 							"path": "src/render/frame_pacer.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -229,6 +232,7 @@
 							"originalLine": 22,
 							"path": "src/render/frame_pacer.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -293,6 +297,7 @@
 							"originalLine": 13,
 							"path": "src/app/game_loop.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -342,6 +347,7 @@
 							"originalLine": 17,
 							"path": "src/app/game_loop.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -391,6 +397,7 @@
 							"originalLine": 12,
 							"path": "src/render/swap_chain.h",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -425,6 +432,7 @@
 							"originalLine": 12,
 							"path": "docs/rendering.md",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -474,6 +482,7 @@
 							"originalLine": 22,
 							"path": "tests/render/frame_pacer_tests.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						}

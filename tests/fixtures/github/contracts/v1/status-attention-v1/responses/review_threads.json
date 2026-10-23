@@ -81,6 +81,7 @@
 					"totalCount": 17
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
+				"locked": false,
 				"id": "PR_21",
 				"reviewThreads": {
 					"nodes": [
@@ -131,7 +132,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -165,7 +167,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -214,7 +217,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -248,7 +252,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -282,7 +287,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -316,7 +322,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -350,7 +357,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -384,7 +392,8 @@
 							"path": "src/engine/renderer.h",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -418,7 +427,8 @@
 							"path": "src/engine/renderer.h",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -467,7 +477,8 @@
 							"path": "src/engine/renderer.h",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -501,7 +512,8 @@
 							"path": "src/engine/shaders/basic.frag",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -535,7 +547,8 @@
 							"path": "src/engine/shaders/basic.vert",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -569,7 +582,8 @@
 							"path": "src/engine/shaders/post/bloom.frag",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -603,7 +617,8 @@
 							"path": "src/engine/shaders/post/bloom.frag",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -637,7 +652,8 @@
 							"path": "src/engine/shaders/post/tonemap.frag",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -671,7 +687,8 @@
 							"path": "src/engine/shaders/post/tonemap.frag",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -705,7 +722,8 @@
 							"path": "src/main.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -739,7 +757,8 @@
 							"path": "src/main.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -773,7 +792,8 @@
 							"path": "src/main.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -807,7 +827,8 @@
 							"path": "src/ui/widgets/button.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -841,7 +862,8 @@
 							"path": "src/ui/widgets/button.cpp",
 							"subjectType": "FILE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -875,7 +897,8 @@
 							"path": "src/ui/widgets/button.h",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -909,7 +932,8 @@
 							"path": "src/ui/widgets/slider.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -943,7 +967,8 @@
 							"path": "src/ui/widgets/slider.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -977,7 +1002,8 @@
 							"path": "src/ui/widgets/slider.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1011,7 +1037,8 @@
 							"path": "README.md",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1045,7 +1072,8 @@
 							"path": "README.md",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1079,7 +1107,8 @@
 							"path": "docs/guide.md",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1113,7 +1142,8 @@
 							"path": "docs/api/reference.md",
 							"subjectType": "LINE",
 							"viewerCanResolve": false,
-							"viewerCanUnresolve": true
+							"viewerCanUnresolve": true,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1147,7 +1177,8 @@
 							"path": "docs/api/v2/endpoints.md",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1181,7 +1212,8 @@
 							"path": "tests/engine/renderer_tests.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1215,7 +1247,8 @@
 							"path": "tests/ui/widgets/button_tests.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1249,7 +1282,8 @@
 							"path": "tools/build/scripts/package.py",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -1283,7 +1317,8 @@
 							"path": "src/legacy/old_renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						}
 					],
 					"pageInfo": {

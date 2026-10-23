@@ -386,6 +386,8 @@ namespace bpr::adapters::github::detail {
 			.ViewedFileState     = true,
 			.ResolvePermission   = true,
 			.UnresolvePermission = true,
+			.ReplyPermission     = true,
+			.ConversationLock    = true,
 		};
 		std::optional<application::github_viewer_record> Viewer;
 	};

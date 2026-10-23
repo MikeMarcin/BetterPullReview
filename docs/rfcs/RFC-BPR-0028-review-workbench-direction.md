@@ -978,11 +978,14 @@ reply", and Discuss's Reply, are amended to include outdated threads:
   (`core::decide_thread_reply`). A current thread is answered on its line, as
   before. An outdated thread is answered by the thread: its reply is a draft
   bound to the thread rather than a line, so no line is selected and none is
-  needed. A thread GitHub says the viewer cannot reply in, or one on a locked
-  pull request, takes no reply; an anonymous read takes none. The read does
-  not yet carry GitHub's `viewerCanReply` or the pull request's lock; until it
-  does, those facts are unknown, nothing is refused on them, and GitHub's
-  answer to Publish decides, as it does for a current thread.
+  needed. A thread GitHub says the viewer cannot reply in takes no reply; an
+  anonymous read takes none. [[BPR-PENDING-AX]] reads GitHub's
+  `viewerCanReply` and the pull request's lock with the conversation; a refused
+  thread says why in place of its Reply field. The lock is the reason when it
+  applies, but on its own refuses nothing: GitHub lets a collaborator reply on
+  a locked pull request, and its `viewerCanReply` says so. A server whose
+  schema lacks the fields leaves them unknown, and GitHub's answer to Publish
+  decides.
 - The reply field appears as it does for a current thread, in Review, Discuss
   and Threads alike, with one quiet line above it: "Outdated: this thread's
   line has changed since it was written". The refusal no longer applies to an

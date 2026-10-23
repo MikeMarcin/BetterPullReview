@@ -1916,6 +1916,9 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				keys.emplace_back("viewerCanUnresolve");
 			}
+			if (aShape.ReplyPermission) {
+				keys.emplace_back("viewerCanReply");
+			}
 			const auto thread = json_object(aValue);
 			if (!has_exact_keys(thread, keys)) {
 				return failed(application::github_provider_failure::malformed_response);
@@ -1950,7 +1953,9 @@ namespace bpr::adapters::github::detail {
 				|| (aShape.ResolvePermission
 					&& !json_is_bool(json_member(thread, "viewerCanResolve")))
 				|| (aShape.UnresolvePermission
-					&& !json_is_bool(json_member(thread, "viewerCanUnresolve")))) {
+					&& !json_is_bool(json_member(thread, "viewerCanUnresolve")))
+				|| (aShape.ReplyPermission
+					&& !json_is_bool(json_member(thread, "viewerCanReply")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 
@@ -1975,7 +1980,14 @@ namespace bpr::adapters::github::detail {
 						   ? application::github_permission_state::allowed
 						   : application::github_permission_state::denied)
 					: application::github_permission_state::unavailable,
-				.Comments                  = { },
+				// [[BPR-PENDING-AX]]. GitHub's own word on whether this viewer
+				// may reply here, which already weighs the lock.
+				.ViewerReplyPermission = aShape.ReplyPermission
+					? (json_bool(json_member(thread, "viewerCanReply"))
+						   ? application::github_permission_state::allowed
+						   : application::github_permission_state::denied)
+					: application::github_permission_state::unavailable,
+				.Comments              = { },
 			};
 			record.Comments.reserve(static_cast<std::size_t>(comments->TotalCount));
 			for (const auto& commentValue : comments->Nodes) {
@@ -2831,7 +2843,7 @@ namespace bpr::adapters::github::detail {
 								   const github_paged_read_limits&            aLimits)
 			-> std::expected<void, github_paged_read_failure>
 		{
-			if ((aShape.ResolvePermission || aShape.UnresolvePermission)
+			if ((aShape.ResolvePermission || aShape.UnresolvePermission || aShape.ReplyPermission || aShape.ConversationLock)
 				&& !aShape.ReviewThreads) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
@@ -2866,14 +2878,24 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ identity.error() };
 			}
 			std::vector<std::string_view> initialPullKeys{ "headRefOid", "id" };
+			if (aShape.ConversationLock) {
+				initialPullKeys.emplace_back("locked");
+			}
 			if (aShape.ViewedFileState) {
 				initialPullKeys.emplace_back("files");
 			}
 			if (aShape.ReviewThreads) {
 				initialPullKeys.emplace_back("reviewThreads");
 			}
-			if (!has_exact_keys(initialPullRequest, initialPullKeys)) {
+			if (!has_exact_keys(initialPullRequest, initialPullKeys)
+				|| (aShape.ConversationLock && !json_is_bool(json_member(initialPullRequest, "locked")))) {
 				return failed(application::github_provider_failure::malformed_response);
+			}
+			// [[BPR-PENDING-AX]]. The pull request's conversation lock.
+			if (aShape.ConversationLock) {
+				aSnapshot.ConversationLock = json_bool(json_member(initialPullRequest, "locked"))
+					? application::github_conversation_lock::locked
+					: application::github_conversation_lock::unlocked;
 			}
 
 			if (aShape.ViewedFileState) {

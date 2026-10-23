@@ -67,10 +67,26 @@ namespace {
 		const auto denied = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .ViewerCanReply = false });
 		expect(denied.Route == thread_reply_route::refused && denied.Refusal == thread_reply_refusal::viewer_cannot_reply && !denied.OutdatedNote,
 			   "GitHub saying the viewer cannot reply refuses the reply");
-		const auto locked = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .ViewerCanReply = true, .Locked = true });
-		expect(locked.Route == thread_reply_route::refused && locked.Refusal == thread_reply_refusal::locked, "a locked pull request refuses the reply");
-		const auto currentLocked = decide_thread_reply({ .ReviewThread = true, .Outdated = false, .Locked = true });
-		expect(currentLocked.Refusal == thread_reply_refusal::locked, "the lock refuses a current thread's reply too");
+		// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` already weighs the
+		// lock: false for a reader on a locked pull request, true for a
+		// collaborator, as BPR-Test#135 answered live on 2026-10-23.
+		const auto locked = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .ViewerCanReply = false, .Locked = true });
+		expect(locked.Route == thread_reply_route::refused && locked.Refusal == thread_reply_refusal::locked && !locked.OutdatedNote,
+			   "a reader on a locked pull request is refused, and the reason is the lock");
+		const auto currentLocked = decide_thread_reply({ .ReviewThread = true, .Outdated = false, .ViewerCanReply = false, .Locked = true });
+		expect(currentLocked.Route == thread_reply_route::refused && currentLocked.Refusal == thread_reply_refusal::locked, "the lock refuses a current thread's reply too");
+		const auto collaborator = decide_thread_reply({ .ReviewThread = true, .Outdated = false, .ViewerCanReply = true, .Locked = true });
+		expect(collaborator.Route == thread_reply_route::on_line && collaborator.Refusal == thread_reply_refusal::none,
+			   "a collaborator GitHub lets reply on a locked pull request is not refused");
+		const auto collaboratorOutdated = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .ViewerCanReply = true, .Locked = true });
+		expect(collaboratorOutdated.Route == thread_reply_route::on_thread && collaboratorOutdated.OutdatedNote, "nor on an outdated thread");
+		const auto lockUnweighed = decide_thread_reply({ .ReviewThread = true, .Outdated = false, .ViewerCanReply = std::nullopt, .Locked = true });
+		expect(lockUnweighed.Route == thread_reply_route::on_line, "a lock with GitHub's permission unread refuses nothing: GitHub decides at Publish");
+		const auto currentDenied = decide_thread_reply({ .ReviewThread = true, .Outdated = false, .ViewerCanReply = false, .Locked = false });
+		expect(currentDenied.Route == thread_reply_route::refused && currentDenied.Refusal == thread_reply_refusal::viewer_cannot_reply,
+			   "GitHub refusing the viewer on an open pull request refuses a current thread's reply");
+		const auto anonymousDenied = decide_thread_reply({ .ReviewThread = true, .AnonymousRead = true, .ViewerCanReply = false, .Locked = true });
+		expect(anonymousDenied.Refusal == thread_reply_refusal::anonymous_read, "an anonymous read is refused as anonymous before GitHub's permission");
 		const auto anonymous = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .AnonymousRead = true });
 		expect(anonymous.Refusal == thread_reply_refusal::anonymous_read, "an anonymous read has no account to reply as");
 		const auto comment = decide_thread_reply({ .ReviewThread = false, .Outdated = true });

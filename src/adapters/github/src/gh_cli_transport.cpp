@@ -1866,13 +1866,7 @@ namespace bpr::adapters::github::detail {
 		},
 										   aRequest.Wire.Semantic);
 		// Only the finite admitted mutation catalog may use this route.
-		// [[BPR-0896]]. A reply's reconciliation observes its thread at the
-		// GraphQL root too. This transport never writes a reply, so its own
-		// writes never need it; a reply attempt written through another
-		// transport and recovered here is refused, and stays unresolved
-		// rather than being resubmitted.
-		if (!correlated || aRequest.Wire.Operation == review_mutation_operation::reply_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments) {
+		if (!correlated) {
 			return github_mutation_wire_error{ };
 		}
 		const auto githubCom = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28;
@@ -1883,12 +1877,20 @@ namespace bpr::adapters::github::detail {
 		// reaction added or removed, with the reads that bind them to the pull
 		// request first. Each is a fixed document the outbound validator above
 		// compared for exact equality; no other GraphQL write is admitted.
+		// [[BPR-PENDING-AX]]. The owner, 2026-10-23: "Oh yeah sure let gh
+		// allow that." A reply to a thread (`ReplyToThread`, on a current
+		// line or bound to an outdated thread) goes the same way, with the
+		// read that reconciles it (`ObserveThreadComments`). Unlike a state
+		// write it is witnessed: the journal marks it possibly sent before
+		// launch, as on the native connection, so it is never sent twice.
+		const auto reply      = aRequest.Wire.Operation == review_mutation_operation::reply_review_thread;
 		const auto stateWrite = aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::add_reaction
 			|| aRequest.Wire.Operation == review_mutation_operation::remove_reaction;
-		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite
+		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite || reply
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_reaction_subject;
 
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);

@@ -5078,6 +5078,7 @@ namespace bpr::app::detail {
 													 { "isOutdated", earlier },
 													 { "viewerCanResolve", true },
 													 { "viewerCanUnresolve", false },
+													 { "viewerCanReply", true },
 													 { "subjectType", file ? "FILE" : "LINE" },
 													 { "path", object.value("path") },
 													 { "diffSide", file ? QJsonValue{ "RIGHT" } : object.value("side") },

@@ -86,6 +86,7 @@
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_22",
+				"locked": false,
 				"reviewThreads": {
 					"nodes": [
 						{
@@ -164,6 +165,7 @@
 							"originalLine": 6,
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -228,6 +230,7 @@
 							"originalLine": 12,
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -277,6 +280,7 @@
 							"originalLine": 6,
 							"path": "src/main.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -326,6 +330,7 @@
 							"originalLine": 5,
 							"path": "src/ui/widgets/button.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -375,6 +380,7 @@
 							"originalLine": 6,
 							"path": "README.md",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -424,6 +430,7 @@
 							"originalLine": 5,
 							"path": "src/engine/shaders/post/bloom.frag",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -488,6 +495,7 @@
 							"originalLine": 38,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -537,6 +545,7 @@
 							"originalLine": 430,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -616,6 +625,7 @@
 							"originalLine": 656,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -710,6 +720,7 @@
 							"originalLine": 667,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -849,6 +860,7 @@
 							"originalLine": 927,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -913,6 +925,7 @@
 							"originalLine": 1080,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -977,6 +990,7 @@
 							"originalLine": 1176,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1026,6 +1040,7 @@
 							"originalLine": 1510,
 							"path": "src/ui/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						}

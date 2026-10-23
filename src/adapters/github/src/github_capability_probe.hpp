@@ -51,6 +51,10 @@ namespace bpr::adapters::github::detail {
 		resolve_review_thread,
 		unresolve_permission,
 		unresolve_review_thread,
+		/// [[BPR-PENDING-AX]]. `PullRequestReviewThread.viewerCanReply`.
+		reply_permission,
+		/// [[BPR-PENDING-AX]]. `PullRequest.locked`.
+		conversation_lock,
 		count,
 	};
 

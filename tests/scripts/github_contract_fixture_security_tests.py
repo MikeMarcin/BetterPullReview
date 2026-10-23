@@ -49,10 +49,10 @@ GRAPHQL_HEADERS = {
 }
 GRAPHQL_QUERY = (
     "query GetReviewData($owner:String!,$name:String!,$number:Int!){"
-    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid "
+    "repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid locked "
     "files(first:100){totalCount nodes{path viewerViewedState} "
     "pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount "
-    "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve "
+    "nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve viewerCanReply "
     "subjectType path diffSide line originalLine comments(first:100){totalCount "
     "nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{__typename login ... on "
     "Node{id}} replyTo{id}} "
@@ -487,6 +487,8 @@ EXPECTED_RESPONSE_FIELDS = {
         "isOutdated",
         "viewerCanResolve",
         "viewerCanUnresolve",
+        "viewerCanReply",
+        "locked",
         "subjectType",
         "diffSide",
         "path",
@@ -549,7 +551,7 @@ RECORDED_RESPONSE_FIELDS = {
     "ListPullRequestFiles": {"additions", "changes", "deletions", "filename", "patch", "sha", "status"},
     "ListPullRequestCommits": {"author", "commit", "login", "message", "node_id", "sha"},
     "ListReviews": set(),
-    "ListReviewThreads": {"data", "endCursor", "files", "hasNextPage", "headRefOid", "id", "nodes", "pageInfo", "path", "pullRequest", "repository", "reviewThreads", "totalCount", "viewerViewedState"},
+    "ListReviewThreads": {"data", "endCursor", "files", "hasNextPage", "headRefOid", "id", "locked", "nodes", "pageInfo", "path", "pullRequest", "repository", "reviewThreads", "totalCount", "viewerViewedState"},
     "ListIssueComments": set(),
     "ListChecks": {"check_runs", "total_count"},
     "SearchPullRequests": {"incomplete_results", "items", "total_count"},

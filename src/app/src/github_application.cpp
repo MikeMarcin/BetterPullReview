@@ -12007,15 +12007,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		/// \brief [[BPR-1745]]. What GitHub's thread data, as the
 		/// accepted snapshot holds it, says about replying in one thread.
-		/// \details The read carries neither `viewerCanReply` nor the lock
-		/// yet, so they are left unknown and GitHub decides at Publish.
+		/// \details [[BPR-PENDING-AX]]. With GitHub's `viewerCanReply` and the
+		/// pull request's lock when the conversation read carries them; a
+		/// server whose schema lacks them leaves them unknown, and GitHub
+		/// decides at Publish.
 		[[nodiscard]] auto thread_reply_facts_of(const application::github_review_thread_record& aThread) const -> core::thread_reply_facts
 		{
 			const auto* const snapshot = WindowRead && WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
 			return core::thread_reply_facts{
-				.ReviewThread  = !aThread.Path.empty() && aThread.Subject == application::github_review_thread_subject::line,
-				.Outdated      = aThread.Outdated,
-				.AnonymousRead = snapshot == nullptr || snapshot->Mode != core::github_access_mode::authenticated,
+				.ReviewThread   = !aThread.Path.empty() && aThread.Subject == application::github_review_thread_subject::line,
+				.Outdated       = aThread.Outdated,
+				.AnonymousRead  = snapshot == nullptr || snapshot->Mode != core::github_access_mode::authenticated,
+				.ViewerCanReply = aThread.ViewerReplyPermission == application::github_permission_state::unavailable
+					? std::nullopt
+					: std::optional{ aThread.ViewerReplyPermission == application::github_permission_state::allowed },
+				.Locked         = snapshot == nullptr || snapshot->ConversationLock == application::github_conversation_lock::unavailable
+					? std::nullopt
+					: std::optional{ snapshot->ConversationLock == application::github_conversation_lock::locked },
 			};
 		}
 
@@ -13494,6 +13502,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
+			// [[BPR-PENDING-AX]]. A thread GitHub says this viewer cannot
+			// reply in takes no reply: the window has said why, and no draft
+			// is made for a Publish GitHub would refuse.
+			if (const auto* const thread = accepted_thread(aIdentity);
+				thread != nullptr && core::decide_thread_reply(thread_reply_facts_of(*thread)).Route == core::thread_reply_route::refused) {
+				return;
+			}
 			// [[BPR-1374]]. A reply already written in this thread and not
 			// sent opens again, as the core picks it, rather than a new one:
 			// after a restart Reply used to start an empty reply beside it.

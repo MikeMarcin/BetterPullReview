@@ -10,6 +10,7 @@
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -49,6 +50,9 @@ class QWheelEvent;
 class QVariantAnimation;
 
 namespace bpr::qt {
+	/// \brief [[BPR-PENDING-AX]]. Why a thread takes no reply, in the words
+	/// the card and the drawer show; empty for a refusal GitHub did not make.
+	[[nodiscard]] auto thread_reply_refusal_text(core::thread_reply_refusal aRefusal) -> QString;
 	class feedback_label_controls;
 
 	/// \brief Which threads the notes show.
@@ -256,7 +260,12 @@ namespace bpr::qt {
 		/// Reply is offered without a line, and the reply field says quietly
 		/// that the thread's line has changed since it was written.
 		bool ReplyOnThread = false;
-		bool Draft         = false;
+		/// [[BPR-PENDING-AX]]. GitHub says this viewer cannot reply in the
+		/// thread (`viewerCanReply`), because the conversation is locked or
+		/// otherwise: the core's refusal. Reply is not offered, and
+		/// `thread_reply_refusal_text` says why.
+		core::thread_reply_refusal ReplyRefusal = core::thread_reply_refusal::none;
+		bool                       Draft        = false;
 		/// [[BPR-1345]]. My draft is pending in my review, or held by its
 		/// submission.
 		bool Pending = false;

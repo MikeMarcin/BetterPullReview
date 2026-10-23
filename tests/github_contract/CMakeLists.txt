@@ -487,12 +487,19 @@ target_link_libraries(
     test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
+        # [[BPR-PENDING-AX]]. The composed reply course keeps its journal in
+        # the shipped SQLite recovery store.
+        BetterPullReview::AdapterSQLite
         BetterPullReview::Application
 )
 target_include_directories(
     test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_gh_cli_transport_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
 )
 bpr_enable_hardening(
     test_better_pull_review_gh_cli_transport_tests
@@ -1454,6 +1461,28 @@ if(BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE)
     target_compile_definitions(tool_outdated_reply_live_course PRIVATE BPR_APPLICATION_TESTING=1)
     bpr_enable_hardening(tool_outdated_reply_live_course)
     bpr_enable_warnings(tool_outdated_reply_live_course)
+endif()
+
+# [[BPR-PENDING-AX]]. The live course of thread replies on the GitHub CLI
+# connection: the app's own gh path (gh_cli_transport over the shipped
+# process runner) against MikeMarcin/BPR-Test. Never a CTest row, and not built
+# by default. Configure with -DBPR_BUILD_LIVE_CLI_REPLY_COURSE=ON;
+# tests/scripts/cli_reply_live_course.py runs it by hand.
+option(BPR_BUILD_LIVE_CLI_REPLY_COURSE "Build the live CLI-connection reply course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_CLI_REPLY_COURSE)
+    bpr_add_executable(tool_cli_reply_live_course cli_reply_live_course.cpp)
+    target_link_libraries(
+        tool_cli_reply_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::Application
+            Qt6::Core
+    )
+    target_include_directories(tool_cli_reply_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    target_compile_definitions(tool_cli_reply_live_course PRIVATE BPR_APPLICATION_TESTING=1)
+    bpr_enable_hardening(tool_cli_reply_live_course)
+    bpr_enable_warnings(tool_cli_reply_live_course)
 endif()
 
 # RFC-BPR-0084. The live image course's process. CTest runs only its offline

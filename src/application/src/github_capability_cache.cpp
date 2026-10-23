@@ -222,15 +222,23 @@ namespace bpr::application {
 			return { };
 		}
 
+		const auto reviewThreads = aObservation.SchemaFacts[0U].State
+			== core::github_capability_state::supported;
 		return {
-			.ReviewThreads = aObservation.SchemaFacts[0U].State
-				== core::github_capability_state::supported,
+			.ReviewThreads   = reviewThreads,
 			.ViewedFileState = aObservation.SchemaFacts[1U].State
 				== core::github_capability_state::supported,
 			.ResolvePermission = aObservation.SchemaFacts[4U].State
 				== core::github_capability_state::supported,
 			.UnresolvePermission = aObservation.SchemaFacts[6U].State
 				== core::github_capability_state::supported,
+			// [[BPR-PENDING-AX]]. Read with the threads, so only when they are.
+			.ReplyPermission = reviewThreads
+				&& aObservation.SchemaFacts[8U].State
+					== core::github_capability_state::supported,
+			.ConversationLock = reviewThreads
+				&& aObservation.SchemaFacts[9U].State
+					== core::github_capability_state::supported,
 		};
 	}
 

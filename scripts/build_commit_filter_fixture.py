@@ -100,6 +100,7 @@ def comment_threads(commits: dict[str, str]) -> dict:
             "isOutdated": line is None,
             "viewerCanResolve": True,
             "viewerCanUnresolve": False,
+            "viewerCanReply": True,
             "subjectType": "LINE",
             "path": NOTES_PATH,
             "diffSide": "RIGHT",

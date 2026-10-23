@@ -629,6 +629,30 @@ confirmed change is dropped when a read agrees with it or disagrees twice, so
 a read begun before the write cannot undo it on screen. A failed change shows
 the read again and names why.
 
+## Replies on the GitHub CLI connection ([[BPR-PENDING-AX]])
+
+The owner, 2026-10-23: "Oh yeah sure let gh allow that." `gh_cli_transport`
+carries a reply to a review thread (`ReplyToThread`), on a current line or
+bound to an outdated thread ([[BPR-1745]]), and its reconciliation read
+(`ObserveThreadComments`), each a fixed document compared byte for byte with
+its compiled form. The reply is the native reply: the same session, account
+lease, journal record, idempotency key and read-back. The journal marks it
+possibly sent before `gh` launches; a lost answer is settled from the thread,
+and the reply is never written a second time.
+
+The conversation read now carries GitHub's `viewerCanReply` for each thread and
+the pull request's lock, when the schema has them. `core::decide_thread_reply`
+refuses a reply GitHub would refuse before anything is written: GitHub's
+`viewerCanReply` false refuses it, with the lock as the reason when the pull
+request is locked. The lock alone refuses nothing, because GitHub's
+`viewerCanReply` already weighs it: on a locked pull request it is false for a
+reader and true for a collaborator, who can still reply (observed live on
+BPR-Test, 2026-10-23). A thread GitHub refuses shows no Reply field; one quiet
+line in its place says "This conversation is locked. Only collaborators can
+reply." or "GitHub doesn't let you reply in this thread.", and the menu's Reply
+is disabled with the same words. A schema without the fields leaves both
+unknown, and nothing is refused on them.
+
 ## Credential acquisition has no impact here
 
 RFC-BPR-0016 adds a second way to acquire the credential and changes nothing

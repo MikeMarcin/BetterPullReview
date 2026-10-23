@@ -49,6 +49,14 @@ PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
         # on the first attempt. The symbol check below is unchanged and still
         # covers this binary.
         "tests/github_contract/live_review_mutation_provider_tests.cpp",
+        # [[BPR-PENDING-AX]]. The same forwarding double over the session,
+        # in the CLI transport's composed reply course and in the two hand-run
+        # live reply courses ([[BPR-1745]]'s and this card's), which are not
+        # built by default. None calls make_live_review_mutation_provider, and
+        # the symbol check still covers each binary that is built.
+        "tests/github_contract/gh_cli_transport_tests.cpp",
+        "tests/github_contract/outdated_reply_live_course.cpp",
+        "tests/github_contract/cli_reply_live_course.cpp",
         # Test-build-only provider owned by the recorded public-path fixture.
         # Its protocol session uses a credential-free synthetic wire only;
         # it has no live transport or production build path.

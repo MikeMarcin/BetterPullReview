@@ -15,7 +15,7 @@
 
 namespace bpr::application {
 	inline constexpr std::size_t github_capability_fact_count             = 4U;
-	inline constexpr std::size_t github_schema_capability_fact_count      = 8U;
+	inline constexpr std::size_t github_schema_capability_fact_count      = 10U;
 	inline constexpr std::size_t maximum_github_capability_cache_capacity = 64U;
 	inline constexpr std::uint64_t
 		maximum_github_capability_freshness_window = 900U;
@@ -45,6 +45,10 @@ namespace bpr::application {
 		resolve_review_thread,
 		unresolve_permission,
 		unresolve_review_thread,
+		/// [[BPR-PENDING-AX]]. `PullRequestReviewThread.viewerCanReply: Boolean!`.
+		reply_permission,
+		/// [[BPR-PENDING-AX]]. `PullRequest.locked: Boolean!`.
+		conversation_lock,
 	};
 
 	inline constexpr std::array<
@@ -59,6 +63,8 @@ namespace bpr::application {
 			github_schema_capability::resolve_review_thread,
 			github_schema_capability::unresolve_permission,
 			github_schema_capability::unresolve_review_thread,
+			github_schema_capability::reply_permission,
+			github_schema_capability::conversation_lock,
 		};
 
 	/// \brief Checks whether the supplied value satisfies its contract.

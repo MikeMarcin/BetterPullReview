@@ -182,6 +182,7 @@ def thread_node(identity: str, path: str, line: int | None, resolved: bool, outd
     node["isOutdated"] = outdated
     node["viewerCanResolve"] = not resolved
     node["viewerCanUnresolve"] = resolved
+    node["viewerCanReply"] = True
     for comment in node["comments"]["nodes"]:
         comment["outdated"] = outdated
     return node

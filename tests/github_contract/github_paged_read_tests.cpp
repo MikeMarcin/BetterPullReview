@@ -27,6 +27,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -191,6 +192,8 @@ namespace {
 			core::github_capability_state::unsupported,
 			core::github_capability_state::unsupported,
 			core::github_capability_state::supported,
+			core::github_capability_state::unsupported,
+			core::github_capability_state::unsupported,
 			core::github_capability_state::unsupported,
 		};
 		for (std::size_t index = 0U; index < schema.size(); ++index) {
@@ -531,6 +534,10 @@ namespace {
 		}
 
 		std::vector<github_wire_request> Requests;
+		// [[BPR-PENDING-AX]]. The thread's `viewerCanReply` and the pull
+		// request's `locked`, served only when set.
+		std::optional<fixture_value> ViewerCanReply;
+		std::optional<fixture_value> Locked;
 		// Alter literal wire bytes after serialization so rounding or parser
 		// normalization in fixture construction cannot hide boundary failures.
 		std::function<void(const github_wire_request&, wire_response&)> RewriteResponse;
@@ -1251,6 +1258,10 @@ namespace {
 				{ "subjectType", "LINE" },
 				{ "viewerCanUnresolve", true },
 			};
+			// [[BPR-PENDING-AX]]. GitHub's reply permission, when served.
+			if (ViewerCanReply) {
+				thread.insert_or_assign("viewerCanReply", *ViewerCanReply);
+			}
 			if (Scenario == fixture_scenario::thread_side_missing) {
 				thread.erase("diffSide");
 			} else if (Scenario == fixture_scenario::thread_side_null) {
@@ -1286,7 +1297,7 @@ namespace {
 				thread.insert_or_assign("diffSide", Scenario == fixture_scenario::file_thread_wrong_side ? "LEFT" : "RIGHT");
 			}
 
-			const auto pullRequest = fixture_object{
+			auto pullRequest = fixture_object{
 				{ "headRefOid",
 				  Scenario == fixture_scenario::graphql_head_moved
 					  ? std::string{ base_oid }
@@ -1300,6 +1311,9 @@ namespace {
 							   std::optional<std::string_view>{ "THREAD_END" }),
 				},
 			};
+			if (Locked) {
+				pullRequest.insert_or_assign("locked", *Locked);
+			}
 			auto envelope = fixture_object{
 				{
 					"data",
@@ -1921,6 +1935,84 @@ namespace {
 		invalid.Page = 2U;
 		expect(!compile_read_request(invalid).has_value(),
 			   "initial GraphQL page is sequence one only");
+	}
+
+	// [[BPR-PENDING-AX]]. A read shape that carries GitHub's reply
+	// permission and the lock selects them, reads them into the snapshot and
+	// refuses an answer without them or with another type; one that does not
+	// carry them selects neither and leaves both unavailable, as on a GHES
+	// whose schema lacks them.
+	[[nodiscard]] auto reply_shaped_request() -> application::github_pull_request_provider_request
+	{
+		auto  request                                         = provider_request();
+		auto& facts                                           = request.CapabilityEvidence.SchemaFacts;
+		facts[8U].State                                       = core::github_capability_state::supported;
+		facts[9U].State                                       = core::github_capability_state::supported;
+		request.CapabilityEvidence.ReadShape.ReplyPermission  = true;
+		request.CapabilityEvidence.ReadShape.ConversationLock = true;
+		return request;
+	}
+
+	auto test_reply_permission_and_lock_read() -> void
+	{
+		{
+			auto transport           = paged_fixture_transport{ fixture_scenario::success };
+			transport.ViewerCanReply = fixture_value(false);
+			transport.Locked         = fixture_value(true);
+			const auto result        = perform_paged_github_read(transport, profile(), reply_shaped_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			const auto initial       = std::ranges::find_if(transport.Requests, [](const github_wire_request& aRequest) { return aRequest.Wire.Body.find("GetReviewData") != std::string::npos; });
+			expect(initial != transport.Requests.end() && initial->Wire.Body.find("{id headRefOid locked reviewThreads(") != std::string::npos
+					   && initial->Wire.Body.find("viewerCanUnresolve viewerCanReply subjectType") != std::string::npos,
+				   "the conversation read selects viewerCanReply and the lock");
+			expect(result.has_value() && result->ReviewThreads.size() == 1U
+					   && result->ReviewThreads.front().ViewerReplyPermission == application::github_permission_state::denied
+					   && result->ConversationLock == application::github_conversation_lock::locked,
+				   "GitHub's refusal and the lock are read into the snapshot");
+		}
+		{
+			auto transport           = paged_fixture_transport{ fixture_scenario::success };
+			transport.ViewerCanReply = fixture_value(true);
+			transport.Locked         = fixture_value(false);
+			const auto result        = perform_paged_github_read(transport, profile(), reply_shaped_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			expect(result.has_value() && result->ReviewThreads.front().ViewerReplyPermission == application::github_permission_state::allowed
+					   && result->ConversationLock == application::github_conversation_lock::unlocked,
+				   "GitHub's permission and an open conversation are read too");
+		}
+		for (const auto& [reply, locked, why] : { std::tuple{ std::optional<fixture_value>{ }, std::optional<fixture_value>{ fixture_value(false) }, "viewerCanReply absent" },
+												  std::tuple{ std::optional<fixture_value>{ fixture_value(true) }, std::optional<fixture_value>{ }, "locked absent" },
+												  std::tuple{ std::optional<fixture_value>{ fixture_value("yes") }, std::optional<fixture_value>{ fixture_value(false) }, "viewerCanReply not a boolean" },
+												  std::tuple{ std::optional<fixture_value>{ fixture_value(true) }, std::optional<fixture_value>{ fixture_value(nullptr) }, "locked null" } }) {
+			auto transport           = paged_fixture_transport{ fixture_scenario::success };
+			transport.ViewerCanReply = reply;
+			transport.Locked         = locked;
+			const auto result        = perform_paged_github_read(transport, profile(), reply_shaped_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			expect(!result.has_value() && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+				   std::string{ "an answer that does not carry what was asked is refused: " } + why);
+		}
+		{
+			// The schema without them: neither is asked, and one served
+			// anyway is not an exact answer.
+			auto       transport = paged_fixture_transport{ fixture_scenario::success };
+			const auto result    = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			const auto initial   = std::ranges::find_if(transport.Requests, [](const github_wire_request& aRequest) { return aRequest.Wire.Body.find("GetReviewData") != std::string::npos; });
+			expect(initial != transport.Requests.end() && initial->Wire.Body.find("viewerCanReply") == std::string::npos
+					   && initial->Wire.Body.find(" locked") == std::string::npos,
+				   "a shape without them selects neither");
+			expect(result.has_value() && result->ReviewThreads.front().ViewerReplyPermission == application::github_permission_state::unavailable
+					   && result->ConversationLock == application::github_conversation_lock::unavailable,
+				   "and both stay unavailable, so nothing is refused on them");
+			auto extra           = paged_fixture_transport{ fixture_scenario::success };
+			extra.ViewerCanReply = fixture_value(true);
+			expect(!perform_paged_github_read(extra, profile(), provider_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ }).has_value(),
+				   "a field the shape did not ask for is refused");
+		}
+		{
+			auto shape                                       = reply_shaped_request();
+			shape.CapabilityEvidence.ReadShape.ReviewThreads = false;
+			auto transport                                   = paged_fixture_transport{ fixture_scenario::success };
+			expect(!perform_paged_github_read(transport, profile(), shape, core::provider_snapshot_id{ 55U }, std::stop_token{ }).has_value(),
+				   "the reply permission and the lock are read only with the threads");
+		}
 	}
 
 	auto test_graphql_head_is_bound_to_rest_snapshot() -> void
@@ -5035,6 +5127,7 @@ auto main() -> int
 	test_glaze_paged_raw_refusals();
 	test_capability_shaped_query();
 	test_successful_exhaustive_read();
+	test_reply_permission_and_lock_read();
 	test_graphql_head_is_bound_to_rest_snapshot();
 	test_measured_files_page_shapes();
 	test_raw_structural_limits();

@@ -453,6 +453,20 @@ namespace bpr::qt {
 		};
 	} // namespace
 
+	auto thread_reply_refusal_text(const core::thread_reply_refusal aRefusal) -> QString
+	{
+		// [[BPR-PENDING-AX]]. GitHub's own two refusals, in plain words. The
+		// others are not GitHub's to say and keep their own wording.
+		switch (aRefusal) {
+		case core::thread_reply_refusal::locked:              return QObject::tr("This conversation is locked. Only collaborators can reply.");
+		case core::thread_reply_refusal::viewer_cannot_reply: return QObject::tr("GitHub doesn't let you reply in this thread.");
+		case core::thread_reply_refusal::none:
+		case core::thread_reply_refusal::not_a_review_thread:
+		case core::thread_reply_refusal::anonymous_read:      return { };
+		}
+		return { };
+	}
+
 	auto suggestion_placement_of(const application::github_conversation_projection& aNode) -> core::suggestion_placement_observation
 	{
 		using subject = core::suggestion_subject;
@@ -572,7 +586,9 @@ namespace bpr::qt {
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
 		// [[BPR-1745]]. An outdated thread takes a reply by the thread.
-		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card) || card.ReplyOnThread, tr("This thread's line isn't in the code shown, so it can't take a reply here."));
+		// [[BPR-PENDING-AX]]. One GitHub refuses this viewer says why.
+		add(card_action::reply, QStringLiteral("Reply"), (has_code_anchor(card) || card.ReplyOnThread) && card.ReplyRefusal == core::thread_reply_refusal::none,
+			card.ReplyRefusal != core::thread_reply_refusal::none ? thread_reply_refusal_text(card.ReplyRefusal) : tr("This thread's line isn't in the code shown, so it can't take a reply here."));
 		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
 																   std::ranges::any_of(card.Posts, [](const card_post& aPost) { return !aPost.Mine; }));
 		add(readAction == core::conversation_read_action::mark_read ? card_action::mark_read : card_action::mark_unread,
@@ -1844,10 +1860,14 @@ namespace bpr::qt {
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
 			// [[BPR-1745]]. The core decides where a reply to the thread
 			// goes; an outdated one takes it without a line, as GitHub does.
-			card.ReplyOnThread = core::decide_thread_reply({ .ReviewThread = isThread && !node.Path.empty(), .Outdated = node.Outdated }).Route
-				== core::thread_reply_route::on_thread;
-			card.FileLevel  = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
-			card.Suggestion = suggestion_placement_of(node);
+			// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` and the lock,
+			// when read, refuse a reply that could not succeed before it is
+			// written.
+			const auto replyDecision = core::decide_thread_reply({ .ReviewThread = isThread && !node.Path.empty(), .Outdated = node.Outdated, .ViewerCanReply = node.ViewerCanReply, .Locked = node.ConversationLocked });
+			card.ReplyOnThread       = replyDecision.Route == core::thread_reply_route::on_thread;
+			card.ReplyRefusal        = isThread && !thread_reply_refusal_text(replyDecision.Refusal).isEmpty() ? replyDecision.Refusal : core::thread_reply_refusal::none;
+			card.FileLevel           = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
+			card.Suggestion          = suggestion_placement_of(node);
 			if (!isThread) {
 				const auto state = ReadStateByThread.find(node.Id);
 				card.RootUnread  = state != ReadStateByThread.end()
@@ -2142,7 +2162,7 @@ namespace bpr::qt {
 		// A signature of everything the open card draws: an unchanged thread
 		// keeps its widgets, its focus and the reply being typed.
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
-			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated)) + QString::number(static_cast<int>(card.ReplyOnThread))
+			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated)) + QString::number(static_cast<int>(card.ReplyOnThread)) + QString::number(static_cast<int>(card.ReplyRefusal))
 			+ QString::number(static_cast<int>(card.ResolutionPending)) + QString::number(static_cast<int>(card.ResolutionPermitted))
 
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))

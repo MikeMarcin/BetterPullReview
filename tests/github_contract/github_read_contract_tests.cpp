@@ -249,6 +249,8 @@ namespace {
 				.ViewedFileState     = true,
 				.ResolvePermission   = true,
 				.UnresolvePermission = true,
+				.ReplyPermission     = true,
+				.ConversationLock    = true,
 			},
 			.ContractVersion = 1,
 		};
@@ -352,6 +354,7 @@ namespace {
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_1" },
@@ -381,6 +384,7 @@ namespace {
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_4" },
@@ -424,6 +428,7 @@ namespace {
 					.Outdated                  = true,
 					.ViewerResolvePermission   = application::github_permission_state::denied,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_2" },
@@ -466,6 +471,7 @@ namespace {
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_file" },
@@ -484,7 +490,9 @@ namespace {
 					},
 				},
 			},
-			.IssueComments = {
+			// [[BPR-PENDING-AX]]. The recorded conversation is not locked.
+			.ConversationLock = application::github_conversation_lock::unlocked,
+			.IssueComments    = {
 				{
 					.Comment = application::github_comment_id{ "IC_fixture_1" },
 					.Author  = application::github_actor_record{
@@ -544,6 +552,8 @@ namespace {
 						.ViewedFileState     = true,
 						.ResolvePermission   = true,
 						.UnresolvePermission = true,
+						.ReplyPermission     = true,
+						.ConversationLock    = true,
 					},
 					.AfterCursor = { },
 					.ThreadId    = { },
@@ -1603,7 +1613,7 @@ namespace {
 		wire_response emptyThreads{
 			.Status       = 200,
 			.Headers      = { { "Content-Type", "application/json" } },
-			.Body         = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","headRefOid":"2222222222222222222222222222222222222222","files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
+			.Body         = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","headRefOid":"2222222222222222222222222222222222222222","locked":false,"files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
 			.Completeness = page_completeness::complete,
 		};
 		expect(

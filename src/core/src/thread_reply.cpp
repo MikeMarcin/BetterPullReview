@@ -15,11 +15,12 @@ namespace bpr::core {
 		if (aFacts.AnonymousRead) {
 			return refuse(thread_reply_refusal::anonymous_read);
 		}
+		// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` already weighs the
+		// lock: on a locked pull request it is false for a reader and true for
+		// a collaborator, who can still reply (BPR-Test#135, 2026-10-23). The
+		// lock only names why GitHub refuses; on its own it refuses nothing.
 		if (aFacts.ViewerCanReply == std::optional{ false }) {
-			return refuse(thread_reply_refusal::viewer_cannot_reply);
-		}
-		if (aFacts.Locked == std::optional{ true }) {
-			return refuse(thread_reply_refusal::locked);
+			return refuse(aFacts.Locked == std::optional{ true } ? thread_reply_refusal::locked : thread_reply_refusal::viewer_cannot_reply);
 		}
 		if (aFacts.Outdated) {
 			return { .Route = thread_reply_route::on_thread, .Refusal = thread_reply_refusal::none, .OutdatedNote = true };

@@ -1580,6 +1580,20 @@ namespace bpr::adapters::github::detail {
 				"OBJECT",
 				"viewerCanUnresolve",
 				scalar("Boolean", true));
+			// [[BPR-PENDING-AX]]. Whether this viewer may reply in a thread,
+			// and the pull request's lock, so a reply that cannot succeed is
+			// refused before Publish. Both types are already introspected; a
+			// server whose schema lacks either reads without it.
+			const auto replyPermission = field_requirement(
+				reviewThread,
+				"OBJECT",
+				"viewerCanReply",
+				scalar("Boolean", true));
+			const auto conversationLock = field_requirement(
+				pullRequest,
+				"OBJECT",
+				"locked",
+				scalar("Boolean", true));
 
 			const auto resolve = combined_fact(
 				field_requirement(
@@ -1645,6 +1659,10 @@ namespace bpr::adapters::github::detail {
 				capability_schema_fact::unresolve_permission)]    = unresolvePermission;
 			aOutput.Facts[fact_index(
 				capability_schema_fact::unresolve_review_thread)] = unresolve;
+			aOutput.Facts[fact_index(
+				capability_schema_fact::reply_permission)]        = replyPermission;
+			aOutput.Facts[fact_index(
+				capability_schema_fact::conversation_lock)]       = conversationLock;
 
 			aOutput.Capabilities = {
 				.ReviewThreads       = capability_state({ reviewRead }),

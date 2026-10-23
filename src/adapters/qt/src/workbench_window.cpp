@@ -11510,6 +11510,17 @@ namespace bpr::qt {
 	void workbench_window::begin_thread_reply(const std::string& aIdentity, const bool aInPlace)
 	{
 		clear_reply_refusal();
+		// [[BPR-PENDING-AX]]. A thread GitHub says this viewer cannot reply
+		// in is refused here, before anything is written, with GitHub's
+		// reason in plain words.
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			const auto& cards = ConversationPanel->cards()->cards();
+			if (const auto card = std::ranges::find(cards, aIdentity, &thread_card::Id); card != cards.end() && card->ReplyRefusal != core::thread_reply_refusal::none) {
+				ReplyRefusalShown = true;
+				ConversationPanel->present_notice(thread_reply_refusal_text(card->ReplyRefusal));
+				return;
+			}
+		}
 		// [[BPR-1290]]. Beside the code the reply is written in place, at the
 		// foot of the open thread; it is the same draft, and nothing publishes
 		// but its Publish.

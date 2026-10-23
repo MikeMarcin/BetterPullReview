@@ -1669,14 +1669,30 @@ namespace bpr::qt {
 				notice->setContentsMargins(text_left - gut_left, 0, 0, 0);
 				footRow->addWidget(notice);
 			}
-			// [[BPR-1374]]. My unsent reply in this thread is opened by Reply.
-			ReplyField = new note_button{ note_button::kind::reply_field, aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"), Foot };
-			ReplyField->setObjectName(QStringLiteral("threadReplyField"));
-			ReplyField->setToolTip(QStringLiteral("Reply  R"));
-			ReplyField->setAccessibleName(QStringLiteral("Reply"));
-			ReplyField->set_style(Style);
-			connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
-			footRow->addWidget(ReplyField);
+			// [[BPR-PENDING-AX]]. A thread GitHub says this viewer cannot reply
+			// in has no Reply field: one quiet line in its place says why, as
+			// the outdated note does, in the card's secondary ink.
+			if (aCard.ReplyRefusal != core::thread_reply_refusal::none) {
+				auto* const refusal = new QLabel{ thread_reply_refusal_text(aCard.ReplyRefusal), Foot };
+				refusal->setObjectName(QStringLiteral("threadReplyRefusal"));
+				refusal->setWordWrap(true);
+				refusal->setTextFormat(Qt::PlainText);
+				refusal->setFont(scaled(font(), 0.92));
+				refusal->setAccessibleName(refusal->text());
+				auto ink = refusal->palette();
+				ink.setColor(QPalette::WindowText, Style.Colours.Ink2);
+				refusal->setPalette(ink);
+				footRow->addWidget(refusal, 1);
+			} else {
+				// [[BPR-1374]]. My unsent reply in this thread is opened by Reply.
+				ReplyField = new note_button{ note_button::kind::reply_field, aCard.UnsentReply.has_value() ? QStringLiteral("Continue your reply") : QStringLiteral("Reply"), Foot };
+				ReplyField->setObjectName(QStringLiteral("threadReplyField"));
+				ReplyField->setToolTip(QStringLiteral("Reply  R"));
+				ReplyField->setAccessibleName(QStringLiteral("Reply"));
+				ReplyField->set_style(Style);
+				connect(ReplyField, &QAbstractButton::clicked, this, [this] { if (Action) { Action(card_action::reply); } });
+				footRow->addWidget(ReplyField);
+			}
 			// [[BPR-1741]]. Where GitHub puts it: at the thread's end,
 			// beside Reply, for a viewer GitHub lets resolve the thread.
 			if (Style.ResolutionOffered && aCard.Kind == QStringLiteral("Inline thread") && aCard.ResolutionPermitted) {

@@ -144,6 +144,7 @@ namespace bpr::app::detail::large_review_fixture {
 				{ "subjectType", "LINE" },
 				{ "viewerCanResolve", true },
 				{ "viewerCanUnresolve", false },
+				{ "viewerCanReply", true },
 			});
 		}
 		return connection(std::move(nodes), 1000U, (aPageIndex + 1U) * 100U, "threads-");
@@ -186,10 +187,13 @@ namespace bpr::app::detail::large_review_fixture {
 				.Kind        = initial ? wire::github_graphql_page_kind::initial
 					: filePage         ? wire::github_graphql_page_kind::files
 									   : wire::github_graphql_page_kind::threads,
-				.Shape       = { .ReviewThreads = true, .ViewedFileState = true, .ResolvePermission = true, .UnresolvePermission = true },
+				.Shape       = { .ReviewThreads = true, .ViewedFileState = true, .ResolvePermission = true, .UnresolvePermission = true, .ReplyPermission = true, .ConversationLock = true },
 				.AfterCursor = initial ? std::string{ } : std::string{ filePage ? "files-" : "threads-" } + std::to_string(pageIndex * 100U),
 			};
 			auto pull = glz::generic{ { "id", "PR_large_review_17" }, { "headRefOid", aHead } };
+			if (initial) {
+				pull["locked"] = false;
+			}
 			if (filePage) {
 				pull["files"] = file_connection(files, pageIndex * 100U);
 			}

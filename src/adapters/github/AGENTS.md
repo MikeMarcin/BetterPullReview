@@ -59,6 +59,13 @@ the functional core or Qt presentation adapter.
   gh-owned helper negative separately from help/version or fixture admission.
   Missing and inaccessible named lookups share `credential_unavailable`; tool
   failure and an attempted indeterminate write must remain distinct.
+- `gh api graphql` admits a fixed set of GraphQL writes, each body compared
+  for exact equality with its compiled form before launch: the pending tour
+  stop edit, resolve and unresolve, add and remove a reaction, and
+  ([[BPR-PENDING-AX]], the owner, 2026-10-23) a reply to a review thread, with
+  the reads that bind or reconcile them. A reply is witnessed in the journal
+  before launch, as on the native connection; no other GraphQL write is
+  admitted.
 - Compile only closed `gh api` argument shapes from revalidated canonical
   requests; a bounded local `gh --version` probe may precede opt-in use and
   carries no credential or request body, as do the closed local

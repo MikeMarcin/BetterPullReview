@@ -158,8 +158,33 @@ These Tour operations remain unavailable on an unqualified host/transport.
 (`ResolveThread`, `UnresolveThread`) and a reaction added or removed
 (`AddReaction`, `RemoveReaction`), each after the read that binds its subject
 to the pull request (`ObserveThread`, `ObserveReactionSubject`)
-([[BPR-1741]]). Those are the only GraphQL writes it admits; each body
-must equal its compiled form, and a reply is still refused there.
+([[BPR-1741]]). It carries a reply to a review thread too
+(`ReplyToThread`, `addPullRequestReviewThreadReply`), on a current thread's
+line and bound to an outdated thread alike, with the read that reconciles it
+(`ObserveThreadComments`) ([[BPR-PENDING-AX]]; the owner, 2026-10-23: "Oh yeah
+sure let gh allow that."). Those are the only GraphQL writes it admits; each
+body must equal its compiled form byte for byte, and one that differs is never
+launched.
+
+The reply widens what the CLI connection may write: until this card a user
+signed in through `gh` could not publish a reply. It goes exactly the native
+reply's way, inside one account lease ([[BPR-1370]]): the `ObserveThread`
+pre-flight that binds the thread to the designated pull request, the
+`ObserveThreadComments` baseline, the journal admission, the viewer and pull
+request observations, the write and the post-write reconciliation. Unlike a
+resolution or a reaction the reply is witnessed: the journal marks it possibly
+sent before `gh` is launched, an answer lost after the launch leaves it possibly
+sent, and the reconciliation or a later session settles it from the thread
+alone. It is never sent twice. Every other GraphQL write stays refused.
+
+The conversation read carries GitHub's `viewerCanReply` on each review thread
+and the pull request's `locked` when the schema probe finds
+`PullRequestReviewThread.viewerCanReply: Boolean!` and `PullRequest.locked:
+Boolean!` (schema facts `reply_permission` and `conversation_lock`, read-shape
+flags `ReplyPermission` and `ConversationLock`, both only with the threads)
+([[BPR-PENDING-AX]]). The recorded GitHub.com and GHES 3.18 schemas carry both. A
+server whose schema lacks either reads without it, and the core treats it as
+unknown: nothing is refused on it, and GitHub's answer to Publish decides.
 
 RFC-BPR-0078's `strict-cli-publication-r2` amendment permits one transient
 credential inside the GitHub adapter for each chosen-account operation. Stock

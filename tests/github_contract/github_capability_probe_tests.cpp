@@ -5,6 +5,7 @@
 
 #include <QCryptographicHash>
 
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -536,6 +537,56 @@ namespace {
 				== capability_schema_fact_state::incompatible,
 			"incompatible signature is retained as exact evidence");
 		expect(valid(incompatible), "incompatible complete evidence is valid");
+	}
+
+	/// The recorded answer with one field taken out of one introspected type.
+	[[nodiscard]] auto with_type_field_removed(
+		const std::string& aBody,
+		const std::string& aAlias,
+		const std::string& aField) -> std::string
+	{
+		auto envelope = parse_fixture_object(aBody);
+		auto data     = envelope.at("data").get_object();
+		auto type     = data.at(aAlias).get_object();
+		auto kept     = fixture_array{ };
+		for (const auto& value : type.at("fields").get_array()) {
+			if (value.get_object().at("name").get_string() != aField) {
+				kept.emplace_back(value);
+			}
+		}
+		type.insert_or_assign("fields", std::move(kept));
+		data.insert_or_assign(aAlias, type);
+		envelope.insert_or_assign("data", data);
+		return fixture_json(envelope);
+	}
+
+	// [[BPR-PENDING-AX]]. GitHub.com and GHES 3.18 both record
+	// `PullRequestReviewThread.viewerCanReply: Boolean!` and
+	// `PullRequest.locked: Boolean!`, so both facts match and the read shape
+	// asks for them. A schema without either reads without it: the fact is
+	// missing, and no capability changes, so nothing is refused on it.
+	auto test_reply_permission_and_lock_facts() -> void
+	{
+		const auto root   = fixture_root();
+		const auto bodies = std::array{
+			load_manifest_fixture(root / "github-com", "github.com", "cloud", 31, 271, 145, 5, 280, 113),
+			load_manifest_fixture(root / "ghes-3.18", "github-enterprise-server", "3.18", 24, 224, 133, 5, 244, 109),
+		};
+		for (const auto& body : bodies) {
+			const auto recorded = observe(body);
+			expect(fact(recorded, capability_schema_fact::reply_permission) == capability_schema_fact_state::matched
+					   && fact(recorded, capability_schema_fact::conversation_lock) == capability_schema_fact_state::matched,
+				   "the recorded schema carries viewerCanReply and the lock");
+			const auto without = observe(with_type_field_removed(with_type_field_removed(body, "reviewThread", "viewerCanReply"), "pullRequest", "locked"));
+			expect(without.Complete && valid(without) && without.Capabilities == recorded.Capabilities
+					   && fact(without, capability_schema_fact::reply_permission) == capability_schema_fact_state::missing
+					   && fact(without, capability_schema_fact::conversation_lock) == capability_schema_fact_state::missing,
+				   "a schema without viewerCanReply and the lock is complete evidence that lacks only them");
+			const auto replyOnly = observe(with_type_field_removed(body, "reviewThread", "viewerCanReply"));
+			expect(fact(replyOnly, capability_schema_fact::reply_permission) == capability_schema_fact_state::missing
+					   && fact(replyOnly, capability_schema_fact::conversation_lock) == capability_schema_fact_state::matched,
+				   "each fact stands on its own field");
+		}
 	}
 
 	[[nodiscard]] auto with_data_alias_removed(
@@ -1983,6 +2034,7 @@ int main(int aArgc, char** aArgv)
 	test_requests_bind_validated_profile_authority();
 	test_paired_supported_contracts();
 	test_synthetic_missing_and_incompatible_contracts();
+	test_reply_permission_and_lock_facts();
 	test_partial_and_unavailable_evidence_stays_unknown();
 	test_rate_limit_classification_is_bounded();
 	test_complete_absence_is_unsupported();

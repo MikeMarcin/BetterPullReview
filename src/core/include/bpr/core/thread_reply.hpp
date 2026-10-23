@@ -32,16 +32,18 @@ namespace bpr::core {
 		anonymous_read,
 		/// GitHub says this viewer cannot reply in the thread.
 		viewer_cannot_reply,
-		/// The pull request's conversation is locked.
+		/// GitHub says this viewer cannot reply because the pull request's
+		/// conversation is locked: only collaborators can reply.
 		locked,
 	};
 
 	/// \brief [[BPR-1745]]. What GitHub's thread data says about one
 	/// thread, as the accepted snapshot holds it.
 	/// \details `ViewerCanReply` and `Locked` are GitHub's `viewerCanReply`
-	/// and the pull request's lock. When the read does not carry one it is
-	/// absent, and nothing is refused on it: GitHub decides at Publish, as it
-	/// does for a reply on a current thread, and its answer is shown there.
+	/// and the pull request's lock (`locked`), read with the conversation
+	/// ([[BPR-PENDING-AX]]). When the read does not carry one, as on a GitHub
+	/// Enterprise Server whose schema lacks it, it is absent, and nothing is
+	/// refused on it: GitHub decides at Publish and its answer is shown there.
 	struct thread_reply_facts
 	{
 		/// A review thread on a file, not a pull request comment.
@@ -77,7 +79,11 @@ namespace bpr::core {
 	/// line is in the code shown is the code's to say. An outdated thread is
 	/// answered by the thread: GitHub accepts a reply to it because a reply
 	/// names only the thread it answers. A thread GitHub says this viewer
-	/// cannot reply in, or one on a locked pull request, takes no reply.
+	/// cannot reply in takes no reply, refused up front rather than after
+	/// Publish; the reason is the lock when the pull request is locked. A
+	/// lock alone refuses nothing: GitHub lets a collaborator reply on a
+	/// locked pull request, and its `viewerCanReply` says so
+	/// ([[BPR-PENDING-AX]]).
 	[[nodiscard]] auto decide_thread_reply(const thread_reply_facts& aFacts) noexcept -> thread_reply_decision;
 
 	/// \brief [[BPR-1745]]. The saved reply a thread's Reply opens

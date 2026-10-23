@@ -17,6 +17,7 @@
 					"totalCount": 1
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
+				"locked": false,
 				"id": "PR_72",
 				"reviewThreads": {
 					"nodes": [],

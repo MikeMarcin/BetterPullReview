@@ -527,7 +527,8 @@ namespace bpr::adapters::github::detail {
 		{
 			const auto& shape = aPage.Shape;
 			if (
-				(shape.ResolvePermission || shape.UnresolvePermission)
+				(shape.ResolvePermission || shape.UnresolvePermission
+				 || shape.ReplyPermission || shape.ConversationLock)
 				&& !shape.ReviewThreads) {
 				return false;
 			}
@@ -599,6 +600,10 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				result += " viewerCanUnresolve";
 			}
+			// [[BPR-PENDING-AX]]. Whether GitHub lets this viewer reply.
+			if (aShape.ReplyPermission) {
+				result += " viewerCanReply";
+			}
 			result += " subjectType path diffSide line originalLine ";
 			result += comment_connection_selection("first:100");
 			result += "} ";
@@ -617,6 +622,10 @@ namespace bpr::adapters::github::detail {
 				query = "query GetReviewData($owner:String!,$name:String!,"
 						"$number:Int!){repository(owner:$owner,name:$name){id "
 						"pullRequest(number:$number){id headRefOid";
+				// [[BPR-PENDING-AX]]. The conversation's lock, once.
+				if (aPage.Shape.ConversationLock) {
+					query += " locked";
+				}
 				if (aPage.Shape.ViewedFileState) {
 					query += ' ';
 					query += file_connection_selection("first:100", aPage.Shape);
@@ -1457,9 +1466,11 @@ namespace bpr::adapters::github::detail {
 				!json_is_object(pullRequest)
 				|| !has_exact_keys(
 					json_object(pullRequest),
-					{ "files", "headRefOid", "id", "reviewThreads" })
+					{ "files", "headRefOid", "id", "locked", "reviewThreads" })
 				|| !nonempty_string(json_member(json_object(pullRequest), "headRefOid"))
-				|| !nonempty_string(json_member(json_object(pullRequest), "id"))) {
+				|| !nonempty_string(json_member(json_object(pullRequest), "id"))
+				// [[BPR-PENDING-AX]]. The recorded conversation's lock.
+				|| !json_is_bool(json_member(json_object(pullRequest), "locked"))) {
 				return false;
 			}
 			const auto files = json_member(json_object(pullRequest), "files");
@@ -1510,6 +1521,7 @@ namespace bpr::adapters::github::detail {
 						"originalLine",
 						"path",
 						"subjectType",
+						"viewerCanReply",
 						"viewerCanResolve",
 						"viewerCanUnresolve",
 					})) {
@@ -1540,6 +1552,7 @@ namespace bpr::adapters::github::detail {
 					|| !json_is_bool(json_member(thread, "isOutdated"))
 					|| !json_is_bool(json_member(thread, "viewerCanResolve"))
 					|| !json_is_bool(json_member(thread, "viewerCanUnresolve"))
+					|| !json_is_bool(json_member(thread, "viewerCanReply"))
 					|| !one_of(diffSide, { "LEFT", "RIGHT" })
 					|| (!fileSubject && !lineSubject)
 					|| !nonempty_string(json_member(thread, "path"))
