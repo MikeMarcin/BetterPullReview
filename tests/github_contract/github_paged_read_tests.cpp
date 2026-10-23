@@ -534,7 +534,7 @@ namespace {
 		}
 
 		std::vector<github_wire_request> Requests;
-		// [[BPR-PENDING-AX]]. The thread's `viewerCanReply` and the pull
+		// [[BPR-1746]]. The thread's `viewerCanReply` and the pull
 		// request's `locked`, served only when set.
 		std::optional<fixture_value> ViewerCanReply;
 		std::optional<fixture_value> Locked;
@@ -1258,7 +1258,7 @@ namespace {
 				{ "subjectType", "LINE" },
 				{ "viewerCanUnresolve", true },
 			};
-			// [[BPR-PENDING-AX]]. GitHub's reply permission, when served.
+			// [[BPR-1746]]. GitHub's reply permission, when served.
 			if (ViewerCanReply) {
 				thread.insert_or_assign("viewerCanReply", *ViewerCanReply);
 			}
@@ -1937,7 +1937,7 @@ namespace {
 			   "initial GraphQL page is sequence one only");
 	}
 
-	// [[BPR-PENDING-AX]]. A read shape that carries GitHub's reply
+	// [[BPR-1746]]. A read shape that carries GitHub's reply
 	// permission and the lock selects them, reads them into the snapshot and
 	// refuses an answer without them or with another type; one that does not
 	// carry them selects neither and leaves both unavailable, as on a GHES

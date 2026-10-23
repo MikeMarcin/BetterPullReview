@@ -45,9 +45,9 @@ namespace bpr::application {
 		resolve_review_thread,
 		unresolve_permission,
 		unresolve_review_thread,
-		/// [[BPR-PENDING-AX]]. `PullRequestReviewThread.viewerCanReply: Boolean!`.
+		/// [[BPR-1746]]. `PullRequestReviewThread.viewerCanReply: Boolean!`.
 		reply_permission,
-		/// [[BPR-PENDING-AX]]. `PullRequest.locked: Boolean!`.
+		/// [[BPR-1746]]. `PullRequest.locked: Boolean!`.
 		conversation_lock,
 	};
 

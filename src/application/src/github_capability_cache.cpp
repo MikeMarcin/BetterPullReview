@@ -232,7 +232,7 @@ namespace bpr::application {
 				== core::github_capability_state::supported,
 			.UnresolvePermission = aObservation.SchemaFacts[6U].State
 				== core::github_capability_state::supported,
-			// [[BPR-PENDING-AX]]. Read with the threads, so only when they are.
+			// [[BPR-1746]]. Read with the threads, so only when they are.
 			.ReplyPermission = reviewThreads
 				&& aObservation.SchemaFacts[8U].State
 					== core::github_capability_state::supported,

@@ -1,4 +1,6 @@
-# [[BPR-PENDING-AX]] reseal (2026-10-23) over last matching main b8d2ec6cf,
+# Upkeep reseal (2026-10-23): the only src/app change since the BPR-1746 note below
+# is renaming its [[BPR-PENDING-AX]] comment tags to [[BPR-1746]]; no code change.
+# [[BPR-1746]] reseal (2026-10-23) over last matching main b8d2ec6cf,
 # linear. Pinned-scope commit cb4cbfd9c (the owner's decision of 2026-10-23,
 # "Oh yeah sure let gh allow that."): github_application.cpp feeds GitHub's
 # viewerCanReply and the pull request's lock, now read with the conversation,
@@ -2111,7 +2113,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"081123c22d70493b7362ade34487a7799dcb5fedf8ce148173a4be168f0f025d"
+		"d7325078364fd29979da433cf5cb42c1c5592c69bae2776e853e78ad1b408b03"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2335,7 +2337,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "eef2aae5a884a2fd8a19b2003f7607af61ca7a7824215e48f4b95902c8f711a0"
+        "941942272c42ba1bb4939f899569b81b16779d4105591a79c38cf7eeba3da9d0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

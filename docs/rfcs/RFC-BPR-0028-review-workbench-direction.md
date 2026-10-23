@@ -979,7 +979,7 @@ reply", and Discuss's Reply, are amended to include outdated threads:
   before. An outdated thread is answered by the thread: its reply is a draft
   bound to the thread rather than a line, so no line is selected and none is
   needed. A thread GitHub says the viewer cannot reply in takes no reply; an
-  anonymous read takes none. [[BPR-PENDING-AX]] reads GitHub's
+  anonymous read takes none. [[BPR-1746]] reads GitHub's
   `viewerCanReply` and the pull request's lock with the conversation; a refused
   thread says why in place of its Reply field. The lock is the reason when it
   applies, but on its own refuses nothing: GitHub lets a collaborator reply on

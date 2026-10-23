@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AX]]. The live course of thread replies on the GitHub CLI
+// [[BPR-1746]]. The live course of thread replies on the GitHub CLI
 // connection: never a CTest row and not built by default
 // (BPR_BUILD_LIVE_CLI_REPLY_COURSE).
 //

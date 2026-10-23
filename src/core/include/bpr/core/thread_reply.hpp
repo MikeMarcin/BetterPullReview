@@ -41,7 +41,7 @@ namespace bpr::core {
 	/// thread, as the accepted snapshot holds it.
 	/// \details `ViewerCanReply` and `Locked` are GitHub's `viewerCanReply`
 	/// and the pull request's lock (`locked`), read with the conversation
-	/// ([[BPR-PENDING-AX]]). When the read does not carry one, as on a GitHub
+	/// ([[BPR-1746]]). When the read does not carry one, as on a GitHub
 	/// Enterprise Server whose schema lacks it, it is absent, and nothing is
 	/// refused on it: GitHub decides at Publish and its answer is shown there.
 	struct thread_reply_facts
@@ -83,7 +83,7 @@ namespace bpr::core {
 	/// Publish; the reason is the lock when the pull request is locked. A
 	/// lock alone refuses nothing: GitHub lets a collaborator reply on a
 	/// locked pull request, and its `viewerCanReply` says so
-	/// ([[BPR-PENDING-AX]]).
+	/// ([[BPR-1746]]).
 	[[nodiscard]] auto decide_thread_reply(const thread_reply_facts& aFacts) noexcept -> thread_reply_decision;
 
 	/// \brief [[BPR-1745]]. The saved reply a thread's Reply opens

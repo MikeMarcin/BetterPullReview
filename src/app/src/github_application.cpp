@@ -12007,7 +12007,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		/// \brief [[BPR-1745]]. What GitHub's thread data, as the
 		/// accepted snapshot holds it, says about replying in one thread.
-		/// \details [[BPR-PENDING-AX]]. With GitHub's `viewerCanReply` and the
+		/// \details [[BPR-1746]]. With GitHub's `viewerCanReply` and the
 		/// pull request's lock when the conversation read carries them; a
 		/// server whose schema lacks them leaves them unknown, and GitHub
 		/// decides at Publish.
@@ -13502,7 +13502,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
-			// [[BPR-PENDING-AX]]. A thread GitHub says this viewer cannot
+			// [[BPR-1746]]. A thread GitHub says this viewer cannot
 			// reply in takes no reply: the window has said why, and no draft
 			// is made for a Publish GitHub would refuse.
 			if (const auto* const thread = accepted_thread(aIdentity);

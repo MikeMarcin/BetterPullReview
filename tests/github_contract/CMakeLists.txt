@@ -487,7 +487,7 @@ target_link_libraries(
     test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
-        # [[BPR-PENDING-AX]]. The composed reply course keeps its journal in
+        # [[BPR-1746]]. The composed reply course keeps its journal in
         # the shipped SQLite recovery store.
         BetterPullReview::AdapterSQLite
         BetterPullReview::Application
@@ -1463,7 +1463,7 @@ if(BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE)
     bpr_enable_warnings(tool_outdated_reply_live_course)
 endif()
 
-# [[BPR-PENDING-AX]]. The live course of thread replies on the GitHub CLI
+# [[BPR-1746]]. The live course of thread replies on the GitHub CLI
 # connection: the app's own gh path (gh_cli_transport over the shipped
 # process runner) against MikeMarcin/BPR-Test. Never a CTest row, and not built
 # by default. Configure with -DBPR_BUILD_LIVE_CLI_REPLY_COURSE=ON;

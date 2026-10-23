@@ -560,7 +560,7 @@ namespace {
 		return fixture_json(envelope);
 	}
 
-	// [[BPR-PENDING-AX]]. GitHub.com and GHES 3.18 both record
+	// [[BPR-1746]]. GitHub.com and GHES 3.18 both record
 	// `PullRequestReviewThread.viewerCanReply: Boolean!` and
 	// `PullRequest.locked: Boolean!`, so both facts match and the read shape
 	// asks for them. A schema without either reads without it: the fact is

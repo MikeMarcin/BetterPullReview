@@ -600,7 +600,7 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				result += " viewerCanUnresolve";
 			}
-			// [[BPR-PENDING-AX]]. Whether GitHub lets this viewer reply.
+			// [[BPR-1746]]. Whether GitHub lets this viewer reply.
 			if (aShape.ReplyPermission) {
 				result += " viewerCanReply";
 			}
@@ -622,7 +622,7 @@ namespace bpr::adapters::github::detail {
 				query = "query GetReviewData($owner:String!,$name:String!,"
 						"$number:Int!){repository(owner:$owner,name:$name){id "
 						"pullRequest(number:$number){id headRefOid";
-				// [[BPR-PENDING-AX]]. The conversation's lock, once.
+				// [[BPR-1746]]. The conversation's lock, once.
 				if (aPage.Shape.ConversationLock) {
 					query += " locked";
 				}
@@ -1469,7 +1469,7 @@ namespace bpr::adapters::github::detail {
 					{ "files", "headRefOid", "id", "locked", "reviewThreads" })
 				|| !nonempty_string(json_member(json_object(pullRequest), "headRefOid"))
 				|| !nonempty_string(json_member(json_object(pullRequest), "id"))
-				// [[BPR-PENDING-AX]]. The recorded conversation's lock.
+				// [[BPR-1746]]. The recorded conversation's lock.
 				|| !json_is_bool(json_member(json_object(pullRequest), "locked"))) {
 				return false;
 			}

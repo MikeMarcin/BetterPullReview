@@ -250,7 +250,7 @@ namespace bpr::application {
 		std::string CreatedAt;
 		/// Review owning a file comment, in the same identity space as review summaries.
 		std::string ReviewId;
-		/// [[BPR-PENDING-AX]]. On a review thread: GitHub's `viewerCanReply`,
+		/// [[BPR-1746]]. On a review thread: GitHub's `viewerCanReply`,
 		/// and the pull request's lock, when the conversation read carries
 		/// them; absent otherwise, and then nothing is refused on them.
 		std::optional<bool> ViewerCanReply;

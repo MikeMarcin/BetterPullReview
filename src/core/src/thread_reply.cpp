@@ -15,7 +15,7 @@ namespace bpr::core {
 		if (aFacts.AnonymousRead) {
 			return refuse(thread_reply_refusal::anonymous_read);
 		}
-		// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` already weighs the
+		// [[BPR-1746]]. GitHub's `viewerCanReply` already weighs the
 		// lock: on a locked pull request it is false for a reader and true for
 		// a collaborator, who can still reply (BPR-Test#135, 2026-10-23). The
 		// lock only names why GitHub refuses; on its own it refuses nothing.

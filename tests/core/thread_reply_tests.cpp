@@ -67,7 +67,7 @@ namespace {
 		const auto denied = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .ViewerCanReply = false });
 		expect(denied.Route == thread_reply_route::refused && denied.Refusal == thread_reply_refusal::viewer_cannot_reply && !denied.OutdatedNote,
 			   "GitHub saying the viewer cannot reply refuses the reply");
-		// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` already weighs the
+		// [[BPR-1746]]. GitHub's `viewerCanReply` already weighs the
 		// lock: false for a reader on a locked pull request, true for a
 		// collaborator, as BPR-Test#135 answered live on 2026-10-23.
 		const auto locked = decide_thread_reply({ .ReviewThread = true, .Outdated = true, .ViewerCanReply = false, .Locked = true });

@@ -1877,7 +1877,7 @@ namespace bpr::adapters::github::detail {
 		// reaction added or removed, with the reads that bind them to the pull
 		// request first. Each is a fixed document the outbound validator above
 		// compared for exact equality; no other GraphQL write is admitted.
-		// [[BPR-PENDING-AX]]. The owner, 2026-10-23: "Oh yeah sure let gh
+		// [[BPR-1746]]. The owner, 2026-10-23: "Oh yeah sure let gh
 		// allow that." A reply to a thread (`ReplyToThread`, on a current
 		// line or bound to an outdated thread) goes the same way, with the
 		// read that reconciles it (`ObserveThreadComments`). Unlike a state

@@ -62,7 +62,7 @@ the functional core or Qt presentation adapter.
 - `gh api graphql` admits a fixed set of GraphQL writes, each body compared
   for exact equality with its compiled form before launch: the pending tour
   stop edit, resolve and unresolve, add and remove a reaction, and
-  ([[BPR-PENDING-AX]], the owner, 2026-10-23) a reply to a review thread, with
+  ([[BPR-1746]], the owner, 2026-10-23) a reply to a review thread, with
   the reads that bind or reconcile them. A reply is witnessed in the journal
   before launch, as on the native connection; no other GraphQL write is
   admitted.

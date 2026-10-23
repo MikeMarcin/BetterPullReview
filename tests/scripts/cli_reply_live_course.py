@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[[BPR-PENDING-AX]]. The live course of thread replies on the GitHub CLI
+"""[[BPR-1746]]. The live course of thread replies on the GitHub CLI
 connection, on MikeMarcin/BPR-Test.
 
 Run by hand, never by CTest. The owner designated MikeMarcin/BPR-Test as the
@@ -134,7 +134,7 @@ def course(arguments: argparse.Namespace) -> int:
         made = github.api("-X", "PUT", f"{repo}/contents/{PATH}", "-f", "message=Add the CLI reply course file", "-f", f"content={content(first)}", "-f", f"branch={branch}")
         written_on = made["commit"]["sha"]
         pull = github.api("-X", "POST", f"{repo}/pulls", "-f", f"title=Disposable CLI-connection reply course {stamp}", "-f", f"head={branch}", "-f", "base=main",
-                          "-f", "body=Disposable pull request for the GitHub CLI connection's reply course (BPR-PENDING-AX). Safe to close.")
+                          "-f", "body=Disposable pull request for the GitHub CLI connection's reply course (BPR-1746). Safe to close.")
         number = pull["number"]
         print(f"CLI_REPLY_DRIVER:pull-request:{number}", flush=True)
         for line, body in ((1, "first() stays as it is: does it need a comment?"), (3, "third() is about to change: will this still hold?")):

@@ -126,7 +126,7 @@ namespace bpr::application {
 		allowed,
 	};
 
-	/// \brief [[BPR-PENDING-AX]]. The pull request's conversation lock, as
+	/// \brief [[BPR-1746]]. The pull request's conversation lock, as
 	/// the conversation read carries it (`locked`); unavailable when the read
 	/// shape does not select it.
 	enum class github_conversation_lock : std::uint8_t {
@@ -321,7 +321,7 @@ namespace bpr::application {
 		bool                         Outdated                  = false;
 		github_permission_state      ViewerResolvePermission   = github_permission_state::unavailable;
 		github_permission_state      ViewerUnresolvePermission = github_permission_state::unavailable;
-		/// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply`, when the read
+		/// [[BPR-1746]]. GitHub's `viewerCanReply`, when the read
 		/// shape selects it.
 		github_permission_state                   ViewerReplyPermission = github_permission_state::unavailable;
 		std::vector<github_review_comment_record> Comments;
@@ -827,7 +827,7 @@ namespace bpr::application {
 		std::vector<github_review_record>        Reviews;
 		github_collection_availability           ReviewThreadsAvailability = github_collection_availability::unavailable;
 		std::vector<github_review_thread_record> ReviewThreads;
-		/// [[BPR-PENDING-AX]]. Read with the threads when the read shape
+		/// [[BPR-1746]]. Read with the threads when the read shape
 		/// selects it; unavailable otherwise.
 		github_conversation_lock ConversationLock = github_conversation_lock::unavailable;
 		// The REST inline review conversation is a separate observation from
@@ -2382,7 +2382,7 @@ namespace bpr::application {
 			return detail::validation(
 				github_read_validation_error::relationship_review_threads_capability);
 		}
-		// [[BPR-PENDING-AX]]. The lock is read exactly when the shape asks,
+		// [[BPR-1746]]. The lock is read exactly when the shape asks,
 		// and only with the threads it belongs to.
 		if (!detail::valid_enum(aSnapshot.ConversationLock)) {
 			return detail::validation(github_read_validation_error::invalid_enum);

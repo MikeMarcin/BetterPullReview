@@ -1751,7 +1751,7 @@ namespace {
 		}
 	}
 
-	// [[BPR-PENDING-AX]]. GitHub as `gh api` reaches it, for the fixture pull
+	// [[BPR-1746]]. GitHub as `gh api` reaches it, for the fixture pull
 	// request and two review threads: `PRRT_current_1`, current, whose replies
 	// sit on line 13 of the head, and `PRRT_outdated_2`, outdated, written on
 	// commit 5a…, whose replies GitHub holds with no line on that commit (as
@@ -1911,7 +1911,7 @@ namespace {
 		}
 	};
 
-	// [[BPR-PENDING-AX]]. The owner, 2026-10-23: "Oh yeah sure let gh allow
+	// [[BPR-1746]]. The owner, 2026-10-23: "Oh yeah sure let gh allow
 	// that." A composed course on the GitHub CLI connection: the shipped
 	// session, the application host and the SQLite journal over
 	// `gh_cli_transport`, whose child is GitHub as `gh api` reaches it. A reply
@@ -2083,7 +2083,7 @@ namespace {
 						   && process.LastRequest->StandardOutputLimit == maximum_review_mutation_list_response_bytes + 32U * 1024U,
 					   "[[BPR-1538]] a page of the comment collection may carry a full page of GitHub's comments");
 			}
-			// [[BPR-PENDING-AX]]. A reply, on a current line or bound to an
+			// [[BPR-1746]]. A reply, on a current line or bound to an
 			// outdated thread, and [[BPR-0896]]'s thread reconciliation of
 			// one go by `gh api graphql` with the exact compiled body on
 			// stdin. The reply is witnessed first; a body changed by one byte

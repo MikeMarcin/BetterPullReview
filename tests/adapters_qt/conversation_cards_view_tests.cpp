@@ -1944,7 +1944,7 @@ namespace {
 		view.hide();
 	}
 
-	// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` and the lock, read with
+	// [[BPR-1746]]. GitHub's `viewerCanReply` and the lock, read with
 	// the conversation, refuse a reply that could not succeed before it is
 	// written: no Reply field, a quiet line saying why, and the menu's Reply
 	// disabled with the same words. A collaborator on a locked pull request,

@@ -1669,7 +1669,7 @@ namespace bpr::qt {
 				notice->setContentsMargins(text_left - gut_left, 0, 0, 0);
 				footRow->addWidget(notice);
 			}
-			// [[BPR-PENDING-AX]]. A thread GitHub says this viewer cannot reply
+			// [[BPR-1746]]. A thread GitHub says this viewer cannot reply
 			// in has no Reply field: one quiet line in its place says why, as
 			// the outdated note does, in the card's secondary ink.
 			if (aCard.ReplyRefusal != core::thread_reply_refusal::none) {

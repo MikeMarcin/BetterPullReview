@@ -150,10 +150,10 @@ namespace bpr::application {
 		bool ViewedFileState     = false;
 		bool ResolvePermission   = false;
 		bool UnresolvePermission = false;
-		/// [[BPR-PENDING-AX]]. Each review thread carries GitHub's
+		/// [[BPR-1746]]. Each review thread carries GitHub's
 		/// `viewerCanReply`; needs `ReviewThreads`.
 		bool ReplyPermission = false;
-		/// [[BPR-PENDING-AX]]. The conversation read carries the pull
+		/// [[BPR-1746]]. The conversation read carries the pull
 		/// request's `locked`; needs `ReviewThreads`.
 		bool ConversationLock = false;
 

@@ -11510,7 +11510,7 @@ namespace bpr::qt {
 	void workbench_window::begin_thread_reply(const std::string& aIdentity, const bool aInPlace)
 	{
 		clear_reply_refusal();
-		// [[BPR-PENDING-AX]]. A thread GitHub says this viewer cannot reply
+		// [[BPR-1746]]. A thread GitHub says this viewer cannot reply
 		// in is refused here, before anything is written, with GitHub's
 		// reason in plain words.
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {

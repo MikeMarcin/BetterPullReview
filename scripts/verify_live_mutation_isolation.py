@@ -49,7 +49,7 @@ PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
         # on the first attempt. The symbol check below is unchanged and still
         # covers this binary.
         "tests/github_contract/live_review_mutation_provider_tests.cpp",
-        # [[BPR-PENDING-AX]]. The same forwarding double over the session,
+        # [[BPR-1746]]. The same forwarding double over the session,
         # in the CLI transport's composed reply course and in the two hand-run
         # live reply courses ([[BPR-1745]]'s and this card's), which are not
         # built by default. None calls make_live_review_mutation_provider, and

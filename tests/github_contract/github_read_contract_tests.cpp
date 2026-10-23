@@ -490,7 +490,7 @@ namespace {
 					},
 				},
 			},
-			// [[BPR-PENDING-AX]]. The recorded conversation is not locked.
+			// [[BPR-1746]]. The recorded conversation is not locked.
 			.ConversationLock = application::github_conversation_lock::unlocked,
 			.IssueComments    = {
 				{

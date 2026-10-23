@@ -1980,7 +1980,7 @@ namespace bpr::adapters::github::detail {
 						   ? application::github_permission_state::allowed
 						   : application::github_permission_state::denied)
 					: application::github_permission_state::unavailable,
-				// [[BPR-PENDING-AX]]. GitHub's own word on whether this viewer
+				// [[BPR-1746]]. GitHub's own word on whether this viewer
 				// may reply here, which already weighs the lock.
 				.ViewerReplyPermission = aShape.ReplyPermission
 					? (json_bool(json_member(thread, "viewerCanReply"))
@@ -2891,7 +2891,7 @@ namespace bpr::adapters::github::detail {
 				|| (aShape.ConversationLock && !json_is_bool(json_member(initialPullRequest, "locked")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
-			// [[BPR-PENDING-AX]]. The pull request's conversation lock.
+			// [[BPR-1746]]. The pull request's conversation lock.
 			if (aShape.ConversationLock) {
 				aSnapshot.ConversationLock = json_bool(json_member(initialPullRequest, "locked"))
 					? application::github_conversation_lock::locked

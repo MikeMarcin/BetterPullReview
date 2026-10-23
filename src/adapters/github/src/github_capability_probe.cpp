@@ -1580,7 +1580,7 @@ namespace bpr::adapters::github::detail {
 				"OBJECT",
 				"viewerCanUnresolve",
 				scalar("Boolean", true));
-			// [[BPR-PENDING-AX]]. Whether this viewer may reply in a thread,
+			// [[BPR-1746]]. Whether this viewer may reply in a thread,
 			// and the pull request's lock, so a reply that cannot succeed is
 			// refused before Publish. Both types are already introspected; a
 			// server whose schema lacks either reads without it.

@@ -455,7 +455,7 @@ namespace bpr::qt {
 
 	auto thread_reply_refusal_text(const core::thread_reply_refusal aRefusal) -> QString
 	{
-		// [[BPR-PENDING-AX]]. GitHub's own two refusals, in plain words. The
+		// [[BPR-1746]]. GitHub's own two refusals, in plain words. The
 		// others are not GitHub's to say and keep their own wording.
 		switch (aRefusal) {
 		case core::thread_reply_refusal::locked:              return QObject::tr("This conversation is locked. Only collaborators can reply.");
@@ -586,7 +586,7 @@ namespace bpr::qt {
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
 		// [[BPR-1745]]. An outdated thread takes a reply by the thread.
-		// [[BPR-PENDING-AX]]. One GitHub refuses this viewer says why.
+		// [[BPR-1746]]. One GitHub refuses this viewer says why.
 		add(card_action::reply, QStringLiteral("Reply"), (has_code_anchor(card) || card.ReplyOnThread) && card.ReplyRefusal == core::thread_reply_refusal::none,
 			card.ReplyRefusal != core::thread_reply_refusal::none ? thread_reply_refusal_text(card.ReplyRefusal) : tr("This thread's line isn't in the code shown, so it can't take a reply here."));
 		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
@@ -1860,7 +1860,7 @@ namespace bpr::qt {
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
 			// [[BPR-1745]]. The core decides where a reply to the thread
 			// goes; an outdated one takes it without a line, as GitHub does.
-			// [[BPR-PENDING-AX]]. GitHub's `viewerCanReply` and the lock,
+			// [[BPR-1746]]. GitHub's `viewerCanReply` and the lock,
 			// when read, refuse a reply that could not succeed before it is
 			// written.
 			const auto replyDecision = core::decide_thread_reply({ .ReviewThread = isThread && !node.Path.empty(), .Outdated = node.Outdated, .ViewerCanReply = node.ViewerCanReply, .Locked = node.ConversationLocked });

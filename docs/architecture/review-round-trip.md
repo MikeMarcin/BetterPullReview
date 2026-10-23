@@ -629,7 +629,7 @@ confirmed change is dropped when a read agrees with it or disagrees twice, so
 a read begun before the write cannot undo it on screen. A failed change shows
 the read again and names why.
 
-## Replies on the GitHub CLI connection ([[BPR-PENDING-AX]])
+## Replies on the GitHub CLI connection ([[BPR-1746]])
 
 The owner, 2026-10-23: "Oh yeah sure let gh allow that." `gh_cli_transport`
 carries a reply to a review thread (`ReplyToThread`), on a current line or

@@ -1268,7 +1268,7 @@ namespace {
 			.Reviews                   = { },
 			.ReviewThreadsAvailability = application::github_collection_availability::available,
 			.ReviewThreads             = { },
-			// [[BPR-PENDING-AX]]. Read when the shape asks for it.
+			// [[BPR-1746]]. Read when the shape asks for it.
 			.ConversationLock   = aRequest.CapabilityEvidence.ReadShape.ConversationLock ? application::github_conversation_lock::unlocked : application::github_conversation_lock::unavailable,
 			.IssueComments      = { },
 			.Checks             = { },
@@ -1327,7 +1327,7 @@ namespace {
 			.Outdated                  = false,
 			.ViewerResolvePermission   = application::github_permission_state::denied,
 			.ViewerUnresolvePermission = application::github_permission_state::allowed,
-			// [[BPR-PENDING-AX]]. Read when the shape asks for it.
+			// [[BPR-1746]]. Read when the shape asks for it.
 			.ViewerReplyPermission = aRequest.CapabilityEvidence.ReadShape.ReplyPermission ? application::github_permission_state::allowed : application::github_permission_state::unavailable,
 			.Comments              = {
 				application::github_review_comment_record{

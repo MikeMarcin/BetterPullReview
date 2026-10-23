@@ -1269,7 +1269,7 @@ namespace bpr::adapters::github::detail {
 					|| graphqlPullRequest.HeadRefOid != headOid) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
-				// [[BPR-PENDING-AX]]. The lock and each thread's reply
+				// [[BPR-1746]]. The lock and each thread's reply
 				// permission are present exactly when the shape asks.
 				if (graphqlPullRequest.Locked.has_value() != aAdmission.Shape.ConversationLock) {
 					return failed(contract_failure_code::unexpected_response_shape);
