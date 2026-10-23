@@ -23,7 +23,20 @@ cmake_minimum_required(VERSION 4.4.2)
 #           held, its thread's note says it was resolved, and Publish is still
 #           offered.
 #
-# Every course checks that the fixture server received no post, reply,
+# [[BPR-PENDING-AT]]. The same thread made outdated by a push first, then its
+# Reply in the drawer: a reply bound to the thread, with no refusal and the
+# quiet line "Outdated: this thread's line has changed since it was written".
+# Before the change its Reply was refused and no draft was made.
+#
+# outdated-publish  The reply is written and published: exactly one reply
+#                   reaches the fixture server, bound to the thread and the
+#                   commit the thread was written on, and it lands in the
+#                   thread.
+# outdated-write    The reply is written and the application quits.
+# outdated-restart  Restart over the same data root: the saved reply is marked
+#                   on its thread's note, and Reply opens it with its words.
+#
+# Every other course checks that the fixture server received no post, reply,
 # review or resolution. Before BPR-1374 every course but write failed: a
 # Refresh left the editor with no draft, a restart showed no reply, and a
 # deleted thread took its reply with it, unsaid.
@@ -39,6 +52,11 @@ include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 math(EXPR bpr_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 file(REMOVE_RECURSE "${BPR_ROOT}")
 bpr_private_data_root(BPR_ROOT)
+# [[BPR-PENDING-AT]]. The outdated-thread pair keeps its own data root, so its
+# write is the first run over it, as write is over the other.
+set(BPR_OUTDATED_ROOT "${BPR_ROOT}-outdated")
+file(REMOVE_RECURSE "${BPR_OUTDATED_ROOT}")
+bpr_private_data_root(BPR_OUTDATED_ROOT)
 
 foreach(course_spec IN ITEMS
     "refresh|fresh"
@@ -47,13 +65,18 @@ foreach(course_spec IN ITEMS
     "restart|persistent"
     "deleted|fresh"
     "kept|fresh"
-    "resolved|fresh")
+    "resolved|fresh"
+    "outdated-publish|fresh"
+    "outdated-write|outdated"
+    "outdated-restart|outdated")
     string(REPLACE "|" ";" course_parts "${course_spec}")
     list(GET course_parts 0 course)
     list(GET course_parts 1 root)
     set(bpr_root_arguments)
     if(root STREQUAL "persistent")
         set(bpr_root_arguments --epoch-fixture-root "${BPR_ROOT}" --epoch-fixture-phase single)
+    elseif(root STREQUAL "outdated")
+        set(bpr_root_arguments --epoch-fixture-root "${BPR_OUTDATED_ROOT}" --epoch-fixture-phase single)
     endif()
     execute_process(
         COMMAND

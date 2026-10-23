@@ -633,15 +633,16 @@ namespace bpr::adapters::github::detail {
 		}
 		struct reply_comment_json
 		{
-			std::string              Id;
-			std::uint64_t            DatabaseId = 0U;
-			std::string              Body;
-			std::string              Path;
-			std::uint64_t            Line = 0U;
-			reply_commit_json        Commit;
-			reply_author_json        Author;
-			bool                     ViewerDidAuthor = false;
-			thread_pull_request_json PullRequest;
+			std::string   Id;
+			std::uint64_t DatabaseId = 0U;
+			std::string   Body;
+			std::string   Path;
+			// [[BPR-PENDING-AT]]. Null for a reply to an outdated thread.
+			std::optional<std::uint64_t> Line;
+			reply_commit_json            Commit;
+			reply_author_json            Author;
+			bool                         ViewerDidAuthor = false;
+			thread_pull_request_json     PullRequest;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -1556,12 +1557,21 @@ namespace bpr::adapters::github::detail {
 		{
 			const auto     commit            = core::parse_git_commit_oid(aComment.Commit.Oid);
 			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
+			const auto&    binding           = *aExpected.LiveBinding;
+			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread is
+			// answered with no line, on the commit the thread was written on
+			// (live on BPR-Test#133, 2026-10-22). A line in that answer is not
+			// the reply asked for; neither is a missing one for a reply on a
+			// line.
+			const auto threadBound = application::thread_bound_binding(binding.Anchor);
 			if (aComment.Id.empty() || aComment.DatabaseId == 0U || !commit
-				|| aComment.Line == 0U || aComment.Line > maximumGithubLine) {
+				|| (aComment.Line.has_value() && (*aComment.Line == 0U || *aComment.Line > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			const auto& binding      = *aExpected.LiveBinding;
-			const auto  semanticLine = static_cast<std::uint32_t>(aComment.Line - 1U);
+			if (threadBound ? aComment.Line.has_value() : !aComment.Line.has_value()) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			const auto semanticLine = threadBound ? binding.Anchor.Semantic.Line : static_cast<std::uint32_t>(*aComment.Line - 1U);
 			// [[BPR-0879]]. The thread identity was free; the pull request the
 			// server says it answered is not.
 			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
@@ -1642,18 +1652,23 @@ namespace bpr::adapters::github::detail {
 				|| (aComment.Line.has_value() && (*aComment.Line == 0U || *aComment.Line > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			const auto& author = aComment.Author;
+			const auto& author  = aComment.Author;
+			const auto& binding = *aExpected.LiveBinding;
+			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread has no
+			// line, and is ours on the thread's own path and commit; the thread
+			// observed is already the one asked for, so its side says nothing
+			// more. A reply on a line keeps every check it had.
+			const auto threadBound = application::thread_bound_binding(binding.Anchor);
 			if (!databaseId.has_value() || *databaseId == 0U || !commit.has_value()
-				|| !aComment.Line.has_value() || !author.has_value()
+				|| (threadBound ? aComment.Line.has_value() : !aComment.Line.has_value()) || !author.has_value()
 				|| !author->DatabaseId.has_value() || *author->DatabaseId == 0U
 				|| !author->Id.has_value()) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
-			const auto& binding      = *aExpected.LiveBinding;
-			const auto  expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
-			const auto  semanticLine = static_cast<std::uint32_t>(*aComment.Line - 1U);
+			const auto expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+			const auto semanticLine = threadBound ? binding.Anchor.Semantic.Line : static_cast<std::uint32_t>(*aComment.Line - 1U);
 			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
-				|| aDiffSide != expectedSide || semanticLine != binding.Anchor.Semantic.Line
+				|| (!threadBound && aDiffSide != expectedSide) || semanticLine != binding.Anchor.Semantic.Line
 				|| aComment.Body != aExpected.Proposal.Body || !aComment.ViewerDidAuthor
 				|| *author->DatabaseId != binding.ActingIdentity.DatabaseId
 				|| *author->Id != binding.ActingIdentity.NodeId
@@ -2660,6 +2675,10 @@ namespace bpr::adapters::github::detail {
 		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
 			|| !application::valid(*aRequest.LiveBinding)
 			|| aRequest.Proposal.Anchor != aRequest.LiveBinding->Anchor.Semantic
+			// [[BPR-PENDING-AT]]. Only a reply, in GitHub's own form, may be
+			// bound to its thread rather than a line.
+			|| (application::thread_bound_binding(aRequest.LiveBinding->Anchor)
+				&& (!aRequest.Proposal.ReplyToThread || aRequest.Source || aRequest.Representation != core::review_publication_representation::native_line))
 			|| (aRequest.Proposal.StartLine
 				&& (aRequest.Proposal.ReplyToThread || !core::supported_comment_target(aRequest.Proposal.Anchor.Side)
 					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line

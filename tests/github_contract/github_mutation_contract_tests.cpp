@@ -1300,15 +1300,19 @@ namespace {
 				   "one-based REST response line maps back to the semantic line");
 		}
 
+		// [[BPR-PENDING-AT]]. A line count is a 32-bit value, so the last
+		// index a document can have is one below the 32-bit maximum; that
+		// maximum is `core::thread_reply_line`, the line of a reply bound to
+		// its thread, which no new comment takes.
 		const auto maximumSemantic
-			= request_at_line(std::numeric_limits<std::uint32_t>::max());
+			= request_at_line(std::numeric_limits<std::uint32_t>::max() - 1U);
 		const auto maximumCompiled = compile_review_comment_request(maximumSemantic);
 		expect(maximumCompiled.has_value()
-				   && maximumCompiled->Body.find("\"line\":4294967296,")
+				   && maximumCompiled->Body.find("\"line\":4294967295,")
 					   != std::string::npos,
 			   "the maximum semantic line translates without overflow");
 		expect(parse_review_comment_response(
-				   { .Status = 201, .Body = comment_body(4'294'967'296U) },
+				   { .Status = 201, .Body = comment_body(4'294'967'295U) },
 				   maximumSemantic)
 				   .has_value(),
 			   "the maximum representable semantic line round-trips");
@@ -1317,6 +1321,8 @@ namespace {
 					maximumSemantic)
 					.has_value(),
 			   "a REST line beyond the semantic range is refused");
+		expect(!compile_review_comment_request(request_at_line(core::thread_reply_line)).has_value(),
+			   "a new comment never takes the thread-bound reply's line");
 	}
 
 	[[nodiscard]] auto replace_wire_field(std::string aBody, const std::string_view aFrom, const std::string_view aTo) -> std::string

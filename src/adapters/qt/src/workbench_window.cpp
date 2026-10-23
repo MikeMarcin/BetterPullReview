@@ -18,6 +18,7 @@
 
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "github_presentation_text.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
@@ -10928,16 +10929,18 @@ namespace bpr::qt {
 		// [[BPR-1212]] slice 1. A draft on several lines names them; v002, a
 		// draft on the base side says so.
 		const auto base  = draft.has_value() && draft->Anchor.Side == core::diff_side::left;
-		const auto words = !draft.has_value()      ? QString{ }
-			: draft->StartLine.has_value() && base ? tr("Base lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
-			: draft->StartLine.has_value()         ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
-			: base                                 ? tr("Base line %1").arg(draft->Anchor.Line + 1U)
-												   : tr("Line %1").arg(draft->Anchor.Line + 1U);
+		const auto words = !draft.has_value() ? QString{ }
+			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread has no line.
+			: core::thread_bound_anchor(draft->Anchor) ? tr("Outdated thread")
+			: draft->StartLine.has_value() && base     ? tr("Base lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+			: draft->StartLine.has_value()             ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+			: base                                     ? tr("Base line %1").arg(draft->Anchor.Line + 1U)
+													   : tr("Line %1").arg(draft->Anchor.Line + 1U);
 		// The full composer's excerpt follows the same draft.
 		if (DraftExcerpt != nullptr) {
 			auto* const excerpt = static_cast<draft_excerpt_view*>(DraftExcerpt);
 			auto        shown   = false;
-			if (draft.has_value() && ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
+			if (draft.has_value() && !core::thread_bound_anchor(draft->Anchor) && ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				&& ComparisonSurface->current_context().has_value()
 				&& draft->Anchor.Comparison == ComparisonSurface->current_result()->Alignment.Digest) {
 				const auto& result   = *ComparisonSurface->current_result();
@@ -11434,6 +11437,7 @@ namespace bpr::qt {
 			anchor.Current = root.data(github_conversation_model::anchor_availability_role).toInt()
 				== static_cast<int>(application::github_conversation_anchor_availability::current);
 			anchor.Path          = root.data(github_conversation_model::path_role).toString();
+			anchor.Outdated      = root.data(github_conversation_model::outdated_role).toBool();
 			auto       validLine = false;
 			const auto line      = root.data(github_conversation_model::line_role).toULongLong(&validLine);
 			anchor.Line          = validLine ? line : 0U;
@@ -11444,11 +11448,12 @@ namespace bpr::qt {
 			const auto& cards = ConversationPanel->cards()->cards();
 			const auto  card  = std::ranges::find(cards, aIdentity, &thread_card::Id);
 			if (card != cards.end() && !card->Draft) {
-				anchor.Known   = true;
-				anchor.Current = !card->AnchorUnavailable;
-				anchor.Path    = card->Path;
-				anchor.Side    = card->Side;
-				anchor.Line    = card->Line.value_or(0U);
+				anchor.Known    = true;
+				anchor.Current  = !card->AnchorUnavailable;
+				anchor.Outdated = card->ReplyOnThread;
+				anchor.Path     = card->Path;
+				anchor.Side     = card->Side;
+				anchor.Line     = card->Line.value_or(0U);
 			}
 		}
 		return anchor;
@@ -11505,17 +11510,37 @@ namespace bpr::qt {
 	void workbench_window::begin_thread_reply(const std::string& aIdentity, const bool aInPlace)
 	{
 		clear_reply_refusal();
+		// [[BPR-1290]]. Beside the code the reply is written in place, at the
+		// foot of the open thread; it is the same draft, and nothing publishes
+		// but its Publish.
+		const auto inPlace = [this, &aIdentity, aInPlace] {
+			const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
+			return aInPlace && !discuss && Drawers[1].Panel->state() == core::workbench_drawer_state::expanded
+				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
+				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
+		};
+		// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an
+		// outdated thread from the drawer, like GitHub does". The core decides
+		// the route from GitHub's thread data; an outdated thread is answered
+		// by the thread, with no line to select, in Review, Discuss and
+		// Threads alike.
+		const auto anchor   = thread_reply_anchor_of(aIdentity);
+		const auto decision = core::decide_thread_reply({ .ReviewThread = anchor.Known && !anchor.Path.isEmpty(), .Outdated = anchor.Outdated });
+		if (decision.Route == core::thread_reply_route::on_thread && ThreadReplyDispatch && ReviewEditor != nullptr) {
+			ThreadReplyDispatch(aIdentity);
+			update_comment_target();
+			if (inPlace()) {
+				ConversationPanel->cards()->begin_reply(aIdentity);
+				present_inline_reply();
+				return;
+			}
+			open_review_composition(true);
+			return;
+		}
 		if (select_thread_line(aIdentity) && ReviewReplyDispatch && ReviewEditor != nullptr) {
 			ReviewReplyDispatch(aIdentity);
 			update_comment_target();
-			// [[BPR-1290]]. Beside the code the reply is written in place, at
-			// the foot of the open thread; it is the same draft, and nothing
-			// publishes but its Publish.
-			const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
-			const auto inPlace = aInPlace && !discuss && Drawers[1].Panel->state() == core::workbench_drawer_state::expanded
-				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
-				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
-			if (inPlace) {
+			if (inPlace()) {
 				ConversationPanel->cards()->begin_reply(aIdentity);
 				present_inline_reply();
 				return;
@@ -11596,6 +11621,11 @@ namespace bpr::qt {
 	void workbench_window::set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch)
 	{
 		ReviewReplyDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_thread_reply_dispatch(workbench_review_reply_dispatch aDispatch)
+	{
+		ThreadReplyDispatch = std::move(aDispatch);
 	}
 
 	void workbench_window::set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch)

@@ -1698,8 +1698,25 @@ namespace bpr::qt {
 			auto* const editor = new QVBoxLayout{ Editor };
 			editor->setContentsMargins(12, 11, 12, 11);
 			editor->setSpacing(7);
+			// [[BPR-PENDING-AT]]. An outdated thread's reply goes to the thread,
+			// not a line; one quiet line above the field says so, in the
+			// card's secondary ink, and nothing else changes.
+			if (aCard.ReplyOnThread) {
+				auto* const outdated = new QLabel{ tr("Outdated: this thread's line has changed since it was written"), Editor };
+				outdated->setObjectName(QStringLiteral("threadReplyOutdatedNote"));
+				outdated->setWordWrap(true);
+				outdated->setTextFormat(Qt::PlainText);
+				outdated->setFont(scaled(font(), 0.92));
+				outdated->setAccessibleName(outdated->text());
+				auto ink = outdated->palette();
+				ink.setColor(QPalette::WindowText, Style.Colours.Ink2);
+				outdated->setPalette(ink);
+				editor->addWidget(outdated);
+			}
 			ReplyBox = new reply_text{ Editor };
-			ReplyBox->setAccessibleName(aCard.Line ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line) : QStringLiteral("Reply"));
+			ReplyBox->setAccessibleName(aCard.ReplyOnThread ? QStringLiteral("Reply to the outdated thread")
+											: aCard.Line    ? QStringLiteral("Reply to the thread on line %1").arg(*aCard.Line)
+															: QStringLiteral("Reply"));
 			editor->addWidget(ReplyBox);
 			auto* const controls = new QHBoxLayout{ };
 			controls->setSpacing(6);

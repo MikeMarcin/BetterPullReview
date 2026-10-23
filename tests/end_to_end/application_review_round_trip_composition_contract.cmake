@@ -1,3 +1,24 @@
+# [[BPR-PENDING-AT]] reseal (2026-10-22) over last matching main 27d17fea5,
+# linear. Pinned-scope change, the owner's decision of 2026-10-22 ("Allow
+# replying to an outdated thread from the drawer, like GitHub does";
+# RFC-BPR-0028 amendment): github_application.cpp takes an outdated thread's
+# Reply (the window's new thread-reply dispatch) to begin_thread_bound_reply,
+# which decides the route with core::decide_thread_reply from the accepted
+# snapshot's thread, opens or makes a reply bound to the thread through the
+# private review's new select_thread_reply (waiting, as PendingThreadReply,
+# while drafts are restored or a line's draft is opened), and publishes it
+# with the thread's binding (review_mutation_publication_request::ThreadReply:
+# its path and its first comment's original commit, the head acknowledged)
+# under the one-shot gesture grant, which binds to the accepted handoff when no
+# selected diff exists. A Refresh holds the reply again without a line.
+# private_review_workflow.cpp carries thread-bound replies to a new head in
+# restore and select_thread_reply. main.cpp adds three reply-draft courses and
+# exempts outdated-restart's smart calls; github_public_path_fixture.cpp and
+# github_application_fixture_access.hpp, test-only, stage an outdated thread
+# and record the reply's binding. No credential, provider selection, ledger
+# write or source-inventory change; the production
+# make_live_review_mutation_provider call is untouched. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
 # Upkeep reseal (2026-10-22): the only src/app change since the BPR-1741 note below
 # is renaming its [[BPR-PENDING-AR1]] comment tags to [[BPR-1741]]; no code change.
 # [[BPR-1741]] reseal (2026-10-22) over last matching main 3ddfbc5f8,
@@ -2075,7 +2096,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"fc5cea4005c59d166e34a6ec48e8376a3af56a14d7a458a59de8305cb1bf9413"
+		"fcea8bb49a35529533cd57c70e65c4dccf58bdbff17d7aeba56a48332c2bffa9"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2299,7 +2320,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c52fdd7262ab01f5b198a5246158050d09a54d5a5541d6f9367580691f1ee1d3"
+        "299e28006daabe0acedff1849b828ce1bb0af87b50290a89dfd2f5e3044130e0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -1,6 +1,7 @@
 #include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "private_review_operations.hpp"
 #include <algorithm>
 #include <array>
@@ -206,6 +207,78 @@ namespace bpr::application {
 			durable_draft_commit result;
 			result.Scope = f.Scope;
 			result.Records.push_back(std::move(record));
+			return result;
+		});
+	}
+	auto review_composition_application_host::select_thread_reply(const core::private_review_binding& aBinding, std::string aThread) -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] {
+			const auto f = take(Store.frontier());
+			require(f.Scope == aBinding.Scope && f.NextIdentity != 0 && !aThread.empty() && aThread.size() <= core::maximum_shared_draft_reply_bytes && aBinding.Comparison.has_value(),
+					core::private_review_refusal::bounds);
+			auto records = take(Store.list_drafts());
+			std::erase_if(records, [&](const auto& aRecord) { return aRecord.Binding.Revision.HeadOid != aBinding.Revision.HeadOid; });
+			auto drafts = std::vector<review_comment_draft>{ };
+			for (const auto& record : records) {
+				drafts.push_back(record.Draft.Draft);
+			}
+			durable_draft_commit result;
+			result.Scope = f.Scope;
+			if (const auto saved = core::reopen_thread_reply(drafts, aThread)) {
+				const auto found = std::ranges::find_if(records, [&](const auto& aRecord) { return aRecord.Draft.Draft.Id == *saved; });
+				result.Records.push_back(*found);
+				return result;
+			}
+			private_draft_record record{ aBinding, { { core::review_draft_id{ f.NextIdentity }, core::thread_reply_anchor(*aBinding.Comparison), { }, core::review_draft_state::drafting, std::move(aThread) }, 1, { }, { } } };
+			take(Store.commit({ .ExpectedNextIdentity = f.NextIdentity, .Drafts = { { record, 0 } } }));
+			result.Records.push_back(std::move(record));
+			return result;
+		});
+	}
+	auto review_composition_application_host::carry_thread_replies(const core::private_review_binding& aBinding) -> private_run_result<durable_draft_commit>
+	{
+		return attempt([&] {
+			const auto f = take(Store.frontier());
+			require(f.Scope == aBinding.Scope && f.NextIdentity != 0, core::private_review_refusal::bounds);
+			durable_draft_commit result;
+			result.Scope = f.Scope;
+			if (!aBinding.Comparison.has_value()) {
+				return result;
+			}
+			const auto records = take(Store.list_drafts());
+			const auto here    = [&](const std::string& aThread) {
+				return std::ranges::any_of(records, [&](const auto& aRecord) {
+					return aRecord.Binding.Revision.HeadOid == aBinding.Revision.HeadOid && core::thread_bound_reply(aRecord.Draft.Draft)
+						&& *aRecord.Draft.Draft.ReplyToThread == aThread
+						&& (aRecord.Draft.Draft.State == core::review_draft_state::drafting || aRecord.Draft.Draft.State == core::review_draft_state::publishing);
+				});
+			};
+			auto write = private_store_write{ .ExpectedNextIdentity = f.NextIdentity };
+			auto next  = f.NextIdentity;
+			auto taken = std::set<std::string>{ };
+			for (const auto& record : records) {
+				const auto& draft = record.Draft.Draft;
+				if (record.Binding.Revision.HeadOid == aBinding.Revision.HeadOid || !core::thread_bound_reply(draft) || draft.State != core::review_draft_state::drafting
+					|| here(*draft.ReplyToThread) || !taken.insert(*draft.ReplyToThread).second) {
+					continue;
+				}
+				require(next < maximum_private_identity, core::private_review_refusal::bounds);
+				// The reducer works in a runtime scope; the store keeps none.
+				auto held            = record.Draft;
+				held.Scope           = core::review_draft_scope_id{ 1 };
+				const auto discarded = core::apply(held, core::revisioned_review_draft_command{ .Command = { .Id = draft.Id, .Kind = core::review_draft_command_kind::discard }, .ExpectedRevision = record.Draft.Revision, .Scope = held.Scope });
+				require(discarded.Refusal == core::revisioned_draft_refusal::none && discarded.Changed);
+				auto earlier        = record;
+				earlier.Draft       = discarded.Accepted;
+				earlier.Draft.Scope = { };
+				write.Drafts.push_back({ std::move(earlier), record.Draft.Revision });
+				private_draft_record carried{ aBinding, { { core::review_draft_id{ next++ }, core::thread_reply_anchor(*aBinding.Comparison), draft.Body, core::review_draft_state::drafting, draft.ReplyToThread }, 1, { }, { } } };
+				result.Records.push_back(carried);
+				write.Drafts.push_back({ std::move(carried), 0 });
+			}
+			if (!write.Drafts.empty()) {
+				take(Store.commit(write));
+			}
 			return result;
 		});
 	}

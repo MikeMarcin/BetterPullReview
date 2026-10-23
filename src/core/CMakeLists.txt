@@ -132,6 +132,7 @@ add_library(
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/reply_draft_standing.cpp
+        src/thread_reply.cpp
         src/note_placement.cpp
         src/review_submission.cpp
         src/review_submission_unknown.cpp

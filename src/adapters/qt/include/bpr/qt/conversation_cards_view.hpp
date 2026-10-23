@@ -251,7 +251,12 @@ namespace bpr::qt {
 		bool ResolutionPermitted = true;
 		bool Outdated            = false;
 		bool AnchorUnavailable   = false;
-		bool Draft               = false;
+		/// [[BPR-PENDING-AT]]. GitHub reports the thread outdated, and the
+		/// core answers it by the thread (`core::thread_reply_route::on_thread`):
+		/// Reply is offered without a line, and the reply field says quietly
+		/// that the thread's line has changed since it was written.
+		bool ReplyOnThread = false;
+		bool Draft         = false;
 		/// [[BPR-1345]]. My draft is pending in my review, or held by its
 		/// submission.
 		bool Pending = false;

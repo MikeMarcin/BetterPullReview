@@ -596,6 +596,80 @@ namespace {
 		host.shutdown();
 	}
 
+	// [[BPR-PENDING-AT]]. A reply to an outdated thread is held to the
+	// thread: the provider is asked to write it on the thread's path and the
+	// commit the thread was written on, at the thread-bound anchor, with no
+	// source and no selection read. Anything else carrying that anchor, or a
+	// thread written on the head, is refused before any effect.
+	void test_an_outdated_threads_reply_is_held_to_its_thread()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto written = oid<core::git_commit_oid>(91U);
+		auto       reply   = application::review_mutation_publication_request{ };
+		reply.Proposal     = core::review_publication_proposal{
+			.Draft         = core::review_draft_id{ 77U },
+			.Anchor        = core::thread_reply_anchor(publication_request().Proposal.Anchor.Comparison),
+			.Body          = "Is this still true after the change?",
+			.ReplyToThread = "PRRT_outdated_1",
+		};
+		reply.Acknowledged = true;
+		reply.ThreadReply  = application::review_mutation_thread_reply_binding{ .Path = "fixture/review.txt", .OriginalCommit = written };
+		const auto refused = [&](const application::review_mutation_publication_request& aRequest, const std::string_view aWhy) {
+			const auto before = observed->Submitted.size();
+			static_cast<void>(host.publish(aRequest));
+			expect(effects.pending() == 0U, std::string{ aWhy } + ": no effect is queued");
+			decisions.drain();
+			expect(observed->Submitted.size() == before && !projection.Published.empty() && !projection.Published.back().Result.has_value(),
+				   std::string{ aWhy } + ": refused before the provider");
+		};
+		auto comment                   = reply;
+		comment.Proposal.ReplyToThread = std::nullopt;
+		refused(comment, "a new comment cannot be bound to a thread");
+		auto unbound        = reply;
+		unbound.ThreadReply = std::nullopt;
+		refused(unbound, "the thread-bound anchor without the thread's binding");
+		auto current                        = reply;
+		current.ThreadReply->OriginalCommit = live_target().Semantic.ExpectedHead;
+		refused(current, "a thread written on the head is not outdated");
+		auto lined            = reply;
+		lined.Proposal.Anchor = publication_request().Proposal.Anchor;
+		refused(lined, "the thread's binding with a reply on a line");
+		auto escaped              = reply;
+		escaped.ThreadReply->Path = "../outside.txt";
+		refused(escaped, "a path that leaves the repository");
+
+		static_cast<void>(host.publish(reply));
+		expect(effects.pending() == 1U, "the outdated thread's reply is admitted without a selection or a source");
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Submitted.size() == 1U, "the provider is asked once");
+		const auto& submitted = observed->Submitted.front();
+		expect(submitted.Proposal.ReplyToThread == std::optional<std::string>{ "PRRT_outdated_1" } && submitted.LiveBinding.has_value()
+				   && core::thread_bound_anchor(submitted.LiveBinding->Anchor.Semantic) && submitted.LiveBinding->Anchor.Commit == written
+				   && submitted.LiveBinding->Anchor.Path == "fixture/review.txt" && !submitted.LiveBinding->Anchor.RemoteLine && !submitted.Source
+				   && application::thread_bound_binding(submitted.LiveBinding->Anchor)
+				   && submitted.IdempotencyKey == application::idempotency_key_for(reply.Proposal, submitted.Target)
+				   && projection.Published.back().Result.has_value(),
+			   "it reaches the provider naming its thread, on the thread's path and the commit it was written on, under its idempotency key");
+		host.shutdown();
+	}
+
 	// [[BPR-1212]]. A root comment on a base line is GitHub's `side: LEFT`.
 	// It is admitted only with the source's evidence that the left document
 	// is numbered as GitHub's base, and it is bound to that side with the base
@@ -1898,6 +1972,7 @@ auto main() -> int
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
 
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
+	test_an_outdated_threads_reply_is_held_to_its_thread();
 	test_a_base_line_root_needs_githubs_base_numbering();
 	test_filtered_diff_comments_are_placed_by_the_core();
 	test_a_filtered_base_line_the_merge_base_changed_is_a_file_comment();

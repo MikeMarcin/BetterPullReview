@@ -11,6 +11,7 @@
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_conversation.hpp"
+#include "bpr/core/thread_reply.hpp"
 
 #include "conversation_file_identities.hpp"
 #include "conversation_glyphs.hpp"
@@ -570,7 +571,8 @@ namespace bpr::qt {
 			action->setToolTip(aEnabled ? action->text() : aReason);
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
-		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card), tr("This thread's line isn't in the code shown, so it can't take a reply here."));
+		// [[BPR-PENDING-AT]]. An outdated thread takes a reply by the thread.
+		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card) || card.ReplyOnThread, tr("This thread's line isn't in the code shown, so it can't take a reply here."));
 		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
 																   std::ranges::any_of(card.Posts, [](const card_post& aPost) { return !aPost.Mine; }));
 		add(readAction == core::conversation_read_action::mark_read ? card_action::mark_read : card_action::mark_unread,
@@ -1840,8 +1842,12 @@ namespace bpr::qt {
 
 			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
-			card.FileLevel         = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
-			card.Suggestion        = suggestion_placement_of(node);
+			// [[BPR-PENDING-AT]]. The core decides where a reply to the thread
+			// goes; an outdated one takes it without a line, as GitHub does.
+			card.ReplyOnThread = core::decide_thread_reply({ .ReviewThread = isThread && !node.Path.empty(), .Outdated = node.Outdated }).Route
+				== core::thread_reply_route::on_thread;
+			card.FileLevel  = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
+			card.Suggestion = suggestion_placement_of(node);
 			if (!isThread) {
 				const auto state = ReadStateByThread.find(node.Id);
 				card.RootUnread  = state != ReadStateByThread.end()
@@ -1973,8 +1979,9 @@ namespace bpr::qt {
 			card.Notice            = unsent_reply_notice(reply.Standing);
 			card.KeepableAsComment = reply.KeepableAsComment;
 			card.Side              = saved->Anchor.Side;
-			card.Line              = saved->Anchor.Line + 1U;
-			const auto mark        = feedback_body_mark_of(saved->Body);
+			// [[BPR-PENDING-AT]]. A reply bound to its thread has no line.
+			card.Line       = core::thread_bound_anchor(saved->Anchor) ? std::nullopt : std::optional{ saved->Anchor.Line + 1U };
+			const auto mark = feedback_body_mark_of(saved->Body);
 			card.Posts.push_back(card_post{
 				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
 				.Body         = text(saved->Body),
@@ -2135,7 +2142,7 @@ namespace bpr::qt {
 		// A signature of everything the open card draws: an unchanged thread
 		// keeps its widgets, its focus and the reply being typed.
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
-			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
+			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated)) + QString::number(static_cast<int>(card.ReplyOnThread))
 			+ QString::number(static_cast<int>(card.ResolutionPending)) + QString::number(static_cast<int>(card.ResolutionPermitted))
 
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))

@@ -168,6 +168,7 @@
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/suggestion_draft.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
@@ -8353,6 +8354,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](core::revisioned_review_draft_command aCommand) { dispatch_review_draft(std::move(aCommand)); });
 			Window->set_review_reply_dispatch(
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
+			Window->set_thread_reply_dispatch(
+				[this](const std::string& aIdentity) { begin_thread_bound_reply(aIdentity); });
 			Window->set_thread_resolution_dispatch(
 				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
 			Window->set_reaction_dispatch(
@@ -11994,7 +11997,115 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					author = index.data(qt::github_conversation_model::author_login_role).toString();
 				}
 			}
+			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread says so.
+			if (core::thread_bound_reply(*ReviewDraft)) {
+				editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this outdated thread") : QStringLiteral("Replying to %1's outdated thread").arg(author));
+				return;
+			}
 			editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this thread") : QStringLiteral("Replying to %1's thread").arg(author));
+		}
+
+		/// \brief [[BPR-PENDING-AT]]. What GitHub's thread data, as the
+		/// accepted snapshot holds it, says about replying in one thread.
+		/// \details The read carries neither `viewerCanReply` nor the lock
+		/// yet, so they are left unknown and GitHub decides at Publish.
+		[[nodiscard]] auto thread_reply_facts_of(const application::github_review_thread_record& aThread) const -> core::thread_reply_facts
+		{
+			const auto* const snapshot = WindowRead && WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+			return core::thread_reply_facts{
+				.ReviewThread  = !aThread.Path.empty() && aThread.Subject == application::github_review_thread_subject::line,
+				.Outdated      = aThread.Outdated,
+				.AnonymousRead = snapshot == nullptr || snapshot->Mode != core::github_access_mode::authenticated,
+			};
+		}
+
+		/// \brief [[BPR-PENDING-AT]]. Where GitHub answers a reply bound to
+		/// an outdated thread: the thread's path and the commit its first
+		/// comment was written on, from the accepted snapshot.
+		[[nodiscard]] auto thread_reply_binding_of(const std::string_view aThread) const -> std::optional<application::review_mutation_thread_reply_binding>
+		{
+			const auto* const thread = accepted_thread("review-thread:" + std::string{ aThread });
+			if (thread == nullptr || core::decide_thread_reply(thread_reply_facts_of(*thread)).Route != core::thread_reply_route::on_thread) {
+				return std::nullopt;
+			}
+			const auto root = std::ranges::find_if(thread->Comments, [](const application::github_review_comment_record& aComment) { return !aComment.ReplyTo.has_value(); });
+			if (root == thread->Comments.end()) {
+				return std::nullopt;
+			}
+			const auto commit = core::parse_git_commit_oid(root->Observation.OriginalCommit);
+			if (!commit) {
+				return std::nullopt;
+			}
+			return application::review_mutation_thread_reply_binding{ .Path = thread->Path, .OriginalCommit = *commit };
+		}
+
+		/// \brief [[BPR-PENDING-AT]]. An outdated thread's Reply: the reply
+		/// written in it and not sent opens again, or a new one bound to the
+		/// thread is made. It is a draft like any reply, saved privately,
+		/// published through the reply path and reconciled against the thread.
+		void begin_thread_bound_reply(const std::string& aIdentity)
+		{
+			constexpr auto prefix = std::string_view{ "review-thread:" };
+			if (Closing || Window == nullptr || !SharedDrafts || !aIdentity.starts_with(prefix)) {
+				return;
+			}
+			auto thread = std::string{ aIdentity.substr(prefix.size()) };
+			if (thread.empty() || !thread_reply_binding_of(thread)) {
+				return;
+			}
+			if (ReviewDraft && core::thread_bound_reply(*ReviewDraft) && *ReviewDraft->ReplyToThread == thread
+				&& (ReviewDraft->State == core::review_draft_state::drafting || ReviewDraft->State == core::review_draft_state::publishing)) {
+				describe_held_reply();
+				return;
+			}
+			ResumeReply.reset();
+			PendingThreadReply.reset();
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || PrivateDraftSelectionPending) {
+					// The saved drafts are still being restored, or the line's
+					// own draft is being opened: the reply follows, so it is the
+					// draft the editor holds.
+					PendingThreadReply = aIdentity;
+					return;
+				}
+				const auto owner             = SharedDrafts;
+				PrivateDraftSelectionPending = true;
+				PrivateReview->select_thread_reply(thread, [this, owner](auto aCommit) {
+					PrivateDraftSelectionPending = false;
+					if (Closing || !owner || owner != SharedDrafts || !aCommit || aCommit->records().empty() || !owner->adopt(owner->authority(), *aCommit)) {
+						return;
+					}
+					present_saved_drafts();
+					const auto accepted = owner->read(DraftConsumer, aCommit->records().back().Draft.Draft.Id);
+					if (accepted.Accepted) {
+						accept_shared_draft(*accepted.Accepted);
+						describe_held_reply();
+					}
+				});
+				return;
+			}
+			// No private store: the reply is held for this session only.
+			const auto comparison = SelectedDiffPublication ? std::optional{ core::comparison_digest(SelectedDiffPublication->Key) } : std::nullopt;
+			if (!comparison) {
+				return;
+			}
+			const auto saved = core::reopen_thread_reply(saved_draft_values(), thread);
+			auto       held  = saved ? SharedDrafts->read(DraftConsumer, *saved) : SharedDrafts->select(DraftConsumer, core::thread_reply_anchor(*comparison), thread);
+			if (held.Accepted && !held.Failure) {
+				accept_shared_draft(*held.Accepted);
+				describe_held_reply();
+			}
+		}
+
+		/// \brief [[BPR-PENDING-AT]]. An outdated thread's Reply pressed while
+		/// a line's draft was being opened, made once that has answered.
+		std::optional<std::string> PendingThreadReply;
+		void                       resume_pending_thread_reply()
+		{
+			if (Closing || PrivateDraftSelectionPending || !PrivateDraftsReady || !PendingThreadReply) {
+				return;
+			}
+			begin_thread_bound_reply(*std::exchange(PendingThreadReply, std::nullopt));
 		}
 
 		/// \brief [[BPR-1374]]. A Refresh retires the editor's draft with the
@@ -12034,7 +12145,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void resume_reply()
 		{
 			resume_comment();
-			if (Closing || !ResumeReply || !SharedDrafts || Window == nullptr || PendingReviewMutation || !SelectedDiffPublication) {
+			if (Closing || !ResumeReply || !SharedDrafts || Window == nullptr || PendingReviewMutation) {
 				return;
 			}
 			const auto drafts = saved_draft_values();
@@ -12044,6 +12155,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto reply = std::ranges::find(drafts, *again, &core::review_comment_draft::Id);
+			// [[BPR-PENDING-AT]]. A reply bound to its thread has no line to
+			// choose: it is held again as it is.
+			if (reply != drafts.end() && core::thread_bound_reply(*reply)) {
+				if (const auto read = SharedDrafts->read(DraftConsumer, *again); read.Accepted) {
+					ResumeReply.reset();
+					accept_shared_draft(*read.Accepted);
+					describe_held_reply();
+					refresh_agent_private_context_choices();
+				}
+				return;
+			}
+			if (!SelectedDiffPublication) {
+				return;
+			}
 			if (reply == drafts.end() || core::comparison_digest(SelectedDiffPublication->Key) != reply->Anchor.Comparison) {
 				return;
 			}
@@ -13311,12 +13436,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			-> application::review_mutation_execution_grant
 		{
 			auto grant = application::review_mutation_execution_grant{ };
+			// [[BPR-PENDING-AT]]. A reply bound to its thread is published
+			// without a selected diff; the accepted handoff names the session
+			// and pull request the grant binds to.
+			const auto threadReply = aTestingRequest && aTestingRequest->ThreadReply;
 			if (AttendedReviewMutationMode || !Host || !WindowRead->accepted_snapshot()
 				|| !InlineReviewBinding || WorkbenchHost == nullptr
-				|| !SelectedDiffPublication.has_value()) {
+				|| (!SelectedDiffPublication.has_value() && !(threadReply && LastAcceptedHandoff))) {
 				return grant;
 			}
-			const auto& authority = SelectedDiffPublication->Request.WorkbenchAuthority;
+			const auto  authority = SelectedDiffPublication.has_value() && !threadReply ? SelectedDiffPublication->Request.WorkbenchAuthority : workbench_authority(*LastAcceptedHandoff);
 			const auto& snapshot  = *WindowRead->accepted_snapshot();
 			// Reuse the accepted handoff binding retained by the host composition.
 			if (snapshot.Account != authority.Account
@@ -13400,6 +13529,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				PrivateDraftSelectionPending = true;
 				PrivateReview->select_reply(anchor, std::string{ aIdentity.substr(prefix.size()) }, [this, owner, anchor](auto aCommit) {
 					PrivateDraftSelectionPending = false;
+					const auto resume            = qScopeGuard([this] { resume_pending_thread_reply(); });
 					if (Closing || !owner || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
 						return;
 					}
@@ -13724,8 +13854,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				return;
 			}
-			if (!SelectedDiffPublication.has_value()
-				|| !SelectedSemanticSelection.has_value()) {
+			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread is
+			// published by the thread: its path and the commit it was written
+			// on, with no selection. A moved head is acknowledged, as for a
+			// resolution: a thread belongs to the pull request, not a commit.
+			auto threadReply = std::optional<application::review_mutation_thread_reply_binding>{ };
+			if (core::thread_bound_reply(*ReviewDraft)) {
+				threadReply = thread_reply_binding_of(*ReviewDraft->ReplyToThread);
+				if (!threadReply) {
+					complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
+					editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+					editor->present(application::review_mutation_failure::undesignated_target);
+					return;
+				}
+			}
+			if (!threadReply && (!SelectedDiffPublication.has_value() || !SelectedSemanticSelection.has_value())) {
 				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 				refresh_agent_private_context_choices();
@@ -13741,11 +13884,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				present_inline_publication_failure(admission.error(), aPriorOutcome, InlineReviewBinding);
 				return;
 			}
-			auto request = application::review_mutation_publication_request{
-				.Proposal     = *proposal,
-				.Selection    = *SelectedSemanticSelection,
-				.SelectedDiff = *SelectedDiffPublication,
-			};
+			auto request = application::review_mutation_publication_request{ .Proposal = *proposal };
+			if (threadReply) {
+				request.Acknowledged = true;
+				request.ThreadReply  = std::move(threadReply);
+			} else {
+				request.Selection    = *SelectedSemanticSelection;
+				request.SelectedDiff = *SelectedDiffPublication;
+			}
 			auto grant = review_mutation_gesture_grant(
 				request,
 				[&request](const core::application_session_id           aSession,
@@ -13961,6 +14107,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto anchor            = aSelection.PreferredLine;
 				PrivateReview->select_draft(anchor, [this, owner, anchor](auto aCommit) {
 					PrivateDraftSelectionPending = false;
+					// [[BPR-PENDING-AT]]. An outdated thread's Reply that waited
+					// for this answer is made after it, whatever it was.
+					const auto resume = qScopeGuard([this] { resume_pending_thread_reply(); });
 					if (Closing || owner != SharedDrafts) {
 						return;
 					}
@@ -14210,6 +14359,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 						resume_reply();
 						flush_unsent_reply_commands();
+						resume_pending_thread_reply();
 					} else {
 						PrivateDraftsReady = false;
 					}
@@ -21413,6 +21563,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_copied,
 				awaiting_discarded,
 				awaiting_kept,
+				/// [[BPR-PENDING-AT]]. The thread reads outdated after the push.
+				awaiting_outdated,
+				/// [[BPR-PENDING-AT]]. The reply's Publish is answered.
+				awaiting_published,
 				passed,
 				failed,
 			};
@@ -32738,9 +32892,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto detail::github_application_fixture_access::exercise_reply_draft(
 		github_application& aApplication, const detail::reply_draft_course aCourse) -> detail::reply_draft_probe_result
 	{
-		using result               = detail::reply_draft_probe_result;
-		using course               = detail::reply_draft_course;
-		using state_type           = github_application::implementation::reply_draft_probe_state;
+		using result     = detail::reply_draft_probe_result;
+		using course     = detail::reply_draft_course;
+		using state_type = github_application::implementation::reply_draft_probe_state;
+		if (aCourse == course::outdated_publish || aCourse == course::outdated_write || aCourse == course::outdated_restart) {
+			return exercise_outdated_reply(aApplication, aCourse);
+		}
 		auto* const implementation = aApplication.Implementation.get();
 		if (implementation == nullptr) {
 			return result::failed;
@@ -32937,13 +33094,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto        stored   = saved();
 			const auto        gone     = aCourse == course::deleted || aCourse == course::kept;
 			switch (aCourse) {
-			case course::refresh:  probe.Evidence.ServerShown = onServer && thread != nullptr; break;
-			case course::edited:   probe.Evidence.ServerShown = onServer && thread != nullptr && !thread->Posts.empty() && thread->Posts.front().Body.toStdString() == edited; break;
-			case course::resolved: probe.Evidence.ServerShown = onServer && thread != nullptr && thread->Resolved; break;
+			case course::refresh:          probe.Evidence.ServerShown = onServer && thread != nullptr; break;
+			case course::edited:           probe.Evidence.ServerShown = onServer && thread != nullptr && !thread->Posts.empty() && thread->Posts.front().Body.toStdString() == edited; break;
+			case course::resolved:         probe.Evidence.ServerShown = onServer && thread != nullptr && thread->Resolved; break;
 			case course::deleted:
-			case course::kept:     probe.Evidence.ServerShown = snapshot && !onServer && thread == nullptr; break;
+			case course::kept:             probe.Evidence.ServerShown = snapshot && !onServer && thread == nullptr; break;
 			case course::write:
-			case course::restart:  break;
+			case course::restart:
+			case course::outdated_publish:
+			case course::outdated_write:
+			case course::outdated_restart: break;
 			}
 			probe.Evidence.Kept = stored && stored->Draft.Body == words.toStdString() && stored->Draft.State == core::review_draft_state::drafting
 				&& stored->Draft.ReplyToThread == std::optional<std::string>{ std::string{ threadId } };
@@ -32989,7 +33149,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = aCourse == course::deleted ? state_type::phase::awaiting_copied : state_type::phase::awaiting_kept;
 				return result::pending;
 			case course::write:
-			case course::restart: break;
+			case course::restart:
+			case course::outdated_publish:
+			case course::outdated_write:
+			case course::outdated_restart: break;
 			}
 			return fail("course");
 		}
@@ -33135,10 +33298,319 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		case state_type::phase::passed:
 			return result::passed;
+		case state_type::phase::awaiting_outdated:
+		case state_type::phase::awaiting_published:
 		case state_type::phase::failed:
 			break;
 		}
 		return result::failed;
+	}
+
+	/// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an
+	/// outdated thread from the drawer, like GitHub does". Over
+	/// conventional-comments-v1, `PRRT_cc_1` on src/engine/renderer.cpp is
+	/// made outdated by a push (its line left the diff; every post was written
+	/// on an earlier commit), the public Refresh reads it so, and its Reply in
+	/// the Comments drawer opens a reply bound to the thread, with no refusal
+	/// and one quiet line saying the thread's line has changed. Before the
+	/// change the Reply was refused with "This thread's line isn't in the code
+	/// shown, so it can't take a reply here." and no draft was made.
+	auto detail::github_application_fixture_access::exercise_outdated_reply(
+		github_application& aApplication, const detail::reply_draft_course aCourse) -> detail::reply_draft_probe_result
+	{
+		using result               = detail::reply_draft_probe_result;
+		using course               = detail::reply_draft_course;
+		using state_type           = github_application::implementation::reply_draft_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ReplyDraftProbe.has_value()) {
+			implementation->ReplyDraftProbe.emplace();
+		}
+		auto& probe = *implementation->ReplyDraftProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		if (cards == nullptr || window->review_editor() == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path      = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto threadId  = std::string_view{ "PRRT_cc_1" };
+		constexpr auto writtenOn = std::string_view{ "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c" };
+		const auto     identity  = "review-thread:" + std::string{ threadId };
+		const auto     words     = QStringLiteral("question: Is this still true after the push? (outdated-thread reply)");
+		const auto     ready     = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value()
+				&& !implementation->PrivateDraftCommandPending && !implementation->PrivateDraftSelectionPending;
+		};
+		const auto now      = [&] { return implementation->Fixture->review_mutation_evidence(); };
+		const auto sentNone = [&] {
+			const auto after = now();
+			return std::tie(after.Submissions, after.NativePosts, after.FilePosts, after.Replies, after.Resolutions)
+				== std::tie(probe.Before.Submissions, probe.Before.NativePosts, probe.Before.FilePosts, probe.Before.Replies, probe.Before.Resolutions);
+		};
+		const auto saved = [&]() -> std::optional<core::revisioned_review_draft> {
+			if (!implementation->SharedDrafts || !probe.Draft) {
+				return std::nullopt;
+			}
+			return implementation->SharedDrafts->read(implementation->DraftConsumer, *probe.Draft).Accepted;
+		};
+		const auto cardFor = [&](const std::string& aId) -> const qt::thread_card* {
+			const auto found = std::ranges::find(cards->cards(), aId, &qt::thread_card::Id);
+			return found == cards->cards().end() ? nullptr : &*found;
+		};
+		const auto button = [&](const char* aName) -> QAbstractButton* {
+			auto* const open = cards->open_card();
+			return open != nullptr ? open->findChild<QAbstractButton*>(QString::fromLatin1(aName)) : nullptr;
+		};
+		const auto refused = [&] {
+			auto* const notice = window->conversation_panel()->notice_label();
+			return notice != nullptr && notice->isVisibleTo(window) && !notice->text().isEmpty();
+		};
+		const auto outdatedNote = [&] {
+			auto* const open  = cards->open_card();
+			auto* const label = open != nullptr ? open->findChild<QLabel*>(QStringLiteral("threadReplyOutdatedNote")) : nullptr;
+			return label != nullptr && label->isVisibleTo(window) && label->text() == QStringLiteral("Outdated: this thread's line has changed since it was written");
+		};
+		const auto renders = qEnvironmentVariable("BPR_REPLY_DRAFT_RENDER_DIRECTORY");
+		const auto render  = [&](const QString& aName) {
+			if (renders.isEmpty() || window->appearance_settings() == nullptr) {
+				return;
+			}
+			QDir{ }.mkpath(renders);
+			for (const auto& [mode, name] : std::array{ std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				window->appearance_settings()->choose_mode(mode);
+				for (auto turn = 0; turn < 6; ++turn) {
+					QCoreApplication::processEvents();
+				}
+				static_cast<void>(window->grab().save(renders + QStringLiteral("/outdated-") + aName + QLatin1Char{ '-' } + name + QStringLiteral(".png"), "PNG"));
+			}
+			window->appearance_settings()->choose_mode(core::appearance_mode::light);
+			for (auto turn = 0; turn < 6; ++turn) {
+				QCoreApplication::processEvents();
+			}
+		};
+		const auto openReply = [&]() -> bool {
+			if (window->current_modality() != qt::review_modality::review) {
+				window->choose_modality(qt::review_modality::review);
+				QCoreApplication::processEvents();
+				return false;
+			}
+			if (cards->open_thread_id() != identity) {
+				cards->open_thread(identity);
+				QCoreApplication::processEvents();
+			}
+			auto* const field = button("threadReplyField");
+			if (field == nullptr || !field->isEnabled() || !field->isVisibleTo(window)) {
+				return false;
+			}
+			field->click();
+			QCoreApplication::processEvents();
+			return true;
+		};
+		const auto held = [&](const QString& aWords) {
+			const auto& draft = implementation->ReviewDraft;
+			return draft && probe.Draft && draft->Id == *probe.Draft && core::thread_bound_reply(*draft) && draft->ReplyToThread == std::optional<std::string>{ std::string{ threadId } }
+			&& draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting;
+		};
+		const auto finish = [&] {
+			const auto& evidence = probe.Evidence;
+			if (!(evidence.Written && evidence.ServerShown && evidence.Kept && evidence.Presented && evidence.Flagged && evidence.Acted && evidence.NothingSent)) {
+				return fail("evidence");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed != detail::fixture_file_reveal_result::shown || !ready()) {
+				return result::pending;
+			}
+			// The push: the thread's line leaves the diff, and the public
+			// Refresh reads it outdated.
+			probe.Before = now();
+			implementation->Fixture->stage_server_thread_outdated(std::string{ threadId }, std::string{ writtenOn });
+			window->github_refresh_action()->trigger();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_outdated;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_outdated: {
+			const auto* const thread   = implementation->accepted_thread(identity);
+			const auto* const card     = cardFor(identity);
+			probe.Evidence.ServerShown = thread != nullptr && thread->Outdated && !thread->Line && card != nullptr && card->ReplyOnThread;
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " outdated=" + std::to_string(thread != nullptr && thread->Outdated ? 1 : 0) + " card=" + std::to_string(card != nullptr ? 1 : 0)
+				 + " onThread=" + std::to_string(card != nullptr && card->ReplyOnThread ? 1 : 0) + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!probe.Evidence.ServerShown && ++probe.Waited < 160U)) {
+				return result::pending;
+			}
+			if (!probe.Evidence.ServerShown) {
+				return fail("not-outdated");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = aCourse == course::outdated_restart ? state_type::phase::awaiting_restored : state_type::phase::awaiting_reply_open;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_open:
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " open=" + cards->open_thread_id());
+			if (!ready() || !openReply()) {
+				return ++probe.Waited < 400U ? result::pending : fail("no-reply-field");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reply_draft;
+			return result::pending;
+		case state_type::phase::awaiting_reply_draft: {
+			const auto& draft = implementation->ReviewDraft;
+			note("reply=" + (draft && draft->ReplyToThread ? *draft->ReplyToThread : std::string{ "-" }) + " bound=" + std::to_string(draft && core::thread_bound_reply(*draft) ? 1 : 0)
+				 + " draft=" + (draft ? std::to_string(draft->Id.value()) + ":" + std::to_string(draft->Anchor.Line) : std::string{ "none" })
+				 + " private=" + std::to_string(implementation->PrivateReview ? 1 : 0) + std::to_string(implementation->PrivateDraftsReady ? 1 : 0)
+				 + std::to_string(implementation->PrivateDraftSelectionPending ? 1 : 0) + std::to_string(implementation->PendingThreadReply ? 1 : 0)
+				 + " selected=" + std::to_string(implementation->SelectedSemanticSelection ? 1 : 0) + " diff=" + std::to_string(implementation->SelectedDiffPublication ? 1 : 0)
+				 + " editor=" + std::to_string(cards->reply_editor() != nullptr ? 1 : 0) + " refused=" + std::to_string(refused() ? 1 : 0)
+				 + " notice=" + window->conversation_panel()->notice_label()->text().toStdString());
+			if (refused()) {
+				return fail("refused");
+			}
+			if (!draft || !core::thread_bound_reply(*draft) || draft->ReplyToThread != std::optional<std::string>{ std::string{ threadId } } || cards->reply_editor() == nullptr) {
+				return ++probe.Waited < 200U ? result::pending : fail("no-thread-bound-reply");
+			}
+			probe.Evidence.Flagged = outdatedNote();
+			if (!probe.Evidence.Flagged) {
+				return fail("no-outdated-note");
+			}
+			probe.Draft = draft->Id;
+			cards->reply_editor()->setPlainText(words);
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reply_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_saved: {
+			const auto stored = saved();
+			note("held=" + std::to_string(held(words) ? 1 : 0) + " saved=" + std::to_string(stored && stored->Draft.Body == words.toStdString() ? 1 : 0) + " ready=" + std::to_string(ready() ? 1 : 0));
+			if (!held(words) || !stored || stored->Draft.Body != words.toStdString() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-saved");
+			}
+			probe.Evidence.Written   = sentNone();
+			probe.Evidence.Kept      = core::thread_bound_reply(stored->Draft);
+			probe.Evidence.Presented = cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == words;
+			render(QStringLiteral("written"));
+			if (aCourse == course::outdated_write) {
+				// Quit with the reply saved; `outdated-restart` reads it back.
+				probe.Evidence.Acted       = true;
+				probe.Evidence.NothingSent = sentNone();
+				return finish();
+			}
+			auto* const publish = button("threadReplyPublish");
+			if (publish == nullptr || !publish->isEnabled()) {
+				return ++probe.Waited < 400U ? result::pending : fail("publish-not-offered");
+			}
+			publish->click();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_published: {
+			const auto        after  = now();
+			const auto        stored = saved();
+			const auto* const card   = cardFor(identity);
+			const auto        landed = card != nullptr && std::ranges::any_of(card->Posts, [&](const qt::card_post& aPost) { return aPost.Body == words; });
+			const auto        bound  = after.Replies == probe.Before.Replies + 1U && after.LastReplyThread == threadId && after.LastReplyThreadBound && after.LastReplyCommit == writtenOn
+				&& after.NativePosts == probe.Before.NativePosts && after.FilePosts == probe.Before.FilePosts && after.Resolutions == probe.Before.Resolutions;
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " replies=" + std::to_string(after.Replies - probe.Before.Replies) + " bound=" + std::to_string(after.LastReplyThreadBound ? 1 : 0)
+				 + " commit=" + after.LastReplyCommit + " saved=" + (stored ? std::string{ core::name(stored->Draft.State) } : std::string{ "none" }) + " landed=" + std::to_string(landed ? 1 : 0)
+				 + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!(bound && stored && stored->Draft.State == core::review_draft_state::published && landed) && ++probe.Waited < 400U)) {
+				return result::pending;
+			}
+			// Exactly one write: the reply, bound to the thread and its commit.
+			probe.Evidence.NothingSent = bound;
+			probe.Evidence.Acted       = stored && stored->Draft.State == core::review_draft_state::published && landed;
+			render(QStringLiteral("published"));
+			return finish();
+		}
+		case state_type::phase::awaiting_restored: {
+			// After the restart: the saved reply bound to the outdated thread,
+			// found among the restored drafts, marked on its thread's note.
+			if (!probe.Draft && implementation->SharedDrafts) {
+				for (const auto& draft : implementation->SharedDrafts->recovery_snapshot()) {
+					if (core::thread_bound_reply(draft.Draft) && draft.Draft.ReplyToThread == std::optional<std::string>{ std::string{ threadId } } && draft.Draft.Body == words.toStdString()
+						&& draft.Draft.State == core::review_draft_state::drafting) {
+						probe.Draft = draft.Draft.Id;
+					}
+				}
+			}
+			const auto* const thread = cardFor(identity);
+			probe.Evidence.Written   = true;
+			probe.Evidence.Kept      = probe.Draft.has_value();
+			const auto marked        = thread != nullptr && thread->UnsentReply == std::optional{ core::reply_draft_standing::answerable } && thread->Notice.isEmpty();
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " drafts=" + std::to_string(implementation->PrivateDraftsReady ? 1 : 0) + " saved=" + std::to_string(probe.Draft ? 1 : 0)
+				 + " marked=" + std::to_string(marked ? 1 : 0) + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!(probe.Evidence.Kept && marked) && ++probe.Waited < 160U)) {
+				return result::pending;
+			}
+			if (!probe.Evidence.Kept || !marked) {
+				return fail("not-restored");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reopened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reopened: {
+			if (refused()) {
+				return fail("refused");
+			}
+			if (!held(words) || cards->reply_editor() == nullptr) {
+				note("opening editor=" + (implementation->ReviewDraft ? std::to_string(implementation->ReviewDraft->Id.value()) : std::string{ "none" }));
+				if (ready() && probe.Waited++ % 10U == 0U) {
+					static_cast<void>(openReply());
+				}
+				return probe.Waited < 200U ? result::pending : fail("reply-not-reopened");
+			}
+			probe.Evidence.Flagged     = outdatedNote();
+			probe.Evidence.Presented   = cards->reply_editor()->toPlainText() == words;
+			probe.Evidence.Acted       = held(words);
+			probe.Evidence.NothingSent = sentNone();
+			render(QStringLiteral("restarted"));
+			return finish();
+		}
+		case state_type::phase::passed:
+			return result::passed;
+		default:
+			break;
+		}
+		return fail("phase");
 	}
 
 	auto detail::github_application_fixture_access::reply_draft_evidence(

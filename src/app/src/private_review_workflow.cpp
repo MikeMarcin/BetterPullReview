@@ -701,10 +701,14 @@ namespace bpr::app {
 		const auto head       = Binding->Revision.HeadOid;
 		const auto generation = Generation;
 		const auto prior      = Current;
-		post([head](context& aContext) {
+		post([head, binding = *Binding](context& aContext) {
 			// Restore only drafts under the currently accepted head.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
+			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread has no
+			// line, so a new head cannot move it: it is carried here first. A
+			// refused carry keeps the reply where it was and restores the rest.
+			static_cast<void>(host.carry_thread_replies(binding));
 			output.Drafts  = accepted(host.restore(head));
 			output.Refresh = false;
 			return output; },
@@ -751,6 +755,25 @@ namespace bpr::app {
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
 			output.Drafts  = accepted(host.select_draft(binding, aLine, *index, thread));
+			output.Refresh = false;
+			return output;
+		},
+			 std::move(aCompletion));
+	}
+	void private_review_workflow::select_thread_reply(std::string aThread, draft_completion aCompletion)
+	{
+		if (!Binding || !Binding->Comparison) {
+			aCompletion(std::unexpected(application::private_run_error{ .Policy = core::private_review_refusal::invalid_target }));
+			return;
+		}
+		post([binding = *Binding, thread = std::move(aThread)](context& aContext) {
+			// [[BPR-PENDING-AT]]. The outdated thread's unsent reply opens
+			// again, or a new one bound to the thread is made. One written on
+			// an earlier head is carried first, as a restore carries it.
+			result                                           output;
+			application::review_composition_application_host host(*aContext.Store);
+			static_cast<void>(host.carry_thread_replies(binding));
+			output.Drafts  = accepted(host.select_thread_reply(binding, thread));
 			output.Refresh = false;
 			return output;
 		},

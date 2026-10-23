@@ -17487,6 +17487,9 @@ namespace {
 			process_events();
 			auto replies = std::vector<std::string>{ };
 			window.set_review_reply_dispatch([&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
+			// [[BPR-PENDING-AT]]. An outdated thread's Reply goes to the thread.
+			auto threadReplies = std::vector<std::string>{ };
+			window.set_thread_reply_dispatch([&threadReplies](const std::string& aIdentity) { threadReplies.push_back(aIdentity); });
 			const auto file  = core::file_identity_of("src/file.cpp");
 			const auto other = core::file_identity_of("src/long.cpp");
 			state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
@@ -17590,9 +17593,10 @@ namespace {
 			const auto  offered     = [showInCode] { return showInCode->isVisibleTo(showInCode->window()) && showInCode->text() == QStringLiteral("Show in code"); };
 			const auto  suffix      = QString::fromLatin1(aOutdated ? "-outdated" : "");
 
-			// Discuss, the long thread open there. Its Reply is refused, as
-			// its file is not the one in the code (or its line is in none),
-			// and the words say so.
+			// Discuss, the long thread open there. A current thread's Reply is
+			// refused, as its file is not the one in the code, and the words
+			// say so. [[BPR-PENDING-AT]]. An outdated thread's is not: it is
+			// answered by the thread, which needs no line in the code.
 			window.choose_modality(qt::review_modality::discuss);
 			process_events();
 			cards->open_thread("review-thread:long");
@@ -17600,17 +17604,14 @@ namespace {
 			expect(cards->open_card() != nullptr, stage("Discuss opens the long thread"));
 			auto* replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
 			expect(replyField != nullptr, stage("the open thread offers Reply in Discuss"));
-			replyField->click();
-			process_events();
-			expect(replies.empty() && noticeShown() && !notice->text().contains(QStringLiteral("before replying")), stage("Discuss refuses the reply in words, not an instruction"));
-			if (aOutdated) {
-				expect(notice->text() == QStringLiteral("This thread's line isn't in the code shown, so it can't take a reply here.") && !offered(),
-					   stage("an outdated thread's refusal says its line is not in the code, and offers nothing that would not help"));
-			} else {
+			if (!aOutdated) {
+				replyField->click();
+				process_events();
+				expect(replies.empty() && noticeShown() && !notice->text().contains(QStringLiteral("before replying")), stage("Discuss refuses the reply in words, not an instruction"));
 				expect(notice->text() == QStringLiteral("This thread is on long.cpp, which isn't the file in the code.") && offered(),
 					   stage("a thread on another file says which, and offers Show in code"));
+				save_render(window, QStringLiteral("long-thread-discuss-refusal") + suffix);
 			}
-			save_render(window, QStringLiteral("long-thread-discuss-refusal") + suffix);
 
 			// Open in Review: the current thread by its line button, the
 			// outdated one by its menu.
@@ -17694,9 +17695,18 @@ namespace {
 			// Reply, by a click on the field.
 			click(*replyField);
 			if (aOutdated) {
-				expect(replies.empty() && noticeShown() && notice->text() == QStringLiteral("This thread's line isn't in the code shown, so it can't take a reply here.") && !offered(),
-					   stage("an outdated thread's Reply is refused with why, not told to open what is open"));
-				expect(replyField->hasFocus() && inView(*replyField), stage("the refusal's notice takes the drawer's height without covering the Reply field"));
+				// [[BPR-PENDING-AT]]. Before the change: refused with "This
+				// thread's line isn't in the code shown, so it can't take a
+				// reply here." Now the reply is bound to the thread and written
+				// in place, with a quiet line saying the thread is outdated.
+				expect(replies.empty() && threadReplies == std::vector<std::string>{ "review-thread:long" } && !noticeShown(),
+					   stage("an outdated thread's Reply goes to the thread, with no refusal"));
+				auto* const editor = qobject_cast<QPlainTextEdit*>(QApplication::focusWidget());
+				expect(editor != nullptr && cards->open_card()->isAncestorOf(editor) && inView(*editor), stage("the outdated thread's reply is written in place, focused and in view"));
+				auto* const outdatedNote = cards->open_card()->findChild<QLabel*>(QStringLiteral("threadReplyOutdatedNote"));
+				expect(outdatedNote != nullptr && outdatedNote->isVisibleTo(&window)
+						   && outdatedNote->text() == QStringLiteral("Outdated: this thread's line has changed since it was written"),
+					   stage("the reply field says, quietly, that the thread's line has changed"));
 			} else {
 				expect(replies.size() == 1U && replies.front() == "review-thread:long" && !noticeShown(),
 					   stage("Reply on the thread open beside its code is not refused"));
@@ -17705,6 +17715,23 @@ namespace {
 			}
 			save_render(window, QStringLiteral("long-thread-replying") + suffix);
 			if (aOutdated) {
+				// [[BPR-PENDING-AT]]. Discuss and Threads answer it the same
+				// way: by the thread, with no refusal, the composer opened.
+				deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
+				for (const auto modality : { qt::review_modality::discuss, qt::review_modality::threads }) {
+					window.choose_modality(modality);
+					process_events();
+					threadReplies.clear();
+					cards->open_thread("review-thread:long");
+					process_events();
+					auto* const field = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) : nullptr;
+					expect(field != nullptr, stage("the outdated thread offers Reply there too"));
+					field->click();
+					process_events();
+					expect(replies.empty() && threadReplies == std::vector<std::string>{ "review-thread:long" } && !noticeShown(),
+						   stage(modality == qt::review_modality::discuss ? "Discuss answers the outdated thread by the thread" : "Threads answers the outdated thread by the thread"));
+					deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
+				}
 				window.hide();
 				return;
 			}

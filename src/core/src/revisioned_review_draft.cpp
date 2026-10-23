@@ -140,6 +140,13 @@ namespace bpr::core {
 			result.Refusal = revisioned_draft_refusal::invalid_command;
 			return result;
 		}
+		// [[BPR-PENDING-AT]]. A reply bound to its thread has no line, so it
+		// cannot become a new comment, answer another thread, take a range or
+		// go pending in a review: each would put it on a line it does not have.
+		if (thread_bound_anchor(aDraft.Draft.Anchor) && (aCommand.ChangeReplyTarget || aCommand.ChangeRange || aCommand.ChangePending)) {
+			result.Refusal = revisioned_draft_refusal::invalid_command;
+			return result;
+		}
 		if (aDraft.Composition && !valid_link(*aDraft.Composition, aDraft.Draft.Body)) {
 			result.Refusal = revisioned_draft_refusal::invalid_identity;
 			return result;

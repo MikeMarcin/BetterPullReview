@@ -2492,9 +2492,9 @@ set_tests_properties(
 )
 bpr_bound_automated_run(
     application_reply_draft_contract
-    TIMEOUT 400
+    TIMEOUT 560
     BUDGET_MS ${bpr_fixture_run_budget_ms}
-    RUNS 7
+    RUNS 10
     RESERVE_MS 5000
 )
 

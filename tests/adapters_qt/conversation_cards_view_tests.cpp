@@ -1872,6 +1872,78 @@ namespace {
 	// line, text only in an outdated thread, a file comment or on the base
 	// side, each from the accepted projection's own facts. The mark changes
 	// nothing in the text and is not shown for prose.
+	// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an
+	// outdated thread from the drawer, like GitHub does". An outdated thread's
+	// menu offers Reply; its reply field opens in place with one quiet line
+	// saying its line has changed, in the card's secondary ink. A current
+	// thread's reply is unchanged and carries no such line. Before the change
+	// the outdated thread's Reply was disabled with "This thread's line isn't
+	// in the code shown, so it can't take a reply here."
+	void test_an_outdated_thread_takes_a_reply_with_a_quiet_note()
+	{
+		using availability          = application::github_conversation_anchor_availability;
+		auto outdated               = thread("t-outdated", "src/b.cpp", 4U);
+		outdated.Line               = std::nullopt;
+		outdated.OriginalLine       = 4U;
+		outdated.AnchorAvailability = availability::outdated_revision;
+		outdated.Outdated           = true;
+		const auto current          = thread("t-current", "src/a.cpp", 10U);
+
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		view.adopt({ current, reply("c-current", "t-current", "a", "first"), outdated, reply("c-outdated", "t-outdated", "b", "second") });
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		auto pressed = std::vector<std::string>{ };
+		view.set_action_dispatch([&view, &pressed](const qt::card_action aAction, const std::string& aId) {
+			if (aAction == qt::card_action::reply) {
+				pressed.push_back(aId);
+				view.begin_reply(aId);
+			}
+		});
+		QApplication::processEvents();
+		const auto card = std::ranges::find(view.cards(), std::string{ "t-outdated" }, &qt::thread_card::Id);
+		expect(card != view.cards().end() && card->ReplyOnThread && card->Outdated, "the core answers the outdated thread by the thread");
+		const auto lined = std::ranges::find(view.cards(), std::string{ "t-current" }, &qt::thread_card::Id);
+		expect(lined != view.cards().end() && !lined->ReplyOnThread, "a current thread is answered on its line");
+
+		auto* const menu  = view.thread_menu("t-outdated");
+		const auto  items = menu != nullptr ? menu->actions() : QList<QAction*>{ };
+		const auto  reply = std::ranges::find_if(items, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Reply"); });
+		expect(reply != items.end() && (*reply)->isEnabled(), "the outdated thread's menu offers Reply");
+		delete menu;
+
+		const auto note = [&view] { return view.open_card() != nullptr ? view.open_card()->findChild<QLabel*>(QStringLiteral("threadReplyOutdatedNote")) : nullptr; };
+		view.open_thread("t-outdated");
+		QApplication::processEvents();
+		auto* const field = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+		expect(field != nullptr && field->isVisibleTo(view.open_card()), "the outdated thread shows its Reply field as a current one does");
+		field->click();
+		QApplication::processEvents();
+		expect(pressed == std::vector<std::string>{ "t-outdated" } && view.reply_editor() != nullptr && view.reply_editor()->isVisibleTo(view.open_card()),
+			   "Reply opens the reply field in place");
+		expect(note() != nullptr && note()->isVisibleTo(view.open_card()) && note()->text() == QStringLiteral("Outdated: this thread's line has changed since it was written"),
+			   "one quiet line says the thread's line has changed since it was written");
+		expect(note()->palette().color(QPalette::WindowText) != view.palette().color(QPalette::WindowText) && note()->font().pointSizeF() < view.open_card()->font().pointSizeF(),
+			   "the note is set smaller, in the secondary ink");
+		expect(view.reply_editor()->accessibleName() == QStringLiteral("Reply to the outdated thread"), "the field is named for the thread it answers");
+		const auto noteBelow = note()->mapTo(view.open_card(), QPoint{ 0, note()->height() }).y();
+		const auto editorTop = view.reply_editor()->mapTo(view.open_card(), QPoint{ 0, 0 }).y();
+		expect(noteBelow <= editorTop, "the note sits above the field, not over it");
+		if (const auto path = qEnvironmentVariable("BPR_OUTDATED_REPLY_PNG"); !path.isEmpty()) {
+			view.grab().save(path);
+		}
+		view.close_thread();
+		QApplication::processEvents();
+
+		view.open_thread("t-current");
+		view.begin_reply("t-current");
+		QApplication::processEvents();
+		expect(view.reply_editor() != nullptr && note() == nullptr, "a current thread's reply carries no outdated note");
+		view.hide();
+	}
+
 	void test_a_reply_suggestion_is_marked_native_or_text_only()
 	{
 		using availability          = application::github_conversation_anchor_availability;
@@ -2478,6 +2550,7 @@ auto main(int argc, char** argv) -> int
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_controls();
 	test_a_reply_suggestion_is_marked_native_or_text_only();
+	test_an_outdated_thread_takes_a_reply_with_a_quiet_note();
 	test_published_suggestions_show_against_their_lines();
 	test_endpoint_changes_retain_exact_body_annotations();
 	test_unchanged_refresh_retains_measured_notes();

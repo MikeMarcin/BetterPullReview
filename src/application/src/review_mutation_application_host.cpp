@@ -522,10 +522,61 @@ namespace bpr::application {
 			};
 		}
 
+		/// \brief [[BPR-PENDING-AT]]. A reply bound to its outdated thread,
+		/// held to the thread: its path and the commit it was written on, the
+		/// designated target and actor. No line, selection or source is read,
+		/// and none is published: GitHub takes the reply by the thread alone.
+		[[nodiscard]] auto validate_thread_reply(
+			const review_mutation_publication_request& aRequest) const
+			-> std::expected<validated_publication, review_mutation_failure>
+		{
+			const auto& proposal = aRequest.Proposal;
+			if (!aRequest.ThreadReply.has_value() || !proposal.ReplyToThread.has_value() || proposal.ReplyToThread->empty()
+				|| !core::thread_bound_anchor(proposal.Anchor) || proposal.StartLine.has_value() || !proposal.Anchor.Comparison.valid()
+				|| proposal.Durable.has_value()) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
+			const auto& thread = *aRequest.ThreadReply;
+			// A thread written on the head is not outdated: it has a line.
+			if (!thread.OriginalCommit.valid() || thread.OriginalCommit == Coordinator.designated().ExpectedHead
+				|| thread.OriginalCommit.algorithm() != Coordinator.designated().ExpectedHead.algorithm()) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
+			auto path = portable_path_text(std::filesystem::path{ thread.Path, std::filesystem::path::generic_format });
+			if (!path.has_value()) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
+			auto anchor = review_mutation_anchor_binding{
+				.Semantic = proposal.Anchor,
+				.Path     = *path,
+				.Commit   = thread.OriginalCommit,
+			};
+			if (!valid(anchor) || !thread_bound_binding(anchor)) {
+				return std::unexpected(review_mutation_failure::undesignated_target);
+			}
+			const auto scope = review_mutation_execution_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Comparison          = proposal.Anchor.Comparison,
+				.File                = core::file_identity_of(*path),
+				.Anchor              = proposal.Anchor,
+				.ResolvedPath        = *path,
+				.Commit              = Coordinator.designated().ExpectedHead,
+			};
+			return validated_publication{ .Anchor = std::move(anchor), .Scope = scope, .Source = std::nullopt };
+		}
+
 		[[nodiscard]] auto validate(
 			const review_mutation_publication_request& aRequest) const
 			-> std::expected<validated_publication, review_mutation_failure>
 		{
+			// [[BPR-PENDING-AT]]. A thread-bound reply is held to its thread;
+			// anything else carrying its anchor is refused below the line rule.
+			if (aRequest.ThreadReply.has_value() || core::thread_bound_anchor(aRequest.Proposal.Anchor)) {
+				return validate_thread_reply(aRequest);
+			}
 			const auto& publication = aRequest.SelectedDiff;
 			const auto& selected    = aRequest.Selection;
 			const auto& key         = publication.Key;

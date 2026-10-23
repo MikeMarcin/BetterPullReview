@@ -608,6 +608,11 @@ namespace bpr::app::detail {
 		/// received, and how many named a commit other than the head.
 		std::string LastCommit;
 		std::size_t EarlierCommitPosts = 0U;
+		/// [[BPR-PENDING-AT]]. The last reply's thread, whether it was bound to
+		/// the thread rather than a line, and the commit it was bound to.
+		std::string LastReplyThread;
+		bool        LastReplyThreadBound = false;
+		std::string LastReplyCommit;
 
 		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};
@@ -984,6 +989,12 @@ namespace bpr::app::detail {
 	/// reply copied and discarded (`deleted`) or kept as a comment on its
 	/// line (`kept`). `write` writes the reply and quits; `restart`, over the
 	/// same data root, finds it again. Nothing is ever sent to the server.
+	/// [[BPR-PENDING-AT]]. The same thread made outdated by a push first
+	/// (`stage_server_thread_outdated`), then answered from its Reply: by the
+	/// thread, with no refusal and the quiet outdated line. `outdated-publish`
+	/// publishes it through the reply path; `outdated-write` writes it and
+	/// quits; `outdated-restart`, over the same data root, finds it again and
+	/// Reply opens it.
 	enum class reply_draft_course {
 		refresh,
 		edited,
@@ -992,6 +1003,9 @@ namespace bpr::app::detail {
 		deleted,
 		kept,
 		resolved,
+		outdated_publish,
+		outdated_write,
+		outdated_restart,
 	};
 
 	enum class reply_draft_probe_result {
@@ -1958,6 +1972,10 @@ namespace bpr::app::detail {
 			-> std::string;
 		/// \brief [[BPR-1374]]. One tick of the unsent-reply course.
 		[[nodiscard]] static auto exercise_reply_draft(github_application& aApplication, reply_draft_course aCourse)
+			-> reply_draft_probe_result;
+		/// \brief [[BPR-PENDING-AT]]. One tick of the outdated-thread reply
+		/// course.
+		[[nodiscard]] static auto exercise_outdated_reply(github_application& aApplication, reply_draft_course aCourse)
 			-> reply_draft_probe_result;
 		[[nodiscard]] static auto reply_draft_evidence(const github_application& aApplication)
 			-> reply_draft_probe_evidence;

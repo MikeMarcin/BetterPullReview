@@ -17,10 +17,12 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <random>
 #include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -1736,6 +1738,177 @@ namespace {
 		}
 	}
 
+	// [[BPR-PENDING-AT]]. A reply to an outdated thread is bound to the
+	// thread, not a line: its anchor is the thread-bound one, its path and
+	// commit the thread's own (the commit it was written on). GitHub answers
+	// it with `line: null` on that commit, as BPR-Test#133 did live on
+	// 2026-10-22, and its thread observation shows it the same way.
+	[[nodiscard]] auto outdated_commit() -> core::git_commit_oid
+	{
+		return commit(0x5AU);
+	}
+
+	[[nodiscard]] auto thread_bound_reply_request() -> application::review_mutation_request
+	{
+		auto reply                = reply_request();
+		reply.Proposal.Anchor     = core::thread_reply_anchor(reply.Proposal.Anchor.Comparison);
+		reply.LiveBinding->Anchor = { .Semantic = reply.Proposal.Anchor, .Path = "fixture/review.txt", .Commit = outdated_commit() };
+		reply.IdempotencyKey      = application::idempotency_key_for(reply.Proposal, reply.Target);
+		return reply;
+	}
+
+	[[nodiscard]] auto outdated_reply_response(const bool aWithLine = false) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = std::string{ "{\"data\":{\"addPullRequestReviewThreadReply\":{\"comment\":{"
+									   "\"id\":\"PRRC_reply_45\",\"databaseId\":45,\"body\":\"Please rename this.\","
+									   "\"path\":\"fixture/review.txt\",\"line\":" }
+					+ (aWithLine ? "13" : "null") + ",\"commit\":{\"oid\":\""
+					+ std::string{ core::canonical_hex(outdated_commit()).view() }
+					+ "\"},\"author\":{\"login\":\"fixture-reviewer\"},\"viewerDidAuthor\":true,"
+					+ designated_pull_request_json() + "}}}}",
+			},
+		};
+	}
+
+	// The outdated thread: its root by someone else and our replies, all
+	// with no line, on the commit the thread was written on.
+	[[nodiscard]] auto outdated_thread_comments(const std::vector<std::size_t>& aOurReplies) -> github_mutation_wire_completion
+	{
+		const auto commit = "{\"oid\":\"" + std::string{ core::canonical_hex(outdated_commit()).view() } + "\"}";
+		auto       nodes  = "{\"id\":\"PRRC_fixture_40\",\"fullDatabaseId\":\"40\",\"body\":\"Root comment.\","
+							"\"path\":\"fixture/review.txt\",\"line\":null,\"commit\":"
+			+ commit + ",\"viewerDidAuthor\":false,\"author\":{\"login\":\"someone-else\",\"databaseId\":23,\"id\":\"MDQ6VXNlcjIz\"}}";
+		for (const auto reply : aOurReplies) {
+			nodes += ",{\"id\":\"PRRC_reply_" + std::to_string(reply) + "\",\"fullDatabaseId\":\"" + std::to_string(reply)
+				+ "\",\"body\":\"Please rename this.\",\"path\":\"fixture/review.txt\",\"line\":null,\"commit\":" + commit
+				+ ",\"viewerDidAuthor\":true,\"author\":{\"login\":\"fixture-reviewer\",\"databaseId\":22,\"id\":\"MDQ6VXNlcjIy\"}}";
+		}
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = "{\"data\":{\"node\":{\"id\":\"PRRT_fixture_1\",\"diffSide\":\"RIGHT\","
+					+ designated_pull_request_json()
+					+ ",\"comments\":{\"pageInfo\":{\"hasNextPage\":false},\"nodes\":[" + nodes + "]}}}}",
+			},
+		};
+	}
+
+	void script_outdated_reply_course(fake_transport& aTransport, github_mutation_wire_completion aWrite, const std::vector<std::size_t>& aAfter)
+	{
+		aTransport.answer(graphql("ObserveThread"), thread_observation_response(true));
+		aTransport.answer(graphql("ObserveThreadComments"), outdated_thread_comments({ }));
+		aTransport.answer(viewer_get(), viewer_response());
+		aTransport.answer(pull_request_get(), target_response());
+		aTransport.answer(graphql("ReplyToThread"), std::move(aWrite));
+		aTransport.answer(graphql("ObserveThreadComments"), outdated_thread_comments(aAfter));
+	}
+
+	/// An owner-private root for the SQLite journal, removed when it goes.
+	struct journal_root
+	{
+		std::filesystem::path Path;
+		journal_root()
+			: Path{ std::filesystem::temp_directory_path() / ("bpr-outdated-reply-journal-" + std::to_string(std::random_device{ }())) }
+		{
+			std::filesystem::remove_all(Path);
+			std::filesystem::create_directories(Path);
+			// The store refuses a root reached through a link, as macOS's
+			// temporary directory is.
+			Path = std::filesystem::canonical(Path);
+			expect(adapters::sqlite::make_storage_root_owner_private(Path), "the journal root is owner-private");
+		}
+		journal_root(const journal_root&)                    = delete;
+		journal_root(journal_root&&)                         = delete;
+		auto operator=(const journal_root&) -> journal_root& = delete;
+		auto operator=(journal_root&&) -> journal_root&      = delete;
+		~journal_root()
+		{
+			auto ignored = std::error_code{ };
+			std::filesystem::remove_all(Path, ignored);
+		}
+	};
+
+	void test_an_outdated_threads_reply_is_bound_to_its_thread()
+	{
+		// The whole course through the SQLite journal: written once, answered
+		// with no line, confirmed against the thread, recorded as the receipt.
+		{
+			const auto root      = journal_root{ };
+			auto       transport = fake_transport{ };
+			script_outdated_reply_course(transport, outdated_reply_response(), { 45U });
+			auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), open_recovery(root.Path) };
+			const auto submission = session.submit_and_reconcile(thread_bound_reply_request(), { });
+			expect(submission.Result.has_value() && !submission.Result->Duplicate && submission.Result->ServerCommentId == "PRRC_reply_45"
+					   && submission.MutationAttempted && submission.Reconciliation.has_value() && submission.Reconciliation->size() == 2U,
+				   "an outdated thread's reply is written once and confirmed with no line, on the thread's own commit");
+			expect_wires(transport.Requests, reply_course_wires(), "outdated thread reply");
+			const auto& reply = transport.Requests[4].Wire;
+			expect(reply.Body.find("PRRT_fixture_1") != std::string::npos && reply.Body.find("\"line\"") == std::string::npos,
+				   "the write names the thread and no line");
+			const auto stored = open_recovery(root.Path)->load(thread_bound_reply_request().IdempotencyKey);
+			expect(stored && stored->has_value() && (**stored).State == application::review_mutation_recovery_state::succeeded
+					   && (**stored).Receipt && (**stored).Receipt->ServerCommentId == "PRRC_reply_45"
+					   && core::thread_bound_anchor((**stored).Anchor.Semantic) && (**stored).Anchor.Commit == outdated_commit(),
+				   "the journal keeps the thread-bound anchor and the thread's commit with the receipt");
+		}
+		// An unclear outcome: the answer is lost. The journal keeps the
+		// attempt, possibly sent; a restarted session decides it from the
+		// thread alone and never writes again.
+		{
+			const auto root = journal_root{ };
+			{
+				auto transport = fake_transport{ };
+				script_outdated_reply_course(transport, lost_answer(), { });
+				auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), open_recovery(root.Path) };
+				const auto submission = session.submit_and_reconcile(thread_bound_reply_request(), { });
+				expect(!submission.Result.has_value() && submission.MutationAttempted, "the lost answer leaves the outcome unknown");
+				const auto stored = open_recovery(root.Path)->load(thread_bound_reply_request().IdempotencyKey);
+				expect(stored && stored->has_value() && (**stored).State == application::review_mutation_recovery_state::unresolved
+						   && (**stored).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted,
+					   "the journal keeps the attempt unresolved and possibly sent");
+			}
+			auto transport = fake_transport{ };
+			transport.answer(viewer_get(), viewer_response());
+			transport.answer(pull_request_get(), target_response());
+			transport.answer(graphql("ObserveThreadComments"), outdated_thread_comments({ 45U }));
+			auto       session   = review_mutation_session{ transport, configuration(), mutation_lease(), open_recovery(root.Path) };
+			const auto recovered = session.submit_and_reconcile(thread_bound_reply_request(), { });
+			expect(recovered.Result.has_value() && recovered.Result->Duplicate && recovered.Result->ServerCommentId == "PRRC_reply_45" && !recovered.MutationAttempted,
+				   "the restarted session finds the reply with no line in its thread and confirms it without writing");
+			expect_wires(transport.Requests, reply_recovery_wires(), "outdated reply after restart");
+		}
+		// An answer with a line is not the reply asked for, and a reply on a
+		// line answered with none is not either: neither is confirmed.
+		{
+			auto transport = fake_transport{ };
+			script_outdated_reply_course(transport, outdated_reply_response(true), { });
+			auto       state      = std::make_shared<fake_recovery_state>();
+			auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery(state) };
+			const auto submission = session.submit_and_reconcile(thread_bound_reply_request(), { });
+			const auto found      = state->Records.find(thread_bound_reply_request().IdempotencyKey);
+			expect(!submission.Result.has_value() && found != state->Records.end() && found->second.State == application::review_mutation_recovery_state::unresolved,
+				   "a thread-bound reply answered on a line is never confirmed");
+		}
+		{
+			auto transport = fake_transport{ };
+			script_reply_course(transport, { }, outdated_reply_response(), { });
+			auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto submission = session.submit_and_reconcile(reply_request(), { });
+			expect(!submission.Result.has_value(), "a reply on a line answered with no line is never confirmed");
+		}
+		// Only a reply may be bound to its thread.
+		auto comment                   = thread_bound_reply_request();
+		comment.Proposal.ReplyToThread = std::nullopt;
+		comment.IdempotencyKey         = application::idempotency_key_for(comment.Proposal, comment.Target);
+		expect(!compile_review_comment_request(comment, application::github_server_contract::github_com_2022_11_28).has_value(),
+			   "a new comment with the thread-bound anchor compiles to nothing");
+		expect(compile_review_comment_request(thread_bound_reply_request(), application::github_server_contract::github_com_2022_11_28).has_value(),
+			   "the thread-bound reply compiles to the thread reply");
+	}
+
 	// [[BPR-0879]]. The coordinator needs a port. The session is the exact
 	// production protocol without the concrete provider, which a test binary
 	// must not link (live_mutation_isolation), so the port forwards to the
@@ -2356,6 +2529,7 @@ namespace {
 		row{ "a_reply_is_reconciled_through_its_thread", &test_a_reply_is_reconciled_through_its_thread },
 		row{ "an_interrupted_reply_is_recovered_from_its_thread",
 			 &test_an_interrupted_reply_is_recovered_from_its_thread },
+		row{ "an_outdated_threads_reply_is_bound_to_its_thread", &test_an_outdated_threads_reply_is_bound_to_its_thread },
 		row{ "the_coordinator_confirms_the_target_and_counts_a_resolution",
 			 &test_the_coordinator_confirms_the_target_and_counts_a_resolution },
 		row{ "a_reaction_is_observed_then_written_once", &test_a_reaction_is_observed_then_written_once },

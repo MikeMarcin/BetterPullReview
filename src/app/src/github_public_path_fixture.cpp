@@ -2116,6 +2116,10 @@ namespace bpr::app::detail {
 				/// [[BPR-1374]]. Another client deleted the thread's root, so the
 				/// thread is gone from every later read.
 				bool Deleted = false;
+				/// [[BPR-PENDING-AT]]. A push changed the thread's line: GitHub
+				/// reads it outdated, with no line, every post (a reply too)
+				/// written on this commit, as BPR-Test#133 read on 2026-10-22.
+				std::optional<std::string> OutdatedOn;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			std::vector<QJsonObject>              CreatedReviewThreads;
@@ -2799,6 +2803,19 @@ namespace bpr::app::detail {
 					post.insert(QStringLiteral("replyTo"),
 								rootId.isEmpty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ replyTo });
 					posts.append(post);
+				}
+				if (overlay->second.OutdatedOn) {
+					const auto commit = QJsonObject{ { QStringLiteral("oid"), QString::fromStdString(*overlay->second.OutdatedOn) } };
+					node.insert(QStringLiteral("isOutdated"), true);
+					node.insert(QStringLiteral("line"), QJsonValue{ QJsonValue::Null });
+					for (auto entry = posts.begin(); entry != posts.end(); ++entry) {
+						auto post = entry->toObject();
+						post.insert(QStringLiteral("line"), QJsonValue{ QJsonValue::Null });
+						post.insert(QStringLiteral("outdated"), true);
+						post.insert(QStringLiteral("commit"), commit);
+						post.insert(QStringLiteral("originalCommit"), commit);
+						*entry = post;
+					}
 				}
 				comments.insert(QStringLiteral("nodes"), posts);
 				comments.insert(QStringLiteral("totalCount"), posts.size());
@@ -5221,6 +5238,11 @@ namespace bpr::app::detail {
 				// read, as GitHub's would.
 				if (aRequest.Proposal.ReplyToThread.has_value()) {
 					++Evidence.Replies;
+					// [[BPR-PENDING-AT]]. What the reply was bound to.
+					Evidence.LastReplyThread      = *aRequest.Proposal.ReplyToThread;
+					Evidence.LastReplyThreadBound = aRequest.LiveBinding.has_value() && application::thread_bound_binding(aRequest.LiveBinding->Anchor)
+						&& core::thread_bound_anchor(aRequest.Proposal.Anchor);
+					Evidence.LastReplyCommit = aRequest.LiveBinding ? std::string{ core::canonical_hex(aRequest.LiveBinding->Anchor.Commit).view() } : std::string{ };
 					if (State != nullptr) {
 						const std::scoped_lock lock{ State->Mutex };
 						State->ThreadOverlays[*aRequest.Proposal.ReplyToThread].Replies.emplace_back(
@@ -5828,6 +5850,12 @@ namespace bpr::app::detail {
 		if (aRootAuthor) {
 			overlay.RootAuthor = std::move(aRootAuthor);
 		}
+	}
+
+	void github_public_path_fixture_components::stage_server_thread_outdated(std::string aThread, std::string aWrittenOn)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		Implementation->Recording->ThreadOverlays[std::move(aThread)].OutdatedOn = std::move(aWrittenOn);
 	}
 
 	void github_public_path_fixture_components::stage_server_thread_deleted(std::string aThread)

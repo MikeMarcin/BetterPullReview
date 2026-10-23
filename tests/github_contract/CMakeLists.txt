@@ -1435,6 +1435,27 @@ if(BPR_BUILD_LIVE_REACTION_COURSE)
     bpr_enable_warnings(tool_reaction_live_course)
 endif()
 
+# [[BPR-PENDING-AT]]. The live outdated-thread reply course's process: never a
+# CTest row, and not built by default. Configure with
+# -DBPR_BUILD_LIVE_OUTDATED_REPLY_COURSE=ON; tests/scripts/outdated_reply_live_course.py
+# runs it by hand against MikeMarcin/BPR-Test.
+option(BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE "Build the live outdated-thread reply course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE)
+    bpr_add_executable(tool_outdated_reply_live_course outdated_reply_live_course.cpp)
+    target_link_libraries(
+        tool_outdated_reply_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::Application
+            Qt6::Core
+    )
+    target_include_directories(tool_outdated_reply_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    target_compile_definitions(tool_outdated_reply_live_course PRIVATE BPR_APPLICATION_TESTING=1)
+    bpr_enable_hardening(tool_outdated_reply_live_course)
+    bpr_enable_warnings(tool_outdated_reply_live_course)
+endif()
+
 # RFC-BPR-0084. The live image course's process. CTest runs only its offline
 # request compilation; tests/scripts/markdown_image_live_course.py drives it
 # against MikeMarcin/BPR-Test by hand.
