@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-PENDING-AQ6", "BPR-PENDING-AQ7"]
 priority: "P2"
 platforms: ["mac"]
-metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"077adf53047441a3224b3687ceddf38e","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v002","transport":"serve --tailscale","lifecycle":"serving look v002, awaiting the owner"},"previous_sessions":["89855cd96f098cd74e28d271acd60d8a (look v001, handed back, stopped, released)"],"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v002.fwb9a7cz","commit":"f51ae6acf","executable_sha256":"ba4e00b091b96d50baae12381ec20e3fd8ccb82c36e5a3a66f10d61f6e2d2fa9","fixture":"github-com"}}
+metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"077adf53047441a3224b3687ceddf38e","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v002","transport":"serve --tailscale","lifecycle":"v002 handed back (Reject) and stopped"},"previous_sessions":["89855cd96f098cd74e28d271acd60d8a (look v001, handed back, stopped, released)"],"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v002.fwb9a7cz","commit":"f51ae6acf","executable_sha256":"ba4e00b091b96d50baae12381ec20e3fd8ccb82c36e5a3a66f10d61f6e2d2fa9","fixture":"github-com"}}
 ---
 
 # BPR-PENDING-AQ8: A frozen build and the owner's look at agent setup
@@ -71,4 +71,27 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14), the revised first run: "The first time I open the
     Agent tab it tells me what to do, and I end up asking a question that the
     agent answers from my repository."
-- Pending: the owner's answer.
+- Handed back 2026-10-23: **Q1 Reject**. The owner's note, verbatim (line
+  breaks joined): "Why do I have to click a little circle instead of the whole card to select
+  the agent? If I click change on agent it really makes me change it... I
+  can't select the one I already have selected or click (2) to continue. The
+  add folder thing works althoug I prefer a UX more like the visual studio
+  one. This Ask the Agent button is confusing. We have ask below. I don't know
+  what this does? Is this button get the agent to review the PR? Or is it get
+  it to review the current file? Or is it the same as the ask button below? I
+  asked "Does this work?" and it thought for a while and said nothing. It also
+  kept my question in the question box even after I had asked it already which
+  is weird. Is it not meant to work like the claude code vscode plugin where
+  it's like a chat thread? I dunno how this thing is supposed to function I
+  guess. I clicked asked the agent this time and it thought for a while and
+  then said it found nothing to repair which isn't terribly useful as far as me
+  telling if it works or not. Not having a model/effort picker in this window
+  bothers the hell out of me. I can't even do `/model`. I really have no clue
+  what my agent will be actually doing and that bothers me a lot because the
+  quality and cost vary dramatically depending on those things." Their four screenshots showed the agent
+  rows' radio circles, Visual Studio's folder list (add, delete, move down,
+  move up, an editable path row with a browse button), the "Ask the agent"
+  button beside "Ask a question below…", and the tab after "Does this work?":
+  "Claude Code finished. It found nothing to report." with the question still
+  in the field.
+- Look v002's host was stopped, its candidate released and its root removed.
