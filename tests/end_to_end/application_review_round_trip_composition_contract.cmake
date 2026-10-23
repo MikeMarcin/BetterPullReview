@@ -1,3 +1,11 @@
+# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the rebase reseal below,
+# linear, on this card's commit. Pinned-scope change, owner look v002:
+# github_application.cpp hands the setup's and Settings' new Visual
+# Studio-style clone-folder list (the whole ordered list after an edit, a
+# removal or a move) to the existing clone_link_host::set_clone_folders, in
+# place of adding and removing one folder. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
 # Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-PENDING-AQ1 to AQ8)
 # rebased onto main ee99318f4 (BPR-1746, whose own notes follow). github_application.cpp
 # holds both lines of work with no overlapping hunk; the per-card notes below
@@ -2238,7 +2246,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"0447363a41665be7d7db6f1c4ee86745dac565a5fcd9c25a57762bc0ad167939"
+		"7022ef8644fc0b1bdfdd45231e71effa6aefb4eb28ebe0aad6b15bc119e57327"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2462,7 +2470,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "8cd1f4c7e6213d9deefa5232b60880a5aa468c0ca4e1fead0ceb4d97bed8af32"
+        "6d09166d5f6ffe6f1b7fe89e49f73b711c985f373684ffca6ca3259be75e5f59"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -60,6 +60,7 @@ add_library(
         src/agent_tab_view.cpp
         src/agent_setup_view.cpp
         src/agent_setup_settings.cpp
+        src/folder_list_editor.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp

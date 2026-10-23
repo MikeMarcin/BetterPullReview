@@ -9,19 +9,23 @@
 
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/folder_list_editor.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QStyleFactory>
+#include <QToolButton>
 
 #include <cstdlib>
 #include <functional>
@@ -76,6 +80,33 @@ namespace {
 		aWidget.setPalette(light);
 	}
 
+	void click(QWidget& aWidget)
+	{
+		const auto centre  = QPointF{ aWidget.rect().center() };
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, centre, aWidget.mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, centre, aWidget.mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(&aWidget, &press);
+		QApplication::sendEvent(&aWidget, &release);
+		QApplication::processEvents();
+	}
+
+	/// New folder, then a path typed into the row's own field and Return.
+	[[nodiscard]] auto type_row(qt::folder_list_editor& aEditor, const QString& aText) -> bool
+	{
+		aEditor.new_button()->click();
+		QApplication::processEvents();
+		auto* const field = aEditor.list()->findChild<QLineEdit*>(QStringLiteral("folderRowPath"));
+		if (field == nullptr || aEditor.list()->findChild<QToolButton*>(QStringLiteral("folderRowBrowse")) == nullptr) {
+			return false;
+		}
+		field->setText(aText);
+		auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(field, &press);
+		QApplication::processEvents();
+		QApplication::processEvents();
+		return true;
+	}
+
 	[[nodiscard]] auto row(const core::setup_agent aAgent, std::string aPath, const core::agent_found_how aHow, const bool aPermitted = true) -> core::agent_setup_row
 	{
 		auto value              = core::agent_setup_row{ };
@@ -108,9 +139,17 @@ namespace {
 				.OpenInstallPage        = [this](const core::setup_agent aAgent) { Intents.push_back("install:" + std::string{ core::stable_name(aAgent) }); },
 				.ChooseClone            = [this](std::string aPath) { Intents.push_back("clone:" + aPath); },
 				.AddCloneFolder         = [this](std::string aFolder) { Intents.push_back("folder:" + aFolder); },
-				.UsePrivateCopy         = [this] { Intents.emplace_back("private-copy"); },
-				.Check                  = [this] { Intents.emplace_back("check"); },
-				.Stop                   = [this] { Intents.emplace_back("stop"); },
+				.SetCloneFolders =
+					[this](std::vector<std::string> aFolders) {
+						auto joined = std::string{ "folders:" };
+						for (const auto& folder : aFolders) {
+							joined += (joined.size() > 8U ? "|" : "") + folder;
+						}
+						Intents.push_back(std::move(joined));
+					},
+				.UsePrivateCopy = [this] { Intents.emplace_back("private-copy"); },
+				.Check          = [this] { Intents.emplace_back("check"); },
+				.Stop           = [this] { Intents.emplace_back("stop"); },
 			});
 		}
 
@@ -166,9 +205,43 @@ namespace {
 		const auto choices = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupAgentChoice"));
 		expect(choices.size() == 2 && choices[0]->isEnabled() && !choices[1]->isEnabled() && !choices[0]->isChecked(), "both rows show, the refused one disabled, none chosen yet");
 		expect(test.text().contains(QStringLiteral("Found on PATH.")) && test.text().contains(QStringLiteral("Not allowed for this pull request's host.")), "each row says how it was found or why it is refused");
-		choices[0]->click();
-		expect(test.Intents == std::vector<std::string>{ "choose:claude_code" }, "choosing is an intent");
+		// Owner look v002: the whole card chooses, by mouse or keyboard; the
+		// radio only shows it.
+		const auto cards = test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"));
+		expect(cards.size() == 2 && cards[0]->focusPolicy() == Qt::StrongFocus && cards[1]->focusPolicy() == Qt::NoFocus, "a permitted card takes the keyboard focus, a refused one does not");
+		click(*cards[1]);
+		expect(test.Intents.empty(), "a refused card chooses nothing");
+		click(*cards[0]);
+		expect(test.Intents == std::vector<std::string>{ "choose:claude_code" }, "clicking anywhere on the card chooses it");
+		auto key = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+		QApplication::sendEvent(test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"))[0], &key);
+		expect(test.Intents.size() == 2U && test.Intents.back() == "choose:claude_code", "and Space on a focused card does too");
 		render(test.View, QStringLiteral("two"));
+	}
+
+	void test_change_keeps_the_current_agent()
+	{
+		auto test                         = fixture{ };
+		test.Setup.State.Rows             = { row(core::setup_agent::claude_code, "/opt/homebrew/bin/claude", core::agent_found_how::on_path),
+											  row(core::setup_agent::codex, "/Users/me/.local/bin/codex", core::agent_found_how::on_path) };
+		test.Setup.State.Chosen           = core::setup_agent::claude_code;
+		test.Setup.State.RepositoryChosen = false;
+		test.show();
+		expect(test.View.open_step() == core::setup_step::repository, "with an agent chosen, the setup is at Repository");
+		test.button(QStringLiteral("agentSetupChange"))->click();
+		expect(test.View.open_step() == core::setup_step::agent && test.button(QStringLiteral("agentSetupContinue")) != nullptr
+				   && test.button(QStringLiteral("agentSetupContinue"))->text() == QStringLiteral("Continue with Claude Code"),
+			   "Change reopens Agent with Continue with the agent already chosen");
+		test.button(QStringLiteral("agentSetupContinue"))->click();
+		expect(test.View.open_step() == core::setup_step::repository && test.Intents.empty(), "Continue keeps it and goes back to Repository, changing nothing");
+		test.button(QStringLiteral("agentSetupChange"))->click();
+		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupAgentRow"))[0]);
+		expect(test.View.open_step() == core::setup_step::repository && test.Intents.empty(), "choosing the agent already chosen keeps it too");
+		test.button(QStringLiteral("agentSetupChange"))->click();
+		auto* const second = test.View.findChildren<QWidget*>(QStringLiteral("agentSetupStepHeader"))[1];
+		click(*second);
+		expect(test.View.open_step() == core::setup_step::repository, "and the Repository step's own header goes on to it");
+		render(test.View, QStringLiteral("change"));
 	}
 
 	void test_repository_states()
@@ -181,19 +254,19 @@ namespace {
 		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
 		test.button(QStringLiteral("agentSetupSuggestedFolder"))->click();
 		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub", "a suggested folder is added in one press");
-		// Owner look v001: a folder is typed first, Browse… on its line.
-		auto* const entry = dynamic_cast<qt::folder_entry*>(test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")));
-		expect(entry != nullptr && entry->findChild<QPushButton*>(QStringLiteral("folderEntryBrowse")) != nullptr && !entry->add_button()->isEnabled(),
-			   "the folder is a text field with Browse… beside it, and Add waits for a path");
-		if (entry == nullptr) {
+		// Owner look v002: Visual Studio's folder list, edited in place.
+		auto* const list = dynamic_cast<qt::folder_list_editor*>(test.View.findChild<QWidget*>(QStringLiteral("agentSetupAddFolder")));
+		expect(list != nullptr && list->new_button()->isEnabled() && !list->remove_button()->isEnabled() && !list->up_button()->isEnabled(),
+			   "no folder yet: New folder is offered, Remove and the moves wait for a row");
+		if (list == nullptr) {
 			return;
 		}
-		entry->field()->setText(QStringLiteral("work/clones"));
-		entry->add_button()->click();
-		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub" && entry->status()->text().contains(QStringLiteral("full path")), "a relative path is refused with what to write");
-		entry->field()->setText(QStringLiteral("~/src"));
-		entry->add_button()->click();
-		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(), "~ is the home folder, and Add is the intent");
+		const auto typed = type_row(*list, QStringLiteral("work/clones"));
+		expect(typed && test.Intents.back() == "folder:/Users/me/Documents/GitHub" && list->status()->text().contains(QStringLiteral("full path"))
+				   && list->list()->count() == 0,
+			   "a relative path is refused with what to write, and its new row goes");
+		expect(type_row(*list, QStringLiteral("~/src")) && test.Intents.back() == "folders:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(),
+			   "~ is the home folder, and the new list is the intent");
 		render(test.View, QStringLiteral("nofolders"));
 
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
@@ -209,7 +282,7 @@ namespace {
 		test.show();
 		auto clones = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupCloneChoice"));
 		expect(clones.size() == 2 && !test.button(QStringLiteral("agentSetupUseClone"))->isEnabled(), "two clones: none is chosen until the reviewer picks one");
-		clones[0]->click();
+		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupCloneRow"))[0]);
 		QApplication::processEvents();
 		test.button(QStringLiteral("agentSetupUseClone"))->click();
 		expect(test.Intents.back() == "clone:/Users/me/Documents/GitHub/engine", "Use this clone links the chosen one");
@@ -279,29 +352,32 @@ namespace {
 
 		auto folders = qt::clone_folders_panel{ };
 		auto asked   = std::vector<std::string>{ };
-		folders.set_dispatch({ .AddFolder    = [&asked](std::string aFolder) { asked.push_back("add " + aFolder); },
-							   .RemoveFolder = [&asked](const std::string& aFolder) { asked.push_back("remove " + aFolder); },
-							   .Forget       = [&asked](const application::repository_link& aLink) { asked.push_back("forget " + aLink.Name); } });
-		auto* const added = dynamic_cast<qt::folder_entry*>(folders.findChild<QWidget*>(QStringLiteral("settingsAddCloneFolder")));
-		expect(added != nullptr, "Settings › Repositories has the folder entry");
-		if (added == nullptr) {
-			return;
-		}
-		added->field()->setText(QStringLiteral("/Volumes/work"));
-		added->add_button()->click();
-		expect(asked == std::vector<std::string>{ "add " + QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString() } && added->status()->text().contains(QStringLiteral("Added")),
-			   "Settings adds a typed folder too, and says so");
-		asked.clear();
+		folders.set_dispatch({ .SetFolders =
+								   [&asked](std::vector<std::string> aFolders) {
+									   auto joined = std::string{ "set" };
+									   for (const auto& folder : aFolders) {
+										   joined += " " + folder;
+									   }
+									   asked.push_back(std::move(joined));
+								   },
+							   .Forget = [&asked](const application::repository_link& aLink) { asked.push_back("forget " + aLink.Name); } });
 		auto clones    = application::clone_link_projection{ };
 		clones.Folders = { "/Users/me/src", "/Users/me/Documents/GitHub" };
 		clones.Links   = { application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .PrivateCopy = true } };
 		folders.present(clones);
-		expect(folders.folders()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
-		folders.folders()->setCurrentRow(1);
-		folders.findChild<QPushButton*>(QStringLiteral("settingsRemoveCloneFolder"))->click();
+		auto* const editor = folders.folders();
+		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
+		editor->list()->setCurrentRow(1);
+		editor->up_button()->click();
+		expect(asked.back() == "set /Users/me/Documents/GitHub /Users/me/src", "Move up reorders the list, which is the order clones are looked for in");
+		editor->list()->setCurrentRow(1);
+		editor->remove_button()->click();
+		expect(asked.back() == "set /Users/me/Documents/GitHub", "Remove takes the selected folder out");
+		expect(type_row(*editor, QStringLiteral("/Volumes/work")) && asked.back() == "set /Users/me/Documents/GitHub " + QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString(),
+			   "New folder adds a typed row at the end");
 		folders.links()->setCurrentRow(0);
 		folders.findChild<QPushButton*>(QStringLiteral("settingsForgetLink"))->click();
-		expect(asked == std::vector<std::string>{ "remove /Users/me/Documents/GitHub", "forget engine" }, "Remove and Forget name what they act on");
+		expect(asked.back() == "forget engine", "Forget names the link it acts on");
 
 		auto skill   = qt::review_skill_panel{ };
 		auto pressed = std::vector<std::string>{ };
@@ -341,6 +417,7 @@ auto main(int argc, char** argv) -> int
 	test_setup_waits_until_a_step_is_known_missing();
 	test_no_agent_found();
 	test_two_agents_and_a_refused_one();
+	test_change_keeps_the_current_agent();
 	test_repository_states();
 	test_check_and_ready();
 	test_settings_rows();

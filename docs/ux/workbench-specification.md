@@ -2434,14 +2434,18 @@ because the workspace could not be made or the agent did not start).
 [RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md): setting up replaces the conversation the first time it is
 needed: once the agents have been looked for and the repository's link has
 been checked, and a step is missing. Its four numbered steps are Agent
-(each found agent with its path and how it was found, a refused one disabled
-with why; none found offers Install Claude Code, Install Codex and Use a
+(each found agent as a card the whole of which chooses it, by click or Space
+or Return, with its path and how it was found, a refused one disabled with
+why; Change keeps the agent already chosen a choice and offers Continue with
+it; none found offers Install Claude Code, Install Codex and Use a
 program I choose…), Repository (the clones of the repository in the clone
 folders, Use this clone, Choose a folder…, or a private copy; with no clone
-folder, Where do your clones live? with a folder path to type, Browse… on the
-same line, Add, and the usual folders that exist), Check it works (the agent's status command and the workspace,
+folder, Where do your clones live? with Visual Studio's folder list (New
+folder, Remove, Move down and Move up above rows edited in place, each with
+… to browse) and the usual folders that exist), Check it works (the agent's status command and the workspace,
 each with its result and what to do, Check, Stop and Check again) and Ready.
-A finished step folds to one line with Change. Look again and Agent settings
+A finished step folds to one line with Change, and a step already reached
+opens from its header. Look again and Agent settings
 sit at the foot. When both checks pass, the conversation shows "AGENT is
 ready" and focuses the question field; its version and workspace and what the
 agent gets (the pull request, base and head, the changes and the named diff,

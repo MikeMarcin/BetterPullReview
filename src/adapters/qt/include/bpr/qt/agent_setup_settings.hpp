@@ -6,12 +6,14 @@
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/agent_wrapper.hpp"
+#include "bpr/qt/folder_list_editor.hpp"
 
 #include <QWidget>
 
 #include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 class QCheckBox;
 class QComboBox;
@@ -22,31 +24,6 @@ class QPlainTextEdit;
 class QPushButton;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AQ6]], owner look v001 ("add a folder was a text
-	/// entry first with a file browser option on the text line"). A folder
-	/// path to type, **Browse…** on the same line to fill it, and **Add**.
-	///
-	/// \details A leading `~` is read as the home folder; anything else that
-	/// is not an absolute path is refused here with what to write, and the
-	/// field keeps the text. Adding is a request; the host decides.
-	class folder_entry final : public QWidget
-	{
-	public:
-		explicit folder_entry(QWidget* aParent = nullptr);
-		void               set_add(std::function<void(std::string)> aAdd);
-		[[nodiscard]] auto field() const noexcept -> QLineEdit* { return Field; }
-		[[nodiscard]] auto add_button() const noexcept -> QPushButton* { return Add; }
-		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
-
-	private:
-		void add();
-
-		std::function<void(std::string)> Adder;
-		QLineEdit*                       Field  = nullptr;
-		QPushButton*                     Add    = nullptr;
-		QLabel*                          Status = nullptr;
-	};
-
 	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner answer Q5). Settings ›
 	/// Agents & context: **Set up agent…**, the Codex program and protocol,
 	/// and a harness that reads plain text.
@@ -87,8 +64,8 @@ namespace bpr::qt {
 	public:
 		struct dispatch
 		{
-			std::function<void(std::string)>                         AddFolder;
-			std::function<void(std::string)>                         RemoveFolder;
+			/// The whole ordered list after an edit, a removal or a move.
+			std::function<void(std::vector<std::string>)>            SetFolders;
 			std::function<void(const application::repository_link&)> Forget;
 		};
 
@@ -96,16 +73,14 @@ namespace bpr::qt {
 		void set_dispatch(dispatch aDispatch);
 		void present(const application::clone_link_projection& aProjection);
 
-		[[nodiscard]] auto folders() const noexcept -> QListWidget* { return Folders; }
+		[[nodiscard]] auto folders() const noexcept -> folder_list_editor* { return Folders; }
 		[[nodiscard]] auto links() const noexcept -> QListWidget* { return Links; }
 
 	private:
 		dispatch                           Dispatch;
 		application::clone_link_projection Shown;
-		QListWidget*                       Folders = nullptr;
+		folder_list_editor*                Folders = nullptr;
 		QListWidget*                       Links   = nullptr;
-		folder_entry*                      Entry   = nullptr;
-		QPushButton*                       Remove  = nullptr;
 		QPushButton*                       Forget  = nullptr;
 	};
 

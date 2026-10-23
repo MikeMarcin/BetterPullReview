@@ -55,73 +55,6 @@ namespace bpr::qt {
 		}
 	} // namespace
 
-	folder_entry::folder_entry(QWidget* aParent)
-		: QWidget{ aParent }
-	{
-		setObjectName(QStringLiteral("folderEntry"));
-		auto* const column = new QVBoxLayout{ this };
-		column->setContentsMargins(0, 0, 0, 0);
-		column->setSpacing(4);
-		auto* const row = new QHBoxLayout{ };
-		Field           = new QLineEdit{ this };
-		Field->setObjectName(QStringLiteral("folderEntryPath"));
-		Field->setPlaceholderText(QDir::toNativeSeparators(QStringLiteral("~/Documents/GitHub")));
-		Field->setAccessibleName(tr("Clone folder"));
-		Field->setClearButtonEnabled(true);
-		row->addWidget(Field, 1);
-		auto* const choose = new quiet_push_button{ tr("Browse…"), this };
-		choose->setObjectName(QStringLiteral("folderEntryBrowse"));
-		choose->setToolTip(tr("Choose the folder in a file browser"));
-		const auto pick = [this] {
-			const auto start  = Field->text().trimmed().isEmpty() ? QDir::homePath() : Field->text().trimmed();
-			const auto folder = QFileDialog::getExistingDirectory(this, tr("Choose a clone folder"), start);
-			if (!folder.isEmpty()) {
-				Field->setText(QDir::toNativeSeparators(folder));
-				Field->setFocus(Qt::OtherFocusReason);
-			}
-		};
-		connect(choose, &QPushButton::clicked, this, pick);
-		row->addWidget(choose);
-		Add = new QPushButton{ tr("Add"), this };
-		Add->setObjectName(QStringLiteral("folderEntryAdd"));
-		Add->setDefault(true);
-		Add->setEnabled(false);
-		connect(Add, &QPushButton::clicked, this, [this] { add(); });
-		connect(Field, &QLineEdit::returnPressed, this, [this] { add(); });
-		connect(Field, &QLineEdit::textChanged, this, [this](const QString& aText) {
-			Add->setEnabled(!aText.trimmed().isEmpty());
-			Status->clear();
-		});
-		row->addWidget(Add);
-		column->addLayout(row);
-		Status = note({ }, this);
-		Status->setObjectName(QStringLiteral("folderEntryStatus"));
-		column->addWidget(Status);
-	}
-
-	void folder_entry::set_add(std::function<void(std::string)> aAdd) { Adder = std::move(aAdd); }
-
-	void folder_entry::add()
-	{
-		auto text = Field->text().trimmed();
-		if (text.isEmpty()) {
-			return;
-		}
-		if (text == QStringLiteral("~") || text.startsWith(QStringLiteral("~/"))) {
-			text = QDir::homePath() + text.mid(1);
-		}
-		if (!QDir::isAbsolutePath(text)) {
-			Status->setText(tr("Write the full path of the folder, starting at %1, or use Browse….").arg(QDir::toNativeSeparators(QDir::rootPath())));
-			return;
-		}
-		const auto folder = QDir::toNativeSeparators(QDir::cleanPath(text));
-		Field->clear();
-		Status->setText(tr("Added %1. Looking in it for clones…").arg(folder));
-		if (Adder) {
-			Adder(folder.toStdString());
-		}
-	}
-
 	agent_programs_panel::agent_programs_panel(QWidget* aParent)
 		: QWidget{ aParent }
 	{
@@ -217,30 +150,15 @@ namespace bpr::qt {
 		column->setContentsMargins(0, 0, 0, 0);
 		column->addWidget(heading(tr("Clone folders"), this));
 		column->addWidget(note(tr("Where your clones live. The agent setup looks here, two levels down, for a clone of each pull request's repository. It reads only each clone's Git configuration and current branch, runs nothing and writes nothing."), this));
-		Folders = new QListWidget{ this };
+		// Owner look v002: Visual Studio's folder list, edited in place.
+		Folders = new folder_list_editor{ this };
 		Folders->setObjectName(QStringLiteral("settingsCloneFolders"));
-		Folders->setMaximumHeight(120);
+		Folders->set_change([this](std::vector<std::string> aFolders) {
+			if (Dispatch.SetFolders) {
+				Dispatch.SetFolders(std::move(aFolders));
+			}
+		});
 		column->addWidget(Folders);
-		Entry = new folder_entry{ this };
-		Entry->setObjectName(QStringLiteral("settingsAddCloneFolder"));
-		Entry->set_add([this](std::string aFolder) {
-			if (Dispatch.AddFolder) {
-				Dispatch.AddFolder(std::move(aFolder));
-			}
-		});
-		column->addWidget(Entry);
-		auto* const row = new QHBoxLayout{ };
-		Remove          = new quiet_push_button{ tr("Remove the selected folder"), this };
-		Remove->setObjectName(QStringLiteral("settingsRemoveCloneFolder"));
-		connect(Remove, &QPushButton::clicked, this, [this] {
-			const auto at = Folders->currentRow();
-			if (at >= 0 && static_cast<std::size_t>(at) < Shown.Folders.size() && Dispatch.RemoveFolder) {
-				Dispatch.RemoveFolder(Shown.Folders[static_cast<std::size_t>(at)]);
-			}
-		});
-		row->addWidget(Remove);
-		row->addStretch(1);
-		column->addLayout(row);
 
 		column->addSpacing(8);
 		column->addWidget(heading(tr("Linked clones"), this));
@@ -258,9 +176,7 @@ namespace bpr::qt {
 			}
 		});
 		column->addWidget(Forget, 0, Qt::AlignLeft);
-		connect(Folders, &QListWidget::currentRowChanged, this, [this](const int aRow) { Remove->setEnabled(aRow >= 0); });
 		connect(Links, &QListWidget::currentRowChanged, this, [this](const int aRow) { Forget->setEnabled(aRow >= 0); });
-		Remove->setEnabled(false);
 		Forget->setEnabled(false);
 	}
 
@@ -269,16 +185,12 @@ namespace bpr::qt {
 	void clone_folders_panel::present(const application::clone_link_projection& aProjection)
 	{
 		Shown = aProjection;
-		Folders->clear();
-		for (const auto& folder : Shown.Folders) {
-			Folders->addItem(QDir::toNativeSeparators(text_of(folder)));
-		}
+		Folders->present(Shown.Folders);
 		Links->clear();
 		for (const auto& link : Shown.Links) {
 			const auto target = link.PrivateCopy ? tr("a private copy") : QDir::toNativeSeparators(text_of(link.Path));
 			Links->addItem(tr("%1/%2 on %3: %4").arg(text_of(link.Owner), text_of(link.Name), text_of(link.Host), target));
 		}
-		Remove->setEnabled(Folders->currentRow() >= 0);
 		Forget->setEnabled(Links->currentRow() >= 0);
 	}
 

@@ -11628,6 +11628,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							CloneLinks->add_clone_folder(std::move(aFolder));
 						}
 					},
+				.SetCloneFolders =
+					[this](std::vector<std::string> aFolders) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->set_clone_folders(std::move(aFolders));
+						}
+					},
 				.UsePrivateCopy =
 					[this] {
 						if (!Closing && CloneLinks) {
@@ -11669,16 +11675,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					},
 			});
 			Window->clone_folders()->set_dispatch(qt::clone_folders_panel::dispatch{
-				.AddFolder =
-					[this](std::string aFolder) {
+				.SetFolders =
+					[this](std::vector<std::string> aFolders) {
 						if (!Closing && CloneLinks) {
-							CloneLinks->add_clone_folder(std::move(aFolder));
-						}
-					},
-				.RemoveFolder =
-					[this](const std::string& aFolder) {
-						if (!Closing && CloneLinks) {
-							CloneLinks->remove_clone_folder(aFolder);
+							CloneLinks->set_clone_folders(std::move(aFolders));
 						}
 					},
 				.Forget =

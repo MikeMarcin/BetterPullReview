@@ -1,6 +1,6 @@
 #include "bpr/qt/agent_setup_view.hpp"
 
-#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/folder_list_editor.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
@@ -10,7 +10,9 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
@@ -113,14 +115,33 @@ namespace bpr::qt {
 		};
 
 		/// \brief A choice card: an agent or a clone, the chosen one outlined.
+		/// \brief A choice card: an agent or a clone, the chosen one outlined.
+		/// \details Owner look v002 ("Why do I have to click a little circle
+		/// instead of the whole card"): the whole card chooses, by a click or,
+		/// with the keyboard focus on it, Space or Return. The radio inside only
+		/// shows the choice.
 		class choice_card final : public QWidget
 		{
 		public:
 			explicit choice_card(QWidget* aParent)
 				: QWidget{ aParent }
-			{ }
-			bool Chosen   = false;
-			bool Disabled = false;
+			{
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+			}
+			bool                  Chosen   = false;
+			bool                  Disabled = false;
+			std::function<void()> Activate;
+
+			void settle()
+			{
+				setFocusPolicy(Disabled ? Qt::NoFocus : Qt::StrongFocus);
+				setCursor(Disabled ? Qt::ArrowCursor : Qt::PointingHandCursor);
+				for (auto* const radio : findChildren<QRadioButton*>()) {
+					radio->setFocusPolicy(Qt::NoFocus);
+					radio->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+				}
+			}
 
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
@@ -131,9 +152,107 @@ namespace bpr::qt {
 				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
 				const auto accent = palette().color(QPalette::Active, QPalette::Highlight);
 				const auto box    = QRectF{ rect() }.adjusted(0.75, 0.75, -0.75, -0.75);
-				painter.setPen(QPen{ Chosen ? accent : mixed(base, ink, 0.16), Chosen ? 1.5 : 1.0 });
-				painter.setBrush(Chosen ? mixed(base, accent, 0.06) : (Disabled ? mixed(base, ink, 0.03) : base));
+				const auto ring   = Chosen || hasFocus();
+				painter.setPen(QPen{ ring ? accent : mixed(base, ink, 0.16), hasFocus() ? 2.0 : (Chosen ? 1.5 : 1.0) });
+				painter.setBrush(Chosen ? mixed(base, accent, 0.06) : (Disabled ? mixed(base, ink, 0.03) : (Hovered ? mixed(base, accent, 0.03) : base)));
 				painter.drawRoundedRect(box, 8.0, 8.0);
+			}
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton && rect().contains(aEvent->position().toPoint()) && !Disabled && Activate) {
+					Activate();
+					return;
+				}
+				QWidget::mouseReleaseEvent(aEvent);
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if ((aEvent->key() == Qt::Key_Space || aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && !Disabled && Activate) {
+					Activate();
+					return;
+				}
+				QWidget::keyPressEvent(aEvent);
+			}
+			void enterEvent(QEnterEvent* aEvent) override
+			{
+				Hovered = true;
+				update();
+				QWidget::enterEvent(aEvent);
+			}
+			void leaveEvent(QEvent* aEvent) override
+			{
+				Hovered = false;
+				update();
+				QWidget::leaveEvent(aEvent);
+			}
+			void focusInEvent(QFocusEvent* aEvent) override
+			{
+				update();
+				QWidget::focusInEvent(aEvent);
+			}
+			void focusOutEvent(QFocusEvent* aEvent) override
+			{
+				update();
+				QWidget::focusOutEvent(aEvent);
+			}
+
+		private:
+			bool Hovered = false;
+		};
+
+		/// \brief A step's header row. A step already reached opens with a
+		/// click or, focused, Space or Return (owner look v002: "click (2) to
+		/// continue").
+		class step_header final : public QWidget
+		{
+		public:
+			explicit step_header(QWidget* aParent)
+				: QWidget{ aParent }
+			{ }
+			std::function<void()> Activate;
+
+			void settle()
+			{
+				setFocusPolicy(Activate ? Qt::StrongFocus : Qt::NoFocus);
+				setCursor(Activate ? Qt::PointingHandCursor : Qt::ArrowCursor);
+			}
+
+		protected:
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				if (aEvent->button() == Qt::LeftButton && Activate && rect().contains(aEvent->position().toPoint())) {
+					Activate();
+					return;
+				}
+				QWidget::mouseReleaseEvent(aEvent);
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if ((aEvent->key() == Qt::Key_Space || aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && Activate) {
+					Activate();
+					return;
+				}
+				QWidget::keyPressEvent(aEvent);
+			}
+			void paintEvent(QPaintEvent* aEvent) override
+			{
+				QWidget::paintEvent(aEvent);
+				if (hasFocus()) {
+					auto painter = QPainter{ this };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
+					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 6.0, 6.0);
+				}
+			}
+			void focusInEvent(QFocusEvent* aEvent) override
+			{
+				update();
+				QWidget::focusInEvent(aEvent);
+			}
+			void focusOutEvent(QFocusEvent* aEvent) override
+			{
+				update();
+				QWidget::focusOutEvent(aEvent);
 			}
 		};
 
@@ -451,7 +570,10 @@ namespace bpr::qt {
 			auto* const blockColumn = new QVBoxLayout{ block };
 			blockColumn->setContentsMargins(0, 0, 0, 0);
 			blockColumn->setSpacing(6);
-			auto* const header = new QHBoxLayout{ };
+			auto* const headerRow = new step_header{ block };
+			headerRow->setObjectName(QStringLiteral("agentSetupStepHeader"));
+			auto* const header = new QHBoxLayout{ headerRow };
+			header->setContentsMargins(0, 2, 0, 2);
 			header->setSpacing(10);
 			header->addWidget(new step_marker{ order + 1, done && !open ? step_marker::state::done : open ? step_marker::state::open
 																										  : step_marker::state::ahead,
@@ -490,7 +612,27 @@ namespace bpr::qt {
 				});
 				header->addWidget(change);
 			}
-			blockColumn->addLayout(header);
+			// A step reached and not open opens from its header: the current
+			// step closes any Change, an earlier one is changed.
+			const auto reached = order <= static_cast<int>(current) && item.Step != core::setup_step::ready;
+			if (reached && !open) {
+				const auto target   = item.Step;
+				headerRow->Activate = [this, target, current] {
+					if (target == current) {
+						Editing.reset();
+					} else {
+						Editing = target;
+						if (target == core::setup_step::repository && Intents.LookAgain) {
+							Intents.LookAgain();
+						}
+					}
+					Picked.reset();
+					rebuild();
+				};
+				headerRow->setToolTip(target == current ? tr("Continue setting up") : tr("Change this step"));
+			}
+			headerRow->settle();
+			blockColumn->addWidget(headerRow);
 			if (open) {
 				auto* const body       = new QWidget{ block };
 				auto* const bodyColumn = new QVBoxLayout{ body };
@@ -592,16 +734,33 @@ namespace bpr::qt {
 			lines->addWidget(muted(how, card));
 			grid->addLayout(lines, 1);
 			const auto agent = row.Agent;
-			connect(radio, &QRadioButton::toggled, this, [this, agent](const bool aOn) {
-				if (!aOn) {
+			card->Activate   = [this, agent] {
+				Picked = agent;
+				if (Setup.State.Chosen == agent) {
+					// The agent already chosen: keep it and go on.
+					Editing.reset();
+					rebuild();
 					return;
 				}
-				Picked = agent;
 				if (Intents.Choose) {
 					Intents.Choose(agent);
 				}
-			});
+			};
+			card->setAccessibleName(plain(row.Agent));
+			card->settle();
 			aBody.addWidget(card);
+		}
+		// Owner look v002 ("If I click change on agent it really makes me
+		// change it"): changing is optional; the agent already chosen stays a
+		// choice and Continue goes on with it.
+		if (Editing == core::setup_step::agent && Setup.State.Chosen) {
+			auto* const keep = primary_button(tr("Continue with %1").arg(plain(*Setup.State.Chosen)), parent, QStringLiteral("agentSetupContinue"));
+			connect(keep, &QPushButton::clicked, this, [this] {
+				Editing.reset();
+				Picked.reset();
+				rebuild();
+			});
+			aBody.addWidget(keep, 0, Qt::AlignLeft);
 		}
 		auto* const other = link_button(tr("Use another program…"), parent, QStringLiteral("agentSetupOtherProgram"));
 		other->setToolTip(tr("Choose the Codex program or a harness that reads plain text in Settings"));
@@ -662,15 +821,15 @@ namespace bpr::qt {
 			ask->setFont(bold);
 			aBody.addWidget(ask);
 			aBody.addWidget(muted(tr("The agent reads more than the diff: callers, tests, history. Add the folder your clones are in, and BetterPullReview looks there for a clone of %1. It reads only each clone's Git configuration and runs nothing.").arg(name), parent));
-			// Owner look v001: a folder to type first, Browse… on its line.
-			auto* const entry = new folder_entry{ parent };
-			entry->setObjectName(QStringLiteral("agentSetupAddFolder"));
-			entry->set_add([this](std::string aFolder) {
-				if (Intents.AddCloneFolder) {
-					Intents.AddCloneFolder(std::move(aFolder));
+			// Owner look v002: Visual Studio's folder list, edited in place.
+			auto* const list = new folder_list_editor{ parent };
+			list->setObjectName(QStringLiteral("agentSetupAddFolder"));
+			list->set_change([this](std::vector<std::string> aFolders) {
+				if (Intents.SetCloneFolders) {
+					Intents.SetCloneFolders(std::move(aFolders));
 				}
 			});
-			aBody.addWidget(entry);
+			aBody.addWidget(list);
 			auto* const row = new QHBoxLayout{ };
 			if (!Clones.Suggestions.empty()) {
 				row->addWidget(muted(tr("Or add:"), parent));
@@ -755,12 +914,12 @@ namespace bpr::qt {
 			lines->addWidget(muted(match.Branch.empty() ? tr("In %1.").arg(shown_path(match.Folder)) : tr("In %1. On branch %2.").arg(shown_path(match.Folder), text_of(match.Branch)), card));
 			grid->addLayout(lines, 1);
 			const auto chosen = match.Path;
-			connect(radio, &QRadioButton::toggled, this, [this, chosen](const bool aOn) {
-				if (aOn) {
-					PickedClone = chosen;
-					rebuild();
-				}
-			});
+			card->Activate    = [this, chosen] {
+				PickedClone = chosen;
+				rebuild();
+			};
+			card->setAccessibleName(shown_path(match.Path));
+			card->settle();
 			aBody.addWidget(card);
 		}
 		auto* const row = new QHBoxLayout{ };

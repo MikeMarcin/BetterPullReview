@@ -35,9 +35,11 @@ namespace bpr::qt {
 		std::function<void(core::setup_agent)> OpenInstallPage;
 		std::function<void(std::string)>       ChooseClone;
 		std::function<void(std::string)>       AddCloneFolder;
-		std::function<void()>                  UsePrivateCopy;
-		std::function<void()>                  Check;
-		std::function<void()>                  Stop;
+		/// The whole ordered clone-folder list after an edit in the step.
+		std::function<void(std::vector<std::string>)> SetCloneFolders;
+		std::function<void()>                         UsePrivateCopy;
+		std::function<void()>                         Check;
+		std::function<void()>                         Stop;
 	};
 
 	/// \brief What the setup's words need besides the two projections.
