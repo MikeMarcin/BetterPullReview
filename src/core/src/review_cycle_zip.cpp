@@ -224,12 +224,16 @@ namespace bpr::core {
 			const auto size = static_cast<std::uint32_t>(member.Bytes.size());
 			const auto name = static_cast<std::uint32_t>(member.Name.size());
 			// [[BPR-1725]]. A member deflate does not shrink stays stored.
-			auto packed = aOptions.Deflate ? zip_codec::deflate_raw(member.Bytes) : std::nullopt;
-			if (packed && packed->size() >= member.Bytes.size()) {
-				packed.reset();
+			auto packed = std::string{ };
+			auto method = std::uint32_t{ stored };
+			if (aOptions.Deflate) {
+				if (auto compressed = zip_codec::deflate_raw(member.Bytes); compressed && compressed->size() < member.Bytes.size()) {
+					packed = std::move(*compressed);
+					method = deflated;
+				}
 			}
-			const auto method     = std::uint32_t{ packed ? deflated : stored };
-			const auto packedSize = static_cast<std::uint32_t>(packed ? packed->size() : member.Bytes.size());
+			const auto payload    = method == deflated ? std::string_view{ packed } : std::string_view{ member.Bytes };
+			const auto packedSize = static_cast<std::uint32_t>(payload.size());
 			// Local header: version 2.0, UTF-8 names, the method and the time.
 			put32(archive, local_signature);
 			for (const auto field : { 20U, std::uint32_t{ utf8_names }, method, std::uint32_t{ aOptions.DosTime }, std::uint32_t{ aOptions.DosDate } }) {
@@ -241,7 +245,7 @@ namespace bpr::core {
 			put16(archive, name);
 			put16(archive, 0U);
 			archive += member.Name;
-			archive += packed ? *packed : member.Bytes;
+			archive += payload;
 			// Central entry: made by Unix 2.0, a regular file with its mode.
 			put32(central, central_signature);
 			for (const auto field : { 0x0314U, 20U, std::uint32_t{ utf8_names }, method, std::uint32_t{ aOptions.DosTime }, std::uint32_t{ aOptions.DosDate } }) {

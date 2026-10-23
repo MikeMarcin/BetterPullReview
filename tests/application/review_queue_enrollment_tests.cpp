@@ -2101,8 +2101,9 @@ namespace {
 		expect(fixture.item(17) && fixture.item(17)->Ignored, "a restored ignore marks its row");
 		expect(!fixture.Queue.ignored().contains(ref(19)) && fixture.Queue.ignored().contains(foreign),
 			   "a restored ignore of a closed record is pruned; one with no record is kept");
+		const auto expectedPrune = std::vector<core::home_ignore_delta>{ { .Ref = ref(19), .Change = core::home_ignore_change::pruned_closed } };
 		expect(!fixture.Store.IgnoreWrites.empty()
-				   && fixture.Store.IgnoreWrites.back() == std::vector<core::home_ignore_delta>{ { .Ref = ref(19), .Change = core::home_ignore_change::pruned_closed } },
+				   && fixture.Store.IgnoreWrites.back() == expectedPrune,
 			   "the prune is written as a closed prune");
 
 		fixture.Discovery.adopt(discovery_session());
