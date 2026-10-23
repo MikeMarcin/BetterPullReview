@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-PENDING-AQ6", "BPR-PENDING-AQ7"]
 priority: "P2"
 platforms: ["mac"]
-metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"89855cd96f098cd74e28d271acd60d8a","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v001","transport":"serve --tailscale","lifecycle":"v001 handed back and stopped; see Look v001"},"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v001.s4c2jv_v","commit":"f73f94770","executable_sha256":"4aaf39ef72dfd5668cbe01e2809d4dbf5eeddd5acce837d64f837234aa786c0a","fixture":"github-com"}}
+metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"077adf53047441a3224b3687ceddf38e","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v002","transport":"serve --tailscale","lifecycle":"serving look v002, awaiting the owner"},"previous_sessions":["89855cd96f098cd74e28d271acd60d8a (look v001, handed back, stopped, released)"],"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v002.fwb9a7cz","commit":"f51ae6acf","executable_sha256":"ba4e00b091b96d50baae12381ec20e3fd8ccb82c36e5a3a66f10d61f6e2d2fa9","fixture":"github-com"}}
 ---
 
 # BPR-PENDING-AQ8: A frozen build and the owner's look at agent setup
@@ -57,3 +57,18 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   JSON is working / Preparing agent invocation" with no further change.
   [[BPR-PENDING-AQ6]]'s follow-up commit answers each point; look v002
   asks Q1 again.
+
+## Look v002 (2026-10-22)
+
+- Look v001's host was stopped, its candidates released and its frozen root
+  removed with `freeze_attended_build.py remove`.
+- Frozen from `f51ae6acf` (rebased onto main `b8d2ec6cf`, with
+  [[BPR-PENDING-AQ6]]'s answer to the v001 note); the launcher's own check
+  reached `ATTENDED_PULL_REQUEST_OPENED`. The root's `clones/review-repository`
+  is the same stand-in clone.
+- Session `077adf53047441a3224b3687ceddf38e` (fresh, short), served with
+  `serve --tailscale`; one question:
+  - Q1 (AC1, RFC AC14), the revised first run: "The first time I open the
+    Agent tab it tells me what to do, and I end up asking a question that the
+    agent answers from my repository."
+- Pending: the owner's answer.
