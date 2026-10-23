@@ -86,7 +86,7 @@ namespace bpr::app::detail {
 		/// [[BPR-1374]]. Another client deletes one thread's root: the thread
 		/// is gone from the fake server's next read and every one after.
 		void stage_server_thread_deleted(std::string aThread);
-		/// [[BPR-PENDING-AT]]. A push makes one thread outdated: from the fake
+		/// [[BPR-1745]]. A push makes one thread outdated: from the fake
 		/// server's next read it has no line, and every post in it, a reply
 		/// published later too, was written on `aWrittenOn`.
 		void               stage_server_thread_outdated(std::string aThread, std::string aWrittenOn);

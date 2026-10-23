@@ -23,7 +23,7 @@ cmake_minimum_required(VERSION 4.4.2)
 #           held, its thread's note says it was resolved, and Publish is still
 #           offered.
 #
-# [[BPR-PENDING-AT]]. The same thread made outdated by a push first, then its
+# [[BPR-1745]]. The same thread made outdated by a push first, then its
 # Reply in the drawer: a reply bound to the thread, with no refusal and the
 # quiet line "Outdated: this thread's line has changed since it was written".
 # Before the change its Reply was refused and no draft was made.
@@ -52,7 +52,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 math(EXPR bpr_timeout "${BPR_RUN_BUDGET_MS} / 1000 + 30")
 file(REMOVE_RECURSE "${BPR_ROOT}")
 bpr_private_data_root(BPR_ROOT)
-# [[BPR-PENDING-AT]]. The outdated-thread pair keeps its own data root, so its
+# [[BPR-1745]]. The outdated-thread pair keeps its own data root, so its
 # write is the first run over it, as write is over the other.
 set(BPR_OUTDATED_ROOT "${BPR_ROOT}-outdated")
 file(REMOVE_RECURSE "${BPR_OUTDATED_ROOT}")

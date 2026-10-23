@@ -11997,7 +11997,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					author = index.data(qt::github_conversation_model::author_login_role).toString();
 				}
 			}
-			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread says so.
+			// [[BPR-1745]]. A reply bound to its outdated thread says so.
 			if (core::thread_bound_reply(*ReviewDraft)) {
 				editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this outdated thread") : QStringLiteral("Replying to %1's outdated thread").arg(author));
 				return;
@@ -12005,7 +12005,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this thread") : QStringLiteral("Replying to %1's thread").arg(author));
 		}
 
-		/// \brief [[BPR-PENDING-AT]]. What GitHub's thread data, as the
+		/// \brief [[BPR-1745]]. What GitHub's thread data, as the
 		/// accepted snapshot holds it, says about replying in one thread.
 		/// \details The read carries neither `viewerCanReply` nor the lock
 		/// yet, so they are left unknown and GitHub decides at Publish.
@@ -12019,7 +12019,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
-		/// \brief [[BPR-PENDING-AT]]. Where GitHub answers a reply bound to
+		/// \brief [[BPR-1745]]. Where GitHub answers a reply bound to
 		/// an outdated thread: the thread's path and the commit its first
 		/// comment was written on, from the accepted snapshot.
 		[[nodiscard]] auto thread_reply_binding_of(const std::string_view aThread) const -> std::optional<application::review_mutation_thread_reply_binding>
@@ -12039,7 +12039,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return application::review_mutation_thread_reply_binding{ .Path = thread->Path, .OriginalCommit = *commit };
 		}
 
-		/// \brief [[BPR-PENDING-AT]]. An outdated thread's Reply: the reply
+		/// \brief [[BPR-1745]]. An outdated thread's Reply: the reply
 		/// written in it and not sent opens again, or a new one bound to the
 		/// thread is made. It is a draft like any reply, saved privately,
 		/// published through the reply path and reconciled against the thread.
@@ -12097,7 +12097,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// \brief [[BPR-PENDING-AT]]. An outdated thread's Reply pressed while
+		/// \brief [[BPR-1745]]. An outdated thread's Reply pressed while
 		/// a line's draft was being opened, made once that has answered.
 		std::optional<std::string> PendingThreadReply;
 		void                       resume_pending_thread_reply()
@@ -12155,7 +12155,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto reply = std::ranges::find(drafts, *again, &core::review_comment_draft::Id);
-			// [[BPR-PENDING-AT]]. A reply bound to its thread has no line to
+			// [[BPR-1745]]. A reply bound to its thread has no line to
 			// choose: it is held again as it is.
 			if (reply != drafts.end() && core::thread_bound_reply(*reply)) {
 				if (const auto read = SharedDrafts->read(DraftConsumer, *again); read.Accepted) {
@@ -13436,7 +13436,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			-> application::review_mutation_execution_grant
 		{
 			auto grant = application::review_mutation_execution_grant{ };
-			// [[BPR-PENDING-AT]]. A reply bound to its thread is published
+			// [[BPR-1745]]. A reply bound to its thread is published
 			// without a selected diff; the accepted handoff names the session
 			// and pull request the grant binds to.
 			const auto threadReply = aTestingRequest && aTestingRequest->ThreadReply;
@@ -13854,7 +13854,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				return;
 			}
-			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread is
+			// [[BPR-1745]]. A reply bound to its outdated thread is
 			// published by the thread: its path and the commit it was written
 			// on, with no selection. A moved head is acknowledged, as for a
 			// resolution: a thread belongs to the pull request, not a commit.
@@ -14107,7 +14107,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto anchor            = aSelection.PreferredLine;
 				PrivateReview->select_draft(anchor, [this, owner, anchor](auto aCommit) {
 					PrivateDraftSelectionPending = false;
-					// [[BPR-PENDING-AT]]. An outdated thread's Reply that waited
+					// [[BPR-1745]]. An outdated thread's Reply that waited
 					// for this answer is made after it, whatever it was.
 					const auto resume = qScopeGuard([this] { resume_pending_thread_reply(); });
 					if (Closing || owner != SharedDrafts) {
@@ -21563,9 +21563,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_copied,
 				awaiting_discarded,
 				awaiting_kept,
-				/// [[BPR-PENDING-AT]]. The thread reads outdated after the push.
+				/// [[BPR-1745]]. The thread reads outdated after the push.
 				awaiting_outdated,
-				/// [[BPR-PENDING-AT]]. The reply's Publish is answered.
+				/// [[BPR-1745]]. The reply's Publish is answered.
 				awaiting_published,
 				passed,
 				failed,
@@ -33306,7 +33306,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return result::failed;
 	}
 
-	/// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an
+	/// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an
 	/// outdated thread from the drawer, like GitHub does". Over
 	/// conventional-comments-v1, `PRRT_cc_1` on src/engine/renderer.cpp is
 	/// made outdated by a push (its line left the diff; every post was written

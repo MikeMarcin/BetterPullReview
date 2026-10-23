@@ -637,7 +637,7 @@ namespace bpr::adapters::github::detail {
 			std::uint64_t DatabaseId = 0U;
 			std::string   Body;
 			std::string   Path;
-			// [[BPR-PENDING-AT]]. Null for a reply to an outdated thread.
+			// [[BPR-1745]]. Null for a reply to an outdated thread.
 			std::optional<std::uint64_t> Line;
 			reply_commit_json            Commit;
 			reply_author_json            Author;
@@ -1558,7 +1558,7 @@ namespace bpr::adapters::github::detail {
 			const auto     commit            = core::parse_git_commit_oid(aComment.Commit.Oid);
 			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
 			const auto&    binding           = *aExpected.LiveBinding;
-			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread is
+			// [[BPR-1745]]. A reply bound to its outdated thread is
 			// answered with no line, on the commit the thread was written on
 			// (live on BPR-Test#133, 2026-10-22). A line in that answer is not
 			// the reply asked for; neither is a missing one for a reply on a
@@ -1654,7 +1654,7 @@ namespace bpr::adapters::github::detail {
 			}
 			const auto& author  = aComment.Author;
 			const auto& binding = *aExpected.LiveBinding;
-			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread has no
+			// [[BPR-1745]]. A reply bound to its outdated thread has no
 			// line, and is ours on the thread's own path and commit; the thread
 			// observed is already the one asked for, so its side says nothing
 			// more. A reply on a line keeps every check it had.
@@ -2675,7 +2675,7 @@ namespace bpr::adapters::github::detail {
 		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
 			|| !application::valid(*aRequest.LiveBinding)
 			|| aRequest.Proposal.Anchor != aRequest.LiveBinding->Anchor.Semantic
-			// [[BPR-PENDING-AT]]. Only a reply, in GitHub's own form, may be
+			// [[BPR-1745]]. Only a reply, in GitHub's own form, may be
 			// bound to its thread rather than a line.
 			|| (application::thread_bound_binding(aRequest.LiveBinding->Anchor)
 				&& (!aRequest.Proposal.ReplyToThread || aRequest.Source || aRequest.Representation != core::review_publication_representation::native_line))

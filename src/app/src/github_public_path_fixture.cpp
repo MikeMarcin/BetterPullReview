@@ -2116,7 +2116,7 @@ namespace bpr::app::detail {
 				/// [[BPR-1374]]. Another client deleted the thread's root, so the
 				/// thread is gone from every later read.
 				bool Deleted = false;
-				/// [[BPR-PENDING-AT]]. A push changed the thread's line: GitHub
+				/// [[BPR-1745]]. A push changed the thread's line: GitHub
 				/// reads it outdated, with no line, every post (a reply too)
 				/// written on this commit, as BPR-Test#133 read on 2026-10-22.
 				std::optional<std::string> OutdatedOn;
@@ -5238,7 +5238,7 @@ namespace bpr::app::detail {
 				// read, as GitHub's would.
 				if (aRequest.Proposal.ReplyToThread.has_value()) {
 					++Evidence.Replies;
-					// [[BPR-PENDING-AT]]. What the reply was bound to.
+					// [[BPR-1745]]. What the reply was bound to.
 					Evidence.LastReplyThread      = *aRequest.Proposal.ReplyToThread;
 					Evidence.LastReplyThreadBound = aRequest.LiveBinding.has_value() && application::thread_bound_binding(aRequest.LiveBinding->Anchor)
 						&& core::thread_bound_anchor(aRequest.Proposal.Anchor);

@@ -705,7 +705,7 @@ namespace bpr::app {
 			// Restore only drafts under the currently accepted head.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
-			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread has no
+			// [[BPR-1745]]. A reply bound to its outdated thread has no
 			// line, so a new head cannot move it: it is carried here first. A
 			// refused carry keeps the reply where it was and restores the rest.
 			static_cast<void>(host.carry_thread_replies(binding));
@@ -767,7 +767,7 @@ namespace bpr::app {
 			return;
 		}
 		post([binding = *Binding, thread = std::move(aThread)](context& aContext) {
-			// [[BPR-PENDING-AT]]. The outdated thread's unsent reply opens
+			// [[BPR-1745]]. The outdated thread's unsent reply opens
 			// again, or a new one bound to the thread is made. One written on
 			// an earlier head is carried first, as a restore carries it.
 			result                                           output;

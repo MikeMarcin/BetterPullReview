@@ -3775,7 +3775,7 @@ namespace {
 			const auto expectedSmartCalls = aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::finish }
 					|| aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::restored }
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::restart }
-					// [[BPR-PENDING-AT]]. And the outdated-thread reply's restart.
+					// [[BPR-1745]]. And the outdated-thread reply's restart.
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::outdated_restart }
 				? 0
 				: aRun.MaintenanceProbe
@@ -9516,7 +9516,7 @@ auto main(int argc, char** argv) -> int
 														 std::pair{ std::string_view{ "write" }, course::write }, std::pair{ std::string_view{ "restart" }, course::restart },
 														 std::pair{ std::string_view{ "deleted" }, course::deleted }, std::pair{ std::string_view{ "kept" }, course::kept },
 														 std::pair{ std::string_view{ "resolved" }, course::resolved },
-														 // [[BPR-PENDING-AT]]. The outdated-thread reply.
+														 // [[BPR-1745]]. The outdated-thread reply.
 														 std::pair{ std::string_view{ "outdated-publish" }, course::outdated_publish },
 														 std::pair{ std::string_view{ "outdated-write" }, course::outdated_write },
 														 std::pair{ std::string_view{ "outdated-restart" }, course::outdated_restart } }) {

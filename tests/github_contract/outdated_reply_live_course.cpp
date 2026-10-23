@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AT]]. The live outdated-thread reply course's own process:
+// [[BPR-1745]]. The live outdated-thread reply course's own process:
 // never a CTest row and not built by default
 // (BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE).
 //

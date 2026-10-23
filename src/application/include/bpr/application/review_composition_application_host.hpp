@@ -72,13 +72,13 @@ namespace bpr::application {
 		[[nodiscard]] auto allocate_draft(const core::private_composition_target&, const core::diff_semantic_index&, std::string aBody = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief Ordinary replies may use either exact side; they carry no composition acceptance.
 		[[nodiscard]] auto allocate_reply(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::string aThread) -> private_run_result<durable_draft_commit>;
-		/// \brief [[BPR-PENDING-AT]]. The reply an outdated thread's Reply
+		/// \brief [[BPR-1745]]. The reply an outdated thread's Reply
 		/// opens: the unsent thread-bound reply to `aThread` this head keeps
 		/// (`core::reopen_thread_reply`), or a new one written in the bound
 		/// comparison. It has no line, so it needs no semantic index.
 		/// \details The commit carries only the draft opened.
 		[[nodiscard]] auto select_thread_reply(const core::private_review_binding&, std::string aThread) -> private_run_result<durable_draft_commit>;
-		/// \brief [[BPR-PENDING-AT]]. Carries every unsent thread-bound reply
+		/// \brief [[BPR-1745]]. Carries every unsent thread-bound reply
 		/// written on another head of this pull request to the bound one, in
 		/// one transaction: a new draft with the same words under the binding,
 		/// and the earlier one discarded. A reply has no line, so a head change

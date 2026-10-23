@@ -522,7 +522,7 @@ namespace bpr::application {
 			};
 		}
 
-		/// \brief [[BPR-PENDING-AT]]. A reply bound to its outdated thread,
+		/// \brief [[BPR-1745]]. A reply bound to its outdated thread,
 		/// held to the thread: its path and the commit it was written on, the
 		/// designated target and actor. No line, selection or source is read,
 		/// and none is published: GitHub takes the reply by the thread alone.
@@ -572,7 +572,7 @@ namespace bpr::application {
 			const review_mutation_publication_request& aRequest) const
 			-> std::expected<validated_publication, review_mutation_failure>
 		{
-			// [[BPR-PENDING-AT]]. A thread-bound reply is held to its thread;
+			// [[BPR-1745]]. A thread-bound reply is held to its thread;
 			// anything else carrying its anchor is refused below the line rule.
 			if (aRequest.ThreadReply.has_value() || core::thread_bound_anchor(aRequest.Proposal.Anchor)) {
 				return validate_thread_reply(aRequest);

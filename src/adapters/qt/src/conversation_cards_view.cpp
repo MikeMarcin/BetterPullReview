@@ -571,7 +571,7 @@ namespace bpr::qt {
 			action->setToolTip(aEnabled ? action->text() : aReason);
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
-		// [[BPR-PENDING-AT]]. An outdated thread takes a reply by the thread.
+		// [[BPR-1745]]. An outdated thread takes a reply by the thread.
 		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card) || card.ReplyOnThread, tr("This thread's line isn't in the code shown, so it can't take a reply here."));
 		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
 																   std::ranges::any_of(card.Posts, [](const card_post& aPost) { return !aPost.Mine; }));
@@ -1842,7 +1842,7 @@ namespace bpr::qt {
 
 			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
-			// [[BPR-PENDING-AT]]. The core decides where a reply to the thread
+			// [[BPR-1745]]. The core decides where a reply to the thread
 			// goes; an outdated one takes it without a line, as GitHub does.
 			card.ReplyOnThread = core::decide_thread_reply({ .ReviewThread = isThread && !node.Path.empty(), .Outdated = node.Outdated }).Route
 				== core::thread_reply_route::on_thread;
@@ -1979,7 +1979,7 @@ namespace bpr::qt {
 			card.Notice            = unsent_reply_notice(reply.Standing);
 			card.KeepableAsComment = reply.KeepableAsComment;
 			card.Side              = saved->Anchor.Side;
-			// [[BPR-PENDING-AT]]. A reply bound to its thread has no line.
+			// [[BPR-1745]]. A reply bound to its thread has no line.
 			card.Line       = core::thread_bound_anchor(saved->Anchor) ? std::nullopt : std::optional{ saved->Anchor.Line + 1U };
 			const auto mark = feedback_body_mark_of(saved->Body);
 			card.Posts.push_back(card_post{

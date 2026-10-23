@@ -116,7 +116,7 @@ namespace bpr::core {
 		auto operator<=>(const review_comment_draft&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AT]]. The anchor line of a reply bound to its thread
+	/// \brief [[BPR-1745]]. The anchor line of a reply bound to its thread
 	/// rather than to a line.
 	/// \details The owner, 2026-10-22: "Allow replying to an outdated thread
 	/// from the drawer, like GitHub does". An outdated thread has no line in
@@ -129,20 +129,20 @@ namespace bpr::core {
 	/// journal keeps; the thread, not the side, says where it goes.
 	inline constexpr std::uint32_t thread_reply_line = 0xFFFF'FFFFU;
 
-	/// \brief [[BPR-PENDING-AT]]. Whether an anchor is a thread-bound reply's.
+	/// \brief [[BPR-1745]]. Whether an anchor is a thread-bound reply's.
 	[[nodiscard]] constexpr auto thread_bound_anchor(const source_line_ref& aAnchor) noexcept -> bool
 	{
 		return aAnchor.Line == thread_reply_line && aAnchor.Side == diff_side::right;
 	}
 
-	/// \brief [[BPR-PENDING-AT]]. The anchor a thread-bound reply written in
+	/// \brief [[BPR-1745]]. The anchor a thread-bound reply written in
 	/// `aComparison` takes.
 	[[nodiscard]] constexpr auto thread_reply_anchor(const file_comparison_digest& aComparison) noexcept -> source_line_ref
 	{
 		return source_line_ref{ .Comparison = aComparison, .Side = diff_side::right, .Line = thread_reply_line };
 	}
 
-	/// \brief [[BPR-PENDING-AT]]. A reply bound to its thread, not a line: it
+	/// \brief [[BPR-1745]]. A reply bound to its thread, not a line: it
 	/// answers a thread, carries the thread-bound anchor, and has neither a
 	/// range nor a pending mark.
 	[[nodiscard]] constexpr auto thread_bound_reply(const review_comment_draft& aDraft) noexcept -> bool

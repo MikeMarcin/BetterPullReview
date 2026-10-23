@@ -1872,7 +1872,7 @@ namespace {
 	// line, text only in an outdated thread, a file comment or on the base
 	// side, each from the accepted projection's own facts. The mark changes
 	// nothing in the text and is not shown for prose.
-	// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an
+	// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an
 	// outdated thread from the drawer, like GitHub does". An outdated thread's
 	// menu offers Reply; its reply field opens in place with one quiet line
 	// saying its line has changed, in the card's secondary ink. A current

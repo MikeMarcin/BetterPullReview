@@ -9,7 +9,7 @@
 #include <string_view>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AT]]. Where a reply to a review thread is written.
+	/// \brief [[BPR-1745]]. Where a reply to a review thread is written.
 	enum class thread_reply_route : std::uint8_t {
 		/// On the thread's current line: the code selects that line and the
 		/// reply is anchored there, as before.
@@ -22,7 +22,7 @@ namespace bpr::core {
 		refused,
 	};
 
-	/// \brief [[BPR-PENDING-AT]]. Why a thread takes no reply here.
+	/// \brief [[BPR-1745]]. Why a thread takes no reply here.
 	enum class thread_reply_refusal : std::uint8_t {
 		none,
 		/// Not a review thread on a file: a pull request comment is answered
@@ -36,7 +36,7 @@ namespace bpr::core {
 		locked,
 	};
 
-	/// \brief [[BPR-PENDING-AT]]. What GitHub's thread data says about one
+	/// \brief [[BPR-1745]]. What GitHub's thread data says about one
 	/// thread, as the accepted snapshot holds it.
 	/// \details `ViewerCanReply` and `Locked` are GitHub's `viewerCanReply`
 	/// and the pull request's lock. When the read does not carry one it is
@@ -59,7 +59,7 @@ namespace bpr::core {
 		auto operator<=>(const thread_reply_facts&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AT]]. The route and, when refused, the reason.
+	/// \brief [[BPR-1745]]. The route and, when refused, the reason.
 	struct thread_reply_decision
 	{
 		thread_reply_route   Route   = thread_reply_route::refused;
@@ -71,7 +71,7 @@ namespace bpr::core {
 		auto operator<=>(const thread_reply_decision&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AT]]. Decides where a reply to one thread is
+	/// \brief [[BPR-1745]]. Decides where a reply to one thread is
 	/// written, from GitHub's thread data alone.
 	/// \details A current thread is answered on its line, and whether that
 	/// line is in the code shown is the code's to say. An outdated thread is
@@ -80,7 +80,7 @@ namespace bpr::core {
 	/// cannot reply in, or one on a locked pull request, takes no reply.
 	[[nodiscard]] auto decide_thread_reply(const thread_reply_facts& aFacts) noexcept -> thread_reply_decision;
 
-	/// \brief [[BPR-PENDING-AT]]. The saved reply a thread's Reply opens
+	/// \brief [[BPR-1745]]. The saved reply a thread's Reply opens
 	/// again: the latest thread-bound reply to `aThread` still being written
 	/// or being published, wherever it was written.
 	/// \returns The draft to open, or none when a new one is to be made.

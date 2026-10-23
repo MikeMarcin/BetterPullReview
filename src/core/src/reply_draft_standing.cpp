@@ -42,7 +42,7 @@ namespace bpr::core {
 			return decision;
 		}
 		decision.Standing = reply_draft_standing::thread_deleted;
-		// [[BPR-PENDING-AT]]. A reply bound to its thread has no line to keep
+		// [[BPR-1745]]. A reply bound to its thread has no line to keep
 		// its words on.
 		decision.KeepableAsComment = supported_comment_target(aDraft.Anchor.Side) && !thread_bound_anchor(aDraft.Anchor);
 		return decision;

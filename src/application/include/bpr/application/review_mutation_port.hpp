@@ -242,7 +242,7 @@ namespace bpr::application {
 		return aAnchor.RemoteLine.value_or(aAnchor.Semantic.Line);
 	}
 
-	/// \brief [[BPR-PENDING-AT]]. Whether the anchor binds a reply to its
+	/// \brief [[BPR-1745]]. Whether the anchor binds a reply to its
 	/// outdated thread rather than to a line (`core::thread_bound_anchor`).
 	/// \details Its `Path` and `Commit` are the thread's path and the commit
 	/// it was written on, where GitHub answers the reply, with no line. Only a
@@ -256,7 +256,7 @@ namespace bpr::application {
 	/// anchor's commit: the head, or an earlier commit only for a right-side
 	/// line the host placed from a commit-filtered diff. The host admits that
 	/// placement only for a commit of the accepted pull request's first-parent
-	/// chain, before anything is written. [[BPR-PENDING-AT]]. Or the commit an
+	/// chain, before anything is written. [[BPR-1745]]. Or the commit an
 	/// outdated thread was written on, for a reply bound to that thread.
 	[[nodiscard]] inline auto admitted_anchor_commit(const review_mutation_anchor_binding& aAnchor, const core::git_commit_oid& aHead) noexcept
 		-> bool

@@ -1300,7 +1300,7 @@ namespace {
 				   "one-based REST response line maps back to the semantic line");
 		}
 
-		// [[BPR-PENDING-AT]]. A line count is a 32-bit value, so the last
+		// [[BPR-1745]]. A line count is a 32-bit value, so the last
 		// index a document can have is one below the 32-bit maximum; that
 		// maximum is `core::thread_reply_line`, the line of a reply bound to
 		// its thread, which no new comment takes.

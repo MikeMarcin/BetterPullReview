@@ -596,7 +596,7 @@ namespace {
 		host.shutdown();
 	}
 
-	// [[BPR-PENDING-AT]]. A reply to an outdated thread is held to the
+	// [[BPR-1745]]. A reply to an outdated thread is held to the
 	// thread: the provider is asked to write it on the thread's path and the
 	// commit the thread was written on, at the thread-bound anchor, with no
 	// source and no selection read. Anything else carrying that anchor, or a

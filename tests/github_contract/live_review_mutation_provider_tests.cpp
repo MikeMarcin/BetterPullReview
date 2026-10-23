@@ -1738,7 +1738,7 @@ namespace {
 		}
 	}
 
-	// [[BPR-PENDING-AT]]. A reply to an outdated thread is bound to the
+	// [[BPR-1745]]. A reply to an outdated thread is bound to the
 	// thread, not a line: its anchor is the thread-bound one, its path and
 	// commit the thread's own (the commit it was written on). GitHub answers
 	// it with `line: null` on that commit, as BPR-Test#133 did live on

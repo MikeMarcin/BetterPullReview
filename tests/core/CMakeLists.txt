@@ -1222,7 +1222,7 @@ bpr_enable_warnings(test_reply_draft_standing)
 bpr_add_network_isolated_test(NAME core_reply_draft_standing COMMAND test_reply_draft_standing)
 set_tests_properties(core_reply_draft_standing PROPERTIES PASS_REGULAR_EXPRESSION "REPLY_DRAFT_STANDING_OK")
 
-# [[BPR-PENDING-AT]]. An outdated thread takes a reply bound to the thread, as
+# [[BPR-1745]]. An outdated thread takes a reply bound to the thread, as
 # GitHub's web interface does; GitHub's thread data decides whether it may.
 bpr_add_executable(test_thread_reply thread_reply_tests.cpp)
 target_link_libraries(test_thread_reply PRIVATE BetterPullReview::Core)

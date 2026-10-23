@@ -969,7 +969,7 @@ outdated thread no longer has, and Reply was refused with "This thread's line
 isn't in the code shown, so it can't take a reply here." GitHub accepts a
 reply to an outdated thread, because a reply names only the thread it answers.
 The owner, in chat, verbatim: "Allow replying to an outdated thread from the
-drawer, like GitHub does; open a card for it." [[BPR-PENDING-AT]] owns it.
+drawer, like GitHub does; open a card for it." [[BPR-1745]] owns it.
 
 The Review paragraph's "each opening in place to the whole conversation with a
 reply", and Discuss's Reply, are amended to include outdated threads:

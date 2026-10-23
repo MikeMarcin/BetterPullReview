@@ -1,4 +1,6 @@
-# [[BPR-PENDING-AT]] reseal (2026-10-22) over last matching main 27d17fea5,
+# Upkeep reseal (2026-10-23): the only src/app change since the BPR-1745 note below
+# is renaming its [[BPR-PENDING-AT]] comment tags to [[BPR-1745]]; no code change.
+# [[BPR-1745]] reseal (2026-10-22) over last matching main 27d17fea5,
 # linear. Pinned-scope change, the owner's decision of 2026-10-22 ("Allow
 # replying to an outdated thread from the drawer, like GitHub does";
 # RFC-BPR-0028 amendment): github_application.cpp takes an outdated thread's
@@ -2096,7 +2098,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"fcea8bb49a35529533cd57c70e65c4dccf58bdbff17d7aeba56a48332c2bffa9"
+		"d26e95cc4b36fc28a593e04eac77fda184409f50966f0e44a8125eb047e111eb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2320,7 +2322,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "299e28006daabe0acedff1849b828ce1bb0af87b50290a89dfd2f5e3044130e0"
+        "6ad4c388f388b5d51a7d8235815a593f15d246753d82fb4844622acd3142ff19"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

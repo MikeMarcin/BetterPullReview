@@ -1698,7 +1698,7 @@ namespace bpr::qt {
 			auto* const editor = new QVBoxLayout{ Editor };
 			editor->setContentsMargins(12, 11, 12, 11);
 			editor->setSpacing(7);
-			// [[BPR-PENDING-AT]]. An outdated thread's reply goes to the thread,
+			// [[BPR-1745]]. An outdated thread's reply goes to the thread,
 			// not a line; one quiet line above the field says so, in the
 			// card's secondary ink, and nothing else changes.
 			if (aCard.ReplyOnThread) {

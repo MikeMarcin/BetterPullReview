@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an outdated
+// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an outdated
 // thread from the drawer, like GitHub does". The decisions only: where a reply
 // to a thread is written (on its line, or bound to the thread when it is
 // outdated), what GitHub's thread data refuses, which saved thread-bound reply

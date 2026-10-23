@@ -67,7 +67,7 @@ namespace bpr::application {
 			-> std::optional<review_mutation_source_observation> = 0;
 	};
 
-	/// \brief [[BPR-PENDING-AT]]. Where GitHub answers a reply bound to its
+	/// \brief [[BPR-1745]]. Where GitHub answers a reply bound to its
 	/// outdated thread, as the accepted snapshot holds the thread.
 	struct review_mutation_thread_reply_binding
 	{
@@ -81,7 +81,7 @@ namespace bpr::application {
 	};
 
 	/// \brief Exact workbench state bound to one review publication attempt.
-	/// \details [[BPR-PENDING-AT]]. A reply bound to its outdated thread
+	/// \details [[BPR-1745]]. A reply bound to its outdated thread
 	/// (`core::thread_bound_reply`) carries `ThreadReply` and is held to the
 	/// thread instead of a line: `Selection` and `SelectedDiff` are not read
 	/// for it.

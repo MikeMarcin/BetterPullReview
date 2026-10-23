@@ -1435,7 +1435,7 @@ if(BPR_BUILD_LIVE_REACTION_COURSE)
     bpr_enable_warnings(tool_reaction_live_course)
 endif()
 
-# [[BPR-PENDING-AT]]. The live outdated-thread reply course's process: never a
+# [[BPR-1745]]. The live outdated-thread reply course's process: never a
 # CTest row, and not built by default. Configure with
 # -DBPR_BUILD_LIVE_OUTDATED_REPLY_COURSE=ON; tests/scripts/outdated_reply_live_course.py
 # runs it by hand against MikeMarcin/BPR-Test.

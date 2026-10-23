@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""[[BPR-PENDING-AT]]. The live outdated-thread reply course on MikeMarcin/BPR-Test.
+"""[[BPR-1745]]. The live outdated-thread reply course on MikeMarcin/BPR-Test.
 
 Run by hand, never by CTest. The owner designated MikeMarcin/BPR-Test as the
 live GitHub target (2026-10-05); it is a constant here, not an argument. The
@@ -119,7 +119,7 @@ def course(arguments: argparse.Namespace) -> int:
         made = github.api("-X", "PUT", f"{repo}/contents/{PATH}", "-f", "message=Add the outdated-reply course file", "-f", f"content={content(first)}", "-f", f"branch={branch}")
         written_on = made["commit"]["sha"]
         pull = github.api("-X", "POST", f"{repo}/pulls", "-f", f"title=Disposable outdated-thread reply course {stamp}", "-f", f"head={branch}", "-f", "base=main",
-                          "-f", "body=Disposable pull request for the outdated-thread reply course (BPR-PENDING-AT). Safe to close.")
+                          "-f", "body=Disposable pull request for the outdated-thread reply course (BPR-1745). Safe to close.")
         number = pull["number"]
         print(f"OUTDATED_REPLY_DRIVER:pull-request:{number}", flush=True)
         github.api("-X", "POST", f"{repo}/pulls/{number}/comments", "-f", "body=third() is about to change: will this still hold?", "-f", f"commit_id={written_on}",

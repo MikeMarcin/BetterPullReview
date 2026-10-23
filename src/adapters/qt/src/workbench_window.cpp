@@ -10930,7 +10930,7 @@ namespace bpr::qt {
 		// draft on the base side says so.
 		const auto base  = draft.has_value() && draft->Anchor.Side == core::diff_side::left;
 		const auto words = !draft.has_value() ? QString{ }
-			// [[BPR-PENDING-AT]]. A reply bound to its outdated thread has no line.
+			// [[BPR-1745]]. A reply bound to its outdated thread has no line.
 			: core::thread_bound_anchor(draft->Anchor) ? tr("Outdated thread")
 			: draft->StartLine.has_value() && base     ? tr("Base lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
 			: draft->StartLine.has_value()             ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
@@ -11519,7 +11519,7 @@ namespace bpr::qt {
 				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
 				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
 		};
-		// [[BPR-PENDING-AT]]. The owner, 2026-10-22: "Allow replying to an
+		// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an
 		// outdated thread from the drawer, like GitHub does". The core decides
 		// the route from GitHub's thread data; an outdated thread is answered
 		// by the thread, with no line to select, in Review, Discuss and

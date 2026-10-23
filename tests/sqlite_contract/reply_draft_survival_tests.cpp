@@ -279,7 +279,7 @@ namespace {
 }
 
 namespace {
-	// [[BPR-PENDING-AT]]. A reply to an outdated thread is bound to the
+	// [[BPR-1745]]. A reply to an outdated thread is bound to the
 	// thread, not a line: the outdated thread's Reply opens it, it is saved
 	// privately, a restart finds it again, and a new head carries it, since a
 	// reply with no line has nothing a head change could move.

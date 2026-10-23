@@ -42,7 +42,7 @@ namespace bpr::app {
 		void restore(draft_completion);
 		void select_draft(core::source_line_ref, draft_completion);
 		void select_reply(core::source_line_ref, std::string, draft_completion);
-		/// [[BPR-PENDING-AT]]. Opens the outdated thread's reply, bound to the
+		/// [[BPR-1745]]. Opens the outdated thread's reply, bound to the
 		/// thread, under the bound comparison.
 		void select_thread_reply(std::string, draft_completion);
 		void change_draft(core::revisioned_review_draft_command, draft_completion);

@@ -707,7 +707,7 @@ namespace bpr::qt {
 		void set_carried_suggestion_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
-		/// \brief [[BPR-PENDING-AT]]. Adopts the sink an outdated thread's
+		/// \brief [[BPR-1745]]. Adopts the sink an outdated thread's
 		/// Reply names its thread to: the composition opens a reply bound to
 		/// the thread, since the thread has no line to select.
 		void set_thread_reply_dispatch(workbench_review_reply_dispatch aDispatch);
@@ -2040,7 +2040,7 @@ namespace bpr::qt {
 			std::uint64_t                  Line    = 0U;
 			bool                           Current = false;
 			bool                           Known   = false;
-			/// [[BPR-PENDING-AT]]. GitHub reports the thread outdated.
+			/// [[BPR-1745]]. GitHub reports the thread outdated.
 			bool Outdated = false;
 		};
 		[[nodiscard]] auto thread_reply_anchor_of(const std::string& aIdentity) const -> thread_reply_anchor;

@@ -17487,7 +17487,7 @@ namespace {
 			process_events();
 			auto replies = std::vector<std::string>{ };
 			window.set_review_reply_dispatch([&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
-			// [[BPR-PENDING-AT]]. An outdated thread's Reply goes to the thread.
+			// [[BPR-1745]]. An outdated thread's Reply goes to the thread.
 			auto threadReplies = std::vector<std::string>{ };
 			window.set_thread_reply_dispatch([&threadReplies](const std::string& aIdentity) { threadReplies.push_back(aIdentity); });
 			const auto file  = core::file_identity_of("src/file.cpp");
@@ -17595,7 +17595,7 @@ namespace {
 
 			// Discuss, the long thread open there. A current thread's Reply is
 			// refused, as its file is not the one in the code, and the words
-			// say so. [[BPR-PENDING-AT]]. An outdated thread's is not: it is
+			// say so. [[BPR-1745]]. An outdated thread's is not: it is
 			// answered by the thread, which needs no line in the code.
 			window.choose_modality(qt::review_modality::discuss);
 			process_events();
@@ -17695,7 +17695,7 @@ namespace {
 			// Reply, by a click on the field.
 			click(*replyField);
 			if (aOutdated) {
-				// [[BPR-PENDING-AT]]. Before the change: refused with "This
+				// [[BPR-1745]]. Before the change: refused with "This
 				// thread's line isn't in the code shown, so it can't take a
 				// reply here." Now the reply is bound to the thread and written
 				// in place, with a quiet line saying the thread is outdated.
@@ -17715,7 +17715,7 @@ namespace {
 			}
 			save_render(window, QStringLiteral("long-thread-replying") + suffix);
 			if (aOutdated) {
-				// [[BPR-PENDING-AT]]. Discuss and Threads answer it the same
+				// [[BPR-1745]]. Discuss and Threads answer it the same
 				// way: by the thread, with no refusal, the composer opened.
 				deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
 				for (const auto modality : { qt::review_modality::discuss, qt::review_modality::threads }) {
