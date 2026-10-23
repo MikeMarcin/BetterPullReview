@@ -2,7 +2,7 @@
 
 Current frontier: the [takeover onto main](#takeover-onto-main--2026-10-22)
 on 2026-10-22. The Codex branch's seventeen commits were cherry-picked onto
-main `4e318b625`, main's newer surfaces were brought into the shared treatment,
+main `4e318b625` and later rebased onto `c7d82b4ea`, main's newer surfaces were brought into the shared treatment,
 and the technical criteria were rechecked on the rebased candidate. AC01 waits
 on the owner's look at a frozen build. Everything above the takeover section is
 the Codex branch's history, kept as it was written; its SHAs are mapped to
@@ -414,23 +414,31 @@ All seventeen commits were cherry-picked with `-x` onto local main
 
 | Codex | Rebased | Commit |
 |---|---|---|
-| `f2939cab8` | `04ad6a329` | Claim BPR-1659 |
-| `2660e4c63` | `8e2a0d750` | Start BPR-1659 shared Overview button treatment in Settings |
-| `602454f2c` | `b60370ecc` | Record BPR-1659 source checkpoint and disk-space verification blocker |
-| `4435e1fe4` | `e486ff919` | Resume BPR-1659 with bounded offline verification |
-| `295c4c2a9` | `d3863f2ad` | Claim BPR-1659 |
-| `9dc946997` | `8e790ec53` | Capture shared button states and isolate tab-choice scale verification |
-| `fb790ce89` | `b418a54aa` | Finish BPR-1659 |
-| `db3eee5a7` | `05e03c4c2` | Mark shared action app rollout ready |
-| `e5de4d357` | `465d676ea` | Claim BPR-1660 |
-| `81a132674` | `f39203eac` | Carry quiet secondary buttons through the Qt app |
-| `29251e68d` | `cc538026d` | Accept app-wide shared action button rollout |
-| `52662d1f2` | `fede04644` | Ready final shared button verification |
-| `bb64e195d` | `3b4be38a3` | Claim BPR-1661 |
-| `2e808fe67` | `5cd94998d` | Verify shared button interaction and style evidence |
-| `2a3b95ee9` | `d85132d42` | Ready shared button closeout proposal |
-| `f2a1889e6` | `a076b906f` | Claim BPR-1662 |
-| `12ac9a654` | `276ebf0ec` | Propose RFC-BPR-0087 closeout at authorization boundary |
+| `f2939cab8` | `03141f164` | Claim BPR-1659 |
+| `2660e4c63` | `f9a104e9b` | Start BPR-1659 shared Overview button treatment in Settings |
+| `602454f2c` | `fb3237a51` | Record BPR-1659 source checkpoint and disk-space verification blocker |
+| `4435e1fe4` | `eecd7c91c` | Resume BPR-1659 with bounded offline verification |
+| `295c4c2a9` | `aa7c647a5` | Claim BPR-1659 |
+| `9dc946997` | `00c3eb13c` | Capture shared button states and isolate tab-choice scale verification |
+| `fb790ce89` | `0f93d2fb2` | Finish BPR-1659 |
+| `db3eee5a7` | `0220b5950` | Mark shared action app rollout ready |
+| `e5de4d357` | `5ec8f3ee1` | Claim BPR-1660 |
+| `81a132674` | `ba2afcdc1` | Carry quiet secondary buttons through the Qt app |
+| `29251e68d` | `55053c06c` | Accept app-wide shared action button rollout |
+| `52662d1f2` | `0da55ba60` | Ready final shared button verification |
+| `bb64e195d` | `2e712369c` | Claim BPR-1661 |
+| `2e808fe67` | `fbd07e5ab` | Verify shared button interaction and style evidence |
+| `2a3b95ee9` | `ba944ece9` | Ready shared button closeout proposal |
+| `f2a1889e6` | `816c18efe` | Claim BPR-1662 |
+| `12ac9a654` | `f1aa73fa2` | Propose RFC-BPR-0087 closeout at authorization boundary |
+
+After verification the branch was rebased once more, onto main `c7d82b4ea`,
+which had moved only in release documentation, scripts and a Python test
+registration; it also moved `NEXT_ID` past this branch's copy. The SHAs on
+this page are the final ones. The checks below ran on their pre-rebase
+equivalents, whose `src/` trees are identical: `git diff 9c23301eb da892a514
+-- src` is empty. The frozen candidate keeps its pre-rebase identity
+`9c23301eb`, the equivalent of `da892a514`.
 
 Only `81a132674` conflicted, in two files; every other file merged cleanly
 over main's newer work (Review drawer tabs, Compose review, About,
@@ -449,7 +457,7 @@ holds and the rest).
   so a lead that changes also changes the button's measured size.
 
 Main gained button surfaces after the baseline, and these were brought into
-the shared treatment where the RFC asks (commit `f73c40dad`): About's Copy
+the shared treatment where the RFC asks (commit `eeeff52a9`): About's Copy
 version info; the commit filter's Clear all filters, rematch offers and
 Commits; the split-diff strip's per-commit diffs, an exclusive choice drawn as
 Overview's Open/All; and the held comment's Convert. Retained, with reasons in
@@ -457,7 +465,7 @@ the [inventory](../ux/shared-action-buttons.md#surfaces-added-on-main-after-the-
 About's links and dialog Close, the generated-files disclosure, Compose
 review's toolbar action, the Review drawer's tab bar, the conversation and
 reaction `QAbstractButton` chips and the discuss-header notice chip.
-`9c23301eb` adds two regression checks: the split-diff strip's diff on screen
+`da892a514` adds two regression checks: the split-diff strip's diff on screen
 has the chip and the others are bare, and a quiet push button made default
 measures the native size and the chip again when it stops being the default.
 The architecture note about `button_surface` no longer calls app-wide
@@ -473,11 +481,11 @@ main checkout's dependency cache.
 | Check | Result |
 |---|---|
 | Focused selector: `ctest --preset dev --output-on-failure -j 4 -R` over Overview, Settings (1x, 1.25x, 1.5x, 2x), workbench, composed GitHub, Home refusal, inline drawer and resident filters, device authorization, conversation cards and finder, epoch comparison, agent launch, diff workbench, Home list, review draft and submission editors, Profiles, Markdown body, private review, scoped prose, suggestion editor, review cycles, source search, pending veil, refresh feedback, About, drawer parts, commit filter, profile reset views, release maintenance, `qt_quiet_buttons`, `qt_feedback_label_settings`, the review submission composition and the release update public path and look, at every registered scale | **72/72 pass** (516 s). The exact selector follows the table. |
-| Reruns after the clang-tidy fixes (`80dbe6d2f`) | `qt_home_list_scale_{100,125,200}`, `qt_quiet_buttons` and `qt_feedback_label_settings` pass. |
+| Reruns after the clang-tidy fixes (`f2100f5d6`) | `qt_home_list_scale_{100,125,200}`, `qt_quiet_buttons` and `qt_feedback_label_settings` pass. |
 | Style and scale matrix: the registered commands of `qt_feedback_label_settings`, `qt_pull_request_overview_page --switch`, `qt_appearance_settings_panel --shared-buttons`, `qt_quiet_buttons` and `qt_commit_filter_view_scale_100` under `QT_STYLE_OVERRIDE` Fusion and Windows and `QT_SCALE_FACTOR` 1, 1.25 and 2 | **30/30 pass**, 558 renders, outside the repository. |
 | `python3 _coding-standard/scripts/format.py --dry-run` on the 50 changed C++ files | Pass, clang-format 22.1.8. |
-| `python3 _coding-standard/scripts/tidy.py --warnings-as-errors` on the 48 changed translation units, with this tree's compilation database | 45 pass on the first run. Three findings were fixed in `80dbe6d2f`: `performance-no-automatic-move` in `home_list.cpp` (a `const` local on main since 2026-10-12, in a file this RFC changes) and `readability-static-accessed-through-instance` in two of this RFC's tests. The three then pass. |
-| `cmake --preset core-only` (offline, `-O0 -g0`), build and `ctest --preset core-only` | 315/316 pass at `80dbe6d2f`. `documentation_structure` failed only because main had moved on (`NEXT_ID` here was BPR-1742 while main had allocated to BPR-1744); after the rebase onto `c7d82b4ea` it passes (below). |
+| `python3 _coding-standard/scripts/tidy.py --warnings-as-errors` on the 48 changed translation units, with this tree's compilation database | 45 pass on the first run. Three findings were fixed in `f2100f5d6`: `performance-no-automatic-move` in `home_list.cpp` (a `const` local on main since 2026-10-12, in a file this RFC changes) and `readability-static-accessed-through-instance` in two of this RFC's tests. The three then pass. |
+| `cmake --preset core-only` (offline, `-O0 -g0`), build and `ctest --preset core-only` | 315/316 pass on the pre-rebase equivalent of `f2100f5d6`. `documentation_structure` failed only because main had moved on (`NEXT_ID` here was BPR-1742 while main had allocated to BPR-1744); after the rebase onto `c7d82b4ea` it passes, as does the documentation gate. |
 | `python3 scripts/verify_documentation.py --root .` and `python3 tests/scripts/verify_documentation_tests.py` | `DOCUMENTATION_OK`; 67 tests pass. |
 | Round-trip composition pins (`application_review_round_trip_composition_contract.cmake`) and the command-correctness registry | Unchanged: no `src/app` file and no pinned path changed, so nothing was resealed. |
 
