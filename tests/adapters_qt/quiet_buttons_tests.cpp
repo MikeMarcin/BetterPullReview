@@ -255,6 +255,6 @@ auto main(int argc, char** argv) -> int
 	test_push_contract();
 	test_production_surfaces();
 	std::cout << "quiet-buttons-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
-			  << " style=" << app.style()->name().toStdString() << " dpr=" << app.devicePixelRatio() << '\n';
+			  << " style=" << QApplication::style()->name().toStdString() << " dpr=" << app.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

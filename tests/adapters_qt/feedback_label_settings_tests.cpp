@@ -687,6 +687,6 @@ auto main(int argc, char** argv) -> int
 	test_the_comment_workshop_group();
 	test_settings_choices_share_the_overview_treatment();
 	std::cout << "feedback-label-settings-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
-			  << " style=" << application.style()->name().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
+			  << " style=" << QApplication::style()->name().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }
