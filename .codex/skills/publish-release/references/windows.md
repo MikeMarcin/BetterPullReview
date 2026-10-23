@@ -1,6 +1,6 @@
 # Windows release and manual Azure signing
 
-Use native Windows 10/11 x64 with activated MSVC x64, Ninja and the repository's
+Use native Windows 11 x64 (the tested Windows environment) with activated MSVC x64, Ninja and the repository's
 Qt/CMake toolchain. Require WiX .NET tool 4/5 with matching
 `WixToolset.UI.wixext`; the owner selected 5.0.2 rather than WiX 6's additional
 EULA. Python 3.10+, Qt producer SPDX, `VCToolsRedistDir` and the applicable
@@ -118,8 +118,10 @@ reviewed metadata specimen, supply `--windows-import-library` as described in
 and the specimen establishes no historical LINK selection. Check installed first-party signatures using
 `signtool verify /pa /all /v` and `Get-AuthenticodeSignature`; require publisher
 `Michael Marcin` and a timestamp. MSI/runtime ZIP equivalence and native Windows
-10/11 clean-account install/launch/auth/repair/upgrade/removal remain qualification
-gates. The offline manifest verifier checks byte bindings and producer receipts;
+11 clean-account install/launch/auth/repair/upgrade/removal remain qualification
+gates. Release notes say the build is tested on Windows 11; other Windows
+versions may work but are untested, and the MSI's minimum OS stays Windows 10
+(unproven, not refused; owner 2026-10-23, [[BPR-1743]]). The offline manifest verifier checks byte bindings and producer receipts;
 it cannot independently establish Windows trust from a Mac.
 
 The maintained verifier imports the native Windows PowerShell security module

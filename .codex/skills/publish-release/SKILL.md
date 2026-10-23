@@ -137,8 +137,10 @@ For a coordinated release from the Mac host, use its existing macOS producer
 and publisher plus the signing PC's native Windows station and Ubuntu 26.04
 WSL2 producer. The owner selected this Linux route for the next release on
 2026-10-11; Ubuntu 24.04 and RHEL are not required release targets. Ordinary
-Linux binaries may be produced under WSL2; clean Ubuntu desktop/vault and final
-installation qualification remain separate. Keep signing credentials and
+Linux binaries may be produced under WSL2. The tested environments are Windows
+11 and Ubuntu 26.04 under WSL2/WSLg; release notes say other Windows and Linux
+versions may work but are untested ([[BPR-1743]]). Final installation
+qualification remains separate. Keep signing credentials and
 private keys on their approved producer PC. Return each producer's complete
 final artifact directory, including `.release.json`, runtime archive, SPDX,
 separate source asset, checksums, provenance and public signatures, to the Mac
