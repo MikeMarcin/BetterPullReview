@@ -414,7 +414,7 @@ namespace {
 	void report_journal(const std::filesystem::path& aJournal, const std::string& aKey, const std::string_view aName)
 	{
 		const auto stored = open_journal(aJournal)->load(aKey);
-		const auto record = stored && stored->has_value() ? std::optional{ **stored } : std::nullopt;
+		const auto record = stored ? *stored : std::optional<application::review_mutation_recovery_record>{ };
 		std::cout << "CLI_REPLY_LIVE:journal:" << aName << ":present=" << record.has_value()
 				  << " state=" << (record ? static_cast<int>(record->State) : -1)
 				  << " threadBound=" << (record && core::thread_bound_anchor(record->Anchor.Semantic))
