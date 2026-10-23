@@ -568,6 +568,50 @@ closed and its protections released.
 - **Q9 A.** The review skill's text goes in each review request's brief
   (chat).
 
+### Owner decisions (2026-10-23): the conversation
+
+Look v002 (session `077adf53047441a3224b3687ceddf38e`) was rejected, among
+other things because the question "Does this work?" got no visible answer,
+the question stayed in the field, the "Ask the agent" button was unclear, and
+there was no model or effort picker. The Agent tab is now a chat thread: each
+turn is the question as sent, the agent's answer as it streams (its Markdown
+rendered, links and images inert), and how the turn ended (who answered, in
+how long, the model the agent reported, the cost when the harness reported
+one, and the findings it brought). The question field clears once a question
+is sent. The owner then answered three forks in chat, relayed by the
+coordinator, verbatim:
+
+- **(a) "Suggested prompts described that way sound great."** There is no
+  separate one-click action. With an empty thread, clickable suggestions sit
+  above the question field under "Ask about this pull request, or try:":
+  **Review this pull request**, **Review** *the open file's path* when a file
+  is open, **What could this change break?**, and **Explain the selected
+  lines (a–b)** only when lines are selected. A suggestion is sent as written,
+  as an ordinary chat turn, so the thread shows what was asked. Once the
+  thread has turns, the suggestions are a **Suggestions** menu in the field.
+  Every review prompt answers with a summary in words, even with no finding:
+  the built-in review skill (version 2) says so.
+- **(b) "Continuous session per PR with an option to clear session."** One
+  conversation per pull request. The application carries it, rather than any
+  harness's own resumable session (a Claude session is keyed by its working
+  directory, and the agent's workspace is new for each turn), so it continues
+  in whichever agent answers: each request's brief carries the earlier turns,
+  oldest first (`brief.conversation.N.asked` and `.answered`, each cut to
+  8 KiB, the newest 50 within 48 KiB, the older counted). The thread is kept
+  in the profile's `agent-setup.sqlite3` for each pull request (host, owner,
+  name and number; at most 50 turns of 64 KiB per text, and 500 pull
+  requests, the least recently written going first), so it comes back when
+  the pull request is opened again, in this run or a later one. **Clear**
+  (and History › **Clear session**) empties the thread and starts the next
+  question afresh; it asks first only when turns would leave the thread.
+- **(c) "A chip in the message box like VS Code."** The model and effort are
+  a chip inside the question field ("opus · high effort", or "Default
+  model"), with no control in the context row. Its tooltip names the program
+  that runs and the model the last answer reported; its menu offers the
+  agent's own models and effort levels, saved for the profile. `/model NAME`
+  and `/effort LEVEL` (or `default`) in the field do the same and are not
+  sent.
+
 ## Acceptance
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

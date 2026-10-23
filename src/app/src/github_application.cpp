@@ -99,6 +99,7 @@
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+	#include "bpr/application/agent_conversation_host.hpp"
 	#include "bpr/application/agent_program_resolution.hpp"
 	#include "bpr/application/agent_setup_host.hpp"
 	#include "bpr/application/claude_process_wrapper.hpp"
@@ -9387,7 +9388,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));
 			}
 			ReviewSkill->load();
+			// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. One
+			// conversation per pull request, kept with the setup.
+			AgentConversationStore = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
+			{
+				auto dependencies     = application::agent_conversation_dependencies{ };
+				dependencies.Store    = AgentConversationStore.get();
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::agent_conversation_projection& aView) { present_conversation(aView); };
+				AgentConversation     = std::make_unique<application::agent_conversation_host>(std::move(dependencies));
+			}
 			compose_agent_setup_view();
+			observe_conversation();
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
@@ -11459,6 +11472,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
+		/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The pull request
+		/// now open, for its conversation.
+		void observe_conversation()
+		{
+			if (!AgentConversation) {
+				return;
+			}
+			if (!AgentReview) {
+				AgentConversation->close();
+				return;
+			}
+			AgentConversation->open({ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value() });
+		}
+
+		/// The open pull request's kept thread, shown in the Agent tab.
+		void present_conversation(const application::agent_conversation_projection& aView)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto shown = std::vector<qt::agent_thread_turn>{ };
+			shown.reserve(aView.Turns.size());
+			for (const auto& turn : aView.Turns) {
+				shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending) });
+			}
+			Window->agent_tab()->present_thread(shown);
+		}
+
 		/// [[BPR-PENDING-AQ3]], RFC-BPR-0092 D2. The repository of the review
 		/// now open, for its remembered clone.
 		void observe_clone_repository()
@@ -11581,6 +11622,41 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			tab->adopt_setup(*Window->agent_setup(), [this] { check_agent_setup(); });
 			tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 				return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
+			});
+			// [[BPR-PENDING-AQ6]], owner decision (b). Each turn that ends is
+			// kept for the pull request, and Clear session keeps none.
+			tab->set_thread_observer([this](std::vector<qt::agent_thread_turn> aTurns) {
+				if (Closing || !AgentConversation) {
+					return;
+				}
+				auto kept = std::vector<application::agent_conversation_turn>{ };
+				kept.reserve(aTurns.size());
+				for (const auto& turn : aTurns) {
+					kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString() });
+				}
+				AgentConversation->record(std::move(kept));
+			});
+			tab->set_clear_session_dispatch([this] {
+				if (!Closing && AgentConversation) {
+					AgentConversation->clear();
+				}
+			});
+			// Owner decision (a). The suggested prompts name the open file and
+			// the selected lines, one-based.
+			tab->set_suggestion_context([this] {
+				auto context = qt::agent_suggestion_context{ };
+				if (Closing || Window == nullptr || !SelectedDiffPublication) {
+					return context;
+				}
+				context.OpenFile = QString::fromStdString(SelectedDiffPublication->Request.File.PresentationPath);
+				if (const auto* const surface = Window->comparison_surface(); surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key) {
+					if (const auto range = surface->line_draft_range(); range && range->first.Side == range->second.Side) {
+						const auto first = std::min(range->first.Line, range->second.Line) + 1U;
+						const auto last  = std::max(range->first.Line, range->second.Line) + 1U;
+						context.Lines    = std::pair{ first, last };
+					}
+				}
+				return context;
 			});
 			// Looking for agents waits for the tab: showing the setup is what
 			// may look (owner answer Q2), and looking reads file metadata only.
@@ -17179,6 +17255,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				};
 #if defined(BPR_AGENT_INTEGRATIONS)
 				observe_clone_repository();
+				observe_conversation();
 #endif
 				const auto authority = workbench_authority(aHandoff);
 				const auto snapshot  = Host != nullptr
@@ -17298,6 +17375,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AgentReview.reset();
 #if defined(BPR_AGENT_INTEGRATIONS)
 			observe_clone_repository();
+			observe_conversation();
 #endif
 			// [[BPR-1365]]. No recent entry is open any more.
 			if (closed) {
@@ -19007,7 +19085,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// request, bounded, and the review skill's text (Q9 A). A comment
 			// workshop press and a writing request are not review requests.
 			if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
-				observation.Brief = core::bound_review_brief(application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt));
+				auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+				// [[BPR-PENDING-AQ6]], owner decision (b). The conversation so
+				// far about this pull request, so a follow-up continues it.
+				if (AgentConversation) {
+					for (const auto& turn : AgentConversation->projection().Turns) {
+						brief.Conversation.push_back({ .Asked = turn.Asked, .Answered = turn.Answered });
+					}
+				}
+				observation.Brief = core::bound_review_brief(std::move(brief));
 			}
 			// Which file, and where in it. The two are told apart because
 			// only one of them names a comparison. The file is a path and a
@@ -20381,6 +20467,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SelectedDiffRequest = request;
 			}
 			SelectedDiffPublication = aPublication;
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-PENDING-AQ6]], owner decision (a): Review <open file path>.
+			Window->agent_tab()->refresh_suggestions();
+#endif
 			// RFC-BPR-0089 M4. A commit-filtered diff's threads are marked where
 			// the core places them on it (`place_filtered_threads`).
 			Window->set_thread_marks_suspended(false);
@@ -21372,6 +21462,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewSkill) {
 				ReviewSkill->shutdown();
 			}
+			if (AgentConversation) {
+				AgentConversation->shutdown();
+			}
 #endif
 			if (TourHost) {
 				TourHost->shutdown();
@@ -21486,6 +21579,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (AgentSetup && !AgentSetup->is_quiescent())
 				|| (CloneLinks && !CloneLinks->is_quiescent())
 				|| (ReviewSkill && !ReviewSkill->is_quiescent())
+				|| (AgentConversation && !AgentConversation->is_quiescent())
 #endif
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
@@ -22534,6 +22628,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-PENDING-AQ5]]. The review skill: store, then host.
 		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
 		std::unique_ptr<application::review_skill_host>       ReviewSkill;
+		/// [[BPR-PENDING-AQ6]]. Each pull request's conversation: store, then host.
+		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
+		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
 		/// [[BPR-PENDING-AQ4]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;

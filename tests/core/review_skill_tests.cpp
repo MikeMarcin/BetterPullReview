@@ -37,8 +37,13 @@ namespace {
 		std::ifstream input{ BPR_TEST_REVIEW_SKILL, std::ios::binary };
 		const auto    text  = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 		const auto    facts = core::inspect_review_skill(text);
-		expect(!text.empty() && facts.has_value() && facts->Version == 1U && facts->Description.starts_with("Review one GitHub pull request"),
-			   "the shipped bpr-pr-review is a review skill of version 1");
+		expect(!text.empty() && facts.has_value() && facts->Version == 2U && facts->Description.starts_with("Review one GitHub pull request"),
+			   "the shipped bpr-pr-review is a review skill of version 2");
+		// [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23: every review
+		// prompt answers with a summary, even with no finding; and decision
+		// (b): the conversation so far is the agent's to continue.
+		expect(text.find("brief.conversation") != std::string::npos && text.find("summary") != std::string::npos,
+			   "the shipped skill reads the conversation and always ends with a summary");
 		expect(text.find(")BPR\"") == std::string::npos, "the shipped text can be embedded as a raw string");
 	}
 
@@ -124,6 +129,45 @@ namespace {
 			   "workspace and status names are stable");
 	}
 
+	/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The conversation so
+	/// far rides the brief, newest kept, each side cut, the older counted.
+	void test_brief_conversation()
+	{
+		auto input = core::review_brief_input{ .Title = "Fix" };
+		for (auto index = 0; index < 3; ++index) {
+			input.Conversation.push_back({ .Asked = "Question " + std::to_string(index), .Answered = "Answer " + std::to_string(index) });
+		}
+		const auto few = core::bound_review_brief(input);
+		expect(few && few->Conversation == input.Conversation && few->ConversationOmitted == 0U && core::valid_brief(*few), "a short conversation rides whole, oldest first");
+
+		auto many = core::review_brief_input{ };
+		for (auto index = std::size_t{ 0U }; index < core::maximum_brief_turns + 4U; ++index) {
+			many.Conversation.push_back({ .Asked = "Q" + std::to_string(index), .Answered = "A" });
+		}
+		const auto newest = core::bound_review_brief(many);
+		expect(newest && newest->Conversation.size() == core::maximum_brief_turns && newest->ConversationOmitted == 4U && newest->Conversation.front().Asked == "Q4"
+				   && newest->Conversation.back().Asked == "Q" + std::to_string(core::maximum_brief_turns + 3U),
+			   "past the turn bound the oldest turns are left out and counted");
+
+		auto lengthy = core::review_brief_input{ };
+		for (auto index = 0; index < 8; ++index) {
+			lengthy.Conversation.push_back({ .Asked = "Q" + std::to_string(index), .Answered = std::string(core::maximum_brief_turn_bytes + 100U, 'a') });
+		}
+		const auto cut   = core::bound_review_brief(lengthy);
+		auto       bytes = std::size_t{ 0U };
+		for (const auto& turn : cut->Conversation) {
+			bytes += turn.Asked.size() + turn.Answered.size();
+		}
+		expect(cut && cut->Conversation.back().Asked == "Q7" && cut->Conversation.back().Answered.size() == core::maximum_brief_turn_bytes
+				   && bytes <= core::maximum_brief_conversation_bytes && cut->ConversationOmitted == 8U - cut->Conversation.size() && cut->ConversationOmitted > 0U && core::valid_brief(*cut),
+			   "each answer is cut to its bound and the turns together fit theirs");
+		expect(core::bound_review_brief(lengthy) == cut, "bounding the conversation is deterministic");
+
+		auto over                          = *few;
+		over.Conversation.front().Answered = std::string(core::maximum_brief_turn_bytes + 1U, 'x');
+		expect(!core::valid_brief(over), "an answer over its bound is not a valid brief");
+	}
+
 	[[nodiscard]] auto oid(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		auto bytes = std::array<std::uint8_t, 32U>{ };
@@ -161,6 +205,7 @@ auto main() -> int
 	test_front_matter();
 	test_newer_version_offer();
 	test_brief_bounds();
+	test_brief_conversation();
 	test_supplement_carries_the_brief();
 	std::cout << "review-skill-tests:pass\n";
 	return EXIT_SUCCESS;

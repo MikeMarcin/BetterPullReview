@@ -95,3 +95,10 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   "Claude Code finished. It found nothing to report." with the question still
   in the field.
 - Look v002's host was stopped, its candidate released and its root removed.
+- Owner decisions after look v002, 2026-10-23, in chat (relayed by the
+  coordinator), verbatim, recorded in the RFC's
+  [Owner decisions (2026-10-23)](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#owner-decisions-2026-10-23-the-conversation):
+  (c) "A chip in the message box like VS Code."; (b) "Continuous session per
+  PR with an option to clear session."; (a) "Suggested prompts described that
+  way sound great." All three forks are answered; look v003 asks only the
+  look question.

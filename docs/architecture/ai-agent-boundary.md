@@ -206,9 +206,21 @@ changed files with their status, the review threads (64 KiB in all, unresolved
 first, omissions counted), the workspace's kind (`linked_clone_history`,
 `private_copy` or `private_snapshot`, set once it is made), the diff named
 rather than copied (`git diff BASE...HEAD`, none for a snapshot), and the
-review skill's text. Its lines follow every version-two field and are written
-only when present, so a launch without a brief differs from version two only
-in its `schema` line. The agent may still read GitHub through its own tools.
+review skill's text. It also carries the conversation so far about the pull
+request ([[BPR-PENDING-AQ6]], owner decision (b), 2026-10-23): the earlier
+questions and answers, oldest first (`brief.conversation.N.asked` and
+`.answered`), each side cut to 8 KiB, the newest 50 turns within 48 KiB and
+the older ones counted (`brief.conversation.omitted`). The application
+carries the conversation rather than a harness's own resumable session, so a
+follow-up continues it in whichever agent answers. The turns are kept, as the
+Agent tab shows them, in the profile's `agent-setup.sqlite3` for each pull
+request (host, owner, name and number; at most 50 turns, 64 KiB per text and
+500 pull requests, the least recently written going first); Clear session
+removes them, and settings resets remove the file. They are the reviewer's
+questions and the agent's prose, and no credential. Its lines follow every
+version-two field and are written only when present, so a launch without a
+brief differs from version two only in its `schema` line. The agent may still
+read GitHub through its own tools.
 
 **The review skill (owner decision D1, Q9 A).** The method ships as an Agent
 Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into

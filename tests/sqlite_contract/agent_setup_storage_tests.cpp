@@ -104,6 +104,24 @@ try {
 	expect(skills->forget_review_skill() && skills->load_review_skill() == noSkill, "Restore default removes it");
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by the skill");
 
+	// [[BPR-PENDING-AQ6]], owner decision (b). Each pull request's conversation.
+	using turns       = std::vector<application::agent_conversation_turn>;
+	auto       talks  = adapters::sqlite::make_agent_conversation_store(scratch.path());
+	const auto pull   = application::agent_conversation_key{ .Host = "github.com", .Owner = "MikeMarcin", .Name = "BPR-Test", .Number = 7U };
+	auto       other  = pull;
+	other.Number      = 8U;
+	const auto thread = turns{ { .Asked = "Does this work?", .Answered = "Yes: the loop ends.", .Ending = "Claude Code answered in 0:12." },
+							   { .Asked = "Why?", .Answered = "Because the bound is checked.", .Ending = "Claude Code answered in 0:08." } };
+	expect(talks->load(pull) == std::optional{ turns{ } }, "a pull request with no conversation reads as none");
+	expect(talks->store(pull, thread) && talks->store(other, { thread.front() }), "conversations are stored per pull request");
+	talks.reset();
+	talks = adapters::sqlite::make_agent_conversation_store(scratch.path());
+	expect(talks->load(pull) == std::optional{ thread } && talks->load(other) == std::optional{ turns{ thread.front() } }, "and read back in order after a restart");
+	expect(talks->store(pull, { }) && talks->load(pull) == std::optional{ turns{ } } && talks->load(other)->size() == 1U, "Clear session removes only that pull request's");
+	expect(!talks->store(pull, turns(application::maximum_conversation_turns + 1U)), "more turns than the bound are refused");
+	expect(!talks->store(application::agent_conversation_key{ }, thread), "a conversation names its pull request");
+	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by conversations");
+
 #ifndef _WIN32
 	struct stat status{ };
 	expect(::stat(path.c_str(), &status) == 0 && (status.st_mode & 0077) == 0, "the file is owner-private");

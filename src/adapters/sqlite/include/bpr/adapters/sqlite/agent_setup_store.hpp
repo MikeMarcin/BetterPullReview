@@ -1,6 +1,7 @@
 #ifndef BPR_SQLITE_AGENT_SETUP_STORE_HPP
 #define BPR_SQLITE_AGENT_SETUP_STORE_HPP
 
+#include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
@@ -32,6 +33,15 @@ namespace bpr::adapters::sqlite {
 	/// was chosen for. A row that does not read back whole is reported as no
 	/// copy. Settings resets remove it with the rest of the file.
 	[[nodiscard]] auto make_review_skill_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::review_skill_store_port>;
+
+	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The same
+	/// file's conversations: for each pull request (host, owner, name and
+	/// number) its turns in order, at most `application::maximum_conversation_turns`,
+	/// each text at most `application::maximum_conversation_text_bytes`, and at
+	/// most `application::maximum_conversations` pull requests, the least
+	/// recently written going first. A conversation that does not read back
+	/// whole is reported as none. Settings resets remove it with the file.
+	[[nodiscard]] auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>;
 } // namespace bpr::adapters::sqlite
 
 #endif

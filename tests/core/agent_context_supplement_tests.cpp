@@ -266,7 +266,12 @@ namespace {
 		// environment or token.
 		static_assert(std::is_same_v<decltype(brief), const std::optional<core::supplement_brief>>);
 		[[maybe_unused]] const auto& [briefTitle, briefDescription, briefCut, briefBase, briefFiles, briefFilesOmitted, briefThreads, briefThreadsOmitted, briefWorkspace,
-									  briefSkill] = core::supplement_brief{ };
+									  briefSkill, briefConversation, briefConversationOmitted] = core::supplement_brief{ };
+		// [[BPR-PENDING-AQ6]]. The conversation so far: questions and answers
+		// as prose, no argv, environment or token.
+		static_assert(std::is_same_v<decltype(briefConversation), const std::vector<core::brief_turn>>);
+		[[maybe_unused]] const auto& [turnAsked, turnAnswered] = core::brief_turn{ };
+		static_assert(std::is_same_v<decltype(turnAnswered), const std::string>);
 		static_assert(std::is_same_v<decltype(briefSkill), const std::optional<core::brief_review_skill>>);
 		[[maybe_unused]] const auto& [skillSource, skillVersion, skillText] = core::brief_review_skill{ };
 		static_assert(std::is_same_v<decltype(skillText), const std::string>);

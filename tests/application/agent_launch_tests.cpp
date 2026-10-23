@@ -430,6 +430,8 @@ namespace {
 			.Threads     = { { .Path = "src/retry.cpp", .Line = 12U, .Comments = { { .Author = "octo", .Body = "Is this bounded?" } } } },
 			.Workspace   = core::brief_workspace::linked_clone_history,
 			.Skill       = core::brief_review_skill{ .Source = core::review_skill_source::built_in, .Version = 1U, .Text = std::string{ application::built_in_review_skill() } },
+			// [[BPR-PENDING-AQ6]], owner decision (b): the conversation so far.
+			.Conversation = { { .Asked = "Does this work?", .Answered = "Yes.\nThe loop ends." } },
 		});
 		expect(observed.Brief.has_value(), "the fixture brief is within its bounds");
 		const auto built = application::build_agent_context_supplement(observed, session());
@@ -451,6 +453,10 @@ namespace {
 				 "brief.thread.0.comment.0.author\tocto\n",
 				 "brief.thread.0.comment.0.body\tIs this bounded?\n",
 				 "brief.thread.omitted\t0\n",
+				 "brief.conversation.count\t1\n",
+				 "brief.conversation.0.asked\tDoes this work?\n",
+				 "brief.conversation.0.answered\tYes.\\nThe loop ends.\n",
+				 "brief.conversation.omitted\t0\n",
 				 "brief.skill.present\t1\n",
 				 "brief.skill.source\tbuilt_in\n",
 				 "brief.skill.version\t1\n",

@@ -150,6 +150,7 @@ if(BPR_BUILD_AGENT_INTEGRATIONS)
             src/clone_link_host.cpp
             src/review_brief.cpp
             src/review_skill_host.cpp
+            src/agent_conversation_host.cpp
             src/agent_finding_host.cpp
             src/agent_invocation_host.cpp
             src/agent_realignment.cpp

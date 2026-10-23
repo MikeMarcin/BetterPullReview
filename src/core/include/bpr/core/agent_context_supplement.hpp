@@ -176,6 +176,13 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_brief_login_bytes       = 256U;
 	/// \brief All the review threads' paths, logins and bodies together.
 	inline constexpr std::size_t maximum_brief_thread_bytes = 64U * 1024U;
+	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The
+	/// conversation so far: each earlier question and answer is cut to
+	/// `maximum_brief_turn_bytes`, and the turns together, newest kept first,
+	/// stay within `maximum_brief_conversation_bytes`.
+	inline constexpr std::size_t maximum_brief_turns              = 50U;
+	inline constexpr std::size_t maximum_brief_turn_bytes         = 8U * 1024U;
+	inline constexpr std::size_t maximum_brief_conversation_bytes = 48U * 1024U;
 
 	/// \brief How one changed file changed.
 	enum class brief_file_status : std::uint8_t {
@@ -220,6 +227,16 @@ namespace bpr::core {
 		auto operator<=>(const brief_thread&) const = default;
 	};
 
+	/// \brief [[BPR-PENDING-AQ6]]. One earlier turn of the conversation about
+	/// this pull request: what the reviewer asked and what the agent answered.
+	struct brief_turn
+	{
+		std::string Asked;
+		std::string Answered;
+
+		auto operator<=>(const brief_turn&) const = default;
+	};
+
 	/// \brief What the agent's workspace is, so the brief can say what works in it.
 	enum class brief_workspace : std::uint8_t {
 		/// The head's files with the linked clone's history borrowed.
@@ -251,6 +268,8 @@ namespace bpr::core {
 		std::vector<brief_thread>         Threads;
 		brief_workspace                   Workspace = brief_workspace::private_copy;
 		std::optional<brief_review_skill> Skill;
+		/// The earlier turns, oldest first.
+		std::vector<brief_turn> Conversation;
 
 		auto operator<=>(const review_brief_input&) const = default;
 	};
@@ -273,6 +292,10 @@ namespace bpr::core {
 		std::size_t                       ThreadsOmitted = 0U;
 		brief_workspace                   Workspace      = brief_workspace::private_copy;
 		std::optional<brief_review_skill> Skill;
+		/// The earlier turns kept, oldest first, and how many older ones
+		/// were left out.
+		std::vector<brief_turn> Conversation;
+		std::size_t             ConversationOmitted = 0U;
 
 		auto operator<=>(const supplement_brief&) const = default;
 	};
@@ -291,7 +314,11 @@ namespace bpr::core {
 	/// dropped and not counted: it says nothing. Logins are cut to
 	/// `maximum_brief_login_bytes`. A skill that is not a review skill
 	/// `inspect_review_skill` accepts refuses the brief whole: the host chose
-	/// it, and half a method is not one.
+	/// it, and half a method is not one. The conversation keeps its newest
+	/// turns: each question and answer cut at a character boundary to
+	/// `maximum_brief_turn_bytes`, then turns taken from the newest back while
+	/// they fit `maximum_brief_conversation_bytes` and `maximum_brief_turns`;
+	/// the older ones are counted in `ConversationOmitted`.
 	[[nodiscard]] auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>;
 
 	/// \brief Whether a brief is within every bound `bound_review_brief` keeps.

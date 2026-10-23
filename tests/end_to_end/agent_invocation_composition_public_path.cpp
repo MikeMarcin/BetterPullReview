@@ -1764,7 +1764,10 @@ auto main(int argc, char** argv) -> int
 		briefSays = field("brief.title") == "Keep review snapshots deterministic" && field("brief.base_branch") == "main"
 			&& field("brief.workspace") == "private_copy" && field("brief.diff") == "git diff " + std::string{ fixture.BaseOid } + "..." + std::string{ fixture.HeadOneOid }
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
-			&& field("brief.skill.version") == "1" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos;
+			&& field("brief.skill.version") == "2" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
+			// [[BPR-PENDING-AQ6]], owner decision (b): the first turn about this
+			// pull request carries no earlier one.
+			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0";
 		for (const auto& [name, value] : *actualFields) {
 			if (name.starts_with("brief.")) {
 				expectedFields->emplace(name, value);

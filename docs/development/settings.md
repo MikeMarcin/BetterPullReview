@@ -81,8 +81,8 @@ Under **Agents & context > Claude**:
   `claude`, for example one that sets up your provider first. Left empty,
   BetterPullReview uses the first `claude` on `PATH` or in the usual install
   folders, and says which.
-- **Model** is passed to Claude as `--model`. The Agent tab's model and
-  effort control sets the same model, and Claude's `--effort`, Codex's model
+- **Model** is passed to Claude as `--model`. The model and effort chip in
+  the Agent tab's question field sets the same model, and Claude's `--effort`, Codex's model
   and Codex's reasoning effort, all saved for the profile; `/model` and
   `/effort` in its question field do the same. Review Cycles **Send to Agent**
   does not use it yet.

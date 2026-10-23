@@ -13839,6 +13839,35 @@ namespace {
 		process_events();
 		agent->refresh();
 
+		// [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23 ("Suggested
+		// prompts described that way sound great"). With an empty thread the
+		// suggestions stand above the question field: the pull request, the
+		// open file, what the change could break, and the selected lines.
+		auto suggestionContext = qt::agent_suggestion_context{ };
+		agent->set_suggestion_context([&suggestionContext] { return suggestionContext; });
+		process_events();
+		expect(agent->suggestions() == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("What could this change break?") }
+				   && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && !agent->suggestions_menu_button()->isVisible()
+				   && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->text() == QStringLiteral("Ask about this pull request, or try:"),
+			   "an empty thread offers the pull request and what it could break, under its line");
+		suggestionContext.OpenFile = QStringLiteral("src/engine/renderer.cpp");
+		suggestionContext.Lines    = std::pair{ 440U, 447U };
+		agent->refresh_suggestions();
+		process_events();
+		expect(agent->suggestions()
+					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/engine/renderer.cpp"), QStringLiteral("What could this change break?"),
+									   QStringLiteral("Explain the selected lines (440–447)") }
+				   && agent->suggestion_buttons().size() == 4U,
+			   "an open file and selected lines add their own suggestions");
+		// Owner decision (c) 2026-10-23 ("A chip in the message box like VS
+		// Code"): the model and effort are in the question field, not the
+		// context row.
+		expect(agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->run_settings_button())
+				   && !agent->findChild<QWidget*>(QStringLiteral("agentContextRow"))->isAncestorOf(agent->run_settings_button()),
+			   "the model and effort chip is inside the question field");
+		auto observedThread = std::vector<qt::agent_thread_turn>{ };
+		agent->set_thread_observer([&observedThread](std::vector<qt::agent_thread_turn> aTurns) { observedThread = std::move(aTurns); });
+
 		// [[BPR-PENDING-AQ6]], owner look v001 ("no indication anything
 		// happened"). The working line follows the request's own projection:
 		// the workspace, then the run with its time and latest line, then a
@@ -13865,6 +13894,12 @@ namespace {
 			expect(agent->turn_count() == 1U && agent->turn_question(0U) == QStringLiteral("Review this pull request") && agent->turn_answer(0U) == QStringLiteral("Reading src/engine/renderer.cpp")
 					   && agent->turn_footer(0U).contains(QStringLiteral("is writing")),
 				   "the request is a turn in the thread, its answer streaming in as the agent writes");
+			{
+				auto* const shownAnswer = agent->conversation_thread()->findChild<QWidget*>(QStringLiteral("agentTurnAnswer"));
+				expect(shownAnswer != nullptr && shownAnswer->isVisible() && shownAnswer->height() > 4, "the streaming answer is drawn in the thread, not only kept");
+			}
+			// The review delivers its finding before it ends.
+			window.finding_queue()->present(delivery);
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
 			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding below")),
@@ -13888,9 +13923,17 @@ namespace {
 			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Yes. The retry budget is reset once per frame." });
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
-			expect(agent->turn_answer(1U) == QStringLiteral("Yes. The retry budget is reset once per frame.") && agent->turn_footer(1U).contains(QStringLiteral("answered in")),
-				   "the agent's prose answer is shown, though it carried no finding");
+			expect(agent->turn_answer(1U) == QStringLiteral("Yes. The retry budget is reset once per frame.") && agent->turn_footer(1U).contains(QStringLiteral("answered in"))
+					   && !agent->turn_footer(1U).contains(QStringLiteral("finding")),
+				   "the agent's prose answer is shown, though it carried no finding, and names no finding it did not bring");
 			expect(agent->turn_answer(0U) == QStringLiteral("Reading src/engine/renderer.cpp"), "and the earlier turn keeps its own answer");
+			// Owner decision (b) 2026-10-23: each turn that ends goes to the
+			// host with the whole thread, for its pull request.
+			expect(observedThread.size() == 2U && observedThread[1].Question == QStringLiteral("Does this work?")
+					   && observedThread[1].Answer == QStringLiteral("Yes. The retry budget is reset once per frame.") && observedThread[1].Footer.contains(QStringLiteral("answered in")),
+				   "the thread is kept as each turn ends");
+			expect(!agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->suggestions_menu_button()->isVisible() && agent->clear_session_button()->isVisible(),
+				   "once the thread has turns the suggestions fold into a menu, and Clear session is offered");
 
 			// Owner look v002 ("Not having a model/effort picker in this window
 			// bothers the hell out of me. I can't even do /model"). The context
@@ -13909,7 +13952,7 @@ namespace {
 				return true;
 			});
 			process_events();
-			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("default model, default effort")
+			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Default model")
 					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
 				   "the row names the model and effort, and its tooltip the program that runs");
 			auto* const composer = window.side_chat()->composer();
@@ -13929,6 +13972,59 @@ namespace {
 			process_events();
 			expect(asked.back() == "model=gpt-5", "/model NAME changes the model");
 			composer->clear();
+
+			// Owner decision (a): a suggestion is sent as written, as a chat
+			// turn, so what was asked is in the thread.
+			auto* const breakItem = [agent] {
+				for (auto* const item : agent->suggestions_menu_button()->menu()->actions()) {
+					if (item->text() == QStringLiteral("What could this change break?")) {
+						return item;
+					}
+				}
+				return static_cast<QAction*>(nullptr);
+			}();
+			expect(breakItem != nullptr && breakItem->isEnabled(), "the Suggestions menu holds the prompts");
+			breakItem->trigger();
+			identity.InvocationGeneration = 3U;
+			window.agent_panel()->admit(identity);
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets" });
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+			process_events();
+			expect(agent->turn_count() == 3U && agent->turn_question(2U) == QStringLiteral("What could this change break?") && composer->toPlainText().isEmpty(),
+				   "the suggestion is the next turn's question, exactly");
+
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-thread.png"), "PNG"), "render saved");
+			}
+			// Owner decision (b): Clear session asks first when turns would
+			// leave the thread, then empties it and tells the host.
+			auto cleared = 0;
+			auto asks    = std::vector<std::size_t>{ };
+			auto confirm = false;
+			agent->set_clear_session_dispatch([&cleared] { ++cleared; });
+			agent->set_clear_confirmation([&asks, &confirm](const std::size_t aTurns) {
+				asks.push_back(aTurns);
+				return confirm;
+			});
+			agent->clear_session_button()->click();
+			process_events();
+			expect(asks == std::vector<std::size_t>{ 3U } && cleared == 0 && agent->turn_count() == 3U, "declining keeps the thread");
+			confirm = true;
+			agent->clear_session_button()->click();
+			process_events();
+			expect(cleared == 1 && agent->turn_count() == 0U && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && !agent->clear_session_button()->isVisible(),
+				   "confirmed, the thread is empty, the host is told and the suggestions return");
+			// A pull request opened again shows its kept thread.
+			observedThread.clear();
+			agent->present_thread({ { .Question = QStringLiteral("Does this work?"), .Answer = QStringLiteral("Yes."), .Footer = QStringLiteral("Claude Code answered in 0:12.") } });
+			process_events();
+			expect(agent->turn_count() == 1U && agent->turn_question(0U) == QStringLiteral("Does this work?") && agent->turn_answer(0U) == QStringLiteral("Yes.")
+					   && agent->turn_footer(0U) == QStringLiteral("Claude Code answered in 0:12.") && observedThread.empty(),
+				   "a kept thread is shown again as it was, without being kept again");
+			agent->present_thread({ });
+			agent->set_clear_session_dispatch({ });
+			agent->set_clear_confirmation({ });
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-finished.png"), "PNG"), "render saved");
 			}
@@ -13948,6 +14044,8 @@ namespace {
 			expect(agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(), "and opens them on request");
 			agent->present_ready({ }, { }, { });
 		}
+		agent->set_thread_observer({ });
+		agent->set_suggestion_context({ });
 
 		// The code's menu asks about the lines.
 		const auto diff = computed_comparison("int a = 1;\nint b = 2;\n", "int a = 1;\nint b = 20;\n", 0U);

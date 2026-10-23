@@ -3,6 +3,7 @@
 
 #include <QElapsedTimer>
 #include <QPointer>
+#include <QStringList>
 #include <QWidget>
 
 #include <cstddef>
@@ -27,6 +28,7 @@ namespace bpr::qt {
 	class agent_setup_view;
 	class drawer_empty_state;
 	class finding_queue_view;
+	class markdown_body_view;
 	class side_chat_panel;
 
 	/// \brief [[BPR-1594]]. What the Agent tab says about its agent.
@@ -50,6 +52,26 @@ namespace bpr::qt {
 		std::vector<std::string>                     Efforts;
 		/// Why the settings cannot be chosen, when they cannot.
 		QString Note;
+	};
+
+	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. One finished
+	/// turn of the thread, as it is kept for its pull request and shown again.
+	struct agent_thread_turn
+	{
+		QString Question;
+		QString Answer;
+		QString Footer;
+
+		auto operator==(const agent_thread_turn&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23. What the
+	/// suggested prompts may name: the open file's path, and the selected
+	/// lines, one-based, first and last.
+	struct agent_suggestion_context
+	{
+		QString                                                OpenFile;
+		std::optional<std::pair<std::uint32_t, std::uint32_t>> Lines;
 	};
 
 	/// \brief A change to the model, the effort, or both; empty is the
@@ -101,7 +123,8 @@ namespace bpr::qt {
 		/// may show, the host looks for agents (RFC-BPR-0092 Q2).
 		void set_first_shown(std::function<void()> aObserver);
 		/// \brief The model and effort each agent runs with, and where a change
-		/// goes. The control in the context row shows the chosen agent's.
+		/// goes. Owner decision (c) 2026-10-23 ("A chip in the message box like
+		/// VS Code"): the chip in the question field shows the chosen agent's.
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
@@ -122,7 +145,34 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_answer(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_question(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_footer(std::size_t aTurn) const -> QString;
-		[[nodiscard]] auto review_button() const noexcept -> QPushButton* { return Review; }
+		/// \brief [[BPR-PENDING-AQ6]], owner decision (b). Shows a pull
+		/// request's kept thread in place of the one shown (none: an empty
+		/// thread), and says each finished turn to `set_thread_observer`'s
+		/// observer with the whole thread, so the host keeps it.
+		void               present_thread(const std::vector<agent_thread_turn>& aTurns);
+		void               set_thread_observer(std::function<void(std::vector<agent_thread_turn>)> aObserver);
+		[[nodiscard]] auto thread_turns() const -> std::vector<agent_thread_turn>;
+		/// \brief Clear session: asks `set_clear_confirmation`'s question when
+		/// the thread has turns (they leave it), then empties the thread and
+		/// tells the host, which starts the next question afresh.
+		void               set_clear_session_dispatch(std::function<void()> aDispatch);
+		void               set_clear_confirmation(std::function<bool(std::size_t aTurns)> aConfirm);
+		void               clear_session();
+		[[nodiscard]] auto clear_session_button() const noexcept -> QToolButton* { return ClearSession; }
+		/// \brief [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23
+		/// ("Suggested prompts described that way sound great"). Where the
+		/// suggestions read the open file and the selected lines, and a call
+		/// to read them again when either changes.
+		void set_suggestion_context(std::function<agent_suggestion_context()> aContext);
+		void refresh_suggestions();
+		/// \brief The suggested prompts shown now, in order; each is sent as
+		/// written. With an empty thread they stand above the question field,
+		/// and once it has turns they are the Suggestions menu in the field.
+		[[nodiscard]] auto suggestions() const -> QStringList;
+		[[nodiscard]] auto suggestion_buttons() const -> std::vector<QPushButton*>;
+		[[nodiscard]] auto suggestions_menu_button() const noexcept -> QToolButton* { return SuggestionsMenu; }
+		/// \brief Sends `aPrompt` as a chat turn, as if typed and asked.
+		void send_prompt(const QString& aPrompt);
 		/// \brief Reads the panels again and redraws.
 		void refresh();
 		/// \brief The question field takes the keyboard.
@@ -168,7 +218,6 @@ namespace bpr::qt {
 		QWidget*                        Cards        = nullptr;
 		QWidget*                        Viewport     = nullptr;
 		QVBoxLayout*                    CardColumn   = nullptr;
-		QWidget*                        Start        = nullptr;
 		QLabel*                         Head         = nullptr;
 		QToolButton*                    History      = nullptr;
 		QMenu*                          HistoryMenu  = nullptr;
@@ -189,22 +238,42 @@ namespace bpr::qt {
 			bool              Review = false;
 			bool              Done   = false;
 			QPointer<QWidget> Widget;
-			QPointer<QLabel>  Answer;
-			QPointer<QLabel>  Footer;
+			/// The answer as written, shown as Markdown.
+			QPointer<markdown_body_view> Answer;
+			QString                      AnswerText;
+			QPointer<QLabel>             Footer;
 		};
 		std::vector<turn> Turns;
 		QWidget*          Thread       = nullptr;
 		QVBoxLayout*      ThreadColumn = nullptr;
-		QPushButton*      Review       = nullptr;
+		/// Each turn's widgets, made for a new or restored turn.
+		auto add_turn_widgets(turn& aTurn) -> void;
+		void set_answer(turn& aTurn, const QString& aText);
+		/// The answer is as tall as its text at the thread's width.
+		void                                                fit_answer(markdown_body_view& aAnswer) const;
+		std::function<void(std::vector<agent_thread_turn>)> ThreadObserver;
+		std::function<void()>                               ClearDispatch;
+		std::function<bool(std::size_t)>                    ClearConfirm;
+		QToolButton*                                        ClearSession = nullptr;
+		std::function<agent_suggestion_context()>           SuggestionContext;
+		QWidget*                                            Suggestions      = nullptr;
+		QVBoxLayout*                                        SuggestionColumn = nullptr;
+		QToolButton*                                        SuggestionsMenu  = nullptr;
+		QStringList                                         Prompts;
+		std::vector<QPointer<QPushButton>>                  PromptButtons;
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
 		int                    LastPhase     = 0;
-		void                   begin_turn();
-		void                   update_turn();
-		void                   progress();
-		QTimer*                Ticker = nullptr;
-		QElapsedTimer          Started;
+		/// How many times findings were presented, and the count when the
+		/// running turn began: a turn names only the findings it brought.
+		std::uint64_t FindingsPresented = 0U;
+		std::uint64_t FindingsAtTurn    = 0U;
+		void          begin_turn();
+		void          update_turn();
+		void          progress();
+		QTimer*       Ticker = nullptr;
+		QElapsedTimer Started;
 		/// The last request ended well and nothing has run since.
 		bool                           Finished   = false;
 		QWidget*                       ReadyCard  = nullptr;

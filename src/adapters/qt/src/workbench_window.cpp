@@ -2680,6 +2680,11 @@ namespace bpr::qt {
 		ComparisonSurface->set_selection_observer(
 			[this](const std::optional<core::semantic_selection>& aSelection,
 				   const bool                                     aInteractive) {
+				// [[BPR-PENDING-AQ6]], owner decision (a). The Agent tab's
+				// suggestions name the selected lines.
+				if (AgentTab != nullptr) {
+					AgentTab->refresh_suggestions();
+				}
 				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 					return;
 				}

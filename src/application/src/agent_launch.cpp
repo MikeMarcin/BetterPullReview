@@ -1878,6 +1878,16 @@ namespace bpr::application {
 				}
 			}
 			append_number(aResult, "brief.thread.omitted", aBrief.ThreadsOmitted);
+			// [[BPR-PENDING-AQ6]], owner decision (b). The conversation so far
+			// about this pull request, oldest first, so a follow-up continues it
+			// in whichever harness answers.
+			append_number(aResult, "brief.conversation.count", aBrief.Conversation.size());
+			for (auto index = std::size_t{ 0U }; index < aBrief.Conversation.size(); ++index) {
+				const auto prefix = "brief.conversation." + std::to_string(index);
+				append_field(aResult, prefix + ".asked", aBrief.Conversation[index].Asked);
+				append_field(aResult, prefix + ".answered", aBrief.Conversation[index].Answered);
+			}
+			append_number(aResult, "brief.conversation.omitted", aBrief.ConversationOmitted);
 			append_number(aResult, "brief.skill.present", aBrief.Skill ? 1 : 0);
 			if (aBrief.Skill) {
 				append_field(aResult, "brief.skill.source", core::stable_name(aBrief.Skill->Source));

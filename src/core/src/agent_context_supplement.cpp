@@ -3,6 +3,8 @@
 #include "bpr/core/review_preparation.hpp"
 
 #include <algorithm>
+#include <cstddef>
+#include <iterator>
 #include <ranges>
 
 namespace bpr::core {
@@ -402,6 +404,22 @@ namespace bpr::core {
 			budget -= bytes;
 			brief.Threads.push_back(std::move(thread));
 		}
+		// [[BPR-PENDING-AQ6]]. The newest turns are the ones a follow-up
+		// leans on, so the cut falls on the oldest.
+		auto room = maximum_brief_conversation_bytes;
+		auto kept = std::size_t{ 0U };
+		for (auto turn = aInput.Conversation.rbegin(); turn != aInput.Conversation.rend(); ++turn) {
+			turn->Asked      = cut_text(turn->Asked, maximum_brief_turn_bytes);
+			turn->Answered   = cut_text(turn->Answered, maximum_brief_turn_bytes);
+			const auto bytes = turn->Asked.size() + turn->Answered.size();
+			if (kept == maximum_brief_turns || bytes > room) {
+				break;
+			}
+			room -= bytes;
+			++kept;
+		}
+		brief.ConversationOmitted = aInput.Conversation.size() - kept;
+		brief.Conversation.assign(std::make_move_iterator(aInput.Conversation.end() - static_cast<std::ptrdiff_t>(kept)), std::make_move_iterator(aInput.Conversation.end()));
 		return brief;
 	}
 
@@ -429,6 +447,16 @@ namespace bpr::core {
 				return false;
 			}
 		}
-		return true;
+		if (aBrief.Conversation.size() > maximum_brief_turns) {
+			return false;
+		}
+		auto said = std::size_t{ 0U };
+		for (const auto& turn : aBrief.Conversation) {
+			if (turn.Asked.size() > maximum_brief_turn_bytes || turn.Answered.size() > maximum_brief_turn_bytes) {
+				return false;
+			}
+			said += turn.Asked.size() + turn.Answered.size();
+		}
+		return said <= maximum_brief_conversation_bytes;
 	}
 } // namespace bpr::core

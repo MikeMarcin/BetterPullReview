@@ -2414,28 +2414,37 @@ changes says so once and discards on the second press. Notes stays available
 with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
 follows Tour, its spark beside its name. Its context row names the agent, the head its
 session reads, the scope in words (Selected lines, This file, Pull request,
-Repository), the model and effort the agent runs with, and History, a menu
-with a new session, continuing on an earlier head, the private history and
-runs, and the sessions. The model and effort control names both ("opus, high
-effort", or the agent's own defaults); its tooltip names the program that runs
-and the model the last answer reported, and its menu chooses from the agent's
-own models and effort levels or Other…, saved for the profile. `/model NAME`,
-`/effort LEVEL` (or `default`) in the question field do the same without
-asking anything; `/model` or `/effort` alone opens the menu, and a level the
-agent does not take is refused with the ones it does. Below it the
-conversation is a thread ([[BPR-PENDING-AQ6]], owner look v002): each turn is
-what was asked, or Review this pull request, the agent's answer as it writes
-it, and how the turn ended (who answered, in how long, the model it reported,
-the cost when the harness said, and how many findings); the question field
-clears once a question is sent. With nothing asked yet, Review this pull
-request says what it does (the agent reviews every change with the review
-skill; its review appears in the thread and findings become cards). After
-the thread come one card per finding: severity, likelihood
+Repository), **Clear** once the thread has turns, and History, a menu with
+Clear session, a new session, continuing on an earlier head, the private
+history and runs, and the sessions. Below it the conversation is a thread
+([[BPR-PENDING-AQ6]], owner look v002): each turn is what was asked, the
+agent's answer as it writes it (its Markdown rendered; links and images do
+nothing), and how the turn ended (who answered, in how long, the model it
+reported, the cost when the harness said, and the findings that turn
+brought); the question field clears once a question is sent. The thread is
+one conversation per pull request (owner decision (b), 2026-10-23): it is
+kept for the pull request and shown again when it is opened again, each
+question carries the earlier turns, and Clear session empties it, asking
+first when turns would leave it. With an empty thread, suggested prompts
+stand above the question field under "Ask about this pull request, or try:"
+(owner decision (a)): Review this pull request, Review *the open file's
+path* when a file is open, What could this change break?, and Explain the
+selected lines (a–b) when lines are selected; each is sent as written, as a
+question, and once the thread has turns they are the field's Suggestions
+menu. After the thread come one card per finding: severity, likelihood
 and category, its `file:lines`, the claim and the evidence; choosing a card
 shows its lines; **Draft a comment** copies it to a local draft at its line,
 then Ask follow-up and Add to notes, which fold into More (with Show the code,
 Draft a defect and Dismiss) when the drawer is narrow. The question field
-closes the tab with its context chips, Context and Ask (⌘↩). The tab says
+closes the tab with the model and effort chip (owner decision (c): "opus ·
+high effort", or "Default model"; its tooltip names the program that runs and
+the model the last answer reported, and its menu chooses from the agent's own
+models and effort levels or Other…, saved for the profile), Suggestions once
+the thread has turns, its context chips, Context and Ask (⌘↩). `/model NAME`
+and `/effort LEVEL` (or `default`) in the question field do what the chip
+does without asking anything; `/model` or `/effort` alone opens the chip's
+menu, and a level the agent does not take is refused with the ones it does.
+The tab says
 which of its states it is in: not set up ("Ask an agent about this pull
 request. Nothing it says is published unless you make it a comment." and Set
 up an agent), setting up, working (whether its workspace is being made or the

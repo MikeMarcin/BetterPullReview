@@ -92,7 +92,28 @@ namespace bpr::adapters::sqlite {
 									"text TEXT NOT NULL CHECK(length(CAST(text AS BLOB)) BETWEEN 1 AND 65536),"
 									"base_version INTEGER NOT NULL CHECK(base_version BETWEEN 0 AND 4294967295),"
 									"base_digest BLOB NOT NULL CHECK(length(base_digest)=32),"
-									"kept_version INTEGER CHECK(kept_version IS NULL OR kept_version BETWEEN 0 AND 4294967295)) STRICT")) {
+									"kept_version INTEGER CHECK(kept_version IS NULL OR kept_version BETWEEN 0 AND 4294967295)) STRICT")
+				// [[BPR-PENDING-AQ6]], owner decision (b). Each pull request's
+				// conversation: when it was last written, and its turns in order.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversations("
+									"host TEXT NOT NULL CHECK(length(CAST(host AS BLOB)) BETWEEN 1 AND 1024),"
+									"owner TEXT NOT NULL CHECK(length(CAST(owner AS BLOB)) BETWEEN 1 AND 1024),"
+									"name TEXT NOT NULL CHECK(length(CAST(name AS BLOB)) BETWEEN 1 AND 1024),"
+									"number INTEGER NOT NULL CHECK(number >= 1),"
+									"written INTEGER NOT NULL CHECK(written >= 0),"
+									"PRIMARY KEY(host, owner, name, number)) STRICT")
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversation_turns("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
+									"asked TEXT NOT NULL CHECK(length(CAST(asked AS BLOB)) <= 65536),"
+									"answered TEXT NOT NULL CHECK(length(CAST(answered AS BLOB)) <= 65536),"
+									"ending TEXT NOT NULL CHECK(length(CAST(ending AS BLOB)) <= 65536),"
+									"PRIMARY KEY(host, owner, name, number, position)) STRICT")) {
 				return { };
 			}
 			return result;
@@ -447,7 +468,124 @@ namespace bpr::adapters::sqlite {
 		private:
 			std::filesystem::path Root;
 		};
+		/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. Each pull
+		/// request's conversation, so it survives closing the pull request and
+		/// the application; Clear session stores none.
+		class agent_conversation_store final : public application::agent_conversation_store_port
+		{
+		public:
+			explicit agent_conversation_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+
+			[[nodiscard]] auto load(const application::agent_conversation_key& aKey) -> std::optional<std::vector<application::agent_conversation_turn>> override
+			{
+				if (!application::valid(aKey) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return std::nullopt;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return std::nullopt;
+					}
+					auto row = detail::prepare(store->Database.get(), "SELECT asked,answered,ending FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 ORDER BY position");
+					if (!row) {
+						return std::nullopt;
+					}
+					bind_key(row->Value, aKey);
+					auto turns = std::vector<application::agent_conversation_turn>{ };
+					while (sqlite3_step(row->Value) == SQLITE_ROW) {
+						auto asked    = column_text(row->Value, 0);
+						auto answered = column_text(row->Value, 1);
+						auto ending   = column_text(row->Value, 2);
+						if (!asked || !answered || !ending) {
+							return std::vector<application::agent_conversation_turn>{ };
+						}
+						turns.push_back({ .Asked = std::move(*asked), .Answered = std::move(*answered), .Ending = std::move(*ending) });
+					}
+					// A conversation that does not read back whole is none.
+					return application::valid(turns) ? turns : std::vector<application::agent_conversation_turn>{ };
+				} catch (...) {
+					return std::nullopt;
+				}
+			}
+
+			[[nodiscard]] auto store(const application::agent_conversation_key& aKey, const std::vector<application::agent_conversation_turn>& aTurns) -> bool override
+			{
+				if (!application::valid(aKey) || !application::valid(aTurns) || aKey.Number > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+					return false;
+				}
+				try {
+					auto store = open(Root);
+					if (!store) {
+						return false;
+					}
+					auto* const db = store->Database.get();
+					if (!detail::execute(db, "BEGIN IMMEDIATE")) {
+						return false;
+					}
+					const auto run = [&](const char* aSql, auto&& aBind) {
+						auto row = detail::prepare(db, aSql);
+						if (!row) {
+							return false;
+						}
+						aBind(row->Value);
+						return sqlite3_step(row->Value) == SQLITE_DONE;
+					};
+					const auto key       = [&](sqlite3_stmt* aRow) { bind_key(aRow, aKey); };
+					auto       committed = run("DELETE FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4", key)
+						&& run("DELETE FROM agent_conversations WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4", key);
+					if (committed && !aTurns.empty()) {
+						committed = run("INSERT INTO agent_conversations SELECT ?1,?2,?3,?4,coalesce(max(written)+1,0) FROM agent_conversations", key);
+						for (std::size_t index = 0U; committed && index < aTurns.size(); ++index) {
+							committed = run("INSERT INTO agent_conversation_turns VALUES(?1,?2,?3,?4,?5,?6,?7,?8)", [&](sqlite3_stmt* aRow) {
+								bind_key(aRow, aKey);
+								sqlite3_bind_int64(aRow, 5, static_cast<std::int64_t>(index));
+								bind(aRow, 6, aTurns[index].Asked);
+								bind(aRow, 7, aTurns[index].Answered);
+								bind(aRow, 8, aTurns[index].Ending);
+							});
+						}
+						// The least recently written go past the bound.
+						committed = committed
+							&& detail::execute(db,
+											   "DELETE FROM agent_conversation_turns WHERE (host,owner,name,number) IN (SELECT host,owner,name,number FROM agent_conversations "
+											   "ORDER BY written DESC LIMIT -1 OFFSET "
+												   + std::to_string(application::maximum_conversations) + ")")
+								   .has_value()
+							&& detail::execute(db,
+											   "DELETE FROM agent_conversations WHERE (host,owner,name,number) IN (SELECT host,owner,name,number FROM agent_conversations "
+											   "ORDER BY written DESC LIMIT -1 OFFSET "
+												   + std::to_string(application::maximum_conversations) + ")")
+								   .has_value();
+					}
+					if (!committed) {
+						static_cast<void>(detail::execute(db, "ROLLBACK"));
+						return false;
+					}
+					return detail::execute(db, "COMMIT").has_value();
+				} catch (...) {
+					return false;
+				}
+			}
+
+		private:
+			static void bind_key(sqlite3_stmt* const aRow, const application::agent_conversation_key& aKey)
+			{
+				bind(aRow, 1, aKey.Host);
+				bind(aRow, 2, aKey.Owner);
+				bind(aRow, 3, aKey.Name);
+				sqlite3_bind_int64(aRow, 4, static_cast<std::int64_t>(aKey.Number));
+			}
+
+			std::filesystem::path Root;
+		};
 	} // namespace
+
+	auto make_agent_conversation_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_conversation_store_port>
+	{
+		return std::make_unique<agent_conversation_store>(aRoot);
+	}
 
 	auto make_agent_setup_store(const std::filesystem::path& aRoot) -> std::unique_ptr<application::agent_setup_store_port>
 	{

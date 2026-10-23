@@ -217,7 +217,7 @@ namespace {
 	void test_the_shipped_skill_is_built_in()
 	{
 		const auto facts = core::inspect_review_skill(application::built_in_review_skill());
-		expect(facts && facts->Version == 1U, "the built-in text is the packaged bpr-pr-review, version 1");
+		expect(facts && facts->Version == 2U, "the built-in text is the packaged bpr-pr-review, version 2");
 	}
 } // namespace
 
