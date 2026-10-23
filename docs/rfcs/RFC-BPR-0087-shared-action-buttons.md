@@ -1,13 +1,15 @@
 ---
 id: "RFC-BPR-0087"
 title: "Carry the Overview button treatment through the app"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
 metadata: {"rfc_base_sha": "74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc", "mandate_revision": "shared-action-buttons-r1", "milestone_plan": {"id": "shared-action-buttons-v1", "path": "docs/rfcs/plans/shared-action-buttons-v1/milestone-plan.json"}}
 ---
 
 # Carry the Overview button treatment through the app
+
+Auto-Verified, closed by [[BPR-1662]] on 2026-10-22, after the owner accepted AC01's look.
 
 Adopted for implementation under the owner’s 2026-10-19 request. Immutable
 RFC_BASE_SHA: `74ef7f4fb643b2fbbcd4753efcd1fe29c38bbddc`. [Plan](plans/shared-action-buttons-v1/milestone-plan.json);

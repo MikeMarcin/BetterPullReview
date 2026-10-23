@@ -3,8 +3,9 @@
 Current frontier: the [takeover onto main](#takeover-onto-main--2026-10-22)
 on 2026-10-22. The Codex branch's seventeen commits were cherry-picked onto
 main `4e318b625` and later rebased onto `98acba969`, main's newer surfaces were brought into the shared treatment,
-and the technical criteria were rechecked on the rebased candidate. AC01 waits
-on the owner's look at a frozen build. Everything above the takeover section is
+and the technical criteria were rechecked on the rebased candidate. The owner
+accepted AC01's look on a frozen build, and the RFC is Auto-Verified
+([closeout](#owner-verdict-and-closeout)). Everything above the takeover section is
 the Codex branch's history, kept as it was written; its SHAs are mapped to
 the rebased commits below.
 
@@ -518,7 +519,7 @@ matrix exercises Appearance through `--shared-buttons`, as before.
 
 | Criterion | Judgment |
 |---|---|
-| AC01 | **Pending the owner.** Every technical part passes above. "Visibly ... without the heavy native bezel" is about the macOS style, which an offscreen platform does not load, so one Accept/Reject question is asked on frozen build `9c23301eb` (below). |
+| AC01 | **Pass** after the owner's Accept ([below](#owner-verdict-and-closeout)). Every technical part passes above. "Visibly ... without the heavy native bezel" is about the macOS style, which an offscreen platform does not load, so one Accept/Reject question is asked on frozen build `9c23301eb` (below). |
 | AC02 | **Pass.** The [inventory](../ux/shared-action-buttons.md) lists every button file the 2026-10-22 scan finds (55), each migrated or retained with its reason; nothing is deferred. |
 | AC03 | **Pass.** The focused selector and the reruns pass; `qt_quiet_buttons` and `qt_feedback_label_settings` keep their keyboard, default, mnemonic, exclusivity, disabled, accessibility, icon and menu, sizing and theme checks, and the two new checks pass. |
 | AC04 | **Pass** for offscreen drawing and layout, with hover, press, focus and disabled captures at 1x, 1.25x and 2x in two styles. Native macOS, Windows and Linux appearance are unobserved; Windows here is Qt's Windows style on macOS. |
@@ -540,3 +541,18 @@ fixes, which do not touch the Overview or Settings controls, and documentation.
 
 On Accept, BPR-1662 and RFC-BPR-0087 close. On Reject, the note names the
 theme and control to change, and a new frozen candidate is asked again.
+
+### Owner verdict and closeout
+
+The owner handed session `053ec09c3451efe1c5ae725858a177fd` back at sequence 7
+with one decision: `RFC0087-AC01-shared-chip` (fingerprint
+`f0b2ac980070718fd8b227f35b0dda06cda0f8a0b5484d9f964dd46ca81c90fe`,
+revision `9c23301eb-frozen-v001`) **Accept**, no note, decision
+`f6b49f58-eeaa-4a33-8579-e81ee1d3880c`, saved 2026-10-23T01:36:19Z by the
+human actor. The verdict applies to that frozen candidate only. The host and
+its Tailscale child were stopped through the helper's `stop`, and the frozen
+root was removed with `scripts/freeze_attended_build.py remove`; the main
+checkout's dependency cache it linked to is untouched. With AC01 accepted and
+AC02 to AC05 passing, BPR-1662 is Done and RFC-BPR-0087 is Auto-Verified.
+Native macOS appearance is now the owner's observation; native Windows and
+Linux desktops remain unobserved.

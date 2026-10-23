@@ -629,15 +629,15 @@ Mandate `insights-window-v1-r3` closes the available implementation: r2 retains 
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0087](RFC-BPR-0087-shared-action-buttons.md) | Carry the Overview button treatment through the app | In Progress | None |
+| [RFC-BPR-0087](RFC-BPR-0087-shared-action-buttons.md) | Carry the Overview button treatment through the app | Auto-Verified | Closed 2026-10-22 by [BPR-1662](../issues/60-done/BPR-1662-close-rfc-0087.md): AC02 to AC05 on the rebased candidate through the focused suites and the four-theme style and scale matrix, and the owner's Accept of AC01's look on a frozen build. No dependencies |
 
 Owner mandate `shared-action-buttons-r1` and the later disk-cleanup steering
-authorized the planned rollout on a Codex branch. On 2026-10-22 the owner
-directed it taken over: it was rebased onto main, main's newer button surfaces
-were brought in or retained with reasons, and AC02 to AC05 pass on the rebased
-candidate. BPR-1662 is Parked on the owner's AC01 look at a frozen build
-(whether the native bezel is gone in all four themes); the RFC stays In
-Progress until then. [Takeover and evidence](../verification/RFC-BPR-0087.md#takeover-onto-main--2026-10-22).
+authorized the planned rollout on a Codex branch; on 2026-10-22 the owner
+directed it taken over, and it was rebased onto main with main's newer button
+surfaces brought in or retained with reasons. AC02 to AC05 pass on the
+rebased candidate, and the owner accepted AC01's look on a frozen build
+(session `053ec09c3451efe1c5ae725858a177fd`, closed). Native Windows and Linux
+desktops are not claimed. [Takeover and evidence](../verification/RFC-BPR-0087.md#takeover-onto-main--2026-10-22).
 [Import](assets/shared-action-buttons-v1.LIVE_IMPORT.md);
 [plan](plans/shared-action-buttons-v1/milestone-plan.json).
 
