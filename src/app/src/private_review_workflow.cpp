@@ -728,16 +728,33 @@ namespace bpr::app {
 		if (!Binding || !Index) {
 			return;
 		}
-		post([binding = *Binding, index = Index, aLine](context& aContext) {
+		const auto priorBinding = *Binding;
+		const auto priorContext = Current;
+		post([binding = priorBinding, index = Index, aLine](context& aContext) {
 			// [[BPR-1374]]. The host opens the line's latest new comment again,
 			// as core::reopen_draft_at decides, or makes one.
 			result                                           output;
 			application::review_composition_application_host host(*aContext.Store);
 			output.Drafts  = accepted(host.select_draft(binding, aLine, *index, { }, false));
 			output.Refresh = false;
-			return output;
-		},
-			 std::move(aCompletion));
+			return output; },
+			 [this, priorBinding, priorContext, aLine, complete = std::move(aCompletion)](auto aCommit) mutable {
+				 auto refined       = priorBinding;
+				 refined.Comparison = aLine.Comparison;
+				 // The same displayed line may acquire its exact comparison
+				 // while the read waits. Only that refinement retries; another
+				 // context, line, binding or store refusal answers normally.
+				 if (!aCommit && aCommit.error().Policy == core::private_review_refusal::conflict
+					 && !Closing && priorContext == Current && !priorBinding.Comparison
+					 && Binding == refined && SelectedLine == aLine && Index
+					 && Index->diff().Alignment.Digest == aLine.Comparison) {
+					 select_draft(aLine, std::move(complete));
+					 return;
+				 }
+				 if (complete) {
+					 complete(std::move(aCommit));
+				 }
+			 });
 	}
 	void private_review_workflow::select_reply(core::source_line_ref aLine, std::string aThread, draft_completion aCompletion)
 	{

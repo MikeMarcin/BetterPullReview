@@ -2236,8 +2236,15 @@ function(bpr_verify_app_source_tree app_source_root)
         "${app_source_root}"
         bpr_production_app_manifest_digest
     )
+# Release v0.3.3 review over a6485a95c: private_review_workflow retries a
+# select read only when the same context and selected line acquire that line
+# comparison digest from an absent digest. Other binding/line changes and
+# closure refuse; the next attempt has a digest, bounding recovery to one.
+# Manual-executor real-store red/green and both-lane negative controls are
+# in private_draft_restore_tests. No grant, provider, credential, target,
+# mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "a19f137ecc25d2f42e26b126cc14ccff57ef6e07ce425dd184740edcbd375abe"
+        "ce82e35703bff3793b3b7a241d11f0bc231c1acd0e7bd8518ee28a2db0e3465c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
