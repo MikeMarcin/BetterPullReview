@@ -1,0 +1,219 @@
+{
+  "schema": "bpr.rfc0038.owner-qt-known-issues.v1",
+  "date": "2026-10-16",
+  "ownerTask": "01a14646-bfaa-7fd3-bc0b-a152e9ea9900",
+  "sourceCommitBeforeAmendment": "cab000578f779da62d2c602a01cbdf4c585c9460",
+  "decisionOwner": {
+    "name": "Michael Marcin",
+    "role": "project owner"
+  },
+  "ownerInstruction": "that's fine we're just going to keep those as known issues until the upstream Qt fixes them in a release. We don't have to hide them but we don't have to shout from the rooftops that we have a vulnerability either.",
+  "decision": "accepted-known-issues-pending-official-qt-release",
+  "remediationConstraint": "Use updated official Qt releases; do not maintain a Qt fork.",
+  "policyEffect": "The listed Qt issues alone do not block release qualification or require repeated approval to defer. This is a scoped owner deferral, not independent non-applicability evidence, a fixed-package claim, a passing scan or publication authorization.",
+  "scope": {
+    "qtVersion": "6.11.2",
+    "queue": "docs/verification/RFC-BPR-0038-independent-security-review-queue-20261016.json",
+    "scannerRows": [
+      {
+        "id": "MAC-001",
+        "artifactId": "macos-0.2.1",
+        "package": "BundledPcre2",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium"
+      },
+      {
+        "id": "MAC-007",
+        "artifactId": "macos-0.2.1",
+        "package": "BundledPcre2_Attribution_pcre2-sljit",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium"
+      },
+      {
+        "id": "WIN-001",
+        "artifactId": "windows-0.2.2",
+        "package": "BundledPcre2",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium"
+      },
+      {
+        "id": "WIN-007",
+        "artifactId": "windows-0.2.2",
+        "package": "BundledPcre2_Attribution_pcre2-sljit",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium"
+      },
+      {
+        "id": "WIN-013",
+        "artifactId": "windows-0.2.2",
+        "package": "BundledZLIB",
+        "version": "1.3.2",
+        "advisory": "CVE-2026-85091",
+        "severity": "High"
+      },
+      {
+        "id": "WIN-026",
+        "artifactId": "windows-0.2.2",
+        "package": "Gui_Attribution_zlib",
+        "version": "1.3.2",
+        "advisory": "CVE-2026-85091",
+        "severity": "High"
+      },
+      {
+        "id": "WIN-027",
+        "artifactId": "windows-0.2.2",
+        "package": "Network_Attribution_zlib",
+        "version": "1.3.2",
+        "advisory": "CVE-2026-85091",
+        "severity": "High"
+      }
+    ],
+    "outsideFeedAdvisories": [
+      {
+        "id": "GHSA-r9hj-j2rw-4q3m",
+        "alias": "CVE-2026-103111",
+        "component": "Qt-bundled PCRE2",
+        "artifactIds": [
+          "macos-0.2.1",
+          "windows-0.2.2"
+        ],
+        "assessment": "Known upstream JIT stack issue; application reachability remains unproven. The review records architecture-specific limits."
+      }
+    ],
+    "artifacts": [
+      {
+        "id": "macos-0.2.1",
+        "sourceRevision": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+        "package": {
+          "name": "BetterPullReview-0.2.1-macos-universal.zip",
+          "sha256": "8a635a4b8a99caaf5cb7db3aa2344772749e8bd8080272d63004a9f80c4ac4f8"
+        },
+        "sbom": {
+          "dependencyInventorySHA256": "7dfc8b5dea3f4189fd7ef8ba9152e092fd3c3668a78dc39350237741be8a00a1",
+          "name": "BetterPullReview-0.2.1-macos-universal.spdx.json",
+          "packageCount": 82,
+          "sha256": "db51b084a3641c0e674b0ab5b9e689ba2d68ba0d79c89370157d9ffd47b21f38"
+        },
+        "scannerExitCode": 2,
+        "observedMatchCount": 33
+      },
+      {
+        "id": "windows-0.2.2",
+        "sourceRevision": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+        "package": {
+          "name": "BetterPullReview-0.2.2-windows-x64.msi",
+          "sha256": "b3e2a5420893604ebb6b30d7708cb2405d090a16e09dc459d049bf1155a50f85"
+        },
+        "sbom": {
+          "dependencyInventorySHA256": "7dfc15f986e508226d2182311b0f5aaa8c60d46e744e429e6ca48399f58de472",
+          "name": "BetterPullReview-0.2.2-windows-x64.msi.spdx.json",
+          "packageCount": 77,
+          "sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039"
+        },
+        "scannerExitCode": 2,
+        "observedMatchCount": 31
+      }
+    ],
+    "futureCandidates": "Retain this disposition only for the same known issues after checking the new candidate component versions and paths. New findings or changed exposure need assessment; unchanged known issues do not need repeated owner approval."
+  },
+  "communication": "Keep the unfiltered reports and ordinary technical documentation available. Use factual known-upstream-issue wording, including application reachability uncertainty. No dedicated product warning or proactive security announcement is requested. Do not claim the issues fixed, a clean scan or a demonstrated application exploit.",
+  "upstreamStatusAsOf": {
+    "date": "2026-10-16",
+    "pcre2": {
+      "qtIssue": "QTBUG-151047",
+      "officialCommit": "https://github.com/qt/qtbase/commit/ecd1f583dde7a5af4fe5a09af79b97ed1ca04780",
+      "mergedBranches": {
+        "6.11.3": "https://codereview.qt-project.org/c/qt/qtbase/+/776774",
+        "6.12": "https://codereview.qt-project.org/c/qt/qtbase/+/776537"
+      },
+      "status": "The official PCRE2 10.49 update names QTBUG-151047 and is merged into these branches. The ticket body was not readable anonymously; no ticket fix-version claim is made. Source merges do not qualify a released package."
+    },
+    "windowsZlib": {
+      "upstreamFix": "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148",
+      "publicQtIssue": null,
+      "status": "No matching public Qt ticket or proposed Qt change was confirmed in the lookup; an inaccessible or differently indexed report may exist."
+    }
+  },
+  "recheck": {
+    "triggers": [
+      "Selection of a new official Qt release",
+      "Material new evidence changing the assessed exposure"
+    ],
+    "completion": "Verify the applicable fixes in official Qt source, update the project dependency through that release, and qualify the actual resulting packages before marking fixed.",
+    "monitoringScheduled": false
+  },
+  "outsideScope": [
+    "Apple system-zlib MAC-032 applicability/runtime evidence",
+    "D-Bus MAC-025 through MAC-027 follow-up acceptance",
+    "All other finding dispositions and native, trust, privacy, distribution and source-access requirements"
+  ],
+  "frozenEvidence": [
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-20261016-v1.json",
+      "sha256": "eb2d757375c91ba215973234733e6a130a608913deb64fa82e56f130192f2483"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-20261016-v1.md",
+      "sha256": "d59898c46845c6bb74ca24510ad8976a726a3bfecf4077029babb1eae0e34b58"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-packet-20261016.md",
+      "sha256": "65352d08f2317395e9572a0a33455420b8f7c0b13924668a63952a58fdfcd53f"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-queue-20261016.json",
+      "sha256": "36bfe5e0262463a796af92db218fe38db890002a7eb18016de1cd24a4c5ef78c"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-vulnerability-dispositions-20261016.md",
+      "sha256": "713e30901283c8cd25073be7850848685c60e1308980e48a3f04566167ad4a8e"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-macos-0.2.1-vulnerability-scan-20261016.json",
+      "sha256": "121414504595dab87156098e763d5f39d88c7eab791978158876d0459e93b4a4"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-windows-0.2.2-vulnerability-scan-20261016.json",
+      "sha256": "28058144c8d33e3ee5841256d5eff6ebe97d5b98ced78dbf70d96650c4a88c2d"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-security-remediation-followup-20261016-v1.json",
+      "sha256": "2df6cac744440b80d8dad1f78aff1b6140bd383e65573461774558c82c961896"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-security-remediation-followup-20261016-v1.md",
+      "sha256": "b0e70fe6f9368dc37a6f6a2d33b82811fd6c54ac532e268cf14c57072a94d1ab"
+    }
+  ],
+  "status": "BPR-0962 remains Blocked for the remaining requirements; AC1/AC2 pending and AC3 failed. No RFC criterion is closed by this scoped deferral.",
+  "validation": {
+    "focusedRecordCheck": {
+      "status": "passed",
+      "scope": "Exact scanner-row identity, artifact equality with the frozen queue, nine evidence-file hashes and byte equality with cab000578, local Markdown targets, new policy anchor and continuation disposition",
+      "scannerRows": 7,
+      "outsideFeedAdvisories": 1,
+      "frozenFiles": 9,
+      "localMarkdownLinks": 89
+    },
+    "retainedFollowupConsistency": {
+      "command": "python3 /private/tmp/bpr-rfc0038-official-qt-20261016/validate_followup.py",
+      "exitCode": 0,
+      "result": "64-row coverage and prior technical decisions preserved; raw reports and retained runtime/source evidence match their hashes."
+    },
+    "documentationGate": {
+      "command": "PYTHONPATH=/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts python3 scripts/verify_documentation.py --root .",
+      "exitCode": 1,
+      "result": "Existing unrelated allocator drift: NEXT_ID BPR-1558 rewinds historical high water BPR-1566. Counter left unchanged."
+    },
+    "documentationUnitTests": "Reused the 67 passing tests recorded in the unchanged follow-up v1 validation; no documentation verifier code changed.",
+    "gitDiffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0
+    },
+    "productBuild": "Not run: documentation and owner-disposition changes only."
+  }
+}

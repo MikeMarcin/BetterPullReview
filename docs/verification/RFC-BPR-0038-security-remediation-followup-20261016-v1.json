@@ -1,0 +1,1920 @@
+{
+  "schema": "bpr.rfc0038.security-remediation-followup.v1",
+  "recordVersion": 1,
+  "date": "2026-10-16",
+  "author": {
+    "task": "01a14646-bfaa-7fd3-bc0b-a152e9ea9900",
+    "role": "BPR-0962 engineering follow-up after the independent review",
+    "strategy": "direct; no delegates"
+  },
+  "entryRevision": "af4eef944c94ca850ccf5dbd241cc1c7a6444f70",
+  "ownerMandate": {
+    "request": "Fix the PCRE2 and Windows zlib issues, then resolve the remaining technical gaps from the review.",
+    "constraint": "If they come with Qt then I will only accept updated Qt releases, I'm not maintaining a fork of Qt",
+    "effect": "Remediate Qt-bundled PCRE2 and Windows zlib only through a suitable updated official Qt release. No private Qt fork, local third-party patch, substituted bundled library, JIT-disable workaround or scanner suppression is counted as a fix."
+  },
+  "status": "blocked: no suitable checked official Qt release contains both required fixes; Apple runtime/applicability evidence also remains incomplete",
+  "inputs": [
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-20261016-v1.json",
+      "sha256": "eb2d757375c91ba215973234733e6a130a608913deb64fa82e56f130192f2483"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-20261016-v1.md",
+      "sha256": "d59898c46845c6bb74ca24510ad8976a726a3bfecf4077029babb1eae0e34b58"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-packet-20261016.md",
+      "sha256": "65352d08f2317395e9572a0a33455420b8f7c0b13924668a63952a58fdfcd53f"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-independent-security-review-queue-20261016.json",
+      "sha256": "36bfe5e0262463a796af92db218fe38db890002a7eb18016de1cd24a4c5ef78c"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-vulnerability-dispositions-20261016.md",
+      "sha256": "713e30901283c8cd25073be7850848685c60e1308980e48a3f04566167ad4a8e"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-macos-0.2.1-vulnerability-scan-20261016.json",
+      "sha256": "121414504595dab87156098e763d5f39d88c7eab791978158876d0459e93b4a4"
+    },
+    {
+      "path": "docs/verification/RFC-BPR-0038-windows-0.2.2-vulnerability-scan-20261016.json",
+      "sha256": "28058144c8d33e3ee5841256d5eff6ebe97d5b98ced78dbf70d96650c4a88c2d"
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "macos-0.2.1",
+      "platform": "Darwin",
+      "architecture": "universal-x86_64-arm64",
+      "sourceRevision": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+      "package": {
+        "name": "BetterPullReview-0.2.1-macos-universal.zip",
+        "sha256": "8a635a4b8a99caaf5cb7db3aa2344772749e8bd8080272d63004a9f80c4ac4f8"
+      },
+      "sbom": {
+        "dependencyInventorySHA256": "7dfc8b5dea3f4189fd7ef8ba9152e092fd3c3668a78dc39350237741be8a00a1",
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json",
+        "packageCount": 82,
+        "sha256": "db51b084a3641c0e674b0ab5b9e689ba2d68ba0d79c89370157d9ffd47b21f38"
+      },
+      "scanner": {
+        "database": {
+          "built": "2026-10-16T06:29:51Z",
+          "from": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.10_2026-10-16T00:28:12Z_1792132191.tar.zst?checksum=sha256%3A9985d2b30dc728eea2941d23e7d7a2e04daebd65c50a959c6136a858927516b9",
+          "schemaVersion": "v6.1.10",
+          "valid": true
+        },
+        "name": "grype",
+        "rawSHA256": "8029ef64c1700e0f01cc9129b0f950b494654595279af5ebf3decea3fcd629a0",
+        "scanTimestamp": "2026-10-16T10:16:57.776802-07:00",
+        "suppressedMatches": 0,
+        "threshold": "negligible",
+        "version": "0.120.1"
+      },
+      "rawReportLocalPath": "/private/tmp/bpr-rfc0038-security-audit-20261016/macos-0.2.1-grype.json",
+      "summary": {
+        "path": "RFC-BPR-0038-macos-0.2.1-vulnerability-scan-20261016.json",
+        "sha256": "121414504595dab87156098e763d5f39d88c7eab791978158876d0459e93b4a4"
+      },
+      "scannerExitCode": 2,
+      "observedMatchCount": 33,
+      "observedUniqueAdvisories": 27,
+      "independentSecurityAcceptance": "pending"
+    },
+    {
+      "id": "windows-0.2.2",
+      "platform": "Windows",
+      "architecture": "x64",
+      "sourceRevision": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+      "package": {
+        "name": "BetterPullReview-0.2.2-windows-x64.msi",
+        "sha256": "b3e2a5420893604ebb6b30d7708cb2405d090a16e09dc459d049bf1155a50f85"
+      },
+      "sbom": {
+        "dependencyInventorySHA256": "7dfc15f986e508226d2182311b0f5aaa8c60d46e744e429e6ca48399f58de472",
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.spdx.json",
+        "packageCount": 77,
+        "sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039"
+      },
+      "scanner": {
+        "database": {
+          "built": "2026-10-16T06:29:51Z",
+          "from": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.10_2026-10-16T00:28:12Z_1792132191.tar.zst?checksum=sha256%3A9985d2b30dc728eea2941d23e7d7a2e04daebd65c50a959c6136a858927516b9",
+          "schemaVersion": "v6.1.10",
+          "valid": true
+        },
+        "name": "grype",
+        "rawSHA256": "a4400641a562ef49673475ba9fa7cb688ed1e410eb3182e347c7b1d6663d3529",
+        "scanTimestamp": "2026-10-16T10:15:56.720009-07:00",
+        "suppressedMatches": 0,
+        "threshold": "negligible",
+        "version": "0.120.1"
+      },
+      "rawReportLocalPath": "/private/tmp/bpr-rfc0038-security-audit-20261016/windows-0.2.2-grype.json",
+      "summary": {
+        "path": "RFC-BPR-0038-windows-0.2.2-vulnerability-scan-20261016.json",
+        "sha256": "28058144c8d33e3ee5841256d5eff6ebe97d5b98ced78dbf70d96650c4a88c2d"
+      },
+      "scannerExitCode": 2,
+      "observedMatchCount": 31,
+      "observedUniqueAdvisories": 23,
+      "independentSecurityAcceptance": "pending"
+    }
+  ],
+  "coverage": {
+    "originalScannerRows": 64,
+    "inheritedAcceptedRows": [
+      "MAC-002",
+      "MAC-003",
+      "MAC-004",
+      "MAC-005",
+      "MAC-006",
+      "MAC-008",
+      "MAC-009",
+      "MAC-010",
+      "MAC-011",
+      "MAC-012",
+      "MAC-013",
+      "MAC-014",
+      "MAC-015",
+      "MAC-016",
+      "MAC-017",
+      "MAC-018",
+      "MAC-019",
+      "MAC-020",
+      "MAC-021",
+      "MAC-022",
+      "MAC-023",
+      "MAC-024",
+      "MAC-028",
+      "MAC-029",
+      "MAC-030",
+      "MAC-031",
+      "MAC-033",
+      "WIN-002",
+      "WIN-003",
+      "WIN-004",
+      "WIN-005",
+      "WIN-006",
+      "WIN-008",
+      "WIN-009",
+      "WIN-010",
+      "WIN-011",
+      "WIN-012",
+      "WIN-014",
+      "WIN-015",
+      "WIN-016",
+      "WIN-017",
+      "WIN-018",
+      "WIN-019",
+      "WIN-020",
+      "WIN-021",
+      "WIN-022",
+      "WIN-023",
+      "WIN-024",
+      "WIN-025",
+      "WIN-028",
+      "WIN-029",
+      "WIN-030",
+      "WIN-031"
+    ],
+    "followedUpRows": [
+      {
+        "id": "MAC-001",
+        "artifactId": "macos-0.2.1",
+        "package": "BundledPcre2",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-bundled-3rdparty-module-BundledPcre2-1b89b9dc4f00",
+        "assessmentId": "A-PCRE-89156",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "insufficient-evidence",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "MAC-007",
+        "artifactId": "macos-0.2.1",
+        "package": "BundledPcre2_Attribution_pcre2-sljit",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-BundledPcre2-Attribution-pcre2-sljit-1b89b9dc4f00",
+        "assessmentId": "A-PCRE-89156",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "insufficient-evidence",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "MAC-025",
+        "artifactId": "macos-0.2.1",
+        "package": "DBus_Attribution_libdbus-1-headers",
+        "version": "1.13.12",
+        "advisory": "CVE-2022-42010",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-DBus-Attribution-libdbus-1-headers-1b89b9dc4f00",
+        "assessmentId": "A-CVE-2022-42010",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "accept",
+        "followupAssessment": "F-DBUS",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "MAC-026",
+        "artifactId": "macos-0.2.1",
+        "package": "DBus_Attribution_libdbus-1-headers",
+        "version": "1.13.12",
+        "advisory": "CVE-2022-42011",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-DBus-Attribution-libdbus-1-headers-1b89b9dc4f00",
+        "assessmentId": "A-CVE-2022-42011",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "accept",
+        "followupAssessment": "F-DBUS",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "MAC-027",
+        "artifactId": "macos-0.2.1",
+        "package": "DBus_Attribution_libdbus-1-headers",
+        "version": "1.13.12",
+        "advisory": "CVE-2022-42012",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-DBus-Attribution-libdbus-1-headers-1b89b9dc4f00",
+        "assessmentId": "A-CVE-2022-42012",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "accept",
+        "followupAssessment": "F-DBUS",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "MAC-032",
+        "artifactId": "macos-0.2.1",
+        "package": "WrapZLIB",
+        "version": "1.2.12",
+        "advisory": "CVE-2026-27171",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-system-3rdparty-WrapZLIB-1b89b9dc4f00",
+        "assessmentId": "A-APPLE-27171",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "insufficient-evidence",
+        "followupAssessment": "F-APPLE",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "WIN-001",
+        "artifactId": "windows-0.2.2",
+        "package": "BundledPcre2",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-bundled-3rdparty-module-BundledPcre2-9ce86868aeba",
+        "assessmentId": "A-PCRE-89156",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "insufficient-evidence",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "WIN-007",
+        "artifactId": "windows-0.2.2",
+        "package": "BundledPcre2_Attribution_pcre2-sljit",
+        "version": "10.47",
+        "advisory": "CVE-2026-89156",
+        "severity": "Medium",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-BundledPcre2-Attribution-pcre2-sljit-9ce86868aeba",
+        "assessmentId": "A-PCRE-89156",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "insufficient-evidence",
+        "proposedTechnicalDecision": "insufficient-evidence",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "WIN-013",
+        "artifactId": "windows-0.2.2",
+        "package": "BundledZLIB",
+        "version": "1.3.2",
+        "advisory": "CVE-2026-85091",
+        "severity": "High",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-bundled-3rdparty-module-BundledZLIB-9ce86868aeba",
+        "assessmentId": "A-ZLIB-85091",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "remediate",
+        "proposedTechnicalDecision": "remediate",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "WIN-026",
+        "artifactId": "windows-0.2.2",
+        "package": "Gui_Attribution_zlib",
+        "version": "1.3.2",
+        "advisory": "CVE-2026-85091",
+        "severity": "High",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-Gui-Attribution-zlib-9ce86868aeba",
+        "assessmentId": "A-ZLIB-85091",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "remediate",
+        "proposedTechnicalDecision": "remediate",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      },
+      {
+        "id": "WIN-027",
+        "artifactId": "windows-0.2.2",
+        "package": "Network_Attribution_zlib",
+        "version": "1.3.2",
+        "advisory": "CVE-2026-85091",
+        "severity": "High",
+        "spdxPackageId": "SPDXRef-Package-qtbase-qt-3rdparty-sources-Network-Attribution-zlib-9ce86868aeba",
+        "assessmentId": "A-ZLIB-85091",
+        "securityOwnerAcceptance": {
+          "status": "pending",
+          "owner": null,
+          "decision": null,
+          "record": null
+        },
+        "priorDecision": "remediate",
+        "proposedTechnicalDecision": "remediate",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "independentReviewOfFollowup": "pending; this is an engineering follow-up, not independent acceptance of its own work"
+      }
+    ],
+    "newlySupportedApplicabilityProposals": [
+      "MAC-025",
+      "MAC-026",
+      "MAC-027"
+    ],
+    "combinedProposedTechnicalCounts": {
+      "accept": 56,
+      "insufficient-evidence": 5,
+      "remediate": 3
+    },
+    "independentV1DecisionsUnchanged": {
+      "accept": 53,
+      "insufficient-evidence": 8,
+      "remediate": 3
+    },
+    "securityOwnerAcceptance": "pending for all 64 rows and both outside-feed entries; owner not designated",
+    "outsideFeed": [
+      {
+        "advisory": "CVE-2026-86145",
+        "alias": "GHSA-3r4p-g7gg-ppmf",
+        "assessmentId": "A-PCRE-DFA",
+        "decision": "accept",
+        "basis": "Unchanged v1 evidence; no new evaluation needed for unchanged bytes."
+      },
+      {
+        "advisory": "GHSA-r9hj-j2rw-4q3m",
+        "currentUpstreamCveAlias": "CVE-2026-103111",
+        "assessmentId": "A-PCRE-STACK",
+        "decision": "insufficient-evidence",
+        "followupAssessment": "F-OFFICIAL-QT",
+        "basis": "No complete pattern-origin/complexity bound or eligible fixed Qt producer. The advisory alias does not add a row to either frozen scanner report."
+      }
+    ]
+  },
+  "assessments": {
+    "F-OFFICIAL-QT": {
+      "status": "blocked-upstream-official-release",
+      "scannerRows": [
+        "MAC-001",
+        "MAC-007",
+        "WIN-001",
+        "WIN-007",
+        "WIN-013",
+        "WIN-026",
+        "WIN-027"
+      ],
+      "outsideFeed": [
+        "GHSA-r9hj-j2rw-4q3m"
+      ],
+      "currentQt": "6.11.2",
+      "currentQtSourceRevision": "ef55f427f2c8b410d34f8a7681020a3000cf6866",
+      "currentBundledVersions": {
+        "PCRE2": "10.47",
+        "Windows zlib": "1.3.2"
+      },
+      "checkedRelease": "Qt 6.12.0",
+      "checkedReleaseBundledVersions": {
+        "PCRE2": "10.48",
+        "Windows zlib": "1.3.2"
+      },
+      "observations": [
+        "The official 6.11 index lists 6.11.2 and the official 6.12 index lists 6.12.0 on 2026-10-16. Qt 6.12.0 is a released update, but is not a complete remediation candidate.",
+        "The peeled v6.12.0 tag identifies qtbase commit 025bdad181de241e81bf853c8a2d7bf3d19261a9. Its PCRE2 attribution says 10.48; its JIT source still has the unconditional fixed-growth resize stub and lacks the large-allocation handling from 2b4038298072684b0fae29b15bedfb1a75bda46d.",
+        "Qt 6.12.0 gzwrite.c is byte-identical to Qt 6.11.2 gzwrite.c and retains the failed-write return without the avail_in/next_in resets in df84af25dc1942490e1d1c899a07619152a46148. A version label alone was not used to infer patch status.",
+        "The frozen 10.47 partial-JIT allocation counterexample and x86_64 growable-stack evidence from v1 remain valid. No successful ordinary match is substituted for either missing proof."
+      ],
+      "requiredReleaseContent": "An official Qt release incorporating PCRE2 10.49 or the applicable upstream fixes, including the large-stack fix, and the native zlib failed-write state-reset fix. Upstream changes shipped by Qt qualify; a BPR-maintained patch does not.",
+      "requiredQualification": "Upgrade provider/source pins together only after an eligible release exists; use existing release package paths; bind exact delivered Mac/Windows payloads, source offers, SPDX and inventory; run relevant dependency/package/public-path checks and unsuppressed fresh vulnerability reports. A source-only check is not package acceptance.",
+      "primarySources": [
+        "https://download.qt.io/official_releases/qt/6.11/",
+        "https://download.qt.io/official_releases/qt/6.12/",
+        "https://www.qt.io/blog/qt-6.12-released",
+        "https://github.com/PCRE2Project/pcre2/security/advisories/GHSA-r9hj-j2rw-4q3m",
+        "https://github.com/PCRE2Project/pcre2/releases/tag/pcre2-10.49",
+        "https://github.com/PCRE2Project/pcre2/commit/2b4038298072684b0fae29b15bedfb1a75bda46d",
+        "https://github.com/madler/zlib/commit/df84af25dc1942490e1d1c899a07619152a46148"
+      ],
+      "sourceIdentities": {
+        "tag": "v6.12.0",
+        "tagObject": "fcef5b2c755492753eb8f7424dd2bc7337832068",
+        "commit": "025bdad181de241e81bf853c8a2d7bf3d19261a9",
+        "files": [
+          {
+            "name": "pcre-attribution",
+            "url": "https://raw.githubusercontent.com/qt/qtbase/025bdad181de241e81bf853c8a2d7bf3d19261a9/src/3rdparty/pcre2/qt_attribution.json",
+            "upstreamPath": "src/3rdparty/pcre2/qt_attribution.json",
+            "sha256": "c65e311b057e3ecb8ee9aeddd681add5aa4484485e265d3a6a8e7967abc19948"
+          },
+          {
+            "name": "zlib-attribution",
+            "url": "https://raw.githubusercontent.com/qt/qtbase/025bdad181de241e81bf853c8a2d7bf3d19261a9/src/3rdparty/zlib/qt_attribution.json",
+            "upstreamPath": "src/3rdparty/zlib/qt_attribution.json",
+            "sha256": "0346805e9c4048316dbc7c58d560a20c12482ea0218de264282212e9619b6d64"
+          },
+          {
+            "name": "pcre-jit",
+            "url": "https://raw.githubusercontent.com/qt/qtbase/025bdad181de241e81bf853c8a2d7bf3d19261a9/src/3rdparty/pcre2/src/pcre2_jit_compile.c",
+            "upstreamPath": "src/3rdparty/pcre2/src/pcre2_jit_compile.c",
+            "sha256": "60cb5be780844af9edbcda95010478afe56e95623bccb677b29113b4552321c8"
+          },
+          {
+            "name": "gzwrite",
+            "url": "https://raw.githubusercontent.com/qt/qtbase/025bdad181de241e81bf853c8a2d7bf3d19261a9/src/3rdparty/zlib/src/gzwrite.c",
+            "upstreamPath": "src/3rdparty/zlib/src/gzwrite.c",
+            "sha256": "2ce783294c688330c716bfe106f43167d3dae5be84994176bc304d205d4f5b04"
+          }
+        ]
+      },
+      "fixComparison": {
+        "pcre2PatchSHA256": "380f853c9c5ff3828dc7fa9b440f388a6bdd3e4c143fedd3960d51b325b8fe26",
+        "pcre2PatchUrl": "https://raw.githubusercontent.com/PCRE2Project/pcre2/pcre2-10.49/patches/pcre2-10.49-Fix-large-stack-allocation.patch",
+        "zlibPatchSHA256": "110ff14375733173d8aa54574473424fbd7dfe4b81f1ca34a759c6fe14b15b14",
+        "gzwriteSHA256BothQtVersions": "2ce783294c688330c716bfe106f43167d3dae5be84994176bc304d205d4f5b04"
+      }
+    },
+    "F-DBUS": {
+      "status": "technical-gap-resolved; narrow applicability proposal supported; independent follow-up review and security-owner acceptance pending",
+      "scannerRows": [
+        "MAC-025",
+        "MAC-026",
+        "MAC-027"
+      ],
+      "proposedTechnicalDecision": "accept",
+      "rationale": "QtGui links QtDBus and contains QDesktopUnixServices, so framework presence alone is not dismissed. The shipped Cocoa integration selects QCocoaServices, derived directly from QPlatformServices, and uses Apple services. Generic Unix theme/menu/tray/portal constructors are excluded on this Mac build; Xcb, Wayland, VNC and external platform-theme plugins are absent from the bound package. No first-party, QtNetwork, QtWidgets or shipped Cocoa/style/network/TLS plugin D-Bus consumer was found. QtDBus resolves external libdbus lazily. Both exact-package initialization probes loaded QtDBus but no external libdbus; an explicit harmless marker load tested the detector. Together these support exclusion of the vulnerable external parser in the inspected packaged Cocoa composition.",
+      "limits": "This is a source-backed applicability inference plus an automatic-initialization probe, not a trace of an active GUI session, native Intel qualification, Linux/Windows evidence or a claim that arbitrary third-party D-Bus installations are patched. Reopen for changed plugins/platform selection, first-party D-Bus usage, Qt source/build options or package bytes.",
+      "evidence": [
+        "E-SOURCE-PATHS",
+        "E-DBUS-LOAD"
+      ],
+      "primarySources": [
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/gui/CMakeLists.txt#L1040",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/plugins/platforms/cocoa/qcocoaintegration.mm#L417",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/plugins/platforms/cocoa/qcocoaservices.h#L14",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/plugins/platforms/cocoa/qcocoaservices.mm#L19",
+        "https://github.com/qt/qtbase/blob/ef55f427f2c8b410d34f8a7681020a3000cf6866/src/dbus/qdbus_symbols.cpp#L37"
+      ]
+    },
+    "F-APPLE": {
+      "status": "vendor-patched hypothesis rejected on tested host; complete delivered-closure applicability remains pending",
+      "scannerRows": [
+        "MAC-032"
+      ],
+      "proposedTechnicalDecision": "insufficient-evidence",
+      "observations": [
+        "macOS 26.6.2 (25G83), both arm64 and Rosetta x86_64, exports crc32_combine and crc32_combine_gen from /usr/lib/libz.1.dylib. Passing -1 timed out at two seconds in all four API/architecture cases. Lengths 0 and 1 returned promptly. Neither crc32_combine64 nor crc32_combine_gen64 is exported; absence of the 64-suffixed symbols does not exclude the aliases.",
+        "The published Apple distribution tags map 26 OS releases, macos-130 through macos-265, to eight zlib revisions. macOS 13 source uses an older nonpositive-length guard. The inspected macOS 14, 15 and 26 source revisions lack the new guard; the exported unsuffixed aliases reach the affected implementation. These are vendor source mappings, not executions of each OS or a source-to-binary assertion for unpublished 26.6.2.",
+        "All 14 delivered Mach-O images / 28 architecture slices still import none of the crc32_combine family. Exact first-party producer sources, Qt consumers, KSyntaxHighlighting and LibArchive contain no caller. Matches in bundled zlib/FreeType copies are implementation definitions and aliases, not calls into Apple libz.",
+        "The inspected Apple crc32_z internal x2nmodp call uses a nonnegative remaining-block count. crc32 takes an unsigned length. This narrows the observed crc32 imports but does not certify proprietary OS-framework internals or every supported native runtime."
+      ],
+      "conclusion": "No Apple runtime-fix claim is permitted from ABI 1.2.12 or absent *64 symbols. The timeout is a standalone library observation, not an application exploit. Keep the row pending until a complete supported-runtime/fix mapping or the required complete delivered-closure non-reachability proof exists. Updating Qt alone would not replace this OS-owned library.",
+      "evidence": [
+        "E-SOURCE-PATHS",
+        "E-APPLE-CRC",
+        "E-APPLE-MAPPING"
+      ],
+      "primarySources": [
+        "https://github.com/madler/zlib/issues/904",
+        "https://github.com/madler/zlib/commit/ba829a458576d1ff0f26fc7230c6de816d1f6a77",
+        "https://github.com/apple-oss-distributions/distribution-macOS",
+        "https://github.com/apple-oss-distributions/zlib/blob/3dbd11404a18ac1d6ed3ca9c1d6a01d049bf8674/zlib/crc32.c#L1113",
+        "https://github.com/apple-oss-distributions/zlib/blob/3dbd11404a18ac1d6ed3ca9c1d6a01d049bf8674/libz.exp"
+      ]
+    }
+  },
+  "evidence": {
+    "E-SOURCE-PATHS": {
+      "scope": "Source reference and packaged undefined-symbol audit; not an active GUI trace or proof about proprietary OS-framework internals.",
+      "sourceChecks": [
+        {
+          "argv": [
+            "git",
+            "grep",
+            "-n",
+            "-E",
+            "crc32_combine",
+            "c233c768327cd6c0cb6807860625ec12a9aeac14",
+            "--",
+            "src"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "grep",
+            "-n",
+            "-E",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "c233c768327cd6c0cb6807860625ec12a9aeac14",
+            "--",
+            "src"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "grep",
+            "-n",
+            "-E",
+            "crc32_combine",
+            "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+            "--",
+            "src"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "git",
+            "grep",
+            "-n",
+            "-E",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+            "--",
+            "src"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "scope": "Qt application consumers",
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "crc32_combine",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src",
+            "-g",
+            "!**/3rdparty/zlib/**",
+            "-g",
+            "!**/3rdparty/freetype/src/gzip/**"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "scope": "KSyntaxHighlighting",
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "crc32_combine",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/dependencies/syntax-highlighting-6.28.1/src"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "scope": "LibArchive",
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "crc32_combine",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/dependencies/libarchive-3.8.9/libarchive"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src/network"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src/widgets"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src/plugins/platforms/cocoa"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src/plugins/styles/mac"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src/plugins/networkinformation/apple"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        },
+        {
+          "argv": [
+            "rg",
+            "-n",
+            "-g",
+            "*.c",
+            "-g",
+            "*.cpp",
+            "-g",
+            "*.cc",
+            "-g",
+            "*.mm",
+            "QDBus|dbus_connection|QDesktopUnixServices",
+            "/private/tmp/bpr-rfc0038-independent-review-20261016/qt/qtbase-everywhere-src-6.11.2/src/plugins/tls/securetransport"
+          ],
+          "exitCode": 1,
+          "matches": [],
+          "stderr": ""
+        }
+      ],
+      "images": [
+        {
+          "path": "Contents/Frameworks/QtCore.framework/Versions/A/QtCore",
+          "sha256": "08714fde918d582d7782a0b77220504621bd499e13fa7bec8f0be50b5caae2c1",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/Frameworks/QtDBus.framework/Versions/A/QtDBus",
+          "sha256": "629f3cd735b2f54351f1daa20220e55fb6337a93c4daa36459de328dd2b81705",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/Frameworks/QtGui.framework/Versions/A/QtGui",
+          "sha256": "4fbe09fd8b1ce8819bf55811238b03680b5c469275d8bd212d0d9952dd425b82",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": [
+                "__Z40qRegisterNormalizedMetaType_QDBusVariantRK10QByteArray",
+                "__Z41qRegisterNormalizedMetaType_QDBusArgumentRK10QByteArray",
+                "__Z43qRegisterNormalizedMetaType_QDBusObjectPathRK10QByteArray",
+                "__Z51qRegisterNormalizedMetaType_QDBusUnixFileDescriptorRK10QByteArray",
+                "__ZN10QDBusError11errorStringENS_9ErrorTypeE",
+                "__ZN10QDBusErrorC1ERK12QDBusMessage",
+                "__ZN12QDBusMessage11createErrorERK7QStringS2_",
+                "__ZN12QDBusMessage12createSignalERK7QStringS2_S2_",
+                "__ZN12QDBusMessage12setArgumentsERK5QListI8QVariantE",
+                "__ZN12QDBusMessage16createMethodCallERK7QStringS2_S2_S2_",
+                "__ZN12QDBusMessageD1Ev",
+                "__ZN12QDBusMessagelsERK8QVariant",
+                "__ZN13QDBusArgumentC1ERKS_",
+                "__ZN13QDBusArgumentC1Ev",
+                "__ZN13QDBusArgumentD1Ev",
+                "__ZN15QDBusConnection10sessionBusEv",
+                "__ZN15QDBusConnection7connectERK7QStringS2_S2_S2_P7QObjectPKc",
+                "__ZN15QDBusConnectionD1Ev",
+                "__ZN16QDBusPendingCallD1Ev",
+                "__ZN19QDBusServiceWatcher16staticMetaObjectE",
+                "__ZN19QDBusServiceWatcher17serviceRegisteredERK7QString",
+                "__ZN19QDBusServiceWatcherC1ERK7QStringRK15QDBusConnection6QFlagsINS_13WatchModeFlagEEP7QObject",
+                "__ZN21QDBusPendingReplyBase12setMetaTypesEiPK9QMetaType",
+                "__ZN21QDBusPendingReplyBase6assignERK16QDBusPendingCall",
+                "__ZN21QDBusPendingReplyBaseC2Ev",
+                "__ZN21QDBusPendingReplyBaseD2Ev",
+                "__ZN23QDBusPendingCallWatcher16staticMetaObjectE",
+                "__ZN23QDBusPendingCallWatcher8finishedEPS_",
+                "__ZN23QDBusPendingCallWatcherC1ERK16QDBusPendingCallP7QObject",
+                "__ZN23QDBusUnixFileDescriptor18giveFileDescriptorEi",
+                "__ZN23QDBusUnixFileDescriptorC1ERKS_",
+                "__ZN23QDBusUnixFileDescriptorC1Ev",
+                "__ZN23QDBusUnixFileDescriptorD1Ev",
+                "__ZNK10QDBusError4typeEv",
+                "__ZNK10QDBusError7isValidEv",
+                "__ZNK10QDBusError7messageEv",
+                "__ZNK13QDBusArgument12endStructureEv",
+                "__ZNK13QDBusArgument14beginStructureEv",
+                "__ZNK13QDBusArgumentrsER12QDBusVariant",
+                "__ZNK13QDBusArgumentrsER15QDBusObjectPath",
+                "__ZNK13QDBusArgumentrsERd",
+                "__ZNK15QDBusConnection4callERK12QDBusMessageN5QDBus8CallModeEi",
+                "__ZNK15QDBusConnection4sendERK12QDBusMessage",
+                "__ZNK15QDBusConnection9asyncCallERK12QDBusMessagei",
+                "__ZNK16QDBusPendingCall5errorEv",
+                "__ZNK16QDBusPendingCall7isErrorEv",
+                "__ZNK21QDBusPendingReplyBase10argumentAtEi",
+                "__Zls6QDebugRK10QDBusError",
+                "__Zls6QDebugRK15QDBusObjectPath"
+              ]
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": [
+                "__Z40qRegisterNormalizedMetaType_QDBusVariantRK10QByteArray",
+                "__Z41qRegisterNormalizedMetaType_QDBusArgumentRK10QByteArray",
+                "__Z43qRegisterNormalizedMetaType_QDBusObjectPathRK10QByteArray",
+                "__Z51qRegisterNormalizedMetaType_QDBusUnixFileDescriptorRK10QByteArray",
+                "__ZN10QDBusError11errorStringENS_9ErrorTypeE",
+                "__ZN10QDBusErrorC1ERK12QDBusMessage",
+                "__ZN12QDBusMessage11createErrorERK7QStringS2_",
+                "__ZN12QDBusMessage12createSignalERK7QStringS2_S2_",
+                "__ZN12QDBusMessage12setArgumentsERK5QListI8QVariantE",
+                "__ZN12QDBusMessage16createMethodCallERK7QStringS2_S2_S2_",
+                "__ZN12QDBusMessageD1Ev",
+                "__ZN12QDBusMessagelsERK8QVariant",
+                "__ZN13QDBusArgumentC1ERKS_",
+                "__ZN13QDBusArgumentC1Ev",
+                "__ZN13QDBusArgumentD1Ev",
+                "__ZN15QDBusConnection10sessionBusEv",
+                "__ZN15QDBusConnection7connectERK7QStringS2_S2_S2_P7QObjectPKc",
+                "__ZN15QDBusConnectionD1Ev",
+                "__ZN16QDBusPendingCallD1Ev",
+                "__ZN19QDBusServiceWatcher16staticMetaObjectE",
+                "__ZN19QDBusServiceWatcher17serviceRegisteredERK7QString",
+                "__ZN19QDBusServiceWatcherC1ERK7QStringRK15QDBusConnection6QFlagsINS_13WatchModeFlagEEP7QObject",
+                "__ZN21QDBusPendingReplyBase12setMetaTypesEiPK9QMetaType",
+                "__ZN21QDBusPendingReplyBase6assignERK16QDBusPendingCall",
+                "__ZN21QDBusPendingReplyBaseC2Ev",
+                "__ZN21QDBusPendingReplyBaseD2Ev",
+                "__ZN23QDBusPendingCallWatcher16staticMetaObjectE",
+                "__ZN23QDBusPendingCallWatcher8finishedEPS_",
+                "__ZN23QDBusPendingCallWatcherC1ERK16QDBusPendingCallP7QObject",
+                "__ZN23QDBusUnixFileDescriptor18giveFileDescriptorEi",
+                "__ZN23QDBusUnixFileDescriptorC1ERKS_",
+                "__ZN23QDBusUnixFileDescriptorC1Ev",
+                "__ZN23QDBusUnixFileDescriptorD1Ev",
+                "__ZNK10QDBusError4typeEv",
+                "__ZNK10QDBusError7isValidEv",
+                "__ZNK10QDBusError7messageEv",
+                "__ZNK13QDBusArgument12endStructureEv",
+                "__ZNK13QDBusArgument14beginStructureEv",
+                "__ZNK13QDBusArgumentrsER12QDBusVariant",
+                "__ZNK13QDBusArgumentrsER15QDBusObjectPath",
+                "__ZNK13QDBusArgumentrsERd",
+                "__ZNK15QDBusConnection4callERK12QDBusMessageN5QDBus8CallModeEi",
+                "__ZNK15QDBusConnection4sendERK12QDBusMessage",
+                "__ZNK15QDBusConnection9asyncCallERK12QDBusMessagei",
+                "__ZNK16QDBusPendingCall5errorEv",
+                "__ZNK16QDBusPendingCall7isErrorEv",
+                "__ZNK21QDBusPendingReplyBase10argumentAtEi",
+                "__Zls6QDebugRK10QDBusError",
+                "__Zls6QDebugRK15QDBusObjectPath"
+              ]
+            }
+          }
+        },
+        {
+          "path": "Contents/Frameworks/QtNetwork.framework/Versions/A/QtNetwork",
+          "sha256": "779169b1cff642057705133210ff67e5c3d23c26cdcbbc7c69122535fccd8a54",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets",
+          "sha256": "358a15b9448b72625d7c88b2e613b97195871bf0cae755e627e925c6bbb387a5",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/Frameworks/libbpr_xdiff.dylib",
+          "sha256": "c25cf4da20ca07835e14273e95313d1e9ce1f7fc15036f7f2cd13e6cbc5bfffb",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/MacOS/BetterPullReview",
+          "sha256": "97b56973f043d9d51c52e346937575a86882e9a7231e3973e6d87432d988d26a",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/MacOS/better_pull_review_agent_supervisor",
+          "sha256": "bcefd8cbcea90d151eef52b560004afb83013c63c653bfde836d80f7d89e6a7c",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/MacOS/better_pull_review_mcp_context_helper",
+          "sha256": "b4ea5fcfeb5804f4ecc4a7a2615c17b2dda76fcd0abe356168392d09ec800da0",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/MacOS/bpr_update_helper",
+          "sha256": "8ede60bc65c920eeb5737b80281a44511ccd5e25e10ca37c628ea0cd7b621539",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/PlugIns/networkinformation/libqapplenetworkinformation.dylib",
+          "sha256": "eb6636cd5ad3d4546cc2d847f07d7940c08e321e5cd69f917b179c942bf17e26",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/PlugIns/platforms/libqcocoa.dylib",
+          "sha256": "0f0e1aad58ac332d404c169bdb476f3e75bd08c3c94a65e4749b27590c206fb3",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/PlugIns/styles/libqmacstyle.dylib",
+          "sha256": "83045ab5ccf8983f641c76174b5e63f4276f7ce76ab423bdc2c7a81a68f90606",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        },
+        {
+          "path": "Contents/PlugIns/tls/libqsecuretransportbackend.dylib",
+          "sha256": "5700fd2ccac1223b8129a80c08d61827b5678c5bcc62c9aebbe8805a15b7690c",
+          "architectures": {
+            "arm64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            },
+            "x86_64": {
+              "nmExit": 0,
+              "crcCombineImports": [],
+              "dbusImports": []
+            }
+          }
+        }
+      ],
+      "boundQtSources": [
+        {
+          "path": "src/gui/CMakeLists.txt",
+          "sha256": "3f1e30f10369a97d6cd105b2f44ffc2fbe9d39bb5556593cfa21bee97416bbe0"
+        },
+        {
+          "path": "src/gui/kernel/qguiapplication.cpp",
+          "sha256": "f49eb59b238638587cfe21fdab04967d89429b0c03444f20b493c17d48061466"
+        },
+        {
+          "path": "src/gui/platform/unix/qdesktopunixservices.cpp",
+          "sha256": "e5e2181f4384fddd07d85e1c9e9c5b7890af9f3ae7c0a06970cb3273a86120e4"
+        },
+        {
+          "path": "src/plugins/platforms/cocoa/qcocoaservices.h",
+          "sha256": "fa314fa10b4d8335c19a354ce722052a1257e7f9bcf62e72c691d1c68a0cf454"
+        },
+        {
+          "path": "src/plugins/platforms/cocoa/qcocoaservices.mm",
+          "sha256": "3c721e2c92c35c204c4a698c717bf6cc7c5060f1339bd00101538e8b5a7b4893"
+        },
+        {
+          "path": "src/plugins/platforms/cocoa/qcocoaintegration.mm",
+          "sha256": "cdbfe660aed8ff8d6e8942b222e891e68c07e8504e42659ccef0810e1a032916"
+        },
+        {
+          "path": "src/dbus/qdbus_symbols.cpp",
+          "sha256": "5c2046ad46ea2d383070849e1a241cefa18d05591ba994eb7d2d8e8196e0204a"
+        },
+        {
+          "path": "src/dbus/qdbusconnectionmanager.cpp",
+          "sha256": "a0e63612148e093cdda44a784256074c4c76a2b7ea8fa6e92230272894644504"
+        },
+        {
+          "path": "src/3rdparty/freetype/src/gzip/crc32.c",
+          "sha256": "1c38cdaed7b307dac9b10e67f104568325eda359cb7aebbe0f209280b6170360"
+        }
+      ]
+    },
+    "E-DBUS-LOAD": {
+      "scope": "Exact packaged QtWidgets and all four shipped plugins loaded in a standalone process; no QApplication or window is constructed. This isolates automatic library initialization, not the complete application runtime. x86_64 executes through Rosetta.",
+      "sourceSHA256": "ea0b5a690565cd1df52dbf6fb1302c02338bb33732b972272067dd252563db33",
+      "inputImages": [
+        {
+          "path": "Contents/Frameworks/QtWidgets.framework/Versions/A/QtWidgets",
+          "sha256": "358a15b9448b72625d7c88b2e613b97195871bf0cae755e627e925c6bbb387a5"
+        },
+        {
+          "path": "Contents/PlugIns/platforms/libqcocoa.dylib",
+          "sha256": "0f0e1aad58ac332d404c169bdb476f3e75bd08c3c94a65e4749b27590c206fb3"
+        },
+        {
+          "path": "Contents/PlugIns/styles/libqmacstyle.dylib",
+          "sha256": "83045ab5ccf8983f641c76174b5e63f4276f7ce76ab423bdc2c7a81a68f90606"
+        },
+        {
+          "path": "Contents/PlugIns/networkinformation/libqapplenetworkinformation.dylib",
+          "sha256": "eb6636cd5ad3d4546cc2d847f07d7940c08e321e5cd69f917b179c942bf17e26"
+        },
+        {
+          "path": "Contents/PlugIns/tls/libqsecuretransportbackend.dylib",
+          "sha256": "5700fd2ccac1223b8129a80c08d61827b5678c5bcc62c9aebbe8805a15b7690c"
+        }
+      ],
+      "results": [
+        {
+          "architecture": "arm64",
+          "exitCode": 0,
+          "output": "PACKAGE_IMAGES qt_dbus_loads=1 external_dbus_loads=0\nNEGATIVE_CONTROL external_dbus_loads=1",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "exitCode": 0,
+          "output": "PACKAGE_IMAGES qt_dbus_loads=1 external_dbus_loads=0\nNEGATIVE_CONTROL external_dbus_loads=1",
+          "error": ""
+        }
+      ]
+    },
+    "E-APPLE-CRC": {
+      "host": [
+        "26.6.2",
+        [
+          "",
+          "",
+          ""
+        ],
+        "arm64"
+      ],
+      "sourceSHA256": "924199636fa111b963586c60cb605e69e9c0e9b72212755da229453333c8b486",
+      "results": [
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine",
+          "length": -1,
+          "exitCode": null,
+          "outcome": "timeout; owned subprocess killed and reaped by subprocess.run",
+          "output": "SYMBOL_PRESENT crc32_combine image=/usr/lib/libz.1.dylib length=-1"
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine image=/usr/lib/libz.1.dylib length=0\nRETURNED 0",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine image=/usr/lib/libz.1.dylib length=1\nRETURNED 0",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine64",
+          "length": -1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine64",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine64",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine64",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine64",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine64",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine_gen",
+          "length": -1,
+          "exitCode": null,
+          "outcome": "timeout; owned subprocess killed and reaped by subprocess.run",
+          "output": "SYMBOL_PRESENT crc32_combine_gen image=/usr/lib/libz.1.dylib length=-1"
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine_gen",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine_gen image=/usr/lib/libz.1.dylib length=0\nRETURNED 2147483648",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine_gen",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine_gen image=/usr/lib/libz.1.dylib length=1\nRETURNED 8388608",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine_gen64",
+          "length": -1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine_gen64",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine_gen64",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine_gen64",
+          "error": ""
+        },
+        {
+          "architecture": "arm64",
+          "symbol": "crc32_combine_gen64",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine_gen64",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine",
+          "length": -1,
+          "exitCode": null,
+          "outcome": "timeout; owned subprocess killed and reaped by subprocess.run",
+          "output": "SYMBOL_PRESENT crc32_combine image=/usr/lib/libz.1.dylib length=-1"
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine image=/usr/lib/libz.1.dylib length=0\nRETURNED 0",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine image=/usr/lib/libz.1.dylib length=1\nRETURNED 0",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine64",
+          "length": -1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine64",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine64",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine64",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine64",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine64",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine_gen",
+          "length": -1,
+          "exitCode": null,
+          "outcome": "timeout; owned subprocess killed and reaped by subprocess.run",
+          "output": "SYMBOL_PRESENT crc32_combine_gen image=/usr/lib/libz.1.dylib length=-1"
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine_gen",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine_gen image=/usr/lib/libz.1.dylib length=0\nRETURNED 2147483648",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine_gen",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_PRESENT crc32_combine_gen image=/usr/lib/libz.1.dylib length=1\nRETURNED 8388608",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine_gen64",
+          "length": -1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine_gen64",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine_gen64",
+          "length": 0,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine_gen64",
+          "error": ""
+        },
+        {
+          "architecture": "x86_64",
+          "symbol": "crc32_combine_gen64",
+          "length": 1,
+          "exitCode": 0,
+          "output": "SYMBOL_ABSENT crc32_combine_gen64",
+          "error": ""
+        }
+      ],
+      "scope": "Standalone calls to the current Apple system library. x86_64 is Rosetta, not native Intel qualification; no app execution or OS-wide patch claim."
+    },
+    "E-APPLE-MAPPING": {
+      "distributionRepository": "https://github.com/apple-oss-distributions/distribution-macOS",
+      "osMappings": [
+        {
+          "osTag": "macos-130",
+          "zlibRevision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239"
+        },
+        {
+          "osTag": "macos-131",
+          "zlibRevision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239"
+        },
+        {
+          "osTag": "macos-132",
+          "zlibRevision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239"
+        },
+        {
+          "osTag": "macos-133",
+          "zlibRevision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239"
+        },
+        {
+          "osTag": "macos-134",
+          "zlibRevision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239"
+        },
+        {
+          "osTag": "macos-135",
+          "zlibRevision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239"
+        },
+        {
+          "osTag": "macos-140",
+          "zlibRevision": "34173d43399f4aa3bfa8a41daa2258f55a110c90"
+        },
+        {
+          "osTag": "macos-141",
+          "zlibRevision": "bb42124584aec9bca182793536f7cb4024d9123b"
+        },
+        {
+          "osTag": "macos-142",
+          "zlibRevision": "2821921af8e111a8db057f0d8d54c5b28eaf9ad0"
+        },
+        {
+          "osTag": "macos-143",
+          "zlibRevision": "2821921af8e111a8db057f0d8d54c5b28eaf9ad0"
+        },
+        {
+          "osTag": "macos-144",
+          "zlibRevision": "2821921af8e111a8db057f0d8d54c5b28eaf9ad0"
+        },
+        {
+          "osTag": "macos-145",
+          "zlibRevision": "2821921af8e111a8db057f0d8d54c5b28eaf9ad0"
+        },
+        {
+          "osTag": "macos-146",
+          "zlibRevision": "2821921af8e111a8db057f0d8d54c5b28eaf9ad0"
+        },
+        {
+          "osTag": "macos-150",
+          "zlibRevision": "254db955604dd85946b4a2f07f758a254dea08b6"
+        },
+        {
+          "osTag": "macos-151",
+          "zlibRevision": "254db955604dd85946b4a2f07f758a254dea08b6"
+        },
+        {
+          "osTag": "macos-152",
+          "zlibRevision": "254db955604dd85946b4a2f07f758a254dea08b6"
+        },
+        {
+          "osTag": "macos-153",
+          "zlibRevision": "254db955604dd85946b4a2f07f758a254dea08b6"
+        },
+        {
+          "osTag": "macos-154",
+          "zlibRevision": "400ea2fa72f025f7f9b8ded196db81153552758b"
+        },
+        {
+          "osTag": "macos-155",
+          "zlibRevision": "400ea2fa72f025f7f9b8ded196db81153552758b"
+        },
+        {
+          "osTag": "macos-156",
+          "zlibRevision": "400ea2fa72f025f7f9b8ded196db81153552758b"
+        },
+        {
+          "osTag": "macos-260",
+          "zlibRevision": "06673bf7cb4066003fd14a0b87085c05739fc4ac"
+        },
+        {
+          "osTag": "macos-261",
+          "zlibRevision": "06673bf7cb4066003fd14a0b87085c05739fc4ac"
+        },
+        {
+          "osTag": "macos-262",
+          "zlibRevision": "06673bf7cb4066003fd14a0b87085c05739fc4ac"
+        },
+        {
+          "osTag": "macos-263",
+          "zlibRevision": "06673bf7cb4066003fd14a0b87085c05739fc4ac"
+        },
+        {
+          "osTag": "macos-264",
+          "zlibRevision": "06673bf7cb4066003fd14a0b87085c05739fc4ac"
+        },
+        {
+          "osTag": "macos-265",
+          "zlibRevision": "3dbd11404a18ac1d6ed3ca9c1d6a01d049bf8674"
+        }
+      ],
+      "sourceInspections": [
+        {
+          "revision": "06673bf7cb4066003fd14a0b87085c05739fc4ac",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/06673bf7cb4066003fd14a0b87085c05739fc4ac/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/06673bf7cb4066003fd14a0b87085c05739fc4ac/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "254db955604dd85946b4a2f07f758a254dea08b6",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/254db955604dd85946b4a2f07f758a254dea08b6/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/254db955604dd85946b4a2f07f758a254dea08b6/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "2821921af8e111a8db057f0d8d54c5b28eaf9ad0",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/2821921af8e111a8db057f0d8d54c5b28eaf9ad0/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/2821921af8e111a8db057f0d8d54c5b28eaf9ad0/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "34173d43399f4aa3bfa8a41daa2258f55a110c90",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/34173d43399f4aa3bfa8a41daa2258f55a110c90/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/34173d43399f4aa3bfa8a41daa2258f55a110c90/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "3dbd11404a18ac1d6ed3ca9c1d6a01d049bf8674",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/3dbd11404a18ac1d6ed3ca9c1d6a01d049bf8674/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/3dbd11404a18ac1d6ed3ca9c1d6a01d049bf8674/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "400ea2fa72f025f7f9b8ded196db81153552758b",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/400ea2fa72f025f7f9b8ded196db81153552758b/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/400ea2fa72f025f7f9b8ded196db81153552758b/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "bb42124584aec9bca182793536f7cb4024d9123b",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/bb42124584aec9bca182793536f7cb4024d9123b/zlib/crc32.c",
+              "sha256": "8752fcca93870f525360715a7feaf2cfd345e49b5d581d622be9f19d40686e40",
+              "combineEntryLine": 1113,
+              "hasNegativeLengthGuard": false,
+              "x2nmodpUsesSignedOffset": true
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/bb42124584aec9bca182793536f7cb4024d9123b/libz.exp",
+              "sha256": "ab93804c940015e610874c604097551c3137f180182c7bb823c7c9b9a83a6715",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z",
+                "_crc32_combine_gen",
+                "_crc32_combine_op"
+              ]
+            }
+          ]
+        },
+        {
+          "revision": "f826933d0eba7615bfcdd44a1caeb101ae8ed239",
+          "files": [
+            {
+              "path": "zlib/crc32.c",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/f826933d0eba7615bfcdd44a1caeb101ae8ed239/zlib/crc32.c",
+              "sha256": "b163c575a6ffd97e2c0b22f5e130b1260b68b329317e0927ba234fe3f460b911",
+              "combineEntryLine": 441,
+              "hasNegativeLengthGuard": true,
+              "x2nmodpUsesSignedOffset": false
+            },
+            {
+              "path": "libz.exp",
+              "url": "https://raw.githubusercontent.com/apple-oss-distributions/zlib/f826933d0eba7615bfcdd44a1caeb101ae8ed239/libz.exp",
+              "sha256": "00a29ed7af69f16155df8faa9cec2aa144e6ab7382a88fe5c1d9f072ba1549a2",
+              "crcExports": [
+                "_crc32",
+                "_crc32_combine",
+                "_crc32_z"
+              ]
+            }
+          ]
+        }
+      ],
+      "scope": "Published Apple source mappings through macOS 26.5; current macOS 26.6.2 is covered separately by the bounded runtime probe. No unlisted OS binary is inferred tested."
+    },
+    "qualificationGuards": {
+      "probe-closure-0": {
+        "allowed_roots": [
+          "/private/tmp/bpr-rfc0038-official-qt-20261016"
+        ],
+        "command_returncode": 0,
+        "live_files": [
+          {
+            "after": {
+              "exists": true,
+              "sha256": "3f081e519cd440ac5bc3d3369f23a7e068069d66a8511f0dd0a9a7be1b0115f1"
+            },
+            "before": {
+              "exists": true,
+              "sha256": "3f081e519cd440ac5bc3d3369f23a7e068069d66a8511f0dd0a9a7be1b0115f1"
+            },
+            "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+            "unchanged": true
+          },
+          {
+            "after": {
+              "exists": true,
+              "sha256": "b07090b74b79a367f4a7a46e358505d8c148826b2d3e064ce665fb4047d82a9f"
+            },
+            "before": {
+              "exists": true,
+              "sha256": "b07090b74b79a367f4a7a46e358505d8c148826b2d3e064ce665fb4047d82a9f"
+            },
+            "path": "/Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview/cmake/BprQtProvider.cmake",
+            "unchanged": true
+          }
+        ],
+        "live_roots": [
+          "/Users/jaeger/Documents/GitHub/BetterPullReview",
+          "/Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview"
+        ],
+        "status": "passed",
+        "target_root": "/private/tmp/bpr-rfc0038-official-qt-20261016"
+      },
+      "checks-0": {
+        "allowed_roots": [
+          "/private/tmp/bpr-rfc0038-official-qt-20261016"
+        ],
+        "command_returncode": 0,
+        "live_files": [
+          {
+            "after": {
+              "exists": true,
+              "sha256": "3f081e519cd440ac5bc3d3369f23a7e068069d66a8511f0dd0a9a7be1b0115f1"
+            },
+            "before": {
+              "exists": true,
+              "sha256": "3f081e519cd440ac5bc3d3369f23a7e068069d66a8511f0dd0a9a7be1b0115f1"
+            },
+            "path": "/Users/jaeger/Documents/GitHub/BetterPullReview/.mask/skill-config/implement-rfc/project.json",
+            "unchanged": true
+          },
+          {
+            "after": {
+              "exists": true,
+              "sha256": "b07090b74b79a367f4a7a46e358505d8c148826b2d3e064ce665fb4047d82a9f"
+            },
+            "before": {
+              "exists": true,
+              "sha256": "b07090b74b79a367f4a7a46e358505d8c148826b2d3e064ce665fb4047d82a9f"
+            },
+            "path": "/Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview/cmake/BprQtProvider.cmake",
+            "unchanged": true
+          }
+        ],
+        "live_roots": [
+          "/Users/jaeger/Documents/GitHub/BetterPullReview",
+          "/Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview"
+        ],
+        "status": "passed",
+        "target_root": "/private/tmp/bpr-rfc0038-official-qt-20261016"
+      }
+    }
+  },
+  "reproduction": {
+    "location": "Disposable scratch only. C sources and Python drivers below reproduce the bounded observations after restoring the exact hash-verified package and Qt/dependency sources from the v1 inputs.",
+    "host": "macOS 26.6.2 (25G83), arm64; x86_64 through Rosetta",
+    "sources": [
+      {
+        "filename": "apple_crc_probe.c",
+        "sha256": "924199636fa111b963586c60cb605e69e9c0e9b72212755da229453333c8b486",
+        "content": "#define _DARWIN_C_SOURCE\n#include <dlfcn.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n\nint main(int argc, char **argv)\n{\n    if (argc != 3) return 2;\n    void *library = dlopen(\"/usr/lib/libz.1.dylib\", RTLD_NOW | RTLD_LOCAL);\n    if (!library) return 3;\n    void *symbol = dlsym(library, argv[1]);\n    if (!symbol) {\n        printf(\"SYMBOL_ABSENT %s\\n\", argv[1]);\n        return 0;\n    }\n    Dl_info info = {0};\n    if (!dladdr(symbol, &info) || !info.dli_fname) return 4;\n    printf(\"SYMBOL_PRESENT %s image=%s length=%s\\n\", argv[1], info.dli_fname, argv[2]);\n    fflush(stdout);\n    long length = strtol(argv[2], NULL, 10);\n    unsigned long result;\n    if (strcmp(argv[1], \"crc32_combine\") == 0 || strcmp(argv[1], \"crc32_combine64\") == 0) {\n        unsigned long (*combine)(unsigned long, unsigned long, long) = symbol;\n        result = combine(0, 0, length);\n    } else if (strcmp(argv[1], \"crc32_combine_gen\") == 0 || strcmp(argv[1], \"crc32_combine_gen64\") == 0) {\n        unsigned long (*generate)(long) = symbol;\n        result = generate(length);\n    } else return 5;\n    printf(\"RETURNED %lu\\n\", result);\n    dlclose(library);\n    return 0;\n}\n"
+      },
+      {
+        "filename": "run_apple_crc_probe.py",
+        "sha256": "6b3ebeed0a66349fbc709d3231df82fccfcc5829402029d8488c2e6f53547d55",
+        "content": "import hashlib\nimport json\nimport platform\nimport subprocess\nfrom pathlib import Path\n\nroot = Path('/private/tmp/bpr-rfc0038-official-qt-20261016')\nresults = []\nfor architecture in ('arm64', 'x86_64'):\n    executable = root / ('apple-crc-' + architecture)\n    compile_command = ['/usr/bin/clang', '-O1', '-arch', architecture, str(root / 'apple_crc_probe.c'), '-o', str(executable)]\n    build = subprocess.run(compile_command, capture_output=True, text=True, timeout=60)\n    assert build.returncode == 0, build.stderr\n    for symbol in ('crc32_combine', 'crc32_combine64', 'crc32_combine_gen', 'crc32_combine_gen64'):\n        for length in ('-1', '0', '1'):\n            command = [str(executable), symbol, length]\n            try:\n                result = subprocess.run(command, capture_output=True, text=True, timeout=2)\n                row = {'architecture': architecture, 'symbol': symbol, 'length': int(length), 'exitCode': result.returncode, 'output': result.stdout.strip(), 'error': result.stderr.strip()}\n            except subprocess.TimeoutExpired as error:\n                row = {'architecture': architecture, 'symbol': symbol, 'length': int(length), 'exitCode': None, 'outcome': 'timeout; owned subprocess killed and reaped by subprocess.run', 'output': (error.stdout or b'').decode().strip()}\n            results.append(row)\nrecord = {'host': platform.mac_ver(), 'sourceSHA256': hashlib.sha256((root/'apple_crc_probe.c').read_bytes()).hexdigest(), 'results': results, 'scope': 'Standalone calls to the current Apple system library. x86_64 is Rosetta, not native Intel qualification; no app execution or OS-wide patch claim.'}\n(root/'apple-crc-results.json').write_text(json.dumps(record, indent=2)+'\\n')\nprint(json.dumps(record, indent=2))\n"
+      },
+      {
+        "filename": "qt_dbus_load_probe.c",
+        "sha256": "ea0b5a690565cd1df52dbf6fb1302c02338bb33732b972272067dd252563db33",
+        "content": "#define _DARWIN_C_SOURCE\n#include <dlfcn.h>\n#include <mach-o/dyld.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <string.h>\n\nstatic unsigned external_dbus_loads;\nstatic unsigned qt_dbus_loads;\n\nstatic void image_added(const struct mach_header *header, intptr_t slide)\n{\n    (void)slide;\n    for (uint32_t index = 0; index < _dyld_image_count(); ++index) {\n        if (_dyld_get_image_header(index) != header) continue;\n        const char *path = _dyld_get_image_name(index);\n        const char *name = strrchr(path, '/');\n        name = name ? name + 1 : path;\n        if (strstr(path, \"/QtDBus.framework/\")) ++qt_dbus_loads;\n        if (strncmp(name, \"libdbus-1\", 9) == 0) ++external_dbus_loads;\n    }\n}\n\nint main(int argc, char **argv)\n{\n    if (argc != 7) return 2;\n    _dyld_register_func_for_add_image(image_added);\n    for (int index = 1; index < 6; ++index) {\n        void *loaded = dlopen(argv[index], RTLD_NOW | RTLD_LOCAL);\n        if (!loaded) {\n            fprintf(stderr, \"LOAD_FAILED %s: %s\\n\", argv[index], dlerror());\n            return 3;\n        }\n    }\n    printf(\"PACKAGE_IMAGES qt_dbus_loads=%u external_dbus_loads=%u\\n\", qt_dbus_loads, external_dbus_loads);\n    if (qt_dbus_loads != 1 || external_dbus_loads != 0) return 4;\n    if (!dlopen(argv[6], RTLD_NOW | RTLD_LOCAL)) return 5;\n    printf(\"NEGATIVE_CONTROL external_dbus_loads=%u\\n\", external_dbus_loads);\n    return external_dbus_loads == 1 ? 0 : 6;\n}\n"
+      },
+      {
+        "filename": "run_qt_dbus_load_probe.py",
+        "sha256": "98f36c52575aa71def220fd2895a64c47e1a43e50cddab79babddc16e0e98d50",
+        "content": "import hashlib\nimport json\nimport subprocess\nfrom pathlib import Path\n\nroot = Path('/private/tmp/bpr-rfc0038-official-qt-20261016')\npackage = Path('/private/tmp/bpr-rfc0038-security-audit-20261016/macos-0.2.1-extracted/BetterPullReview.app')\nframeworks = package / 'Contents/Frameworks'\nplugins = package / 'Contents/PlugIns'\npaths = [frameworks / 'QtWidgets.framework/Versions/A/QtWidgets', plugins / 'platforms/libqcocoa.dylib', plugins / 'styles/libqmacstyle.dylib', plugins / 'networkinformation/libqapplenetworkinformation.dylib', plugins / 'tls/libqsecuretransportbackend.dylib']\n(root/'dbus_marker.c').write_text('int bpr_dbus_marker(void) { return 1; }\\n')\nrecords = []\nfor architecture in ('arm64', 'x86_64'):\n    destination = root / ('loader-' + architecture)\n    destination.mkdir(exist_ok=True)\n    marker = destination / 'libdbus-1.dylib'\n    executable = destination / 'qt-dbus-load-probe'\n    commands = [\n        ['/usr/bin/clang','-arch',architecture,'-dynamiclib',str(root/'dbus_marker.c'),'-o',str(marker)],\n        ['/usr/bin/clang','-arch',architecture,str(root/'qt_dbus_load_probe.c'),'-Wl,-rpath,'+str(frameworks),'-o',str(executable)],\n    ]\n    for command in commands:\n        build = subprocess.run(command, capture_output=True, text=True, timeout=60)\n        assert build.returncode == 0, build.stderr\n    command = [str(executable), *(str(p) for p in paths), str(marker)]\n    result = subprocess.run(command, capture_output=True, text=True, timeout=15, env={'PATH':'/usr/bin:/bin'})\n    records.append({'architecture':architecture,'exitCode':result.returncode,'output':result.stdout.strip(),'error':result.stderr.strip()})\nrecord = {\n    'scope':'Exact packaged QtWidgets and all four shipped plugins loaded in a standalone process; no QApplication or window is constructed. This isolates automatic library initialization, not the complete application runtime. x86_64 executes through Rosetta.',\n    'sourceSHA256':hashlib.sha256((root/'qt_dbus_load_probe.c').read_bytes()).hexdigest(),\n    'inputImages':[{'path':str(p.relative_to(package)), 'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in paths],\n    'results':records,\n}\n(root/'qt-dbus-load-results.json').write_text(json.dumps(record,indent=2)+'\\n')\nprint(json.dumps(record,indent=2))\nassert all(r['exitCode']==0 for r in records)\n"
+      },
+      {
+        "filename": "audit_remaining_paths.py",
+        "sha256": "dbc1f6adb7432f45ed122e689a5b4995c06deb6ddb56ae1d2c75e5b9da9b015c",
+        "content": "import hashlib\nimport json\nimport subprocess\nfrom pathlib import Path\n\nout = Path('/private/tmp/bpr-rfc0038-official-qt-20261016')\nrepo = Path('/Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview')\nold = Path('/private/tmp/bpr-rfc0038-independent-review-20261016')\nqt = old / 'qt/qtbase-everywhere-src-6.11.2'\napp = Path('/private/tmp/bpr-rfc0038-security-audit-20261016/macos-0.2.1-extracted/BetterPullReview.app')\n\ndef command(argv, expected=(0,)):\n    p = subprocess.run(argv, cwd=repo, capture_output=True, text=True, timeout=90)\n    assert p.returncode in expected, (argv, p.returncode, p.stderr)\n    return {'argv': argv, 'exitCode': p.returncode, 'matches': p.stdout.splitlines(), 'stderr': p.stderr}\n\nrecord = {'scope': 'Source reference and packaged undefined-symbol audit; not an active GUI trace or proof about proprietary OS-framework internals.', 'sourceChecks': [], 'images': []}\nfor revision in ('c233c768327cd6c0cb6807860625ec12a9aeac14', '23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d'):\n    for pattern in ('crc32_combine', 'QDBus|dbus_connection|QDesktopUnixServices'):\n        result = command(['git', 'grep', '-n', '-E', pattern, revision, '--', 'src'], (0, 1))\n        assert not result['matches'], result\n        record['sourceChecks'].append(result)\n\nscopes = {\n    'Qt application consumers': [str(qt/'src'), '-g', '!**/3rdparty/zlib/**', '-g', '!**/3rdparty/freetype/src/gzip/**'],\n    'KSyntaxHighlighting': [str(old/'dependencies/syntax-highlighting-6.28.1/src')],\n    'LibArchive': [str(old/'dependencies/libarchive-3.8.9/libarchive')],\n}\nfor label, roots in scopes.items():\n    result = command(['rg', '-n', '-g', '*.c', '-g', '*.cpp', '-g', '*.cc', '-g', '*.mm', 'crc32_combine', *roots], (0, 1))\n    assert not result['matches'], result\n    record['sourceChecks'].append({'scope':label, **result})\n\nfor directory in ('src/network', 'src/widgets', 'src/plugins/platforms/cocoa', 'src/plugins/styles/mac', 'src/plugins/networkinformation/apple', 'src/plugins/tls/securetransport'):\n    assert (qt/directory).is_dir(), directory\n    result = command(['rg', '-n', '-g', '*.c', '-g', '*.cpp', '-g', '*.cc', '-g', '*.mm', 'QDBus|dbus_connection|QDesktopUnixServices', str(qt/directory)], (0, 1))\n    # Generic Unix network code is evaluated separately; all Cocoa/plugin/widget code must have no caller.\n    if directory != 'src/network':\n        assert not result['matches'], result\n    record['sourceChecks'].append(result)\n\nbound_paths = [\n    'src/gui/CMakeLists.txt', 'src/gui/kernel/qguiapplication.cpp',\n    'src/gui/platform/unix/qdesktopunixservices.cpp',\n    'src/plugins/platforms/cocoa/qcocoaservices.h',\n    'src/plugins/platforms/cocoa/qcocoaservices.mm',\n    'src/plugins/platforms/cocoa/qcocoaintegration.mm',\n    'src/dbus/qdbus_symbols.cpp', 'src/dbus/qdbusconnectionmanager.cpp',\n    'src/3rdparty/freetype/src/gzip/crc32.c',\n]\nrecord['boundQtSources'] = [{'path':p, 'sha256':hashlib.sha256((qt/p).read_bytes()).hexdigest()} for p in bound_paths]\nprevious = json.loads((old/'mac-imports.json').read_text())\nfor entry in previous:\n    path = app/entry['name']\n    digest = hashlib.sha256(path.read_bytes()).hexdigest()\n    assert digest == entry['sha256']\n    item = {'path':entry['name'], 'sha256':digest, 'architectures':{}}\n    for arch in ('arm64', 'x86_64'):\n        result = command(['/usr/bin/nm', '-arch', arch, '-u', str(path)])\n        imports = result['matches']\n        crc = [s.strip() for s in imports if 'crc32_combine' in s]\n        dbus = [s.strip() for s in imports if 'DBus' in s or 'dbus_' in s]\n        assert not crc, (path, arch, crc)\n        item['architectures'][arch] = {'nmExit':result['exitCode'], 'crcCombineImports':crc, 'dbusImports':dbus}\n    record['images'].append(item)\nassert len(record['images']) == 14\n(out/'remaining-source-paths.json').write_text(json.dumps(record, indent=2)+'\\n')\nprint(json.dumps({'images':len(record['images']), 'slices':28, 'sourceChecks':len(record['sourceChecks']), 'dbusImportingImages':[x['path'] for x in record['images'] if any(a['dbusImports'] for a in x['architectures'].values())], 'networkDBusSourceMatches':[x['matches'] for x in record['sourceChecks'] if any(v.endswith('/src/network') for v in x['argv'])]}, indent=2))\n"
+      }
+    ],
+    "commands": [
+      "python3 /private/tmp/bpr-rfc0038-official-qt-20261016/run_apple_crc_probe.py",
+      "python3 /private/tmp/bpr-rfc0038-official-qt-20261016/run_qt_dbus_load_probe.py",
+      "python3 /private/tmp/bpr-rfc0038-official-qt-20261016/audit_remaining_paths.py"
+    ],
+    "expected": "CRC driver finishes after recording four bounded negative-length timeouts, eight successful nonnegative alias calls and twelve absent-*64 observations. Loader driver requires one QtDBus image, zero external libdbus images, then one deliberate marker image on each architecture. Source audit requires 14 images and zero CRC-combine imports. A driver exit of zero does not mean the tested Apple library is fixed."
+  },
+  "workflow": {
+    "binding": "docs/issues/_checkpoints/RFC-BPR-0038/milestone-binding-official-qt-followup-20261016.json",
+    "strategy": "Existing direct rev1 selection preserved. No delegation; serving route and scoped enforcement not verified.",
+    "preflight": "Isolated worktree project.not_registered; existing installed project helpers used without changing shared registration.",
+    "board": "Inspect refuses historical NEXT_ID drift; no new allocation, claim, card move or acceptance. This is evidence-only continuation of the existing blocked card."
+  },
+  "validation": {
+    "recordConsistency": {
+      "command": "python3 /private/tmp/bpr-rfc0038-official-qt-20261016/validate_followup.py",
+      "exitCode": 0,
+      "validatorSHA256": "fad682e5bf362b01a0b6d594183536d10ccf7a16a0feb311f2d93f48d5945157",
+      "result": {
+        "status": "passed",
+        "frozenFiles": 7,
+        "scannerRowsCovered": 64,
+        "newApplicabilityProposals": [
+          "MAC-025",
+          "MAC-026",
+          "MAC-027"
+        ],
+        "combinedProposedCounts": {
+          "accept": 56,
+          "insufficient-evidence": 5,
+          "remediate": 3
+        },
+        "rawReportsPreserved": 2,
+        "machOImages": 14,
+        "machOSlices": 28,
+        "sourceChecks": 13,
+        "loaderArchitectureChecks": 2,
+        "boundedCrcObservations": 24,
+        "applePublishedOsMappings": 26,
+        "localMarkdownLinks": 64
+      }
+    },
+    "documentationGate": {
+      "command": "PYTHONPATH=/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts python3 scripts/verify_documentation.py --root .",
+      "exitCode": 1,
+      "result": "failed",
+      "diagnostic": "ERROR: /Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview/docs/issues/NEXT_ID: next_id: BPR-1558 rewinds historical high water BPR-1566",
+      "scope": "Existing issue-counter drift; no override or shared counter mutation."
+    },
+    "documentationUnitTests": {
+      "command": "PYTHONPATH=/Users/jaeger/Documents/GitHub/BetterPullReview/.agents/skills/implement-rfc/scripts python3 tests/scripts/verify_documentation_tests.py",
+      "exitCode": 0,
+      "result": "passed",
+      "tests": 67,
+      "note": "Expected negative-fixture diagnostics were emitted; unittest summary was OK."
+    },
+    "diffCheck": {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "result": "passed"
+    },
+    "productBuild": "Not run: evidence/documentation only; provider and product source unchanged.",
+    "originalEvidence": "Reused unchanged v1 JIT allocation counterexample, exact PE/Mach-O/source findings and frozen scanner receipts; no full native or scan pass claimed."
+  },
+  "acceptance": {
+    "BPR-0962": {
+      "status": "Blocked",
+      "blockedBy": "release-security-inputs",
+      "AC1": "pending",
+      "AC2": "pending",
+      "AC3": "failed"
+    },
+    "RFC-BPR-0038": "All nine criteria remain open. No publication or security-owner waiver.",
+    "rawScans": "Unchanged Mac 33 / Windows 31 matches; both exit 2. No filter, suppression, changed feed or replacement package."
+  },
+  "recheck": "Before the next release, when an updated official Qt release is available, on source/package/platform/build-option/OS/advisory changes, or by 2026-11-15, whichever occurs first. No background monitoring has been scheduled."
+}

@@ -1,0 +1,465 @@
+{
+  "schema": "bpr.rfc0038.evidence-reconciliation.v1",
+  "observed_date": "2026-10-16",
+  "qualification_owner": "RFC0038 qualification task 01a1456b-b3b2-7793-b1f6-9da54ba6b000",
+  "entry_revision": "15f0bff176897fa329ba6d455d2aab503eff5270",
+  "releases": {
+    "macos-0.2.1": {
+      "source": "c233c768327cd6c0cb6807860625ec12a9aeac14",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.2.1",
+      "trust": {
+        "appSignature": "deep strict valid",
+        "appAndDmgStaples": "valid",
+        "appAndDmgGatekeeper": "accepted Notarized Developer ID",
+        "allDownloadedAssetsByteIdentical": true
+      },
+      "normal_gate": "733 pass / one configured Debug cache-bytes skip; optimized supplement passed 75.37s",
+      "trust_scope": "Recorded producer and downloaded-artifact verification, not a new independent reviewer acceptance.",
+      "vulnerability_matches": 33,
+      "publication_exception": "Owner directed publication without independent review; does not satisfy RFC0038 security acceptance."
+    },
+    "windows-0.2.2": {
+      "source": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.2.2",
+      "trust": "MSI+4source-builtimages ValidMichaelMarcin,timestamped; nativeR1exit0",
+      "native_audit": {
+        "state": "R4exit0 RELEASE_PACKAGE_OK RELEASE_SECURITY_MECHANICS_OK",
+        "nativeTrust": "MSI+4sourcebuiltimagesValidMichaelMarcinTimestamped",
+        "binaryCount": 17,
+        "frozenSource": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+        "mechanicalReceipt": "native-final/bpr-v022-final-audit-r4.receipt.json",
+        "privateProducerMapsRetained": "C:/Users/mikem/bpr-v021/build/windows-app-release",
+        "followupDone": "BPR1551be8bcd1045375777da9008f34dd434f0ede9810f docs-only laterdevelopmentintegration; do not rebindtag"
+      },
+      "normal_gate": {
+        "resumed705": "703pass1failed1configuredDebugskip onoriginal181; do not relabel",
+        "currentAffectedWindows": "35/35pass0skip,1301.03s",
+        "currentWSL": "12/12pass0skip71.43s",
+        "optimizedCache": "Releasepassed270.16s",
+        "fullDiagnosticWrapper": "passed169.34s,original10msassertion",
+        "standaloneStopMs": 4.5641,
+        "mac": "affectedgeometry11+public6+host/negative/restoration pass; staticformat22tidy22architecture/docs67 pass"
+      },
+      "installation": "No actual MSI installation; administrative extraction only.",
+      "vulnerability_matches": 31
+    }
+  },
+  "rehash_verified_assets": {
+    "macos-0.2.1": [
+      {
+        "name": "BetterPullReview-0.2.1-macos-universal.zip",
+        "sha256": "8a635a4b8a99caaf5cb7db3aa2344772749e8bd8080272d63004a9f80c4ac4f8",
+        "bytes": 52990187
+      },
+      {
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json",
+        "sha256": "db51b084a3641c0e674b0ab5b9e689ba2d68ba0d79c89370157d9ffd47b21f38",
+        "bytes": 188055
+      },
+      {
+        "name": "BetterPullReview-0.2.1-macos-universal.zip.sha256",
+        "sha256": "4f54f88b9904900fca598f69f3e426798d9591643f4ecba6af3397ebf90a605b",
+        "bytes": 109
+      },
+      {
+        "name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip.sha256",
+        "sha256": "1e21a125fa2677752abe1c0b7865984a3f069855c23f5696d14f7a1718afec08",
+        "bytes": 137
+      },
+      {
+        "name": "BetterPullReview-0.2.1-macos-universal.dmg.sha256",
+        "sha256": "822256f240e89bb72a1f110de0f9132ba276c86d41ce0f267912429a6211ca84",
+        "bytes": 109
+      },
+      {
+        "name": "BetterPullReview-0.2.1-macos-universal.dmg",
+        "sha256": "5ec36d7ba6007c2611845166357c69de290370b5c3cf707e321710465e9a4a78",
+        "bytes": 59251696
+      },
+      {
+        "name": "BetterPullReview-0.2.1-macos-universal.spdx.json.sha256",
+        "sha256": "d4bf87d93afbb23ddfad8eca855a275e0435693385f5c5032e03b75791a0548b",
+        "bytes": 115
+      },
+      {
+        "name": "Source-BetterPullReview-0.2.1-macos-universal-corresponding-source.zip",
+        "sha256": "45dd4b46978c92e1382b835ab32f3b89fb86e0ec4a01e5f2ebae4efbbdd44cd9",
+        "bytes": 99922057
+      }
+    ],
+    "windows-0.2.2": [
+      {
+        "name": "BetterPullReview-0.2.2-windows-x64-runtime.zip",
+        "sha256": "e7321a46b9ee0aafea2bf75a6ae7413f65de029202032460e750b53050631b82",
+        "bytes": 27323831
+      },
+      {
+        "name": "BetterPullReview-0.2.2-windows-x64.msi",
+        "sha256": "b3e2a5420893604ebb6b30d7708cb2405d090a16e09dc459d049bf1155a50f85",
+        "bytes": 23646208
+      },
+      {
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.provenance.json",
+        "sha256": "fadd9250b6be2c5a7a9fe810f282aa14654224f58b8c00417f7589912fede416",
+        "bytes": 2595
+      },
+      {
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.sha256",
+        "sha256": "01263787a5dd80b8bcf0cbca15177035af5e258ff6430cf8b59b93de73c6aca7",
+        "bytes": 470
+      },
+      {
+        "name": "BetterPullReview-0.2.2-windows-x64.msi.spdx.json",
+        "sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039",
+        "bytes": 175134
+      },
+      {
+        "name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+        "sha256": "504b38551e2d6560ca5c67ad6a563c92cac1e75c75605d5a11937621dd62dbe1",
+        "bytes": 93304239
+      }
+    ]
+  },
+  "windows_scan": {
+    "raw_sha256": "2b959ae13bf3be5074b40dbabf6ecabebffd87576db9c133f6aa67aaba330d9f",
+    "scanner": "0.120.1",
+    "database": {
+      "schemaVersion": "v6.1.10",
+      "from": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.10_2026-10-15T00:29:08Z_1792045836.tar.zst?checksum=sha256%3A2f1597f25b5089e966272b251eb4d1f9977e59d57029af1c8810deb6e5321aa2",
+      "built": "2026-10-15T06:30:36Z",
+      "path": "/Users/jaeger/Library/Caches/grype/db/6/vulnerability.db",
+      "valid": true
+    },
+    "groups": {
+      "Core_Attribution_tika-mimetypes": 12,
+      "SQLite": 3,
+      "zlib": 1,
+      "BundledZLIB": 1,
+      "Gui_Attribution_zlib": 1,
+      "Network_Attribution_zlib": 1,
+      "BundledPcre2": 6,
+      "BundledPcre2_Attribution_pcre2-sljit": 6
+    },
+    "unique_advisories": 23,
+    "exit_code": 2,
+    "approval": null,
+    "security_owner": null
+  },
+  "reused_done_cards": [
+    {
+      "issue": "BPR-0940",
+      "path": "docs/issues/60-done/BPR-0940-reconcile-composed-github-legacy-assertions.md",
+      "card_sha256": "f6527475bc2ad3f380ffc3898a4bace82d38cce805522c9bbe585012e74946e2",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "f839e26a",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Every remaining failure in the composed GitHub and workbench-window suites was traced, course by course, to the change that governs it: BPR-0915 shared sign-in (cbd50b74) for five composed courses, BPR-0929/BPR-0795 review-surface entry rows for the epoch row, eecdda2a for the empty-history wording. Six are stale entry paths or superseded wording; one is a product regression (QDialog clears Open browser's default, against BPR-0773/RFC-BPR-0032 A2). Exact-profile activation, bound-profile, cancellation (counted through the sign-in cancel sink) and no-other-effect checks are kept.",
+            "path": "docs/issues/60-done/BPR-0940-reconcile-composed-github-legacy-assertions.md#ac1-each-remaining-assertion-against-the-current-approved-behavior"
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "f839e26a",
+          "evidence": {
+            "kind": "command",
+            "detail": "Courses follow the shared-dialog entry path; device_authorization_panel re-asserts Open browser as default while a code is live. Failing-before controls: re-assertion removed -> qt_composed_github_scale_100 fails at the dialog's filled-control row; enter_read removed -> application_large_review_benchmark fails at its Read render row; Compose review treated as foreign -> qt_workbench_window_scale_100 fails at the epoch row. No test suppressed; authority checks kept.",
+            "path": "docs/issues/60-done/BPR-0940-reconcile-composed-github-legacy-assertions.md#ac2-fixture-entry-paths-updated-one-regression-repaired"
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "0f734801",
+          "evidence": {
+            "kind": "command",
+            "detail": "ctest build/dev at 0f734801: qt_composed_github_scale_100/125/200 pass (3.59/3.01/3.40 s, reaching 'All GitHub Qt presentation tests passed'); qt_workbench_window_scale_100/125/200 pass (19.49/19.13/19.59 s); application_large_review_benchmark passes (22.00 s) with a Read render inspected; 18 neighbouring sign-in, device and settings rows pass. qt_anonymous_public_preview_scale_100 fails at its pre-existing row, filed as BPR-1023.",
+            "path": "docs/issues/60-done/BPR-0940-reconcile-composed-github-legacy-assertions.md#ac3-evidence"
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0945",
+      "path": "docs/issues/60-done/BPR-0945-resolve-existing-strict-tidy-header-diagnostics.md",
+      "card_sha256": "ccb5072795ec70e870d2e24de945587c0d2aba3f001ca097244c10d5e21b9fbb",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "f8b589e7f10811126c1b811ca6f2b28d48738e38",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Two-header source review: unique standard include guard and unsigned initial mask operand; uint8_t constants and bits 1/2/4/8, all=15 unchanged; no tidy profile/helper suppression or runtime change."
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "f8b589e7f10811126c1b811ca6f2b28d48738e38",
+          "evidence": {
+            "kind": "command",
+            "detail": "Canonical _coding-standard/scripts/tidy.py with --warnings-as-errors and Xcode MacOSX.sdk: baseline reproduced both diagnostics (exit 1); repaired diff_workbench.cpp, files_tree.cpp, workbench_window.cpp and epoch_application_host.cpp all pass (exit 0), clang-tidy 23.1.1."
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "f8b589e7f10811126c1b811ca6f2b28d48738e38",
+          "evidence": {
+            "kind": "command",
+            "detail": "Six focused test targets built; 7/7 serial offscreen CTest Home/persistence/Dif/composed-window rows pass in 22.27s. Both headers pass clang-format 23.1.1; git diff --check passes."
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0967",
+      "path": "docs/issues/60-done/BPR-0967-measure-and-reconcile-native-large-review-resource-budgets.md",
+      "card_sha256": "892459ffcbbba346ce2611f408ec0104ef4adef76dec299db8594c085486af90",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Mac growth attributed (BPR-0893; repaired by BPR-1032). Windows and Linux growth measured by native counters on the stations and within limits set from those measurements. docs/verification/BPR-0967-station-budgets-2026-10-01.md"
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "9aa3df3bb9b39fe7e1a76f9e359fe57706b5c2b2",
+          "evidence": {
+            "kind": "command",
+            "detail": "Invariants enforced on all three platforms; each changed limit has a measured basis and stated rule with failing-before controls. Release gates at 9aa3df3bb: macOS 16 rows + architecture + replay; Windows 17/17 (440.84 s); Linux 17/17 (95.92 s), all enforced. No limit raised; misses named under BPR-1264."
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "6a573ac7fce5f84716f2439c2c9de1c198a58fd2",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Fixture-composition budgets enforced on macOS, Windows and Linux. Native packaged launch, compositor presentation and physical input: owner accepted all nine attended items (session cbd48b91, events 704-712, decision IDs on the card) with empty notes; no measured values were recorded with the verdicts."
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0968",
+      "path": "docs/issues/60-done/BPR-0968-verify-rendered-primary-and-secondary-rate-limit-recovery.md",
+      "card_sha256": "c4c72aff2a01263142ad86a81c3f759bba4f13c568fc389c69158430057ea44d",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "7c71c570d1a0391f011a480456fc058210db88b9",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Real macOS composition over denied-network recorded transport displays distinct primary/secondary refusal in Account Details and enforces shared admission. 515 files, 1000 threads, real Git 20000-line comparison. Inspected Settings and recovered-reading rasters; integration log and hashes in docs/rfcs/plans/bpr0968-rate-limit/evidence.json."
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "7c71c570d1a0391f011a480456fc058210db88b9",
+          "evidence": {
+            "kind": "command",
+            "detail": "core_github_read_backoff, application_github_window_read_host and application_rate_limit_render_recovery pass. Shared multi-window Open/Refresh, Retry-After/reset precedence, 60-900s fallback cap, zero automatic rate retries, three transient attempts with re-admission, authority retirement/cancel/stale completion and exact selection verified. Public course blocked 61 gestures, intervals 2468622/2498662/5785721us; selected line100/scroll33333 exact after work settles; actual held provider cancelled on close."
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "7c71c570d1a0391f011a480456fc058210db88b9",
+          "evidence": {
+            "kind": "artifact",
+            "detail": "Final public course: 119 ordinary account requests, eight repository starts, three refusals, zero mutations, 33053ms. Backoff-removal and LastProblem-projection-removal each rebuild and fail intended public assertion (CTest exit8); exact source digests restored, then final integration 8/8. Candidate, inputs, timings, hashes, baseline failures and reproduction commands recorded in evidence.json and HANDOFF-2026-09-25.md."
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0969",
+      "path": "docs/issues/60-done/BPR-0969-verify-cached-review-offline-restart-freshness.md",
+      "card_sha256": "c8e23a5f0a855b1ca086b77fdd9f85d897d7b0bcc62112c7194988baf4eee541",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "b3197149a74bbb8030a3d4a534e956b11a64ed9f",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Prior real-composition inventory, unavailable versus empty, retained epoch/source/metadata distinctions; docs/verification/BPR-0969-offline-inventory-2026-09-25.md."
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Actual Mac safe-fixture restarts/network loss/reconnect with exact account/repository/base/head isolation, missing source and unknown freshness; current-process independent authentication required. docs/verification/BPR-0969-cached-review-2026-09-25.md."
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "5ec14834d9fb1d26b7aede0824fe1eb84cf7f6f7",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Integrated durable conversations and exact retained source across core/host/SQLite/Qt; rendered candidate and owning-layer cancellation/stale-session/negative controls. Unsupported disconnected startup, old retained pairs, binary/nonUTF8/over-limit data and platform/native limits explicitly retained. docs/verification/BPR-0969-cached-review-2026-09-25.md."
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0970",
+      "path": "docs/issues/60-done/BPR-0970-cover-custom-parser-and-mapping-boundaries-with-fuzzing.md",
+      "card_sha256": "ddd702bd9ceeb27ef2a48b2d021b588c1bc273d322eedb101b8107b9e163be4c",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "b54a8719e",
+          "evidence": {
+            "kind": "artifact",
+            "detail": "docs/verification/BPR-0970-parser-fuzzing.md inventories every custom entry point in diff parsing/mapping, Markdown, settings, themes, API normalization, Git output and AI structured output, with input and trust, the dev-graph rows that reach it, and the target and selector that fuzz it; bound to aac225a4e plus this change and to the fuzz_<family>_corpus registrations. The designated live capsule's parser is named as not fuzzed."
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "b54a8719e",
+          "evidence": {
+            "kind": "command",
+            "detail": "BPR_BUILD_FUZZERS=ON (Apple clang 21, libFuzzer runtime from Homebrew LLVM 23) builds eight targets with every first-party unit under fuzzer-no-link, ASan and UBSan; ctest -L bpr_fuzz_corpus replays 224 seeds, 8/8 pass; test_network_isolation_manifest passes in that graph; verify_live_mutation_isolation finds no live mutation provider in the fuzz binaries. Process-only readers moved unchanged into git_process_output.hpp and gh_cli_response.hpp; no test backdoor."
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "b54a8719e",
+          "evidence": {
+            "kind": "command",
+            "detail": "Three 15-minute campaigns of all eight targets and a fourth of fuzz_github_api, seeds 970001 onward, -max_len per target, -timeout=10, -rss_limit_mb=2048, -malloc_limit_mb=512; executions, coverage and outcomes recorded. Four defects found and fixed with regression seeds (MCP identity cast UB, gh auth status over-read, markdown view freed-fragment read, exponential wildcard_match with discriminating core_review_cycle_manifest cases); each target's last campaign clean. macOS dev: 52/52 integration rows pass. No claim of absence of other defects."
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0971",
+      "path": "docs/issues/60-done/BPR-0971-audit-pathological-diagnostic-privacy-and-backpressure.md",
+      "card_sha256": "a43073f5c7c3cdba458336c0f432b11081004d5aa15c67968093a4361a6e7507",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "9d2fe772f506b8aa63356d7cfb992f9516c9dfae",
+          "evidence": {
+            "kind": "artifact",
+            "detail": "Complete seven-subsystem field/source/bound inventory with classified provider and explicit terminal ownership.",
+            "path": "docs/verification/bpr0971-completion.md"
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "9d2fe772f506b8aa63356d7cfb992f9516c9dfae",
+          "evidence": {
+            "kind": "artifact",
+            "detail": "Unchanged canaries pass sanitizer/provider/file/export; hostile input and real pathological composition courses pass without diagnostic content retention.",
+            "path": "docs/verification/bpr0971-completion.md"
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "9d2fe772f506b8aa63356d7cfb992f9516c9dfae",
+          "evidence": {
+            "kind": "artifact",
+            "detail": "Measured exact loss/recovery; full/closed terminal and full/unavailable Quill preserve composed outcomes and epoch durability. Windows/Linux runs owner-deferred; native crash and uninterruptible I/O limits explicit.",
+            "path": "docs/verification/bpr0971-completion.md"
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    },
+    {
+      "issue": "BPR-0972",
+      "path": "docs/issues/60-done/BPR-0972-verify-application-wide-active-set-and-changed-set-scaling.md",
+      "card_sha256": "b31ca7b0c62bc2f1c54ec1803d113400aeab1c74457848c43615a27bd5213546",
+      "acceptance": [
+        {
+          "criterion": "AC1",
+          "outcome": "pass",
+          "revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Complete seven-family public-operation/retained-owner inventory identifies scans, resets/fallbacks, synchronous I/O/store counts and exact completion authority. BPR1211 retains the architectural I/O gap.",
+            "path": "docs/verification/bpr0972-active-changed-scaling.md"
+          }
+        },
+        {
+          "criterion": "AC2",
+          "outcome": "pass",
+          "revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+          "evidence": {
+            "kind": "observation",
+            "detail": "32/4096 equivalence and persistent-identity counters, eight compiled behavior negative controls, serialized/stale/cancelled/reentrant host cases and final public scaling pass. Active-order and Qt tree fallback costs remain explicit; no changed-only or whole-architecture claim.",
+            "path": "docs/verification/bpr0972-active-changed-scaling.md"
+          }
+        },
+        {
+          "criterion": "AC3",
+          "outcome": "pass",
+          "revision": "149704df1fcb0d9c7149a69f775815db68b0bb0d",
+          "evidence": {
+            "kind": "observation",
+            "detail": "Final515-file/1000-thread/20000-line scaling course passes34.55s across two same-root rounds and held-provider cancellation; sibling reload-failure/recovery passes74.92s. Exact allocations/visits/resets/platform/source recorded. Full467/471 result remains explicit: three failures reproduced on immutable matched baseline, pause-induced fourth passes unchanged. Optimized budgets/native limits remain outside this acceptance.",
+            "path": "docs/verification/bpr0972-active-changed-scaling.md"
+          }
+        }
+      ],
+      "limit": "Reuse only the recorded scope and source; does not establish later exact-package/native/security acceptance."
+    }
+  ],
+  "later_producer_completions": [
+    {
+      "issue": "BPR-1527",
+      "completion_commit": "7815a5395a2e8225070991a47e21343dc2d45fb9",
+      "evidence_path": "docs/issues/_checkpoints/BPR-1527/native-current-acceptance-r67-r69.json",
+      "evidence_sha256": "270a8077ba1fb37ccca98ed501f1089d70af2451d8100cc0e5a5013459460593",
+      "status": "Done in producer history; main snapshot still contains older card. No re-execution or transfer of acceptance to new source."
+    },
+    {
+      "issue": "BPR-1551",
+      "completion_commit": "be8bcd1045375777da9008f34dd434f0ede9810f",
+      "evidence_path": "docs/issues/_checkpoints/BPR-1551/artifact-acceptance-r4.json",
+      "evidence_sha256": "94d0541a88f2cc79abec57bf8fbfa9e6024cd27428bc7094b0d239f1880c0b35",
+      "status": "Done in producer history; main snapshot still contains older card. No re-execution or transfer of acceptance to new source."
+    }
+  ],
+  "owner_decisions": {
+    "windows_licensing_v002": {
+      "decision": "afa8af40-56ea-4c19-aaed-4f48ebde1218",
+      "event": 588,
+      "date": "2026-09-24",
+      "producer": "67f5e51407a883e4469cee6008048a001f7c13b3",
+      "scope": "Exact historical Qt6.11.2 inventory/source/build/relink terms only; no transfer to future candidate."
+    }
+  },
+  "remaining": "BPR0958-0962 and0973 stay open; Ubuntu26.04 only; no release authorization for this qualification effort."
+}
