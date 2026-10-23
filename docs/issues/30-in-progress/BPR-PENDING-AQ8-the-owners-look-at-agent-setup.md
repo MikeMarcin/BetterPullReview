@@ -153,3 +153,20 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   recommendation for the 3 decisions" (the old Claude wrapper settings onto
   the agent list, a custom agent's setup check, and drafting on another
   file). Recorded in the RFC; v004 builds all three.
+
+## Look v004 (2026-10-23)
+
+- Frozen from `c185e0460` (on main `055bed96e`, with look v003's cleanup:
+  setup's one folder line, the rebuilt question field, header and thread,
+  answer cards with Copy and their time, coloured code, the note footer; the
+  optional run limit, off by default; and the three decisions); the
+  launcher's own check reached `ATTENDED_PULL_REQUEST_OPENED`. Root
+  `/Users/jaeger/bpr0092-agent-setup-v004.w6gdtauf`, with the stand-in clone
+  under `clones/review-repository`.
+- Session `f19bb0862de7d2c398f3845d84868120` (fresh, short; state
+  `~/.attended-review-state/bpr0092-look-v004`), served with
+  `serve --tailscale`; one question, the look:
+  - Q1 (AC1, RFC AC14), the Agent tab after the v003 notes: "The first time
+    I open the Agent tab it tells me what to do, and I end up asking a
+    question that the agent answers from my repository."
+- Pending: the owner's decision.
