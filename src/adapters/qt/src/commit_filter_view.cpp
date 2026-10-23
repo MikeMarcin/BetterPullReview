@@ -1,6 +1,7 @@
 #include "bpr/qt/commit_filter_view.hpp"
 
 #include "bpr/qt/bundled_code_font.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QAbstractItemView>
 #include <QAction>
@@ -435,7 +436,7 @@ namespace bpr::qt {
 		Status->setWordWrap(true);
 		Status->setAccessibleName(QStringLiteral("Commit filter"));
 		top->addWidget(Status, 1, Qt::AlignTop);
-		Clear = new QToolButton{ this };
+		Clear = new quiet_tool_button{ this };
 		Clear->setObjectName(QStringLiteral("commitFilterClear"));
 		Clear->setText(QStringLiteral("Clear all filters"));
 		Clear->setAccessibleName(QStringLiteral("Clear all filters"));
@@ -549,7 +550,7 @@ namespace bpr::qt {
 				said->setTextFormat(Qt::PlainText);
 				said->setWordWrap(true);
 				row->addWidget(said, 1);
-				auto* const button = new QToolButton{ line };
+				auto* const button = new quiet_tool_button{ line };
 				button->setObjectName(QStringLiteral("commitFilterRematch%1").arg(static_cast<qulonglong>(index)));
 				button->setText(commit_filter_rematch_action_text(offer));
 				button->setAccessibleName(QStringLiteral("Hide %1 in place of %2").arg(text(offer.CandidateShort), text(offer.GoneShort)));
@@ -750,7 +751,7 @@ namespace bpr::qt {
 		Detail->setWordWrap(true);
 		row->addWidget(Detail, 1);
 		// RFC-BPR-0089 M3. The first rematch offer, applied only when chosen.
-		Rematch = new QToolButton{ this };
+		Rematch = new quiet_tool_button{ this };
 		Rematch->setObjectName(QStringLiteral("commitFilterChipRematch"));
 		Rematch->setAutoRaise(true);
 		Rematch->setFocusPolicy(Qt::StrongFocus);
@@ -762,7 +763,7 @@ namespace bpr::qt {
 		});
 		row->addWidget(Rematch, 0);
 		if (aOffersCommits) {
-			Commits = new QToolButton{ this };
+			Commits = new quiet_tool_button{ this };
 			Commits->setObjectName(QStringLiteral("commitFilterChipCommits"));
 			Commits->setText(QStringLiteral("Commits"));
 			Commits->setAccessibleName(QStringLiteral("Open the Commits tab"));
@@ -776,7 +777,7 @@ namespace bpr::qt {
 			});
 			row->addWidget(Commits, 0);
 		}
-		Clear = new QToolButton{ this };
+		Clear = new quiet_tool_button{ this };
 		Clear->setObjectName(QStringLiteral("commitFilterChipClear"));
 		Clear->setText(QStringLiteral("Clear all filters"));
 		Clear->setAccessibleName(QStringLiteral("Clear all filters"));
@@ -923,7 +924,7 @@ namespace bpr::qt {
 			const auto  state  = part.Read == core::file_read_state::read ? QStringLiteral(" (read)")
 				: part.Read == core::file_read_state::seen                ? QStringLiteral(" (seen)")
 																		  : QString{ };
-			auto* const button = new QToolButton{ this };
+			auto* const button = new quiet_tool_button{ this };
 			button->setObjectName(QStringLiteral("splitDiffPart%1").arg(static_cast<qulonglong>(index)));
 			button->setCheckable(true);
 			button->setChecked(part.Selected);

@@ -5,6 +5,7 @@
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 #include "conversation_glyphs.hpp"
 
@@ -1605,7 +1606,7 @@ namespace bpr::qt {
 					across->addWidget(open, 1);
 				}
 				if (held != Held.end() && !held->second.Convert.isEmpty()) {
-					auto* const convert = new QToolButton{ row };
+					auto* const convert = new quiet_tool_button{ row };
 					convert->setObjectName(QStringLiteral("wholeReviewPendingConvert"));
 					convert->setText(held->second.Convert);
 					convert->setToolButtonStyle(Qt::ToolButtonTextOnly);

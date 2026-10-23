@@ -3,6 +3,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 
 #include <QAccessible>
 #include <QAccessibleEvent>
@@ -191,7 +192,7 @@ namespace bpr::qt {
 		layout->addWidget(Build, 0, Qt::AlignHCenter);
 		layout->addSpacing(em);
 
-		Copy = new QPushButton{ QStringLiteral("Copy version info"), this };
+		Copy = new quiet_push_button{ QStringLiteral("Copy version info"), this };
 		Copy->setObjectName(QStringLiteral("aboutCopyVersionInfo"));
 		Copy->setAutoDefault(false);
 		Copy->setAccessibleDescription(QStringLiteral("Copies the version, commit, configuration, Qt and system to the clipboard, for a bug report"));
