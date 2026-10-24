@@ -1025,10 +1025,10 @@ auto main(int argc, char** argv) -> int
 	const auto releaseAcceptance = course == "positive"
 		? app::detail::github_application_fixture_access::hold_private_review_effects(*application)
 		: std::function<void()>{ };
-	if (
-		afterConversion.WorkshopProposals == 1U
+	const auto acceptanceOffered = afterConversion.WorkshopProposals == 1U
 		&& editor->accept_revision_action() != nullptr
-		&& editor->accept_revision_action()->isEnabled()) {
+		&& editor->accept_revision_action()->isEnabled();
+	if (acceptanceOffered) {
 		if (course == "dif-context") {
 			QThread::msleep(contextual_cue_cooldown_ms);
 			QApplication::processEvents();
@@ -1070,6 +1070,30 @@ auto main(int argc, char** argv) -> int
 		if (!wait_until_reporting(accepted, [&application](wait_terms& aTerms) {
 				return aTerms.require("accepted-draft-text", app::detail::github_application_fixture_access::agent_finding_evidence(*application).LocalDraftBody == agent_suggested);
 			})) {
+			const auto  failed  = app::detail::github_application_fixture_access::agent_finding_evidence(*application);
+			const auto& shown   = editor->shown_draft();
+			const auto& pending = editor->rejected_candidate();
+			std::cerr << "agent-finding-acceptance-state:codex-found=" << codexFound
+					  << " delivered=" << afterDelivery.QueuedFindings
+					  << " conversion-proposals=" << afterConversion.WorkshopProposals
+					  << " conversion-refusals=" << afterConversion.RefusalsPresented
+					  << " conversion-host-refusals=" << afterConversion.FindingStatistics.Refusals
+					  << " workshop-refusals=" << afterConversion.WorkshopStatistics.Refusals
+					  << " proposal-matches-draft=" << proposalMatchesDraft
+					  << " proposal-is-suggestion=" << (afterConversion.WorkshopProposalText == agent_suggested)
+					  << " conversion-kept-original=" << (afterConversion.LocalDraftBody == reviewer_original)
+					  << " acceptance-offered=" << acceptanceOffered
+					  << " acceptance-intents=" << (editor->statistics().DraftIntents - draftIntentsBeforeAcceptance)
+					  << " shown=" << shown.has_value()
+					  << " shown-same-draft=" << (shown && draftBeforeConversion && shown->Id == draftBeforeConversion->Id)
+					  << " shown-is-suggestion=" << (shown && shown->Body == agent_suggested)
+					  << " editor-is-suggestion=" << (editor->body_editor()->toPlainText().toStdString() == agent_suggested)
+					  << " pending=" << pending.has_value()
+					  << " pending-is-suggestion=" << (pending && pending->Command.Body == agent_suggested)
+					  << " local-is-original=" << (failed.LocalDraftBody == reviewer_original)
+					  << " local-bytes=" << failed.LocalDraftBody.size()
+					  << " mutation-status=" << editor->mutation_status_text().left(160).toStdString()
+					  << " panel-status=" << failed.AgentPanelStatusText.substr(0, 160) << '\n';
 			return fail(*application, "accepted-draft", accepted.render());
 		}
 	}
