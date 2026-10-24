@@ -1188,6 +1188,7 @@ endif()
 
 bpr_add_executable(bench_better_pull_review_large_review large_review_benchmark.cpp large_review_native_memory.cpp)
 target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullReview::Composition glaze::glaze)
+bpr_attach_selected_allocator(bench_better_pull_review_large_review)
 if(WIN32)
     # [[BPR-0967]]: GetProcessMemoryInfo for the native memory courses.
     target_link_libraries(bench_better_pull_review_large_review PRIVATE psapi)

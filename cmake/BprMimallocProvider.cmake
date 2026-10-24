@@ -121,11 +121,17 @@ endfunction()
 
 function(bpr_attach_product_allocator target)
     # All shipped programs, including the Qt-free MCP helper and supervisor.
-    # Tests/benchmarks/tools outside this list keep toolchain allocation.
+    # Other programs keep toolchain allocation unless explicitly attached for measurement.
     if(NOT target MATCHES "^(app_better_pull_review|app_bpr|tool_better_pull_review_mcp_context_helper|tool_better_pull_review_agent_supervisor|tool_bpr_update_helper)$")
         return()
     endif()
     set_property(GLOBAL APPEND PROPERTY BPR_PRODUCT_EXECUTABLES "${target}")
+    bpr_attach_selected_allocator("${target}")
+endfunction()
+
+# The composed large-review course measures the selected product allocator.
+# Keep it outside the shipped-program inventory and preserve instrumentation.
+function(bpr_attach_selected_allocator target)
     if(NOT BPR_MIMALLOC_ACTIVE)
         return()
     endif()
