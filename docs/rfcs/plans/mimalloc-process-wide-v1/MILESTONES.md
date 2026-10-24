@@ -41,7 +41,7 @@ Ubuntu 26.04 x64 desktop and selected helpers or CLI use mimalloc on the selecte
 
 **Work:** `BPR-1761`
 
-**Prerequisites:** pinned-macos-integration
+**Prerequisites:** None
 
 **Completion:**
 

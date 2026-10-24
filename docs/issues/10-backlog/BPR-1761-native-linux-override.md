@@ -20,3 +20,22 @@ station. Show that Git, `gh` and
 user agent children receive no allocator injection, and run allocator-boundary
 stress needed by AC06. Distinguish an installed Linux course from a cross
 build or link-only check.
+
+## Scheduling amendment — mandate r3, 2026-10-24
+
+The owner authorized independent work without an Intel Mac. Only Linux's
+scheduling dependency on full `pinned-macos-integration` acceptance is removed.
+Accepted [[BPR-1758]] remains this card's provider prerequisite. The ELF
+composition in `cmake/BprMimallocProvider.cmake` is independent of the Mac native
+course; RFC AC03 and AC05 are separate obligations. Every authored outcome,
+work selector and exit is preserved. Native Intel and signed-installed Mac
+acceptance remain pending on [[BPR-1759]], with its candidate retained.
+`check-amendment` passed with only `linux-integration` affected; its receipt is
+under `build/mimalloc-linux/amendment-check.json`.
+
+Run `mimalloc-20261024`, segment `linux-m3`, mandate `r3`, unchanged
+`coordinator-implementer` revision 2. Sole leaf `/root/mimalloc_linux` owns this
+milestone on main at `/Users/jaeger/Documents/GitHub/BetterPullReview`.
+The prior Windows leaf and commands are quiescent. Main's unrelated MASK and
+BPR-1766 allocation edits are preserved. Native work uses its own source/build
+root; no station checkout mutation, release, signing or push is authorized.

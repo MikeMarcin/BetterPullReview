@@ -57,9 +57,7 @@
           "issue": "BPR-1761"
         }
       ],
-      "depends_on": [
-        "pinned-macos-integration"
-      ],
+      "depends_on": [],
       "exit_criteria": [
         "Installed Ubuntu 26.04 WSL2/WSLg probes show C, C++, Qt/loaded-library interception, safe cross-module release and a clean child environment."
       ],

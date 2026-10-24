@@ -331,3 +331,14 @@ review session/server exists. Keep the remaining native root for follow-up.
 Unrelated MASK and BPR-1766 allocation edits on main are preserved. Return at
 the Windows milestone boundary; the coordinator owns the next scheduling
 choice. Mac Intel/signed-installed and all remaining RFC obligations stay open.
+
+## Independent Linux continuation — mandate r3, 2026-10-24
+
+The owner's instruction to keep working without an Intel Mac now selects the
+independent Linux course. Only `linux-integration`'s prerequisite on complete
+Mac acceptance is removed. Its authored outcome and exit and every Mac native
+criterion remain unchanged. Accepted BPR-1758 still gates BPR-1761. The checked
+amendment and current recipe selection are retained under
+`build/mimalloc-linux/`; run `mimalloc-20261024`, segment `linux-m3`, mandate
+`r3`. The selected station reports Ubuntu 26.04 x64 on WSL2; source/build
+isolation and actual native/installed observations remain to be established.
