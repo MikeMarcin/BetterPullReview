@@ -125,7 +125,17 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # status0xC0000022. `msys-runtime-object` names that exact external runtime
 # namespace refusal, not a child-launch or DOS-name assumption. Only this row
 # receives the measured pin; loopback scope and all course assertions remain.
+# RFC-BPR-0093: native MSVC/Qt 6.12.0 on Windows 11 build 26200,
+# 2026-10-24. All four ownership courses and the disabled-redirect control
+# pass directly. In the container the Qt-free products reach LoadLibrary and
+# fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
+# STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
+    "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
+    "mimalloc_app_bpr": "qt-dll-initialization",
+    "mimalloc_app_better_pull_review": "qt-dll-initialization",
+    "mimalloc_disabled_redirect": "qt-dll-initialization",
     "release_update_native_https": "msys-runtime-object",
     "sqlite_device_binding_storage": "dos-volume-name",
     # BPR-0806: measured on JaegAW 2026-09-17. Contained, std::filesystem::canonical

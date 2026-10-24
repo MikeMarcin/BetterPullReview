@@ -6,12 +6,13 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
-import tempfile
 
 
 ROOT = Path(sys.argv[1]).resolve()
 CACHE = Path(sys.argv[2]).resolve()
 ARCHIVE = 'mimalloc-3.5.3.tar.gz'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from contained_temporary_support import ContainedTemporaryDirectory
 
 
 def configure(root, name, text, arguments=(), refusal=None):
@@ -19,7 +20,7 @@ def configure(root, name, text, arguments=(), refusal=None):
     source.mkdir()
     (source / 'CMakeLists.txt').write_text(
         'cmake_minimum_required(VERSION 4.4.2)\nproject(AllocatorContract C CXX)\n'
-        f'include("{ROOT}/cmake/BprMimallocProvider.cmake")\n' + text)
+        f'include("{ROOT.as_posix()}/cmake/BprMimallocProvider.cmake")\n' + text)
     command = ['cmake', '-S', str(source), '-B', str(source / 'build'), '-G', 'Ninja',
                f'-DCPM_SOURCE_CACHE={CACHE}', '-DBPR_DEPENDENCY_OFFLINE=ON', *arguments]
     result = subprocess.run(command, text=True, capture_output=True, timeout=180)
@@ -34,7 +35,7 @@ def configure(root, name, text, arguments=(), refusal=None):
 
 
 PRODUCT = 'set(BPR_BUILD_QT ON)\nbpr_configure_mimalloc()\n'
-with tempfile.TemporaryDirectory(prefix='bpr-mimalloc-provider-') as directory:
+with ContainedTemporaryDirectory() as directory:
     root = Path(directory)
     configure(root, 'core', 'bpr_configure_mimalloc()\nif(TARGET mimalloc OR BPR_MIMALLOC_ACTIVE)\nmessage(FATAL_ERROR "core acquired allocator")\nendif()\n')
     configure(root, 'baseline', PRODUCT + 'if(TARGET mimalloc OR BPR_MIMALLOC_ACTIVE)\nmessage(FATAL_ERROR "baseline acquired allocator")\nendif()\n', ['-DBPR_USE_MIMALLOC=OFF'])

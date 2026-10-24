@@ -20,7 +20,7 @@ foreach(product IN LISTS products)
     target_compile_features("${product}" PRIVATE cxx_std_23)
     target_link_libraries("${product}" PRIVATE Threads::Threads)
     add_dependencies("${product}" bpr_mimalloc_probe_module)
-    bpr_add_network_isolated_test(NAME "mimalloc_${product}"
+    bpr_add_network_isolated_test(NAME "mimalloc_${product}" WINDOWS_UNCONTAINED
         COMMAND "$<TARGET_FILE:${product}>")
     set_tests_properties("mimalloc_${product}" PROPERTIES TIMEOUT 60
         ENVIRONMENT "BPR_MIMALLOC_PROBE=1;BPR_MIMALLOC_PROBE_MODULE=$<TARGET_FILE:bpr_mimalloc_probe_module>"
@@ -36,7 +36,7 @@ bpr_add_network_isolated_test(NAME mimalloc_missing_override
         "$<TARGET_FILE:test_mimalloc_unattached>")
 
 if(WIN32)
-    bpr_add_network_isolated_test(NAME mimalloc_disabled_redirect
+    bpr_add_network_isolated_test(NAME mimalloc_disabled_redirect WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/negative_control.py"
             "$<TARGET_FILE:app_better_pull_review>" --disabled-redirect)
 endif()
