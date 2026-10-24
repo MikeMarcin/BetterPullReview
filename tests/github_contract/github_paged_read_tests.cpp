@@ -4106,7 +4106,8 @@ namespace {
 				return success_response("{\"users\":[],\"teams\":[" + parent + "]}");
 			};
 			if (guard == 3) {
-				transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::response_limit, .HttpStatus = 200U };
+				transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::response_limit, .HttpStatus = 200U, .TransportFailureSource = application::diagnostic_transport_failure_source::http_response };
+				expect(application::valid(*transport.ReviewerFailure), "the HTTP limit fixture has valid response provenance");
 			}
 			const auto result    = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
 			const auto recovered = result && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 101U && result->Rows[0].Detailed
@@ -4160,9 +4161,10 @@ namespace {
 		{
 			auto transport = discovery_fixture_transport{ true };
 			setup(transport);
-			transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::authentication, .HttpStatus = 401U };
-			const auto result         = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
-			const auto error          = discovery_failure(result);
+			transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::authentication, .HttpStatus = 401U, .TransportFailureSource = application::diagnostic_transport_failure_source::http_response };
+			expect(application::valid(*transport.ReviewerFailure), "the authentication fixture has valid response provenance");
+			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			const auto error  = discovery_failure(result);
 			expect(error && error->Failure == application::github_provider_failure::authentication && transport.count(read_operation::list_home_pull_requests) == 0U, "authentication failure is never retried as roster recovery");
 		}
 		{
