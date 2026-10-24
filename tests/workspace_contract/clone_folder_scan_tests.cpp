@@ -75,7 +75,7 @@ namespace {
 		}
 		return info.LastWriteTime.QuadPart;
 #else
-		return fs::last_write_time(aPath, aError).time_since_epoch().count();
+		return static_cast<std::int64_t>(fs::last_write_time(aPath, aError).time_since_epoch().count());
 #endif
 	}
 
@@ -92,7 +92,7 @@ namespace {
 			const auto type    = fs::symlink_status(currentPath, error).type();
 			auto       written = std::int64_t{ };
 			if (!error && type != fs::file_type::symlink) {
-				written = aReader == inventory_reader::current_handle ? current_write_time(currentPath, error) : entry->last_write_time(error).time_since_epoch().count();
+				written = aReader == inventory_reader::current_handle ? current_write_time(currentPath, error) : static_cast<std::int64_t>(entry->last_write_time(error).time_since_epoch().count());
 			}
 			if (error) {
 				break;
@@ -168,6 +168,9 @@ try {
 		report_inventory_changes(freshBefore, freshAfter, "handle-no-scan");
 		expect(freshBefore == freshAfter, "fresh metadata is unchanged without a scanner invocation");
 		std::cout << "CLONE_INVENTORY_CONTROL handle_equal_without_scan=1\n";
+		const auto cachedAfterHandles = inventory(scratch.path(), "cached-after-handles-no-scan");
+		std::cout << "CLONE_INVENTORY_CONTROL cached_equal_after_handles_without_scan=" << (cachedBefore == cachedAfterHandles) << '\n';
+		report_inventory_changes(cachedBefore, cachedAfterHandles, "cached-after-handles-no-scan");
 	}
 	const auto reader  = observationControl ? inventory_reader::current_handle : inventory_reader::cached_entry;
 	const auto before  = inventory(scratch.path(), "before", reader);
