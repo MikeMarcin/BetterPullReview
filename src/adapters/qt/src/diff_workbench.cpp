@@ -3082,8 +3082,12 @@ namespace bpr::qt {
 		auto*      editor = OnePaneEnabled ? Unified : aLocation.Side == core::diff_side::left ? Left
 																							   : Right;
 		auto       cursor = QTextCursor{ editor->document() };
-		cursor.setPosition(*first);
-		cursor.setPosition(*last, QTextCursor::KeepAnchor);
+		// Keep the caret on the first fragment that the reveal shows. A match
+		// wider than its pane cannot show both ends; leaving the caret at the
+		// end then scrolling to its beginning leaves the active cursor outside
+		// the viewport even though the exact match is selected.
+		cursor.setPosition(*last);
+		cursor.setPosition(*first, QTextCursor::KeepAnchor);
 		editor->setTextCursor(cursor);
 		Find->CopyMatch  = aLocation;
 		Find->CopyCursor = cursor;
