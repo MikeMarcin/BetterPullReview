@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1761"
 title: "Verify process-wide mimalloc on Ubuntu x64"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758"]
 platforms: ["linux"]
