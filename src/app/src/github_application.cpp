@@ -24349,7 +24349,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto github_application::window_quiescent(core::bpr_window_context aContext) const noexcept -> bool
 	{
 		const auto found = Sessions.find(aContext);
-		return found == Sessions.end() || found->second->ShutdownComplete;
+		// The queued close callback still folds cleanup results and retires the
+		// session. Profile shutdown must not force that orderly window while
+		// this ownership handoff is pending.
+		return found == Sessions.end();
 	}
 	auto github_application::windows() const -> std::vector<core::bpr_window_context>
 	{
