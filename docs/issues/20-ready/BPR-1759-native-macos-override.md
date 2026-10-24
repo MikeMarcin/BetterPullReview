@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1759"
 title: "Verify process-wide mimalloc on native macOS"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758"]
 platforms: ["mac"]
