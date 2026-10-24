@@ -690,3 +690,201 @@ remain in fixture-seam scanning. Existing security controls plus the new
 User32 owner/hash/shape/import/absence controls pass (22 total). The public
 CLI propagation control also covers the new explicit input. Actual native
 CLI preparation is being retried with both reviewed SDK specimens.
+
+## Distribution result — mandate r4
+
+Run `mimalloc-20261024`, segment `distribution-m4`; sole engineering writer
+`/root/mimalloc_distribution`, recipe `coordinator-implementer` revision 2.
+Source/tracker is main at `/Users/jaeger/Documents/GitHub/BetterPullReview`.
+The checked scheduling amendment `540b21fa9` permits independent work while
+retaining every authored outcome, selector, exit and final Mac dependency.
+BPR-1763 completes AC06/AC08's engineering and reporting scope. BPR-1762 and
+this milestone remain incomplete on the actual Mac installed/signed/native
+qualification; BPR-1759's Intel, Developer ID/notarization/Gatekeeper and
+delivered Cocoa obligations are unchanged. RFC closeout is not authorized.
+
+### Final package and source evidence
+
+Current standalone CLI producer is
+`df6e8be48ff17271e2258f0040e4ca87795f44bd`. `package_tour_cli.py` builds the
+real CLI and supervisor, installs their private xdiff/allocator/Qt closure,
+adds notices/SPDX and a separate versioned corresponding-source asset, then
+runs the public package auditor. The CLI selects its own runtime-input map,
+minimal Qt Core/Network source inventory, native Windows CRT and Ubuntu's
+existing pinned hardened ICU producer. The private runtime prefix remains
+replaceable and removable; no global allocator injection is used.
+
+| Native CLI archive | SHA-256 | Audited files / binaries / first-party compile units |
+|---|---|---|
+| `BetterPullReview-0.3.2-macos-universal-tour-cli.tar.gz` | `12ad8a8f73f207704435bd675db38a00360ee720a0f1b1fa2af161e28104deb6` | 20 / 7 / 539 |
+| `BetterPullReview-0.3.2-windows-x64-tour-cli.tar.gz` | `9e7aa769384cf9455510c606f28aff11a8f0090f6e318a87f50bcacc5bd5cf3f` | 18 / 13 / 531 |
+| `BetterPullReview-0.3.2-linux-ubuntu-26.04-x64-tour-cli.tar.gz` | `add1fc5cf41a271c58bee9d743ce98652526350f3de63e4c05eed638a3dcf216` | 16 / 10 / 529 |
+
+Each archive's separate asset is named
+`Source-BetterPullReview-0.3.2-TARGET-tour-cli-corresponding-source.zip`, with
+`TARGET` equal to that archive's native target. The exact third-party source
+bytes have SHA-256 `590403ccc0a0e78d2f32f9d586bfe8b3a2e847645994bf5bf8905203d7ef19cc`
+on Mac/Windows and `16a15ea179d12ce4c1e11228f0acc8942f5d3384b9b55e10aa58394643e1507b`
+on Linux (which also carries ICU). Installed source references bind the
+producer revision, distinct asset name/URL and digest. The unmodified source
+ZIP can have the same bytes across producers; installed provenance still
+names the exact producer and target. All include the pinned mimalloc 3.5.3
+source and MIT bytes stated above. Byte/source inventory is engineering
+evidence; legal distribution approval remains pending.
+
+All three actual archive expansions pass the full CLI public auditor and
+relocated `bpr --help`; all three installed CLIs pass the real-process Cycle
+course. Private copies missing the allocator or carrying an extra runtime
+are refused by the existing closed file/producer audit. The relocated copies
+are removed successfully, and the source payloads remain byte-identical.
+Missing private plugin directories and code-loading Qt arguments are refused.
+`df6e8be48` reuses the existing installed-runtime guard for the CLI before Qt
+construction, rather than relying on `qt.conf`: ambient selectors are cleared,
+canonical private paths are selected, and Windows keeps its DLL search guard.
+An external Linux debugger observer sees only `runtime/lib/bpr` and
+`runtime/bin`, and `QT_PLUGIN_PATH` absent, after setting a foreign path.
+The observer is not shipped. The package graph requires the CLI's installed
+runtime selection. Linux installed C/C++/Qt/OOM observations in both CLI images
+also pass with one allocator and Qt Core from this prefix. Mac has both slices,
+but only arm64 execution and an offline ad-hoc seal; it supplies no Intel or
+signed-installed acceptance.
+
+The actual unsigned DEB and MSI prepared above were extracted privately and
+fully audited against their retained exact producers, not relabelled current
+source: Linux `0c40cca40`, Windows `c5693fd05`. Their installer/source hashes
+remain as recorded above. No system install, registry action, upgrade/uninstall
+qualification, release signature or native trust approval is claimed. Final
+all-platform AC07 remains partial because the required Mac native/signed
+candidate is unavailable. The complete final runtime maps, SPDX, source
+references, PE/ELF/Mach-O observations and negative controls remain in the
+candidate roots below.
+
+### Composed, failure and instrumented paths — AC06
+
+`b449356dd` fixes fresh-configure CMP0126 selection loss without changing the
+pin, public allocator API or failure contract. Its fresh executable actually
+catches throwing-new `std::bad_alloc` and challenges caller C++/architecture
+settings. This passes on all three stations. Current Mac seven-row probes
+pass in 22.13 seconds, Windows seven rows in 39.10 seconds, and current Linux
+six rows at `df6e8be48` in 29.05 seconds. These exercise actual selected images,
+C/C++/Qt/loaded-module ownership, cross-module/cross-thread release, 4,096
+boundary iterations, exactly one allocator, ordinary allocation failures and
+missing-override/redirect controls where applicable. Earlier native installed
+and public integration evidence remains bound to its unchanged candidates.
+
+The actual AppleClang ASan/UBSan plus libFuzzer graph excludes mimalloc and
+retains the toolchain allocator. All seven selected corpus courses pass
+(7.39 seconds); the instrumented public Cycle course passes (48.71 seconds).
+The real images load ASan and no allocator runtime, and the build has no
+mimalloc output. This is the focused instrumented path, not a full test matrix.
+Later changes affect noninstrumented provider/package selection and the
+installed-only CLI guard; no unchanged corpus course is relabelled as native
+release acceptance.
+
+Paired tests-on Release desktop `application_epoch_maintenance_public_path`
+passes its four real-process seed/prune/restart/delete/restart phases in both
+modes on all three stations. Baseline/mimalloc wall durations: Mac
+8.91/9.16 seconds (`f85760a25`), Windows 14.26/18.29 and Linux 7.38/5.48 seconds
+(`df6e8be48`). These are observations from one pair, not speedup estimates.
+Windows' first invocation failed before launching the app because SSH supplied
+an unresolved `WORKGROUP` account to the existing ACL helper. Supplying the
+actual `System32/whoami.exe` token domain/user in this course's environment
+makes both runs pass. A first attempt found Git's unqualified `whoami` instead;
+that diagnostic is retained. No product ACL or course requirement was weakened.
+
+### Matched Release report — AC08
+
+The six existing selectors are `application_large_review_` plus `launch`,
+`responsiveness`, `cache_bytes`, `cache_entries`, `loaded_close`, `resources`.
+All workloads, fixtures and limits are unchanged. Each pair uses the same
+native hardware, Qt 6.12.0, Release toolchain and feature/fixture inputs;
+`BPR_USE_MIMALLOC` is the allocator difference. The composed measurement image
+now explicitly attaches the selected allocator (`571f96d45`), while remaining
+outside the shipped-program inventory. Other test tools retain their allocator.
+Corrected mimalloc candidates are `b449356dd` on every station. Windows baseline
+is the same revision; Mac baseline `dce9ff8ce` and Linux baseline `571f96d45`
+reuse unchanged measured C++/fixture/toolchain inputs. Their common measured
+sources did not change in the intervening provider/package-only commits.
+The earlier fresh-graph mimalloc measurements are superseded as stated above.
+
+| Platform / allocator | Process→main / Home ms | Paged review / large selection ms | Unchanged six-row result | Diagnostic peak / destroyed footprint growth MiB |
+|---|---|---|---|---|
+| Mac arm64 baseline | 20.10 / 459.10 | 1603.13 / 365.30 | 6/6 | 146.38 / 101.88 |
+| Mac arm64 mimalloc | 19.16 / 409.90 | 1722.90 / 398.08 | 3/6; cache bytes, loaded close, resources fail | 158.59 / 157.56 |
+| Ubuntu x64 baseline | 9.43 / 326.76 | 865.67 / 374.86 | 4/6; loaded close, resources fail | 177.79 / 162.43 |
+| Ubuntu x64 mimalloc | 9.76 / 303.30 | 648.27 / 330.90 | 2/6; both cache rows, loaded close, resources fail | 284.34 / 283.41 |
+| Windows x64 baseline | 17.87 / 592.14 | 2279.84 / 545.96 | 6/6 | 126.96 / 28.86 |
+| Windows x64 mimalloc | 19.05 / 574.38 | 2260.59 / 569.24 | 2/6; both cache rows, loaded close, resources fail | 365.46 / 341.66 |
+
+Mac is native arm64 macOS 26.6.2 on the M4 Pro/48 GiB station. Windows is
+native Windows 11 25H2 x64 (build 26200); Ubuntu 26.04 is the selected
+WSL2/WSLg x64 station (kernel 6.18.33.2-microsoft-standard-WSL2), 20 logical
+Intel i9-10900KF processors and about 62.7 GiB guest memory. No Intel Mac
+comparison is inferred. Mac and Linux shared-host load is recorded; the
+course's attributed timings retain raw wall/wait measurements. These single
+pairs are descriptive and do not establish a general latency improvement.
+
+Every failing budget row above reports `sampled fixture footprint growth exceeded its platform budget`; none is an allocation-failure abort.
+
+The supplemental existing `--allocation-profile` loaded-close diagnostic is
+nongating: it lets shutdown/destruction finish after the real budget rows
+retain their failures. Every tracked diff/index/window/document owner releases
+in both modes on every station, the derived cache reaches zero, and shutdown
+completes. Higher retained process footprint is observable despite that release;
+it is not proof of a logical-owner leak. Mac's mimalloc diagnostic also records
+a paged-load input-budget miss. Peak is the OS lifetime peak at recorded
+samples, not a proof against all unobserved transient peaks. Windows uses
+private commit for footprint; Linux uses resident memory; Mac uses physical
+footprint. No cross-platform memory comparison is intended.
+
+The upstream Mac mimalloc zone reports zero `size_in_use`; glibc and UCRT heap
+queries also do not count the complete mimalloc heap. Their zeros cannot be
+claimed as savings or budget acceptance. The unchanged budget rows keep their
+actual outcomes. Linux baseline failures remain the existing platform/course
+limit problem tracked with BPR-0967; new cache failures and extra retained
+footprint in the mimalloc candidate are recorded separately. No memory limit,
+allocator trim behavior or BPR-0967 implementation was changed.
+
+Benchmark identities (baseline → corrected mimalloc, SHA-256):
+
+- Mac: `a97b029afa3406cc96120251be1d33761ce4544c1eebf020b4761b6c3c83b296`
+  → `10222161ee5a00168c8cc6ad026912fb7c0f563074c466b4e4b0834931e1ff4f`.
+- Linux: `aa0c89f399404b59ea9964d9183f210e559ed95ce801d1c210b5b713f276f5d2`
+  → `fda5e2d0e2ff73d49a8994f14303f0ac0f2aeb2a0296e9db18797e65f3c13c68`.
+- Windows: `1e662c79f0c48cc5e5455e584b8bc8d4821092ec33af5638c813f7f9340f0e7d`
+  → `1830903d1b4e71fd9f968307bda4b307d775546ee4f6063f0de81fcb8ba4bb7b`.
+
+### Ownership, verification and continuation
+
+Runtime evidence is `build/mimalloc-distribution/`: final package preparations,
+collected native records, exact binary identities, raw six-row JSON/logs,
+`measurements-final-summary.json`, instrumentation logs, protected-candidate
+rehashes and final machine checkpoint/observation. Native complete evidence:
+`C:/code/bpr-rfc0093-dist-6165b97d2cea` and
+`/home/mmarcin/bpr-rfc0093-distribution-hrxjvs5j`; local CLI is in
+`build/mimalloc-distribution/mac-cli-source` and `mac-cli-artifacts-final`.
+Prior Mac/Windows/Linux roots are retained and every previously recorded
+installed/CLI/candidate hash was rechecked unchanged. Source/build revisions
+and earlier superseded/failed candidates are not overwritten.
+
+Final focused controls pass: runtime tests 31 (one explicit native-Linux skip
+on Mac), public package audit tests 13, PE/security tests 22, source asset tests
+24, documentation tests 67, exact format 22 and focused native-arm tidy 22.
+The universal compile database makes clang-tidy request two compiler jobs;
+retaining its exact arm64 command for analysis resolves that tool limitation.
+Both actual universal slices still compile. Required documentation/board/plan
+checks are recorded at the final checkpoint; no full-suite pass is claimed.
+Task-owned temporary negative copies are removed. Local ENOSPC was recovered
+only by deleting this task's transport copy and regenerable fuzz objects/archive
+outputs after retaining its binaries/logs; earlier roots and unrelated data were
+never removed. Fuzz build objects must be regenerated before rebuilding it.
+
+No review session/URL/cursor/server exists for this objective evidence milestone.
+No command requires owner desktop access. Native Intel and the authorized signed
+Mac candidate still need their real course; no available arm result, archive
+or offline audit substitutes for them. Continue BPR-1762 only when that candidate
+is available, recheck the affected exact source/runtime and signing boundaries,
+then reconcile AC07/AC09 and BPR-1764. Main's unrelated `.mask.json`,
+`.mask.lock.json`, `docs/issues/NEXT_ID` and BPR-1766 reservation remain untouched
+and excluded. No push, publication, keychain/credential lookup or desktop capture
+occurred in this milestone.

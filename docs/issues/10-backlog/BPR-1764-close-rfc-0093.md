@@ -34,9 +34,9 @@ Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), wh
 | **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Seven native developer rows plus clean-worktree local bundle, relocated offscreen assessment and full package audit; ledger | Partial: native Intel and signed installed required | `aadf2d91d` |
 | **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native Windows four-product probes, external installed/CLI pointer and Qt-free observations, actual runtime audit/controls; [ledger](../../verification/RFC-BPR-0093.md#windows-milestone-result--mandate-r2) | Pass: Windows native allocator scope | `0ccf31bc4`, `c5693fd05` |
 | **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native four-product probes; actual installed GDB/Qt/cross-free/OOM, CLI/MCP/XCB public paths, clean child traces and Runtime audit/controls; ledger | Pass: Linux native allocator scope | `0c40cca40` |
-| **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Boundary stress/failure probes, 17 composed checks and instrumentation configure controls | Partial: Windows and Linux boundary/composition passed; full sanitizer/fuzzer course pending | `81ee1b4ef`, `aadf2d91d` |
-| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac local bundle/source-sidecar and Windows Runtime/source audits with missing/extra allocator controls; ledger | Partial: Mac ad-hoc, Windows and Ubuntu Runtime audits passed; final CLI/installer/all-platform closure and trust pending | `aadf2d91d` |
-| **AC08:** Same-workload Release comparisons and the unchanged large-review memory course record candidate identity, native platform, measurements and failures without attributing pre-existing BPR-0967 limits to mimalloc. | Native/public-path/package course required | Pending | — |
+| **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Native boundary/failure rows, fresh-configure executable regression on all three stations, actual ASan/UBSan/libFuzzer corpus/public CLI and paired desktop prune/delete; [final ledger](../../verification/RFC-BPR-0093.md#distribution-result--mandate-r4) | Pass: focused engineering scope | `b449356dd`, `df6e8be48` |
+| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Actual DEB/MSI private extraction and full audit against retained producers; all three native standalone CLI archives and public source/omission/extra/relocation/removal controls; ledger | Partial: unsigned/ad-hoc closure passes; actual native/signed Mac candidate and final qualification pending on BPR-1759/1762 | `c5693fd05`, `0c40cca40`, `df6e8be48` |
+| **AC08:** Same-workload Release comparisons and the unchanged large-review memory course record candidate identity, native platform, measurements and failures without attributing pre-existing BPR-0967 limits to mimalloc. | Corrected native matched Release six-row courses, exact hashes/conditions, raw reports and supplemental nongating close diagnostic; ledger | Pass: reporting complete; memory regressions retained, no performance approval or BPR-0967 fix | `571f96d45`, `b449356dd` |
 | **AC09:** Architecture, build, package and operator documentation state the actual override scope and limits; focused public-path and documentation checks pass, with all native and release claims tied to their evidence. | Architecture/build documentation, documentation gate/tests and focused integration | Partial: final operator/package/native evidence reconciliation pending | `aadf2d91d` |
 
 ## Durable handoff — pinned-macos-integration
@@ -242,3 +242,45 @@ and Windows comparisons run. All Mac final acceptance and RFC closeout remain
 pending. Runtime scripts/logs are `build/mimalloc-distribution/`; the new native
 roots and current command ownership are recorded in the ledger. No review
 session/server, signing, publication, push or owner desktop operation exists.
+
+## Latest checkpoint — distribution boundary, mandate r4
+
+Sole leaf `/root/mimalloc_distribution`, run `mimalloc-20261024`, segment
+`distribution-m4`, recipe `coordinator-implementer` revision 2. The checked
+amendment `540b21fa9` removes the full-Mac scheduling gate from BPR-1762/1763
+and explicitly retains `pinned-macos-integration` at final closeout. No authored
+outcome, work, exit, AC07/AC08 requirement or BPR-1764 dependency changed.
+
+- **Result:** BPR-1763 completes AC06/AC08's focused checks and truthful report.
+  BPR-1762 is Blocked on `native-macos-candidate`; distribution milestone and
+  RFC remain incomplete. BPR-1759 keeps Intel/signed installed/delivered Cocoa.
+- **Candidates:** latest product/package source `df6e8be48`; fresh-configure
+  correction `b449356dd`; corrected Release comparison identities and all
+  archive/source/installer hashes are in the
+  [final ledger](../../verification/RFC-BPR-0093.md#distribution-result--mandate-r4).
+  The unchanged baseline passes Mac/Windows six rows and Linux four; mimalloc
+  passes three/two/two. Additional footprint failures and higher post-close
+  retention are regressions, with every limit and BPR-0967 scope unchanged.
+- **Changed paths:** allocator provider and provider controls; explicit composed
+  benchmark selection; standalone CLI installed-runtime/bootstrap and build
+  graph; runtime/source/legal preparation and strict CLI/public PE audit paths;
+  focused hostile controls, build/package/architecture docs, ledger and live
+  plan/cards. No allocator API crosses core/application boundaries.
+- **Verified:** current native product/failure stress, actual standalone public
+  CLI and package controls on all stations; actual ASan/UBSan/libFuzzer and
+  instrumented CLI; matched Release six-row and supplemental close reports;
+  paired desktop prune/delete; DEB/MSI extraction audits; focused package/source/
+  PE/doc/format/tidy gates. Full suite and release approval are not claimed.
+- **Ownership:** main is the only integration writer. Runtime scripts/logs and
+  checkpoint/observation live in `build/mimalloc-distribution/`; complete native
+  roots are `C:/code/bpr-rfc0093-dist-6165b97d2cea` and
+  `/home/mmarcin/bpr-rfc0093-distribution-hrxjvs5j`. Local CLI source/artifacts
+  are inside that runtime root. All own commands are quiescent; no review
+  server/session/cursor/URL exists. Prior candidate roots and recorded hashes
+  remain unchanged. Negative copies were removed; only this task's transport
+  copy and regenerable fuzz objects were removed to recover disk capacity.
+- **Next:** provide the actual authorized Mac candidate/native course, verify
+  affected source/runtime/signing boundaries and reconcile BPR-1762/AC07/AC09,
+  then dependency-ordered BPR-1764. Preserve every earlier root and raw report.
+  Main's unrelated MASK/NEXT_ID/BPR-1766 changes stay excluded. No signing
+  credential/keychain lookup, publication, push or desktop capture occurred.

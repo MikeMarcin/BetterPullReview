@@ -335,6 +335,13 @@ its licensed redistribution notice; Ubuntu replaces Qt's ICU companion with
 the same pinned hardened producer used by Runtime. Mac preparation uses only
 an offline ad-hoc seal. Nothing signs for release or publishes.
 
+The distribution CLI uses the existing installed-runtime startup guard before
+Qt construction. It clears ambient Qt plugin selectors, refuses code-loading
+Qt arguments, requires the private plugin directory and restricts discovery to
+that prefix (including Windows' existing DLL search restriction). Developer
+and instrumented graphs retain their configured provider paths. `qt.conf`
+alone does not establish this boundary.
+
 Audit an expanded copy through `scripts/verify_release_package.py --tour-cli`
 with `--build`, `--root`, `--sbom`, `--source-revision` and the separate
 `--source-archive`. The auditor binds actual files, selected producers and
@@ -854,8 +861,9 @@ Replacing a library gives that copy no update trust.
 - Package identity shared across variants: the macOS bundle identifier, the
   Linux package name and the Windows upgrade code.
 - A disposable agent workspace left by a full install is still cleaned up.
-- The `bpr` command-line tool is not a release package. If you installed it
-  from a build with CMake, uninstall it by deleting the files listed in
+- An unpublished standalone CLI archive occupies its own prefix: remove that
+  prefix to remove its runtime. If you installed the development component
+  from CMake, delete the files listed in
   `build/tour-cli/install_manifest_TourCLI.txt`. The desktop app is unaffected.
 
 ### Removal detail

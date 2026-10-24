@@ -82,6 +82,15 @@ installs put the real SONAME file beside the app and helpers; TourCLI puts it
 under `lib/`. These paths require no preload or loader variable at launch.
 The native probe checks actual ownership; a DT_NEEDED entry alone is insufficient.
 
+The large-review measurement executable explicitly selects the same allocator;
+other test tools retain their configured toolchain allocator. The matched
+Release reports and unchanged memory budgets are in the
+[RFC ledger](../verification/RFC-BPR-0093.md#distribution-result--mandate-r4).
+These candidates retain more process footprint after close with mimalloc;
+no speedup, memory saving or BPR-0967 fix is accepted. glibc/UCRT heap counters
+and the upstream Mac zone's zero live-byte result do not measure the complete
+mimalloc heap; use the recorded native process counters and their limitations.
+
 ## First build
 
 Tests use the project’s locked portable tooling. For a fresh clone, register
