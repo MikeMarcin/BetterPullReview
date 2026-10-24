@@ -4060,11 +4060,15 @@ namespace {
 			return graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "nameWithOwner", std::string{ aRepository } }, { "p0", fixture_object{ { "number", aNumber }, { "id", "PR_5" }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" } } } } } } } }));
 		};
 		const auto page = [](const std::uint32_t aPage, const bool aViewer, const bool aRepeatActor = false, const bool aChangedHead = false) {
-			const auto first      = aPage == 1U;
-			auto       actor      = fixture_object{ { "__typename", "User" }, { "id", first || aRepeatActor ? "U_other" : "U_viewer" }, { "login", !first && aViewer ? "Octo-Reviewer" : "other" } };
-			auto       connection = fixture_object{
-				{ "totalCount", 2U }, { "pageInfo", fixture_object{ { "hasNextPage", first }, { "endCursor", first ? "next" : "end" } } }, { "nodes", fixture_array{ fixture_object{ { "id", first ? "RR_1" : "RR_2" }, { "asCodeOwner", false }, { "requestedReviewer", actor } } } }
-			};
+			const auto first = aPage == 1U;
+			auto       nodes = fixture_array{ };
+			for (auto index = std::uint32_t{ 0U }; index < (first ? 100U : 1U); ++index) {
+				const auto id    = first ? "other-" + std::to_string(index) : aRepeatActor ? std::string{ "other-0" }
+																						   : std::string{ "viewer" };
+				auto       actor = fixture_object{ { "__typename", "User" }, { "id", "U_" + id }, { "login", !first && aViewer ? std::string{ "Octo-Reviewer" } : "other-" + std::to_string(index) } };
+				nodes.emplace_back(fixture_object{ { "id", first ? "RR_" + std::to_string(index) : std::string{ "RR_viewer" } }, { "asCodeOwner", false }, { "requestedReviewer", actor } });
+			}
+			auto connection = fixture_object{ { "totalCount", 101U }, { "pageInfo", fixture_object{ { "hasNextPage", first }, { "endCursor", first ? "next" : "end" } } }, { "nodes", nodes } };
 			return graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "pullRequest", fixture_object{ { "id", "PR_5" }, { "headRefOid", std::string{ aChangedHead ? base_oid : head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" }, { "reviewRequests", connection } } } } } } } }));
 		};
 		const auto setup = [&](discovery_fixture_transport& aTransport) {
@@ -4094,7 +4098,7 @@ namespace {
 				transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::response_limit, .HttpStatus = 200U };
 			}
 			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
-			expect(result && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 2U && result->Rows[0].Detailed
+			expect(result && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 101U && result->Rows[0].Detailed
 					   && transport.count(read_operation::list_requested_reviewers) == 1U && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::list_review_requests) == 2U,
 				   "REST roster record/byte/structural and transport limits recover through complete projected pages; the viewer can be on page two");
 		}
