@@ -131,6 +131,8 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
 # STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    # Plain cmake --version also fails lowbox startup (0xc0000142).
+    "mimalloc_provider": "cmake-dll-initialization",
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_app_bpr": "qt-dll-initialization",

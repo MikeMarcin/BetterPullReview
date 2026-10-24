@@ -1,5 +1,5 @@
 if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
-    bpr_add_network_isolated_test(NAME mimalloc_provider
+    bpr_add_network_isolated_test(NAME mimalloc_provider WINDOWS_UNCONTAINED
         COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/mimalloc_provider_tests.py"
             "${PROJECT_SOURCE_DIR}" "${CPM_SOURCE_CACHE}")
     set_tests_properties(mimalloc_provider PROPERTIES TIMEOUT 240)
