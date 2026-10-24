@@ -32,6 +32,7 @@
 #include <QPalette>
 #include <QPlainTextEdit>
 #include <QResizeEvent>
+#include <QStyle>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -595,6 +596,46 @@ namespace bpr::qt {
 			button->setCursor(Qt::ArrowCursor);
 			return button;
 		}
+
+		/// \brief [[BPR-PENDING-AR]]. A header word that gives up its room
+		/// before the words beside it: it elides, says itself whole in its
+		/// tooltip while shortened, and shows nothing rather than a lone
+		/// ellipsis. Its text and accessible name stay whole.
+		class yielding_label final : public QLabel
+		{
+		public:
+			yielding_label(const QString& aText, QWidget* const aParent)
+				: QLabel{ aText, aParent }
+			{
+				setTextFormat(Qt::PlainText);
+				setAccessibleName(aText);
+			}
+
+			[[nodiscard]] auto minimumSizeHint() const -> QSize override
+			{
+				return QSize{ 0, QLabel::minimumSizeHint().height() };
+			}
+
+		protected:
+			void resizeEvent(QResizeEvent* const aEvent) override
+			{
+				QLabel::resizeEvent(aEvent);
+				setToolTip(shown() == text() ? QString{ } : text());
+			}
+
+			void paintEvent(QPaintEvent* const /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				style()->drawItemText(&painter, contentsRect(), static_cast<int>(alignment()), palette(), isEnabled(), shown(), foregroundRole());
+			}
+
+		private:
+			[[nodiscard]] auto shown() const -> QString
+			{
+				const auto words = fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, contentsRect().width()));
+				return words == QStringLiteral("…") ? QString{ } : words;
+			}
+		};
 	} // namespace
 
 	auto note_colours_of(const QPalette& aPalette, const QColor& aNew, const QColor& aRoute) -> note_colours
@@ -955,6 +996,12 @@ namespace bpr::qt {
 		return QRectF{ rail_right - width, 10.0, width, static_cast<qreal>(std::max(0, height() - 16)) };
 	}
 
+	auto thread_post_view::name_rect() const -> QRect
+	{
+		const auto tools = (ReactButton->isVisibleTo(this) ? ReactButton->x() : SourceButton->x()) - 4;
+		return QRect{ text_left, post_padding, std::max(0, tools - text_left), std::max(19, QFontMetrics{ semibold(font()) }.height()) };
+	}
+
 	void thread_post_view::resizeEvent(QResizeEvent* const aEvent)
 	{
 		QWidget::resizeEvent(aEvent);
@@ -997,19 +1044,21 @@ namespace bpr::qt {
 		if (Post.Label) {
 			paint_feedback_mark(painter, QRectF{ mark_rect() }, *Post.Label, Post.Emphasis, mark_colours(Style, *Post.Label));
 		}
-		const auto bold = semibold(font());
-		const auto name = std::max(19, QFontMetrics{ bold }.height());
-		auto       x    = text_left;
-		const auto who  = Post.Mine ? QStringLiteral("you") : Post.Author;
+		const auto bold  = semibold(font());
+		const auto room  = name_rect();
+		const auto name  = room.height();
+		auto       x     = room.left();
+		const auto tools = room.right() + 1;
+		// [[BPR-PENDING-AR]]. A long name elides before the post's tools
+		// and says itself whole in its tooltip.
+		const auto who = QFontMetrics{ bold }.elidedText(Post.Mine ? QStringLiteral("you") : Post.Author, Qt::ElideRight, std::max(0, tools - x));
 		painter.setFont(bold);
 		painter.setPen(colours.Ink);
-		const auto tools = (ReactButton->isVisibleTo(this) ? ReactButton->x() : SourceButton->x()) - 4;
-
 		painter.drawText(QRect{ x, post_padding, std::max(0, tools - x), name }, Qt::AlignLeft | Qt::AlignVCenter, who);
 		x += QFontMetrics{ bold }.horizontalAdvance(who) + 7;
-		if (!Post.ReplyingTo.isEmpty()) {
+		if (!Post.ReplyingTo.isEmpty() && x < tools) {
 			const auto small = scaled(font(), 0.92);
-			const auto words = QStringLiteral("↩ %1").arg(Post.ReplyingTo);
+			const auto words = QFontMetrics{ small }.elidedText(QStringLiteral("↩ %1").arg(Post.ReplyingTo), Qt::ElideRight, tools - x);
 			painter.setFont(small);
 			painter.setPen(colours.Faint);
 			painter.drawText(QRect{ x, post_padding, std::max(0, tools - x), name }, Qt::AlignLeft | Qt::AlignVCenter, words);
@@ -1036,6 +1085,12 @@ namespace bpr::qt {
 			}
 			if (QRect{ gut_left, post_padding, avatar_size, avatar_size }.contains(point)) {
 				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, Post.Mine ? QStringLiteral("%1 (you)").arg(Post.Author) : Post.Author);
+				return true;
+			}
+			// [[BPR-PENDING-AR]]. A name cut short says itself whole.
+			if (const auto room = name_rect(); room.contains(point) && !Post.Mine
+				&& QFontMetrics{ semibold(font()) }.horizontalAdvance(Post.Author) > room.width()) {
+				show_anchored_tooltip(*this, room, Post.Author);
 				return true;
 			}
 			hide_anchored_tooltip();
@@ -1228,8 +1283,9 @@ namespace bpr::qt {
 		row->setSpacing(2);
 		const auto& palette = this->palette();
 		if (aCard.Path.isEmpty()) {
-			auto* const scope = new QLabel{ QStringLiteral("Pull request"), header };
-			scope->setTextFormat(Qt::PlainText);
+			// [[BPR-PENDING-AR]]. In a narrow drawer the scope gives way to
+			// the verdict, which stays whole.
+			auto* const scope = new yielding_label{ QStringLiteral("Pull request"), header };
 			scope->setObjectName(QStringLiteral("conversationPullRequestHeader"));
 			row->addWidget(scope);
 		}

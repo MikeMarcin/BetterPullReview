@@ -125,6 +125,9 @@ namespace bpr::qt {
 		void               present_read_state(bool aUnread, bool aRuleAbove);
 		[[nodiscard]] auto mark_rect() const -> QRect;
 		[[nodiscard]] auto rail_rect() const -> QRectF;
+		/// \brief [[BPR-PENDING-AR]]. The room the author's name is painted
+		/// in, before the post's tools.
+		[[nodiscard]] auto name_rect() const -> QRect;
 		/// \brief [[BPR-1581]]. How strongly the post's arrival is marked,
 		/// from 1 to 0.
 		void               set_arrival(qreal aStrength);

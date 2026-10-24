@@ -8710,13 +8710,16 @@ namespace bpr::qt {
 				return drawer_icon(drawer_glyph::agent, palette());
 			}
 		};
+		auto reshaped = false;
 		for (auto index = 0; index < tabCount; ++index) {
 			const auto text  = textOf(chosen, index);
 			const auto shown = glyphOf(chosen, index);
 			if (aRepaint || tabs->tabIcon(index).isNull() == shown) {
+				reshaped = reshaped || tabs->tabIcon(index).isNull() == shown;
 				tabs->setTabIcon(index, shown ? glyph(index) : QIcon{ });
 			}
 			if (tabs->tabText(index) != text) {
+				reshaped = true;
 				tabs->setTabText(index, text);
 			}
 			// A tab showing only its glyph says its name first.
@@ -8724,6 +8727,15 @@ namespace bpr::qt {
 			if (tabs->tabToolTip(index) != tip) {
 				tabs->setTabToolTip(index, tip);
 			}
+		}
+		// [[BPR-PENDING-AR]]. A hidden QTabBar only marks its tabs dirty when a
+		// face changes; the header's own sizeHint() query then lays them out,
+		// so the bar's showEvent has nothing left to announce and the header's
+		// grid keeps the old width (the window opens on Overview with the tray
+		// hidden, so a restored width left Tour and Agent behind scroll
+		// arrows). The bar says it changed size itself.
+		if (reshaped) {
+			tabs->updateGeometry();
 		}
 	}
 
