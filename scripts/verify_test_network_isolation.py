@@ -218,7 +218,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # but contained fails the first load: "a profile with nothing stored
     # reads defaults" (0.024s). This pin names that observed store refusal.
     "sqlite_agent_setup_storage": "agent-setup-default-read-refused",
-    "workspace_clone_folder_scan": "unmeasured (registered on macOS)",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now
     # measured ([[BPR-1631]]).
