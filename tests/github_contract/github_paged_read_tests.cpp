@@ -4057,15 +4057,22 @@ namespace {
 	{
 		using reason      = application::personal_discovery_reason;
 		const auto anchor = [](const std::uint32_t aNumber = 5U, const std::string_view aRepository = "octo-org/review-repository") {
-			return graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "nameWithOwner", std::string{ aRepository } }, { "p0", fixture_object{ { "number", aNumber }, { "id", "PR_5" }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" } } } } } } } }));
+			return graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "nameWithOwner", std::string{ aRepository } }, { "p0", fixture_object{ { "number", aNumber }, { "id", "PR_" + std::to_string(aNumber) }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" } } } } } } } }));
 		};
-		const auto page = [](const std::uint32_t aPage, const bool aViewer, const bool aRepeatActor = false, const bool aChangedHead = false) {
+		const auto page = [](const std::uint32_t aPage, const bool aViewer, const bool aRepeatActor = false, const bool aChangedHead = false, const bool aTeam = false) {
 			const auto first = aPage == 1U;
 			auto       nodes = fixture_array{ };
 			for (auto index = std::uint32_t{ 0U }; index < (first ? 100U : 1U); ++index) {
 				const auto id    = first ? "other-" + std::to_string(index) : aRepeatActor ? std::string{ "other-0" }
 																						   : std::string{ "viewer" };
 				auto       actor = fixture_object{ { "__typename", "User" }, { "id", "U_" + id }, { "login", !first && aViewer ? std::string{ "Octo-Reviewer" } : "other-" + std::to_string(index) } };
+				if (!first && aTeam) {
+					actor.erase("login");
+					actor.insert_or_assign("__typename", "Team");
+					actor.insert_or_assign("slug", "octo-reviewer");
+					actor.insert_or_assign("name", "Reviewer team");
+					actor.insert_or_assign("organization", fixture_object{ { "login", "octo-org" } });
+				}
 				nodes.emplace_back(fixture_object{ { "id", first ? "RR_" + std::to_string(index) : std::string{ "RR_viewer" } }, { "asCodeOwner", false }, { "requestedReviewer", actor } });
 			}
 			auto connection = fixture_object{ { "totalCount", 101U }, { "pageInfo", fixture_object{ { "hasNextPage", first }, { "endCursor", first ? "next" : "end" } } }, { "nodes", nodes } };
@@ -4092,7 +4099,11 @@ namespace {
 				if (guard == 1) {
 					return success_response(std::string(4U * 1024U * 1024U + 1U, 'x'));
 				}
-				return success_response("{\"users\":[],\"teams\":[" + std::string(40U, '[') + "0" + std::string(40U, ']') + "]}");
+				auto parent = std::string{ "null" };
+				for (auto depth = 0; depth < 40; ++depth) {
+					parent = "{\"id\":1,\"slug\":\"team\",\"parent\":" + parent + "}";
+				}
+				return success_response("{\"users\":[],\"teams\":[" + parent + "]}");
 			};
 			if (guard == 3) {
 				transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::response_limit, .HttpStatus = 200U };
@@ -4121,830 +4132,889 @@ namespace {
 			expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && transport.count(read_operation::list_home_pull_requests) == 0U,
 				   "cancellation at the REST limit prevents recovery network work");
 		}
-		for (const auto bad : { 0, 1, 2, 3, 4 }) {
+		{
 			auto transport = discovery_fixture_transport{ true };
 			setup(transport);
 			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 101U); };
-			if (bad == 0 || bad == 1) {
-				transport.Home = [&, bad](const auto&) { return bad == 0 ? anchor(6U) : anchor(5U, "octo-org/other"); };
-			}
-			transport.Recovery = [&, bad](const github_wire_request& aRequest) -> github_wire_completion {
-				if (bad == 4) {
-					auto response = graphql_answer("{\"message\":\"slow down\"}", 403);
-					response.Headers.push_back({ .Name = "Retry-After", .Value = "60" });
-					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
-				}
-				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = page(aRequest.Wire.Semantic.Page, true, bad == 2, bad == 3 && aRequest.Wire.Semantic.Page == 2U) };
-			};
-			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
-			const auto error  = discovery_failure(result);
-			expect(error && (bad == 4 ? error->Failure == application::github_provider_failure::rate_limit && error->RetryAfterSeconds == 60U : error->Failure == application::github_provider_failure::malformed_response),
-				   "wrong repository/number, duplicate actor and changed head fail atomically; recovery rate-limit metadata is not hidden by the original limit");
-		}
-	}
-
-	auto test_personal_discovery_read() -> void
-	{
-		using reason = application::personal_discovery_reason;
-		using full   = application::personal_discovery_completeness;
-		{
-			auto transport   = discovery_fixture_transport{ };
-			transport.Search = [](const github_wire_request& aRequest) {
-				expect(aRequest.Wire.Path == "/search/issues"
-						   && aRequest.Wire.Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository",
-					   "the authored search is exact");
-				return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(6U, "Octo-Reviewer"), discovery_item(7U, "someone-else") }, 3U);
-			};
-			transport.Reviewers = [](const std::uint32_t aNumber) {
-				return aNumber == 5U ? requested_reviewers_response({ "alice", "bob" }, 1U) : requested_reviewers_response({ }, 0U);
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
-			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 2U
-					   && result->Rows[0].Number.value() == 5U && result->Rows[0].Detailed && result->Rows[0].ReviewersAwaited == 3U
-					   && result->Rows[1].Number.value() == 6U && result->Rows[1].Detailed && result->Rows[1].ReviewersAwaited == 0U
-					   && result->Rows[0].Title == "Pull request 5" && result->Rows[0].Author == "octo-reviewer",
-				   "authored rows are the viewer's own, with the reviewers each awaits");
-			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
-					   && transport.Requests.size() == 5U,
-				   "one search, bounded reviewer and optional Home-summary reads; another actor's row costs nothing");
-			expect(result->RateLimits.Search.has_value() && result->RateLimits.Core.has_value(), "search and core rate observations stay separate");
+			transport.Recovery  = [&](const github_wire_request& aRequest) -> github_wire_completion { return github_wire_success{ .Correlation = aRequest.Correlation, .Response = page(aRequest.Wire.Semantic.Page, true, false, false, true) }; };
+			const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			expect(result && result->Rows.empty(), "a team whose slug equals the viewer's login is not a direct user request");
 		}
 		{
-			auto transport      = discovery_fixture_transport{ };
-			transport.Search    = [](const auto&) { return discovery_search({ discovery_item(5, "octo-reviewer") }, 1); };
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0); };
-			transport.Metadata  = [](const auto&) { return success_response(std::string(4U * 1024U * 1024U + 1U, 'x')); };
-			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
-			expect(result && result->Rows.size() == 1 && result->Rows.front().Waiting.Requests == 0 && result->Completeness == full::detail_limit,
-				   "oversized added metadata leaves complete REST facts usable and explicitly marks discovery partial");
-		}
-
-		{
-			auto transport   = discovery_fixture_transport{ };
-			transport.Search = [](const github_wire_request& aRequest) {
-				expect(aRequest.Wire.Query.find("review-requested%3Aocto-reviewer") != std::string::npos, "the requested search names the viewer");
-				return discovery_search({ discovery_item(8U, "author-a"), discovery_item(9U, "author-b"), discovery_item(10U, "author-c") }, 3U);
-			};
-			transport.Reviewers = [](const std::uint32_t aNumber) {
-				return aNumber == 8U ? requested_reviewers_response({ "OCTO-REVIEWER" }, 0U)
-					: aNumber == 9U  ? requested_reviewers_response({ }, 1U)
-									 : requested_reviewers_response({ "someone" }, 0U);
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::requested), { });
-			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 1U && result->Rows[0].Number.value() == 8U
-					   && result->Rows[0].Detailed && result->Rows[0].Author == "author-a",
-				   "only a request that names the viewer as a user is kept; a team-only request is not the viewer's");
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::authentication, .HttpStatus = 401U };
+			const auto result         = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			const auto error          = discovery_failure(result);
+			expect(error && error->Failure == application::github_provider_failure::authentication && transport.count(read_operation::list_home_pull_requests) == 0U, "authentication failure is never retried as roster recovery");
 		}
 		{
-			// [[BPR-1680]]. One search names several saved repositories; each
-			// row belongs to the one GitHub says, and its detail is read there.
-			auto transport   = discovery_fixture_transport{ };
-			transport.Others = { "tools" };
-			transport.Search = [](const github_wire_request& aRequest) {
-				expect(aRequest.Wire.Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository%20repo%3Aocto-org%2Ftools"
-						   && aRequest.Wire.Semantic.SearchRepositories == std::vector<std::string>{ "octo-org/tools" },
-					   "the shared search names both repositories, in order");
-				return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(5U, "octo-reviewer", "https://api.github.com", "TOOLS"), discovery_item(6U, "octo-reviewer", "https://api.github.com", "tools") }, 3U);
-			};
-			transport.Reviewers  = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
-			auto       request   = discovery_request(reason::authored);
-			const auto tools     = core::repository_locator{ .Owner = "octo-org", .Name = "tools" };
-			request.Repositories = { request.Context.Repository, tools };
-			request.Known        = { { .Repository = tools, .Number = core::pull_request_number{ 6U } } };
-			const auto result    = perform_personal_discovery_read(transport, profile(), request, { });
-			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 3U
-					   && result->Rows[0].Repository == request.Context.Repository && result->Rows[0].Number.value() == 5U && result->Rows[0].Detailed
-					   && result->Rows[1].Repository == tools && result->Rows[1].Number.value() == 5U && result->Rows[1].Detailed
-					   && result->Rows[2].Repository == tools && result->Rows[2].Reused,
-				   "the same number in two repositories is two rows, each attributed as the request names it");
-			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
-					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/repos/octo-org/tools/pulls/5/requested_reviewers"; })
-					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
-				   "one search; each row's detail is read under its own repository");
-			transport.Search = [](const github_wire_request&) {
-				return discovery_search({ discovery_item(5U, "octo-reviewer", "https://api.github.com", "web") }, 1U);
-			};
-			transport.Requests.clear();
-			expect(!perform_personal_discovery_read(transport, profile(), request, { }), "a row of a repository the search did not name is refused");
-			const auto web  = core::repository_locator{ .Owner = "octo-org", .Name = "web" };
-			auto       many = std::vector<core::repository_locator>{ request.Context.Repository };
-			for (auto index = 0; index < 10; ++index) {
-				many.push_back({ .Owner = "octo-org", .Name = "zz-" + std::to_string(index) });
-			}
-			for (const auto& refused : {
-					 std::vector<core::repository_locator>{ tools, request.Context.Repository },
-					 std::vector<core::repository_locator>{ request.Context.Repository, web, tools },
-					 std::vector<core::repository_locator>{ request.Context.Repository, tools, tools },
-					 std::vector<core::repository_locator>{ request.Context.Repository, core::repository_locator{ .Owner = "octo-org", .Name = "" } },
-					 many,
-				 }) {
-				auto hostile         = discovery_request(reason::authored);
-				hostile.Repositories = refused;
-				transport.Requests.clear();
-				expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
-					   "a shared search names its own repository first, then others in order, once each, at most ten");
-			}
-			auto retained         = discovery_request(reason::retained);
-			retained.Repositories = { retained.Context.Repository };
-			expect(!perform_personal_discovery_read(transport, profile(), retained, { }) && transport.Requests.empty(), "a retained read names no shared search");
-			auto unnamed  = discovery_request(reason::authored);
-			unnamed.Known = { { .Repository = tools, .Number = core::pull_request_number{ 6U } } };
-			expect(!perform_personal_discovery_read(transport, profile(), unnamed, { }) && transport.Requests.empty(), "a known pull request is of a repository the search names");
-			auto semantic               = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::search_personal_pull_requests, .Owner = "octo-org", .Repository = "app", .SearchTerms = "author:octo-reviewer" };
-			semantic.SearchRepositories = { "Octo-Org/App" };
-			expect(!compile_read_request(semantic), "the wire never names one repository twice in any case");
-			semantic.SearchRepositories = { std::string(100U, 'o') + "/" + std::string(100U, 'n') };
-			expect(!compile_read_request(semantic), "the wire never sends a shared query past the core's bound");
-			semantic.SearchRepositories = { "octo-org/x/secret" };
-			expect(!compile_read_request(semantic), "every named repository is two safe path components");
-			semantic.SearchRepositories = { "octo-org/tools" };
-			expect(compile_read_request(semantic).has_value(), "a well-formed shared search compiles");
-			semantic.Operation   = read_operation::search_pull_requests;
-			semantic.SearchTerms = "is:open";
-			expect(!compile_read_request(semantic), "only the personal search names further repositories");
-		}
-		{
-			// [[BPR-1680]]. Pull requests the refresh's retained read already
-			// read come back as the search found them, with no detail read.
-			auto transport   = discovery_fixture_transport{ };
-			transport.Search = [](const github_wire_request&) {
-				return discovery_search({ discovery_item(8U, "author-a"), discovery_item(9U, "author-b"), discovery_item(10U, "author-c") }, 3U);
-			};
-			transport.Reviewers = [](const std::uint32_t aNumber) {
-				expect(aNumber == 10U, "only the pull request nothing has read is asked for its reviewers");
-				return requested_reviewers_response({ "octo-reviewer" }, 0U);
-			};
-			auto request  = discovery_request(reason::requested);
-			request.Known = {
-				{ .Repository = request.Context.Repository, .Number = core::pull_request_number{ 8U } },
-				{ .Repository = request.Context.Repository, .Number = core::pull_request_number{ 9U } },
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), request, { });
-			expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 3U
-					   && result->Rows[0].Reused && !result->Rows[0].Detailed && result->Rows[0].Title == "Pull request 8"
-					   && result->Rows[1].Reused && !result->Rows[1].Detailed && !result->Rows[2].Reused && result->Rows[2].Detailed,
-				   "known rows are returned reused, even a team-only one, for the host to decide; the other is read");
-			expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 1U
-					   && transport.count(read_operation::get_pull_request) == 1U,
-				   "a known row costs no requested-reviewer, pull request or summary read");
-			for (const auto& refused : {
-					 std::vector<application::personal_discovery_known>{ { .Repository = { "octo-org", "other" }, .Number = core::pull_request_number{ 8U } } },
-					 std::vector<application::personal_discovery_known>{ { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 9U } }, { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 8U } } },
-					 std::vector<application::personal_discovery_known>{ { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 0U } } },
-				 }) {
-				transport.Requests.clear();
-				auto hostile  = request;
-				hostile.Known = refused;
-				expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
-					   "known pull requests of another repository, out of order or invalid are refused before any request");
-			}
-			auto retained  = discovery_request(reason::retained);
-			retained.Known = request.Known;
-			transport.Requests.clear();
-			expect(!perform_personal_discovery_read(transport, profile(), retained, { }) && transport.Requests.empty(), "a retained read knows nothing");
-		}
-		{
-			auto transport      = discovery_fixture_transport{ };
-			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U, true); };
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
-			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
-			expect(result.has_value() && result->Completeness == full::incomplete_results && result->Rows.size() == 1U,
-				   "an incomplete GitHub search keeps its rows and is never complete");
-		}
-		{
-			auto items = std::vector<std::string>{ };
-			for (std::uint32_t number = 1U; number <= 100U; ++number) {
-				items.push_back(discovery_item(number, "octo-reviewer"));
-			}
-			auto transport   = discovery_fixture_transport{ };
-			transport.Search = [&items](const github_wire_request&) {
-				return discovery_search(items, 250U, false,
-										"<https://api.github.com/search/issues?page=2&per_page=100&q=is%3Apr+is%3Aopen+author%3Aocto-reviewer+repo%3Aocto-org%2Freview-repository>; rel=\"next\"");
-			};
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ "x" }, 0U); };
-			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
-			const auto detailed = result ? std::ranges::count_if(result->Rows, &application::personal_discovery_row::Detailed) : 0;
-			expect(result.has_value() && result->Completeness == full::result_limit && result->Rows.size() == 100U
-					   && detailed == static_cast<std::ptrdiff_t>(application::maximum_personal_discovery_details)
-					   && transport.count(read_operation::search_personal_pull_requests) == 1U
-					   && transport.count(read_operation::list_requested_reviewers) == application::maximum_personal_discovery_details,
-				   "a longer match is one page, partial, with bounded detail reads and unknown detail beyond them");
-		}
-		{
-			auto items = std::vector<std::string>{ };
-			for (std::uint32_t number = 1U; number <= 31U; ++number) {
-				items.push_back(discovery_item(number, "author"));
-			}
-			auto transport      = discovery_fixture_transport{ };
-			transport.Search    = [&items](const github_wire_request&) { return discovery_search(items, 31U); };
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ "octo-reviewer" }, 0U); };
-			const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::requested), { });
-			expect(result.has_value() && result->Completeness == full::detail_limit && result->Rows.size() == application::maximum_personal_discovery_details,
-				   "requested rows beyond the detail bound are unconfirmed, dropped and make the answer partial");
-		}
-		{
-			auto transport   = discovery_fixture_transport{ true };
-			transport.Search = [](const github_wire_request& aRequest) {
-				expect(aRequest.Wire.Path == "/api/v3/search/issues", "the GHES search uses the enterprise REST root");
-				return discovery_search({ discovery_item(5U, "octo-reviewer", "https://ghe.example.invalid/api/v3") }, 1U);
-			};
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 2U); };
-			const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::authored, application::github_server_contract::ghes_3_18_2022_11_28), { });
-			expect(result.has_value() && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 2U
-					   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/api/v3/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
-				   "the same bounded personal and optional metadata reads on a GHES 3.18 fixture contract");
-		}
-		for (const auto bodyLimit : { false, true }) {
-			auto transport      = discovery_fixture_transport{ true };
-			transport.Search    = [](const auto&) { return discovery_search({ discovery_item(5U, "author", "https://ghe.example.invalid/api/v3") }, 1U); };
-			transport.Reviewers = [bodyLimit](std::uint32_t) { return bodyLimit ? success_response(std::string(4U * 1024U * 1024U + 1U, 'x')) : requested_reviewers_response({ }, 101U); };
-			const auto  result  = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
-			const auto* error   = result ? nullptr : std::get_if<application::github_provider_error>(&result.error());
-			expect(error && error->Failure == application::github_provider_failure::unavailable && transport.Requests.size() == 3U, "a bounded GHES REST roster attempts projected recovery and reports the actual unavailable recovery instead of an empty requested list");
-		}
-
-		const auto failing = [](const int aStatus, const std::string_view aRemaining, const bool aDetail, std::string aBody = "{\"message\":\"no\"}") {
-			auto       transport = discovery_fixture_transport{ };
-			const auto fail      = [aStatus, aRemaining, aBody](wire_response aResponse) {
-				aResponse.Status = aStatus;
-				aResponse.Body   = aBody;
-				for (auto& header : aResponse.Headers) {
-					if (header.Name == "X-RateLimit-Remaining") {
-						header.Value = aRemaining;
-					}
-				}
-				return aResponse;
-			};
-			transport.Search = [&](const github_wire_request&) {
-				auto response = discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U);
-				return aDetail ? response : fail(std::move(response));
-			};
-			transport.Reviewers = [&](std::uint32_t) {
-				auto response = requested_reviewers_response({ }, 0U);
-				return aDetail ? fail(std::move(response)) : response;
-			};
-			return discovery_failure(perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }));
-		};
-		const auto primary = failing(403, "0", false);
-		expect(primary && primary->Failure == application::github_provider_failure::rate_limit && primary->RateLimitCause
-				   && primary->RateLimitCause->Resource == application::github_rate_limit_resource::search && !primary->RateLimitCause->SecondaryLimited,
-			   "a spent search allowance is the primary search limit");
-		const auto secondary = failing(403, "20", false, "{\"message\":\"You have exceeded a secondary rate limit. Please wait a few minutes before you try again.\"}");
-		expect(secondary && secondary->Failure == application::github_provider_failure::rate_limit && secondary->RateLimitCause
-				   && secondary->RateLimitCause->SecondaryLimited && secondary->RetryAfterSeconds.has_value(),
-			   "a secondary limit is its own kind, with a retry");
-		const auto authentication = failing(401, "29", false);
-		expect(authentication && authentication->Failure == application::github_provider_failure::authentication, "401 is an authentication failure");
-		const auto removed = failing(422, "29", false);
-		expect(removed && removed->Failure == application::github_provider_failure::permission, "a refused repository qualifier is lost access");
-		const auto forbidden = failing(403, "29", false);
-		expect(forbidden && forbidden->Failure == application::github_provider_failure::permission, "403 is lost access");
-		const auto detail = failing(404, "4999", true);
-		expect(detail && detail->Failure == application::github_provider_failure::permission, "a failed detail read fails the whole answer");
-		{
-			auto transport      = discovery_fixture_transport{ };
-			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U); };
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
-			std::stop_source stop;
-			stop.request_stop();
-			const auto cancelled = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), stop.get_token());
-			expect(!cancelled && std::holds_alternative<github_paged_read_cancelled>(cancelled.error()) && transport.Requests.empty(), "a cancelled discovery sends nothing");
-			auto foreign           = discovery_request(reason::authored);
-			foreign.Viewer.Account = core::github_account_id{ 1002U };
-			const auto refused     = perform_personal_discovery_read(transport, profile(), foreign, { });
-			expect(!refused && transport.Requests.empty(), "a viewer of another account is refused before any request");
-			auto noLease             = discovery_request(reason::requested);
-			noLease.AccountTransport = nullptr;
-			expect(!perform_personal_discovery_read(transport, profile(), noLease, { }) && transport.Requests.empty(), "no account lease, no request");
-			auto hostile         = discovery_request(reason::authored);
-			hostile.Viewer.Login = "octo repo:other/secret";
-			expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(), "a login cannot smuggle a qualifier");
-		}
-		{
-			auto transport      = discovery_fixture_transport{ };
-			transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(5U, "octo-reviewer") }, 2U); };
-			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
-			expect(!perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }), "a duplicated pull request is refused");
-			transport.Requests.clear();
-			transport.Search = [](const github_wire_request&) {
-				return discovery_search({ "{\"number\":5,\"title\":\"x\",\"state\":\"open\",\"pull_request\":{},\"repository_url\":\"https://api.github.com/repos/octo-org/other\",\"user\":null}" }, 1U);
-			};
-			expect(!perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }), "a row of another repository is refused");
-		}
-		{
-			// The wire refuses a discovery request under any other parent.
-			auto       semantic = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::search_personal_pull_requests, .Owner = "octo-org", .Repository = "review-repository", .SearchTerms = "author:octo-reviewer" };
-			const auto wire     = compile_read_request(semantic);
-			const auto base     = discovery_request(reason::authored);
-			auto       valid    = github_wire_request{
-				.Correlation = { .Parent = base.Context, .ProfileRevision = profile().revision(), .Host = profile().host(), .Operation = read_operation::search_personal_pull_requests, .Page = 1U },
-				.Wire        = *wire,
-			};
-			expect(validate_github_wire_request(profile(), valid).has_value(), "the repository parent admits its own search");
-			auto underPullRequest               = valid;
-			underPullRequest.Correlation.Parent = provider_request().Context;
-			expect(!validate_github_wire_request(profile(), underPullRequest).has_value(), "a pull request parent cannot issue a personal search");
-			auto otherRepository                                                                           = valid;
-			std::get<core::repository_request_context>(otherRepository.Correlation.Parent).Repository.Name = "other";
-			expect(!validate_github_wire_request(profile(), otherRepository).has_value(), "a repository parent cannot search another repository");
-			auto reviewers                      = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::list_requested_reviewers, .Owner = "octo-org", .Repository = "review-repository", .PullRequestNumber = 17U };
-			auto reviewersWire                  = valid;
-			reviewersWire.Wire                  = *compile_read_request(reviewers);
-			reviewersWire.Correlation.Operation = read_operation::list_requested_reviewers;
-			expect(!validate_github_wire_request(profile(), reviewersWire).has_value(), "a repository parent admits no other operation");
-			reviewersWire.Correlation.Parent = provider_request().Context;
-			expect(validate_github_wire_request(profile(), reviewersWire).has_value(), "requested reviewers are read under their pull request");
-		}
-	}
-
-	[[nodiscard]] auto retained_metadata(const std::string_view aRoot = "https://api.github.com") -> fixture_object
-	{
-		return {
-			{ "number", 17 },
-			{ "title", "Fix the queue before opening" },
-			{ "state", "open" },
-			{ "url", std::string{ aRoot } + "/repos/octo-org/review-repository/pulls/17" },
-			{ "user", rest_actor("U_author", "author") },
-			{ "head", fixture_object{ { "sha", std::string{ head_oid } } } },
-			{ "base", fixture_object{ { "repo", fixture_object{ { "id", 101U }, { "full_name", "octo-org/review-repository" } } } } },
-			{ "requested_reviewers", fixture_array{ rest_actor("U_other", "other") } },
-			{ "requested_teams", fixture_array{ fixture_object{ { "slug", "team" } } } },
-		};
-	}
-
-	[[nodiscard]] auto retained_review(const std::uint64_t aId, const std::string_view aState = "APPROVED") -> fixture_object
-	{
-		return {
-			{ "id", aId },
-			{ "node_id", "R_" + std::to_string(aId) },
-			{ "user", rest_actor("U_viewer", "octo-reviewer") },
-			{ "state", std::string{ aState } },
-			{ "commit_id", std::string{ head_oid } },
-			{ "body", "Review prose does not enter Home." },
-		};
-	}
-
-	/// [[BPR-1680]]. One alias of Home's batched query, as GitHub answers it:
-	/// two reviews (one pending), a code-owner team and the viewer asked, a
-	/// failed and a running check run and an erroring commit status.
-	/// [[BPR-1718]]. `aSubmittedAt` is the approval's `submittedAt`; empty
-	/// leaves the key out, as no server answering the query does.
-	[[nodiscard]] auto home_pull(const std::uint32_t aNumber, const std::uint64_t aReviewTotal = 2U, const std::string_view aSubmittedAt = "2026-10-14T16:20:00Z") -> fixture_object
-	{
-		const auto number     = std::to_string(aNumber);
-		const auto connection = [](const fixture_array& aNodes, const std::uint64_t aTotal) {
-			return fixture_object{ { "totalCount", aTotal }, { "pageInfo", fixture_object{ { "hasNextPage", false } } }, { "nodes", aNodes } };
-		};
-		const auto actor = [](const std::string_view aType, const std::string_view aLogin, const std::string_view aId) {
-			return fixture_object{ { "__typename", std::string{ aType } }, { "login", std::string{ aLogin } }, { "id", std::string{ aId } } };
-		};
-		auto       reviews  = fixture_array{ };
-		auto       approved = fixture_object{ { "databaseId", 900U + aNumber }, { "state", "APPROVED" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", fixture_object{ { "oid", std::string{ head_oid } } } }, { "comments", fixture_object{ { "totalCount", 2U } } } };
-		const auto pending  = fixture_object{ { "databaseId", 950U + aNumber }, { "state", "PENDING" }, { "submittedAt", nullptr }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", nullptr }, { "comments", fixture_object{ { "totalCount", 3U } } } };
-		if (!aSubmittedAt.empty()) {
-			approved.insert_or_assign("submittedAt", std::string{ aSubmittedAt });
-		}
-		reviews.emplace_back(approved);
-		reviews.emplace_back(pending);
-		auto       requests = fixture_array{ };
-		const auto team     = fixture_object{ { "id", "RR_team_" + number },
-											  { "asCodeOwner", true },
-											  { "requestedReviewer", fixture_object{ { "__typename", "Team" }, { "id", "T_owners" }, { "name", "Owners" }, { "slug", "owners" }, { "organization", fixture_object{ { "login", "octo-org" } } } } } };
-		const auto user     = fixture_object{ { "id", "RR_user_" + number }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_viewer" }, { "login", "octo-reviewer" } } } };
-		requests.emplace_back(team);
-		requests.emplace_back(user);
-		auto       contexts = fixture_array{ };
-		const auto failed   = fixture_object{ { "__typename", "CheckRun" }, { "name", "Build" }, { "status", "COMPLETED" }, { "conclusion", "FAILURE" } };
-		const auto running  = fixture_object{ { "__typename", "CheckRun" }, { "name", "Lint" }, { "status", "IN_PROGRESS" }, { "conclusion", nullptr } };
-		const auto legacy   = fixture_object{ { "__typename", "StatusContext" }, { "context", "ci/legacy" }, { "state", "ERROR" } };
-		contexts.emplace_back(failed);
-		contexts.emplace_back(running);
-		contexts.emplace_back(legacy);
-		auto       commits = fixture_array{ };
-		const auto commit  = fixture_object{ { "commit", fixture_object{ { "oid", std::string{ head_oid } }, { "statusCheckRollup", fixture_object{ { "contexts", connection(contexts, 3U) } } } } } };
-		commits.emplace_back(commit);
-		return {
-			{ "id", "PR_" + number },
-			{ "number", aNumber },
-			{ "title", "Batched " + number },
-			{ "isDraft", aNumber == 18U },
-			{ "state", "OPEN" },
-			{ "createdAt", "2026-10-06T11:15:00Z" },
-			{ "additions", 236U },
-			{ "deletions", 41U },
-			{ "headRefOid", std::string{ head_oid } },
-			{ "baseRefOid", std::string{ base_oid } },
-			{ "baseRefName", "main" },
-			{ "author", actor("User", "author", "U_author") },
-			{ "comments", fixture_object{ { "totalCount", 1U } } },
-			{ "reviews", connection(reviews, aReviewTotal) },
-			{ "reviewRequests", connection(requests, 2U) },
-			{ "mergeStateStatus", "BLOCKED" },
-			{ "reviewDecision", "REVIEW_REQUIRED" },
-			{ "autoMergeRequest", nullptr },
-			{ "commits", fixture_object{ { "nodes", commits } } },
-		};
-	}
-
-	[[nodiscard]] auto home_response(const std::vector<fixture_object>& aPulls) -> wire_response
-	{
-		auto repository = fixture_object{ { "id", "R_repository" }, { "nameWithOwner", "Octo-Org/Review-Repository" } };
-		for (std::size_t index = 0U; index < aPulls.size(); ++index) {
-			repository.insert_or_assign("p" + std::to_string(index), aPulls[index]);
-		}
-		auto response = success_response(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", repository } } } }));
-		for (auto& header : response.Headers) {
-			if (header.Name == "X-RateLimit-Resource") {
-				header.Value = "graphql";
-			}
-		}
-		return response;
-	}
-
-	/// [[BPR-1680]]. Several retained pull requests in one GraphQL query; the
-	/// REST way for a pull request with more than a page of anything, for all
-	/// of them when the query fails other than for the whole session, and
-	/// when the server is known to lack a field.
-	void test_retained_home_batch_read()
-	{
-		using reason    = application::personal_discovery_reason;
-		const auto rest = [](discovery_fixture_transport& aTransport) {
-			aTransport.Metadata = [](const github_wire_request& aRequest) {
-				auto       metadata = retained_metadata();
-				const auto number   = aRequest.Wire.Semantic.PullRequestNumber;
-				metadata.insert_or_assign("number", number);
-				metadata.insert_or_assign("url", "https://api.github.com/repos/octo-org/review-repository/pulls/" + std::to_string(number));
-				return success_response(fixture_json(metadata));
-			};
-			aTransport.Reviews = [](const auto&) { return success_response("[]"); };
-		};
-		const auto request = [] {
-			auto result    = discovery_request(reason::retained);
-			result.Numbers = { core::pull_request_number{ 17U }, core::pull_request_number{ 18U } };
-			return result;
-		};
-		{
-			auto transport = discovery_fixture_transport{ };
-			transport.Home = [](const github_wire_request& aRequest) {
-				expect(aRequest.Wire.Body.contains("p0:pullRequest(number:17){...HomePullRequest} p1:pullRequest(number:18){...HomePullRequest}")
-						   && aRequest.Wire.Body.contains("fragment HomePullRequest on PullRequest")
-						   && aRequest.Wire.Semantic.PullRequestNumbers == std::vector<std::uint32_t>{ 17U, 18U },
-					   "one query, one alias per pull request in ascending order");
-				return home_response({ home_pull(17U), home_pull(18U) });
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
-			expect(result && result->Rows.size() == 2U && transport.Requests.size() == 1U && !result->BatchUnsupported,
-				   "two retained pull requests cost one request");
-			const auto& row = result->Rows.front();
-			expect(row.Number.value() == 17U && row.Title == "Batched 17" && row.Detailed && row.Draft == false && result->Rows.back().Draft == true
-					   && row.HeadOid == application::commit_oid{ std::string{ head_oid } } && !row.Closed && row.Author == "author"
-					   && row.AuthorIdentity == application::github_actor_id{ "U_author" },
-				   "title, draft, head and author come from the alias");
-			expect(row.Reviews.size() == 2U && row.Reviews[0].DatabaseId == 917U && row.Reviews[0].Author == application::github_actor_id{ "U_viewer" }
-					   && row.Reviews[0].State == application::github_review_state::approved && row.Reviews[0].Commit == application::commit_oid{ std::string{ head_oid } }
-					   && row.Reviews[1].State == application::github_review_state::pending && !row.Reviews[1].Commit,
-				   "submitted-review evidence is the reviews' own");
-			// [[BPR-1718]]. 2026-10-14T16:20:00Z, in seconds; a pending review has none.
-			expect(row.Reviews[0].SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !row.Reviews[1].SubmittedAt,
-				   "each review says when it was submitted, from the same query");
-			expect(transport.Requests.front().Wire.Body.contains("nodes{databaseId state submittedAt author"), "the query asks for when each review was submitted");
-			expect(row.ReviewersAwaited == 2U && row.RequestsViewer && row.Waiting.Requests == std::optional<std::uint32_t>{ 2U }
-					   && row.Waiting.CodeOwners == std::vector<std::string>{ "@octo-org/owners" } && row.Waiting.RequiredReview == true
-					   && row.Waiting.MergeBlocked == true && row.Waiting.ChecksKnown
-					   && row.Waiting.FailedChecks == std::vector<std::string>{ "Build", "ci/legacy" } && row.Waiting.Head == head_oid,
-				   "the waiting summary is the one the REST reads build: requests, code owners, merge state and failed checks");
-			expect(row.Change.Additions == std::optional<std::uint64_t>{ 236U } && row.Change.Deletions == std::optional<std::uint64_t>{ 41U }
-					   && row.Change.Comments == std::optional<std::uint64_t>{ 3U } && row.Change.OpenedAt.has_value(),
-				   "a pending review's comments are not counted");
-		}
-		{
-			auto transport = discovery_fixture_transport{ };
-			rest(transport);
-			transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(17U), home_pull(18U, 51U) }); };
-			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
-			expect(result && result->Rows.size() == 2U && result->Rows[0].Title == "Batched 17" && result->Rows[1].Title == "Fix the queue before opening"
-					   && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::get_pull_request) == 1U,
-				   "a pull request with more reviews than a page is read the REST way, which pages; the other is not read again");
-		}
-		{
-			auto transport = discovery_fixture_transport{ };
-			rest(transport);
-			transport.Home = [](const github_wire_request&) {
-				auto response = home_response({ });
-				response.Body = R"({"errors":[{"type":"undefinedField","message":"Field 'statusCheckRollup' doesn't exist on type 'Commit'"}]})";
-				return response;
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
-			expect(result && result->Rows.size() == 2U && result->BatchUnsupported && transport.count(read_operation::get_pull_request) == 2U,
-				   "a server without one of the query's fields is read the REST way and says so");
-			transport.Requests.clear();
-			const auto again = perform_personal_discovery_read(transport, profile(), request(), { }, { }, false);
-			expect(again && again->Rows.size() == 2U && transport.count(read_operation::list_home_pull_requests) == 0U, "one known to lack it is not asked again");
-		}
-		{
-			auto transport = discovery_fixture_transport{ };
-			rest(transport);
-			transport.Home = [](const github_wire_request&) {
-				auto response   = home_response({ });
-				response.Status = 401;
-				response.Body   = R"({"message":"Bad credentials"})";
-				return response;
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
-			expect(!result && discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::authentication
-					   && transport.count(read_operation::get_pull_request) == 0U,
-				   "a failure of the whole session fails the read without the REST reads");
-		}
-		for (const auto submitted : { std::string_view{ }, std::string_view{ "14 October 2026" } }) {
-			auto transport = discovery_fixture_transport{ };
-			rest(transport);
-			transport.Home    = [submitted](const github_wire_request&) { return home_response({ home_pull(17U, 2U, submitted), home_pull(18U) }); };
-			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
-			expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
-				   "a review without a readable submission time is not the answer asked for, and the batch is read the REST way");
-		}
-		{
-			auto transport = discovery_fixture_transport{ };
-			rest(transport);
-			transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(18U), home_pull(17U) }); };
-			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
-			expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
-				   "an alias that is not the pull request asked for sends every pull request the REST way");
-		}
-		for (const auto& numbers : { std::vector<std::uint32_t>{ 18U, 17U }, std::vector<std::uint32_t>{ 17U }, std::vector<std::uint32_t>{ 17U, 17U },
-									 std::vector<std::uint32_t>{ 17U, 18U, 19U, 20U, 21U, 22U, 23U, 24U, 25U, 26U, 27U } }) {
-			auto transport = discovery_fixture_transport{ };
-			auto hostile   = request();
-			hostile.Numbers.clear();
-			for (const auto number : numbers) {
-				hostile.Numbers.emplace_back(number);
-			}
-			hostile.Number = hostile.Numbers.front();
-			expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
-				   "a batch names two to ten pull requests, ascending, once each");
-		}
-		{
-			auto transport    = discovery_fixture_transport{ };
-			auto mismatched   = request();
-			mismatched.Number = core::pull_request_number{ 18U };
-			auto searched     = discovery_request(reason::authored);
-			searched.Numbers  = request().Numbers;
-			expect(!perform_personal_discovery_read(transport, profile(), mismatched, { }) && !perform_personal_discovery_read(transport, profile(), searched, { })
-					   && transport.Requests.empty(),
-				   "the batch's first is its Number, and only a retained read batches");
-			auto semantic               = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::list_home_pull_requests, .Owner = "octo-org", .Repository = "review-repository" };
-			semantic.PullRequestNumbers = { 17U, 18U };
-			const auto compiled         = compile_read_request(semantic);
-			expect(compiled.has_value() && compiled->Method == http_method::post && !compiled->Body.contains("\"number\""), "the wire names the numbers in the document, not as variables");
-			semantic.PullRequestNumbers = { };
-			expect(!compile_read_request(semantic), "a batched read names its pull requests");
-			semantic.Operation          = read_operation::get_pull_request;
-			semantic.PullRequestNumber  = 17U;
-			semantic.PullRequestNumbers = { 17U, 18U };
-			expect(!compile_read_request(semantic), "only the batched read names several pull requests");
-		}
-	}
-
-	void test_home_draft_metadata_is_an_optional_wire_fact()
-	{
-		for (const auto mode : { 0, 1, 2, 3 }) {
-			auto transport      = discovery_fixture_transport{ };
-			transport.Reviewers = [](const std::uint32_t) { return requested_reviewers_response({ }, 0U); };
-			transport.Reviews   = [](const auto&) { return success_response(fixture_json(fixture_array{ })); };
-			transport.Search    = [mode](const auto&) {
-				auto       item = discovery_item(17U, "octo-reviewer");
-				const auto at   = item.find("\"draft\":false,");
-				expect(at != std::string::npos, "draft fixture field exists");
-				item.replace(at, 14U, mode == 0 ? "" : mode == 1 ? "\"draft\":false,"
-								 : mode == 2                     ? "\"draft\":true,"
-																 : "\"draft\":1,");
-				return discovery_search({ item }, 1U);
-			};
-			transport.Metadata = [mode](const auto&) {
-				auto metadata = retained_metadata();
-				if (mode == 1 || mode == 2) {
-					metadata.insert_or_assign("draft", mode == 2);
-				}
-				if (mode == 3) {
-					metadata.insert_or_assign("draft", "true");
-				}
-				return success_response(fixture_json(metadata));
-			};
-			for (const auto reason : { application::personal_discovery_reason::authored, application::personal_discovery_reason::retained }) {
-				const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason), { });
-				if (mode == 3) {
-					expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response, "malformed status cannot be accepted");
-				} else {
-					expect(result && result->Rows.size() == 1U && result->Rows.front().Draft == (mode == 0 ? std::nullopt : std::optional<bool>{ mode == 2 }), "missing draft stays unknown; observed booleans stay exact");
-				}
-			}
-		}
-	}
-
-	/// [[BPR-1407]]. Age, size and comment count come from the pull request
-	/// read Home already makes. Absent is unknown; a retained read refuses a
-	/// malformed one, and a discovered row's optional summary leaves it unknown.
-	void test_home_change_facts_are_read_with_the_pull_request()
-	{
-		using reason = application::personal_discovery_reason;
-		for (const auto mode : { 0, 1, 2, 3, 4 }) {
-			auto transport      = discovery_fixture_transport{ };
-			transport.Reviewers = [](const std::uint32_t) { return requested_reviewers_response({ }, 0U); };
-			transport.Reviews   = [](const auto&) { return success_response(fixture_json(fixture_array{ })); };
-			transport.Search    = [](const auto&) { return discovery_search({ discovery_item(17U, "octo-reviewer") }, 1U); };
-			transport.Metadata  = [mode](const auto&) {
-				auto metadata = retained_metadata();
-				if (mode != 0) {
-					metadata.insert_or_assign("created_at", mode == 3 ? "last Tuesday" : "2026-10-06T11:15:00Z");
-					metadata.insert_or_assign("additions", 236);
-					metadata.insert_or_assign("deletions", mode == 4 ? -41 : 41);
-					metadata.insert_or_assign("comments", 1);
-				}
-				if (mode == 1 || mode == 3 || mode == 4) {
-					metadata.insert_or_assign("review_comments", 2);
-				}
-				return success_response(fixture_json(metadata));
-			};
-			for (const auto why : { reason::authored, reason::retained }) {
-				const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(why), { });
-				const auto change = result && result->Rows.size() == 1U ? std::optional{ result->Rows.front().Change } : std::nullopt;
-				if (mode == 0) {
-					expect(change == core::queue_change_facts{ }, "a pull request without the fields leaves every change fact unknown");
-				} else if (mode == 1) {
-					expect(change == core::queue_change_facts{ .OpenedAt = 1'791'285'300, .Additions = 236U, .Deletions = 41U, .Comments = 3U }, "opening, lines and conversation plus inline comments are read");
-				} else if (mode == 2) {
-					expect(change && change->Additions == 236U && !change->Comments, "a total needs both comment counts");
-				} else if (why == reason::retained) {
-					expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response, "a retained read refuses a malformed change fact");
-				} else {
-					expect(change == core::queue_change_facts{ }, "a discovered row's optional summary leaves a malformed change unknown");
-				}
-			}
-			expect(transport.count(read_operation::get_pull_request) == 2U, "no request is added for the change facts");
-		}
-	}
-
-	void test_retained_home_metadata_read()
-	{
-		using reason = application::personal_discovery_reason;
-		for (const auto enterprise : { false, true }) {
-			auto       transport = discovery_fixture_transport{ enterprise };
-			const auto root      = enterprise ? "https://ghe.example.invalid/api/v3" : "https://api.github.com";
-			transport.Metadata   = [root](const auto&) { return success_response(fixture_json(retained_metadata(root))); };
-			transport.Reviews    = [root](const github_wire_request& aRequest) {
-				if (aRequest.Wire.Semantic.Page == 1U) {
-					auto reviews = fixture_array{ };
-					for (std::uint64_t id = 1U; id <= 100U; ++id) {
-						reviews.emplace_back(retained_review(id, "PENDING"));
-					}
-					return success_response(fixture_json(reviews), "<" + std::string{ root } + "/repos/octo-org/review-repository/pulls/17/reviews?page=2&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
-				}
-				// [[BPR-1718]]. A submitted review says when, as GitHub's REST does.
-				auto approved = retained_review(101U);
-				approved.insert_or_assign("submitted_at", "2026-10-14T16:20:00Z");
-				return success_response(fixture_json(fixture_array{ approved }));
-			};
-			const auto server             = enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28;
-			auto       request            = discovery_request(reason::retained, server);
-			request.AuthenticationSession = core::application_session_id{ 7U };
-			const auto result             = perform_personal_discovery_read(transport, enterprise ? enterprise_profile() : profile(), request, { });
-			expect(result && result->Rows.size() == 1U && result->Rows.front().Title == "Fix the queue before opening"
-					   && result->Rows.front().HeadOid == application::commit_oid{ std::string{ head_oid } }
-					   && result->Rows.front().ReviewersAwaited == 2U && result->Rows.front().Waiting.Requests == 2U && result->Rows.front().Reviews.size() == 101U
-					   && result->Rows.front().Reviews.back().State == application::github_review_state::approved,
-				   "retained Home read carries title, current head and complete ordered review evidence");
-			expect(result->Rows.front().Reviews.back().SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !result->Rows.front().Reviews.front().SubmittedAt,
-				   "[[BPR-1718]] a REST review's submitted_at is when it was submitted; a review without one has none");
-			expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
-					   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
-				   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");
-			expect(!result->Rows.front().RequestsViewer, "[[BPR-1680]] a request of another user and a team does not ask the viewer");
-		}
-		{
-			// [[BPR-1680]]. The retained read says whether the viewer is asked
-			// by name, as the requested-reviewers read would.
-			auto transport     = discovery_fixture_transport{ };
-			transport.Metadata = [](const auto&) {
-				auto metadata = retained_metadata();
-				metadata.insert_or_assign("requested_reviewers", fixture_array{ rest_actor("U_other", "other"), rest_actor("U_viewer", "Octo-Reviewer") });
-				return success_response(fixture_json(metadata));
-			};
-			transport.Reviews = [](const auto&) { return success_response("[]"); };
-			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
-			expect(result && result->Rows.size() == 1U && result->Rows.front().RequestsViewer && result->Rows.front().ReviewersAwaited == 3U,
-				   "a request that names the viewer, in any case, asks the viewer");
-		}
-		{
-			auto transport     = discovery_fixture_transport{ };
-			transport.Metadata = [](const auto&) {
-				auto metadata = retained_metadata();
-				metadata.insert_or_assign("node_id", "PR_17");
-				metadata.insert_or_assign("base", fixture_object{ { "sha", std::string{ base_oid } }, { "ref", "main" }, { "repo", fixture_object{ { "id", 37 }, { "node_id", "R_repository" }, { "full_name", "octo-org/review-repository" } } } });
-				return success_response(fixture_json(metadata));
-			};
-			transport.Reviews        = [](const auto&) { return success_response("[]"); };
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.Reviewers      = [](std::uint32_t) { return requested_reviewers_response({ }, 101U); };
 			auto limits              = github_paged_read_limits{ };
-			limits.MaximumTotalPages = 2;
-			const auto result        = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { }, limits);
-			expect(result && result->Rows.size() == 1 && result->Rows.front().WaitingLimited && result->Rows.front().Waiting.Requests == 2 && transport.Requests.size() == 2,
-				   "retained optional summary exhaustion is explicit and sends no extra page; complete metadata request count remains usable");
-		}
-		for (const auto violation : { 0, 1, 2, 3 }) {
-			auto transport     = discovery_fixture_transport{ };
-			transport.Metadata = [violation](const auto&) {
-				auto metadata = retained_metadata();
-				if (violation == 0) {
-					metadata["number"] = 18;
-				}
-				if (violation == 1) {
-					metadata["url"] = "https://api.github.com/repos/other/repository/pulls/17";
-				}
-				if (violation == 2) {
-					metadata["head"] = fixture_object{ { "sha", "invalid" } };
-				}
-				return success_response(fixture_json(metadata));
-			};
-			transport.Reviews = [](const auto&) { return success_response(fixture_json(fixture_array{ retained_review(1U), retained_review(1U) })); };
-			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
-			expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response,
-				   "wrong PR, repository, head or duplicate review fails the metadata answer atomically");
+			limits.MaximumTotalPages = 1U;
+			const auto result        = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { }, limits);
+			const auto error         = discovery_failure(result);
+			expect(error && error->Failure == application::github_provider_failure::response_limit && transport.count(read_operation::list_review_requests) == 1U, "a configured page bound never publishes a partial recovered roster");
 		}
 		{
-			auto transport     = discovery_fixture_transport{ };
-			transport.Metadata = [](const auto&) { return success_response(fixture_json(retained_metadata())); };
-			transport.Reviews  = [](const github_wire_request& aRequest) {
-				auto reviews = fixture_array{ };
-				for (std::uint64_t index = 0U; index < 100U; ++index) {
-					reviews.emplace_back(retained_review((aRequest.Wire.Semantic.Page - 1U) * 100U + index + 1U));
-				}
-				return success_response(fixture_json(reviews), "<https://api.github.com/repos/octo-org/review-repository/pulls/17/reviews?page=" + std::to_string(aRequest.Wire.Semantic.Page + 1U) + "&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
-			};
-			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
-			expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::response_limit
-					   && transport.Requests.size() == 5U,
-				   "a retained read stops after four review pages and never publishes truncated review state");
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.Reviewers = [](std::uint32_t) { return success_response("not-json"); };
+			const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			const auto error    = discovery_failure(result);
+			expect(error && error->Failure == application::github_provider_failure::malformed_response && transport.count(read_operation::list_home_pull_requests) == 0U, "malformed REST is not retried as a size-limit recovery");
 		}
 		{
-			auto transport = discovery_fixture_transport{ };
-			auto stop      = std::stop_source{ };
-			stop.request_stop();
-			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), stop.get_token());
-			expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && transport.Requests.empty(), "cancelled retained read sends nothing");
-			auto request   = discovery_request(reason::requested);
-			request.Number = core::pull_request_number{ 17U };
-			expect(!perform_personal_discovery_read(transport, profile(), request, { }) && transport.Requests.empty(), "a search cannot carry a retained PR number");
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.Search = [](const auto&) {
+				auto items = fixture_array{ };
+				for (auto number = 5U; number < 22U; ++number) {
+					items.emplace_back(discovery_item(number, "author", "https://ghe.example.invalid/api/v3"));
+				}
+				return discovery_search(items, 17U);
+			};
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 101U); };
+			transport.Home      = [&](const github_wire_request& aRequest) { return anchor(aRequest.Wire.Semantic.PullRequestNumbers.front()); };
+			transport.Recovery  = [](const github_wire_request& aRequest) -> github_wire_completion {
+				const auto connection = fixture_object{ { "totalCount", 1U }, { "pageInfo", fixture_object{ { "hasNextPage", false }, { "endCursor", "end" } } },
+					{ "nodes", fixture_array{ fixture_object{ { "id", "RR_viewer" }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_viewer" }, { "login", "octo-reviewer" } } } } } } };
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" },
+					{ "pullRequest", fixture_object{ { "id", "PR_" + std::to_string(aRequest.Wire.Semantic.PullRequestNumber) }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" }, { "reviewRequests", connection } } } }
+				} } } } })) };
+		};
+		const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+		const auto error  = discovery_failure(result);
+		expect(error && error->Failure == application::github_provider_failure::response_limit
+				   && transport.count(read_operation::list_home_pull_requests) == 16U && transport.count(read_operation::list_review_requests) == 16U,
+			   "all recovery rows share exactly 32 additional requests, fail atomically at exhaustion and never reuse optional-summary capacity");
+	}
+	for (const auto bad : { 0, 1, 2, 3, 4 }) {
+		auto transport = discovery_fixture_transport{ true };
+		setup(transport);
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 101U); };
+		if (bad == 0 || bad == 1) {
+			transport.Home = [&, bad](const auto&) { return bad == 0 ? anchor(6U) : anchor(5U, "octo-org/other"); };
 		}
+		transport.Recovery = [&, bad](const github_wire_request& aRequest) -> github_wire_completion {
+			if (bad == 4) {
+				auto response = graphql_answer("{\"message\":\"slow down\"}", 403);
+				response.Headers.push_back({ .Name = "Retry-After", .Value = "60" });
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
+			}
+			return github_wire_success{ .Correlation = aRequest.Correlation, .Response = page(aRequest.Wire.Semantic.Page, true, bad == 2, bad == 3 && aRequest.Wire.Semantic.Page == 2U) };
+		};
+		const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+		const auto error  = discovery_failure(result);
+		expect(error && (bad == 4 ? error->Failure == application::github_provider_failure::rate_limit && error->RetryAfterSeconds == 60U : error->Failure == application::github_provider_failure::malformed_response),
+			   "wrong repository/number, duplicate actor and changed head fail atomically; recovery rate-limit metadata is not hidden by the original limit");
+	}
+}
+
+auto test_personal_discovery_read() -> void
+{
+	using reason = application::personal_discovery_reason;
+	using full   = application::personal_discovery_completeness;
+	{
+		auto transport   = discovery_fixture_transport{ };
+		transport.Search = [](const github_wire_request& aRequest) {
+			expect(aRequest.Wire.Path == "/search/issues"
+					   && aRequest.Wire.Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository",
+				   "the authored search is exact");
+			return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(6U, "Octo-Reviewer"), discovery_item(7U, "someone-else") }, 3U);
+		};
+		transport.Reviewers = [](const std::uint32_t aNumber) {
+			return aNumber == 5U ? requested_reviewers_response({ "alice", "bob" }, 1U) : requested_reviewers_response({ }, 0U);
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+		expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 2U
+				   && result->Rows[0].Number.value() == 5U && result->Rows[0].Detailed && result->Rows[0].ReviewersAwaited == 3U
+				   && result->Rows[1].Number.value() == 6U && result->Rows[1].Detailed && result->Rows[1].ReviewersAwaited == 0U
+				   && result->Rows[0].Title == "Pull request 5" && result->Rows[0].Author == "octo-reviewer",
+			   "authored rows are the viewer's own, with the reviewers each awaits");
+		expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
+				   && transport.Requests.size() == 5U,
+			   "one search, bounded reviewer and optional Home-summary reads; another actor's row costs nothing");
+		expect(result->RateLimits.Search.has_value() && result->RateLimits.Core.has_value(), "search and core rate observations stay separate");
+	}
+	{
+		auto transport      = discovery_fixture_transport{ };
+		transport.Search    = [](const auto&) { return discovery_search({ discovery_item(5, "octo-reviewer") }, 1); };
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0); };
+		transport.Metadata  = [](const auto&) { return success_response(std::string(4U * 1024U * 1024U + 1U, 'x')); };
+		const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+		expect(result && result->Rows.size() == 1 && result->Rows.front().Waiting.Requests == 0 && result->Completeness == full::detail_limit,
+			   "oversized added metadata leaves complete REST facts usable and explicitly marks discovery partial");
 	}
 
-	void test_raw_tour_import()
 	{
-		const std::string prefix    = "https://github.com/octo-org/review-repository/pull/17";
-		auto              transport = paged_fixture_transport{ fixture_scenario::success };
-		transport.RewriteResponse   = [&](const github_wire_request& aRequest, wire_response& aResponse) {
-			if (aRequest.Wire.Operation == read_operation::list_reviews) {
-				const auto body = "1. [same](" + prefix + "#discussion_r101)\r\n1. [same](" + prefix + "#discussion_r18446744073709551615)\r\n";
-				aResponse.Body  = fixture_json(fixture_array{ fixture_object{
-					{ "body", body }, { "commit_id", std::string{ head_oid } }, { "id", 4001 }, { "node_id", "R_review" }, { "state", "COMMENTED" }, { "html_url", prefix + "#pullrequestreview-4001" }, { "user", rest_actor("U_viewer", "octo-reviewer") } } });
-			}
-			if (aRequest.Wire.Operation == read_operation::list_review_threads) {
-				expect(aRequest.Wire.Body.find("body url updatedAt fullDatabaseId") != std::string::npos, "production query selects raw body and real identity");
-				for (std::size_t index = 0; index < 101; ++index) {
-					const auto id       = index == 0 ? "18446744073709551615" : std::to_string(index + 1);
-					const auto raw      = "### Author's tour · 9 — same\r\n\r\n**raw** " + std::to_string(index) + "\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n";
-					const auto existing = "\"bodyText\":\"comment " + std::to_string(index) + "\"";
-					const auto added    = std::string{ existing }.append(",\"body\":").append(fixture_json(raw)).append(",\"url\":").append(fixture_json(std::string{ prefix }.append("#discussion_r").append(id))).append(",\"fullDatabaseId\":\"").append(id).append("\",\"updatedAt\":\"2026-09-26T00:00:00Z\",\"pullRequestReview\":{\"id\":\"R_review\"}");
-					replace_raw(aResponse.Body, existing, added);
-				}
-				replace_raw(aResponse.Body, "\"author\":null", "\"author\":{\"id\":\"U_viewer\",\"login\":\"octo-reviewer\"}");
-			}
+		auto transport   = discovery_fixture_transport{ };
+		transport.Search = [](const github_wire_request& aRequest) {
+			expect(aRequest.Wire.Query.find("review-requested%3Aocto-reviewer") != std::string::npos, "the requested search names the viewer");
+			return discovery_search({ discovery_item(8U, "author-a"), discovery_item(9U, "author-b"), discovery_item(10U, "author-c") }, 3U);
 		};
-		const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
-		expect(result.has_value(), "raw tour pages accepted");
-		const auto& comments = result->ReviewThreads.front().Comments;
-		expect(comments.size() == 101 && comments[0].Body == "comment 0" && comments[100].Body == "comment 100", "all pages exhausted and existing display prose unchanged");
-		expect(comments[0].Observation.DatabaseId == std::numeric_limits<std::uint64_t>::max() && comments[100].Observation.RawBody->find("**raw** 100\r\n") != std::string::npos, "full uint64 and raw CRLF Markdown survive pages");
-		auto seed              = tests::review_tour_fixture();
-		seed.Owner.Host        = result->Host;
-		seed.Owner.Account     = result->Account;
-		seed.Owner.Repository  = result->Repository.Repository;
-		seed.Owner.PullRequest = result->PullRequest.PullRequest;
-		seed.Stops.clear();
-		seed.LastStopId = 0;
-		seed.Problem.clear();
-		seed.Solution.clear();
-		seed.ProblemBaseline.reset();
-		seed.SolutionBaseline.reset();
-		const auto calls    = transport.Requests.size();
-		const auto imported = application::observe_review_tours(seed, *result, "github.com");
-		expect(imported.size() == 1 && imported[0].Draft.Stops.size() == 2 && !imported[0].Draft.ReadOnly, "real paged snapshot cold imports without private IDs or AI");
-		expect(imported[0].Draft.Stops[0].Remote->DatabaseId == 101 && imported[0].Draft.Stops[1].Remote->DatabaseId == std::numeric_limits<std::uint64_t>::max(), "index order crosses comment pages and server order");
-		auto foreign                                              = *result;
-		foreign.ReviewThreads[0].Comments[100].Observation.WebUrl = "https://evil.invalid/steal";
-		expect(application::observe_review_tours(seed, foreign, "github.com")[0].Draft.ReadOnly && transport.Requests.size() == calls, "foreign links never fetch or forward credentials");
-		auto malformed            = paged_fixture_transport{ fixture_scenario::success };
-		malformed.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {if(aRequest.Wire.Operation==read_operation::list_review_threads){replace_raw(aResponse.Body,"\"bodyText\":\"comment 0\"","\"bodyText\":\"comment 0\",\"body\":42");} };
-		expect(!perform_paged_github_read(malformed, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { }), "malformed raw data fails atomically");
+		transport.Reviewers = [](const std::uint32_t aNumber) {
+			return aNumber == 8U ? requested_reviewers_response({ "OCTO-REVIEWER" }, 0U)
+				: aNumber == 9U  ? requested_reviewers_response({ }, 1U)
+								 : requested_reviewers_response({ "someone" }, 0U);
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::requested), { });
+		expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 1U && result->Rows[0].Number.value() == 8U
+				   && result->Rows[0].Detailed && result->Rows[0].Author == "author-a",
+			   "only a request that names the viewer as a user is kept; a team-only request is not the viewer's");
 	}
+	{
+		// [[BPR-1680]]. One search names several saved repositories; each
+		// row belongs to the one GitHub says, and its detail is read there.
+		auto transport   = discovery_fixture_transport{ };
+		transport.Others = { "tools" };
+		transport.Search = [](const github_wire_request& aRequest) {
+			expect(aRequest.Wire.Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository%20repo%3Aocto-org%2Ftools"
+					   && aRequest.Wire.Semantic.SearchRepositories == std::vector<std::string>{ "octo-org/tools" },
+				   "the shared search names both repositories, in order");
+			return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(5U, "octo-reviewer", "https://api.github.com", "TOOLS"), discovery_item(6U, "octo-reviewer", "https://api.github.com", "tools") }, 3U);
+		};
+		transport.Reviewers  = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+		auto       request   = discovery_request(reason::authored);
+		const auto tools     = core::repository_locator{ .Owner = "octo-org", .Name = "tools" };
+		request.Repositories = { request.Context.Repository, tools };
+		request.Known        = { { .Repository = tools, .Number = core::pull_request_number{ 6U } } };
+		const auto result    = perform_personal_discovery_read(transport, profile(), request, { });
+		expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 3U
+				   && result->Rows[0].Repository == request.Context.Repository && result->Rows[0].Number.value() == 5U && result->Rows[0].Detailed
+				   && result->Rows[1].Repository == tools && result->Rows[1].Number.value() == 5U && result->Rows[1].Detailed
+				   && result->Rows[2].Repository == tools && result->Rows[2].Reused,
+			   "the same number in two repositories is two rows, each attributed as the request names it");
+		expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 2U
+				   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/repos/octo-org/tools/pulls/5/requested_reviewers"; })
+				   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
+			   "one search; each row's detail is read under its own repository");
+		transport.Search = [](const github_wire_request&) {
+			return discovery_search({ discovery_item(5U, "octo-reviewer", "https://api.github.com", "web") }, 1U);
+		};
+		transport.Requests.clear();
+		expect(!perform_personal_discovery_read(transport, profile(), request, { }), "a row of a repository the search did not name is refused");
+		const auto web  = core::repository_locator{ .Owner = "octo-org", .Name = "web" };
+		auto       many = std::vector<core::repository_locator>{ request.Context.Repository };
+		for (auto index = 0; index < 10; ++index) {
+			many.push_back({ .Owner = "octo-org", .Name = "zz-" + std::to_string(index) });
+		}
+		for (const auto& refused : {
+				 std::vector<core::repository_locator>{ tools, request.Context.Repository },
+				 std::vector<core::repository_locator>{ request.Context.Repository, web, tools },
+				 std::vector<core::repository_locator>{ request.Context.Repository, tools, tools },
+				 std::vector<core::repository_locator>{ request.Context.Repository, core::repository_locator{ .Owner = "octo-org", .Name = "" } },
+				 many,
+			 }) {
+			auto hostile         = discovery_request(reason::authored);
+			hostile.Repositories = refused;
+			transport.Requests.clear();
+			expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
+				   "a shared search names its own repository first, then others in order, once each, at most ten");
+		}
+		auto retained         = discovery_request(reason::retained);
+		retained.Repositories = { retained.Context.Repository };
+		expect(!perform_personal_discovery_read(transport, profile(), retained, { }) && transport.Requests.empty(), "a retained read names no shared search");
+		auto unnamed  = discovery_request(reason::authored);
+		unnamed.Known = { { .Repository = tools, .Number = core::pull_request_number{ 6U } } };
+		expect(!perform_personal_discovery_read(transport, profile(), unnamed, { }) && transport.Requests.empty(), "a known pull request is of a repository the search names");
+		auto semantic               = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::search_personal_pull_requests, .Owner = "octo-org", .Repository = "app", .SearchTerms = "author:octo-reviewer" };
+		semantic.SearchRepositories = { "Octo-Org/App" };
+		expect(!compile_read_request(semantic), "the wire never names one repository twice in any case");
+		semantic.SearchRepositories = { std::string(100U, 'o') + "/" + std::string(100U, 'n') };
+		expect(!compile_read_request(semantic), "the wire never sends a shared query past the core's bound");
+		semantic.SearchRepositories = { "octo-org/x/secret" };
+		expect(!compile_read_request(semantic), "every named repository is two safe path components");
+		semantic.SearchRepositories = { "octo-org/tools" };
+		expect(compile_read_request(semantic).has_value(), "a well-formed shared search compiles");
+		semantic.Operation   = read_operation::search_pull_requests;
+		semantic.SearchTerms = "is:open";
+		expect(!compile_read_request(semantic), "only the personal search names further repositories");
+	}
+	{
+		// [[BPR-1680]]. Pull requests the refresh's retained read already
+		// read come back as the search found them, with no detail read.
+		auto transport   = discovery_fixture_transport{ };
+		transport.Search = [](const github_wire_request&) {
+			return discovery_search({ discovery_item(8U, "author-a"), discovery_item(9U, "author-b"), discovery_item(10U, "author-c") }, 3U);
+		};
+		transport.Reviewers = [](const std::uint32_t aNumber) {
+			expect(aNumber == 10U, "only the pull request nothing has read is asked for its reviewers");
+			return requested_reviewers_response({ "octo-reviewer" }, 0U);
+		};
+		auto request  = discovery_request(reason::requested);
+		request.Known = {
+			{ .Repository = request.Context.Repository, .Number = core::pull_request_number{ 8U } },
+			{ .Repository = request.Context.Repository, .Number = core::pull_request_number{ 9U } },
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), request, { });
+		expect(result.has_value() && result->Completeness == full::complete && result->Rows.size() == 3U
+				   && result->Rows[0].Reused && !result->Rows[0].Detailed && result->Rows[0].Title == "Pull request 8"
+				   && result->Rows[1].Reused && !result->Rows[1].Detailed && !result->Rows[2].Reused && result->Rows[2].Detailed,
+			   "known rows are returned reused, even a team-only one, for the host to decide; the other is read");
+		expect(transport.count(read_operation::search_personal_pull_requests) == 1U && transport.count(read_operation::list_requested_reviewers) == 1U
+				   && transport.count(read_operation::get_pull_request) == 1U,
+			   "a known row costs no requested-reviewer, pull request or summary read");
+		for (const auto& refused : {
+				 std::vector<application::personal_discovery_known>{ { .Repository = { "octo-org", "other" }, .Number = core::pull_request_number{ 8U } } },
+				 std::vector<application::personal_discovery_known>{ { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 9U } }, { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 8U } } },
+				 std::vector<application::personal_discovery_known>{ { .Repository = request.Context.Repository, .Number = core::pull_request_number{ 0U } } },
+			 }) {
+			transport.Requests.clear();
+			auto hostile  = request;
+			hostile.Known = refused;
+			expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
+				   "known pull requests of another repository, out of order or invalid are refused before any request");
+		}
+		auto retained  = discovery_request(reason::retained);
+		retained.Known = request.Known;
+		transport.Requests.clear();
+		expect(!perform_personal_discovery_read(transport, profile(), retained, { }) && transport.Requests.empty(), "a retained read knows nothing");
+	}
+	{
+		auto transport      = discovery_fixture_transport{ };
+		transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U, true); };
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+		const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+		expect(result.has_value() && result->Completeness == full::incomplete_results && result->Rows.size() == 1U,
+			   "an incomplete GitHub search keeps its rows and is never complete");
+	}
+	{
+		auto items = std::vector<std::string>{ };
+		for (std::uint32_t number = 1U; number <= 100U; ++number) {
+			items.push_back(discovery_item(number, "octo-reviewer"));
+		}
+		auto transport   = discovery_fixture_transport{ };
+		transport.Search = [&items](const github_wire_request&) {
+			return discovery_search(items, 250U, false,
+									"<https://api.github.com/search/issues?page=2&per_page=100&q=is%3Apr+is%3Aopen+author%3Aocto-reviewer+repo%3Aocto-org%2Freview-repository>; rel=\"next\"");
+		};
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ "x" }, 0U); };
+		const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { });
+		const auto detailed = result ? std::ranges::count_if(result->Rows, &application::personal_discovery_row::Detailed) : 0;
+		expect(result.has_value() && result->Completeness == full::result_limit && result->Rows.size() == 100U
+				   && detailed == static_cast<std::ptrdiff_t>(application::maximum_personal_discovery_details)
+				   && transport.count(read_operation::search_personal_pull_requests) == 1U
+				   && transport.count(read_operation::list_requested_reviewers) == application::maximum_personal_discovery_details,
+			   "a longer match is one page, partial, with bounded detail reads and unknown detail beyond them");
+	}
+	{
+		auto items = std::vector<std::string>{ };
+		for (std::uint32_t number = 1U; number <= 31U; ++number) {
+			items.push_back(discovery_item(number, "author"));
+		}
+		auto transport      = discovery_fixture_transport{ };
+		transport.Search    = [&items](const github_wire_request&) { return discovery_search(items, 31U); };
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ "octo-reviewer" }, 0U); };
+		const auto result   = perform_personal_discovery_read(transport, profile(), discovery_request(reason::requested), { });
+		expect(result.has_value() && result->Completeness == full::detail_limit && result->Rows.size() == application::maximum_personal_discovery_details,
+			   "requested rows beyond the detail bound are unconfirmed, dropped and make the answer partial");
+	}
+	{
+		auto transport   = discovery_fixture_transport{ true };
+		transport.Search = [](const github_wire_request& aRequest) {
+			expect(aRequest.Wire.Path == "/api/v3/search/issues", "the GHES search uses the enterprise REST root");
+			return discovery_search({ discovery_item(5U, "octo-reviewer", "https://ghe.example.invalid/api/v3") }, 1U);
+		};
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 2U); };
+		const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::authored, application::github_server_contract::ghes_3_18_2022_11_28), { });
+		expect(result.has_value() && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 2U
+				   && std::ranges::any_of(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Path == "/api/v3/repos/octo-org/review-repository/pulls/5/requested_reviewers"; }),
+			   "the same bounded personal and optional metadata reads on a GHES 3.18 fixture contract");
+	}
+	for (const auto bodyLimit : { false, true }) {
+		auto transport      = discovery_fixture_transport{ true };
+		transport.Search    = [](const auto&) { return discovery_search({ discovery_item(5U, "author", "https://ghe.example.invalid/api/v3") }, 1U); };
+		transport.Reviewers = [bodyLimit](std::uint32_t) { return bodyLimit ? success_response(std::string(4U * 1024U * 1024U + 1U, 'x')) : requested_reviewers_response({ }, 101U); };
+		const auto  result  = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+		const auto* error   = result ? nullptr : std::get_if<application::github_provider_error>(&result.error());
+		expect(error && error->Failure == application::github_provider_failure::unavailable && transport.Requests.size() == 3U, "a bounded GHES REST roster attempts projected recovery and reports the actual unavailable recovery instead of an empty requested list");
+	}
+
+	const auto failing = [](const int aStatus, const std::string_view aRemaining, const bool aDetail, std::string aBody = "{\"message\":\"no\"}") {
+		auto       transport = discovery_fixture_transport{ };
+		const auto fail      = [aStatus, aRemaining, aBody](wire_response aResponse) {
+			aResponse.Status = aStatus;
+			aResponse.Body   = aBody;
+			for (auto& header : aResponse.Headers) {
+				if (header.Name == "X-RateLimit-Remaining") {
+					header.Value = aRemaining;
+				}
+			}
+			return aResponse;
+		};
+		transport.Search = [&](const github_wire_request&) {
+			auto response = discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U);
+			return aDetail ? response : fail(std::move(response));
+		};
+		transport.Reviewers = [&](std::uint32_t) {
+			auto response = requested_reviewers_response({ }, 0U);
+			return aDetail ? fail(std::move(response)) : response;
+		};
+		return discovery_failure(perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }));
+	};
+	const auto primary = failing(403, "0", false);
+	expect(primary && primary->Failure == application::github_provider_failure::rate_limit && primary->RateLimitCause
+			   && primary->RateLimitCause->Resource == application::github_rate_limit_resource::search && !primary->RateLimitCause->SecondaryLimited,
+		   "a spent search allowance is the primary search limit");
+	const auto secondary = failing(403, "20", false, "{\"message\":\"You have exceeded a secondary rate limit. Please wait a few minutes before you try again.\"}");
+	expect(secondary && secondary->Failure == application::github_provider_failure::rate_limit && secondary->RateLimitCause
+			   && secondary->RateLimitCause->SecondaryLimited && secondary->RetryAfterSeconds.has_value(),
+		   "a secondary limit is its own kind, with a retry");
+	const auto authentication = failing(401, "29", false);
+	expect(authentication && authentication->Failure == application::github_provider_failure::authentication, "401 is an authentication failure");
+	const auto removed = failing(422, "29", false);
+	expect(removed && removed->Failure == application::github_provider_failure::permission, "a refused repository qualifier is lost access");
+	const auto forbidden = failing(403, "29", false);
+	expect(forbidden && forbidden->Failure == application::github_provider_failure::permission, "403 is lost access");
+	const auto detail = failing(404, "4999", true);
+	expect(detail && detail->Failure == application::github_provider_failure::permission, "a failed detail read fails the whole answer");
+	{
+		auto transport      = discovery_fixture_transport{ };
+		transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer") }, 1U); };
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+		std::stop_source stop;
+		stop.request_stop();
+		const auto cancelled = perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), stop.get_token());
+		expect(!cancelled && std::holds_alternative<github_paged_read_cancelled>(cancelled.error()) && transport.Requests.empty(), "a cancelled discovery sends nothing");
+		auto foreign           = discovery_request(reason::authored);
+		foreign.Viewer.Account = core::github_account_id{ 1002U };
+		const auto refused     = perform_personal_discovery_read(transport, profile(), foreign, { });
+		expect(!refused && transport.Requests.empty(), "a viewer of another account is refused before any request");
+		auto noLease             = discovery_request(reason::requested);
+		noLease.AccountTransport = nullptr;
+		expect(!perform_personal_discovery_read(transport, profile(), noLease, { }) && transport.Requests.empty(), "no account lease, no request");
+		auto hostile         = discovery_request(reason::authored);
+		hostile.Viewer.Login = "octo repo:other/secret";
+		expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(), "a login cannot smuggle a qualifier");
+	}
+	{
+		auto transport      = discovery_fixture_transport{ };
+		transport.Search    = [](const github_wire_request&) { return discovery_search({ discovery_item(5U, "octo-reviewer"), discovery_item(5U, "octo-reviewer") }, 2U); };
+		transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+		expect(!perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }), "a duplicated pull request is refused");
+		transport.Requests.clear();
+		transport.Search = [](const github_wire_request&) {
+			return discovery_search({ "{\"number\":5,\"title\":\"x\",\"state\":\"open\",\"pull_request\":{},\"repository_url\":\"https://api.github.com/repos/octo-org/other\",\"user\":null}" }, 1U);
+		};
+		expect(!perform_personal_discovery_read(transport, profile(), discovery_request(reason::authored), { }), "a row of another repository is refused");
+	}
+	{
+		// The wire refuses a discovery request under any other parent.
+		auto       semantic = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::search_personal_pull_requests, .Owner = "octo-org", .Repository = "review-repository", .SearchTerms = "author:octo-reviewer" };
+		const auto wire     = compile_read_request(semantic);
+		const auto base     = discovery_request(reason::authored);
+		auto       valid    = github_wire_request{
+			.Correlation = { .Parent = base.Context, .ProfileRevision = profile().revision(), .Host = profile().host(), .Operation = read_operation::search_personal_pull_requests, .Page = 1U },
+			.Wire        = *wire,
+		};
+		expect(validate_github_wire_request(profile(), valid).has_value(), "the repository parent admits its own search");
+		auto underPullRequest               = valid;
+		underPullRequest.Correlation.Parent = provider_request().Context;
+		expect(!validate_github_wire_request(profile(), underPullRequest).has_value(), "a pull request parent cannot issue a personal search");
+		auto otherRepository                                                                           = valid;
+		std::get<core::repository_request_context>(otherRepository.Correlation.Parent).Repository.Name = "other";
+		expect(!validate_github_wire_request(profile(), otherRepository).has_value(), "a repository parent cannot search another repository");
+		auto reviewers                      = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::list_requested_reviewers, .Owner = "octo-org", .Repository = "review-repository", .PullRequestNumber = 17U };
+		auto reviewersWire                  = valid;
+		reviewersWire.Wire                  = *compile_read_request(reviewers);
+		reviewersWire.Correlation.Operation = read_operation::list_requested_reviewers;
+		expect(!validate_github_wire_request(profile(), reviewersWire).has_value(), "a repository parent admits no other operation");
+		reviewersWire.Correlation.Parent = provider_request().Context;
+		expect(validate_github_wire_request(profile(), reviewersWire).has_value(), "requested reviewers are read under their pull request");
+	}
+}
+
+[[nodiscard]] auto retained_metadata(const std::string_view aRoot = "https://api.github.com") -> fixture_object
+{
+	return {
+		{ "number", 17 },
+		{ "title", "Fix the queue before opening" },
+		{ "state", "open" },
+		{ "url", std::string{ aRoot } + "/repos/octo-org/review-repository/pulls/17" },
+		{ "user", rest_actor("U_author", "author") },
+		{ "head", fixture_object{ { "sha", std::string{ head_oid } } } },
+		{ "base", fixture_object{ { "repo", fixture_object{ { "id", 101U }, { "full_name", "octo-org/review-repository" } } } } },
+		{ "requested_reviewers", fixture_array{ rest_actor("U_other", "other") } },
+		{ "requested_teams", fixture_array{ fixture_object{ { "slug", "team" } } } },
+	};
+}
+
+[[nodiscard]] auto retained_review(const std::uint64_t aId, const std::string_view aState = "APPROVED") -> fixture_object
+{
+	return {
+		{ "id", aId },
+		{ "node_id", "R_" + std::to_string(aId) },
+		{ "user", rest_actor("U_viewer", "octo-reviewer") },
+		{ "state", std::string{ aState } },
+		{ "commit_id", std::string{ head_oid } },
+		{ "body", "Review prose does not enter Home." },
+	};
+}
+
+/// [[BPR-1680]]. One alias of Home's batched query, as GitHub answers it:
+/// two reviews (one pending), a code-owner team and the viewer asked, a
+/// failed and a running check run and an erroring commit status.
+/// [[BPR-1718]]. `aSubmittedAt` is the approval's `submittedAt`; empty
+/// leaves the key out, as no server answering the query does.
+[[nodiscard]] auto home_pull(const std::uint32_t aNumber, const std::uint64_t aReviewTotal = 2U, const std::string_view aSubmittedAt = "2026-10-14T16:20:00Z") -> fixture_object
+{
+	const auto number     = std::to_string(aNumber);
+	const auto connection = [](const fixture_array& aNodes, const std::uint64_t aTotal) {
+		return fixture_object{ { "totalCount", aTotal }, { "pageInfo", fixture_object{ { "hasNextPage", false } } }, { "nodes", aNodes } };
+	};
+	const auto actor = [](const std::string_view aType, const std::string_view aLogin, const std::string_view aId) {
+		return fixture_object{ { "__typename", std::string{ aType } }, { "login", std::string{ aLogin } }, { "id", std::string{ aId } } };
+	};
+	auto       reviews  = fixture_array{ };
+	auto       approved = fixture_object{ { "databaseId", 900U + aNumber }, { "state", "APPROVED" }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", fixture_object{ { "oid", std::string{ head_oid } } } }, { "comments", fixture_object{ { "totalCount", 2U } } } };
+	const auto pending  = fixture_object{ { "databaseId", 950U + aNumber }, { "state", "PENDING" }, { "submittedAt", nullptr }, { "author", actor("User", "octo-reviewer", "U_viewer") }, { "commit", nullptr }, { "comments", fixture_object{ { "totalCount", 3U } } } };
+	if (!aSubmittedAt.empty()) {
+		approved.insert_or_assign("submittedAt", std::string{ aSubmittedAt });
+	}
+	reviews.emplace_back(approved);
+	reviews.emplace_back(pending);
+	auto       requests = fixture_array{ };
+	const auto team     = fixture_object{ { "id", "RR_team_" + number },
+										  { "asCodeOwner", true },
+										  { "requestedReviewer", fixture_object{ { "__typename", "Team" }, { "id", "T_owners" }, { "name", "Owners" }, { "slug", "owners" }, { "organization", fixture_object{ { "login", "octo-org" } } } } } };
+	const auto user     = fixture_object{ { "id", "RR_user_" + number }, { "asCodeOwner", false }, { "requestedReviewer", fixture_object{ { "__typename", "User" }, { "id", "U_viewer" }, { "login", "octo-reviewer" } } } };
+	requests.emplace_back(team);
+	requests.emplace_back(user);
+	auto       contexts = fixture_array{ };
+	const auto failed   = fixture_object{ { "__typename", "CheckRun" }, { "name", "Build" }, { "status", "COMPLETED" }, { "conclusion", "FAILURE" } };
+	const auto running  = fixture_object{ { "__typename", "CheckRun" }, { "name", "Lint" }, { "status", "IN_PROGRESS" }, { "conclusion", nullptr } };
+	const auto legacy   = fixture_object{ { "__typename", "StatusContext" }, { "context", "ci/legacy" }, { "state", "ERROR" } };
+	contexts.emplace_back(failed);
+	contexts.emplace_back(running);
+	contexts.emplace_back(legacy);
+	auto       commits = fixture_array{ };
+	const auto commit  = fixture_object{ { "commit", fixture_object{ { "oid", std::string{ head_oid } }, { "statusCheckRollup", fixture_object{ { "contexts", connection(contexts, 3U) } } } } } };
+	commits.emplace_back(commit);
+	return {
+		{ "id", "PR_" + number },
+		{ "number", aNumber },
+		{ "title", "Batched " + number },
+		{ "isDraft", aNumber == 18U },
+		{ "state", "OPEN" },
+		{ "createdAt", "2026-10-06T11:15:00Z" },
+		{ "additions", 236U },
+		{ "deletions", 41U },
+		{ "headRefOid", std::string{ head_oid } },
+		{ "baseRefOid", std::string{ base_oid } },
+		{ "baseRefName", "main" },
+		{ "author", actor("User", "author", "U_author") },
+		{ "comments", fixture_object{ { "totalCount", 1U } } },
+		{ "reviews", connection(reviews, aReviewTotal) },
+		{ "reviewRequests", connection(requests, 2U) },
+		{ "mergeStateStatus", "BLOCKED" },
+		{ "reviewDecision", "REVIEW_REQUIRED" },
+		{ "autoMergeRequest", nullptr },
+		{ "commits", fixture_object{ { "nodes", commits } } },
+	};
+}
+
+[[nodiscard]] auto home_response(const std::vector<fixture_object>& aPulls) -> wire_response
+{
+	auto repository = fixture_object{ { "id", "R_repository" }, { "nameWithOwner", "Octo-Org/Review-Repository" } };
+	for (std::size_t index = 0U; index < aPulls.size(); ++index) {
+		repository.insert_or_assign("p" + std::to_string(index), aPulls[index]);
+	}
+	auto response = success_response(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", repository } } } }));
+	for (auto& header : response.Headers) {
+		if (header.Name == "X-RateLimit-Resource") {
+			header.Value = "graphql";
+		}
+	}
+	return response;
+}
+
+/// [[BPR-1680]]. Several retained pull requests in one GraphQL query; the
+/// REST way for a pull request with more than a page of anything, for all
+/// of them when the query fails other than for the whole session, and
+/// when the server is known to lack a field.
+void test_retained_home_batch_read()
+{
+	using reason    = application::personal_discovery_reason;
+	const auto rest = [](discovery_fixture_transport& aTransport) {
+		aTransport.Metadata = [](const github_wire_request& aRequest) {
+			auto       metadata = retained_metadata();
+			const auto number   = aRequest.Wire.Semantic.PullRequestNumber;
+			metadata.insert_or_assign("number", number);
+			metadata.insert_or_assign("url", "https://api.github.com/repos/octo-org/review-repository/pulls/" + std::to_string(number));
+			return success_response(fixture_json(metadata));
+		};
+		aTransport.Reviews = [](const auto&) { return success_response("[]"); };
+	};
+	const auto request = [] {
+		auto result    = discovery_request(reason::retained);
+		result.Numbers = { core::pull_request_number{ 17U }, core::pull_request_number{ 18U } };
+		return result;
+	};
+	{
+		auto transport = discovery_fixture_transport{ };
+		transport.Home = [](const github_wire_request& aRequest) {
+			expect(aRequest.Wire.Body.contains("p0:pullRequest(number:17){...HomePullRequest} p1:pullRequest(number:18){...HomePullRequest}")
+					   && aRequest.Wire.Body.contains("fragment HomePullRequest on PullRequest")
+					   && aRequest.Wire.Semantic.PullRequestNumbers == std::vector<std::uint32_t>{ 17U, 18U },
+				   "one query, one alias per pull request in ascending order");
+			return home_response({ home_pull(17U), home_pull(18U) });
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+		expect(result && result->Rows.size() == 2U && transport.Requests.size() == 1U && !result->BatchUnsupported,
+			   "two retained pull requests cost one request");
+		const auto& row = result->Rows.front();
+		expect(row.Number.value() == 17U && row.Title == "Batched 17" && row.Detailed && row.Draft == false && result->Rows.back().Draft == true
+				   && row.HeadOid == application::commit_oid{ std::string{ head_oid } } && !row.Closed && row.Author == "author"
+				   && row.AuthorIdentity == application::github_actor_id{ "U_author" },
+			   "title, draft, head and author come from the alias");
+		expect(row.Reviews.size() == 2U && row.Reviews[0].DatabaseId == 917U && row.Reviews[0].Author == application::github_actor_id{ "U_viewer" }
+				   && row.Reviews[0].State == application::github_review_state::approved && row.Reviews[0].Commit == application::commit_oid{ std::string{ head_oid } }
+				   && row.Reviews[1].State == application::github_review_state::pending && !row.Reviews[1].Commit,
+			   "submitted-review evidence is the reviews' own");
+		// [[BPR-1718]]. 2026-10-14T16:20:00Z, in seconds; a pending review has none.
+		expect(row.Reviews[0].SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !row.Reviews[1].SubmittedAt,
+			   "each review says when it was submitted, from the same query");
+		expect(transport.Requests.front().Wire.Body.contains("nodes{databaseId state submittedAt author"), "the query asks for when each review was submitted");
+		expect(row.ReviewersAwaited == 2U && row.RequestsViewer && row.Waiting.Requests == std::optional<std::uint32_t>{ 2U }
+				   && row.Waiting.CodeOwners == std::vector<std::string>{ "@octo-org/owners" } && row.Waiting.RequiredReview == true
+				   && row.Waiting.MergeBlocked == true && row.Waiting.ChecksKnown
+				   && row.Waiting.FailedChecks == std::vector<std::string>{ "Build", "ci/legacy" } && row.Waiting.Head == head_oid,
+			   "the waiting summary is the one the REST reads build: requests, code owners, merge state and failed checks");
+		expect(row.Change.Additions == std::optional<std::uint64_t>{ 236U } && row.Change.Deletions == std::optional<std::uint64_t>{ 41U }
+				   && row.Change.Comments == std::optional<std::uint64_t>{ 3U } && row.Change.OpenedAt.has_value(),
+			   "a pending review's comments are not counted");
+	}
+	{
+		auto transport = discovery_fixture_transport{ };
+		rest(transport);
+		transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(17U), home_pull(18U, 51U) }); };
+		const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+		expect(result && result->Rows.size() == 2U && result->Rows[0].Title == "Batched 17" && result->Rows[1].Title == "Fix the queue before opening"
+				   && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::get_pull_request) == 1U,
+			   "a pull request with more reviews than a page is read the REST way, which pages; the other is not read again");
+	}
+	{
+		auto transport = discovery_fixture_transport{ };
+		rest(transport);
+		transport.Home = [](const github_wire_request&) {
+			auto response = home_response({ });
+			response.Body = R"({"errors":[{"type":"undefinedField","message":"Field 'statusCheckRollup' doesn't exist on type 'Commit'"}]})";
+			return response;
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+		expect(result && result->Rows.size() == 2U && result->BatchUnsupported && transport.count(read_operation::get_pull_request) == 2U,
+			   "a server without one of the query's fields is read the REST way and says so");
+		transport.Requests.clear();
+		const auto again = perform_personal_discovery_read(transport, profile(), request(), { }, { }, false);
+		expect(again && again->Rows.size() == 2U && transport.count(read_operation::list_home_pull_requests) == 0U, "one known to lack it is not asked again");
+	}
+	{
+		auto transport = discovery_fixture_transport{ };
+		rest(transport);
+		transport.Home = [](const github_wire_request&) {
+			auto response   = home_response({ });
+			response.Status = 401;
+			response.Body   = R"({"message":"Bad credentials"})";
+			return response;
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+		expect(!result && discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::authentication
+				   && transport.count(read_operation::get_pull_request) == 0U,
+			   "a failure of the whole session fails the read without the REST reads");
+	}
+	for (const auto submitted : { std::string_view{ }, std::string_view{ "14 October 2026" } }) {
+		auto transport = discovery_fixture_transport{ };
+		rest(transport);
+		transport.Home    = [submitted](const github_wire_request&) { return home_response({ home_pull(17U, 2U, submitted), home_pull(18U) }); };
+		const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+		expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
+			   "a review without a readable submission time is not the answer asked for, and the batch is read the REST way");
+	}
+	{
+		auto transport = discovery_fixture_transport{ };
+		rest(transport);
+		transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(18U), home_pull(17U) }); };
+		const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+		expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
+			   "an alias that is not the pull request asked for sends every pull request the REST way");
+	}
+	for (const auto& numbers : { std::vector<std::uint32_t>{ 18U, 17U }, std::vector<std::uint32_t>{ 17U }, std::vector<std::uint32_t>{ 17U, 17U },
+								 std::vector<std::uint32_t>{ 17U, 18U, 19U, 20U, 21U, 22U, 23U, 24U, 25U, 26U, 27U } }) {
+		auto transport = discovery_fixture_transport{ };
+		auto hostile   = request();
+		hostile.Numbers.clear();
+		for (const auto number : numbers) {
+			hostile.Numbers.emplace_back(number);
+		}
+		hostile.Number = hostile.Numbers.front();
+		expect(!perform_personal_discovery_read(transport, profile(), hostile, { }) && transport.Requests.empty(),
+			   "a batch names two to ten pull requests, ascending, once each");
+	}
+	{
+		auto transport    = discovery_fixture_transport{ };
+		auto mismatched   = request();
+		mismatched.Number = core::pull_request_number{ 18U };
+		auto searched     = discovery_request(reason::authored);
+		searched.Numbers  = request().Numbers;
+		expect(!perform_personal_discovery_read(transport, profile(), mismatched, { }) && !perform_personal_discovery_read(transport, profile(), searched, { })
+				   && transport.Requests.empty(),
+			   "the batch's first is its Number, and only a retained read batches");
+		auto semantic               = semantic_read_request{ .Server = server_contract::github_com, .Operation = read_operation::list_home_pull_requests, .Owner = "octo-org", .Repository = "review-repository" };
+		semantic.PullRequestNumbers = { 17U, 18U };
+		const auto compiled         = compile_read_request(semantic);
+		expect(compiled.has_value() && compiled->Method == http_method::post && !compiled->Body.contains("\"number\""), "the wire names the numbers in the document, not as variables");
+		semantic.PullRequestNumbers = { };
+		expect(!compile_read_request(semantic), "a batched read names its pull requests");
+		semantic.Operation          = read_operation::get_pull_request;
+		semantic.PullRequestNumber  = 17U;
+		semantic.PullRequestNumbers = { 17U, 18U };
+		expect(!compile_read_request(semantic), "only the batched read names several pull requests");
+	}
+}
+
+void test_home_draft_metadata_is_an_optional_wire_fact()
+{
+	for (const auto mode : { 0, 1, 2, 3 }) {
+		auto transport      = discovery_fixture_transport{ };
+		transport.Reviewers = [](const std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+		transport.Reviews   = [](const auto&) { return success_response(fixture_json(fixture_array{ })); };
+		transport.Search    = [mode](const auto&) {
+			auto       item = discovery_item(17U, "octo-reviewer");
+			const auto at   = item.find("\"draft\":false,");
+			expect(at != std::string::npos, "draft fixture field exists");
+			item.replace(at, 14U, mode == 0 ? "" : mode == 1 ? "\"draft\":false,"
+							 : mode == 2                     ? "\"draft\":true,"
+															 : "\"draft\":1,");
+			return discovery_search({ item }, 1U);
+		};
+		transport.Metadata = [mode](const auto&) {
+			auto metadata = retained_metadata();
+			if (mode == 1 || mode == 2) {
+				metadata.insert_or_assign("draft", mode == 2);
+			}
+			if (mode == 3) {
+				metadata.insert_or_assign("draft", "true");
+			}
+			return success_response(fixture_json(metadata));
+		};
+		for (const auto reason : { application::personal_discovery_reason::authored, application::personal_discovery_reason::retained }) {
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason), { });
+			if (mode == 3) {
+				expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response, "malformed status cannot be accepted");
+			} else {
+				expect(result && result->Rows.size() == 1U && result->Rows.front().Draft == (mode == 0 ? std::nullopt : std::optional<bool>{ mode == 2 }), "missing draft stays unknown; observed booleans stay exact");
+			}
+		}
+	}
+}
+
+/// [[BPR-1407]]. Age, size and comment count come from the pull request
+/// read Home already makes. Absent is unknown; a retained read refuses a
+/// malformed one, and a discovered row's optional summary leaves it unknown.
+void test_home_change_facts_are_read_with_the_pull_request()
+{
+	using reason = application::personal_discovery_reason;
+	for (const auto mode : { 0, 1, 2, 3, 4 }) {
+		auto transport      = discovery_fixture_transport{ };
+		transport.Reviewers = [](const std::uint32_t) { return requested_reviewers_response({ }, 0U); };
+		transport.Reviews   = [](const auto&) { return success_response(fixture_json(fixture_array{ })); };
+		transport.Search    = [](const auto&) { return discovery_search({ discovery_item(17U, "octo-reviewer") }, 1U); };
+		transport.Metadata  = [mode](const auto&) {
+			auto metadata = retained_metadata();
+			if (mode != 0) {
+				metadata.insert_or_assign("created_at", mode == 3 ? "last Tuesday" : "2026-10-06T11:15:00Z");
+				metadata.insert_or_assign("additions", 236);
+				metadata.insert_or_assign("deletions", mode == 4 ? -41 : 41);
+				metadata.insert_or_assign("comments", 1);
+			}
+			if (mode == 1 || mode == 3 || mode == 4) {
+				metadata.insert_or_assign("review_comments", 2);
+			}
+			return success_response(fixture_json(metadata));
+		};
+		for (const auto why : { reason::authored, reason::retained }) {
+			const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(why), { });
+			const auto change = result && result->Rows.size() == 1U ? std::optional{ result->Rows.front().Change } : std::nullopt;
+			if (mode == 0) {
+				expect(change == core::queue_change_facts{ }, "a pull request without the fields leaves every change fact unknown");
+			} else if (mode == 1) {
+				expect(change == core::queue_change_facts{ .OpenedAt = 1'791'285'300, .Additions = 236U, .Deletions = 41U, .Comments = 3U }, "opening, lines and conversation plus inline comments are read");
+			} else if (mode == 2) {
+				expect(change && change->Additions == 236U && !change->Comments, "a total needs both comment counts");
+			} else if (why == reason::retained) {
+				expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response, "a retained read refuses a malformed change fact");
+			} else {
+				expect(change == core::queue_change_facts{ }, "a discovered row's optional summary leaves a malformed change unknown");
+			}
+		}
+		expect(transport.count(read_operation::get_pull_request) == 2U, "no request is added for the change facts");
+	}
+}
+
+void test_retained_home_metadata_read()
+{
+	using reason = application::personal_discovery_reason;
+	for (const auto enterprise : { false, true }) {
+		auto       transport = discovery_fixture_transport{ enterprise };
+		const auto root      = enterprise ? "https://ghe.example.invalid/api/v3" : "https://api.github.com";
+		transport.Metadata   = [root](const auto&) { return success_response(fixture_json(retained_metadata(root))); };
+		transport.Reviews    = [root](const github_wire_request& aRequest) {
+			if (aRequest.Wire.Semantic.Page == 1U) {
+				auto reviews = fixture_array{ };
+				for (std::uint64_t id = 1U; id <= 100U; ++id) {
+					reviews.emplace_back(retained_review(id, "PENDING"));
+				}
+				return success_response(fixture_json(reviews), "<" + std::string{ root } + "/repos/octo-org/review-repository/pulls/17/reviews?page=2&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
+			}
+			// [[BPR-1718]]. A submitted review says when, as GitHub's REST does.
+			auto approved = retained_review(101U);
+			approved.insert_or_assign("submitted_at", "2026-10-14T16:20:00Z");
+			return success_response(fixture_json(fixture_array{ approved }));
+		};
+		const auto server             = enterprise ? application::github_server_contract::ghes_3_18_2022_11_28 : application::github_server_contract::github_com_2022_11_28;
+		auto       request            = discovery_request(reason::retained, server);
+		request.AuthenticationSession = core::application_session_id{ 7U };
+		const auto result             = perform_personal_discovery_read(transport, enterprise ? enterprise_profile() : profile(), request, { });
+		expect(result && result->Rows.size() == 1U && result->Rows.front().Title == "Fix the queue before opening"
+				   && result->Rows.front().HeadOid == application::commit_oid{ std::string{ head_oid } }
+				   && result->Rows.front().ReviewersAwaited == 2U && result->Rows.front().Waiting.Requests == 2U && result->Rows.front().Reviews.size() == 101U
+				   && result->Rows.front().Reviews.back().State == application::github_review_state::approved,
+			   "retained Home read carries title, current head and complete ordered review evidence");
+		expect(result->Rows.front().Reviews.back().SubmittedAt == std::optional<std::int64_t>{ 1'791'994'800 } && !result->Rows.front().Reviews.front().SubmittedAt,
+			   "[[BPR-1718]] a REST review's submitted_at is when it was submitted; a review without one has none");
+		expect(transport.Requests.size() == 3U && transport.count(read_operation::get_pull_request) == 1U
+				   && transport.count(read_operation::list_reviews) == 2U && transport.count(read_operation::search_personal_pull_requests) == 0U,
+			   "metadata reads only the enrolled PR and review summaries; no files, commits, diff or conversations");
+		expect(!result->Rows.front().RequestsViewer, "[[BPR-1680]] a request of another user and a team does not ask the viewer");
+	}
+	{
+		// [[BPR-1680]]. The retained read says whether the viewer is asked
+		// by name, as the requested-reviewers read would.
+		auto transport     = discovery_fixture_transport{ };
+		transport.Metadata = [](const auto&) {
+			auto metadata = retained_metadata();
+			metadata.insert_or_assign("requested_reviewers", fixture_array{ rest_actor("U_other", "other"), rest_actor("U_viewer", "Octo-Reviewer") });
+			return success_response(fixture_json(metadata));
+		};
+		transport.Reviews = [](const auto&) { return success_response("[]"); };
+		const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+		expect(result && result->Rows.size() == 1U && result->Rows.front().RequestsViewer && result->Rows.front().ReviewersAwaited == 3U,
+			   "a request that names the viewer, in any case, asks the viewer");
+	}
+	{
+		auto transport     = discovery_fixture_transport{ };
+		transport.Metadata = [](const auto&) {
+			auto metadata = retained_metadata();
+			metadata.insert_or_assign("node_id", "PR_17");
+			metadata.insert_or_assign("base", fixture_object{ { "sha", std::string{ base_oid } }, { "ref", "main" }, { "repo", fixture_object{ { "id", 37 }, { "node_id", "R_repository" }, { "full_name", "octo-org/review-repository" } } } });
+			return success_response(fixture_json(metadata));
+		};
+		transport.Reviews        = [](const auto&) { return success_response("[]"); };
+		auto limits              = github_paged_read_limits{ };
+		limits.MaximumTotalPages = 2;
+		const auto result        = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { }, limits);
+		expect(result && result->Rows.size() == 1 && result->Rows.front().WaitingLimited && result->Rows.front().Waiting.Requests == 2 && transport.Requests.size() == 2,
+			   "retained optional summary exhaustion is explicit and sends no extra page; complete metadata request count remains usable");
+	}
+	for (const auto violation : { 0, 1, 2, 3 }) {
+		auto transport     = discovery_fixture_transport{ };
+		transport.Metadata = [violation](const auto&) {
+			auto metadata = retained_metadata();
+			if (violation == 0) {
+				metadata["number"] = 18;
+			}
+			if (violation == 1) {
+				metadata["url"] = "https://api.github.com/repos/other/repository/pulls/17";
+			}
+			if (violation == 2) {
+				metadata["head"] = fixture_object{ { "sha", "invalid" } };
+			}
+			return success_response(fixture_json(metadata));
+		};
+		transport.Reviews = [](const auto&) { return success_response(fixture_json(fixture_array{ retained_review(1U), retained_review(1U) })); };
+		const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+		expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::malformed_response,
+			   "wrong PR, repository, head or duplicate review fails the metadata answer atomically");
+	}
+	{
+		auto transport     = discovery_fixture_transport{ };
+		transport.Metadata = [](const auto&) { return success_response(fixture_json(retained_metadata())); };
+		transport.Reviews  = [](const github_wire_request& aRequest) {
+			auto reviews = fixture_array{ };
+			for (std::uint64_t index = 0U; index < 100U; ++index) {
+				reviews.emplace_back(retained_review((aRequest.Wire.Semantic.Page - 1U) * 100U + index + 1U));
+			}
+			return success_response(fixture_json(reviews), "<https://api.github.com/repos/octo-org/review-repository/pulls/17/reviews?page=" + std::to_string(aRequest.Wire.Semantic.Page + 1U) + "&per_page=100>; rel=\"next\"", page_completeness::has_next_page);
+		};
+		const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), { });
+		expect(discovery_failure(result) && discovery_failure(result)->Failure == application::github_provider_failure::response_limit
+				   && transport.Requests.size() == 5U,
+			   "a retained read stops after four review pages and never publishes truncated review state");
+	}
+	{
+		auto transport = discovery_fixture_transport{ };
+		auto stop      = std::stop_source{ };
+		stop.request_stop();
+		const auto result = perform_personal_discovery_read(transport, profile(), discovery_request(reason::retained), stop.get_token());
+		expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && transport.Requests.empty(), "cancelled retained read sends nothing");
+		auto request   = discovery_request(reason::requested);
+		request.Number = core::pull_request_number{ 17U };
+		expect(!perform_personal_discovery_read(transport, profile(), request, { }) && transport.Requests.empty(), "a search cannot carry a retained PR number");
+	}
+}
+
+void test_raw_tour_import()
+{
+	const std::string prefix    = "https://github.com/octo-org/review-repository/pull/17";
+	auto              transport = paged_fixture_transport{ fixture_scenario::success };
+	transport.RewriteResponse   = [&](const github_wire_request& aRequest, wire_response& aResponse) {
+		if (aRequest.Wire.Operation == read_operation::list_reviews) {
+			const auto body = "1. [same](" + prefix + "#discussion_r101)\r\n1. [same](" + prefix + "#discussion_r18446744073709551615)\r\n";
+			aResponse.Body  = fixture_json(fixture_array{ fixture_object{
+				{ "body", body }, { "commit_id", std::string{ head_oid } }, { "id", 4001 }, { "node_id", "R_review" }, { "state", "COMMENTED" }, { "html_url", prefix + "#pullrequestreview-4001" }, { "user", rest_actor("U_viewer", "octo-reviewer") } } });
+		}
+		if (aRequest.Wire.Operation == read_operation::list_review_threads) {
+			expect(aRequest.Wire.Body.find("body url updatedAt fullDatabaseId") != std::string::npos, "production query selects raw body and real identity");
+			for (std::size_t index = 0; index < 101; ++index) {
+				const auto id       = index == 0 ? "18446744073709551615" : std::to_string(index + 1);
+				const auto raw      = "### Author's tour · 9 — same\r\n\r\n**raw** " + std::to_string(index) + "\r\n\r\n[Tour overview](" + prefix + "#pullrequestreview-4001)\r\n";
+				const auto existing = "\"bodyText\":\"comment " + std::to_string(index) + "\"";
+				const auto added    = std::string{ existing }.append(",\"body\":").append(fixture_json(raw)).append(",\"url\":").append(fixture_json(std::string{ prefix }.append("#discussion_r").append(id))).append(",\"fullDatabaseId\":\"").append(id).append("\",\"updatedAt\":\"2026-09-26T00:00:00Z\",\"pullRequestReview\":{\"id\":\"R_review\"}");
+				replace_raw(aResponse.Body, existing, added);
+			}
+			replace_raw(aResponse.Body, "\"author\":null", "\"author\":{\"id\":\"U_viewer\",\"login\":\"octo-reviewer\"}");
+		}
+	};
+	const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { });
+	expect(result.has_value(), "raw tour pages accepted");
+	const auto& comments = result->ReviewThreads.front().Comments;
+	expect(comments.size() == 101 && comments[0].Body == "comment 0" && comments[100].Body == "comment 100", "all pages exhausted and existing display prose unchanged");
+	expect(comments[0].Observation.DatabaseId == std::numeric_limits<std::uint64_t>::max() && comments[100].Observation.RawBody->find("**raw** 100\r\n") != std::string::npos, "full uint64 and raw CRLF Markdown survive pages");
+	auto seed              = tests::review_tour_fixture();
+	seed.Owner.Host        = result->Host;
+	seed.Owner.Account     = result->Account;
+	seed.Owner.Repository  = result->Repository.Repository;
+	seed.Owner.PullRequest = result->PullRequest.PullRequest;
+	seed.Stops.clear();
+	seed.LastStopId = 0;
+	seed.Problem.clear();
+	seed.Solution.clear();
+	seed.ProblemBaseline.reset();
+	seed.SolutionBaseline.reset();
+	const auto calls    = transport.Requests.size();
+	const auto imported = application::observe_review_tours(seed, *result, "github.com");
+	expect(imported.size() == 1 && imported[0].Draft.Stops.size() == 2 && !imported[0].Draft.ReadOnly, "real paged snapshot cold imports without private IDs or AI");
+	expect(imported[0].Draft.Stops[0].Remote->DatabaseId == 101 && imported[0].Draft.Stops[1].Remote->DatabaseId == std::numeric_limits<std::uint64_t>::max(), "index order crosses comment pages and server order");
+	auto foreign                                              = *result;
+	foreign.ReviewThreads[0].Comments[100].Observation.WebUrl = "https://evil.invalid/steal";
+	expect(application::observe_review_tours(seed, foreign, "github.com")[0].Draft.ReadOnly && transport.Requests.size() == calls, "foreign links never fetch or forward credentials");
+	auto malformed            = paged_fixture_transport{ fixture_scenario::success };
+	malformed.RewriteResponse = [](const github_wire_request& aRequest, wire_response& aResponse) {if(aRequest.Wire.Operation==read_operation::list_review_threads){replace_raw(aResponse.Body,"\"bodyText\":\"comment 0\"","\"bodyText\":\"comment 0\",\"body\":42");} };
+	expect(!perform_paged_github_read(malformed, profile(), provider_request(), core::provider_snapshot_id{ 55 }, { }), "malformed raw data fails atomically");
+}
 }
 
 namespace {

@@ -629,3 +629,30 @@ The reviewed command-owned fixture retains main's additions and the release's
 stronger current-comparison wait, so its ownership digest is renewed for that
 merged file. The direct-bypass counterexample check passes; full native gates
 and artifact qualification remain separate.
+
+
+### Bounded Home requested-reviewer recovery candidate
+
+The owner-supplied 0.3.3 diagnostic narrows both observed failures to
+`ListRequestedReviewers`, HTTP 200, after thirteen aggregate requests in the
+requested-discovery read. It does not identify the precise private size guard.
+The REST singleton returns full user/team metadata and has no documented paging
+parameters. Raising global byte, JSON or actor limits would not be justified.
+
+The repair retries no oversized REST payload. Only its typed response-limit
+failure selects the existing projected GraphQL Home query for one exact PR,
+then the existing fully exhausted review-request connection. Exact repository
+name/node, PR number/node and head/base identities bind every page. Direct user
+membership still has to name the viewer; matching team slugs, hidden actors,
+partial pages and a search hit alone establish no membership. The additional
+recovery work is bounded across one discovery read at 32 requests and 8 MiB;
+per-page, structural and existing connection limits stay unchanged. Ordinary
+REST failures do not recover, and recovery failures preserve their actual typed
+cause, rate observations and retry delay.
+
+Regression candidates cover each bounded REST guard, a viewer on the second
+full GraphQL page, wrong identity/revision, duplicate actors, configured page
+exhaustion, the shared recovery budget, team-only results, cancellation,
+authentication and malformed-REST refusal, and recovery throttling. Formatting
+and whitespace checks pass. Native build and test results are supplied through
+the parent-owned producer and remain pending until actually observed.
