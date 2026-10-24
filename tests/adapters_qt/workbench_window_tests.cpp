@@ -22246,8 +22246,6 @@ namespace {
 
 		// Layout: resizable down to its minimum, nothing clipped sideways.
 		const auto initial = page->size();
-		std::cout << "SHORTCUT_RESIZE grip=" << page->isSizeGripEnabled() << " width=" << page->width() << " minimum=" << page->minimumWidth()
-				  << " maximum=" << page->maximumWidth() << " height=" << page->height() << " minimum_height=" << page->minimumHeight() << '\n';
 		expect(page->isSizeGripEnabled() && page->maximumWidth() > page->minimumWidth() && page->maximumHeight() > page->minimumHeight(), "the page is resizable");
 		// A small logical screen can open the page at its minimum. Exercise
 		// both directions instead of requiring unused room in the initial size.
