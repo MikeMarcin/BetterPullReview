@@ -56,7 +56,9 @@ milestone card, BPR-1748 to BPR-1755, is Done.
 
 The RFC's status is not changed yet. RFC-BPR-0092 depends on RFC-BPR-0085
 (the drawer design system), which is In Progress: its closeout,
-[[BPR-1595]], is in the backlog with AC04 pending. The RFC index and the
+[[BPR-1595]], is in the backlog: its closeout attempt on 2026-10-23
+found AC08 unmet (drawer surfaces that clip at their narrowest and widest
+widths), with every other criterion evidenced. The RFC index and the
 README's rule ("A dependent RFC does not become `Auto-Verified` before every
 listed dependency is `Auto-Verified`") hold RFC-BPR-0092 at In Progress until
 RFC-BPR-0085 closes; this card is Blocked on that and closes it then with no

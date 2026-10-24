@@ -68,6 +68,16 @@ chip into the drawer’s chronological list. Replies use durable private
 drafts and explicit Send through the existing witnessed publication path.
 [[BPR-1595]] remains open; this amendment does not close the RFC.
 
+The closeout attempt on 2026-10-23 ([[BPR-1595]]) found AC08 unmet. AC01 to
+AC07, AC09 and AC10 have their evidence, and the milestone courses still
+pass. The new AC08 course renders every rebuilt surface in the four themes
+at its narrowest and widest width, at each scale. It finds the same four
+defects in every theme. The Comments drawer's tab row hides Tour and Agent
+at 760 pixels and at a restored 280. At 280 pixels the open review
+summary's labels and the Tour stop's action buttons are cut. In the
+900-pixel window the tour page's On GitHub column runs off the window. The
+RFC stays In Progress until they are fixed.
+
 **Amendment, 2026-10-18 ([[BPR-1603]]).** The owner, while [[BPR-1593]] was
 under way: "The notes-on-the-pull-request thing might actually be a good UX
 for comments on the pull request too." D8 below adds it as a milestone after
