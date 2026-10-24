@@ -4641,7 +4641,16 @@ namespace {
 				}
 			}
 		}
-		const auto most = std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; });
+		// A solid core and a subpixel edge can have equal support. Prefer the
+		// colour farther from the fill, not the map's incidental RGB order:
+		// antialiasing moves the glyph's channels toward the background.
+		const auto most = std::ranges::max_element(counts, { }, [&aFill](const auto& aEntry) {
+			const auto color = QColor{ aEntry.first };
+			const auto red   = color.red() - aFill.red();
+			const auto green = color.green() - aFill.green();
+			const auto blue  = color.blue() - aFill.blue();
+			return std::pair{ aEntry.second, red * red + green * green + blue * blue };
+		});
 		return most == counts.end() ? QColor{ } : QColor{ most->first };
 	}
 
@@ -4650,7 +4659,8 @@ namespace {
 	/// \details Read from the pane's own rendering, because what a selection
 	/// list says and what Qt paints can differ: a foreground-only layer over
 	/// text an earlier selection drew is skipped. The fill is left out; at 2x
-	/// a glyph's solid core outnumbers its antialiased edge.
+	/// a glyph's solid core outnumbers its antialiased edge or wins a tie by
+	/// standing farther from the background.
 	[[nodiscard]] auto painted_ink(const QPlainTextEdit& aPane, const QImage& aImage, const QTextEdit::ExtraSelection& aMark, const QColor& aExpected) -> QColor
 	{
 		auto from = aMark.cursor;
@@ -4711,6 +4721,26 @@ namespace {
 		expect(dominant_glyph_ink(image, image.rect(), fill) == wrong, "one expected pixel cannot hide a wrong foreground layer");
 		expect(!dominant_glyph_ink(image, QRect{ 30, 30, 8, 8 }, fill).isValid(), "a clipped sample cannot report an ink colour");
 		expect(!dominant_glyph_ink(image, QRect{ }, fill).isValid(), "nor can an empty sample");
+
+		const auto darkFill = QColor{ 0x10, 0x4a, 0x17 };
+		const auto darkInk  = QColor{ 0x66, 0xb5, 0x59 };
+		image               = QImage{ 24, 1, QImage::Format_ARGB32 };
+		image.fill(darkFill);
+		for (auto x = 0; x < 11; ++x) {
+			image.setPixelColor(x, 0, darkInk);
+			image.setPixelColor(x + 11, 0, QColor{ 0x66, 0xb5, 0x57 });
+		}
+		expect(dominant_glyph_ink(image, image.rect(), darkFill) == darkInk, "an equally frequent subpixel edge cannot displace the opaque glyph core");
+		const auto wrongDark = QColor{ 0xc9, 0xd1, 0xd9 };
+		for (auto x = 11; x < 22; ++x) {
+			image.setPixelColor(x, 0, wrongDark);
+		}
+		expect(dominant_glyph_ink(image, image.rect(), darkFill) == wrongDark, "equally frequent wrong normal ink is not hidden by a syntax-coloured core");
+		const auto wrongMuted = QColor{ 0x45, 0x90, 0x3b };
+		for (auto x = 11; x < 23; ++x) {
+			image.setPixelColor(x, 0, wrongMuted);
+		}
+		expect(dominant_glyph_ink(image, image.rect(), darkFill) == wrongMuted, "more frequent wrong ink wins even when the expected ink stands farther from the fill");
 	}
 
 	/// [[BPR-1709]]. The owner: "On dark theme intra-line highlights on
