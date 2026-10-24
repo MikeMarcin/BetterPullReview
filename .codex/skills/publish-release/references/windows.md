@@ -7,6 +7,10 @@ EULA. Python 3.10+, Qt producer SPDX, `VCToolsRedistDir` and the applicable
 Microsoft redistribution notice are required. Read the package guide for exact
 inputs and native qualification limits.
 
+Complete the [all-platform compilation barrier](execution.md#compile-every-selected-platform-before-long-suites)
+before starting long native suites. On the shared PC, Windows and Ubuntu both
+finish required compilation before either begins its long tests.
+
 ## Azure prerequisite
 
 The owner chose manual signing on the Windows PC. Recheck this configuration

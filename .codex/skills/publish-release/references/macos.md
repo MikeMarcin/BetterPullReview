@@ -2,6 +2,11 @@
 
 Run on macOS from the exact committed source:
 
+For a coordinated release, first complete the
+[all-platform compilation barrier](execution.md#compile-every-selected-platform-before-long-suites).
+The macOS script's long tests must not start while another selected platform's
+required compilation is still unverified.
+
 ```sh
 tools/release.sh --version X.Y.Z
 ```

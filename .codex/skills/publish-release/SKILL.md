@@ -44,9 +44,13 @@ suite runner's exact same-invocation bootstrap receipts may avoid duplicate rows
 4. Complete blocker fixes and run the small changed public-interaction courses
    on relevant native hosts before the expensive release gates. Update the CMake
    version and user-facing notes, then commit the common release source. Record
-   its full commit and use that commit on every producer. Run the
-   relevant normal native test gate before the tests-disabled distribution build;
-   the macOS script runs its own normal gate. Record failures and configured
+   its full commit and use that commit on every producer. Before starting any
+   long test suite, complete the [all-platform compilation barrier](references/execution.md#compile-every-selected-platform-before-long-suites):
+   configure and build the required Release and Debug test graphs and the
+   tests-disabled distribution graph on every selected native platform. Fix
+   compilation failures before releasing that barrier. Then run the relevant
+   native test gates and proceed with packaging; the macOS script owns its
+   normal gate. Record failures and configured
    skips. Do not publish dirty-source or skipped-test candidates without the
    user's explicit acceptance of the limitation.
 5. Confirm `gh repo view MikeMarcin/BetterPullReview --json visibility` reports

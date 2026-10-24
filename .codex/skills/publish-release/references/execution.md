@@ -75,6 +75,42 @@ unstarted downstream stages. Retain any running job's ownership and raw result;
 do not stop unrelated jobs. Validate affected evidence for the new source under
 the release policy. Do not silently reuse old-source acceptance.
 
+## Compile every selected platform before long suites
+
+Compilation is an all-platform prerequisite, not a stage hidden behind another
+platform's long tests. After freezing the common source and passing cheap tooling
+and source checks, configure and build on **every selected native platform**:
+
+1. The Release test graph and its selected test executables.
+2. The required Debug test graph and its selected test executables.
+3. The tests-disabled distribution graph, including every selected architecture
+   and variant (for example, both architectures of the macOS universal build).
+
+Record the exact source, presets/configurations, toolchain, commands, actual
+exits and raw build receipts in the existing phase ledger. Do not start any long
+qualification, performance or end-to-end suite until every required compilation
+receipt passes. A configure-only result or a focused target build does not prove
+that the remaining selected targets compile. A Debug timeout waiver does not
+waive compilation failures.
+
+Mac compilation may run alongside PC compilation. On the shared PC, finish
+Windows Release/Debug/distribution compilation, then Ubuntu
+Release/Debug/distribution compilation (or the reverse), **before either platform
+starts long tests**. Do not schedule Windows build → Windows full suite → Ubuntu
+build. That ordering delayed discovery of a GCC warning-as-error until after
+hours of tests during v0.3.3 preparation.
+
+If compilation fails, preserve the failure, fix it and rebuild the affected
+inputs before releasing the barrier. Reconcile unchanged passing build receipts
+under the existing evidence policy; this barrier does not require discarding
+valid work or rerunning unrelated builds. Compilation is not test acceptance,
+artifact audit, signing or publication approval.
+
+Once the barrier passes, run the required native suites, then package/sign using
+the existing platform workflow. Preserve the macOS script's gate ownership;
+avoid a duplicate full suite merely to obtain a packaging transcript. Retain any
+policy-permitted bridge to already completed, unchanged qualification explicitly.
+
 ## Schedule by physical host and prerequisites
 
 - Run Mac production independently from the signing PC. Windows and its Ubuntu

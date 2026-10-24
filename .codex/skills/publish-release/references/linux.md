@@ -1,5 +1,9 @@
 # Linux release
 
+Complete the [all-platform compilation barrier](execution.md#compile-every-selected-platform-before-long-suites)
+before starting long native suites. Ubuntu compilation must not wait behind a
+Windows full suite on the shared PC.
+
 Use x86_64 Ubuntu 26.04 LTS for DEB and the per-user archive. The owner's
 2026-10-11 next-release amendment removes Ubuntu 24.04 and RHEL from the
 selected Linux release set. WSL2 is an admitted producer for ordinary Linux
