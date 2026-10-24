@@ -289,7 +289,11 @@ namespace {
 			   "a relative path is refused with what to write");
 		path->setText(QStringLiteral("~/src"));
 		add->click();
-		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(), "~ is the home folder, and Add adds the folder");
+		const auto homeFolderIntent = "folder:" + QDir::toNativeSeparators(QDir{ QDir::homePath() }.filePath(QStringLiteral("src"))).toStdString();
+		if (test.Intents.back() != homeFolderIntent) {
+			std::cerr << "HOME_FOLDER_INTENT actual=" << test.Intents.back() << " expected=" << homeFolderIntent << '\n';
+		}
+		expect(test.Intents.size() == acceptedIntentCount + 1U && test.Intents.back() == homeFolderIntent, "~ is the home folder, and Add adds the folder");
 		render(test.View, QStringLiteral("nofolders"));
 
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
