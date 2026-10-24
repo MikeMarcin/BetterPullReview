@@ -130,6 +130,82 @@ namespace {
 		delete editor;
 	}
 
+	void test_pending_mark_acknowledgement_keeps_the_new_selection()
+	{
+		for (const auto nextPresentedFirst : { false, true }) {
+			qt::review_draft_editor                            editor({ }, { });
+			std::vector<core::revisioned_review_draft_command> commands;
+			editor.set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+			const auto initial = core::revisioned_review_draft{ a_draft("saved comment"), 1, core::review_draft_scope_id{ 9 } };
+			editor.present(initial);
+			auto mark = core::review_pending_mark{ };
+			mark.Path = "review.cpp";
+			mark.Head = core::parse_git_commit_oid("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+			expect(editor.change_pending(mark) && commands.size() == 1 && commands.front().ChangePending
+					   && core::pending_in_review(*editor.shown_draft()),
+				   "Start a review shows its pending mark before durable acknowledgement");
+			const auto command = commands.front();
+			auto       next    = initial;
+			next.Draft.Id      = core::review_draft_id{ 2 };
+			++next.Draft.Anchor.Line;
+			next.Draft.Body = "next selected line";
+			editor.present(qt::review_draft_editor_clear_reason::selection_cleared);
+			if (nextPresentedFirst) {
+				editor.present(next);
+			}
+			auto committed           = initial;
+			committed.Revision       = 2;
+			committed.Draft.InReview = mark;
+			auto foreign             = committed;
+			foreign.Scope            = core::review_draft_scope_id{ 10 };
+			editor.acknowledge(command, foreign);
+			expect(editor.rejected_candidate().has_value(), "another scope cannot acknowledge the old pending mark");
+			editor.acknowledge(command, committed);
+			expect(!editor.rejected_candidate(), "the exact durable acknowledgement settles the previous line's pending mark");
+			if (!nextPresentedFirst) {
+				expect(!editor.shown_draft(), "acknowledgement does not reopen the previous line while the new line is loading");
+				editor.present(next);
+			}
+			expect(editor.shown_draft() == std::optional{ next.Draft } && !editor.body_editor()->isReadOnly() && commands.size() == 1,
+				   "either completion order leaves the newly selected line editable without another edit");
+			++next.Revision;
+			next.Draft.Body = "newer next line";
+			editor.present(next);
+			editor.acknowledge(command, committed);
+			expect(editor.shown_draft() == std::optional{ next.Draft } && commands.size() == 1,
+				   "a duplicate old acknowledgement cannot replace a newer selected draft");
+		}
+	}
+
+	void test_navigation_acknowledgement_retains_later_local_text()
+	{
+		qt::review_draft_editor                            editor({ }, { });
+		std::vector<core::revisioned_review_draft_command> commands;
+		editor.set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+		const auto initial = core::revisioned_review_draft{ a_draft("saved"), 1, core::review_draft_scope_id{ 9 } };
+		editor.present(initial);
+		editor.body_editor()->setPlainText(QStringLiteral("sent edit"));
+		const auto command = commands.front();
+		editor.body_editor()->setPlainText(QStringLiteral("later unsent text"));
+		editor.present(qt::review_draft_editor_clear_reason::selection_cleared);
+		auto next     = initial;
+		next.Draft.Id = core::review_draft_id{ 2 };
+		++next.Draft.Anchor.Line;
+		next.Draft.Body = "next line";
+		editor.present(next);
+		auto committed       = initial;
+		committed.Revision   = 2;
+		committed.Draft.Body = command.Command.Body;
+		editor.acknowledge(command, committed);
+		expect(editor.rejected_candidate() && editor.body_text() == "later unsent text" && commands.size() == 1,
+			   "acknowledging an old save cannot discard or transfer later unsent text after navigation");
+		editor.present(committed);
+		editor.reapply_draft_action()->trigger();
+		expect(commands.size() == 2 && commands.back().Command.Id == initial.Draft.Id
+				   && commands.back().Command.Body == "later unsent text" && commands.back().ExpectedRevision == 2,
+			   "return and explicit Reapply keep the later text on its original draft and accepted revision");
+	}
+
 	/// \brief [[BPR-1298]]. A CRLF body written elsewhere keeps its line
 	/// endings through the editor: unedited, typed in, and relabelled by the
 	/// label controls' typed edit and toggle.
@@ -1705,6 +1781,8 @@ auto main(int argc, char** argv) -> int
 	QApplication::setQuitOnLastWindowClosed(false);
 	test_empty_panels_wait_for_draft_or_proposal();
 	test_own_observation_can_precede_edit_acknowledgement();
+	test_pending_mark_acknowledgement_keeps_the_new_selection();
+	test_navigation_acknowledgement_retains_later_local_text();
 	test_a_crlf_body_keeps_its_line_endings();
 	test_confirmed_publication_retires_only_matching_candidate();
 	test_revision_conflicts_retain_exact_candidate();
