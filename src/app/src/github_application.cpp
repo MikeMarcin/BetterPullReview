@@ -4322,10 +4322,15 @@ namespace bpr::app {
 		worker_executor ReviewLedgerEffects;
 		/// [[BPR-1254]]. The lane above, each task under `ReviewLedgerFile`;
 		/// the one every ledger host is given.
-		exclusive_file_effect_executor                      ReviewLedgerStoreEffects{ ReviewLedgerEffects, ReviewLedgerFile };
-		private_review_recovery_registry                    PrivateRecovery;
-		worker_executor                                     ReviewSubmissionEffects;
-		qt::event_loop_executor                             DecisionLane;
+		exclusive_file_effect_executor   ReviewLedgerStoreEffects{ ReviewLedgerEffects, ReviewLedgerFile };
+		private_review_recovery_registry PrivateRecovery;
+		worker_executor                  ReviewSubmissionEffects;
+		qt::event_loop_executor          DecisionLane;
+#if defined(BPR_BUILD_TESTING)
+		// A closed window can leave ledger work on this profile's effect lane.
+		// Its test gate survives through that lane's drain, like DecisionLane.
+		std::vector<std::unique_ptr<gated_review_mutation_decision_executor>> ReviewLedgerDecisionGates;
+#endif
 		std::shared_ptr<application::github_read_admission> ReadAdmission = std::make_shared<application::github_read_admission>();
 		/// [[BPR-1447]]. Feedback body digests on platform crypto, taken on the
 		/// provider's thread for every window's reads. Stateless, and outlives
@@ -15605,7 +15610,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			++ReviewLedgerGeneration;
 #if defined(BPR_BUILD_TESTING)
 			if (ReviewLedgerDecisionGate == nullptr) {
-				ReviewLedgerDecisionGate = std::make_unique<gated_review_mutation_decision_executor>(DecisionLane);
+				Profile->ReviewLedgerDecisionGates.push_back(std::make_unique<gated_review_mutation_decision_executor>(DecisionLane));
+				ReviewLedgerDecisionGate = Profile->ReviewLedgerDecisionGates.back().get();
 			}
 			auto& ledgerDecisions = *ReviewLedgerDecisionGate;
 #else
@@ -22056,6 +22062,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewSubmissionDecisionGate) {
 				ReviewSubmissionDecisionGate->release();
 			}
+			if (ReviewLedgerDecisionGate) {
+				ReviewLedgerDecisionGate->release();
+			}
 #endif
 			if (ReviewSubmission) {
 				ReviewSubmission->shutdown();
@@ -22392,7 +22401,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
 		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
-		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewLedgerDecisionGate;
+		gated_review_mutation_decision_executor*                  ReviewLedgerDecisionGate = nullptr;
 		std::unique_ptr<gated_review_mutation_decision_executor>
 					ReviewMutationDecisionGate;
 		std::size_t EpochPruneIntentDispatchCount  = 0U;
