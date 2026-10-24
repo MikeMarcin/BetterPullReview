@@ -42,6 +42,9 @@ namespace bpr::app {
 												  public application::profile_management_projection_port,
 												  public std::enable_shared_from_this<implementation>
 	{
+#if defined(BPR_BUILD_TESTING)
+		friend void detail::github_application_fixture_access::poll_desktop(profile_desktop&);
+#endif
 		struct window_entry
 		{
 			core::bpr_window_context       Context;
