@@ -200,6 +200,9 @@ namespace {
 		require(!modulePath.empty(), "missing module path");
 #ifdef _WIN32
 		auto* module = LoadLibraryA(modulePath.c_str());
+		if (module == nullptr) {
+			std::fprintf(stderr, "MIMALLOC_PROBE_LOAD_ERROR %lu\n", GetLastError());
+		}
 #else
 		auto* module = dlopen(modulePath.c_str(), RTLD_NOW | RTLD_LOCAL);
 #endif

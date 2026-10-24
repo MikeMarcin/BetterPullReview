@@ -21,10 +21,9 @@ foreach(product IN LISTS products)
     target_link_libraries("${product}" PRIVATE Threads::Threads)
     add_dependencies("${product}" bpr_mimalloc_probe_module)
     bpr_add_network_isolated_test(NAME "mimalloc_${product}"
-        COMMAND "${CMAKE_COMMAND}" -E env BPR_MIMALLOC_PROBE=1
-            "BPR_MIMALLOC_PROBE_MODULE=$<TARGET_FILE:bpr_mimalloc_probe_module>"
-            "$<TARGET_FILE:${product}>")
+        COMMAND "$<TARGET_FILE:${product}>")
     set_tests_properties("mimalloc_${product}" PROPERTIES TIMEOUT 60
+        ENVIRONMENT "BPR_MIMALLOC_PROBE=1;BPR_MIMALLOC_PROBE_MODULE=$<TARGET_FILE:bpr_mimalloc_probe_module>"
         PASS_REGULAR_EXPRESSION "MIMALLOC_PROBE_PASS")
 endforeach()
 
