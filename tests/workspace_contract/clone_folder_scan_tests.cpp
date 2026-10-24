@@ -81,7 +81,7 @@ namespace {
 
 	/// Every file and directory under the root with its type and last write
 	/// time, so a scan that wrote anything shows up.
-	[[nodiscard]] auto inventory(const fs::path& aRoot, const std::string_view aStage, const inventory_reader aReader = inventory_reader::cached_entry) -> inventory_snapshot
+	[[nodiscard]] auto inventory(const fs::path& aRoot, const std::string_view aStage, const inventory_reader aReader = inventory_reader::current_handle) -> inventory_snapshot
 	{
 		auto seen        = inventory_snapshot{ };
 		auto error       = std::error_code{ };
@@ -157,8 +157,8 @@ try {
 	const auto links = !linkError;
 
 	if (observationControl) {
-		const auto cachedBefore = inventory(scratch.path(), "cached-no-scan-before");
-		const auto cachedAfter  = inventory(scratch.path(), "cached-no-scan-after");
+		const auto cachedBefore = inventory(scratch.path(), "cached-no-scan-before", inventory_reader::cached_entry);
+		const auto cachedAfter  = inventory(scratch.path(), "cached-no-scan-after", inventory_reader::cached_entry);
 		std::cout << "CLONE_INVENTORY_CONTROL cached_equal_without_scan=" << (cachedBefore == cachedAfter) << '\n';
 		report_inventory_changes(cachedBefore, cachedAfter, "cached-no-scan");
 		const auto freshBefore = inventory(scratch.path(), "handle-no-scan-before", inventory_reader::current_handle);
@@ -168,15 +168,14 @@ try {
 		report_inventory_changes(freshBefore, freshAfter, "handle-no-scan");
 		expect(freshBefore == freshAfter, "fresh metadata is unchanged without a scanner invocation");
 		std::cout << "CLONE_INVENTORY_CONTROL handle_equal_without_scan=1\n";
-		const auto cachedAfterHandles = inventory(scratch.path(), "cached-after-handles-no-scan");
+		const auto cachedAfterHandles = inventory(scratch.path(), "cached-after-handles-no-scan", inventory_reader::cached_entry);
 		std::cout << "CLONE_INVENTORY_CONTROL cached_equal_after_handles_without_scan=" << (cachedBefore == cachedAfterHandles) << '\n';
 		report_inventory_changes(cachedBefore, cachedAfterHandles, "cached-after-handles-no-scan");
 	}
-	const auto reader  = observationControl ? inventory_reader::current_handle : inventory_reader::cached_entry;
-	const auto before  = inventory(scratch.path(), "before", reader);
+	const auto before  = inventory(scratch.path(), "before");
 	const auto folders = std::vector<std::string>{ text(github), text(src), text(scratch.path() / "missing") };
 	const auto found   = adapters::workspace::scan_clone_folders(folders);
-	const auto after   = inventory(scratch.path(), "after", reader);
+	const auto after   = inventory(scratch.path(), "after");
 	auto       paths   = std::vector<std::string>{ };
 	for (const auto& candidate : found) {
 		paths.push_back(candidate.Path);
