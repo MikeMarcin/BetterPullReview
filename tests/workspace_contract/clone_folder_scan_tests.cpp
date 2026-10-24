@@ -81,6 +81,14 @@ try {
 	std::ranges::sort(paths);
 	auto want = std::vector<std::string>{ text(github / "engine"), text(github / "other"), text(src / "org/engine-old") };
 	std::ranges::sort(want);
+	if (paths != want) {
+		for (const auto& path : paths) {
+			std::cerr << "CLONE_SCAN_FOUND:" << path << '\n';
+		}
+		for (const auto& path : want) {
+			std::cerr << "CLONE_SCAN_WANTED:" << path << '\n';
+		}
+	}
 	expect(paths == want, "clones one and two levels below a listed folder are found; three levels down, hidden folders and a .git file are not");
 	if (links) {
 		expect(std::ranges::none_of(found, [&outside](const core::clone_candidate& aFound) { return aFound.Path.find("linked-clone") != std::string::npos || aFound.Path.find(text(outside)) != std::string::npos; }),

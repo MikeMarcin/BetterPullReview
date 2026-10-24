@@ -482,6 +482,8 @@ namespace {
 	[[nodiscard]] auto open_recovery(const std::filesystem::path& aRoot)
 		-> std::unique_ptr<application::review_mutation_recovery_port>
 	{
+		static std::uint32_t attempts = 0U;
+		++attempts;
 		auto opened = adapters::sqlite::make_review_mutation_recovery_store({
 			.StorageRoot = aRoot,
 			.Host        = "github.com",
@@ -489,6 +491,9 @@ namespace {
 			.Repository  = "MikeMarcin/BPR-Test",
 			.PullRequest = 1,
 		});
+		if (!opened) {
+			std::cerr << "RECOVERY_OPEN_FAILURE attempt=" << attempts << " failure=" << static_cast<int>(opened.error()) << '\n';
+		}
 		expect(opened.has_value(), "persistent recovery store opens for exact scope");
 		return std::move(*opened);
 	}

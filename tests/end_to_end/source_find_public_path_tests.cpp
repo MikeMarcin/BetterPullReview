@@ -39,13 +39,16 @@ namespace {
 	using namespace bpr;
 	using tests::expect;
 	using access = app::detail::github_application_fixture_access;
-	void wait_for(const std::function<bool()>& aCondition, const char* aMessage)
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { })
 	{
 		auto timer = QElapsedTimer{ };
 		timer.start();
 		while (!aCondition() && timer.elapsed() < 20000) {
 			QApplication::processEvents();
 			QThread::msleep(1);
+		}
+		if (!aCondition() && aDiagnostic) {
+			aDiagnostic();
 		}
 		expect(aCondition(), aMessage);
 	}
@@ -69,9 +72,20 @@ namespace {
 	}
 	void query(qt::source_find_bar& aFind, const QString& aQuery)
 	{
+		static std::uint32_t ordinal = 0U;
+		++ordinal;
 		aFind.query_editor()->setPlainText(aQuery);
 		aFind.flush();
-		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal");
+		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal", [&] {
+			const auto& projection = aFind.projection();
+			const auto* surface = dynamic_cast<const qt::diff_workbench*>(aFind.parentWidget());
+			std::cerr << "PANE_QUERY_FAILURE ordinal=" << ordinal << " query=" << aQuery.toStdString()
+				<< " status=" << static_cast<int>(projection.Status) << " generation=" << projection.Generation
+				<< " query_match=" << (projection.Query == aQuery.toStdString()) << " scope=" << projection.Scope.has_value()
+				<< " matches=" << projection.Summary.Matches << " hidden=" << aFind.isHidden()
+				<< " field_match=" << (aFind.query() == aQuery)
+				<< " matching_runs=" << (surface ? surface->statistics().FindMatchingRuns : 0U)
+				<< " cached_runs=" << (surface ? surface->statistics().FindCachedRuns : 0U) << '\n'; });
 		settle();
 	}
 	/// [[BPR-1503]], [[BPR-1527]]. Find leaves both pane layouts and
