@@ -129,11 +129,16 @@ function(bpr_attach_product_allocator target)
         target_link_options("${target}" PRIVATE "/INCLUDE:mi_version")
         # Keep both pinned DLLs beside every development product image. This
         # dependency is executable-local and never changes a child's environment.
-        add_custom_command(TARGET "${target}" POST_BUILD
+        # An unchanged import library can leave the EXE up to date after its
+        # DLL changes. Run deployment as a dependency of every product build.
+        add_custom_target("bpr_allocator_runtime_${target}"
+            COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:${target}>"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:mimalloc>" "$<TARGET_FILE_DIR:${target}>"
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different
                 "$<TARGET_FILE_DIR:mimalloc>/mimalloc-redirect.dll" "$<TARGET_FILE_DIR:${target}>"
+            DEPENDS mimalloc
             VERBATIM)
+        add_dependencies("${target}" "bpr_allocator_runtime_${target}")
     else()
         target_link_options("${target}" PRIVATE "LINKER:--no-as-needed")
     endif()
