@@ -1,3 +1,4 @@
+#include "../sqlite_contract/scratch_root.hpp"
 #include "live_review_mutation_provider.hpp"
 #include "review_mutation_provider_admission.hpp"
 
@@ -17,7 +18,6 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <random>
 #include <stdexcept>
 #include <stop_token>
 #include <string>
@@ -1814,26 +1814,8 @@ namespace {
 	/// An owner-private root for the SQLite journal, removed when it goes.
 	struct journal_root
 	{
-		std::filesystem::path Path;
-		journal_root()
-			: Path{ std::filesystem::temp_directory_path() / ("bpr-outdated-reply-journal-" + std::to_string(std::random_device{ }())) }
-		{
-			std::filesystem::remove_all(Path);
-			std::filesystem::create_directories(Path);
-			// The store refuses a root reached through a link, as macOS's
-			// temporary directory is.
-			Path = std::filesystem::canonical(Path);
-			expect(adapters::sqlite::make_storage_root_owner_private(Path), "the journal root is owner-private");
-		}
-		journal_root(const journal_root&)                    = delete;
-		journal_root(journal_root&&)                         = delete;
-		auto operator=(const journal_root&) -> journal_root& = delete;
-		auto operator=(journal_root&&) -> journal_root&      = delete;
-		~journal_root()
-		{
-			auto ignored = std::error_code{ };
-			std::filesystem::remove_all(Path, ignored);
-		}
+		tests::sqlite_contract::scratch_root Root{ "outdated-reply-journal" };
+		const std::filesystem::path&         Path = Root.path();
 	};
 
 	void test_an_outdated_threads_reply_is_bound_to_its_thread()
