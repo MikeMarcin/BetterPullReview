@@ -36,6 +36,9 @@ _spec.loader.exec_module(runtime)
 # specimen bytes need new evidence, never a wider skip.
 BCRYPT_IMPORT_LIBRARY_SHA256 = "9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785"
 BCRYPT_IMPORT_OWNER = "bcrypt:bcrypt.dll"
+# v3.5.3's pinned archive supplies this prebuilt x64 redirector. It is not
+# represented as a source-built BPR DLL or accepted by filename alone.
+MIMALLOC_REDIRECT_X64_SHA256 = "bc3dfdf51fbc80b88cb62cdb6a6784ecc894164bdd4ae7f3885048d870809491"
 
 
 def require(condition: bool, reason: str) -> None:
@@ -219,13 +222,18 @@ def inspect(binary: Path, info: dict, redist_root: Path | None = None, *,
             windows_import_library: Path | None = None) -> composition.symbol_table:
     producers = [Path(info["app"]), *(Path(path) for path in info["helpers"]), *private_producers]
     selected = [path for path in producers if path.name == binary.name]
-    if selected:
+    if binary.name == "mimalloc-redirect.dll":
+        require(len(selected) == 1 and selected[0] in private_producers, "pinned-mimalloc-redirect-producer-required")
+        require(digest(binary) == MIMALLOC_REDIRECT_X64_SHA256
+                and digest(selected[0]) == MIMALLOC_REDIRECT_X64_SHA256, "pinned-mimalloc-redirect-byte-mismatch")
+    elif selected:
         require(len(selected) == 1, "ambiguous-first-party-producer")
         if selected[0] in private_producers:
             require(pe_headers(binary.read_bytes())["characteristics"] & 0x2000, "declared-private-producer-not-dll")
         return composition.symbol_table(map_symbols(binary, selected[0], windows_import_library=windows_import_library),
                                         "byte-identical PE + bound full link /MAP + undname anchors")
-    upstream_dll(binary, info, redist_root)
+    if binary.name != "mimalloc-redirect.dll":
+        upstream_dll(binary, info, redist_root)
     reader = shutil.which("llvm-readobj")
     require(reader is not None, "pe-exports-needs-llvm-readobj")
     output = subprocess.check_output([reader, "--coff-exports", str(binary)], text=True, timeout=30)

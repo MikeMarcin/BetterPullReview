@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the pinned allocator provider and executable policy offline."""
 import os
+import hashlib
 from pathlib import Path
 import shutil
 import subprocess
@@ -78,6 +79,11 @@ if(enabled)
 endif()
 '''
     build = configure(root, 'offline-product-graph', graph, ['-DMI_XMALLOC=ON'])
+    redirect = build / '_bpr/mimalloc-source/mimalloc-3.5.3/bin/mimalloc-redirect.dll'
+    redirect_digest = hashlib.sha256(redirect.read_bytes()).hexdigest()
+    assert redirect_digest == 'bc3dfdf51fbc80b88cb62cdb6a6784ecc894164bdd4ae7f3885048d870809491'
+    assert redirect_digest in (ROOT / 'scripts/verify_pe_release.py').read_text()
+    print('pinned-redirect-bytes:pass')
     config = (build / '_bpr/mimalloc-source/mimalloc-3.5.3/include/mimalloc.h')
     config.write_text('editable cached source must never be trusted')
     result = subprocess.run(['cmake', '-S', str(build.parent), '-B', str(build)], text=True, capture_output=True, timeout=180)

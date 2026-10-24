@@ -266,7 +266,7 @@ class ReleaseSecurityTests(unittest.TestCase):
             producer.write_bytes(payload)
             binary.write_bytes(payload)
             info = {"platform": "Windows", "app": str(build / "app.exe"), "helpers": [],
-                    "private_libraries": {binary.name: str(producer)}}
+                    "private_libraries": {name: str(build / name) for name in package.runtime.PRIVATE_LIBRARIES["Windows"]}}
             declared = tuple(package.runtime.private_library_producers(info))
             bound_map = map_text("xdl_diff").replace(" app\n", " bpr_xdiff\n")
             link_map = producer.with_suffix(".map")
@@ -293,6 +293,35 @@ class ReleaseSecurityTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "fixture-symbol"):
                     package.check_payload(bytes(payload), table.symbols)
 
+    def test_redirect_dll_needs_its_independent_byte_pin_and_selected_producer(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            installed, build = root / "installed", root / "build"
+            installed.mkdir()
+            build.mkdir()
+            binary, producer = installed / "mimalloc-redirect.dll", build / "mimalloc-redirect.dll"
+            binary.write_bytes(image())
+            producer.write_bytes(image())
+            info = {"app": str(build / "app.exe"), "helpers": []}
+            with self.assertRaisesRegex(ValueError, "redirect-producer-required"):
+                pe.inspect(binary, info)
+            # Even equal caller-provided bytes cannot supply the upstream pin.
+            with self.assertRaisesRegex(ValueError, "redirect-byte-mismatch"):
+                pe.inspect(binary, info, private_producers=(producer,))
+            with patch.object(pe, "MIMALLOC_REDIRECT_X64_SHA256", hashlib.sha256(image()).hexdigest()), \
+                    patch.object(pe.shutil, "which", return_value="llvm-readobj"), \
+                    patch.object(pe.subprocess, "check_output", return_value="  Name: mi_redirect_enable\n"):
+                table = pe.inspect(binary, info, private_producers=(producer,))
+                self.assertIn("mi_redirect_enable", table.symbols)
+                self.assertIn("upstream PE", table.inspector)
+                producer.write_bytes(image() + b"changed")
+                with self.assertRaisesRegex(ValueError, "redirect-byte-mismatch"):
+                    pe.inspect(binary, info, private_producers=(producer,))
+                producer.write_bytes(image())
+                binary.write_bytes(image() + b"changed")
+                with self.assertRaisesRegex(ValueError, "redirect-byte-mismatch"):
+                    pe.inspect(binary, info, private_producers=(producer,))
+
     def test_identical_unknown_dll_still_has_no_producer_authority(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
@@ -305,7 +334,7 @@ class ReleaseSecurityTests(unittest.TestCase):
             producer.write_bytes(image())
             info = {"platform": "Windows", "app": str(root / "app.exe"), "helpers": [],
                     "qt_root": str(qt), "qt_version": "6.12.0",
-                    "private_libraries": {producer.name: str(producer)}}
+                    "private_libraries": {name: str(root / name) for name in package.runtime.PRIVATE_LIBRARIES["Windows"]}}
             with self.assertRaisesRegex(ValueError, "undeclared-pe-producer"):
                 pe.inspect(binary, info, root, private_producers=tuple(package.runtime.private_library_producers(info)))
 

@@ -61,13 +61,20 @@ refuses that baseline. Sanitizer/fuzzer builds retain their instrumentation
 allocator and exclude the override. Do not set `DYLD_INSERT_LIBRARIES` or
 `LD_PRELOAD` on a shell or an external child to enable the BPR allocator.
 
-On macOS, `ctest --preset dev -R '^mimalloc_' --output-on-failure` exercises
+On macOS and native Windows, `ctest --preset dev -R '^mimalloc_' --output-on-failure` exercises
 ownership of C/C++, loaded-module and Qt allocations in each selected product
 image, cross-module frees and allocation-failure behavior. The probe exists
 only with tests enabled and runs before main; ordinary startup/shutdown courses
 remain separate. A development pass does not qualify an Intel host or signed
 installed package. The [RFC](../rfcs/RFC-BPR-0093-process-wide-mimalloc.md)
 retains those required native and package checks.
+
+Windows requires native MSVC x64 with the dynamic CRT; static CRT flags and
+selections are refused. The build copies the source-built allocator DLL and
+pinned upstream redirect DLL beside each product executable. Distribution
+installs both, and its audit requires a full producer map for the allocator
+and the independent byte pin for the redirector. Changing only an import
+library cannot prove that Qt or loaded-library calls are intercepted.
 
 ## First build
 

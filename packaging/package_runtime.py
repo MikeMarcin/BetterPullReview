@@ -106,9 +106,11 @@ def inputs(build: Path) -> dict:
 
 
 def private_library_producers(info: dict) -> list[Path]:
-    """Source-built library identities come from the fixed runtime declaration.
+    """Private runtime identities come from the fixed runtime declaration.
 
-    The selected CMake graph emits their producer paths; a filename in an
+    The Windows redirector is a pinned upstream binary; the PE auditor checks
+    its independent digest instead of claiming a source-build link map.
+    The selected CMake graph emits these producer paths; a filename in an
     inspected package cannot grant itself first-party producer authority.
     File bytes and full native link evidence are checked separately.
     """

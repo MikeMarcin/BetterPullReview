@@ -219,7 +219,7 @@ namespace {
 
 	struct probe_startup
 	{
-		probe_startup() { allocator_probe(); }
+		probe_startup() noexcept { allocator_probe(); }
 	};
 	probe_startup gProbeStartup;
 }

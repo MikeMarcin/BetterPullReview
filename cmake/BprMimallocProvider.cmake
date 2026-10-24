@@ -95,6 +95,11 @@ function(bpr_configure_mimalloc)
         # stable load name and avoids shipping producer symlinks.
         set_target_properties(mimalloc PROPERTIES VERSION 3 SOVERSION 3)
     endif()
+    if(MSVC)
+        # The installed PE audit binds this source-built DLL to full producer
+        # link evidence. The upstream redirect DLL is separately byte-pinned.
+        target_link_options(mimalloc PRIVATE /MAP)
+    endif()
     add_library(BetterPullReview::Mimalloc ALIAS mimalloc)
     set(BPR_MIMALLOC_ACTIVE ON PARENT_SCOPE)
     set(BPR_MIMALLOC_SOURCE_DIR "${source}" PARENT_SCOPE)

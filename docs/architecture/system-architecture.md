@@ -555,6 +555,14 @@ exposes its API, and a core-only graph acquires no allocator. On macOS the
 shared runtime uses upstream interposition and malloc-zone integration, including
 eligible loaded-library allocations. OS-owned explicit zones and virtual-memory
 APIs retain their own ownership; their allocation/free pairs must stay together.
+On native MSVC x64, the dynamic CRT (`/MD` or `/MDd`) routes through the
+source-built allocator and upstream's x64 `mimalloc-redirect.dll`. The redirector
+is a prebuilt file in the pinned archive, independently checked by its digest;
+it is not a BPR source-built library. Both DLLs are placed beside each selected
+executable. The allocator is linked before later product dependencies and
+retained through `mi_version`; native pointer probes and the import table check
+actual redirection. Static CRT selections are refused. Explicit Windows heap
+and virtual-memory APIs retain their own matching release APIs.
 BPR sets no preload environment for external Git, `gh` or agent children.
 
 `BPR_USE_MIMALLOC=OFF` is a development comparison baseline. Distribution
