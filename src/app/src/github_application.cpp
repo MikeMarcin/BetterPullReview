@@ -32295,8 +32295,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (reopen == nullptr || !reopen->isEnabled() || reopen->text() != QStringLiteral("Unresolve conversation")) {
 				return fail("no-unresolve-conversation");
 			}
+			auto* const gate = implementation->ReviewMutationDecisionGate.get();
+			if (gate == nullptr) {
+				return fail("no-reopen-decision-gate");
+			}
+			gate->hold();
+			const auto release = qScopeGuard([gate] { gate->release(); });
 			reopen->click();
-			QCoreApplication::processEvents();
+			// Observe the synchronous gesture before its native terminal can
+			// clear Pending. The next phase still requires confirmed reopening.
 			const auto shown                 = std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id);
 			probe.Evidence.ReopenShownAtOnce = shown != cards->cards().end() && !shown->Resolved && shown->ResolutionPending;
 			if (!probe.Evidence.ReopenShownAtOnce) {
