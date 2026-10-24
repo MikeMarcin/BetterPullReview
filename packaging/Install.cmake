@@ -43,10 +43,12 @@ foreach(bpr_package_helper IN LISTS bpr_package_helpers)
     list(APPEND bpr_package_helper_files "\"$<TARGET_FILE:${bpr_package_helper}>\"")
 endforeach()
 list(JOIN bpr_package_helper_files "," bpr_package_helper_files)
-# The macOS native course needs its actual runtime closure before final AC07.
+# Native allocator courses need their actual runtime closure before final AC07.
 set(bpr_package_allocator "")
 if(APPLE AND BPR_MIMALLOC_ACTIVE)
     set(bpr_package_allocator ",\"Contents/Frameworks/$<TARGET_FILE_NAME:mimalloc>\":\"$<TARGET_FILE:mimalloc>\"")
+elseif(WIN32 AND BPR_MIMALLOC_ACTIVE)
+    set(bpr_package_allocator ",\"$<TARGET_FILE_NAME:mimalloc>\":\"$<TARGET_FILE:mimalloc>\",\"mimalloc-redirect.dll\":\"$<TARGET_FILE_DIR:mimalloc>/mimalloc-redirect.dll\"")
 endif()
 file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/_bpr/package-inputs.json" CONTENT
     "{\"schema\":\"bpr.package-inputs.v1\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"qt_version\":\"${bpr_package_qt_version}\",\"qt_root\":\"${bpr_package_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_better_pull_review>\",\"helpers\":[${bpr_package_helper_files}],\"private_libraries\":{\"$<$<PLATFORM_ID:Darwin>:Contents/Frameworks/>$<TARGET_FILE_NAME:better_pull_review_xdiff>\":\"$<TARGET_FILE:better_pull_review_xdiff>\"${bpr_package_allocator}},\"families\":{\"agent_integrations\":${bpr_package_agent_integrations},\"local_automation\":${bpr_package_local_automation}},\"variant\":\"${bpr_package_variant}\",\"target\":\"${bpr_package_target}\"}\n")
@@ -86,6 +88,10 @@ install(TARGETS better_pull_review_xdiff
     RUNTIME DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime
     LIBRARY DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime
     ARCHIVE DESTINATION "_bpr/unpackaged" COMPONENT Unpackaged EXCLUDE_FROM_ALL)
+if(WIN32 AND BPR_MIMALLOC_ACTIVE)
+    install(FILES "$<TARGET_FILE:mimalloc>" "$<TARGET_FILE_DIR:mimalloc>/mimalloc-redirect.dll"
+        DESTINATION "${bpr_runtime_destination}" COMPONENT Runtime)
+endif()
 if(BPR_EXTERNAL_QT_RESOURCES)
     # [[BPR-0974]]. The image's Qt resources ship beside it, and it refuses to
     # start without exactly this file (cmake/BprQtResources.cmake). Installed

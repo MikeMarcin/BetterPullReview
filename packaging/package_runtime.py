@@ -49,7 +49,7 @@ RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []
 # its own replaceable shared library, as Qt does (RFC-BPR-0082 Q1).
 PRIVATE_LIBRARIES = {
     "Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"],
-    "Windows": ["bpr_xdiff.dll"],
+    "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"],
     "Linux": ["libbpr_xdiff.so"],
 }
 # Retained third_party licence texts every installed THIRD-PARTY-NOTICES.txt

@@ -24,6 +24,19 @@ function(bpr_configure_mimalloc)
     if(NOT BPR_USE_MIMALLOC OR (NOT BPR_BUILD_QT AND NOT BPR_BUILD_TOUR_CLI))
         return()
     endif()
+    if(WIN32)
+        if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+            message(FATAL_ERROR "Windows mimalloc requires native MSVC x64 and the dynamic CRT")
+        endif()
+        if(DEFINED CMAKE_MSVC_RUNTIME_LIBRARY AND NOT CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
+           AND NOT CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "MultiThreadedDLL"
+           AND NOT CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "MultiThreadedDebugDLL")
+            message(FATAL_ERROR "Windows mimalloc requires the dynamic CRT (/MD or /MDd)")
+        endif()
+        if(instrumented MATCHES "(^|[ ;])/MTd?([ ;]|$)")
+            message(FATAL_ERROR "Windows mimalloc refuses static CRT compiler flags")
+        endif()
+    endif()
     foreach(name IN ITEMS BetterPullReview::Mimalloc mimalloc mimalloc-static mimalloc-obj)
         if(TARGET "${name}")
             message(FATAL_ERROR "mimalloc target '${name}' must be owned by the pinned provider")
@@ -105,6 +118,13 @@ function(bpr_attach_product_allocator target)
         target_link_options("${target}" PRIVATE "LINKER:-u,_mi_version")
     elseif(MSVC)
         target_link_options("${target}" PRIVATE "/INCLUDE:mi_version")
+        # Keep both pinned DLLs beside every development product image. This
+        # dependency is executable-local and never changes a child's environment.
+        add_custom_command(TARGET "${target}" POST_BUILD
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:mimalloc>" "$<TARGET_FILE_DIR:${target}>"
+            COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                "$<TARGET_FILE_DIR:mimalloc>/mimalloc-redirect.dll" "$<TARGET_FILE_DIR:${target}>"
+            VERBATIM)
     else()
         target_link_options("${target}" PRIVATE "LINKER:--no-as-needed")
     endif()

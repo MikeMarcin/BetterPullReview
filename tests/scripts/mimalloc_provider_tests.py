@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise the pinned allocator provider and executable policy offline."""
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -44,6 +45,9 @@ with tempfile.TemporaryDirectory(prefix='bpr-mimalloc-provider-') as directory:
         configure(root, 'collision-' + target.replace(':', '_'), f'add_library({target} INTERFACE IMPORTED)\n' + PRODUCT, refusal='must be owned by the pinned provider')
     for variable in ('FETCHCONTENT_SOURCE_DIR_MIMALLOC', 'FETCHCONTENT_SOURCE_DIR_BPRMIMALLOC', 'CPM_mimalloc_SOURCE', 'CPM_BprMimalloc_SOURCE'):
         configure(root, variable, PRODUCT, [f'-D{variable}={root}'], 'source substitution is forbidden')
+    if os.name == 'nt':
+        configure(root, 'static-crt', PRODUCT, ['-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded'], 'requires the dynamic CRT')
+        configure(root, 'static-crt-flags', PRODUCT, ['-DCMAKE_CXX_FLAGS=/MT'], 'refuses static CRT compiler flags')
     private_cache = root / 'cache'
     (private_cache / 'cpm').mkdir(parents=True)
     shutil.copyfile(CACHE / 'cpm/CPM-0.43.1.cmake', private_cache / 'cpm/CPM-0.43.1.cmake')

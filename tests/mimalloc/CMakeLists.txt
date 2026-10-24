@@ -5,12 +5,13 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
     set_tests_properties(mimalloc_provider PROPERTIES TIMEOUT 240)
 endif()
 
-if(NOT APPLE OR NOT BPR_MIMALLOC_ACTIVE)
+if(NOT (APPLE OR WIN32) OR NOT BPR_MIMALLOC_ACTIVE)
     return()
 endif()
 
 add_library(bpr_mimalloc_probe_module SHARED module.cpp)
 target_link_libraries(bpr_mimalloc_probe_module PRIVATE Qt6::Core)
+set_target_properties(bpr_mimalloc_probe_module PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
 target_compile_features(bpr_mimalloc_probe_module PRIVATE cxx_std_23)
 bpr_enable_warnings(bpr_mimalloc_probe_module)
 get_property(products GLOBAL PROPERTY BPR_PRODUCT_EXECUTABLES)
@@ -34,3 +35,9 @@ bpr_enable_warnings(test_mimalloc_unattached)
 bpr_add_network_isolated_test(NAME mimalloc_missing_override
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/negative_control.py"
         "$<TARGET_FILE:test_mimalloc_unattached>")
+
+if(WIN32)
+    bpr_add_network_isolated_test(NAME mimalloc_disabled_redirect
+        COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/negative_control.py"
+            "$<TARGET_FILE:app_better_pull_review>" --disabled-redirect)
+endif()

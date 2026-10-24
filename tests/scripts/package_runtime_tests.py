@@ -154,7 +154,7 @@ class PackageRuntimeTests(unittest.TestCase):
         files = {path.relative_to(ROOT).as_posix() for path in retained.rglob("*") if path.is_file() and path.name != "PROVENANCE.md"}
         self.assertEqual(files, {"third_party/" + name for name in notices} | {name for name in inputs if name.startswith("third_party/")})
         self.assertEqual(runtime.PRIVATE_LIBRARIES, {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"],
-                                                     "Windows": ["bpr_xdiff.dll"], "Linux": ["libbpr_xdiff.so"]})
+                                                     "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"], "Linux": ["libbpr_xdiff.so"]})
         self.assertIn("OUTPUT_NAME bpr_xdiff", provider)
         self.assertRegex((ROOT / "packaging/Install.cmake").read_text(encoding="utf-8"), r"install\(TARGETS better_pull_review_xdiff\b")
 
@@ -500,15 +500,15 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
             library = root / "bpr_xdiff.dll"
-            info = {"platform": "Windows", "private_libraries": {library.name: str(library)}}
-            self.assertEqual(runtime.private_library_producers(info), [library])
+            info = {"platform": "Windows", "private_libraries": {name: str(root / name) for name in runtime.PRIVATE_LIBRARIES["Windows"]}}
+            self.assertEqual(runtime.private_library_producers(info), [root / name for name in runtime.PRIVATE_LIBRARIES["Windows"]])
             for declaration in ({}, {"unknown.dll": str(root / "unknown.dll")},
                                 {**info["private_libraries"], "unknown.dll": str(root / "unknown.dll")}):
                 with self.subTest(declaration=declaration), self.assertRaisesRegex(ValueError, "declaration mismatch"):
                     runtime.private_library_producers({"platform": "Windows", "private_libraries": declaration})
             for path in ("bpr_xdiff.dll", str(root / "other.dll"), None):
                 with self.subTest(path=path), self.assertRaisesRegex(ValueError, "invalid private-library producer path"):
-                    runtime.private_library_producers({"platform": "Windows", "private_libraries": {library.name: path}})
+                    runtime.private_library_producers({"platform": "Windows", "private_libraries": {**info["private_libraries"], library.name: path}})
 
     def test_private_producer_must_belong_to_the_selected_native_build(self):
         with ContainedTemporaryDirectory() as directory:
@@ -518,13 +518,13 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             (build / "CMakeCache.txt").write_text("BUILD_TESTING:BOOL=OFF\nBPR_DISTRIBUTION_BUILD:BOOL=ON\nCMAKE_BUILD_TYPE:STRING=Release\n")
             version = next(item["version"] for item in runtime.components({"platform": "Windows"}) if item["name"] == "QtBase")
             info = {"schema": "bpr.package-inputs.v1", "source": str(ROOT), "platform": "Windows", "qt_version": version,
-                    "private_libraries": {"bpr_xdiff.dll": str(root / "unselected-build/bpr_xdiff.dll")}}
+                    "private_libraries": {name: str(root / "unselected-build" / name) for name in runtime.PRIVATE_LIBRARIES["Windows"]}}
             path = build / "_bpr/package-inputs.json"
             path.write_text(json.dumps(info))
             with patch.object(runtime.platform, "system", return_value="Windows"):
                 with self.assertRaisesRegex(ValueError, "outside the selected build"):
                     runtime.inputs(build)
-                info["private_libraries"]["bpr_xdiff.dll"] = str(build / "bpr_xdiff.dll")
+                info["private_libraries"] = {name: str(build / name) for name in runtime.PRIVATE_LIBRARIES["Windows"]}
                 path.write_text(json.dumps(info))
                 self.assertEqual(runtime.inputs(build)["private_libraries"], info["private_libraries"])
 

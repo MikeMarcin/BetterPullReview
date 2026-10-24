@@ -1,6 +1,13 @@
-#include <dlfcn.h>
-#include <mach-o/dyld.h>
+#ifdef _WIN32
+	#define NOMINMAX
+	#include <Windows.h>
+	#include <malloc.h>
+#else
+	#include <dlfcn.h>
+	#include <mach-o/dyld.h>
+#endif
 
+#include <bit>
 #include <cerrno>
 #include <cstdint>
 #include <cstdio>
@@ -8,6 +15,7 @@
 #include <cstring>
 #include <limits>
 #include <new>
+#include <string>
 #include <thread>
 
 namespace {
@@ -24,7 +32,11 @@ namespace {
 	template <class T>
 	T symbol(void* aModule, const char* aName)
 	{
+#ifdef _WIN32
+		auto result = std::bit_cast<T>(GetProcAddress(static_cast<HMODULE>(aModule), aName));
+#else
 		auto result = reinterpret_cast<T>(dlsym(aModule, aName));
+#endif
 		require(result != nullptr, aName);
 		return result;
 	}
@@ -79,11 +91,20 @@ namespace {
 		pointer = std::calloc(73, 2);
 		check_allocation(aOwns, pointer, "calloc");
 		std::free(pointer);
+#ifdef _WIN32
+		pointer = _aligned_malloc(512, 256);
+#else
 		require(posix_memalign(&pointer, 256, 512) == 0, "posix_memalign");
+#endif
 		check_allocation(aOwns, pointer, "aligned ownership");
 		require(reinterpret_cast<std::size_t>(pointer) % 256 == 0, "aligned address");
+#ifdef _WIN32
+		_aligned_free(pointer);
+		auto* text = _strdup("allocator-boundary");
+#else
 		std::free(pointer);
 		auto* text = strdup("allocator-boundary");
+#endif
 		require(text != nullptr && aOwns(text), "strdup");
 		std::free(text);
 		auto* array = ::operator new[](73);
@@ -110,34 +131,90 @@ namespace {
 	std::size_t allocator_image_count()
 	{
 		std::size_t count = 0;
+#ifdef _WIN32
+		HMODULE modules[1024]{ };
+		DWORD   bytes = 0;
+		require(K32EnumProcessModules(GetCurrentProcess(), modules, sizeof(modules), &bytes) != 0
+					&& bytes <= sizeof(modules),
+				"enumerate loaded images");
+		for (std::size_t index = 0; index < bytes / sizeof(HMODULE); ++index) {
+			char name[MAX_PATH]{ };
+			require(K32GetModuleBaseNameA(GetCurrentProcess(), modules[index], name, MAX_PATH) != 0, "image name");
+			if (_stricmp(name, "mimalloc.dll") == 0 || _stricmp(name, "mimalloc-debug.dll") == 0) {
+				++count;
+			}
+		}
+#else
 		for (std::uint32_t index = 0; index < _dyld_image_count(); ++index) {
 			if (std::strstr(_dyld_get_image_name(index), "/libmimalloc") != nullptr) {
 				++count;
 			}
 		}
+#endif
 		return count;
+	}
+
+	std::string environment(const char* aName)
+	{
+#ifdef _WIN32
+		const auto length = GetEnvironmentVariableA(aName, nullptr, 0);
+		if (length == 0) {
+			return { };
+		}
+		std::string result(length, '\0');
+		require(GetEnvironmentVariableA(aName, result.data(), length) == length - 1, "probe environment");
+		result.pop_back();
+		return result;
+#else
+		const auto* value = std::getenv(aName);
+		return value == nullptr ? std::string{ } : std::string(value);
+#endif
 	}
 
 	// Compiled only into tests-enabled product images. Each course enters the
 	// actual executable's bindings before main; ordinary startup is checked
 	// separately. No allocator hook or diagnostic seam ships in distribution.
-	__attribute__((constructor)) void allocator_probe()
+	void allocator_probe()
 	{
-		if (std::getenv("BPR_MIMALLOC_PROBE") == nullptr) {
+		if (environment("BPR_MIMALLOC_PROBE").empty()) {
 			return;
 		}
-		auto owns    = symbol<owns_pointer>(RTLD_DEFAULT, "mi_is_in_heap_region");
-		auto version = symbol<int (*)()>(RTLD_DEFAULT, "mi_version");
+#ifdef _WIN32
+		auto* allocator = GetModuleHandleW(L"mimalloc.dll");
+		if (allocator == nullptr) {
+			allocator = GetModuleHandleW(L"mimalloc-debug.dll");
+		}
+		require(allocator != nullptr, "mi_is_in_heap_region");
+		require(GetModuleHandleW(L"mimalloc-redirect.dll") != nullptr, "redirect DLL not loaded");
+#else
+		auto* allocator = RTLD_DEFAULT;
+#endif
+		auto owns    = symbol<owns_pointer>(allocator, "mi_is_in_heap_region");
+		auto version = symbol<int (*)()>(allocator, "mi_version");
 		require(version() == 30503, "pinned runtime version");
 		require(allocator_image_count() == 1, "one allocator image");
 		exercise_standard_family(owns);
-		const auto* modulePath = std::getenv("BPR_MIMALLOC_PROBE_MODULE");
-		require(modulePath != nullptr, "missing module path");
-		auto* module = dlopen(modulePath, RTLD_NOW | RTLD_LOCAL);
+		const auto modulePath = environment("BPR_MIMALLOC_PROBE_MODULE");
+		require(!modulePath.empty(), "missing module path");
+#ifdef _WIN32
+		auto* module = LoadLibraryA(modulePath.c_str());
+#else
+		auto* module = dlopen(modulePath.c_str(), RTLD_NOW | RTLD_LOCAL);
+#endif
 		require(module != nullptr, "loaded module");
 		exercise_boundaries(owns, module);
+#ifdef _WIN32
+		require(FreeLibrary(module) != 0, "module shutdown");
+#else
 		require(dlclose(module) == 0, "module shutdown");
+#endif
 		std::fprintf(stderr, "MIMALLOC_PROBE_PASS C C++ Qt cross-module cross-thread OOM\n");
 		std::exit(0);
 	}
+
+	struct probe_startup
+	{
+		probe_startup() { allocator_probe(); }
+	};
+	probe_startup gProbeStartup;
 }

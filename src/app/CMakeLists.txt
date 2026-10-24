@@ -36,6 +36,10 @@ if(BPR_BUILD_TOUR_CLI)
         # The existing isolated Git engine uses this process supervisor.
         install(TARGETS tool_better_pull_review_agent_supervisor RUNTIME DESTINATION bin COMPONENT TourCLI)
     endif()
+    if(WIN32 AND BPR_MIMALLOC_ACTIVE)
+        install(FILES "$<TARGET_FILE:mimalloc>" "$<TARGET_FILE_DIR:mimalloc>/mimalloc-redirect.dll"
+            DESTINATION bin COMPONENT TourCLI)
+    endif()
     if(APPLE)
         set_target_properties(app_bpr PROPERTIES INSTALL_RPATH "@executable_path/../lib")
         get_target_property(bpr_tour_qt_core Qt6::Core IMPORTED_LOCATION_RELEASE)
