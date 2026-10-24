@@ -37,14 +37,17 @@ class ReleasePackageTests(unittest.TestCase):
             sbom = root / "sbom.spdx.json"
             sbom.write_text("{}")
             redist, specimen = root / "redist", root / "bcrypt.lib"
+            user32 = root / "User32.lib"
             arguments = ["audit", "--tour-cli", "--build", str(root), "--root", str(root),
                          "--sbom", str(sbom), "--source-revision", "a" * 40,
-                         "--windows-redist-root", str(redist), "--windows-import-library", str(specimen)]
+                         "--windows-redist-root", str(redist), "--windows-import-library", str(specimen),
+                         "--windows-user32-import-library", str(user32)]
             with (patch.object(sys, "argv", arguments), patch.object(audit, "audit_tour_cli", return_value={}) as selected,
                   patch("builtins.print")):
                 self.assertEqual(audit.main(), 0)
             self.assertEqual(selected.call_args.kwargs["windows_redist_root"], redist)
             self.assertEqual(selected.call_args.kwargs["windows_import_library"], specimen)
+            self.assertEqual(selected.call_args.kwargs["windows_user32_import_library"], user32)
 
     def test_allocator_probe_cannot_ship_in_the_installed_payload(self):
         with self.assertRaisesRegex(ValueError, "fixture-or-canary-bytes-in-package"):

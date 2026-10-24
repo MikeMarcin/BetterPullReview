@@ -70,7 +70,8 @@ def deploy_unix(build: Path, info: dict, root: Path) -> None:
     runtime.write_json(runtime.legal_root(root, info) / 'icu-runtime-provenance.json', receipt)
 
 
-def prepare(build: Path, output: Path, *, windows_import_library: Path | None = None) -> dict:
+def prepare(build: Path, output: Path, *, windows_import_library: Path | None = None,
+            windows_user32_import_library: Path | None = None) -> dict:
     info = runtime.inputs(build, tour_cli=True)
     if runtime.run('git', '-C', runtime.ROOT, 'status', '--porcelain').strip():
         raise ValueError('commit source before standalone CLI packaging')
@@ -93,7 +94,7 @@ def prepare(build: Path, output: Path, *, windows_import_library: Path | None = 
     sys.path.insert(0, str(runtime.ROOT / 'scripts'))
     import verify_release_package as verifier
     evidence = verifier.audit_tour_cli(build, root, root / 'sbom.spdx.json', revision, source_archive=archive,
-                                       windows_import_library=windows_import_library)
+                                       windows_import_library=windows_import_library, windows_user32_import_library=windows_user32_import_library)
     name = runtime.source_asset_name(info).removeprefix("Source-").removesuffix("-corresponding-source.zip") + ".tar.gz"
     payload = output / name
     with tarfile.open(payload, 'w:gz') as stream:
@@ -110,8 +111,10 @@ def main() -> None:
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--windows-import-library', type=Path,
                         help='explicit reviewed SDK bcrypt.lib metadata specimen; not linker-selection proof')
+    parser.add_argument('--windows-user32-import-library', type=Path,
+                        help='explicit reviewed SDK User32.lib metadata specimen; not linker-selection proof')
     args = parser.parse_args()
-    evidence = prepare(args.build.resolve(strict=True), args.output.resolve(), windows_import_library=args.windows_import_library)
+    evidence = prepare(args.build.resolve(strict=True), args.output.resolve(), windows_import_library=args.windows_import_library, windows_user32_import_library=args.windows_user32_import_library)
     print('TOUR_CLI_PREPARED', evidence)
 
 

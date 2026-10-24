@@ -665,3 +665,28 @@ passes the same bound map guard. The CLI route now forwards explicit
 `--windows-import-library` and `--windows-redist-root` inputs through that
 same guard, with a regression for argument propagation; no map/symbol rule is
 weakened. Native Windows CLI preparation/control checks remain pending.
+
+
+### Windows CLI map diagnosis
+
+The bcrypt input resolves the supervisor, but `bpr.exe` has a second discarded
+SDK record: static `.idata$6`, section 2, offset `ff939000`, image-base RVA
+`0000000140000000`, owner `User32:USER32.dll`. Its map retains the allocator's
+null import descriptor; the actual PE imports mimalloc and Kernel32, and no
+USER32 DLL. The separately inspected native SDK 10.0.26100.0 x64 `User32.lib`
+is 167,864 bytes, SHA-256
+`f45759349ad08b848bdd4eee39cd9b428b2a7ae63a09889c09a197fe7b01421d`.
+`dumpbin /ALL` shows its import-name section 3: twelve bytes `USER32.dll` plus
+two NULs, static `.idata$6`, value/type zero. This is metadata independently
+inspected from the SDK, not linker-selection proof.
+
+The new explicit `--windows-user32-import-library` route admits only that
+separately pinned owner with the exact static/zero-RVA/wrapped-offset,
+initialized nonexecutable data shape, the real allocator import terminator
+and mimalloc/Kernel32 observations. Actual USER32 imports or name payloads,
+unknown/changed specimen bytes or owners, ordinary functions and malformed
+addresses stay refused; the original bcrypt guard is unchanged. All names
+remain in fixture-seam scanning. Existing security controls plus the new
+User32 owner/hash/shape/import/absence controls pass (22 total). The public
+CLI propagation control also covers the new explicit input. Actual native
+CLI preparation is being retried with both reviewed SDK specimens.

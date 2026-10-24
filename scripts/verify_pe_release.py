@@ -36,6 +36,10 @@ _spec.loader.exec_module(runtime)
 # specimen bytes need new evidence, never a wider skip.
 BCRYPT_IMPORT_LIBRARY_SHA256 = "9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785"
 BCRYPT_IMPORT_OWNER = "bcrypt:bcrypt.dll"
+# RFC-BPR-0093: the CLI discards a USER32 import-name record too. Its
+# separate SDK specimen authorizes only that data shape, never another owner.
+USER32_IMPORT_LIBRARY_SHA256 = "f45759349ad08b848bdd4eee39cd9b428b2a7ae63a09889c09a197fe7b01421d"
+USER32_IMPORT_OWNER = "User32:USER32.dll"
 # v3.5.3's pinned archive supplies this prebuilt x64 redirector. It is not
 # represented as a source-built BPR DLL or accepted by filename alone.
 MIMALLOC_REDIRECT_X64_SHA256 = "bc3dfdf51fbc80b88cb62cdb6a6784ecc894164bdd4ae7f3885048d870809491"
@@ -89,10 +93,21 @@ def import_metadata_specimen(library: Path) -> dict:
             "reviewed_metadata": "bcrypt.dll import-name .idata$6: static, value 0, type 0, section 3; 12 bytes bcrypt.dll NUL NUL"}
 
 
-def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | None = None) -> tuple[str, ...]:
+def user32_import_metadata_specimen(library: Path) -> dict:
+    require(library.is_absolute() and library.name.lower() == "user32.lib"
+            and not library.is_symlink() and library.is_file(), "pe-import-metadata-specimen-required")
+    require(digest(library) == USER32_IMPORT_LIBRARY_SHA256, "pe-import-metadata-specimen-unreviewed")
+    return {"library": str(library.resolve()), "sha256": USER32_IMPORT_LIBRARY_SHA256,
+            "role": "Independently reviewed metadata specimen; actual producer library selection is not established",
+            "reviewed_metadata": "USER32.dll import-name .idata$6: static, value 0, type 0, section 3; 12 bytes USER32.dll NUL NUL"}
+
+
+def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | None = None,
+                windows_user32_import_library: Path | None = None) -> tuple[str, ...]:
     require(digest(binary) == digest(producer), "pe-producer-byte-mismatch")
     header = pe_headers(binary.read_bytes())
     proof = import_metadata_specimen(windows_import_library) if windows_import_library is not None else None
+    user32_proof = user32_import_metadata_specimen(windows_user32_import_library) if windows_user32_import_library is not None else None
     path = producer.with_suffix(".map")
     require(path.is_file() and not path.is_symlink(), "pe-producer-map-missing")
     text = path.read_text(encoding="utf-8", errors="strict")
@@ -133,22 +148,28 @@ def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | 
         # MSVC retains this SDK static symbol after its DLL-name contribution
         # is discarded. Accept only the reviewed zero-RVA metadata shape, not
         # arbitrary wrapped addresses, import sections or function symbols.
-        discarded_import_name = (proof is not None and in_statics and (owner_descriptor or allocator_descriptor)
-                                 and record["name"] == ".idata$6" and not record["flags"].strip()
-                                 and record["object"] == BCRYPT_IMPORT_OWNER
-                                 and address == header["image_base"] and 0 <= displacement < 2**32
-                                 and section["address"] + displacement == 2**32
-                                 and section["flags"] & 0x40 and not section["flags"] & 0x20000000)
-        if discarded_import_name:
+        metadata_shape = (in_statics and record["name"] == ".idata$6" and not record["flags"].strip()
+                          and address == header["image_base"] and 0 <= displacement < 2**32
+                          and section["address"] + displacement == 2**32
+                          and section["flags"] & 0x40 and not section["flags"] & 0x20000000)
+        discarded_bcrypt = (proof is not None and (owner_descriptor or allocator_descriptor)
+                            and record["object"] == BCRYPT_IMPORT_OWNER and metadata_shape)
+        # The CLI discards USER32 while retaining the allocator's terminator.
+        # Its separate pinned SDK specimen is required; bcrypt proof cannot
+        # authorize this owner. All zero-RVA/data/absence checks stay in force.
+        discarded_user32 = (user32_proof is not None and allocator_descriptor
+                            and record["object"] == USER32_IMPORT_OWNER and metadata_shape)
+        if discarded_bcrypt or discarded_user32:
             if imports is None:
                 output = subprocess.check_output(dependencies.windows_dependency_command(binary), text=True, timeout=30)
                 imports = {name.lower() for name in dependencies.dependency_references(output, "Windows")}
                 require("kernel32.dll" in imports, "pe-sdk-import-evidence-incomplete")
-            if allocator_descriptor and not owner_descriptor:
+            if discarded_user32 or (allocator_descriptor and not owner_descriptor):
                 require("mimalloc.dll" in imports, "pe-sdk-allocator-import-evidence-incomplete")
+            dll = "user32.dll" if discarded_user32 else "bcrypt.dll"
             payload = binary.read_bytes().lower()
-            require("bcrypt.dll" not in imports and b"bcrypt.dll" not in payload
-                    and "bcrypt.dll".encode("utf-16le") not in payload, "pe-sdk-import-still-referenced")
+            require(dll not in imports and dll.encode() not in payload and dll.encode("utf-16le") not in payload,
+                    "pe-sdk-import-still-referenced")
             continue
         require(displacement < section["size"]
                 and address == header["image_base"] + section["address"] + displacement,
@@ -230,7 +251,8 @@ def upstream_dll(binary: Path, info: dict, redist_root: Path | None) -> Path:
 
 def inspect(binary: Path, info: dict, redist_root: Path | None = None, *,
             private_producers: tuple[Path, ...] = (),
-            windows_import_library: Path | None = None) -> composition.symbol_table:
+            windows_import_library: Path | None = None,
+            windows_user32_import_library: Path | None = None) -> composition.symbol_table:
     producers = [Path(info["app"]), *(Path(path) for path in info["helpers"]), *private_producers]
     selected = [path for path in producers if path.name == binary.name]
     if binary.name == "mimalloc-redirect.dll":
@@ -241,7 +263,8 @@ def inspect(binary: Path, info: dict, redist_root: Path | None = None, *,
         require(len(selected) == 1, "ambiguous-first-party-producer")
         if selected[0] in private_producers:
             require(pe_headers(binary.read_bytes())["characteristics"] & 0x2000, "declared-private-producer-not-dll")
-        return composition.symbol_table(map_symbols(binary, selected[0], windows_import_library=windows_import_library),
+        return composition.symbol_table(map_symbols(binary, selected[0], windows_import_library=windows_import_library,
+                                                    windows_user32_import_library=windows_user32_import_library),
                                         "byte-identical PE + bound full link /MAP + undname anchors")
     if binary.name != "mimalloc-redirect.dll":
         upstream_dll(binary, info, redist_root)

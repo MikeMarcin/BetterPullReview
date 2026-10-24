@@ -341,7 +341,10 @@ with `--build`, `--root`, `--sbom`, `--source-revision` and the separate
 source references, and refuses missing or extra allocator files. On Windows the CLI preparer and auditor accept `--windows-import-library`
 for the same independently reviewed SDK `bcrypt.lib` metadata specimen used
 by the Runtime PE audit; it is not proof of linker selection. The auditor also
-honors `--windows-redist-root`. Installed native loading, signed trust and
+honors `--windows-redist-root`. For the CLI's discarded USER32 import-name
+record, pass `--windows-user32-import-library` with the separately pinned
+`User32.lib` specimen from that SDK. Unknown bytes/owners and live DLL
+references remain refusals. Installed native loading, signed trust and
 legal approval remain separate evidence.
 `packaging/package.py` continues to build the desktop's Runtime component.
 

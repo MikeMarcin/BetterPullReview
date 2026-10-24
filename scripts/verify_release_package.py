@@ -257,7 +257,8 @@ def linux_qt_symbol_evidence(binary: Path, root: Path, info: dict) -> tuple[comp
 
 
 def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_root: Path | None = None,
-          source_archive: Path | None = None, windows_import_library: Path | None = None) -> dict:
+          source_archive: Path | None = None, windows_import_library: Path | None = None,
+          windows_user32_import_library: Path | None = None) -> dict:
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
     info = runtime.inputs(build)
     app, helpers = package_paths(root, info)
@@ -265,6 +266,9 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
     if windows_import_library is not None:
         require(info["platform"] == "Windows", "sdk-import-library-requires-windows")
         evidence["windows_import_metadata_specimen"] = pe_release.import_metadata_specimen(windows_import_library)
+    if windows_user32_import_library is not None:
+        require(info["platform"] == "Windows", "sdk-import-library-requires-windows")
+        evidence["windows_user32_import_metadata_specimen"] = pe_release.user32_import_metadata_specimen(windows_user32_import_library)
     source = runtime.installed_source_provenance(root, info, revision)
     runtime.verify_source_asset(source_archive or sbom.parent / source["asset"]["name"], source)
     evidence["source_asset"] = source["asset"]
@@ -292,7 +296,7 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
             table, qt_symbol_evidence[path.relative_to(root).as_posix()] = qt_symbols
         else:
             table = (pe_release.inspect(path, info, windows_redist_root, private_producers=private_producers,
-                                        windows_import_library=windows_import_library) if info["platform"] == "Windows"
+                                        windows_import_library=windows_import_library, windows_user32_import_library=windows_user32_import_library) if info["platform"] == "Windows"
                      else composition.inspect_symbols(path))
         check_payload(path.read_bytes(), table.symbols)
         check_dependencies(path, root, info["platform"])
@@ -318,7 +322,8 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
 
 
 def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source_archive: Path | None = None,
-                   windows_redist_root: Path | None = None, windows_import_library: Path | None = None) -> dict:
+                   windows_redist_root: Path | None = None, windows_import_library: Path | None = None,
+                   windows_user32_import_library: Path | None = None) -> dict:
     """Audit the selected standalone CLI, retaining the ordinary source/byte guards."""
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
     info = runtime.inputs(build, tour_cli=True)
@@ -331,6 +336,9 @@ def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source
     if windows_import_library is not None:
         require(info["platform"] == "Windows", "sdk-import-library-requires-windows")
         evidence["windows_import_metadata_specimen"] = pe_release.import_metadata_specimen(windows_import_library)
+    if windows_user32_import_library is not None:
+        require(info["platform"] == "Windows", "sdk-import-library-requires-windows")
+        evidence["windows_user32_import_metadata_specimen"] = pe_release.user32_import_metadata_specimen(windows_user32_import_library)
     check_dependency_inventory(sbom, info)
     evidence.update(check_graph(build, info, revision))
     source = runtime.installed_source_provenance(root, info, revision)
@@ -351,7 +359,7 @@ def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source
             table = qt_symbols[0]
         elif info["platform"] == "Windows":
             table = pe_release.inspect(path, info, windows_redist_root, private_producers=producers,
-                                       windows_import_library=windows_import_library)
+                                       windows_import_library=windows_import_library, windows_user32_import_library=windows_user32_import_library)
         else:
             table = composition.inspect_symbols(path)
         check_payload(path.read_bytes(), table.symbols)
@@ -372,16 +380,17 @@ def main() -> int:
     parser.add_argument("--windows-redist-root", type=Path)
     parser.add_argument("--windows-import-library", type=Path,
                         help="explicit reviewed SDK bcrypt.lib metadata specimen; not linker-selection proof")
+    parser.add_argument("--windows-user32-import-library", type=Path, help="explicit reviewed SDK User32.lib metadata specimen")
     parser.add_argument("--source-archive", type=Path, help="defaults to the versioned asset beside the SPDX")
     args = parser.parse_args()
     try:
         if args.tour_cli:
             evidence = audit_tour_cli(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision, source_archive=args.source_archive,
-                                      windows_redist_root=args.windows_redist_root, windows_import_library=args.windows_import_library)
+                                      windows_redist_root=args.windows_redist_root, windows_import_library=args.windows_import_library, windows_user32_import_library=args.windows_user32_import_library)
         else:
             evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
                          windows_redist_root=args.windows_redist_root, source_archive=args.source_archive,
-                         windows_import_library=args.windows_import_library)
+                         windows_import_library=args.windows_import_library, windows_user32_import_library=args.windows_user32_import_library)
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError, composition.verification_error) as error:
         print(f"RELEASE_PACKAGE_FAILED:{error}", file=sys.stderr)
         return 1

@@ -211,6 +211,58 @@ class ReleaseSecurityTests(unittest.TestCase):
                     with self.assertRaises(OSError):
                         pe.map_symbols(producer, producer, windows_import_library=library)
 
+    def test_user32_metadata_requires_its_own_specimen_and_allocator(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            producer, library = root / "app.exe", root / "User32.lib"
+            producer.write_bytes(metadata_image())
+            library.write_bytes(b"synthetic USER32 metadata specimen")
+            text = metadata_map().replace("bcrypt:bcrypt.dll", "User32:USER32.dll")
+            text = text.replace("__NULL_IMPORT_DESCRIPTOR 0000000140002010 User32:USER32.dll",
+                                "__NULL_IMPORT_DESCRIPTOR 0000000140002010 mimalloc.dll:mimalloc.dll")
+            producer.with_suffix(".map").write_text(text)
+            with self.assertRaisesRegex(ValueError, "specimen-unreviewed"):
+                pe.user32_import_metadata_specimen(library)
+            with metadata_tools(library, "KERNEL32.dll\nmimalloc.dll\n"), patch.object(pe, "USER32_IMPORT_LIBRARY_SHA256", hashlib.sha256(library.read_bytes()).hexdigest()):
+                proof = pe.user32_import_metadata_specimen(library)
+                self.assertIn("selection is not established", proof["role"])
+                with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                    pe.map_symbols(producer, producer)
+                symbols = pe.map_symbols(producer, producer, windows_user32_import_library=library)
+                self.assertIn(".idata$6", symbols)
+                for invalid in [text.replace("User32:USER32.dll", "other:USER32.dll"),
+                                text.replace(".idata$6", "ordinary_function"), text.replace("ffffe000", "ffffe001"),
+                                text.replace("mimalloc.dll:mimalloc.dll", "other.dll:other.dll")]:
+                    producer.with_suffix(".map").write_text(invalid)
+                    with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                        pe.map_symbols(producer, producer, windows_user32_import_library=library)
+                producer.with_suffix(".map").write_text(text)
+                library.write_bytes(b"changed specimen")
+                with self.assertRaisesRegex(ValueError, "specimen-unreviewed"):
+                    pe.map_symbols(producer, producer, windows_user32_import_library=library)
+
+    def test_user32_metadata_actual_import_payload_and_missing_allocator_refuse(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            producer, library = root / "app.exe", root / "User32.lib"
+            library.write_bytes(b"synthetic USER32 metadata specimen")
+            text = metadata_map().replace("bcrypt:bcrypt.dll", "User32:USER32.dll")
+            text = text.replace("__NULL_IMPORT_DESCRIPTOR 0000000140002010 User32:USER32.dll",
+                                "__NULL_IMPORT_DESCRIPTOR 0000000140002010 mimalloc.dll:mimalloc.dll")
+            producer.write_bytes(metadata_image()); producer.with_suffix(".map").write_text(text)
+            with patch.object(pe, "USER32_IMPORT_LIBRARY_SHA256", hashlib.sha256(library.read_bytes()).hexdigest()):
+                with metadata_tools(library, "KERNEL32.dll\n"):
+                    with self.assertRaisesRegex(ValueError, "allocator-import-evidence-incomplete"):
+                        pe.map_symbols(producer, producer, windows_user32_import_library=library)
+                with metadata_tools(library, "KERNEL32.dll\nmimalloc.dll\nUSER32.dll\n"):
+                    with self.assertRaisesRegex(ValueError, "still-referenced"):
+                        pe.map_symbols(producer, producer, windows_user32_import_library=library)
+                with metadata_tools(library, "KERNEL32.dll\nmimalloc.dll\n"):
+                    for payload in [b"USER32.DLL\0", "USER32.dll".encode("utf-16le")]:
+                        producer.write_bytes(metadata_image(payload))
+                        with self.assertRaisesRegex(ValueError, "still-referenced"):
+                            pe.map_symbols(producer, producer, windows_user32_import_library=library)
+
     def test_source_archive_inventory_and_digest_fail_closed(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory)
