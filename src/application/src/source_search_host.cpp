@@ -9,29 +9,7 @@
 #include <utility>
 
 namespace bpr::application {
-	auto name(const source_search_worker_stage aStage) noexcept -> std::string_view
-	{
-		switch (aStage) {
-		case source_search_worker_stage::queued:           return "queued";
-		case source_search_worker_stage::effect_entered:   return "effect-entered";
-		case source_search_worker_stage::executing:        return "executing";
-		case source_search_worker_stage::executed:         return "executed";
-		case source_search_worker_stage::validating:       return "validating";
-		case source_search_worker_stage::validated:        return "validated";
-		case source_search_worker_stage::observing:        return "observing";
-		case source_search_worker_stage::observed:         return "observed";
-		case source_search_worker_stage::posting:          return "posting";
-		case source_search_worker_stage::posted:           return "posted";
-		case source_search_worker_stage::post_failed:      return "post-failed";
-		case source_search_worker_stage::decision_entered: return "decision-entered";
-		}
-		return "unknown";
-	}
 	namespace {
-		auto steady_nanoseconds() noexcept -> std::int64_t
-		{
-			return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
-		}
 		auto path_input(std::string_view aInclude, std::string_view aExclude) -> core::source_search_input
 		{
 			const auto include = core::inspect_source_search_query(aInclude);
@@ -138,17 +116,15 @@ namespace bpr::application {
 		};
 		struct job
 		{
-			source_search_work                      Work;
-			std::stop_source                        Stop;
-			std::mutex                              ProgressMutex;
-			std::vector<source_search_match>        Progress;
-			core::source_search_summary             ProgressSummary;
-			std::shared_ptr<const source_corpus>    Corpus;
-			std::chrono::steady_clock::time_point   LastProgress{ };
-			bool                                    Posted      = false;
-			bool                                    BadProgress = false;
-			std::atomic<source_search_worker_stage> Stage{ source_search_worker_stage::queued };
-			std::array<std::atomic_int64_t, 4>      Times{ };
+			source_search_work                    Work;
+			std::stop_source                      Stop;
+			std::mutex                            ProgressMutex;
+			std::vector<source_search_match>      Progress;
+			core::source_search_summary           ProgressSummary;
+			std::shared_ptr<const source_corpus>  Corpus;
+			std::chrono::steady_clock::time_point LastProgress{ };
+			bool                                  Posted      = false;
+			bool                                  BadProgress = false;
 		};
 
 		implementation(decision_executor& aDecisions, effect_executor& aEffects, source_search_execution_port& aExecution, source_search_projection_port& aProjection)
@@ -176,7 +152,6 @@ namespace bpr::application {
 		std::shared_ptr<job>                                           Queued;
 		std::deque<command>                                            Ingress;
 		source_search_host_counters                                    Counters;
-		std::array<std::atomic_size_t, 8>                              Pipeline{ };
 		core::source_search_reason                                     Reason          = core::source_search_reason::none;
 		bool                                                           Wrapped         = false;
 		std::atomic_size_t                                             PendingProgress = 0U;
@@ -322,7 +297,6 @@ namespace bpr::application {
 			Turning         = true;
 			auto& aTerminal = aExecution.Terminal;
 			++Counters.Terminals;
-			Counters.LastCompletedGeneration = aJob->Work.Request.Generation;
 			if (aTerminal.Request != aJob->Work.Request) {
 				aTerminal = { aJob->Work.Request, core::source_search_status::failure, { } };
 				aExecution.Matches.reset();
@@ -445,63 +419,34 @@ namespace bpr::application {
 			try {
 				const auto observer = WorkObserver;
 				Effects.post([host, current, observer] {
-					current->Times[0].store(steady_nanoseconds(), std::memory_order_relaxed);
-					host->Pipeline[0].fetch_add(1U, std::memory_order_relaxed);
-					current->Stage.store(source_search_worker_stage::effect_entered, std::memory_order_relaxed);
 					const auto started  = std::chrono::steady_clock::now();
 					auto       terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
 					bool       executed = false;
 					if (!current->Stop.stop_requested()) {
 						try {
 							executed = true;
-							current->Stage.store(source_search_worker_stage::executing, std::memory_order_relaxed);
 							terminal = host->Execution.execute(current->Work, current->Stop.get_token(), [host, current](source_search_batch aBatch) { host->receive_batch(current, std::move(aBatch)); });
-							host->Pipeline[1].fetch_add(1U, std::memory_order_relaxed);
-							current->Stage.store(source_search_worker_stage::executed, std::memory_order_relaxed);
 							{
 								std::scoped_lock lock{ current->ProgressMutex };
 								if (current->BadProgress) {
 									terminal = core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } };
 								}
 							}
-							current->Stage.store(source_search_worker_stage::validating, std::memory_order_relaxed);
 							if (!valid_match_payload(terminal, current->Stop.get_token())) {
 								terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, current->Stop.stop_requested() ? core::source_search_status::cancelled : core::source_search_status::failure, { } } };
 							}
-							host->Pipeline[2].fetch_add(1U, std::memory_order_relaxed);
-							current->Stage.store(source_search_worker_stage::validated, std::memory_order_relaxed);
 						} catch (...) {
 							terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } } };
 						}
 					}
 					if (observer && executed) {
-						current->Stage.store(source_search_worker_stage::observing, std::memory_order_relaxed);
 						core::insights_work_sample sample;
 						sample.Kind                 = core::insights_work_kind::search;
 						sample.DurationMicroseconds = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count());
 						observer->record_work(sample);
 					}
-					host->Pipeline[3].fetch_add(1U, std::memory_order_relaxed);
-					current->Stage.store(source_search_worker_stage::observed, std::memory_order_relaxed);
-					host->Pipeline[4].fetch_add(1U, std::memory_order_relaxed);
-					current->Stage.store(source_search_worker_stage::posting, std::memory_order_relaxed);
-					try {
-						current->Times[1].store(steady_nanoseconds(), std::memory_order_relaxed);
-						host->Decisions.post([host, current, completion = std::move(terminal)]() mutable {
-							current->Times[3].store(steady_nanoseconds(), std::memory_order_relaxed);
-							host->Pipeline[7].fetch_add(1U, std::memory_order_relaxed);
-							current->Stage.store(source_search_worker_stage::decision_entered, std::memory_order_relaxed);
-							host->complete(current, std::move(completion));
-						});
-						current->Times[2].store(steady_nanoseconds(), std::memory_order_relaxed);
-						host->Pipeline[5].fetch_add(1U, std::memory_order_relaxed);
-						auto expected = source_search_worker_stage::posting;
-						static_cast<void>(current->Stage.compare_exchange_strong(expected, source_search_worker_stage::posted, std::memory_order_relaxed));
-					} catch (...) {
-						host->Pipeline[6].fetch_add(1U, std::memory_order_relaxed);
-						current->Stage.store(source_search_worker_stage::post_failed, std::memory_order_relaxed);
-						throw;
-					}
+
+					host->Decisions.post([host, current, completion = std::move(terminal)]() mutable { host->complete(current, std::move(completion)); });
 				});
 				++Counters.Scheduled;
 			} catch (...) {
@@ -618,25 +563,7 @@ namespace bpr::application {
 	void source_search_host::shutdown() { Implementation->shutdown(); }
 	auto source_search_host::projection() const -> source_search_projection { return Implementation->projection(); }
 	auto source_search_host::state() const noexcept -> const core::source_search_state& { return Implementation->State; }
-	auto source_search_host::counters() const noexcept -> source_search_host_counters
-	{
-		auto result = Implementation->Counters;
-		for (auto index = std::size_t{ 0U }; index < result.Pipeline.size(); ++index) {
-			result.Pipeline[index] = Implementation->Pipeline[index].load(std::memory_order_relaxed);
-		}
-		if (Implementation->Active) {
-			for (auto index = std::size_t{ 0U }; index < result.ActiveTimes.size(); ++index) {
-				result.ActiveTimes[index] = Implementation->Active->Times[index].load(std::memory_order_relaxed);
-			}
-			result.ActiveGeneration = Implementation->Active->Work.Request.Generation;
-			result.ActiveStage      = Implementation->Active->Stage.load(std::memory_order_relaxed);
-			result.ActiveStopped    = Implementation->Active->Stop.stop_requested();
-		}
-		if (Implementation->Queued) {
-			result.QueuedGeneration = Implementation->Queued->Work.Request.Generation;
-		}
-		return result;
-	}
+	auto source_search_host::counters() const noexcept -> source_search_host_counters { return Implementation->Counters; }
 	auto source_search_host::retained_work_packets() const noexcept -> std::size_t { return (Implementation->Active ? 1U : 0U) + (Implementation->Queued ? 1U : 0U); }
 	auto source_search_host::is_quiescent() const noexcept -> bool
 	{

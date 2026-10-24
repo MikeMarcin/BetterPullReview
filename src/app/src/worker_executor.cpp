@@ -58,11 +58,6 @@ namespace bpr::app {
 			const std::scoped_lock lock{ Mutex };
 			return Tasks.empty() && !Executing;
 		}
-		[[nodiscard]] auto queued_tasks() const noexcept -> std::size_t
-		{
-			const std::scoped_lock lock{ Mutex };
-			return Tasks.size();
-		}
 
 	private:
 		void run() noexcept
@@ -135,9 +130,5 @@ namespace bpr::app {
 	auto worker_executor::idle() const noexcept -> bool
 	{
 		return Implementation->idle();
-	}
-	auto worker_executor::queued_tasks() const noexcept -> std::size_t
-	{
-		return Implementation->queued_tasks();
 	}
 }

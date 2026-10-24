@@ -154,8 +154,4 @@ namespace bpr::app {
 	}
 	auto pane_find_controller::is_quiescent() const -> bool { return Host.is_quiescent(); }
 	auto pane_find_controller::counters() const -> application::source_search_host_counters { return Host.counters(); }
-	auto pane_find_controller::execution_counts() const noexcept -> std::array<std::uint64_t, 2>
-	{
-		return { MatchingRuns.load(std::memory_order_relaxed), CachedRuns.load(std::memory_order_relaxed) };
-	}
 }

@@ -18,7 +18,6 @@
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
-#include <QEvent>
 #include <QInputMethodEvent>
 #include <QLabel>
 #include <QLayout>
@@ -35,39 +34,22 @@
 #include <QTextBlock>
 #include <QThread>
 #include <QToolButton>
-#include <algorithm>
-#include <chrono>
-#include <cstddef>
-#include <cstdint>
 #include <iostream>
 
 namespace {
 	using namespace bpr;
 	using tests::expect;
 	using access = app::detail::github_application_fixture_access;
-	struct wait_observation
+	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void()>& aDiagnostic = { })
 	{
-		std::chrono::steady_clock::time_point Started;
-		std::size_t                           Pumps                   = 0U;
-		std::int64_t                          LongestPumpMicroseconds = 0;
-		std::int64_t                          ElapsedMilliseconds     = 0;
-	};
-	void wait_for(const std::function<bool()>& aCondition, const char* aMessage, const std::function<void(const wait_observation&)>& aDiagnostic = { })
-	{
-		auto observation = wait_observation{ .Started = std::chrono::steady_clock::now() };
-		auto timer       = QElapsedTimer{ };
+		auto timer = QElapsedTimer{ };
 		timer.start();
-		const auto ready                = tests::wait_for_source_find_condition(aCondition, [&] { return timer.elapsed(); }, [&] {
-			const auto started = std::chrono::steady_clock::now();
+		const auto ready = tests::wait_for_source_find_condition(aCondition, [&] { return timer.elapsed(); }, [] {
 			QApplication::processEvents();
-			++observation.Pumps;
-			observation.LongestPumpMicroseconds = std::max(observation.LongestPumpMicroseconds, static_cast<std::int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count()));
 			QThread::msleep(1); });
-		observation.ElapsedMilliseconds = timer.elapsed();
 		if (aDiagnostic && !ready) {
-			aDiagnostic(observation);
+			aDiagnostic();
 		}
-		// A diagnostic delivery cannot turn the original timeout into success.
 		expect(ready, aMessage);
 	}
 	void settle()
@@ -94,12 +76,10 @@ namespace {
 		++ordinal;
 		aFind.query_editor()->setPlainText(aQuery);
 		aFind.flush();
-		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal", [&](const wait_observation& aWait) {
+		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal", [&] {
 			const auto& projection = aFind.projection();
 			const auto host = access::epoch_refresh_identity(aApplication);
 			const auto* surface = dynamic_cast<const qt::diff_workbench*>(aFind.parentWidget());
-			const auto started = std::chrono::duration_cast<std::chrono::nanoseconds>(aWait.Started.time_since_epoch()).count();
-			const auto relative = [started](const std::int64_t aTime) { return aTime == 0 ? std::int64_t{ 0 } : (aTime - started) / 1000; };
 			std::cerr << "PANE_QUERY_FAILURE ordinal=" << ordinal << " query=" << aQuery.toStdString()
 				<< " status=" << static_cast<int>(projection.Status) << " generation=" << projection.Generation
 				<< " query_match=" << (projection.Query == aQuery.toStdString()) << " scope=" << projection.Scope.has_value()
@@ -110,33 +90,7 @@ namespace {
 				<< " host_admitted=" << host.SearchCounters[0] << " host_scheduled=" << host.SearchCounters[1]
 				<< " host_terminals=" << host.SearchCounters[2] << " host_stale=" << host.SearchCounters[3]
 				<< " projection_failures=" << host.SearchCounters[4] << " ingress_refusals=" << host.SearchCounters[5]
-				<< " search_quiet=" << host.SearchQuiescent << " displayed=" << host.PublicationDisplayed
-				<< " active_generation=" << host.SearchActiveGeneration << " queued_generation=" << host.SearchQueuedGeneration
-				<< " last_completed_generation=" << host.SearchLastCompletedGeneration
-				<< " active_stage=" << host.SearchWorkerStage << " active_stopped=" << host.SearchActiveStopped
-				<< " effect_entered=" << host.SearchPipeline[0] << " execution_returned=" << host.SearchPipeline[1]
-				<< " validation_returned=" << host.SearchPipeline[2] << " observer_returned=" << host.SearchPipeline[3]
-				<< " decision_post_entered=" << host.SearchPipeline[4] << " decision_post_returned=" << host.SearchPipeline[5]
-				<< " decision_post_failed=" << host.SearchPipeline[6] << " decision_entered=" << host.SearchPipeline[7]
-				<< " direct_matching_runs=" << host.FindExecutionCounts[0] << " direct_cached_runs=" << host.FindExecutionCounts[1]
-				<< " diff_effects_idle=" << host.DiffEffectsIdle << " diff_queued_tasks=" << host.DiffQueuedTasks
-				<< " wait_pumps=" << aWait.Pumps << " wait_elapsed_ms=" << aWait.ElapsedMilliseconds << " longest_pump_us=" << aWait.LongestPumpMicroseconds
-				<< " effect_entry_offset_us=" << relative(host.SearchActiveTimes[0]) << " post_entry_offset_us=" << relative(host.SearchActiveTimes[1])
-				<< " post_return_offset_us=" << relative(host.SearchActiveTimes[2]) << " decision_entry_offset_us=" << relative(host.SearchActiveTimes[3]) << '\n';
-			// Observe a retained MetaCall only after recording the original timeout.
-			// wait_for has already latched failure, regardless of this delivery.
-			const auto lifetime = aApplication.liveness();
-			QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall);
-			if (!lifetime.expired()) {
-				const auto after = access::epoch_refresh_identity(aApplication);
-				std::cerr << "PANE_QUERY_AFTER_FAILURE_METACALL ordinal=" << ordinal << " application_live=1"
-					<< " pending_generation=" << host.SearchActiveGeneration << " last_completed_generation=" << after.SearchLastCompletedGeneration
-					<< " exact_terminal_observed=" << (host.SearchActiveGeneration != 0U && after.SearchLastCompletedGeneration == host.SearchActiveGeneration)
-					<< " host_terminals=" << after.SearchCounters[2] << " decision_entered=" << after.SearchPipeline[7]
-					<< " search_quiet=" << after.SearchQuiescent << " active_generation=" << after.SearchActiveGeneration << '\n';
-			} else {
-				std::cerr << "PANE_QUERY_AFTER_FAILURE_METACALL ordinal=" << ordinal << " application_live=0\n";
-			} });
+				<< " search_quiet=" << host.SearchQuiescent << " displayed=" << host.PublicationDisplayed << '\n'; });
 		settle();
 	}
 	/// [[BPR-1503]], [[BPR-1527]]. Find leaves both pane layouts and
