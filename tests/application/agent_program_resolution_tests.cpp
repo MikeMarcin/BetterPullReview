@@ -33,7 +33,7 @@ namespace {
 			-> application::agent_run_result override
 		{
 			Requests.push_back(aRequest);
-			return { .Session = aRequest.Session, .Outcome = application::agent_run_outcome::success };
+			return { .Session = aRequest.Session, .Outcome = application::agent_run_outcome::success, .Run = aRequest.Run, .Metadata = aRequest.Metadata };
 		}
 		void cancel() noexcept override { ++Cancels; }
 
@@ -43,14 +43,17 @@ namespace {
 
 	[[nodiscard]] auto request(const core::agent_protocol aProtocol, std::string aExecutable) -> application::agent_launch_request
 	{
-		auto value             = application::agent_launch_request{ };
-		value.Protocol         = aProtocol;
-		value.Session          = core::agent_session_id{ 11U };
-		value.Executable       = std::move(aExecutable);
-		value.Arguments        = { "exec", "--json", "-" };
-		value.WorkingDirectory = "/review/workspace";
-		value.Environment      = { { "HOME", "/home/me" }, { "PATH", "/usr/bin" } };
-		value.Input            = "{\"type\":\"user\"}\n";
+		auto value                = application::agent_launch_request{ };
+		value.Protocol            = aProtocol;
+		value.Session             = core::agent_session_id{ 11U };
+		value.Run                 = core::agent_run_id{ 73U };
+		value.Executable          = std::move(aExecutable);
+		value.Arguments           = { "exec", "--json", "-" };
+		value.WorkingDirectory    = "/review/workspace";
+		value.Environment         = { { "HOME", "/home/me" }, { "PATH", "/usr/bin" } };
+		value.Input               = "{\"type\":\"user\"}\n";
+		value.Metadata.Requested  = { "fixture-model", "high" };
+		value.Metadata.Configured = { "fixture-model", "high" };
 		return value;
 	}
 
@@ -141,6 +144,24 @@ namespace {
 		expect(f.Source->current(core::setup_agent::codex) == "/opt/tools/codex-wrapper", "each agent keeps its own program");
 	}
 
+	void test_refused_program_keeps_the_current_run()
+	{
+		auto       f       = fixture{ };
+		const auto given   = request(core::agent_protocol::codex_jsonl_exec, "codex");
+		const auto refused = f.Port->run(given, 1);
+		expect(f.Inner.Requests.empty(), "a program that was not found starts nothing");
+		expect(refused.Session == given.Session && refused.Run == given.Run,
+			   "a refused program keeps the nonzero run it is answering");
+		expect(refused.Metadata == given.Metadata, "a launch refusal keeps the admitted run's requested and configured facts");
+		auto admitted        = core::agent_session{ };
+		admitted.Id          = given.Session;
+		const auto finalized = application::finalize_agent_run(refused, admitted, admitted.Binding, given.Run);
+		expect(finalized.Outcome == application::agent_run_outcome::failed_to_start && finalized.StandardError == application::codex_not_found_message && finalized.Metadata == given.Metadata,
+			   "the current run's finalization preserves its launch refusal and guidance");
+		const auto wrongRun = application::finalize_agent_run(refused, admitted, admitted.Binding, core::agent_run_id{ given.Run.value() + 1U });
+		expect(wrongRun.Outcome == application::agent_run_outcome::stale_result && wrongRun.Metadata == core::agent_runtime_metadata{ }, "a refusal for another run still fails the run identity check and attributes no facts");
+	}
+
 	void test_pass_through()
 	{
 		auto f = fixture{ };
@@ -203,10 +224,12 @@ namespace {
 		const auto refused = port.run(codex, 1);
 		expect(direct.Requests.size() == before && refused.Outcome == application::agent_run_outcome::failed_to_start && refused.StandardError.starts_with("Work Codex program /opt/work/bin/wrapper: "),
 			   "a program that cannot run starts nothing and says which agent's it is");
+		expect(refused.Session == codex.Session && refused.Run == codex.Run, "an added agent's refused program keeps its session and run");
 		refusal = std::nullopt;
 		source->set({ list[0] });
 		const auto gone = port.run(codex, 1);
 		expect(direct.Requests.size() == before && gone.StandardError == application::agent_entry_removed_message, "a removed agent starts nothing");
+		expect(gone.Session == codex.Session && gone.Run == codex.Run, "a removed agent's refusal keeps its session and run");
 
 		const auto builtIn = request(core::agent_protocol::claude_stream_json, "claude");
 		static_cast<void>(port.run(builtIn, 1));
@@ -218,6 +241,7 @@ auto main() -> int
 {
 	test_codex_is_found();
 	test_saved_programs();
+	test_refused_program_keeps_the_current_run();
 	test_pass_through();
 	test_added_agents_run_as_their_entries();
 	std::cout << "agent-program-resolution-tests:pass\n";

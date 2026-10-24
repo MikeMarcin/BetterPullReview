@@ -1,6 +1,7 @@
 #include "../core/private_review_fixture.hpp"
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/application/agent_program_resolution.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/application/review_mutation_port.hpp"
@@ -295,6 +296,24 @@ namespace {
 		auto reopened = make_private_review_store(f.Config);
 		expect(reopened && (*reopened)->load_run_details(std::array{ terminal.Run })->front() == retained->front(), "reopen and catalog prune preserve exact run independently");
 		expect((*reopened)->list_revisions(*prompt.Thread)->Revisions.size() == 4, "reopen retains both prompt and complete response pairs");
+	}
+	void missing_program_is_a_failed_private_run()
+	{
+		process               inner;
+		located_agent_process resolution{ inner, { }, { }, [](core::agent_program) { return std::optional<core::agent_search_candidate>{ }; } };
+		fixture               f;
+		f.Host.reset();
+		f.Host = std::make_unique<agent_invocation_host>(f.Profiles, std::vector<agent_host_policy>{ built_in_agent_policy(f.Binding.Scope.Host, built_in_agent_host_kind::github_com) }, f.Scratch.path(), f.Sessions, f.Workspace, resolution, [](const std::string&) -> std::optional<std::string> { return { }; }, f.Effects, f.Decisions, f.Projection, &f.Private);
+		f.Host->observe(application_session_id{ 1 }, f.Authority, f.Binding.Revision);
+		auto input    = f.request();
+		input.Profile = core::codex_jsonl_profile_id;
+		f.send(input);
+		expect(inner.Starts == 0 && f.Process.Starts == 0, "a missing program starts no process in the durable invocation path");
+		expect(f.Projection.Results.size() == 1 && f.Projection.Results.front().Outcome == agent_run_outcome::failed_to_start && f.Projection.Results.front().StandardError == codex_not_found_message,
+			   "a correlated program refusal remains a launch failure on the public projection");
+		const auto runs = f.Store->list_runs();
+		expect(runs && runs->Runs.size() == 1 && runs->Runs.front().Outcome == private_run_outcome::failed && runs->Runs.front().Completion == private_revision_completion::incomplete,
+			   "the missing program is durably failed and incomplete rather than protocol failure");
 	}
 	void refusals_and_lifecycle()
 	{
@@ -858,6 +877,7 @@ int main()
 	agent_composition();
 	workshop_press();
 	composition_and_ordering();
+	missing_program_is_a_failed_private_run();
 	refusals_and_lifecycle();
 	source_refusals();
 	cancellation_wins_over_late_success();
