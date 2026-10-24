@@ -1,6 +1,8 @@
 #include <dlfcn.h>
+#include <mach-o/dyld.h>
 
 #include <cerrno>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -66,7 +68,12 @@ namespace {
 	{
 		auto* pointer = std::malloc(73);
 		check_allocation(aOwns, pointer, "malloc");
-		pointer = std::realloc(pointer, 16384);
+		auto* resized = std::realloc(pointer, 16384);
+		if (resized == nullptr) {
+			std::free(pointer);
+			require(false, "realloc failed");
+		}
+		pointer = resized;
 		check_allocation(aOwns, pointer, "realloc");
 		std::free(pointer);
 		pointer = std::calloc(73, 2);
@@ -79,6 +86,9 @@ namespace {
 		auto* text = strdup("allocator-boundary");
 		require(text != nullptr && aOwns(text), "strdup");
 		std::free(text);
+		auto* array = ::operator new[](73);
+		check_allocation(aOwns, array, "array new");
+		::operator delete[](array);
 		auto* aligned = ::operator new(512, std::align_val_t(256));
 		check_allocation(aOwns, aligned, "aligned new");
 		::operator delete(aligned, std::align_val_t(256));
@@ -87,6 +97,25 @@ namespace {
 		errno                        = 0;
 		require(std::malloc(impossibleSize) == nullptr && errno == ENOMEM, "malloc failure semantics");
 		require(::operator new(impossibleSize, std::nothrow) == nullptr, "nothrow failure semantics");
+		bool threwBadAlloc = false;
+		try {
+			auto* unexpected = ::operator new(impossibleSize);
+			::operator delete(unexpected);
+		} catch (const std::bad_alloc&) {
+			threwBadAlloc = true;
+		}
+		require(threwBadAlloc, "throwing new failure semantics");
+	}
+
+	std::size_t allocator_image_count()
+	{
+		std::size_t count = 0;
+		for (std::uint32_t index = 0; index < _dyld_image_count(); ++index) {
+			if (std::strstr(_dyld_get_image_name(index), "/libmimalloc") != nullptr) {
+				++count;
+			}
+		}
+		return count;
 	}
 
 	// Compiled only into tests-enabled product images. Each course enters the
@@ -100,6 +129,7 @@ namespace {
 		auto owns    = symbol<owns_pointer>(RTLD_DEFAULT, "mi_is_in_heap_region");
 		auto version = symbol<int (*)()>(RTLD_DEFAULT, "mi_version");
 		require(version() == 30503, "pinned runtime version");
+		require(allocator_image_count() == 1, "one allocator image");
 		exercise_standard_family(owns);
 		const auto* modulePath = std::getenv("BPR_MIMALLOC_PROBE_MODULE");
 		require(modulePath != nullptr, "missing module path");
