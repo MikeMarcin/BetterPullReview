@@ -342,3 +342,146 @@ amendment and current recipe selection are retained under
 `build/mimalloc-linux/`; run `mimalloc-20261024`, segment `linux-m3`, mandate
 `r3`. The selected station reports Ubuntu 26.04 x64 on WSL2; source/build
 isolation and actual native/installed observations remain to be established.
+
+## Linux milestone result — mandate r3
+
+`linux-integration` / [[BPR-1761]] is accepted for AC05 and the Linux portion
+of AC06. The authored outcome and exit are unchanged. Native Intel and signed
+installed Mac AC03, final AC07, measurement AC08 and final AC09 remain open.
+The source candidate is `0c40cca40e5d93205d83fd65f76af029ac937347`; subsequent
+tracker/documentation edits reuse unchanged product evidence. No release,
+signing, push or publication occurred.
+
+### Native station and installed candidate
+
+Ubuntu 26.04 x64 on JaegAW WSL2/WSLg reports kernel
+`6.18.33.2-microsoft-standard-WSL2`, GCC `15.2.0-16ubuntu1`, glibc
+`2.43-2ubuntu2.4`, Qt 6.12.0, CMake 4.4.2 and Ninja 1.13.2. Native drivers use
+Python 3.14.4; the configured tool PATH finds Python 3.13.15. All source, cache,
+builds, installed trees and diagnostic tools are inside the owner-private root
+`/home/mmarcin/bpr-rfc0093-linux-dfzpprt6`. The original
+`/home/mmarcin/BetterPullReview` stays clean and supplied only read-only Git
+objects and pinned Qt. Native commands use SSH/WSL directly, without another
+model or station writer.
+
+The Debug graph selects desktop, `bpr`, MCP helper and supervisor. The
+`linux-package` Release/tests-disabled graph also selects `BPR_BUILD_TOUR_CLI=ON`.
+`DESTDIR=.../installed cmake --install ... --component Runtime` installs beneath
+`installed/usr/lib/betterpullreview`; a separate `TourCLI` component install
+uses `cli-installed/bin` and `cli-installed/lib`. No file was manually added to
+either payload. Runtime deployment builds the exact hardened ICU producer and
+binds the complete source/legal inventory. Standalone CLI final source/legal
+release inventory remains BPR-1762's obligation.
+
+### Direct observations
+
+- `ctest --preset dev -R '^mimalloc_' --output-on-failure`: six pass. All four
+  real product images observe C/C++, aligned/array allocation, Qt and a
+  separately loaded module, 4,096 cross-module iterations, cross-thread release,
+  C/nothrow/throwing allocation failure and exactly one allocator. The same
+  probe refuses an executable without the override. Provider controls pass.
+- Final candidate integration selector: 16/16 pass in 166.00 seconds. It covers
+  the six allocator rows, `cycle_cli_public_path`, MCP, real Git and gh process
+  boundaries, agent launch canary, application render, ZIP bundle/maintenance
+  tests and both architecture boundaries. Local `core-only` configure/build and
+  the four focused ZIP/boundary rows pass. No passing full-suite claim is made.
+- External GDB 17.1 observes C and global C++ new pointers, loaded-module and Qt
+  pointers, safe C/C++ cross-module frees, and C/nothrow/throwing failure behavior
+  inside all five actual installed images: Runtime desktop/supervisor/MCP and
+  TourCLI `bpr`/supervisor. Each process loads exactly one allocator from its
+  own installed prefix, and the actual installed Qt Core. Test modules stay
+  outside the payload; no diagnostic seam is shipped. `ldd` resolves every
+  selected image without a build-tree loader environment.
+- The exact installed desktop runs its shipped `--self-test
+  --automated-run-budget-ms 20000` through the installed XCB plugin on a private
+  Xvfb: `AUTOMATED_PROFILE_PRIVATE_OK`, `PUBLIC_PATH_OK`, four stage ticks,
+  45 ms. A user/mount namespace supplies the private X socket and task-local
+  XKB tool; its mapped root is scoped to that namespace. This is composed
+  startup/shutdown evidence, not ordinary-user desktop/vault qualification.
+  No owner desktop was driven or captured; Xvfb exited and its auth file was
+  removed. Runtime bytes remained unchanged.
+- Installed `bpr` passes the complete real-process Cycle CLI course in its
+  near-empty environment. Installed MCP serves a synthetic frozen file and
+  refuses a path outside its snapshot, then exits zero. Installed supervisors
+  launch actual Git 2.53.0 and gh 2.97.0 version commands plus an external
+  agent probe. `execve` traces show no loader injection variables; the agent
+  probe sees no allocator symbol. The CLI supervisor passes the same agent
+  check. A disposable deliberately preloaded control is refused (exit 74).
+- Full public `verify_release_package.py` passes: 27 files, 20 binaries,
+  528 first-party compile units, retained MIT notice, SPDX and separate source
+  asset. A private copy without mimalloc is refused with
+  `required-packaged-capability-missing:libmimalloc.so.3`; an extra allocator
+  is refused with `package-file-set-mismatch`. Original payloads are unchanged.
+  Trust is `not-assessed`, legal approval `pending`. No DEB/system installation,
+  signing, native trust or final all-platform AC07 is claimed.
+
+| Installed identity | SHA-256 |
+|---|---|
+| Runtime desktop | `453bb4d1cfd848b53ab4c8f04d37512751121d112b388f8f0303727b1bb02e42` |
+| Runtime supervisor | `821a4aa746b81b16818984d36edfd522b73a87ff85969230fd6cde364cdeb507` |
+| Runtime MCP helper | `8937459c366b6716a8579ae73ff99fd6cce425e1ec0470512474b8962027bd33` |
+| Runtime allocator | `4424527db6dadffdfc3515e490a3acac5922d21b6c199426919be2820f7ff35b` |
+| Runtime SPDX | `98329f0fdd100386c3d1c578a16c296f953dbfead5a21d0212bff79240a1fafb` |
+| Separate Ubuntu source ZIP | `a8cc1eb75de7ffe3a5d20c60416b023953a25aa6903470177abb01a5645e2cf1` |
+| Installed `bpr` | `e14be656210a75ea6c0bff0bf12dfa3da4ebf297e1dd9b69d25d80826c67ea5d` |
+| CLI supervisor | `4982efb7ba1eb203a32848fa20add3077d0125d6d9774d6b7c0a1aabcb998019` |
+| CLI allocator | `1202bde82c4b104047ba3e0fa455fb7afe23c21709ceefac40543ce3f040afdf` |
+
+The source ZIP retains its generated name
+`Source-BetterPullReview-0.3.2-linux-ubuntu-26.04-x64-corresponding-source.zip`.
+Runtime deployment sets its private ELF RPATH, so Runtime and TourCLI allocator
+bytes differ; both loaded origins and exact file identities are recorded.
+
+### Corrections, verification and limits
+
+The first native probe exposed a real throwing-new abort: upstream's C-built
+ELF override cannot throw `std::bad_alloc`. Linux now selects upstream C++
+compilation, preserving that failure behavior, with standard ELF hardening.
+Linux probes and installed producer/closure declarations were missing; they
+now include the real SONAME file. Standalone CLI also installs xdiff and the
+supervisor can resolve either supported layout. Nothing adds allocator APIs
+inside core/host/adapter contracts.
+
+Native compilation exposed two existing portability defects: a tray enum
+shadowed its local names array under GCC's warning-as-error gate, and an
+optional-string ZIP payload triggered GCC's optimized uninitialized warning.
+The first ZIP initialization-only attempt still failed; keeping owned payload
+storage separate from optional compression removes the diagnostic without
+changing ZIP behavior. Exact GCC `-O3 -Werror` compilation, ZIP tests and core
+boundaries pass. The tray edit is a mechanical rename, with no visual change.
+Upstream mimalloc's nonfatal GCC atomic/string-overflow warning remains in the
+Release build log; it was not suppressed or converted into a first-party pass.
+
+Harness corrections are retained: the first shortest command omitted the
+sandbox executable; a later final selection used a wrong build target and left
+two tests unbuilt. Correct targets then passed all 16 rows. GDB needed explicit
+C++ expression language and canonical path comparison for `bin/../lib`.
+Task-local display/trace dependencies and a private X socket namespace resolved
+the minimal WSL tool environment; the host's X socket directory and tools were
+not changed. These failed attempts are not reported as product passes.
+
+Package-runtime tests pass all 30 natively and 29 plus one native-Linux skip on
+Mac. Package-audit controls pass 10, security controls 20, source-asset controls
+24 and native-release controls 29 plus the explicit Windows-only skip.
+Documentation's 67 tests, its gate, Python compilation, touched format/tidy 22
+and `git diff --check` pass. Existing Windows/global isolation limitations,
+BPR-0967 memory limits, native/vault/crash/vulnerability gaps and AC08 remain
+unchanged; no release qualification or performance improvement is inferred.
+
+### Durable continuation
+
+Run `mimalloc-20261024`, segment `linux-m3`, mandate `r3`; unchanged
+`coordinator-implementer` revision 2. Main is the authorized source/tracker.
+The live closeout card holds the current checkpoint. Local
+`build/mimalloc-linux/` retains selection, amendment receipt, machine binding,
+focused logs and copied native identity/observation/control records. Complete
+source/builds/payloads/source ZIP and raw diagnostics remain in the isolated
+native root. All 40 recorded payload/source files retain their hashes; no
+native task image or source writer remains. The station checkout stays clean.
+Negative package copies were removed; remaining candidate roots are retained.
+
+No attended session, cursor or review server is needed for this programmatic
+milestone. Stop at the Linux boundary and return to the coordinator. Native
+Intel/signed-installed Mac and final distribution/measurement/closeout remain
+pending; later cards still retain their Mac prerequisites. No pending Mac
+candidate or acceptance condition was replaced.

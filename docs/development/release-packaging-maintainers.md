@@ -428,6 +428,16 @@ joins the selected Qt producer's SPDX graph with:
 `packaging/dependencies.json` pins their complete source archives; cached or
 downloaded mismatches are refused. ECM is identified as build-only.
 
+The selected product executables also use pinned mimalloc 3.5.3 (MIT). Linux
+Runtime installs require the real `libmimalloc.so.3` beside the app and helpers;
+the private producer map, SPDX and package audit bind it to the selected build.
+TourCLI installs that runtime and xdiff under `lib/`, with the supervisor in
+`bin/`. Normal startup requires no allocator preload environment. The native
+allocator course and its limits are recorded in
+[RFC-BPR-0093](../verification/RFC-BPR-0093.md); a local audit does not qualify
+signatures, installation/removal, security or final all-platform source/legal
+acceptance.
+
 The font's OFL and authors list are kept under `third_party/jetbrains-mono/` and
 carried whole into `THIRD-PARTY-NOTICES.txt` (`NOTICE_FILES` in
 `packaging/package_runtime.py`, which the security audit checks too). Its SPDX

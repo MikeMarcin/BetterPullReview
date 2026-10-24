@@ -23,7 +23,7 @@ with link-only or developer-build evidence in place of native interception.
 
 RFC base: `e82537ad15b32871a8375b6143abe08e16a68b87`.
 
-Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), which remains incomplete. Mandate r2 authorizes independent Windows work without waiving any Mac criterion; Windows native allocator acceptance is recorded below. No release acceptance is presumed.
+Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), which remains incomplete. Mandate r2 authorizes independent Windows work without waiving any Mac criterion; Windows native allocator acceptance is recorded below. Mandate r3 independently accepts the Linux allocator milestone without waiving Mac criteria. No release acceptance is presumed.
 
 ## Closeout checklist
 
@@ -33,9 +33,9 @@ Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), wh
 | **AC02:** Every selected shipped BPR executable has the override in normal and distribution graphs; disabled optional families create no phantom requirement, a core-only graph remains allocator-independent, non-distribution baseline selection works, and distribution refuses it. | All product-target attachment, actual minimal distribution/core/baseline graphs and running baseline CLI; ledger | Pass | `81ee1b4ef` |
 | **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Seven native developer rows plus clean-worktree local bundle, relocated offscreen assessment and full package audit; ledger | Partial: native Intel and signed installed required | `aadf2d91d` |
 | **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native Windows four-product probes, external installed/CLI pointer and Qt-free observations, actual runtime audit/controls; [ledger](../../verification/RFC-BPR-0093.md#windows-milestone-result--mandate-r2) | Pass: Windows native allocator scope | `0ccf31bc4`, `c5693fd05` |
-| **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native/public-path/package course required | Pending | — |
-| **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Boundary stress/failure probes, 17 composed checks and instrumentation configure controls | Partial: Windows boundary/composition passed; full sanitizer/fuzzer and Ubuntu courses pending | `81ee1b4ef`, `aadf2d91d` |
-| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac local bundle/source-sidecar and Windows Runtime/source audits with missing/extra allocator controls; ledger | Partial: Mac ad-hoc and unsigned Windows Runtime; final CLI/MSI/all-platform closure and trust pending | `aadf2d91d` |
+| **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native four-product probes; actual installed GDB/Qt/cross-free/OOM, CLI/MCP/XCB public paths, clean child traces and Runtime audit/controls; ledger | Pass: Linux native allocator scope | `0c40cca40` |
+| **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Boundary stress/failure probes, 17 composed checks and instrumentation configure controls | Partial: Windows and Linux boundary/composition passed; full sanitizer/fuzzer course pending | `81ee1b4ef`, `aadf2d91d` |
+| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac local bundle/source-sidecar and Windows Runtime/source audits with missing/extra allocator controls; ledger | Partial: Mac ad-hoc, Windows and Ubuntu Runtime audits passed; final CLI/installer/all-platform closure and trust pending | `aadf2d91d` |
 | **AC08:** Same-workload Release comparisons and the unchanged large-review memory course record candidate identity, native platform, measurements and failures without attributing pre-existing BPR-0967 limits to mimalloc. | Native/public-path/package course required | Pending | — |
 | **AC09:** Architecture, build, package and operator documentation state the actual override scope and limits; focused public-path and documentation checks pass, with all native and release claims tied to their evidence. | Architecture/build documentation, documentation gate/tests and focused integration | Partial: final operator/package/native evidence reconciliation pending | `aadf2d91d` |
 
@@ -182,3 +182,49 @@ ownership, child cleanliness and composed public paths. Native tooling was
 unpacked only beneath this task root; no system package install, personal data,
 signing, push or publication. No review session/server exists. Main's unrelated
 MASK/NEXT_ID/BPR-1766 edits are preserved and excluded from commits.
+
+## Latest checkpoint — Linux milestone boundary
+
+Run `mimalloc-20261024`, segment `linux-m3`, mandate `r3`; sole leaf
+`/root/mimalloc_linux`, source/tracker main at
+`/Users/jaeger/Documents/GitHub/BetterPullReview`. Amendment `758b17a1b`
+removes only Linux's full-Mac scheduling prerequisite. Authored outcome/work/
+exit and all Mac criteria remain unchanged; BPR-1758 stays the accepted card
+prerequisite. Strategy remains `coordinator-implementer` revision 2.
+
+- **Result/candidate:** Linux milestone accepted; BPR-1761 completes AC05 and
+  Linux AC06 at `0c40cca40e5d93205d83fd65f76af029ac937347`. Runtime and actual
+  TourCLI installs, producer identities and all limits are bound by the
+  [ledger](../../verification/RFC-BPR-0093.md#linux-milestone-result--mandate-r3).
+  Mac AC03, final AC07/AC08/AC09 and RFC completion remain open.
+- **Changed paths:** allocator provider; Linux probe/platform enumeration;
+  Runtime and TourCLI SONAME/xdiff/RPATH composition; private library inventory
+  and package controls; architecture/build/package/verification docs, plan/view
+  and live cards. Existing GCC blockers received a local tray-name rename and
+  a ZIP payload-storage rewrite with preserved behavior. No allocator API enters
+  core/host/adapter contracts.
+- **Verification:** final native 16/16, local core-only build and four ZIP/
+  architecture rows, installed GDB ownership/free/OOM/origins in five images,
+  installed CLI/MCP/XCB self-test, real Git/gh/agent child traces and injected
+  negative control. Full Runtime audit: 27 files, 20 binaries, 528 compile
+  units, MIT/SPDX/separate source; omission/extra controls refuse. Focused
+  package/security/source/native-release/documentation/format/tidy pass with
+  explicit platform skips. Initial true failures and harness corrections remain
+  recorded. No full-suite, performance, trust or release-qualification claim.
+- **Ownership/commands:** no own command or native task image remains. Native
+  source/build/payloads/source ZIP/tools live under
+  `/home/mmarcin/bpr-rfc0093-linux-dfzpprt6`. The original station stays clean
+  and was read only; no owner desktop, personal data, system package installation,
+  signing credential or remote repository was touched. Private Xvfb/mount
+  namespaces exited and its auth file was removed. Original candidate files
+  retain every recorded hash. Main's unrelated MASK/NEXT_ID/BPR-1766 edits are
+  excluded and preserved. Negative package copies were removed.
+- **Durable runtime:** `build/mimalloc-linux/` contains selection, amendment
+  receipt, final machine checkpoint/observation, local logs and copied native
+  evidence under `native/`; complete raw evidence remains in the native root.
+  Preserve those candidates. No attended session/cursor/URL/server exists for
+  this programmatic milestone; the prior Mac candidate stays retained.
+- **Next:** return at the Linux boundary. The coordinator owns subsequent
+  scheduling. Distribution/measurement cards still depend on pending Mac work;
+  native Intel/signed-installed acceptance is not waived. Existing BPR-0967,
+  native/vault/crash/security gaps and release/source/legal obligations remain.
