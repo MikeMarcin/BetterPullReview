@@ -23,7 +23,7 @@ with link-only or developer-build evidence in place of native interception.
 
 RFC base: `e82537ad15b32871a8375b6143abe08e16a68b87`.
 
-Mandate r1: implement the supplied pack, including the owner-confirmed process-wide scope. Current milestone: pinned-macos-integration (BPR-1758 and BPR-1759). No native or package acceptance is presumed.
+Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), which remains incomplete. Mandate r2 authorizes independent Windows work without waiving any Mac criterion; Windows native allocator acceptance is recorded below. No release acceptance is presumed.
 
 ## Closeout checklist
 
@@ -32,10 +32,10 @@ Mandate r1: implement the supplied pack, including the owner-confirmed process-w
 | **AC01:** Configure obtains only the pinned v3.5.3 source and licence bytes; offline, substitution and target-collision controls reject wrong inputs. | Provider pin/offline/substitution/collision/extraction controls; [ledger](../../verification/RFC-BPR-0093.md) | Pass | `81ee1b4ef` |
 | **AC02:** Every selected shipped BPR executable has the override in normal and distribution graphs; disabled optional families create no phantom requirement, a core-only graph remains allocator-independent, non-distribution baseline selection works, and distribution refuses it. | All product-target attachment, actual minimal distribution/core/baseline graphs and running baseline CLI; ledger | Pass | `81ee1b4ef` |
 | **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Seven native developer rows plus clean-worktree local bundle, relocated offscreen assessment and full package audit; ledger | Partial: native Intel and signed installed required | `aadf2d91d` |
-| **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native/public-path/package course required | Pending | — |
+| **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native Windows four-product probes, external installed/CLI pointer and Qt-free observations, actual runtime audit/controls; [ledger](../../verification/RFC-BPR-0093.md#windows-milestone-result--mandate-r2) | Pass: Windows native allocator scope | `0ccf31bc4`, `c5693fd05` |
 | **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native/public-path/package course required | Pending | — |
-| **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Boundary stress/failure probes, 17 composed checks and instrumentation configure controls | Partial: full sanitizer/fuzzer and other native courses pending | `81ee1b4ef`, `aadf2d91d` |
-| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac local bundle/source-sidecar audits and missing/extra allocator controls; ledger | Partial: Mac ad-hoc local artifact; all-platform final closure and trust pending | `aadf2d91d` |
+| **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Boundary stress/failure probes, 17 composed checks and instrumentation configure controls | Partial: Windows boundary/composition passed; full sanitizer/fuzzer and Ubuntu courses pending | `81ee1b4ef`, `aadf2d91d` |
+| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac local bundle/source-sidecar and Windows Runtime/source audits with missing/extra allocator controls; ledger | Partial: Mac ad-hoc and unsigned Windows Runtime; final CLI/MSI/all-platform closure and trust pending | `aadf2d91d` |
 | **AC08:** Same-workload Release comparisons and the unchanged large-review memory course record candidate identity, native platform, measurements and failures without attributing pre-existing BPR-0967 limits to mimalloc. | Native/public-path/package course required | Pending | — |
 | **AC09:** Architecture, build, package and operator documentation state the actual override scope and limits; focused public-path and documentation checks pass, with all native and release claims tied to their evidence. | Architecture/build documentation, documentation gate/tests and focused integration | Partial: final operator/package/native evidence reconciliation pending | `aadf2d91d` |
 
@@ -105,3 +105,50 @@ commands and acceptance limits. Run `mimalloc-20261024`, segment
   Resume the same milestone when native Intel and signing authority/courses
   can supply the remaining evidence. Integrate this branch's checkpoint only
   after reconciling main's other writer. The local ad-hoc seal grants no trust.
+
+## Latest checkpoint — Windows milestone boundary
+
+Run `mimalloc-20261024`, segment `windows-m2-native`, mandate `r2`; assigned leaf
+`/root/mimalloc_windows`, source/tracker main at
+`/Users/jaeger/Documents/GitHub/BetterPullReview`. The r2 scheduling amendment
+(`622368021`) changes only Windows' dependency on full Mac acceptance;
+`check-amendment` and the documentation gate passed before the claim. Every
+authored outcome, exit and native requirement is preserved.
+
+- **Result/candidates:** Windows milestone accepted; BPR-1760 is complete for
+  native allocator behavior. Default Runtime and Debug candidate
+  `0ccf31bc4a668a9cc71be93afb6664a0bc70225b`; tests-disabled CLI assessment
+  `c5693fd05e9a673381cae5aa76c355db33e39182`. The exact native audit uses the
+  final verifier while retaining those product/source identities. The ledger
+  records hashes and native scope. M1 and this RFC remain incomplete.
+- **Changed paths:** `cmake/BprMimallocProvider.cmake`; `src/app/CMakeLists.txt`;
+  `tests/mimalloc/` and allocator-provider tests; Windows runtime/signing-receipt
+  inventories in `packaging/`; PE/package/isolation verifiers and their controls;
+  architecture/build/verification docs, the scheduling plan/view and live cards.
+  Product source has no allocator API in core/host/adapter contracts.
+- **Evidence:** seven native allocator rows; no-relink refresh regression;
+  installed CDB C/C++/Qt allocation/free and disabled controls; shipped installed
+  self-test; installed CLI Cycle course; Debug Cycle/render/MCP composition;
+  full runtime audit (31 files/23 binaries/511 compile units), source binding
+  and three public omission/extra controls. Focused format/tidy/Python/package/
+  documentation checks pass. Existing isolation-manifest failures remain explicit
+  in the ledger. There is no full-suite or release-qualification claim.
+- **Ownership:** all own commands finished; no task-image process or review
+  server remains. Native source/build/runtime/maps/evidence remain under
+  `C:/code/bpr-rfc0093-866ec50e723c`. Its Git object base is shared read-only with
+  the preserved station checkout; physical source/builds are inside this root.
+  No other checkout, owner desktop, signing credential or remote repository was
+  mutated. Unrelated MASK/NEXT_ID/BPR-1766 edits on main were excluded.
+- **Workflow binding:** original recipe selection is retained under
+  `build/mimalloc-windows/selection.json`; the read current revision-2 recipe
+  (fingerprint `6a3e2443…`) is in `selection-current.json`. External attendance
+  text changed during setup; binding was renewed after native configure stopped.
+  Final machine checkpoint/observation and command inventory live in the same
+  runtime directory, with this card as the durable handoff.
+- **Pending/next:** native Intel and signed installed Mac AC03, Ubuntu AC05,
+  final all-platform/standalone CLI/MSI AC07, measurement AC08 and final AC09
+  reconciliation remain. Existing BPR-0967/native/vault/security gaps are unchanged.
+  Stop at the Windows boundary. The coordinator must reconcile Linux's unchanged
+  authored Mac prerequisite before selecting that independent course; no further
+  milestone is selected by this leaf. No attended session/cursor/URL exists for
+  this completed objective; the earlier Mac candidate stays retained.

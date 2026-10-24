@@ -190,3 +190,144 @@ affected and every outcome/work selector/exit preserved. Native Intel and
 signed-installed macOS AC03 remain open, with the existing candidate retained.
 Linux scheduling, final package/source acceptance and measurement remain open.
 Run `mimalloc-20261024`, segment `windows-m2`, mandate `r2`, unchanged recipe.
+
+## Windows milestone result — mandate r2
+
+`windows-integration` / [[BPR-1760]] is accepted for native allocator behavior.
+The first macOS milestone remains incomplete; no Intel or signed-installed
+criterion was waived. Linux scheduling is unchanged. AC07's final installer,
+standalone CLI source/legal inventory and all-platform closure, AC08 and the
+existing native/security gaps remain open.
+
+Source/tracker is main at `/Users/jaeger/Documents/GitHub/BetterPullReview`.
+The native Windows 11 x64 course uses the task-owned root
+`C:/code/bpr-rfc0093-866ec50e723c`, with its own `src`, cache and builds.
+The existing `C:/code/git/BetterPullReview` station source/branch was preserved.
+It supplied read-only Git objects and pinned Qt; the normal configure applies
+the existing AppContainer read grant to that Qt prefix. Commands run in native
+Windows Python/MSVC, without a delegated model or WSL compiler.
+
+The host reports Windows build 26200, MSVC 19.51.36260.0 (VS 18), Qt 6.12.0
+and CMake 4.4.2. Runtime candidate
+`0ccf31bc4a668a9cc71be93afb6664a0bc70225b` supplies the default distribution
+install (`installed-final`) and the four-product Debug course. The separate
+tests-disabled CLI build is from
+`c5693fd05e9a673381cae5aa76c355db33e39182`; its product/build inputs are unchanged
+from the runtime candidate. Its `TourCLI` install (`cli-assessment/bin`) is
+assessed with byte-identical Qt/CRT/TLS files from the audited runtime and its
+own xdiff producer. This is native CLI interception evidence; the standalone
+CLI's final distributable inventory remains on [[BPR-1762]].
+
+### Native observations
+
+- `ctest --preset dev -R '^mimalloc_' --output-on-failure`: seven pass. All
+  four actual product images observe C/C++, aligned/array allocation, Qt and a
+  separately loaded module, 4,096 cross-module iterations, cross-thread frees,
+  C/nothrow/throwing failure semantics and exactly one allocator. Missing override
+  and disabled CRT redirection are refused. Import tables put mimalloc first and
+  use the dynamic CRT. Static CRT selection/flags are refused.
+- The provider row passes again with the new native regression: replace only a
+  private fixture's deployed DLL, build its up-to-date EXE, observe no relink and
+  require restored producer bytes. Every real Debug runtime copy also equals its
+  producer (`888eb8c82d8825438c4b929201452f0043ea4cdc3837579564008225d3062fc9`).
+- External Microsoft CDB 10.0.26100.9457 observes actual allocation returns in
+  the tests-disabled desktop, supervisor, MCP helper and CLI. A same-process
+  `mi_is_in_heap_region` call returns true for C and global C++ new pointers.
+  The desktop and CLI also show Qt allocation and an owned Qt-to-mimalloc free
+  returning to Qt. Disabling redirection refuses the C++ observation. Symbols
+  remain outside the payload; no allocator diagnostic seam is shipped. CDB was
+  obtained through a signed Microsoft SDK layout and administrative extraction
+  inside this root, without installing a system feature or changing signatures.
+- The installed desktop's shipped `--self-test --automated-run-budget-ms 20000`
+  reports `AUTOMATED_PROFILE_PRIVATE_OK` and `PUBLIC_PATH_OK` (68 ms, five stage
+  ticks). The isolated launch retains the required Git executable on PATH.
+  The installed CLI passes `tests/scripts/cycle_cli_tests.py` in its near-empty
+  environment. Debug `cycle_cli_public_path`, `application_render` and
+  `application_mcp_context_helper` pass through real processes/composition.
+- Full public `verify_release_package.py` passes for the runtime: 31 files,
+  23 binaries and 511 first-party compile units, with full bound producer maps,
+  exact Qt/CRT bytes, MIT notice, SPDX and separate source asset. Trust is
+  `not-assessed`, legal approval `pending`. No MSI or release signature is claimed.
+  Private copies missing either allocator DLL are refused with
+  `required-packaged-capability-missing`; an extra allocator is refused with
+  `package-file-set-mismatch`. Original installed bytes remain unchanged.
+
+| Runtime identity | SHA-256 |
+|---|---|
+| Desktop | `b85bc76a49fb69015544afb593ab994a28f95ee918caef0081e16e0f8b59184e` |
+| Supervisor | `16084d9ebedd3985f9233c77680d033357dd7616ca93bbda5294949917281058` |
+| MCP helper | `e7251dfb66c52687f9e60e9e6d96d1c5f7c4c91d343eb589ee30c45764428dd4` |
+| Runtime `mimalloc.dll` | `a0a86b2eae7c457fd0359b015f0fd54f2b5b75b4fcf9982171c8dc61c6e733dc` |
+| Upstream x64 redirect DLL | `bc3dfdf51fbc80b88cb62cdb6a6784ecc894164bdd4ae7f3885048d870809491` |
+| Runtime SPDX | `de43b7f28c3f9c7fdd7143abbd7543e77883f7cf899f0d609d510ded192584fe` |
+| Separate Windows source ZIP | `817072787958cf7a7eabbaa14563d439d8fb2682e097a1af2967ebc9f2527e97` |
+| CLI `bpr.exe` | `7ba166deee47a81719eeed0b9227ea0fd5b64d1c28425e5e9ca186fd95ae53a5` |
+| CLI `mimalloc.dll` | `56e4839f1959628dad6224079671f6b91c66a5ecb6b184a3be39384ea6a0524d` |
+
+The source ZIP keeps its generated name
+`Source-BetterPullReview-0.3.2-windows-x64-corresponding-source.zip`.
+No artifact was signed, pushed or published. The `publish-release` skill was
+loaded for the local runtime/source audit; release qualification was not run.
+
+### Corrections and retained limitations
+
+The initial native build found missing SDK declarations and include ordering in
+the portable probe; those were corrected. CMake fixture paths now use forward
+slashes and the shared owner-private scratch helper. The debugger exposed stale
+helper DLL copies after a DLL rebuild with unchanged import-library bytes.
+`0ccf31bc4` makes deployment a product build dependency, and the exact candidate
+passes again with matching copies. The first Release debugger harness used
+`gu`, which stopped at an inlined frame; using the actual machine return address
+corrected that harness. A desktop `--help` launch is a typed argument refusal;
+the separate shipped self-test supplies normal composition/startup/shutdown.
+The initial self-test lacked required Git on its deliberately minimal PATH;
+adding only the installed Git path passes.
+
+The first package audit refused the MCP helper's SDK `.idata$6` record: putting
+mimalloc first selected its shared null import terminator. `8467eaaed` accepts
+only that exact mapped data owner with an actual mimalloc import, retaining the
+existing independent SDK specimen pin, zero-RVA/static/section/absence checks
+and full symbol scanning. The unchanged native SDK specimen digest is
+`9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785`.
+Unknown owners, missing allocator imports and the previous malformed controls
+remain failures. The redirector itself has its independent binary pin and is
+excluded from first-party re-signing; the allocator requires its full map.
+The payload auditor also refuses `BPR_MIMALLOC_PROBE`.
+
+On this host the five Qt ownership/control rows fail contained at Qt DLL
+initialization (Win32 1114 / `0xc0000142`). Plain `cmake --version` independently
+fails contained with `0xc0000142`. The six measured registrations therefore run
+uncontained; the unattached negative control stays contained. The global
+isolation manifest remains failed independently: its contained CTest child
+cannot initialize, and a direct run names three existing unmeasured rows
+(`sqlite_agent_setup_storage`, `workspace_clone_folder_scan`,
+`application_agent_finding_codex_found_contract`). They were not changed. On
+main, unrelated `.mask/sessions` evidence files also fail that global scan.
+This is not reported as a passing full suite.
+
+Focused local package tests pass (30, one Linux skip); Windows package tests
+pass (30, two Linux/POSIX skips). Security controls pass 20 on both hosts;
+package-audit controls pass 10, native-release mock controls 30 (one native
+Windows-only skip on Mac), and source-asset controls 24. Documentation's 67
+tests, the documentation gate, touched format/tidy 22, Python compilation and
+`git diff --check` pass. Unchanged passing evidence is reused.
+
+### Continuation state
+
+Run `mimalloc-20261024`, segment `windows-m2-native`, mandate `r2`, recipe
+`coordinator-implementer` revision 2. The installed recipe changed externally
+during setup (attendance hosting text). After native configure stopped, the
+unchanged milestone was rebound using the read current recipe; original and
+current selection snapshots are retained. No requirement or accepted evidence
+was replaced by that reconciliation.
+
+`build/mimalloc-windows/` holds the local selection/binding, amendment receipt,
+focused logs and copied native identity/observation/control records. The native
+root retains complete source/builds, installed runtime, CLI assessment, CDB
+commands/logs, source ZIP and producer maps. `final-identities.json` and
+`cli-identities.json` bind every assessed file. Task images are quiescent,
+negative-control copies and the superseded runtime tree were removed, and no
+review session/server exists. Keep the remaining native root for follow-up.
+Unrelated MASK and BPR-1766 allocation edits on main are preserved. Return at
+the Windows milestone boundary; the coordinator owns the next scheduling
+choice. Mac Intel/signed-installed and all remaining RFC obligations stay open.
