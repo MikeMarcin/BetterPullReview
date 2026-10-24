@@ -11948,6 +11948,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				AgentSetup->reset();
 				// The fresh setup looks for agents again, as Set up did.
 				AgentSetup->restart();
+				// A new agent's id may be an old one's: no pull request opens
+				// on the agent it was last asked with. Its turns stay.
+				if (AgentConversation) {
+					AgentConversation->forget_agent_choices();
+				}
 				if (CloneLinks) {
 					const auto links = CloneLinks->projection().Links;
 					for (const auto& link : links) {

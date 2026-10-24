@@ -760,6 +760,16 @@ coordinator, verbatim:
   finished, not from the selected line as a press reports it. Reset agents…
   replaces the ways back into the setup (see Running setup again); it leaves
   notes, drafts and agent conversations.
+- **Look v007 (Accept, decision `52f55363-457e-4397-ad30-d3962a4b80a6`): "Hide
+  suggestions until the the agent is done thinking. Get rid of teh icon on
+  agent when it's full width like the other tabs do. Only use it for the
+  narrow. Otherwise we're done."** The two notes are the accept's
+  conditions, built without another look: the suggested prompts are hidden
+  while the agent works and return when its turn has finished, and at full
+  width the Agent tab is its name alone, as the other tabs are, its glyph
+  kept for the narrow row. Reset agents also forgets which agent each pull
+  request was last asked with, so a new agent whose id an old one had does
+  not open on that agent's thread; every turn stays.
 
 ## Acceptance
 

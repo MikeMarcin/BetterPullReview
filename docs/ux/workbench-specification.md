@@ -2456,7 +2456,9 @@ path* when a file is open, What could this change break?, and, with lines
 selected, Explain *path* line N for one line or Explain the selected block
 (*path* lines a–b) for more; each is sent as written, as a question. They
 stay once the thread has turns, and the field's Suggestions toggle shows or
-hides them, kept for the profile (owner look v004). A turn's findings are cards under its answer (owner decision,
+hides them, kept for the profile (owner look v004); while the agent works
+they are hidden, and they return when its turn has finished (the owner's
+accept of look v007). A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the
@@ -2516,8 +2518,11 @@ agent gets (the pull request, base and head, the changes and the named diff,
 the threads, the workspace, the review skill and what it may not do) wait
 under one collapsed disclosure. History
 adds Reset agents… (owner look v006): it asks first, then clears every agent
-setting, the clone folders and links and an edited review skill, and the
-setup starts again at Agent; there is no other way back into the setup. A new window with a saved
+setting, the clone folders and links and an edited review skill, forgets
+which agent each pull request was last asked with (its turns stay), and the
+setup starts again at Agent; there is no other way back into the setup. At
+full width the tray's tabs are their names alone, the Agent tab's as well;
+its glyph shows only in the narrow row (the owner's accept of look v007). A new window with a saved
 agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I
 and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its

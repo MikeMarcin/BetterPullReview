@@ -793,6 +793,16 @@ namespace bpr::adapters::sqlite {
 				}
 			}
 
+			[[nodiscard]] auto forget_agents() -> bool override
+			{
+				try {
+					auto store = open(Root);
+					return store && detail::execute(store->Database.get(), "DELETE FROM agent_conversation_choice");
+				} catch (...) {
+					return false;
+				}
+			}
+
 		private:
 			std::filesystem::path Root;
 		};

@@ -84,6 +84,10 @@ namespace bpr::application {
 		/// `Agent` is not read), and keeping the key's `Agent` as that.
 		[[nodiscard]] virtual auto load_agent(const agent_conversation_key& aKey) -> std::optional<std::uint32_t> = 0;
 		[[nodiscard]] virtual auto store_agent(const agent_conversation_key& aKey) -> bool                        = 0;
+		/// \brief [[BPR-PENDING-AQ8]]. Forgets which agent every pull request
+		/// was last asked with, so a reset's new agent, whose id may be an old
+		/// one's, does not open on that agent's thread. Every turn stays.
+		[[nodiscard]] virtual auto forget_agents() -> bool = 0;
 	};
 } // namespace bpr::application
 

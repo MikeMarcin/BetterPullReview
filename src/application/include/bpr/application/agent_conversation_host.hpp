@@ -68,6 +68,9 @@ namespace bpr::application {
 		void record(std::vector<agent_conversation_turn> aTurns);
 		/// \brief Clear session: no turns, kept as none.
 		void clear();
+		/// \brief Reset agents: no pull request opens on an agent it was
+		/// last asked with; the conversations themselves stay.
+		void forget_agent_choices();
 
 		[[nodiscard]] auto projection() const -> agent_conversation_projection;
 		void               shutdown() noexcept;

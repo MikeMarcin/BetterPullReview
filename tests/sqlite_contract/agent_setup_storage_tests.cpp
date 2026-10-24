@@ -126,6 +126,9 @@ try {
 	workCodex.Agent = 2U;
 	expect(talks->store(workCodex, thread) && talks->load(workCodex) == std::optional{ thread } && talks->load(other)->size() == 1U, "each agent keeps its own conversation");
 	expect(!talks->load_agent(other) && talks->store_agent(workCodex) && talks->load_agent(other) == std::optional<std::uint32_t>{ 2U }, "the agent last asked with is kept per pull request");
+	// [[BPR-PENDING-AQ8]]: Reset agents forgets those choices, never a turn.
+	expect(talks->forget_agents() && !talks->load_agent(other) && talks->load(workCodex) == std::optional{ thread }, "forgetting the agents' choices keeps every conversation");
+	expect(talks->store_agent(workCodex), "a choice is kept again afterwards");
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by conversations");
 
 	// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agent list.

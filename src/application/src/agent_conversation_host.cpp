@@ -225,6 +225,11 @@ namespace bpr::application {
 		host.write(*host.View.Key, { });
 	}
 
+	void agent_conversation_host::forget_agent_choices()
+	{
+		Implementation->off_lane([store = Implementation->Dependencies.Store] { return store != nullptr && store->forget_agents(); }, [](std::optional<bool> /*aForgotten*/) { });
+	}
+
 	auto agent_conversation_host::projection() const -> agent_conversation_projection { return Implementation->View; }
 
 	void agent_conversation_host::shutdown() noexcept { Implementation->Closing = true; }

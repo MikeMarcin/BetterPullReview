@@ -14230,11 +14230,20 @@ namespace {
 			identity.InvocationGeneration = 3U;
 			window.agent_panel()->admit(identity);
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			process_events();
+			// [[BPR-PENDING-AQ8]], the owner's accept of look v007 ("Hide
+			// suggestions until the the agent is done thinking").
+			auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
+			expect(agent->state() == qt::agent_tab_state::working && suggestionsShown->isHidden() && agent->suggestions_toggle()->isChecked(),
+				   "while the agent works the suggestions are hidden, though the toggle still shows them");
 			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": []}\n```" });
+			process_events();
+			expect(suggestionsShown->isHidden(), "and stay hidden while it writes");
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 			process_events();
 			expect(agent->turn_count() == 3U && agent->turn_question(2U) == QStringLiteral("What could this change break?") && composer->toPlainText().isEmpty(),
 				   "the suggestion is the next turn's question, exactly");
+			expect(!suggestionsShown->isHidden() && agent->state() != qt::agent_tab_state::working, "once the turn has finished the suggestions return");
 			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
 				   "the reply is shown without its findings block, which is for the cards");
 
@@ -14756,7 +14765,7 @@ namespace {
 		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 4
 				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
 				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
-				   && tabs->tabText(3) == QStringLiteral("Agent") && !tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
+				   && tabs->tabText(3) == QStringLiteral("Agent") && tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
 			   "the tray's header is Comments, Notes, Tour and Agent, and it opens on Comments");
 		const auto privateHeader = [&] {
@@ -14877,8 +14886,9 @@ namespace {
 
 	/// \brief [[BPR-1684]]. The right tray's tabs keep their names for as
 	/// long as the row has room for them. Each tab is as wide as what it
-	/// shows: the Agent tab is its spark and its name, and Comments keeps no
-	/// room for a count it is not showing. Narrower, the row names the open
+	/// shows: at full width the Agent tab is its name alone, as the others
+	/// are (the owner's accept of look v007, [[BPR-PENDING-AQ8]]), and
+	/// Comments keeps no room for a count it is not showing. Narrower, the row names the open
 	/// tab beside its glyph and shows the others' glyphs, then glyphs only.
 	/// A tab without its name says it in its tooltip and to accessibility,
 	/// and the count stays a pill beside the glyph, never over it. Checked
@@ -15015,16 +15025,15 @@ namespace {
 				expect(named() && pill->isVisible() == withCount && window.comments_count_text() == (withCount ? QStringLiteral("2") : QString{ }),
 					   "a wide row shows every tab's name, and the count only when there is one" + context);
 				// Each tab is its style's text tab for its name, plus the
-				// Agent's spark and the Comments count when they show.
+				// Comments count when it shows.
 				const auto metrics = tabs->fontMetrics();
 				const auto padding = [&](const int aIndex) {
 					return tabs->tabRect(aIndex).width() - metrics.size(Qt::TextShowMnemonic, names[aIndex]).width();
 				};
 				const auto notes = padding(1);
 				expect(std::abs(padding(2) - notes) <= 1, "Tour and Notes have the same padding" + context);
-				const auto spark = tabs->iconSize().width() + 4;
-				expect(std::abs(padding(3) - spark - notes) <= 1,
-					   "the Agent tab is as wide as its spark and its name, padded as Notes is" + context);
+				expect(std::abs(padding(3) - notes) <= 1 && tabs->tabIcon(3).isNull(),
+					   "at full width the Agent tab is its name alone, padded as Notes is, with no glyph" + context);
 				const auto count = withCount ? pill->sizeHint().width() + 4 : 0;
 				expect(std::abs(padding(0) - count - notes) <= 1,
 					   (withCount ? "the Comments tab is its name and its count, padded as Notes is"

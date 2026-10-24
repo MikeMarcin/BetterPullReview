@@ -60,6 +60,11 @@ namespace {
 			Chosen[pull] = aKey.Agent;
 			return true;
 		}
+		[[nodiscard]] auto forget_agents() -> bool override
+		{
+			Chosen.clear();
+			return true;
+		}
 
 		std::map<application::agent_conversation_key, turns>         Kept;
 		std::map<application::agent_conversation_key, std::uint32_t> Chosen;
@@ -183,6 +188,15 @@ namespace {
 		test.Host->open(codex);
 		test.settle();
 		expect(test.Host->projection().Key == std::optional{ claude }, "reopened, the pull request is on the agent it was last asked with");
+		// [[BPR-PENDING-AQ8]]: Reset agents forgets that choice, so the next
+		// opening is on the agent asked for; every turn stays.
+		test.Host->forget_agent_choices();
+		test.settle();
+		test.Host->close();
+		test.Host->open(codex);
+		test.settle();
+		expect(test.Store.Chosen.empty() && test.Host->projection().Key == std::optional{ codex } && test.Store.Kept[claude].size() == 1U,
+			   "after Reset agents a pull request opens on the agent asked for, and its turns are kept");
 	}
 
 	void test_the_thread_is_bounded()

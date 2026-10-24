@@ -270,4 +270,15 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14): "The first time I open the Agent tab it tells me
     what to do, and I end up asking a question that the agent answers from
     my repository."
-- Pending: the owner's decision.
+- Handed back 2026-10-24: **Q1 Accept** (decision
+  `52f55363-457e-4397-ad30-d3962a4b80a6`). The owner's note, verbatim (line
+  breaks joined): "Hide suggestions until the the agent is done thinking.
+  Get rid of teh icon on agent when it's full width like the other tabs do.
+  Only use it for the narrow. Otherwise we're done."
+- The owner's accept conditions, built on the accepted state without another
+  look (coordinator, 2026-10-24): the suggested prompts are hidden while the
+  agent works and return when the turn has finished; at full width the Agent
+  tab is its name alone, as the other tabs are, its glyph kept for the narrow
+  row. Both are verified offscreen in `qt_workbench_window_scale_100`.
+- Look v007's host was stopped, its candidate released and its root removed.
+  No attended root or session of this card remains.

@@ -1,3 +1,10 @@
+# [[BPR-PENDING-AQ8]] reseal (2026-10-24) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, the owner's accept of look v007:
+# github_application.cpp's Reset agents also asks the existing agent
+# conversation host to forget which agent each pull request was last asked
+# with, keeping every turn. No grant, target, provider, credential, mutation
+# or publication path changes; no new src/app source. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
 # [[BPR-PENDING-AQ6]] reseal (2026-10-24) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v006: github_application.cpp
 # offers each added agent the models and effort levels its own harness listed
@@ -2328,7 +2335,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"01ec48700a8e00f0b76f843abf3f7d53c113dd24f59b3b784513aefb064d744d"
+		"7f11dcb437aabd0936711d067506ebfc6d0d54cf4059cf63977a51d4724eaf94"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2552,7 +2559,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "c852655131ede1de7a9ae1d906976adc820d4b6e53fd4a435155f4f38c131c07"
+        "688ee6bcaf6dbdf70f2416bb7e9014b382c9f65f3af7656fde4c332ab5771c8e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -60,9 +60,9 @@ The first time you open the Agent tab, it sets up an agent in place of the
 conversation: the agent, the repository's clone and one check, then the
 question field. **Reset agents…** (here, and in the Agent tab's History menu)
 asks first, then removes every agent and its settings, the clone folders and
-linked clones, and an edited review skill (saved to Downloads first), and
-starts the setup again; notes, drafts and agent conversations stay (owner look
-v006). See the [workbench specification](../ux/workbench-specification.md).
+linked clones, and an edited review skill (saved to Downloads first),
+forgets which agent each pull request was last asked with, and starts the
+setup again; notes, drafts and agent conversations stay (owner look v006). See the [workbench specification](../ux/workbench-specification.md).
 
 Under **Agents & context**:
 

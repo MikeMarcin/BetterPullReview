@@ -1574,7 +1574,10 @@ namespace bpr::qt {
 		}
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
 		SuggestionsLine->setVisible(Turns.empty());
-		Suggestions->setVisible(conversing && SuggestionsMenu->isChecked());
+		// [[BPR-PENDING-AQ8]], the owner's accept of look v007 ("Hide
+		// suggestions until the the agent is done thinking"): none while a
+		// turn runs; they return when it has finished.
+		Suggestions->setVisible(conversing && SuggestionsMenu->isChecked() && State != agent_tab_state::working);
 		SuggestionsMenu->setVisible(conversing);
 	}
 

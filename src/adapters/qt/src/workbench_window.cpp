@@ -8656,7 +8656,10 @@ namespace bpr::qt {
 			return;
 		}
 		auto* const tabs = static_cast<tray_tab_bar*>(TrayTabs);
-		// [[BPR-1594]]. Four tabs; the Agent keeps its spark beside its name.
+		// [[BPR-1594]]. Four tabs. [[BPR-PENDING-AQ8]], the owner's accept of
+		// look v007 ("Get rid of teh icon on agent when it's full width like
+		// the other tabs do. Only use it for the narrow."): at full width
+		// every tab is its name alone.
 		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
 		const QString about[] = {
 			tr("The pull request's threads, with their scope and filters"),
@@ -8675,7 +8678,7 @@ namespace bpr::qt {
 		const auto textOf  = [&names, current](const face aFace, const int aIndex) {
 			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? names[aIndex] : QString{ };
 		};
-		const auto glyphOf = [](const face aFace, const int aIndex) { return aFace != face::names || aIndex == tray_findings_tab; };
+		const auto glyphOf = [](const face aFace, const int /*aIndex*/) { return aFace != face::names; };
 		// The room is what the header's grid gives the tabs alone on their
 		// row: its width less its left margin and the spacing of its columns.
 		auto room = TrayHeader->width();
