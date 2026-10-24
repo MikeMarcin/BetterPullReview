@@ -4108,10 +4108,27 @@ namespace {
 			if (guard == 3) {
 				transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::response_limit, .HttpStatus = 200U };
 			}
-			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
-			expect(result && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 101U && result->Rows[0].Detailed
-					   && transport.count(read_operation::list_requested_reviewers) == 1U && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::list_review_requests) == 2U,
-				   "REST roster record/byte/structural and transport limits recover through complete projected pages; the viewer can be on page two");
+			const auto result    = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			const auto recovered = result && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 101U && result->Rows[0].Detailed
+				&& transport.count(read_operation::list_requested_reviewers) == 1U && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::list_review_requests) == 2U;
+			if (!recovered) {
+				const auto error = discovery_failure(result);
+				std::cerr << "ROSTER_RECOVERY guard=" << guard << " result=" << result.has_value()
+						  << " failure=" << (error ? static_cast<int>(error->Failure) : -1) << " http=" << (error ? error->HttpStatus : 0U)
+						  << " search=" << transport.count(read_operation::search_personal_pull_requests) << " rest=" << transport.count(read_operation::list_requested_reviewers)
+						  << " anchor=" << transport.count(read_operation::list_home_pull_requests) << " roster=" << transport.count(read_operation::list_review_requests)
+						  << " optional=" << transport.count(read_operation::get_pull_request) << " rows=" << (result ? result->Rows.size() : 0U);
+				if (result && !result->Rows.empty()) {
+					std::cerr << " awaited=" << result->Rows[0].ReviewersAwaited << " detailed=" << result->Rows[0].Detailed;
+				}
+				for (const auto& request : transport.Requests) {
+					if (request.Wire.Operation == read_operation::list_review_requests) {
+						std::cerr << " page=" << request.Wire.Semantic.Page << " cursor=" << request.Wire.Semantic.ReviewCursor;
+					}
+				}
+				std::cerr << '\n';
+			}
+			expect(recovered, "REST roster record/byte/structural and transport limits recover through complete projected pages; the viewer can be on page two");
 		}
 		{
 			auto transport = discovery_fixture_transport{ true };
