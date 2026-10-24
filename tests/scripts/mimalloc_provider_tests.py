@@ -22,7 +22,8 @@ def configure(root, name, text, arguments=(), refusal=None):
         'cmake_minimum_required(VERSION 4.4.2)\nproject(AllocatorContract C CXX)\n'
         f'include("{ROOT.as_posix()}/cmake/BprMimallocProvider.cmake")\n' + text)
     command = ['cmake', '-S', str(source), '-B', str(source / 'build'), '-G', 'Ninja',
-               f'-DCPM_SOURCE_CACHE={CACHE}', '-DBPR_DEPENDENCY_OFFLINE=ON', *arguments]
+               f'-DCPM_SOURCE_CACHE={CACHE}', '-DBPR_DEPENDENCY_OFFLINE=ON',
+               '-DCMAKE_EXPORT_COMPILE_COMMANDS=ON', *arguments]
     result = subprocess.run(command, text=True, capture_output=True, timeout=180)
     output = result.stdout + result.stderr
     normalized = " ".join(output.split())
@@ -90,6 +91,32 @@ if(bench_measurement IN_LIST products)
 endif()
 '''
     build = configure(root, 'offline-product-graph', graph, ['-DMI_XMALLOC=ON'])
+    # Exercise the actual first-configure library, not only its target name.
+    # Upstream string cache initialization previously discarded Linux's C++
+    # selection, so ordinary throwing new aborted instead of throwing.
+    (build.parent / 'oom.cpp').write_text(
+        '#include <cstddef>\n#include <limits>\n#include <new>\n'
+        'int main() { volatile auto size = std::numeric_limits<std::size_t>::max(); '
+        'try { auto* p = ::operator new(size); ::operator delete(p); return 1; } '
+        'catch (const std::bad_alloc&) { return 0; } }\n')
+    # The original graph has already configured. A separate fresh graph must
+    # use these choices before it has any upstream cache entries to reuse.
+    fresh = configure(root, 'fresh-allocation-failure', PRODUCT +
+        f'add_executable(app_bpr "{(build.parent / "oom.cpp").as_posix()}")\n'
+        'bpr_attach_product_allocator(app_bpr)\n',
+        ['-DMI_USE_CXX=OFF', '-DMI_OPT_ARCH=ON'])
+    subprocess.run(['cmake', '--build', str(fresh), '--target', 'app_bpr'],
+                   check=True, capture_output=True, timeout=180)
+    image = fresh / ('app_bpr.exe' if os.name == 'nt' else 'app_bpr')
+    result = subprocess.run([str(image)], capture_output=True, timeout=30)
+    assert result.returncode == 0, ('fresh throwing-new failure semantics', result.returncode, result.stderr)
+    import json
+    commands = json.loads((fresh / 'compile_commands.json').read_text())
+    allocator_commands = [entry.get('command', ' '.join(entry.get('arguments', [])))
+                          for entry in commands if 'mimalloc-3.5.3/src/' in entry['file'].replace('\\', '/')]
+    assert allocator_commands and all(not any(flag in command.lower() for flag in ('-march=', '-mavx', '/arch:'))
+                                      for command in allocator_commands), allocator_commands
+    print('fresh-allocation-failure:pass')
     redirect = build / '_bpr/mimalloc-source/mimalloc-3.5.3/bin/mimalloc-redirect.dll'
     redirect_digest = hashlib.sha256(redirect.read_bytes()).hexdigest()
     assert redirect_digest == 'bc3dfdf51fbc80b88cb62cdb6a6784ecc894164bdd4ae7f3885048d870809491'

@@ -603,3 +603,25 @@ unrelated MASK/NEXT_ID/BPR-1766 edits remain excluded. Next: complete native
 CLI preparation and installed public/omission/extra/removal checks; complete
 Windows matched measurements; reconcile every AC06/AC07/AC08 record. Final
 Mac Intel/signed-installed and all-platform AC07 remain unaccepted.
+
+
+### Fresh-configure defect found during CLI acceptance
+
+The new Linux CLI passes real-process Cycle work and C/C++/Qt ownership, but
+its installed throwing-new negative allocation aborts. Native inspection shows
+`MI_USE_CXX:STRING=DEFAULT` and C compilation in that fresh graph. Upstream's
+CMake 3.18 policy scope applies CMP0126 OLD: creating a string cache entry
+removes the provider's normal `MI_USE_CXX=ON` and `MI_OPT_ARCH=OFF`. Earlier
+accepted Linux candidates were reconfigured after the C++ correction and retain
+their actual passing observations; they are unchanged. The new CLI is not
+accepted. The first measurement candidates above also came from fresh graphs
+and are superseded pending corrected candidate runs; their real failures stay
+recorded, but they do not qualify the corrected runtime.
+
+The correction preserves normal provider settings in the upstream subtree
+with `CMAKE_POLICY_DEFAULT_CMP0126=NEW` and explicitly selects C++ for
+Linux/MSVC (C for Mac interposition). A fresh minimal product executable now
+actually throws/catches `std::bad_alloc`; its provider test also challenges
+caller C++/architecture settings and inspects compiled architecture flags.
+No source pin or allocation-failure requirement changes. Native focused
+verification and rebuilt CLI/measurement candidates remain pending.

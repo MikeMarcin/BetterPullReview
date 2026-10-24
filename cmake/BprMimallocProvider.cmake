@@ -83,12 +83,12 @@ function(bpr_configure_mimalloc)
     set(MI_OSX_INTERPOSE ON)
     set(MI_OSX_ZONE ON)
     set(MI_USE_CXX OFF)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        # ELF also overrides global new. The C implementation aborts when its
-        # new handler is absent; C++ compilation preserves std::bad_alloc.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR MSVC)
+        # ELF global new needs C++ failure semantics; MSVC uses upstream
+        # C++ atomics. In particular Linux must throw std::bad_alloc on OOM.
         set(MI_USE_CXX ON)
-        set(MI_NO_USE_CXX OFF)
     endif()
+    set(MI_NO_USE_CXX OFF)
     set(MI_XMALLOC OFF)
     set(MI_OPT_ARCH OFF)
     set(MI_OPT_SIMD OFF)
@@ -96,6 +96,10 @@ function(bpr_configure_mimalloc)
     set(MI_DEBUG_TSAN OFF)
     set(MI_DEBUG_UBSAN OFF)
     set(MI_WIN_REDIRECT ON)
+    # Upstream's 3.18 policy scope otherwise erases normal string settings
+    # when creating its cache entries on the first configure (CMP0126 OLD).
+    # A fresh graph must honor the same provider choices as a cached graph.
+    set(CMAKE_POLICY_DEFAULT_CMP0126 NEW)
     add_subdirectory("${source}" "${CMAKE_BINARY_DIR}/_bpr/mimalloc" EXCLUDE_FROM_ALL)
     if(APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
         # One real, versioned runtime file gives the closed package inventory a
