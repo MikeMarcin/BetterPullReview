@@ -32345,8 +32345,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (chip == nullptr || !chip->isEnabled()) {
 				return fail("no-thumbs-up-chip");
 			}
+			auto* const gate = implementation->ReviewMutationDecisionGate.get();
+			if (gate == nullptr) {
+				return fail("no-reaction-decision-gate");
+			}
+			gate->hold();
+			const auto release = qScopeGuard([gate] { gate->release(); });
 			chip->click();
-			QCoreApplication::processEvents();
+			// Keep the native answer behind this immediate observation. The
+			// next phase still requires the confirmed reaction and no Pending.
 			const auto        now        = cards->reactions_of(post);
 			const auto* const pending    = now ? core::find_reaction_group(*now, core::reaction_content::thumbs_up) : nullptr;
 			probe.Evidence.ReactionShown = pending != nullptr && pending->Count == 3U && pending->ViewerReacted && pending->Pending;
