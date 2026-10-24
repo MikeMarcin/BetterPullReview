@@ -1,0 +1,29 @@
+{
+  "schema": "bpr.rfc0014-plan-owner-amendment.v1",
+  "plan": "rfc-bpr-0014-release-readiness",
+  "revision": "r5",
+  "date": "2026-10-16",
+  "confirmed": "2026-10-23 UTC",
+  "authority": {
+    "amendment_record": "docs/issues/_checkpoints/RFC-BPR-0038/owner-matrix-amendment-20261016.json",
+    "owner_confirmation": "docs/issues/_checkpoints/RFC-BPR-0038/owner-matrix-confirmation-20261023.json",
+    "owner_words": "Windows 11 and ubuntu wsl2 are tested. If it works on other things is unproven, but not disallowed",
+    "card": "BPR-1743"
+  },
+  "affected_milestones": [
+    "m8-ux-ui-native-verification"
+  ],
+  "affected_exit": "Clean Windows 10/11 x64, macOS Intel/Apple Silicon and declared Linux x64 DEB/RPM environments satisfy their complete native card criteria.",
+  "reading": "The Windows environment for this exit is Windows 11 x64 on JaegAW, as a clean non-elevated ordinary-user desktop. The Linux environment is Ubuntu 26.04 x86_64 under WSL2/WSLg on JaegAW, testing the DEB and per-user archive; the 2026-10-11 RFC-BPR-0038 amendment had already removed RPM, Ubuntu 24.04 and RHEL from the selected set. Windows 10 and a separate native Ubuntu desktop are not required. They are unproven but not disallowed, and nothing claims them. macOS is unchanged.",
+  "plan_text": "Unchanged. milestone-plan.json and the generated MILESTONES.md keep the exit text above verbatim, as owner mandate r4 preserved M1-M11 byte-equivalent. check-amendment cannot change exit text, so the change is recorded here rather than by rewriting the adopted plan.",
+  "plan_fingerprints_at_amendment": {
+    "milestone-plan.json": "sha256:782a6847c30eb4a5607a2723138d335d34287c22a000fa4e17432785d70ade3d",
+    "MILESTONES.md": "sha256:160dab4c6a229bc44cebe68752e551d1bf518d34f8c4494434521a1c8b80646d"
+  },
+  "unchanged": [
+    "The second M8 exit: human decisions bind the exact candidate through attended review.",
+    "M9 and M13 definitions and exits.",
+    "Every native card criterion other than the environment it runs on."
+  ],
+  "acceptance_effect": "None. M8 and M9 stay unaccepted. Windows 11 ordinary-user, WSL2/WSLg Secret Service, rendered, installer, removal, crash-privacy, vulnerability, trust and security-owner evidence remain pending."
+}

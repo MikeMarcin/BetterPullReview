@@ -84,6 +84,18 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1572]]. REST compare of the recorded base and the base
 		/// branch: whether the branch only moved forward from it.
 		observe_base_ancestry,
+		/// [[BPR-1736]]. REST `GET /meta` on GitHub Enterprise Server: the
+		/// `installed_version` a learned off-hunk fact is keyed by, read once
+		/// per session before an off-hunk line is published.
+		observe_server_meta,
+		/// [[BPR-1741]]. GraphQL: which pull request a comment or review
+		/// belongs to, and its reactions, asked before a reaction is written
+		/// and once after an ambiguous one.
+		observe_reaction_subject,
+		/// [[BPR-1741]]. GraphQL: the viewer's reaction added to, or
+		/// removed from, one comment or review.
+		add_reaction,
+		remove_reaction,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -159,9 +171,11 @@ namespace bpr::adapters::github::detail {
 			application::review_mutation_request,
 			review_submission_request,
 			application::staged_review_request,
-			application::review_thread_resolution_request>;
+			application::review_thread_resolution_request,
+			application::review_reaction_request>;
 
-		semantic_type                       Semantic;
+		semantic_type Semantic;
+
 		application::github_server_contract Server    = application::github_server_contract::github_com_2022_11_28;
 		review_mutation_operation           Operation = review_mutation_operation::observe_pull_request;
 		http_method                         Method    = http_method::get;
@@ -195,9 +209,29 @@ namespace bpr::adapters::github::detail {
 		std::string                         Field;
 		std::string                         Code;
 		std::string                         Message;
-		bool                                RecordedDesignatedScope                                 = false;
-		auto                                operator<=>(const off_hunk_unsupported_contract&) const = default;
+		bool                                RecordedDesignatedScope = false;
+		/// [[BPR-1736]] (decision D4). GitHub.com's measured refusal, admitted
+		/// for any repository: the exact error tuple, with any
+		/// `documentation_url` and `status` and any header set, only for a line
+		/// the core placed outside the diff.
+		bool General                                                 = false;
+		auto operator<=>(const off_hunk_unsupported_contract&) const = default;
 	};
+
+	/// \brief [[BPR-1736]] (decision D4). GitHub.com's refusal of a single
+	/// comment outside its diff, as measured on BPR-Test PR2, #124 and #125:
+	/// resource `PullRequestReviewComment`, field
+	/// `pull_request_review_thread.line`, code `custom`, "could not be
+	/// resolved". None for GitHub Enterprise Server, whose refusal is not yet
+	/// recorded: it records the fact and asks once.
+	[[nodiscard]] auto general_off_hunk_contract(application::github_server_contract aServer) -> std::optional<off_hunk_unsupported_contract>;
+
+	/// \brief [[BPR-1736]]. Whether a fully received 422 to a single comment
+	/// names the comment's line: an `errors` object whose `field` is `line`
+	/// or `pull_request_review_thread.line`. Bounded; any other answer is
+	/// false. A refusal that names the line teaches that the server refuses
+	/// such a line; anything else teaches nothing.
+	[[nodiscard]] auto refusal_names_comment_line(const review_mutation_wire_response& aResponse) -> bool;
 
 	/// \brief Matches only the fully received exact structured non-creation response.
 	[[nodiscard]] auto definitive_off_hunk_unsupported(
@@ -316,6 +350,21 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief Compiles the bounded ordinary REST review-list observation.
 	[[nodiscard]] auto compile_review_submission_observation_request(const review_submission_request& aRequest, application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28) -> review_mutation_request_result;
+	/// \brief [[BPR-1736]]. GitHub Enterprise Server's `GET /meta`, whose
+	/// `installed_version` keys a learned off-hunk fact; refused for GitHub.com,
+	/// which has no version.
+	[[nodiscard]] auto compile_server_meta_request(const application::review_mutation_target_binding& aTarget, application::github_server_contract aServer)
+		-> review_mutation_request_result;
+
+	/// \brief [[BPR-1736]]. The `installed_version` of a `GET /meta` answer,
+	/// when it is a version a fact may be keyed by; none otherwise.
+	[[nodiscard]] auto parse_server_meta(const review_mutation_wire_response& aResponse) -> std::optional<std::string>;
+
+	/// \brief [[BPR-1736]]. The server version an answer names in its
+	/// `X-GitHub-Enterprise-Version` header, when there is exactly one and it
+	/// is a version a fact may be keyed by; none otherwise.
+	[[nodiscard]] auto enterprise_version_header(const review_mutation_wire_response& aResponse) -> std::optional<std::string>;
+
 	[[nodiscard]] auto compile_target_observation_request(
 		const application::review_mutation_target_binding& aTarget,
 		application::github_server_contract                aServer = application::github_server_contract::github_com_2022_11_28)
@@ -328,7 +377,43 @@ namespace bpr::adapters::github::detail {
 		const application::review_mutation_request& aRequest,
 		application::github_server_contract         aServer = application::github_server_contract::github_com_2022_11_28)
 		-> review_mutation_request_result;
+	/// \brief [[BPR-1741]]. One comment's or review's reactions, as an
+	/// answer bound to the designated pull request gave them.
+	struct review_reaction_subject_observation
+	{
+		std::string            Subject;
+		core::reaction_summary Reactions;
+
+		auto operator<=>(const review_reaction_subject_observation&) const = default;
+	};
+	/// \brief [[BPR-1741]]. Compiles the GraphQL mutation that adds or
+	/// removes the viewer's reaction; refused for an unbound or malformed request.
+	[[nodiscard]] auto compile_reaction_request(
+		const application::review_reaction_request& aRequest,
+		application::github_server_contract         aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1741]]. Compiles the read of a reaction subject's
+	/// pull request and reactions, with every guard the mutation has.
+	[[nodiscard]] auto compile_reaction_subject_observation_request(
+		const application::review_reaction_request& aRequest,
+		application::github_server_contract         aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1741]]. Accepts only the subject asked, inside the
+	/// designated pull request.
+	[[nodiscard]] auto parse_reaction_subject_observation(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>;
+	/// \brief [[BPR-1741]]. Accepts only the subject asked, inside the
+	/// designated pull request, with the viewer's reaction in the state asked.
+	[[nodiscard]] auto parse_reaction_response(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
+
 	[[nodiscard]] auto compile_review_submission_request(
 		const review_submission_request&    aRequest,
 		application::github_server_contract aServer = application::github_server_contract::github_com_2022_11_28)
@@ -724,8 +809,22 @@ namespace bpr::adapters::github::detail {
 			const application::review_thread_resolution_request& aRequest,
 			std::stop_token                                      aStop = { })
 			-> std::expected<application::review_thread_resolution_receipt, application::review_mutation_failure>;
+		/// \brief [[BPR-1741]]. Adds or removes the viewer's reaction on
+		/// one comment: observed first (bound to the pull request, skipped when
+		/// already in the state asked), written once, and an ambiguous outcome
+		/// confirmed by one read back. No recovery record: the state is the
+		/// record.
+		[[nodiscard]] auto set_reaction(
+			const application::review_reaction_request& aRequest,
+			std::stop_token                             aStop = { })
+			-> std::expected<application::review_reaction_receipt, application::review_mutation_failure>;
 
 	private:
+		[[nodiscard]] auto observe_reaction_subject(
+			const application::review_reaction_request& aRequest,
+			std::stop_token                             aStop)
+			-> std::expected<review_reaction_subject_observation, application::review_mutation_failure>;
+
 		[[nodiscard]] auto finish_lineage(const application::review_mutation_request&, application::review_mutation_submission, std::stop_token) -> application::review_mutation_submission;
 		[[nodiscard]] auto submit_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission;
 		[[nodiscard]] auto recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, std::stop_token aStop) -> application::review_mutation_submission;
@@ -754,6 +853,24 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                      aStop,
 			github_mutation_transmission_witness aWitness = { })
 			-> std::expected<review_mutation_wire_response, application::review_mutation_failure>;
+		/// \brief [[BPR-1736]]. The learned fact's key for a single comment on
+		/// this session's server, `aVersion` its server version; none when the
+		/// key is not one a fact may be kept under.
+		[[nodiscard]] auto off_hunk_key(std::string aVersion) const -> std::optional<application::off_hunk_fact_key>;
+		/// \brief [[BPR-1736]]. The key a publication looks the fact up by: on
+		/// GitHub Enterprise Server its `installed_version`, read once per
+		/// session; none when it could not be read. The first key forgets every
+		/// entry kept under another server.
+		[[nodiscard]] auto lookup_off_hunk_key(std::stop_token aStop) -> std::optional<application::off_hunk_fact_key>;
+		/// \brief [[BPR-1736]]. The same comment bound as a file comment when
+		/// the core placed it outside the diff and the profile has learned that
+		/// this server refuses such a line, for a fresh attempt only; none
+		/// otherwise.
+		[[nodiscard]] auto learned_file_comment(const application::review_mutation_request& aRequest, std::stop_token aStop) -> std::optional<application::review_mutation_request>;
+		/// \brief [[BPR-1736]]. Records what GitHub's answer to a native comment
+		/// the core placed outside the diff taught, under the server version
+		/// that answer names. Best effort: a fact not kept is unknown.
+		void learn_off_hunk(const application::review_mutation_request& aRequest, const review_mutation_wire_response& aResponse, core::off_hunk_answer aAnswer);
 
 		github_mutation_wire_transport*                             Transport = nullptr;
 		live_review_mutation_configuration                          Configuration;
@@ -764,6 +881,22 @@ namespace bpr::adapters::github::detail {
 		application::review_publication_capability_cache            PublicationCapabilities;
 		application::review_publication_lineage_port*               Lineage = nullptr;
 		std::shared_ptr<application::diagnostic_log_port>           Log;
+		/// [[BPR-1735]]. The HTTP status the last `perform` error carried, 0
+		/// with none; read on the serialized lane right after it.
+		std::uint16_t LastErrorStatus = 0U;
+		/// [[BPR-1735]]. UTC milliseconds for the answers a publication keeps.
+		std::function<std::int64_t()> PublicationClock;
+		/// [[BPR-1736]]. GitHub Enterprise Server's `installed_version`, once
+		/// read this session, and whether it was asked; whether entries kept
+		/// under another server were forgotten.
+		std::optional<std::string> ServerVersion;
+		bool                       ServerVersionAsked    = false;
+		bool                       OtherServersForgotten = false;
+
+	public:
+		/// \brief [[BPR-1735]]. Replaces the wall clock the kept answers and
+		/// the migrated records' settling read; for tests.
+		void set_publication_clock(std::function<std::int64_t()> aClock) { PublicationClock = std::move(aClock); }
 	};
 } // namespace bpr::adapters::github::detail
 

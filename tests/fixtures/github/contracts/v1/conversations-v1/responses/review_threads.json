@@ -54,6 +54,7 @@
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_418",
+				"locked": false,
 				"reviewThreads": {
 					"nodes": [
 						{
@@ -102,6 +103,7 @@
 							"originalLine": 78,
 							"path": "src/adapters/qt/include/bpr/qt/conversation_cards_view.hpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -166,6 +168,7 @@
 							"originalLine": 38,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -200,6 +203,7 @@
 							"originalLine": 430,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -279,6 +283,7 @@
 							"originalLine": 656,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -688,6 +693,7 @@
 							"originalLine": 667,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -827,6 +833,7 @@
 							"originalLine": 927,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -891,6 +898,7 @@
 							"originalLine": 1080,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -955,6 +963,7 @@
 							"originalLine": 1176,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -1004,6 +1013,7 @@
 							"originalLine": 1510,
 							"path": "src/adapters/qt/src/conversation_cards_view.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1038,6 +1048,7 @@
 							"originalLine": 477,
 							"path": "src/adapters/qt/src/github_conversation_delegate.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1087,6 +1098,7 @@
 							"originalLine": 419,
 							"path": "src/adapters/qt/src/github_conversation_model.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1136,6 +1148,7 @@
 							"originalLine": 571,
 							"path": "src/adapters/qt/src/github_conversation_panel.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1185,6 +1198,7 @@
 							"originalLine": 826,
 							"path": "src/adapters/qt/src/github_conversation_panel.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1459,6 +1473,7 @@
 							"originalLine": 282,
 							"path": "src/adapters/qt/src/github_thread_map.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1493,6 +1508,7 @@
 							"originalLine": 469,
 							"path": "src/adapters/qt/src/github_thread_map.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1542,6 +1558,7 @@
 							"originalLine": 711,
 							"path": "src/adapters/qt/src/github_thread_map.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -1591,6 +1608,7 @@
 							"originalLine": 288,
 							"path": "src/adapters/qt/src/workbench_drawer.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -1670,6 +1688,7 @@
 							"originalLine": 168,
 							"path": "src/application/src/github_projection_mapping.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -1719,6 +1738,7 @@
 							"originalLine": 312,
 							"path": "src/application/src/github_projection_mapping.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -1753,6 +1773,7 @@
 							"originalLine": 44,
 							"path": "src/core/src/private_thread_lineage.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": false,
 							"viewerCanUnresolve": true
 						},
@@ -1817,6 +1838,7 @@
 							"originalLine": 438,
 							"path": "tests/adapters_qt/github_thread_map_tests.cpp",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						}

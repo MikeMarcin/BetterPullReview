@@ -634,6 +634,24 @@ namespace bpr::adapters::agent {
 		return locate_claude(aPathVariable, core::usual_claude_folders(aHome, wrapper_platform));
 	}
 
+	auto locate_agent_program(const core::agent_program aProgram, const std::string_view aPathVariable, const std::span<const std::string> aUsualFolders)
+		-> std::optional<core::agent_search_candidate>
+	{
+		for (auto& candidate : core::agent_search_candidates(aProgram, aPathVariable, aUsualFolders, wrapper_platform)) {
+			if (!inspect_claude_process_wrapper(candidate.Path)) {
+				return std::move(candidate);
+			}
+		}
+		return std::nullopt;
+	}
+
+	auto locate_agent_program(const core::agent_program aProgram, const std::string_view aPathVariable, const std::string_view aHome)
+		-> std::optional<core::agent_search_candidate>
+	{
+		const auto folders = aProgram == core::agent_program::claude ? core::usual_claude_folders(aHome, wrapper_platform) : core::usual_codex_folders(aHome, wrapper_platform);
+		return locate_agent_program(aProgram, aPathVariable, std::span<const std::string>{ folders });
+	}
+
 #if defined(BPR_BUILD_TESTING) && defined(Q_OS_WIN)
 	void agent_process_launcher::force_job_assignment_failure_for_testing(
 		const bool aEnabled) noexcept

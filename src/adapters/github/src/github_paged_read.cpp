@@ -1107,6 +1107,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
 			case read_operation::resolve_body_images:
+			case read_operation::list_reactions:
 			case read_operation::list_requested_reviewers:
 				result.PullRequestNumber = aContext.Number.value();
 				break;
@@ -1243,6 +1244,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_merge_base:
 			case read_operation::get_team_membership:
 			case read_operation::list_home_pull_requests:
+			case read_operation::list_reactions:
 				return std::nullopt;
 			}
 			const auto namedRepository = std::string{ "/repos/" }
@@ -1914,6 +1916,9 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				keys.emplace_back("viewerCanUnresolve");
 			}
+			if (aShape.ReplyPermission) {
+				keys.emplace_back("viewerCanReply");
+			}
 			const auto thread = json_object(aValue);
 			if (!has_exact_keys(thread, keys)) {
 				return failed(application::github_provider_failure::malformed_response);
@@ -1948,7 +1953,9 @@ namespace bpr::adapters::github::detail {
 				|| (aShape.ResolvePermission
 					&& !json_is_bool(json_member(thread, "viewerCanResolve")))
 				|| (aShape.UnresolvePermission
-					&& !json_is_bool(json_member(thread, "viewerCanUnresolve")))) {
+					&& !json_is_bool(json_member(thread, "viewerCanUnresolve")))
+				|| (aShape.ReplyPermission
+					&& !json_is_bool(json_member(thread, "viewerCanReply")))) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
 
@@ -1973,7 +1980,14 @@ namespace bpr::adapters::github::detail {
 						   ? application::github_permission_state::allowed
 						   : application::github_permission_state::denied)
 					: application::github_permission_state::unavailable,
-				.Comments                  = { },
+				// [[BPR-1746]]. GitHub's own word on whether this viewer
+				// may reply here, which already weighs the lock.
+				.ViewerReplyPermission = aShape.ReplyPermission
+					? (json_bool(json_member(thread, "viewerCanReply"))
+						   ? application::github_permission_state::allowed
+						   : application::github_permission_state::denied)
+					: application::github_permission_state::unavailable,
+				.Comments              = { },
 			};
 			record.Comments.reserve(static_cast<std::size_t>(comments->TotalCount));
 			for (const auto& commentValue : comments->Nodes) {
@@ -2829,7 +2843,7 @@ namespace bpr::adapters::github::detail {
 								   const github_paged_read_limits&            aLimits)
 			-> std::expected<void, github_paged_read_failure>
 		{
-			if ((aShape.ResolvePermission || aShape.UnresolvePermission)
+			if ((aShape.ResolvePermission || aShape.UnresolvePermission || aShape.ReplyPermission || aShape.ConversationLock)
 				&& !aShape.ReviewThreads) {
 				return failed(application::github_provider_failure::malformed_response);
 			}
@@ -2864,14 +2878,24 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ identity.error() };
 			}
 			std::vector<std::string_view> initialPullKeys{ "headRefOid", "id" };
+			if (aShape.ConversationLock) {
+				initialPullKeys.emplace_back("locked");
+			}
 			if (aShape.ViewedFileState) {
 				initialPullKeys.emplace_back("files");
 			}
 			if (aShape.ReviewThreads) {
 				initialPullKeys.emplace_back("reviewThreads");
 			}
-			if (!has_exact_keys(initialPullRequest, initialPullKeys)) {
+			if (!has_exact_keys(initialPullRequest, initialPullKeys)
+				|| (aShape.ConversationLock && !json_is_bool(json_member(initialPullRequest, "locked")))) {
 				return failed(application::github_provider_failure::malformed_response);
+			}
+			// [[BPR-1746]]. The pull request's conversation lock.
+			if (aShape.ConversationLock) {
+				aSnapshot.ConversationLock = json_bool(json_member(initialPullRequest, "locked"))
+					? application::github_conversation_lock::locked
+					: application::github_conversation_lock::unlocked;
 			}
 
 			if (aShape.ViewedFileState) {
@@ -4187,6 +4211,170 @@ namespace bpr::adapters::github::detail {
 				.AheadBy       = json_is_undefined(aheadBy) ? std::nullopt : std::optional<std::uint64_t>{ integer(aheadBy) },
 				.RateLimits    = rates,
 			};
+		} catch (...) {
+			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
+		}
+	}
+
+	namespace {
+		/// [[BPR-1741]]. One subject's `viewerCanReact` and
+		/// `reactionGroups`: at most the eight known contents, each once; a
+		/// group's `reactors` names at most five, each a non-empty login of a
+		/// user, bot, organization or mannequin (a reactor GitHub no longer
+		/// names is counted and not named).
+		[[nodiscard]] auto reaction_summary_of(const page_json_object& aSubject) -> std::optional<core::reaction_summary>
+		{
+			const auto permitted = json_member(aSubject, "viewerCanReact");
+			const auto groups    = json_member(aSubject, "reactionGroups");
+			if (!json_is_bool(permitted) || !(json_is_array(groups) || json_is_null(groups))) {
+				return std::nullopt;
+			}
+			auto summary = core::reaction_summary{ .ViewerCanReact = json_bool(permitted) };
+			if (json_is_null(groups)) {
+				return summary;
+			}
+			const auto answered = json_array(groups);
+			if (answered.size() > core::reaction_contents.size()) {
+				return std::nullopt;
+			}
+			for (const auto& value : answered) {
+				if (!json_is_object(value)) {
+					return std::nullopt;
+				}
+				const auto group    = json_object(value);
+				const auto content  = core::reaction_from_graphql_name(text(json_member(group, "content")));
+				const auto viewer   = json_member(group, "viewerHasReacted");
+				const auto reactors = json_member(group, "reactors");
+				if (!content || !json_is_bool(viewer) || !json_is_object(reactors)) {
+					return std::nullopt;
+				}
+				const auto connection = json_object(reactors);
+				const auto total      = uint32(json_member(connection, "totalCount"));
+				const auto nodes      = json_member(connection, "nodes");
+				if (!total || !json_is_array(nodes)) {
+					return std::nullopt;
+				}
+				auto record = core::reaction_group{ .Content = *content, .Count = *total, .ViewerReacted = json_bool(viewer) };
+				for (const auto& node : json_array(nodes)) {
+					if (json_is_null(node)) {
+						continue;
+					}
+					if (!json_is_object(node)) {
+						return std::nullopt;
+					}
+					const auto actor = json_object(node);
+					if (!one_of(json_member(actor, "__typename"), { "User", "Bot", "Organization", "Mannequin" })) {
+						return std::nullopt;
+					}
+					const auto login = json_member(actor, "login");
+					if (json_is_undefined(login)) {
+						continue;
+					}
+					if (!nonempty_string(login) || text(login).size() > 256U) {
+						return std::nullopt;
+					}
+					record.Reactors.push_back(text(login));
+				}
+				summary.Groups.push_back(std::move(record));
+			}
+			return core::canonical_reaction_summary(std::move(summary));
+		}
+	} // namespace
+
+	auto parse_reaction_summary(const std::string_view aObjectJson) -> std::optional<core::reaction_summary>
+	{
+		try {
+			const auto document = parse_json_document(aObjectJson);
+			if (!document || !json_is_object(*document)) {
+				return std::nullopt;
+			}
+			return reaction_summary_of(json_object(*document));
+		} catch (...) {
+			return std::nullopt;
+		}
+	}
+
+	auto perform_github_reaction_read(
+		github_wire_transport_port&                              aTransport,
+		const validated_github_host_profile&                     aProfile,
+		const application::github_pull_request_provider_request& aRequest,
+		const core::repository_id                                aRepository,
+		const std::string_view                                   aRepositoryNode,
+		const std::string_view                                   aPullRequestNode,
+		const std::vector<std::string>&                          aSubjects,
+		const std::stop_token                                    aStop,
+		const github_paged_read_limits&                          aLimits,
+		const github_provider_read_authority                     aReadAuthority,
+		github_paged_response_observer*                          aObserver) noexcept -> github_reaction_read_result
+	{
+		auto rates = application::github_rate_limit_state{ };
+		try {
+			// Reactions carry the viewer's own state; a signed-out read has no viewer.
+			if (aReadAuthority == github_provider_read_authority::anonymous_public) {
+				return failed(application::github_provider_failure::unsupported_capability);
+			}
+			if (!provider_request_valid(aProfile, aRequest, core::provider_snapshot_id{ 1U }, aLimits, aReadAuthority)
+				|| aRepository.value() == 0U || aRepositoryNode.empty() || aPullRequestNode.empty()
+				|| aSubjects.empty() || aSubjects.size() > maximum_reaction_subjects_per_read
+				|| (aRequest.Context.ExpectedRepository && *aRequest.Context.ExpectedRepository != aRepository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto limits              = aLimits;
+			limits.MaximumTotalPages = 1U;
+			production_read_execution execution{ aTransport, aProfile, aRequest.Context, limits, aStop, rates, aRequest.AuthenticationSession, aObserver };
+			if (!execution.bind_repository(aRepository)) {
+				return failed(application::github_provider_failure::malformed_response);
+			}
+			auto semantic   = semantic_request_for(*server_contract_for(aProfile), aRequest.Context, read_operation::list_reactions);
+			semantic.Nodes  = aSubjects;
+			const auto page = execution.fetch(semantic);
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			const auto malformed = [&execution] { return execution.terminal_failure(application::github_provider_failure::malformed_response); };
+			if (!json_is_object(page->Document)) {
+				return malformed();
+			}
+			const auto data = json_member(json_object(page->Document), "data");
+			if (!json_is_object(data)) {
+				return malformed();
+			}
+			const auto fields     = json_object(data);
+			const auto repository = json_member(fields, "repository");
+			const auto nodes      = json_member(fields, "nodes");
+			if (!json_is_object(repository) || !json_is_array(nodes) || text(json_member(json_object(repository), "id")) != aRepositoryNode) {
+				return malformed();
+			}
+			const auto pull = json_member(json_object(repository), "pullRequest");
+			if (!json_is_object(pull) || text(json_member(json_object(pull), "id")) != aPullRequestNode) {
+				return malformed();
+			}
+			const auto answered = json_array(nodes);
+			if (answered.size() != aSubjects.size()) {
+				return malformed();
+			}
+			auto result = github_reaction_read{ };
+			result.Records.reserve(answered.size());
+			for (std::size_t index = 0; index < answered.size(); ++index) {
+				if (json_is_null(answered[index])) {
+					continue;
+				}
+				if (!json_is_object(answered[index])) {
+					return malformed();
+				}
+				const auto node = json_object(answered[index]);
+				if (!one_of(json_member(node, "__typename"), { "PullRequestReviewComment", "IssueComment", "PullRequestReview" })
+					|| text(json_member(node, "id")) != aSubjects[index]) {
+					return malformed();
+				}
+				auto summary = reaction_summary_of(node);
+				if (!summary) {
+					return malformed();
+				}
+				result.Records.push_back(application::github_reaction_record{ .Subject = aSubjects[index], .Reactions = std::move(*summary) });
+			}
+			result.RateLimits = std::move(rates);
+			return result;
 		} catch (...) {
 			return failed(application::github_provider_failure::response_limit, std::nullopt, rates);
 		}

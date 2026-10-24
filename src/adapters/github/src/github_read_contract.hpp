@@ -56,7 +56,14 @@ namespace bpr::adapters::github::detail {
 		/// of several pull requests of one repository in one GraphQL query,
 		/// each pull request an alias.
 		list_home_pull_requests,
+		/// [[BPR-1741]]. The reactions of the accepted pull request's
+		/// comments and reviews, by GraphQL node (`nodes(ids:)`), bound to the
+		/// pull request like `resolve_body_images`.
+		list_reactions,
 	};
+
+	/// \brief How many comments one `list_reactions` page asks about.
+	inline constexpr std::size_t maximum_reaction_subjects_per_read = 50U;
 
 	/// \brief Names the ten operations the recorded contract manifest holds.
 	///
@@ -91,7 +98,7 @@ namespace bpr::adapters::github::detail {
 	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
 	/// like the timeline: it is an independent read after the snapshot, bound
 	/// to the snapshot's own head.
-	inline constexpr std::array<read_operation, 23> all_read_operations{
+	inline constexpr std::array<read_operation, 24> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -115,6 +122,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::get_merge_base,
 		read_operation::get_team_membership,
 		read_operation::list_home_pull_requests,
+		read_operation::list_reactions,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -141,7 +149,7 @@ namespace bpr::adapters::github::detail {
 	{
 		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment
 			|| aOperation == read_operation::resolve_body_images || aOperation == read_operation::get_team_membership
-			|| aOperation == read_operation::list_home_pull_requests;
+			|| aOperation == read_operation::list_home_pull_requests || aOperation == read_operation::list_reactions;
 	}
 
 	enum class http_method : std::uint8_t {
@@ -378,6 +386,8 @@ namespace bpr::adapters::github::detail {
 			.ViewedFileState     = true,
 			.ResolvePermission   = true,
 			.UnresolvePermission = true,
+			.ReplyPermission     = true,
+			.ConversationLock    = true,
 		};
 		std::optional<application::github_viewer_record> Viewer;
 	};

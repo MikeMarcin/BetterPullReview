@@ -107,6 +107,19 @@ namespace bpr::qt::detail {
 		/// suggestions are not shown or the body holds the mark.
 		static void prepare(QString& aText, bool aSuggestions);
 
+		/// \brief Owner look v004 ([[BPR-1753]]): the file name inline
+		/// code is classified as, such as `code.cpp`; empty, the default,
+		/// leaves inline code plain. Kept through `clear` and `place`.
+		void               set_inline_selector(std::string aSelector);
+		[[nodiscard]] auto inline_selector() const noexcept -> const std::string& { return InlineSelector; }
+		/// \brief The inline code texts of the body, once each, and their spans.
+		struct inline_code
+		{
+			std::shared_ptr<const std::string> Text;
+			application::shared_token_spans    Spans;
+		};
+		[[nodiscard]] auto inline_code_texts() const noexcept -> const std::vector<inline_code>& { return Inline; }
+
 		/// \brief After the import: finds every fenced block's lines, and
 		/// shows each suggestion when `aSuggestions` says this body is a line
 		/// comment.
@@ -145,9 +158,14 @@ namespace bpr::qt::detail {
 		};
 		[[nodiscard]] auto boxes(const QTextDocument& aDocument) const -> std::vector<box>;
 
-		std::vector<block>    Blocks;
-		markdown_code_colours Colours;
-		QFont                 CodeFont;
+		/// Each inline code run outside fenced code: the fragments' text.
+		void                     place_inline(const QTextDocument& aDocument);
+		void                     style_inline(QTextDocument& aDocument, const code_role_colors& aRoles) const;
+		std::vector<block>       Blocks;
+		std::string              InlineSelector;
+		std::vector<inline_code> Inline;
+		markdown_code_colours    Colours;
+		QFont                    CodeFont;
 	};
 } // namespace bpr::qt::detail
 

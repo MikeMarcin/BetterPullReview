@@ -23,7 +23,7 @@
 namespace bpr::adapters::sqlite {
 	namespace {
 		constexpr auto RecoveryApplicationId = std::int32_t{ 0x4250524D };
-		constexpr auto RecoverySchemaVersion = std::int64_t{ 7 };
+		constexpr auto RecoverySchemaVersion = std::int64_t{ 9 };
 		constexpr auto RecoveryName          = std::string_view{
 			"review-mutation-recovery.sqlite3"
 		};
@@ -126,6 +126,40 @@ namespace bpr::adapters::sqlite {
 							  "recorded_utc_ms INTEGER NOT NULL CHECK(recorded_utc_ms >= 0),"
 							  "PRIMARY KEY(scope_id,idempotency_key),"
 							  "FOREIGN KEY(scope_id,idempotency_key) REFERENCES submission_attempt(scope_id,idempotency_key) ON DELETE CASCADE) STRICT" },
+			// [[BPR-1735]]. What GitHub answered the POST of a logical
+			// publication's child that may have been sent: no answer before
+			// it may leave, then the answer. 0 is a record kept before
+			// answers were, at the time it was migrated.
+			std::string_view{ "CREATE TABLE publication_post("
+							  "scope_id INTEGER NOT NULL,publication_key TEXT NOT NULL,"
+							  "answer INTEGER NOT NULL CHECK(answer BETWEEN 0 AND 3),"
+							  "post_class INTEGER NOT NULL CHECK(post_class BETWEEN 0 AND 5),"
+							  "recorded_utc_ms INTEGER NOT NULL CHECK(recorded_utc_ms >= 0),"
+							  "PRIMARY KEY(scope_id,publication_key),"
+							  "FOREIGN KEY(scope_id,publication_key) REFERENCES logical_publication(scope_id,publication_key) ON DELETE CASCADE) STRICT" },
+			// [[BPR-1736]]. What GitHub's answer to a reviewer's own comment
+			// at a line the core placed outside the diff taught: one entry per
+			// operation per repository per profile, host and account, kept
+			// with the rest of its key and the comment that taught it.
+			std::string_view{ "CREATE TABLE off_hunk_fact("
+							  "profile INTEGER NOT NULL CHECK(profile > 0),"
+							  "host TEXT NOT NULL CHECK(length(CAST(host AS BLOB)) BETWEEN 1 AND 253),"
+							  "account INTEGER NOT NULL CHECK(account > 0),"
+							  "repository_id INTEGER NOT NULL CHECK(repository_id > 0),"
+							  "operation INTEGER NOT NULL CHECK(operation BETWEEN 0 AND 1),"
+							  "profile_revision INTEGER NOT NULL CHECK(profile_revision > 0),"
+							  "product INTEGER NOT NULL CHECK(product BETWEEN 1 AND 2),"
+							  "server_version TEXT NOT NULL CHECK(length(CAST(server_version AS BLOB)) <= 32),"
+							  "api_version INTEGER NOT NULL CHECK(api_version > 0),"
+							  "classifier INTEGER NOT NULL CHECK(classifier > 0),"
+							  "state INTEGER NOT NULL CHECK(state BETWEEN 1 AND 2),"
+							  "source INTEGER NOT NULL CHECK(source BETWEEN 1 AND 2),"
+							  "observed_utc_ms INTEGER NOT NULL CHECK(observed_utc_ms >= 0),"
+							  "repository TEXT NOT NULL CHECK(length(CAST(repository AS BLOB)) BETWEEN 1 AND 4096),"
+							  "pull_request INTEGER NOT NULL CHECK(pull_request > 0),"
+							  "path TEXT NOT NULL CHECK(length(CAST(path AS BLOB)) BETWEEN 1 AND 4096),"
+							  "line INTEGER NOT NULL CHECK(line BETWEEN 0 AND 4294967295),"
+							  "PRIMARY KEY(profile,host,account,repository_id,operation)) STRICT" },
 		};
 		constexpr std::array RecoverySchemaVersion1{
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
@@ -180,6 +214,33 @@ namespace bpr::adapters::sqlite {
 		};
 		constexpr std::array RecoverySchemaVersion7{
 			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_post" }, RecoverySchema[9] },
+			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
+		};
+		constexpr std::array RecoverySchemaVersion8{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "publication_post" }, RecoverySchema[10] },
+			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
+			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
+			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
+			std::pair{ std::string_view{ "recovery_scope" }, RecoverySchema[1] },
+			std::pair{ std::string_view{ "staged_publication" }, RecoverySchema[7] },
+			std::pair{ std::string_view{ "submission_attempt" }, RecoverySchema[4] },
+			std::pair{ std::string_view{ "submission_baseline" }, RecoverySchema[5] },
+			std::pair{ std::string_view{ "submission_post" }, RecoverySchema[9] },
+			std::pair{ std::string_view{ "submission_unknown" }, RecoverySchema[8] },
+		};
+		constexpr std::array RecoverySchemaVersion9{
+			std::pair{ std::string_view{ "logical_publication" }, RecoverySchema[6] },
+			std::pair{ std::string_view{ "off_hunk_fact" }, RecoverySchema[11] },
+			std::pair{ std::string_view{ "publication_post" }, RecoverySchema[10] },
 			std::pair{ std::string_view{ "recovery_attempt" }, RecoverySchema[2] },
 			std::pair{ std::string_view{ "recovery_baseline" }, RecoverySchema[3] },
 			std::pair{ std::string_view{ "recovery_meta" }, RecoverySchema[0] },
@@ -428,6 +489,175 @@ namespace bpr::adapters::sqlite {
 				&& aLeft.Body == aRight.Body && aLeft.Anchor == aRight.Anchor;
 		}
 
+		/// \brief [[BPR-1736]]. The journal's learned off-hunk facts, through
+		/// the connection and lock of the store that owns them.
+		class off_hunk_fact_table final : public application::off_hunk_fact_port
+		{
+		public:
+			using failure = application::review_mutation_recovery_failure;
+
+			off_hunk_fact_table(::sqlite3*& aDatabase, std::mutex& aMutex) noexcept
+				: Database{ aDatabase }
+				, Mutex{ aMutex }
+			{
+			}
+
+			auto load(const application::off_hunk_fact_key& aKey) -> std::expected<std::optional<application::off_hunk_fact>, failure> override
+			{
+				if (!application::valid(aKey) || !storable(aKey.Scope)) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				auto             entry = load_locked(aKey.Scope, aKey.Operation);
+				if (!entry || !*entry) {
+					return entry ? std::expected<std::optional<application::off_hunk_fact>, failure>{ std::optional<application::off_hunk_fact>{ } } : std::unexpected(entry.error());
+				}
+				// Another revision, server, API version or classifier: forgotten.
+				if ((**entry).Key != aKey) {
+					return std::optional<application::off_hunk_fact>{ };
+				}
+				return std::optional{ (**entry).Fact };
+			}
+
+			auto load_scope(const application::off_hunk_fact_scope& aScope, const core::off_hunk_fact_operation aOperation)
+				-> std::expected<std::optional<application::off_hunk_fact_entry>, failure> override
+			{
+				if (!application::valid(aScope) || !storable(aScope) || aOperation > core::off_hunk_fact_operation::review) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				return load_locked(aScope, aOperation);
+			}
+
+			auto record(const application::off_hunk_fact_key& aKey, const application::off_hunk_fact& aFact) -> std::expected<void, failure> override
+			{
+				if (!application::valid(aKey) || !application::valid(aFact) || !storable(aKey.Scope) || aKey.ProfileRevision > maximum_stored || aFact.PullRequest > maximum_stored) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				if (!detail::execute(Database, "BEGIN IMMEDIATE")) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto transaction = [&]() -> std::expected<void, failure> {
+					auto upsert = detail::prepare(Database,
+												  "INSERT INTO off_hunk_fact(profile,host,account,repository_id,operation,profile_revision,product,server_version,api_version,classifier,"
+												  "state,source,observed_utc_ms,repository,pull_request,path,line) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17) "
+												  "ON CONFLICT(profile,host,account,repository_id,operation) DO UPDATE SET profile_revision=excluded.profile_revision,product=excluded.product,"
+												  "server_version=excluded.server_version,api_version=excluded.api_version,classifier=excluded.classifier,state=excluded.state,source=excluded.source,"
+												  "observed_utc_ms=excluded.observed_utc_ms,repository=excluded.repository,pull_request=excluded.pull_request,path=excluded.path,line=excluded.line");
+					if (!upsert || !bind_scope(upsert->Value, aKey.Scope) || ::sqlite3_bind_int64(upsert->Value, 5, static_cast<std::int64_t>(aKey.Operation)) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 6, static_cast<std::int64_t>(aKey.ProfileRevision)) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 7, static_cast<std::int64_t>(aKey.Product)) != SQLITE_OK || !bind_text(upsert->Value, 8, aKey.ServerVersion)
+						|| ::sqlite3_bind_int64(upsert->Value, 9, aKey.ApiVersion) != SQLITE_OK || ::sqlite3_bind_int64(upsert->Value, 10, aKey.ClassifierRevision) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 11, static_cast<std::int64_t>(aFact.Observation.State)) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 12, static_cast<std::int64_t>(aFact.Observation.Source)) != SQLITE_OK
+						|| ::sqlite3_bind_int64(upsert->Value, 13, aFact.Observation.ObservedUtcMs) != SQLITE_OK || !bind_text(upsert->Value, 14, aFact.Repository)
+						|| ::sqlite3_bind_int64(upsert->Value, 15, static_cast<std::int64_t>(aFact.PullRequest)) != SQLITE_OK || !bind_text(upsert->Value, 16, aFact.Path)
+						|| ::sqlite3_bind_int64(upsert->Value, 17, aFact.Line) != SQLITE_OK || ::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					// Capped as the capability caches are: the oldest observations go.
+					auto trim = detail::prepare(Database,
+												"DELETE FROM off_hunk_fact WHERE rowid IN (SELECT rowid FROM off_hunk_fact ORDER BY observed_utc_ms DESC, rowid DESC LIMIT -1 OFFSET ?1)");
+					if (!trim || ::sqlite3_bind_int64(trim->Value, 1, static_cast<std::int64_t>(maximum_entries)) != SQLITE_OK || ::sqlite3_step(trim->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+					return { };
+				}();
+				if (!transaction || !detail::execute(Database, "COMMIT")) {
+					static_cast<void>(detail::execute(Database, "ROLLBACK"));
+					return std::unexpected(transaction ? failure::unavailable : transaction.error());
+				}
+				return { };
+			}
+
+			auto forget_other_servers(const application::off_hunk_fact_key& aKey) -> std::expected<void, failure> override
+			{
+				if (!application::valid(aKey) || !storable(aKey.Scope) || aKey.ProfileRevision > maximum_stored) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				auto             erase = detail::prepare(Database,
+														 "DELETE FROM off_hunk_fact WHERE profile=?1 AND host=?2 AND account=?3 AND "
+														 "(profile_revision<>?4 OR product<>?5 OR server_version<>?6 OR api_version<>?7 OR classifier<>?8)");
+				if (!erase || ::sqlite3_bind_int64(erase->Value, 1, static_cast<std::int64_t>(aKey.Scope.Profile)) != SQLITE_OK || !bind_text(erase->Value, 2, aKey.Scope.Host)
+					|| ::sqlite3_bind_int64(erase->Value, 3, static_cast<std::int64_t>(aKey.Scope.Account)) != SQLITE_OK
+					|| ::sqlite3_bind_int64(erase->Value, 4, static_cast<std::int64_t>(aKey.ProfileRevision)) != SQLITE_OK
+					|| ::sqlite3_bind_int64(erase->Value, 5, static_cast<std::int64_t>(aKey.Product)) != SQLITE_OK || !bind_text(erase->Value, 6, aKey.ServerVersion)
+					|| ::sqlite3_bind_int64(erase->Value, 7, aKey.ApiVersion) != SQLITE_OK || ::sqlite3_bind_int64(erase->Value, 8, aKey.ClassifierRevision) != SQLITE_OK
+					|| ::sqlite3_step(erase->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				return { };
+			}
+
+		private:
+			static constexpr auto maximum_stored = static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max());
+
+			[[nodiscard]] static auto storable(const application::off_hunk_fact_scope& aScope) noexcept -> bool
+			{
+				return aScope.Profile <= maximum_stored && aScope.Account <= maximum_stored && aScope.RepositoryDatabaseId <= maximum_stored;
+			}
+
+			[[nodiscard]] static auto bind_scope(::sqlite3_stmt* aStatement, const application::off_hunk_fact_scope& aScope) noexcept -> bool
+			{
+				return ::sqlite3_bind_int64(aStatement, 1, static_cast<std::int64_t>(aScope.Profile)) == SQLITE_OK && bind_text(aStatement, 2, aScope.Host)
+					&& ::sqlite3_bind_int64(aStatement, 3, static_cast<std::int64_t>(aScope.Account)) == SQLITE_OK
+					&& ::sqlite3_bind_int64(aStatement, 4, static_cast<std::int64_t>(aScope.RepositoryDatabaseId)) == SQLITE_OK;
+			}
+
+			[[nodiscard]] auto load_locked(const application::off_hunk_fact_scope& aScope, const core::off_hunk_fact_operation aOperation)
+				-> std::expected<std::optional<application::off_hunk_fact_entry>, failure>
+			{
+				auto query = detail::prepare(Database,
+											 "SELECT profile_revision,product,server_version,api_version,classifier,state,source,observed_utc_ms,repository,pull_request,path,line "
+											 "FROM off_hunk_fact WHERE profile=?1 AND host=?2 AND account=?3 AND repository_id=?4 AND operation=?5");
+				if (!query || !bind_scope(query->Value, aScope) || ::sqlite3_bind_int64(query->Value, 5, static_cast<std::int64_t>(aOperation)) != SQLITE_OK) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto row = ::sqlite3_step(query->Value);
+				if (row == SQLITE_DONE) {
+					return std::optional<application::off_hunk_fact_entry>{ };
+				}
+				if (row != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto integer = [&query](const int aColumn) { return ::sqlite3_column_int64(query->Value, aColumn); };
+				const auto version = text_at(query->Value, 2);
+				const auto repo    = text_at(query->Value, 8);
+				const auto path    = text_at(query->Value, 10);
+				// The table's checks bound every column; a row outside them is not ours.
+				if (!version || !repo || !path || integer(0) <= 0 || integer(1) < 1 || integer(1) > 2 || integer(3) <= 0 || integer(3) > std::numeric_limits<std::uint32_t>::max()
+					|| integer(4) <= 0 || integer(4) > std::numeric_limits<std::uint32_t>::max() || integer(5) < 1 || integer(5) > 2 || integer(6) < 1 || integer(6) > 2
+					|| integer(9) <= 0 || integer(11) < 0 || integer(11) > std::numeric_limits<std::uint32_t>::max()) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				auto entry = application::off_hunk_fact_entry{
+					.Key  = { .Scope              = aScope,
+							  .Operation          = aOperation,
+							  .ProfileRevision    = static_cast<std::uint64_t>(integer(0)),
+							  .Product            = static_cast<core::github_server_product>(integer(1)),
+							  .ServerVersion      = *version,
+							  .ApiVersion         = static_cast<std::uint32_t>(integer(3)),
+							  .ClassifierRevision = static_cast<std::uint32_t>(integer(4)) },
+					.Fact = { .Observation = { .State         = static_cast<core::off_hunk_creation_capability>(integer(5)),
+											   .Source        = static_cast<core::off_hunk_fact_source>(integer(6)),
+											   .ObservedUtcMs = integer(7) },
+							  .Repository  = *repo,
+							  .PullRequest = static_cast<std::uint64_t>(integer(9)),
+							  .Path        = *path,
+							  .Line        = static_cast<std::uint32_t>(integer(11)) },
+				};
+				if (!application::valid(entry.Key) || !application::valid(entry.Fact) || ::sqlite3_step(query->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				return std::optional{ std::move(entry) };
+			}
+
+			::sqlite3*& Database;
+			std::mutex& Mutex;
+		};
+
 		class recovery_store final
 			: public application::review_mutation_recovery_port
 		{
@@ -438,6 +668,8 @@ namespace bpr::adapters::sqlite {
 				, Scope{ aJournal.Scope }
 			{
 			}
+
+			auto off_hunk_facts() noexcept -> application::off_hunk_fact_port* override { return &Facts; }
 
 			~recovery_store() override
 			{
@@ -501,6 +733,54 @@ namespace bpr::adapters::sqlite {
 					return std::unexpected(transaction ? failure::unavailable : transaction.error());
 				}
 				return aNext;
+			}
+
+			auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost)
+				-> std::expected<void, application::review_mutation_recovery_failure> override
+			{
+				using failure = application::review_mutation_recovery_failure;
+				if (!core::valid(aPost)) {
+					return std::unexpected(failure::conflict);
+				}
+				std::scoped_lock lock{ Mutex };
+				auto             upsert = detail::prepare(Database,
+														  "INSERT INTO publication_post(scope_id,publication_key,answer,post_class,recorded_utc_ms) "
+														  "SELECT ?1,?2,?3,?4,?5 WHERE EXISTS(SELECT 1 FROM logical_publication WHERE scope_id=?1 AND publication_key=?2) "
+														  "ON CONFLICT(scope_id,publication_key) DO UPDATE SET answer=excluded.answer,post_class=excluded.post_class,recorded_utc_ms=excluded.recorded_utc_ms");
+				if (!upsert || ::sqlite3_bind_int64(upsert->Value, 1, Scope) != SQLITE_OK || !bind_text(upsert->Value, 2, aKey)
+					|| ::sqlite3_bind_int64(upsert->Value, 3, static_cast<std::int64_t>(aPost.Answer)) != SQLITE_OK || ::sqlite3_bind_int64(upsert->Value, 4, aPost.StatusClass) != SQLITE_OK
+					|| ::sqlite3_bind_int64(upsert->Value, 5, aPost.RecordedUtcMs) != SQLITE_OK || ::sqlite3_step(upsert->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				if (::sqlite3_changes(Database) != 1) {
+					return std::unexpected(failure::conflict);
+				}
+				return { };
+			}
+
+			auto load_publication_post(const std::string& aKey)
+				-> std::expected<std::optional<core::review_publication_post>, application::review_mutation_recovery_failure> override
+			{
+				using failure = application::review_mutation_recovery_failure;
+				std::scoped_lock lock{ Mutex };
+				auto             query = detail::prepare(Database, "SELECT answer,post_class,recorded_utc_ms FROM publication_post WHERE scope_id=?1 AND publication_key=?2");
+				if (!query || ::sqlite3_bind_int64(query->Value, 1, Scope) != SQLITE_OK || !bind_text(query->Value, 2, aKey)) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto row = ::sqlite3_step(query->Value);
+				if (row == SQLITE_DONE) {
+					return std::optional<core::review_publication_post>{ };
+				}
+				if (row != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto answer = ::sqlite3_column_int64(query->Value, 0);
+				const auto klass  = ::sqlite3_column_int64(query->Value, 1);
+				auto       post   = core::review_publication_post{ .Answer = static_cast<core::review_publication_answer>(std::clamp<std::int64_t>(answer, 0, 3)), .StatusClass = static_cast<std::uint8_t>(std::clamp<std::int64_t>(klass, 0, 5)), .RecordedUtcMs = ::sqlite3_column_int64(query->Value, 2) };
+				if (answer < 0 || answer > 3 || klass < 0 || klass > 5 || !core::valid(post) || ::sqlite3_step(query->Value) != SQLITE_DONE) {
+					return std::unexpected(failure::integrity_failure);
+				}
+				return std::optional{ post };
 			}
 
 			auto load(const std::string& aIdempotencyKey)
@@ -896,6 +1176,47 @@ namespace bpr::adapters::sqlite {
 			::sqlite3*              Database = nullptr;
 			std::int64_t            Scope    = 0;
 			std::mutex              Mutex;
+			off_hunk_fact_table     Facts{ Database, Mutex };
+		};
+
+		/// \brief [[BPR-1736]]. The learned facts alone, on their own
+		/// connection to the journal, for a presentation that reads them.
+		class off_hunk_fact_store final : public application::off_hunk_fact_port
+		{
+		public:
+			explicit off_hunk_fact_store(recovery_journal aJournal) noexcept
+				: Directory{ std::move(aJournal.Directory) }
+				, Database{ aJournal.Database }
+			{
+			}
+			~off_hunk_fact_store() override
+			{
+				if (Database != nullptr) {
+					static_cast<void>(::sqlite3_close_v2(Database));
+				}
+			}
+			off_hunk_fact_store(const off_hunk_fact_store&)                    = delete;
+			auto operator=(const off_hunk_fact_store&) -> off_hunk_fact_store& = delete;
+			off_hunk_fact_store(off_hunk_fact_store&&)                         = delete;
+			auto operator=(off_hunk_fact_store&&) -> off_hunk_fact_store&      = delete;
+
+			auto load(const application::off_hunk_fact_key& aKey) -> std::expected<std::optional<application::off_hunk_fact>, application::review_mutation_recovery_failure> override { return Facts.load(aKey); }
+			auto load_scope(const application::off_hunk_fact_scope& aScope, const core::off_hunk_fact_operation aOperation)
+				-> std::expected<std::optional<application::off_hunk_fact_entry>, application::review_mutation_recovery_failure> override
+			{
+				return Facts.load_scope(aScope, aOperation);
+			}
+			auto record(const application::off_hunk_fact_key& aKey, const application::off_hunk_fact& aFact) -> std::expected<void, application::review_mutation_recovery_failure> override
+			{
+				return Facts.record(aKey, aFact);
+			}
+			auto forget_other_servers(const application::off_hunk_fact_key& aKey) -> std::expected<void, application::review_mutation_recovery_failure> override { return Facts.forget_other_servers(aKey); }
+
+		private:
+			detail::state_directory Directory;
+			::sqlite3*              Database = nullptr;
+			std::mutex              Mutex;
+			off_hunk_fact_table     Facts{ Database, Mutex };
 		};
 
 		class submission_writer
@@ -1937,7 +2258,7 @@ namespace bpr::adapters::sqlite {
 							return created;
 						}
 					}
-					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,7)")) {
+					if (!detail::execute(aDatabase, "PRAGMA application_id = 1112560205") || !detail::execute(aDatabase, "INSERT INTO recovery_meta(singleton,schema_format) VALUES(1,9)")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				} else {
@@ -1950,7 +2271,9 @@ namespace bpr::adapters::sqlite {
 						: *version == 4                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion4)
 						: *version == 5                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion5)
 						: *version == 6                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion6)
-																													 : validate_schema(aDatabase, RecoverySchemaVersion7);
+						: *version == 7                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion7)
+						: *version == 8                                                                              ? validate_schema(aDatabase, RecoverySchemaVersion8)
+																													 : validate_schema(aDatabase, RecoverySchemaVersion9);
 					if (!schema) {
 						return schema;
 					}
@@ -1977,14 +2300,27 @@ namespace bpr::adapters::sqlite {
 														   "SELECT scope_id,idempotency_key,3,0,0 FROM submission_baseline JOIN submission_attempt USING(scope_id,idempotency_key) WHERE transmission = 1 AND state = 0"))) {
 						return std::unexpected(detail::failure::unavailable);
 					}
-					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 7 WHERE singleton = 1")) {
+					// [[BPR-1735]]. A logical publication kept before answers were
+					// has none; it is kept as such, from now, so a child that may
+					// have been sent settles only after the delay.
+					if (*version < 8
+						&& (!detail::execute(aDatabase, RecoverySchema[10])
+							|| !detail::execute(aDatabase, "INSERT INTO publication_post(scope_id,publication_key,answer,post_class,recorded_utc_ms) "
+														   "SELECT scope_id,publication_key,0,0,CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER) FROM logical_publication"))) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					// [[BPR-1736]]. Nothing was learned before: every key is unknown.
+					if (*version < 9 && !detail::execute(aDatabase, RecoverySchema[11])) {
+						return std::unexpected(detail::failure::unavailable);
+					}
+					if (!detail::execute(aDatabase, "UPDATE recovery_meta SET schema_format = 9 WHERE singleton = 1")) {
 						return std::unexpected(detail::failure::unavailable);
 					}
 				}
-				if (!detail::execute(aDatabase, "PRAGMA user_version = 7")) {
+				if (!detail::execute(aDatabase, "PRAGMA user_version = 9")) {
 					return std::unexpected(detail::failure::unavailable);
 				}
-				return validate_schema(aDatabase, RecoverySchemaVersion7);
+				return validate_schema(aDatabase, RecoverySchemaVersion9);
 			};
 			const auto migrated = migrate();
 			if (!migrated || !detail::execute(aDatabase, "COMMIT")) {
@@ -2093,6 +2429,20 @@ namespace bpr::adapters::sqlite {
 		}
 		return std::unique_ptr<application::review_mutation_recovery_port>{
 			new recovery_store{ std::move(*journal) }
+		};
+	}
+	auto make_off_hunk_fact_store(
+		const review_mutation_recovery_configuration& aConfiguration)
+		-> std::expected<
+			std::unique_ptr<application::off_hunk_fact_port>,
+			application::review_mutation_recovery_failure>
+	{
+		auto journal = open_recovery_journal(aConfiguration);
+		if (!journal) {
+			return std::unexpected(journal.error());
+		}
+		return std::unique_ptr<application::off_hunk_fact_port>{
+			new off_hunk_fact_store{ std::move(*journal) }
 		};
 	}
 	auto make_review_submission_recovery_store(

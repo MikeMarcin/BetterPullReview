@@ -1,6 +1,7 @@
 #include "bpr/core/agent_wrapper.hpp"
 
 #include <algorithm>
+#include <array>
 
 namespace bpr::core {
 	static_assert(maximum_agent_wrapper_bytes == 1024U, "describe(too_long) names the bound");
@@ -95,6 +96,18 @@ namespace bpr::core {
 		return aModel.empty() || valid_claude_model(aModel);
 	}
 
+	auto valid_agent_effort(const agent_program /*aProgram*/, const std::string_view aEffort) noexcept -> bool
+	{
+		return !aEffort.empty() && aEffort.size() <= 16U && std::ranges::all_of(aEffort, [](const char aByte) { return aByte >= 'a' && aByte <= 'z'; });
+	}
+
+	auto known_agent_efforts(const agent_program /*aProgram*/) -> std::vector<std::string>
+	{
+		// Claude Code 2.1 and Codex 0.163 share these five; each harness's own
+		// list replaces them once it has said it.
+		return { "low", "medium", "high", "xhigh", "max" };
+	}
+
 	auto describe(const agent_wrapper_refusal aRefusal) noexcept -> std::string_view
 	{
 		switch (aRefusal) {
@@ -161,11 +174,39 @@ namespace bpr::core {
 		return folders;
 	}
 
+	auto usual_codex_folders(const std::string_view aHome, const agent_wrapper_platform aPlatform) -> std::vector<std::string>
+	{
+		const auto windows = aPlatform == agent_wrapper_platform::windows;
+		const auto home    = absolute_folder(aHome, windows);
+		auto       folders = std::vector<std::string>{ };
+		const auto inHome  = [&](const std::string_view aBelow) {
+			if (home) {
+				folders.push_back(below(std::string{ aHome }, aBelow, windows));
+			}
+		};
+		if (windows) {
+			inHome(".local\\bin");
+			return folders;
+		}
+		inHome(".local/bin");
+		folders.emplace_back("/opt/homebrew/bin");
+		folders.emplace_back("/usr/local/bin");
+		inHome(".npm-global/bin");
+		return folders;
+	}
+
 	auto claude_search_candidates(const std::string_view aPathVariable, const std::span<const std::string> aUsualFolders, const agent_wrapper_platform aPlatform)
 		-> std::vector<claude_search_candidate>
 	{
+		return agent_search_candidates(agent_program::claude, aPathVariable, aUsualFolders, aPlatform);
+	}
+
+	auto agent_search_candidates(const agent_program aProgram, const std::string_view aPathVariable, const std::span<const std::string> aUsualFolders,
+								 const agent_wrapper_platform aPlatform) -> std::vector<agent_search_candidate>
+	{
 		const auto windows = aPlatform == agent_wrapper_platform::windows;
-		const auto name    = std::string_view{ windows ? "claude.exe" : "claude" };
+		const auto claude  = aProgram == agent_program::claude;
+		const auto name    = std::string_view{ windows ? (claude ? "claude.exe" : "codex.exe") : (claude ? "claude" : "codex") };
 		auto       found   = std::vector<claude_search_candidate>{ };
 		const auto add     = [&](const std::string_view aFolder, const claude_found_in aOrigin) {
 			if (!absolute_folder(aFolder, windows)) {

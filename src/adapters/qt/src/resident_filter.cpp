@@ -1,5 +1,7 @@
 #include "bpr/qt/resident_filter.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include <QHBoxLayout>
 #include <QList>
 
@@ -47,7 +49,7 @@ namespace bpr::qt {
 		Message->setObjectName(aObjectPrefix + QStringLiteral("FilterMessage"));
 		Message->setWordWrap(true);
 		row->addWidget(Message, 1);
-		Clear = new QPushButton{ QStringLiteral("Clear filter"), this };
+		Clear = new quiet_push_button{ QStringLiteral("Clear filter"), this };
 		Clear->setObjectName(aObjectPrefix + QStringLiteral("ClearFilterButton"));
 		Clear->setAccessibleName(QStringLiteral("Clear %1 filter").arg(aSubject));
 		Clear->setAccessibleDescription(QStringLiteral("Empty the filter and list every one of the %1 again").arg(aSubject));

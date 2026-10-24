@@ -152,9 +152,39 @@ non-atomic, and an optional description edit is a separately named operation.
 A stop edited while its review is pending goes by the fixed GraphQL mutation
 `UpdateReviewComment` (`updatePullRequestReviewComment`, by the comment's node
 ID), because GitHub.com answers the REST `PATCH /pulls/comments/{id}` 404 for a
-pending comment ([[BPR-1368]]). It is the only GraphQL write `gh api graphql`
-admits; a submitted stop is still edited through REST. These Tour operations
-remain unavailable on an unqualified host/transport.
+pending comment ([[BPR-1368]]); a submitted stop is still edited through REST.
+These Tour operations remain unavailable on an unqualified host/transport.
+`gh api graphql` also carries a thread resolved or reopened
+(`ResolveThread`, `UnresolveThread`) and a reaction added or removed
+(`AddReaction`, `RemoveReaction`), each after the read that binds its subject
+to the pull request (`ObserveThread`, `ObserveReactionSubject`)
+([[BPR-1741]]). It carries a reply to a review thread too
+(`ReplyToThread`, `addPullRequestReviewThreadReply`), on a current thread's
+line and bound to an outdated thread alike, with the read that reconciles it
+(`ObserveThreadComments`) ([[BPR-1746]]; the owner, 2026-10-23: "Oh yeah
+sure let gh allow that."). Those are the only GraphQL writes it admits; each
+body must equal its compiled form byte for byte, and one that differs is never
+launched.
+
+The reply widens what the CLI connection may write: until this card a user
+signed in through `gh` could not publish a reply. It goes exactly the native
+reply's way, inside one account lease ([[BPR-1370]]): the `ObserveThread`
+pre-flight that binds the thread to the designated pull request, the
+`ObserveThreadComments` baseline, the journal admission, the viewer and pull
+request observations, the write and the post-write reconciliation. Unlike a
+resolution or a reaction the reply is witnessed: the journal marks it possibly
+sent before `gh` is launched, an answer lost after the launch leaves it possibly
+sent, and the reconciliation or a later session settles it from the thread
+alone. It is never sent twice. Every other GraphQL write stays refused.
+
+The conversation read carries GitHub's `viewerCanReply` on each review thread
+and the pull request's `locked` when the schema probe finds
+`PullRequestReviewThread.viewerCanReply: Boolean!` and `PullRequest.locked:
+Boolean!` (schema facts `reply_permission` and `conversation_lock`, read-shape
+flags `ReplyPermission` and `ConversationLock`, both only with the threads)
+([[BPR-1746]]). The recorded GitHub.com and GHES 3.18 schemas carry both. A
+server whose schema lacks either reads without it, and the core treats it as
+unknown: nothing is refused on it, and GitHub's answer to Publish decides.
 
 RFC-BPR-0078's `strict-cli-publication-r2` amendment permits one transient
 credential inside the GitHub adapter for each chosen-account operation. Stock
@@ -862,6 +892,8 @@ MarkFileViewed / Unviewed
 CreateReview / SubmitReview
 CreateThread / ReplyToThread
 ResolveThread / UnresolveThread
+ListReactions
+AddReaction / RemoveReaction
 ```
 
 Unsupported capabilities produce explicit unavailable states and safe fallbacks; they do not silently approximate a mutation.

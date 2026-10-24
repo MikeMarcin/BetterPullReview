@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdlib>
 #include <deque>
@@ -26,6 +27,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -190,8 +192,11 @@ namespace {
 		[[nodiscard]] auto begin_background_operation(const std::size_t aLane, std::stop_token) -> github_wire_operation override
 		{
 			BackgroundOperations.push_back(aLane);
+			std::this_thread::sleep_for(BackgroundBegin);
 			return std::shared_ptr<github_wire_transport_port>{ };
 		}
+		/// [[BPR-1744]]. How long beginning a background operation takes.
+		std::chrono::milliseconds                                     BackgroundBegin{ 0 };
 		std::size_t                                                   BackgroundLanes = 0U;
 		std::vector<std::size_t>                                      BackgroundOperations;
 		std::vector<application::github_credential_operation_context> PublicationContexts;
@@ -1886,6 +1891,73 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1741]]. After the snapshot the provider asks GitHub for
+	/// the reactions of the pull request's comments and reviews with words,
+	/// bound to the repository and pull request it read; a refused reaction
+	/// read leaves the snapshot whole, with reactions unread.
+	void test_reactions_are_read_after_the_snapshot()
+	{
+		for (const auto refuse : { false, true }) {
+			provider_fixture fixture{ application::github_authentication_transport::native_https };
+			const auto       request       = pull_request_for(fixture, account_lease(fixture));
+			auto             asked         = std::vector<std::vector<std::string>>{ };
+			fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				if (aWire.Wire.Operation == read_operation::list_reactions) {
+					asked.push_back(aWire.Wire.Semantic.Nodes);
+					expect(validate_outbound_read_request(aWire.Wire).has_value() && aWire.Wire.Semantic.PullRequestNumber == 17U,
+						   "the reaction request is canonical and names the pull request");
+					if (refuse) {
+						return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::rate_limit } };
+					}
+					auto response                 = viewer_response();
+					response.Headers.back().Value = "graphql";
+					response.Body                 = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17"}},"nodes":[)"
+													R"({"__typename":"IssueComment","id":"IC_fixture_1","viewerCanReact":true,"reactionGroups":[{"content":"ROCKET","viewerHasReacted":true,"reactors":{"totalCount":2,"nodes":[{"__typename":"User","login":"octo-reviewer"}]}}]},)"
+													R"({"__typename":"PullRequestReview","id":"PRR_fixture_1","viewerCanReact":false,"reactionGroups":[]}]}})";
+					return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+				}
+				const auto filename = [&]() -> std::optional<std::string_view> {
+					switch (aWire.Wire.Operation) {
+					case read_operation::get_repository:            return "repository";
+					case read_operation::get_pull_request:          return "pull_request";
+					case read_operation::list_pull_request_files:   return "files";
+					case read_operation::list_pull_request_commits: return "commits";
+					case read_operation::list_reviews:              return "reviews";
+					case read_operation::list_issue_comments:       return "issue_comments";
+					case read_operation::list_checks:               return "checks";
+					case read_operation::search_pull_requests:      return "search";
+					default:                                        return std::nullopt;
+					}
+				}();
+				if (!filename) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::unsupported_capability } };
+				}
+				auto response = viewer_response();
+				response.Body = read_file(capability_fixture_root().parent_path().parent_path() / "contracts/v1/github-com/responses" / (std::string{ *filename } + ".json"));
+				if (aWire.Wire.Operation == read_operation::search_pull_requests) {
+					response.Headers.back().Value = "search";
+				}
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			auto completions = std::vector<application::github_pull_request_completion>{ };
+			fixture.Provider->fetch_pull_request(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			const auto& snapshot = require_one<application::github_pull_request_success>(completions, "the read completes whether or not reactions were answered").Snapshot;
+			expect(asked == std::vector<std::vector<std::string>>{ { "IC_fixture_1", "PRR_fixture_1" } }, "one page asks about the comment and the review with words");
+			expect(!snapshot.IssueComments.empty() && !snapshot.Reviews.empty(), "the snapshot is whole");
+			if (refuse) {
+				expect(snapshot.ReactionsAvailability == application::github_reaction_availability::failed && snapshot.Reactions.empty(),
+					   "a refused reaction read leaves reactions unread and nothing else");
+				continue;
+			}
+			expect(snapshot.ReactionsAvailability == application::github_reaction_availability::available && snapshot.Reactions.size() == 2U
+					   && snapshot.Reactions[0].Subject == "IC_fixture_1" && snapshot.Reactions[0].Reactions.Groups.size() == 1U
+					   && snapshot.Reactions[0].Reactions.Groups[0].Content == core::reaction_content::rocket && snapshot.Reactions[0].Reactions.Groups[0].Count == 2U
+					   && snapshot.Reactions[0].Reactions.Groups[0].ViewerReacted && !snapshot.Reactions[1].Reactions.ViewerCanReact,
+				   "GitHub's answer is kept per subject");
+		}
+	}
+
 	/// [[BPR-1560]], [[BPR-1572]]. The provider says why a snapshot has no
 	/// merge base: a read that failed (a window may keep the merge base it
 	/// had) differs from answers proving there is no single one (the pull
@@ -2946,14 +3018,39 @@ namespace {
 				   "a foreign account, generation, lease or credential provenance is refused before any effect");
 		}
 		completions.clear();
-		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
-			return github_wire_cancelled{ .Correlation = aWire.Correlation };
-		};
 		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
 		fixture.Provider->cancel_discovery(request);
 		fixture.Effects.run_next();
 		expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_cancelled>(completions.front()),
 			   "cancelling a queued discovery read still delivers exactly one terminal");
+
+		// [[BPR-1744]]. A read's cost splits out its time in the
+		// transport and counts its answers by kind: 403, 429, 5xx, timeout.
+		for (const auto answer : { 403, 429, 502, 0 }) {
+			completions.clear();
+			fixture.Transport->ReadHandler = [answer](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 15 });
+				if (answer == 0) {
+					return github_wire_error{ .Correlation = aWire.Correlation, .Error = { .Failure = application::github_provider_failure::timeout } };
+				}
+				auto response   = viewer_response();
+				response.Status = answer;
+				response.Body   = "{}";
+				return github_wire_success{ .Correlation = aWire.Correlation, .Response = std::move(response) };
+			};
+			fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
+			fixture.Effects.run_next();
+			expect(completions.size() == 1U && std::holds_alternative<application::personal_discovery_error>(completions.front()), "a refused, limited, failing or timed-out search fails the read once");
+			const auto& cost = std::get<application::personal_discovery_error>(completions.front()).Cost;
+			expect(cost.Requests >= 1U && cost.WireMilliseconds >= 15U * cost.Requests && cost.WireMilliseconds <= cost.RunMilliseconds,
+				   "the read's time in the transport is part of its run");
+			expect(cost.Forbidden == (answer == 403 ? cost.Requests : 0U) && cost.Throttled == (answer == 429 ? cost.Requests : 0U)
+					   && cost.ServerErrors == (answer == 502 ? cost.Requests : 0U) && cost.Timeouts == (answer == 0 ? cost.Requests : 0U),
+				   "each answer is counted by its kind");
+		}
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_cancelled{ .Correlation = aWire.Correlation };
+		};
 
 		// [[BPR-1680]]. Discovery's own lanes: a transport with background
 		// lanes reads there, round robin, each on the background lane of the
@@ -2970,7 +3067,8 @@ namespace {
 		fixture.Transport->BackgroundLanes = 2U;
 		expect(fixture.Provider->discovery_beside_reads(lease), "a transport with background lanes reads beside the window");
 		completions.clear();
-		const auto reads = fixture.Transport->ReadRequests.size();
+		fixture.Transport->BackgroundBegin = std::chrono::milliseconds{ 20 };
+		const auto reads                   = fixture.Transport->ReadRequests.size();
 		for (auto index = 0; index < 3; ++index) {
 			fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
 		}
@@ -2981,6 +3079,12 @@ namespace {
 		expect(completions.size() == 3U && fixture.Transport->ReadRequests.size() == reads + 3U
 				   && fixture.Transport->BackgroundOperations == std::vector<std::size_t>{ 0U, 1U, 0U },
 			   "each read began its operation on the background lane of its discovery lane and reached the transport");
+		expect(std::ranges::all_of(completions, [](const application::personal_discovery_completion& aCompletion) {
+				   const auto* const cancelled = std::get_if<application::personal_discovery_cancelled>(&aCompletion);
+				   return cancelled != nullptr && cancelled->Cost.CredentialMilliseconds >= 20U && cancelled->Cost.CredentialMilliseconds <= cancelled->Cost.RunMilliseconds;
+			   }),
+			   "beginning the account operation is timed apart, inside the run");
+		fixture.Transport->BackgroundBegin = std::chrono::milliseconds{ 0 };
 		completions.clear();
 		fixture.Provider->discover(request, [&](auto aResult) { completions.push_back(std::move(aResult)); });
 		fixture.Provider->cancel_discovery(request);
@@ -3014,6 +3118,8 @@ int main(int aArgc, char** aArgv)
 	test_pull_request_attempt_diagnostic_propagation();
 	test_merge_base_failure_and_refusal_are_distinct();
 	test_team_membership_is_read_once_a_session();
+	test_reactions_are_read_after_the_snapshot();
+
 	test_logging_wrapper_failure_preserves_terminal();
 	test_profile_set_validation();
 	test_live_profile_catalog();

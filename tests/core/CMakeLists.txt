@@ -369,6 +369,24 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_executable(
+    test_better_pull_review_conversation_reactions_core_tests
+    conversation_reactions_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_conversation_reactions_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_conversation_reactions_core_tests)
+bpr_enable_warnings(test_better_pull_review_conversation_reactions_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_conversation_reactions
+    COMMAND test_better_pull_review_conversation_reactions_core_tests
+)
+
+bpr_add_executable(
     test_better_pull_review_defect_workflow_core_tests
     defect_workflow_tests.cpp
 )
@@ -469,6 +487,14 @@ bpr_enable_hardening(test_better_pull_review_agent_wrapper_core_tests)
 bpr_enable_warnings(test_better_pull_review_agent_wrapper_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_wrapper COMMAND test_better_pull_review_agent_wrapper_core_tests)
 set_tests_properties(core_agent_wrapper PROPERTIES PASS_REGULAR_EXPRESSION "agent-wrapper-tests:pass")
+
+# [[BPR-1748]]. RFC-BPR-0092's agent setup: rows, choice, checks, steps.
+bpr_add_executable(test_better_pull_review_agent_setup_core_tests agent_setup_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_setup_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_setup_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_setup_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_setup COMMAND test_better_pull_review_agent_setup_core_tests)
+set_tests_properties(core_agent_setup PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-tests:pass")
 
 bpr_add_executable(
     test_better_pull_review_agent_session_core_tests
@@ -914,6 +940,14 @@ bpr_enable_hardening(test_filtered_comment)
 bpr_enable_warnings(test_filtered_comment)
 bpr_add_network_isolated_test(NAME core_filtered_comment COMMAND test_filtered_comment)
 
+# [[BPR-1736]]: the learned comment-anywhere fact, its lifetime and where a
+# comment goes under it.
+bpr_add_executable(test_off_hunk_fact off_hunk_fact_tests.cpp)
+target_link_libraries(test_off_hunk_fact PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_off_hunk_fact)
+bpr_enable_warnings(test_off_hunk_fact)
+bpr_add_network_isolated_test(NAME core_off_hunk_fact COMMAND test_off_hunk_fact)
+
 bpr_add_executable(test_review_preparation review_preparation_tests.cpp)
 target_link_libraries(test_review_preparation PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_review_preparation)
@@ -1196,6 +1230,15 @@ bpr_enable_warnings(test_reply_draft_standing)
 bpr_add_network_isolated_test(NAME core_reply_draft_standing COMMAND test_reply_draft_standing)
 set_tests_properties(core_reply_draft_standing PROPERTIES PASS_REGULAR_EXPRESSION "REPLY_DRAFT_STANDING_OK")
 
+# [[BPR-1745]]. An outdated thread takes a reply bound to the thread, as
+# GitHub's web interface does; GitHub's thread data decides whether it may.
+bpr_add_executable(test_thread_reply thread_reply_tests.cpp)
+target_link_libraries(test_thread_reply PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_thread_reply)
+bpr_enable_warnings(test_thread_reply)
+bpr_add_network_isolated_test(NAME core_thread_reply COMMAND test_thread_reply)
+set_tests_properties(core_thread_reply PROPERTIES PASS_REGULAR_EXPRESSION "THREAD_REPLY_OK")
+
 # [[BPR-1591]]. A private note's line keeps or is outdated, never moved.
 bpr_add_executable(test_note_placement note_placement_tests.cpp)
 target_link_libraries(test_note_placement PRIVATE BetterPullReview::Core)
@@ -1280,3 +1323,31 @@ set_property(TARGET test_core_computation_boundaries PROPERTY LINK_LIBRARIES Bet
 bpr_enable_hardening(test_core_computation_boundaries)
 bpr_enable_warnings(test_core_computation_boundaries)
 bpr_add_network_isolated_test(NAME core_computation_boundaries COMMAND test_core_computation_boundaries)
+
+# [[BPR-1750]]. RFC-BPR-0092 D2: clone remotes, URLs and matching.
+bpr_add_executable(test_better_pull_review_clone_discovery_core_tests clone_discovery_tests.cpp)
+target_link_libraries(test_better_pull_review_clone_discovery_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_clone_discovery_core_tests)
+bpr_enable_warnings(test_better_pull_review_clone_discovery_core_tests)
+bpr_add_network_isolated_test(NAME core_clone_discovery COMMAND test_better_pull_review_clone_discovery_core_tests)
+set_tests_properties(core_clone_discovery PROPERTIES PASS_REGULAR_EXPRESSION "clone-discovery-tests:pass")
+
+# [[BPR-1752]]. RFC-BPR-0092 D1 and Q9 A: the review skill's front matter,
+# the newer-version offer and the review brief's bounds.
+bpr_add_executable(test_better_pull_review_review_skill_core_tests review_skill_tests.cpp)
+target_link_libraries(test_better_pull_review_review_skill_core_tests PRIVATE BetterPullReview::Core)
+target_compile_definitions(test_better_pull_review_review_skill_core_tests PRIVATE
+    BPR_TEST_REVIEW_SKILL="${PROJECT_SOURCE_DIR}/packaging/agent-skills/bpr-pr-review/SKILL.md")
+bpr_enable_hardening(test_better_pull_review_review_skill_core_tests)
+bpr_enable_warnings(test_better_pull_review_review_skill_core_tests)
+bpr_add_network_isolated_test(NAME core_review_skill COMMAND test_better_pull_review_review_skill_core_tests)
+set_tests_properties(core_review_skill PROPERTIES PASS_REGULAR_EXPRESSION "review-skill-tests:pass")
+
+# [[BPR-1753]]. RFC-BPR-0092 owner amendment 2026-10-23: the agent list,
+# its slots, its edits and the move from the single Claude and Codex settings.
+bpr_add_executable(test_better_pull_review_agent_entry_core_tests agent_entry_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_entry_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_entry_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_entry_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_entry COMMAND test_better_pull_review_agent_entry_core_tests)
+set_tests_properties(core_agent_entry PROPERTIES PASS_REGULAR_EXPRESSION "agent-entry-tests:pass")

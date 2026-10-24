@@ -4,6 +4,7 @@
 #include <array>
 #include <charconv>
 #include <cstddef>
+#include <type_traits>
 #include <utility>
 
 namespace bpr::core {
@@ -60,6 +61,32 @@ namespace bpr::core {
 			const auto found = std::ranges::find(aNames, *value);
 			return found == aNames.end() ? std::nullopt : std::optional{ static_cast<TEnum>(found - aNames.begin()) };
 		}
+
+		/// The counts after the state, in line order; the first
+		/// `short_fields` are the line [[BPR-1680]] option 1 wrote.
+		constexpr std::size_t short_fields = 7U;
+		template <typename TDiagnosis>
+		[[nodiscard]] auto fields_of(TDiagnosis& aDiagnosis)
+		{
+			using field = std::conditional_t<std::is_const_v<TDiagnosis>, const std::uint32_t*, std::uint32_t*>;
+			return std::array<std::pair<std::string_view, field>, 15>{ {
+				{ "repositories", &aDiagnosis.Repositories },
+				{ "pull_requests", &aDiagnosis.PullRequests },
+				{ "reads", &aDiagnosis.Reads },
+				{ "failed", &aDiagnosis.Failed },
+				{ "requests", &aDiagnosis.Requests },
+				{ "wait_ms", &aDiagnosis.WaitMilliseconds },
+				{ "run_ms", &aDiagnosis.RunMilliseconds },
+				{ "credential_ms", &aDiagnosis.CredentialMilliseconds },
+				{ "wire_ms", &aDiagnosis.WireMilliseconds },
+				{ "decision_ms", &aDiagnosis.DecisionMilliseconds },
+				{ "http_403", &aDiagnosis.Forbidden },
+				{ "http_429", &aDiagnosis.Throttled },
+				{ "http_5xx", &aDiagnosis.ServerErrors },
+				{ "timeouts", &aDiagnosis.Timeouts },
+				{ "backoff_s", &aDiagnosis.BackoffSeconds },
+			} };
+		}
 	} // namespace
 
 	auto name(const discovery_diagnosis_scope aScope) noexcept -> std::string_view
@@ -87,7 +114,7 @@ namespace bpr::core {
 			return aDiagnosis.Read == 0U && aDiagnosis.Reason == discovery_diagnosis_reason::none;
 		}
 		return aDiagnosis.Read != 0U && aDiagnosis.Reason != discovery_diagnosis_reason::none && aDiagnosis.State == discovery_diagnosis_state::none
-			&& aDiagnosis.Reads == 0U && aDiagnosis.Failed == 0U;
+			&& aDiagnosis.Reads == 0U && aDiagnosis.Failed == 0U && aDiagnosis.BackoffSeconds == 0U;
 	}
 
 	auto describe(const discovery_diagnosis& aDiagnosis) -> std::string
@@ -103,15 +130,11 @@ namespace bpr::core {
 		text += name(aDiagnosis.Reason);
 		text += " state=";
 		text += name(aDiagnosis.State);
-		for (const auto& [key, value] : std::array<std::pair<std::string_view, std::uint32_t>, 7>{ { { " repositories=", aDiagnosis.Repositories },
-																									 { " pull_requests=", aDiagnosis.PullRequests },
-																									 { " reads=", aDiagnosis.Reads },
-																									 { " failed=", aDiagnosis.Failed },
-																									 { " requests=", aDiagnosis.Requests },
-																									 { " wait_ms=", aDiagnosis.WaitMilliseconds },
-																									 { " run_ms=", aDiagnosis.RunMilliseconds } } }) {
+		for (const auto& [key, field] : fields_of(aDiagnosis)) {
+			text += ' ';
 			text += key;
-			text += std::to_string(value);
+			text += '=';
+			text += std::to_string(*field);
 		}
 		return text;
 	}
@@ -126,19 +149,18 @@ namespace bpr::core {
 		if (!state) {
 			return std::nullopt;
 		}
-		auto result = discovery_diagnosis{ .Scope = *scope, .Refresh = *refresh, .Read = *read, .Reason = *reason, .State = *state };
-		for (const auto& [key, field] : std::array<std::pair<std::string_view, std::uint32_t*>, 7>{ { { "repositories", &result.Repositories },
-																									  { "pull_requests", &result.PullRequests },
-																									  { "reads", &result.Reads },
-																									  { "failed", &result.Failed },
-																									  { "requests", &result.Requests },
-																									  { "wait_ms", &result.WaitMilliseconds },
-																									  { "run_ms", &result.RunMilliseconds } } }) {
-			const auto value = number(aText, key);
+		auto       result = discovery_diagnosis{ .Scope = *scope, .Refresh = *refresh, .Read = *read, .Reason = *reason, .State = *state };
+		const auto fields = fields_of(result);
+		for (std::size_t index = 0U; index < fields.size(); ++index) {
+			// The line builds before the timing split wrote ends here.
+			if (index == short_fields && aText.empty()) {
+				break;
+			}
+			const auto value = number(aText, fields[index].first);
 			if (!value) {
 				return std::nullopt;
 			}
-			*field = *value;
+			*fields[index].second = *value;
 		}
 		if (!aText.empty() || !valid(result)) {
 			return std::nullopt;

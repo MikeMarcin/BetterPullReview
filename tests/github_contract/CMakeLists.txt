@@ -487,12 +487,19 @@ target_link_libraries(
     test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         BetterPullReview::AdapterGitHub
+        # [[BPR-1746]]. The composed reply course keeps its journal in
+        # the shipped SQLite recovery store.
+        BetterPullReview::AdapterSQLite
         BetterPullReview::Application
 )
 target_include_directories(
     test_better_pull_review_gh_cli_transport_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_gh_cli_transport_tests
+    PRIVATE BPR_APPLICATION_TESTING=1
 )
 bpr_enable_hardening(
     test_better_pull_review_gh_cli_transport_tests
@@ -698,6 +705,11 @@ target_include_directories(
     test_better_pull_review_github_mutation_contract_tests
     PRIVATE
         "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+)
+target_compile_definitions(
+    test_better_pull_review_github_mutation_contract_tests
+    PRIVATE
+        "BPR_REACTIONS_FIXTURE_DIR=\"${PROJECT_SOURCE_DIR}/tests/fixtures/github/reactions-v1\""
 )
 bpr_enable_hardening(test_better_pull_review_github_mutation_contract_tests)
 bpr_enable_warnings(test_better_pull_review_github_mutation_contract_tests)
@@ -1410,6 +1422,68 @@ bpr_add_network_isolated_test(
     NAME github_markdown_image_resolution
     COMMAND test_better_pull_review_markdown_image_resolution_tests
 )
+
+# [[BPR-1741]]. The live reaction and resolution course against the
+# one owner-designated disposable repository. Not a test row and not built by
+# default: it reaches GitHub.com through gh, so only an explicit configure
+# builds it, and tests/scripts/reaction_live_course.py runs it by hand.
+option(BPR_BUILD_LIVE_REACTION_COURSE "Build the live reaction course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_REACTION_COURSE)
+    bpr_add_executable(tool_reaction_live_course reaction_live_course.cpp)
+    target_link_libraries(
+        tool_reaction_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+            Qt6::Core
+    )
+    target_include_directories(tool_reaction_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    bpr_enable_hardening(tool_reaction_live_course)
+    bpr_enable_warnings(tool_reaction_live_course)
+endif()
+
+# [[BPR-1745]]. The live outdated-thread reply course's process: never a
+# CTest row, and not built by default. Configure with
+# -DBPR_BUILD_LIVE_OUTDATED_REPLY_COURSE=ON; tests/scripts/outdated_reply_live_course.py
+# runs it by hand against MikeMarcin/BPR-Test.
+option(BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE "Build the live outdated-thread reply course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_OUTDATED_REPLY_COURSE)
+    bpr_add_executable(tool_outdated_reply_live_course outdated_reply_live_course.cpp)
+    target_link_libraries(
+        tool_outdated_reply_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::Application
+            Qt6::Core
+    )
+    target_include_directories(tool_outdated_reply_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    target_compile_definitions(tool_outdated_reply_live_course PRIVATE BPR_APPLICATION_TESTING=1)
+    bpr_enable_hardening(tool_outdated_reply_live_course)
+    bpr_enable_warnings(tool_outdated_reply_live_course)
+endif()
+
+# [[BPR-1746]]. The live course of thread replies on the GitHub CLI
+# connection: the app's own gh path (gh_cli_transport over the shipped
+# process runner) against MikeMarcin/BPR-Test. Never a CTest row, and not built
+# by default. Configure with -DBPR_BUILD_LIVE_CLI_REPLY_COURSE=ON;
+# tests/scripts/cli_reply_live_course.py runs it by hand.
+option(BPR_BUILD_LIVE_CLI_REPLY_COURSE "Build the live CLI-connection reply course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_CLI_REPLY_COURSE)
+    bpr_add_executable(tool_cli_reply_live_course cli_reply_live_course.cpp)
+    target_link_libraries(
+        tool_cli_reply_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::Application
+            Qt6::Core
+    )
+    target_include_directories(tool_cli_reply_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    target_compile_definitions(tool_cli_reply_live_course PRIVATE BPR_APPLICATION_TESTING=1)
+    bpr_enable_hardening(tool_cli_reply_live_course)
+    bpr_enable_warnings(tool_cli_reply_live_course)
+endif()
 
 # RFC-BPR-0084. The live image course's process. CTest runs only its offline
 # request compilation; tests/scripts/markdown_image_live_course.py drives it

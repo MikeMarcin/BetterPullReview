@@ -1603,6 +1603,12 @@ auto main(int argc, char** argv) -> int
 	QApplication application{ argc, argv };
 	QApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewAppearanceSettingsPanelTests"));
+	if (argc > 1 && std::string_view{ argv[1] } == "--shared-buttons") {
+		test_tab_width_is_a_segment();
+		test_white_space_row_design_captures();
+		std::cout << "appearance-settings-panel-buttons:pass\n";
+		return EXIT_SUCCESS;
+	}
 	test_the_tiles_are_the_mode_control();
 	test_the_type_rows_are_one_line_each();
 	test_every_consequence_is_reachable_three_ways();

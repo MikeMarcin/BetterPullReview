@@ -1,0 +1,19 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1747",
+    "BPR-1748",
+    "BPR-1749",
+    "BPR-1750",
+    "BPR-1751",
+    "BPR-1752",
+    "BPR-1753",
+    "BPR-1754",
+    "BPR-1755",
+    "BPR-1756"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "RFC-BPR-0092 agent setup cards AN, AQ1-AQ9",
+  "created": "2026-10-24T03:10:49.697323+00:00",
+  "base": "3280ab5ba357ecf37547434edf1be8b96211af1b"
+}

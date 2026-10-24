@@ -23,6 +23,7 @@ class QBoxLayout;
 class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
+	class stop_action_row;
 	enum class tour_editor_action : std::uint8_t { import_selected,
 												   retry_save,
 												   use_saved_copy,
@@ -144,12 +145,15 @@ namespace bpr::qt {
 		void                                                                       open_brief(int aField);
 		void                                                                       place_stop_card();
 		void                                                                       fit_route();
+		void                                                                       fit_page_columns();
 		void                                                                       refresh_excerpt();
 		void                                                                       refresh_foot();
 		tour_editor_mode                                                           Mode = tour_editor_mode::route;
 		QPointer<QWidget>                                                          RefocusStop;
-		std::vector<QPushButton*>                                                  RouteOnly;
-		QWidget*                                                                   MoreButton = nullptr;
+		stop_action_row*                                                           StopActions   = nullptr;
+		QPushButton*                                                               AddRelated    = nullptr;
+		QPushButton*                                                               RemoveRelated = nullptr;
+		QWidget*                                                                   MoreButton    = nullptr;
 		std::function<void(bool)>                                                  ExpandDispatch;
 		std::function<void()>                                                      CollapseDispatch;
 		std::function<std::optional<tour_excerpt>(const core::tour_source_range&)> ExcerptSource;
@@ -161,6 +165,7 @@ namespace bpr::qt {
 		QWidget*                                                                   RouteColumn        = nullptr;
 		QWidget*                                                                   PageColumns        = nullptr;
 		QWidget*                                                                   PageLeft           = nullptr;
+		QWidget*                                                                   PageRight          = nullptr;
 		QWidget*                                                                   StopsHost          = nullptr;
 		QWidget*                                                                   StopHeader         = nullptr;
 		QLabel*                                                                    StopHeading        = nullptr;

@@ -107,6 +107,85 @@ evidence may be reused only with its original scope and identity.
   expiry/recheck condition. Lower-severity findings also require disposition.
   Never infer non-applicability only from an idle launch or an unused filename.
 
+## Binding a scan to its artifact
+
+[`verify_release_vulnerability_scan.py`](../../scripts/verify_release_vulnerability_scan.py)
+checks one raw Grype report against one exact package and its SPDX. Each
+check is required:
+
+- the package and SPDX bytes match their stated SHA-256 values;
+- the SPDX names the producer revision and platform in its namespace and in
+  the first-party `sourceInfo`;
+- the report scanned that SPDX file at `--fail-on negligible`, with no
+  only-fixed, only-not-fixed, ignore-wontfix, exclude or VEX setting;
+- the report has no ignore rule other than Grype's four built-in kernel-header
+  defaults, and no ignored or suppressed matches;
+- the database is valid, checksum-pinned and built within 72 hours before the
+  scan;
+- every match names a package in that SPDX with the same name and version.
+
+The verifier writes a summary with every finding and exits 2 when any match
+remains, so a failed gate stays failed. Optional expected match and advisory
+counts turn drift into a refusal. Investigate drift instead of editing the
+counts or adding filters. `release_vulnerability_scan_contract` runs its
+controls: substituted bytes, a stale database, an exclude, a custom ignore,
+an ignored match, a narrower threshold, only-fixed, VEX, a foreign SPDX, a
+foreign revision or platform, count drift and an unrepresented match each
+fail for their own reason.
+
+To repeat a scan offline, keep `GRYPE_DB_AUTO_UPDATE=false`, record
+`grype db status`, run `grype sbom:<exact SPDX> --fail-on negligible -o json
+--file <raw report>`, then run the verifier with the package, SPDX, their
+digests, the producer revision, platform and architecture. A newer database
+or feed can change the result legitimately. Keep the new raw report.
+
+## Reviewing every scanner row
+
+The independent review method from the RFC-BPR-0038 0.2.x review still
+applies. Its records are historical; see the
+[RFC-BPR-0038 ledger](../verification/RFC-BPR-0038.md#security-audit-port-and-current-release-scan-recheck-2026-10-22).
+
+- One queue row per raw match (artifact, SPDX package, version, advisory and
+  severity), plus separate entries for advisories the feed omits.
+- The reviewer is not the author of the proposals, and names themselves and
+  the review date.
+- Each row ends as `accept`, `reject`, `remediate` or
+  `insufficient-evidence`. Each decision states its rationale, primary
+  sources, evidence and a recheck trigger or expiry. `insufficient-evidence`
+  is not a waiver.
+- A counterexample to a proposed invariant leaves the row pending, even when
+  it does not reproduce an exploit in the application.
+- Accepting a row accepts only the technical analysis. The accountable,
+  named security owner's decision is separate and must be recorded.
+- No decision transfers to changed bytes, a changed dependency, build option
+  or platform, or a changed advisory.
+
+## Owner decision on known upstream Qt issues, 2026-10-16
+
+The owner said: "that's fine we're just going to keep those as known issues
+until the upstream Qt fixes them in a release. We don't have to hide them but
+we don't have to shout from the rooftops that we have a vulnerability either."
+Earlier they set the remediation route: "If they come with Qt then I will
+only accept updated Qt releases, I'm not maintaining a fork of Qt". The
+[decision record](../issues/_checkpoints/RFC-BPR-0038/owner-qt-known-issues-20261016.json)
+binds that decision to Qt 6.11.2, Mac 0.2.1 and Windows 0.2.2. It covers
+seven rows: Qt-bundled PCRE2 10.47 `CVE-2026-89156` (MAC-001, MAC-007,
+WIN-001, WIN-007) and Windows bundled zlib 1.3.2 `CVE-2026-85091` (WIN-013,
+WIN-026, WIN-027). It also covers the outside-feed PCRE2 advisory
+`GHSA-r9hj-j2rw-4q3m` / `CVE-2026-103111`.
+
+The remediation route still holds: use official Qt releases, not a fork. The
+deferral itself is historical. Its own recheck trigger, a newly selected
+official Qt release, fired when Qt 6.12.0 was selected. The 0.3.x releases
+instead rely on their own independent factual dispositions. On 2026-10-23 the
+owner extended it ([[BPR-1742]]): "Yes that decision carries over to 6.12.0
+and continues to carry over until Qt releases the fix." The deferral therefore
+covers the two Qt 6.12.0 issues that remain, Windows zlib `CVE-2026-85091` and
+`GHSA-r9hj-j2rw-4q3m`, and every later Qt release that still carries them; it
+ends when an official Qt release ships the fix. The deferral is not evidence of non-applicability, a
+fixed package, a passing scan or approval to publish. It does not cover Apple
+system zlib or D-Bus.
+
 ## Local IPC is not a network service
 
 Under mandate r3 the obsolete absolute “no local server” wording is replaced

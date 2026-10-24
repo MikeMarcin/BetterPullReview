@@ -1,0 +1,299 @@
+{
+  "schema": "bpr.private-library-final-artifact-acceptance.v1",
+  "owner": "/root/bpr1525_implementer",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "milestone": "declared-pe-library-proof",
+  "producer_source": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+  "version": "0.2.2",
+  "evidence_supplier": "Coordinator supplied actual native integrated packageR2 and expanded MSI auditR4 outputs; read locally, no implementer PC commands or signing.",
+  "package_production": {
+    "result": "exit0",
+    "completed_utc": "2026-10-16T06:59:33Z",
+    "manifest": "build/releases/0.2.2/windows-x64-r2/BetterPullReview-0.2.2-windows-x64.msi.release.json"
+  },
+  "native_receipt": {
+    "source": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+    "audit": "C:/Users/mikem/AppData/Local/BetterPullReviewRelease/bpr-v022-final-audit-r4",
+    "runtime": "C:\\Users\\mikem\\AppData\\Local\\BetterPullReviewRelease\\bpr-v022-final-audit-r4\\expanded-msi\\LocalApp\\Programs\\BetterPullReview",
+    "startedUtc": "2026-10-16T06:59:56.2684608Z",
+    "completedUtc": "2026-10-16T07:00:30.9803601Z",
+    "pid": 33224,
+    "manifest": "C:\\Users\\mikem\\bpr-v021\\build\\releases\\0.2.2\\windows-x64-r2\\BetterPullReview-0.2.2-windows-x64.msi.release.json",
+    "exitCode": 0,
+    "scope": "Actual final MSI administrative extraction, native all-firstparty trust and exact package/security mechanics; not clean-account/vault/legal/security approval",
+    "stage": "complete",
+    "complete": true
+  },
+  "native_signatures": {
+    "BetterPullReview-0.2.2-windows-x64.msi": {
+      "sha256": "b3e2a5420893604ebb6b30d7708cb2405d090a16e09dc459d049bf1155a50f85",
+      "status": "Valid",
+      "publisher": "Michael Marcin",
+      "signerThumbprint": "74334BE57062D2ECBA8CB701CA5E8D4597E3EFB5",
+      "timestampAuthority": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7800-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    "better_pull_review.exe": {
+      "sha256": "af01d262dc794072171cbc98be9347fb8d27d1693511cfc0a8aa8a4ae175c8d0",
+      "status": "Valid",
+      "publisher": "Michael Marcin",
+      "signerThumbprint": "74334BE57062D2ECBA8CB701CA5E8D4597E3EFB5",
+      "timestampAuthority": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7D00-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    "better_pull_review_agent_supervisor.exe": {
+      "sha256": "be604f0882754f7c39ad026e18d49d6d7bda5c6e2d78886e2df2c4eb8e7ba786",
+      "status": "Valid",
+      "publisher": "Michael Marcin",
+      "signerThumbprint": "74334BE57062D2ECBA8CB701CA5E8D4597E3EFB5",
+      "timestampAuthority": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7A00-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    "better_pull_review_mcp_context_helper.exe": {
+      "sha256": "35aef4a48fc13572f7d18614f9547e2fca6aed32f7dd5a4303461c4d8567088b",
+      "status": "Valid",
+      "publisher": "Michael Marcin",
+      "signerThumbprint": "74334BE57062D2ECBA8CB701CA5E8D4597E3EFB5",
+      "timestampAuthority": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7A00-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    },
+    "bpr_xdiff.dll": {
+      "sha256": "f5a210550598896a416fce616571c5d5acc4ed27525c461a79f96e9b7b6b4ee2",
+      "status": "Valid",
+      "publisher": "Michael Marcin",
+      "signerThumbprint": "74334BE57062D2ECBA8CB701CA5E8D4597E3EFB5",
+      "timestampAuthority": "CN=Microsoft Public RSA Time Stamping Authority, OU=nShield TSS ESN:7800-05E0-D947, OU=Microsoft America Operations, O=Microsoft Corporation, L=Redmond, S=Washington, C=US"
+    }
+  },
+  "package_audit": {
+    "binaries": [
+      "better_pull_review.exe",
+      "better_pull_review_agent_supervisor.exe",
+      "better_pull_review_mcp_context_helper.exe",
+      "bpr_xdiff.dll",
+      "MSVCP140.dll",
+      "MSVCP140_1.dll",
+      "MSVCP140_2.dll",
+      "MSVCP140_ATOMIC_WAIT.dll",
+      "plugins/platforms/qwindows.dll",
+      "plugins/styles/qmodernwindowsstyle.dll",
+      "plugins/tls/qschannelbackend.dll",
+      "Qt6Core.dll",
+      "Qt6Gui.dll",
+      "Qt6Network.dll",
+      "Qt6Widgets.dll",
+      "VCRUNTIME140.dll",
+      "VCRUNTIME140_1.dll"
+    ],
+    "build_platform": "Windows",
+    "executable_sha256": "af01d262dc794072171cbc98be9347fb8d27d1693511cfc0a8aa8a4ae175c8d0",
+    "families": {
+      "agent_integrations": true,
+      "local_automation": true
+    },
+    "file_count": 24,
+    "first_party_compile_units": 430,
+    "license_approval": "pending",
+    "result": "RELEASE_PACKAGE_OK",
+    "runtime_data": {
+      "better_pull_review.rcc": "7ce45d35e11c4cd1b3241d4b447ada7f6b4920f129169e500eb1e3a5cbbe37e5"
+    },
+    "sbom_sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039",
+    "source_asset": {
+      "name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+      "sha256": "504b38551e2d6560ca5c67ad6a563c92cac1e75c75605d5a11937621dd62dbe1",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip"
+    },
+    "source_revision": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+    "symbol_evidence": {
+      "MSVCP140.dll": "byte-identical upstream PE + exported symbols",
+      "MSVCP140_1.dll": "byte-identical upstream PE + exported symbols",
+      "MSVCP140_2.dll": "byte-identical upstream PE + exported symbols",
+      "MSVCP140_ATOMIC_WAIT.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Core.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Gui.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Network.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Widgets.dll": "byte-identical upstream PE + exported symbols",
+      "VCRUNTIME140.dll": "byte-identical upstream PE + exported symbols",
+      "VCRUNTIME140_1.dll": "byte-identical upstream PE + exported symbols",
+      "better_pull_review.exe": "byte-identical PE + bound full link /MAP + undname anchors",
+      "better_pull_review_agent_supervisor.exe": "byte-identical PE + bound full link /MAP + undname anchors",
+      "better_pull_review_mcp_context_helper.exe": "byte-identical PE + bound full link /MAP + undname anchors",
+      "bpr_xdiff.dll": "byte-identical PE + bound full link /MAP + undname anchors",
+      "plugins/platforms/qwindows.dll": "byte-identical upstream PE + exported symbols",
+      "plugins/styles/qmodernwindowsstyle.dll": "byte-identical upstream PE + exported symbols",
+      "plugins/tls/qschannelbackend.dll": "byte-identical upstream PE + exported symbols"
+    },
+    "trust": "not-assessed"
+  },
+  "security_mechanics_audit": {
+    "binaries": [
+      "better_pull_review.exe",
+      "better_pull_review_agent_supervisor.exe",
+      "better_pull_review_mcp_context_helper.exe",
+      "bpr_xdiff.dll",
+      "MSVCP140.dll",
+      "MSVCP140_1.dll",
+      "MSVCP140_2.dll",
+      "MSVCP140_ATOMIC_WAIT.dll",
+      "plugins/platforms/qwindows.dll",
+      "plugins/styles/qmodernwindowsstyle.dll",
+      "plugins/tls/qschannelbackend.dll",
+      "Qt6Core.dll",
+      "Qt6Gui.dll",
+      "Qt6Network.dll",
+      "Qt6Widgets.dll",
+      "VCRUNTIME140.dll",
+      "VCRUNTIME140_1.dll"
+    ],
+    "binary_hardening": {
+      "MSVCP140.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "MSVCP140_1.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "MSVCP140_2.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "MSVCP140_ATOMIC_WAIT.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "Qt6Core.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "Qt6Gui.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "Qt6Network.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "Qt6Widgets.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "VCRUNTIME140.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "VCRUNTIME140_1.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "better_pull_review.exe": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "better_pull_review_agent_supervisor.exe": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "better_pull_review_mcp_context_helper.exe": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "bpr_xdiff.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "plugins/platforms/qwindows.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "plugins/styles/qmodernwindowsstyle.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      },
+      "plugins/tls/qschannelbackend.dll": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      }
+    },
+    "build_platform": "Windows",
+    "compile_hardening": {
+      "compile_units": 431,
+      "required": [
+        "/sdl",
+        "/guard:cf",
+        "/GS"
+      ],
+      "third_party_external_builds": "separate qualification: prebuilt Qt and external KSyntaxHighlighting/LibArchive"
+    },
+    "executable_sha256": "af01d262dc794072171cbc98be9347fb8d27d1693511cfc0a8aa8a4ae175c8d0",
+    "families": {
+      "agent_integrations": true,
+      "local_automation": true
+    },
+    "file_count": 24,
+    "first_party_compile_units": 430,
+    "license_approval": "pending",
+    "release_acceptance": "pending independent trust/legal, scan policy and complete native runtime/vault/crash evidence",
+    "result": "RELEASE_SECURITY_MECHANICS_OK",
+    "runtime_data": {
+      "better_pull_review.rcc": "7ce45d35e11c4cd1b3241d4b447ada7f6b4920f129169e500eb1e3a5cbbe37e5"
+    },
+    "sbom_sha256": "088c1778af8dec5125ded29651100a901fb8fad49ec33e30e3be2f1d7a93d039",
+    "source_asset": {
+      "name": "Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip",
+      "sha256": "504b38551e2d6560ca5c67ad6a563c92cac1e75c75605d5a11937621dd62dbe1",
+      "url": "https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.2.2/Source-BetterPullReview-0.2.2-windows-x64-corresponding-source.zip"
+    },
+    "source_revision": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+    "sources_notices": {
+      "legal_approval": "pending: first-party terms, mixed syntax-data licenses, toolchain terms and corresponding build/relink obligations; the LGPL xdiff library's arrangement was owner-approved for 0.2.0 on 2026-10-13 (RFC-BPR-0038 ledger)",
+      "notices_sha256": "91dd5b3aa90cd23325897406f1ddad1c98e73c7ba868eaeb98bd1c4c205bd4a2",
+      "qt_packages": 58,
+      "source_archive_sha256": "504b38551e2d6560ca5c67ad6a563c92cac1e75c75605d5a11937621dd62dbe1",
+      "source_archives": 17
+    },
+    "symbol_evidence": {
+      "MSVCP140.dll": "byte-identical upstream PE + exported symbols",
+      "MSVCP140_1.dll": "byte-identical upstream PE + exported symbols",
+      "MSVCP140_2.dll": "byte-identical upstream PE + exported symbols",
+      "MSVCP140_ATOMIC_WAIT.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Core.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Gui.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Network.dll": "byte-identical upstream PE + exported symbols",
+      "Qt6Widgets.dll": "byte-identical upstream PE + exported symbols",
+      "VCRUNTIME140.dll": "byte-identical upstream PE + exported symbols",
+      "VCRUNTIME140_1.dll": "byte-identical upstream PE + exported symbols",
+      "better_pull_review.exe": "byte-identical PE + bound full link /MAP + undname anchors",
+      "better_pull_review_agent_supervisor.exe": "byte-identical PE + bound full link /MAP + undname anchors",
+      "better_pull_review_mcp_context_helper.exe": "byte-identical PE + bound full link /MAP + undname anchors",
+      "bpr_xdiff.dll": "byte-identical PE + bound full link /MAP + undname anchors",
+      "plugins/platforms/qwindows.dll": "byte-identical upstream PE + exported symbols",
+      "plugins/styles/qmodernwindowsstyle.dll": "byte-identical upstream PE + exported symbols",
+      "plugins/tls/qschannelbackend.dll": "byte-identical upstream PE + exported symbols"
+    },
+    "trust": "not-assessed"
+  },
+  "receipt_inputs": {
+    "decoded-native-trust.json": {
+      "path": "/Users/jaeger/Documents/Codex/releases/v0.2.2-windows-publisher/.mask/sessions/release-v0.2.2/native-final/decoded-native-trust.json",
+      "sha256": "a0691ead7e1a4ab73d8eb7817d8970e7b41658ff2469a872d1871ad9ba7a3b35"
+    },
+    "decoded-package-audit.json": {
+      "path": "/Users/jaeger/Documents/Codex/releases/v0.2.2-windows-publisher/.mask/sessions/release-v0.2.2/native-final/decoded-package-audit.json",
+      "sha256": "6ae1ca4f9f16c048483b9006392ed43d869383e64105ab88cac32c1b5b8b0a11"
+    },
+    "decoded-security-audit.json": {
+      "path": "/Users/jaeger/Documents/Codex/releases/v0.2.2-windows-publisher/.mask/sessions/release-v0.2.2/native-final/decoded-security-audit.json",
+      "sha256": "001a7e8b8f6fc9d852a7fadb90fbeecfd5e1dac1ebb4ea0bbc17d52dac8645f6"
+    },
+    "bpr-v022-final-audit-r4.receipt.json": {
+      "path": "/Users/jaeger/Documents/Codex/releases/v0.2.2-windows-publisher/.mask/sessions/release-v0.2.2/native-final/bpr-v022-final-audit-r4.receipt.json",
+      "sha256": "16dc501087cb85f9449f67d3319d55e1eb64a97c66b2ffc0e817613c43795445"
+    }
+  },
+  "publisher_dry_run": "Coordinator reports passed on private clean23447 with all4 receipts and archive/source binding; not rerun by this owner.",
+  "qualification_limits": [
+    "Original4c MSI undeclared-producer/missing-map/unsigned-DLL failure remains preserved.",
+    "Raw vulnerability scan31 findings retained by coordinator with no new approval/disposition inferred. Mechanical audit result is distinct from scan/security/legal release approval.",
+    "Clean-account/native runtime/vault/crash, independent security/legal and broader release qualification remain scoped as recorded by the security audit; this card closes only its declared private-library proof repair.",
+    "Published Mac0.2.1 is immutable. Frozen producer/tag candidate23447 is unchanged by later development-only canonical Done notes; publication/download trust verification remains coordinator-owned."
+  ],
+  "command_state": "No native commands issued after06:55:45Z quiescent transfer; coordinator owns PC. Only local docs/board/checkpoint closeout is active."
+}

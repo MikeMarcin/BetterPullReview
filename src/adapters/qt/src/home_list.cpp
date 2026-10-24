@@ -1,5 +1,7 @@
 #include "bpr/qt/home_list.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QApplication>
 #include <QCoreApplication>
 #include <QEvent>
@@ -288,7 +290,7 @@ namespace bpr::qt {
 			// The group's header names the owner or the repository, so its rows
 			// say only the rest: "name#123" under an owner, "#123" under a
 			// repository.
-			const auto number = QStringLiteral("#%1").arg(QSortFilterProxyModel::data(aIndex, review_landing_model::number_role).toLongLong());
+			auto number = QStringLiteral("#%1").arg(QSortFilterProxyModel::data(aIndex, review_landing_model::number_role).toLongLong());
 			if (Grouping == application::home_grouping::repository) {
 				return number;
 			}
@@ -646,9 +648,10 @@ namespace bpr::qt {
 		setWidget(Column);
 
 		// [[BPR-1357]]. The open row's Cancel or Retry: a real button on the row
-		// that asked, so it paints natively and assistive technology reaches it.
+		// that asked, so assistive technology reaches it, drawn as RFC-BPR-0087's
+		// shared chip.
 		// It moves to the list that shows the row; Escape on that row presses it.
-		OpenAction = new QToolButton{ Column };
+		OpenAction = new quiet_tool_button{ Column };
 		OpenAction->setObjectName(QStringLiteral("homeRowOpenActionButton"));
 		OpenAction->setToolButtonStyle(Qt::ToolButtonTextOnly);
 		OpenAction->setFocusPolicy(Qt::NoFocus);

@@ -1,11 +1,13 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP
 
+#include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
+#include "bpr/core/agent_setup.hpp"
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -107,6 +109,11 @@ namespace bpr::application {
 		/// operation it is refused whole, as an operation riding on another
 		/// gesture is.
 		std::optional<core::supplement_feedback_guidance> FeedbackGuidance;
+		/// [[BPR-1752]], RFC-BPR-0092. The review brief, already within
+		/// its bounds (`core::bound_review_brief`); absent for a launch that is
+		/// not a review request. The host sets its workspace kind once the
+		/// workspace is made.
+		std::optional<core::supplement_brief> Brief;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};
@@ -154,6 +161,14 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto permitted() const noexcept -> bool = 0;
 		virtual void               release() noexcept                 = 0;
 	};
+	/// \brief Owner look v006 ([[BPR-1753]]): what a run is for. A
+	/// catalog run asks a Codex App Server for its models (`model/list`) and
+	/// nothing else: no thread, no turn, no context.
+	enum class agent_launch_purpose : std::uint8_t {
+		conversation,
+		model_catalog,
+	};
+
 	/// \brief What one agent process is started with.
 	struct agent_launch_request
 	{
@@ -177,6 +192,10 @@ namespace bpr::application {
 		std::optional<core::agent_run_provenance>     AdmittedRun;
 		bool                                          WritingOnly = false;
 		std::shared_ptr<agent_input_claim>            PrivateInputClaim;
+		/// [[BPR-1753]]. The profile launched, so an added agent's own
+		/// program and fixed arguments are found for its slot.
+		core::agent_profile_id Profile;
+		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -354,6 +373,13 @@ namespace bpr::application {
 		/// undecoded so that the shared loop, rather than the frame reader, is
 		/// the one place a payload becomes findings.
 		finding_payload,
+		/// [[BPR-1753]]. What the harness says the turn cost, in US
+		/// dollars as the decimal it wrote; Claude Code's result frame names
+		/// it `total_cost_usd`.
+		usage_report,
+		/// Owner look v006. A catalog run's `model/list` result, its exact
+		/// bytes; the loop keeps it and closes the input.
+		model_catalog,
 	};
 
 	struct agent_protocol_event
@@ -434,6 +460,35 @@ namespace bpr::application {
 		core::agent_session_id aSession)
 		-> std::expected<agent_finding_payload, agent_protocol_failure>;
 
+	/// \brief The fence an agent's answer opens its review findings with.
+	inline constexpr std::string_view agent_review_findings_fence = "```bpr-findings";
+
+	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
+	/// like that"). The review findings an agent wrote in its answer, as the
+	/// review skill asks: the last block fenced `bpr-findings`, holding a
+	/// `findings` array (or the array alone) of objects with `path`,
+	/// `startLine` and `endLine` (one-based, inclusive, at the head unless
+	/// `side` is `left`), `severity`, `category` and `confidence` by the stable
+	/// names the structured payload uses, `claim`, and optionally `evidence`,
+	/// `consequence` and `suggestedComment`.
+	///
+	/// \details No harness lets its model add `bprFindings` to the result
+	/// frame the harness writes, so this is how a real agent returns findings.
+	/// The host states what the agent cannot know: the provider and analyzed
+	/// revisions are the session's, and a finding on a file of `aSnapshot` is
+	/// anchored to its first line in that file's frozen comparison. A finding
+	/// on any other file carries no anchor, so `core::validate_agent_finding`
+	/// delivers it unanchored rather than anywhere it was not about. An entry
+	/// that is not a finding is left out; at most
+	/// `maximum_agent_findings_per_turn` are read, from a block within
+	/// `maximum_agent_finding_payload_bytes`.
+	///
+	/// \returns The payload, or none when the answer holds no such block.
+	[[nodiscard]] auto decode_agent_review_findings(
+		std::string_view                    aAnswer,
+		const core::agent_session&          aSession,
+		const core::agent_finding_snapshot& aSnapshot) -> std::optional<agent_finding_payload>;
+
 	/// \brief Builds the next App Server message after a decoded control event.
 	[[nodiscard]] auto build_agent_protocol_followup(
 		const agent_launch_request& aRequest,
@@ -444,7 +499,7 @@ namespace bpr::application {
 	class agent_protocol_decoder final
 	{
 	public:
-		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false);
+		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation);
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -469,6 +524,7 @@ namespace bpr::application {
 		core::agent_runtime_metadata Metadata;
 		core::agent_protocol         Protocol;
 		bool                         WritingOnly = false;
+		agent_launch_purpose         Purpose     = agent_launch_purpose::conversation;
 		std::string                  Pending;
 		std::size_t                  TotalBytes   = 0U;
 		bool                         Failed       = false;
@@ -520,6 +576,8 @@ namespace bpr::application {
 		std::optional<int>              ExitCode;
 		/// Exact decoder cause when `Outcome` is `protocol_failure`.
 		std::optional<agent_protocol_failure> ProtocolFailure;
+		/// [[BPR-1738]]. Why, when `Outcome` is `workspace_unavailable`.
+		std::optional<agent_workspace_unavailable_reason> WorkspaceReason;
 		/// The turn's decoded findings, before any verdict. Absent when the
 		/// turn returned none. Unlike `Events` this survives a stale
 		/// finalization, because a payload the reviewer can no longer act on
@@ -530,6 +588,11 @@ namespace bpr::application {
 		core::agent_runtime_metadata                 Metadata;
 		std::vector<core::agent_provenance_conflict> ProvenanceConflicts;
 		std::vector<std::string>                     AssistantItems;
+		/// [[BPR-1753]]. The turn's cost as the harness reported it, a
+		/// decimal of US dollars; absent when it reported none.
+		std::optional<std::string> ReportedCostUsd;
+		/// Owner look v006. A catalog run's `model/list` result, as written.
+		std::optional<std::string> ModelCatalog;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};
@@ -556,6 +619,84 @@ namespace bpr::application {
 		const core::agent_session&          aSession,
 		const core::agent_revision_binding& aObserved,
 		core::agent_run_id                  aExpectedRun = { }) -> agent_run_result;
+
+	/// \brief [[BPR-1749]], RFC-BPR-0092 Q3 A. The two runs of one
+	/// setup check: the agent's own status command and its `--version`.
+	struct agent_status_launches
+	{
+		agent_launch_request Status;
+		agent_launch_request Version;
+	};
+
+	/// \brief Builds the setup check's launches of `aProgram`, the absolute
+	/// program setup found for `aAgent`.
+	///
+	/// \details `claude auth status --json`, or `codex login status`, and then
+	/// `--version`. Neither carries a question, a supplement or a review: no
+	/// input, no workspace, the profile's own environment allowlist, and an
+	/// empty folder of its own as the working directory, as tool-free writing
+	/// runs. Their output is read as plain lines. Nothing for the plain-text
+	/// harness, which has no status command, or for a profile of another
+	/// agent.
+	[[nodiscard]] auto build_agent_status_launches(core::setup_agent aAgent, const core::agent_profile& aProfile, std::string aProgram, const environment_reader& aParent)
+		-> std::optional<agent_status_launches>;
+
+	/// \brief Decodes what the status run said, at the process boundary.
+	///
+	/// \details Claude answers JSON with a boolean `loggedIn`; Codex says
+	/// "Logged in" and exits zero, or "Not logged in". Anything else, a run
+	/// that did not finish, and a malformed answer are `unreadable`, never
+	/// taken as signed in. A signed-in check keeps the version run's first
+	/// word that reads as a version, bounded, or none.
+	[[nodiscard]] auto decode_agent_status(core::setup_agent aAgent, const agent_run_result& aStatus, const agent_run_result& aVersion) -> core::agent_status_check;
+
+	/// \brief Owner look v006 ("Codex is totally missing its model settings.
+	/// And its effort is missing max"). One model a harness offers, as it
+	/// names it, with the reasoning efforts it takes.
+	struct agent_model_option
+	{
+		/// What `--model` (or App Server's `model`) takes.
+		std::string Model;
+		/// What the harness shows, such as "GPT-6.1-Sol".
+		std::string              DisplayName;
+		std::vector<std::string> Efforts;
+		std::string              DefaultEffort;
+		bool                     IsDefault = false;
+
+		auto operator<=>(const agent_model_option&) const = default;
+	};
+
+	/// \brief What a harness says it offers: its models (none when it cannot
+	/// list them) and its effort levels (none when it says none).
+	struct agent_harness_catalog
+	{
+		std::vector<agent_model_option> Models;
+		std::vector<std::string>        Efforts;
+
+		auto operator<=>(const agent_harness_catalog&) const = default;
+	};
+
+	/// \brief The most models, and efforts per model, a catalog keeps.
+	inline constexpr std::size_t maximum_catalog_models  = 64U;
+	inline constexpr std::size_t maximum_catalog_efforts = 16U;
+
+	/// \brief A Codex App Server catalog run of `aProgram`, after `aFixed`:
+	/// `app-server`, then `initialize`, `initialized` and `model/list`. No
+	/// workspace and no context, an empty folder of its own, the profile's
+	/// environment allowlist; as the setup check runs.
+	[[nodiscard]] auto build_agent_model_catalog_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent)
+		-> agent_launch_request;
+	/// \brief The catalog run's models: each listed model not hidden, its
+	/// name, display name, efforts and default, bounded; none when the run
+	/// did not answer.
+	[[nodiscard]] auto decode_agent_model_catalog(const agent_run_result& aResult) -> std::vector<agent_model_option>;
+	/// \brief Claude Code's `--help` run of `aProgram`, after `aFixed`.
+	[[nodiscard]] auto build_agent_help_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent)
+		-> agent_launch_request;
+	/// \brief The effort levels `--help` lists for `--effort`, in its order:
+	/// `--effort <level> ... (low, medium, high, xhigh, max)`; none when it
+	/// lists none.
+	[[nodiscard]] auto decode_agent_help_efforts(const agent_run_result& aResult) -> std::vector<std::string>;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP

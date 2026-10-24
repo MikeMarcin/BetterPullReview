@@ -18,6 +18,7 @@
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/info_glyph.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -26,6 +27,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QFontMetrics>
+#include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -35,6 +37,7 @@
 #include <QRect>
 #include <QScrollArea>
 #include <QStatusBar>
+#include <QStyle>
 #include <QToolButton>
 
 #include <algorithm>
@@ -547,6 +550,97 @@ namespace {
 		}
 	}
 
+	/// \brief RFC-BPR-0087: the composed Settings choices share Overview's chip,
+	/// while Qt keeps exclusive choice, keyboard activation and disabled behavior.
+	void test_settings_choices_share_the_overview_treatment()
+	{
+		fixture f;
+		f.publish({ });
+		f.Window.settings()->resize(1'100, 900);
+		f.Window.settings()->present(qt::settings_page::review);
+		settle();
+		auto* const selected = f.find("openModalityOverview");
+		auto* const other    = f.find("openModalityReview");
+		auto* const reset    = f.find("resetOpening");
+		expect(selected != nullptr && other != nullptr && reset != nullptr, "the real Review page supplies the choice and its Reset");
+		for (auto* const button : { selected, other, reset, f.find("feedbackMarksIcons"), f.find("overviewCountsOpen"), f.find("appearanceTabWidth4") }) {
+			expect(dynamic_cast<qt::quiet_tool_button*>(button) != nullptr, "Review, Comments and Appearance opt in to the shared component");
+		}
+		const auto imageOf = [](QToolButton& aButton) {
+			auto image = QImage{ aButton.size() * 2, QImage::Format_ARGB32_Premultiplied };
+			image.setDevicePixelRatio(2.0);
+			image.fill(aButton.palette().color(QPalette::Window));
+			aButton.render(&image, QPoint{ }, QRegion{ }, QWidget::DrawChildren);
+			return image;
+		};
+		const auto at       = [](const QImage& aImage, const int aX, const int aY) { return aImage.pixelColor(aX * 2, aY * 2); };
+		const auto contrast = [](const QColor& aA, const QColor& aB) { return qt::contrast_ratio(qt::to_appearance_color(aA), qt::to_appearance_color(aB)); };
+		const auto original = f.Window.palette();
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark, core::appearance_mode::high_contrast_light, core::appearance_mode::high_contrast_dark }) {
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			const auto name = std::string{ "shared-buttons-review-" } + std::string{ core::stable_name(profile.variant()) };
+			f.Window.setPalette(profile.derive(original));
+			f.Window.settings()->present(qt::settings_page::review);
+			f.publish({ });
+			selected->clearFocus();
+			other->clearFocus();
+			selected->setAttribute(Qt::WA_UnderMouse, false);
+			other->setAttribute(Qt::WA_UnderMouse, false);
+			settle();
+			const auto ground = selected->palette().color(QPalette::Window);
+			const auto chosen = imageOf(*selected);
+			const auto bare   = imageOf(*other);
+			expect(selected->isChecked() && !other->isChecked(), "the published default selects Overview only");
+			expect(contrast(at(chosen, 0, selected->height() / 2), ground) >= 3.0, "the selected choice has the reference's visible border in every theme");
+			expect(contrast(at(chosen, 3, selected->height() / 2), ground) > 1.0 && contrast(at(chosen, 3, selected->height() / 2), ground) <= 1.35,
+				   "its fill stays a quiet tint");
+			expect(at(bare, 0, other->height() / 2) == ground && at(bare, 3, other->height() / 2) == ground, "the other choice is bare");
+			const auto raised = imageOf(*reset);
+			expect(contrast(at(raised, 0, reset->height() / 2), ground) >= 3.0, "Reset is a quiet raised action even though it is not checkable");
+			other->setAttribute(Qt::WA_UnderMouse, true);
+			const auto hovered = imageOf(*other);
+			expect(at(hovered, 3, other->height() / 2) != ground, "an enabled hover has feedback");
+			save_render(*f.Window.settings(), (name + "-hover").c_str());
+			other->setDown(true);
+			expect(at(imageOf(*other), 3, other->height() / 2) != at(hovered, 3, other->height() / 2), "press feedback differs from hover");
+			save_render(*f.Window.settings(), (name + "-pressed").c_str());
+			other->setDown(false);
+			other->setAttribute(Qt::WA_UnderMouse, false);
+			f.Window.settings()->activateWindow();
+			other->setFocus(Qt::TabFocusReason);
+			settle();
+			expect(other->hasFocus() && contrast(at(imageOf(*other), 2, other->height() / 2), ground) >= 3.0, "Tab focus is visible on the unselected choice");
+			save_render(*f.Window.settings(), (name + "-focus").c_str());
+			const auto before  = f.Records.size();
+			auto       press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+			auto       release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+			QApplication::sendEvent(other, &press);
+			QApplication::sendEvent(other, &release);
+			settle();
+			expect(f.Records.size() == before + 1U && f.Records.back().OpenModality == application::review_open_modality::review
+					   && other->isChecked() && !selected->isChecked(),
+				   "Space selects Review exclusively and dispatches once");
+			other->clearFocus();
+			const auto enabled = imageOf(*other);
+			other->setEnabled(false);
+			other->click();
+			expect(f.Records.size() == before + 1U && imageOf(*other) != enabled, "disabled choices change their rendering and cannot dispatch");
+			save_render(*f.Window.settings(), (name + "-disabled").c_str());
+			other->setAttribute(Qt::WA_UnderMouse, true);
+			const auto disabledHover = imageOf(*other);
+			other->setAttribute(Qt::WA_UnderMouse, false);
+			expect(imageOf(*other) == disabledHover, "disabled choices ignore hover feedback");
+			other->setEnabled(true);
+			f.publish({ });
+			save_render(*f.Window.settings(), name.c_str());
+			f.Window.settings()->present(qt::settings_page::comments);
+			settle();
+			save_render(*f.Window.settings(), (std::string{ "shared-buttons-comments-" } + std::string{ core::stable_name(profile.variant()) }).c_str());
+		}
+		f.Window.setPalette(original);
+	}
+
 	/// \brief At Settings' minimum size the list fits and drops the descriptions.
 	void test_the_section_fits_at_the_minimum_size()
 	{
@@ -591,6 +685,8 @@ auto main(int argc, char** argv) -> int
 	test_the_section_fits_at_the_minimum_size();
 	test_about_conventional_comments_names_the_page();
 	test_the_comment_workshop_group();
-	std::cout << "feedback-label-settings-tests:pass\n";
+	test_settings_choices_share_the_overview_treatment();
+	std::cout << "feedback-label-settings-tests:pass qt=" << qVersion() << " platform=" << QApplication::platformName().toStdString()
+			  << " style=" << QApplication::style()->name().toStdString() << " dpr=" << application.devicePixelRatio() << '\n';
 	return EXIT_SUCCESS;
 }

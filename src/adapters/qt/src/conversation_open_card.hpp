@@ -3,6 +3,7 @@
 
 #include "conversation_glyphs.hpp"
 
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
@@ -30,6 +31,8 @@ class QToolButton;
 namespace bpr::qt {
 	class feedback_label_controls;
 	class markdown_body_view;
+	class reaction_bar;
+	class reaction_picker;
 	class suggestion_mark;
 
 	/// \brief [[BPR-1290]]. The colours the notes are drawn in, derived from
@@ -122,12 +125,28 @@ namespace bpr::qt {
 		void               present_read_state(bool aUnread, bool aRuleAbove);
 		[[nodiscard]] auto mark_rect() const -> QRect;
 		[[nodiscard]] auto rail_rect() const -> QRectF;
+		/// \brief [[BPR-1757]]. The room the author's name is painted
+		/// in, before the post's tools.
+		[[nodiscard]] auto name_rect() const -> QRect;
 		/// \brief [[BPR-1581]]. How strongly the post's arrival is marked,
 		/// from 1 to 0.
 		void               set_arrival(qreal aStrength);
 		[[nodiscard]] auto arrival() const noexcept -> qreal;
 		/// \brief The body's height changed: a source switch, fonts.
 		std::function<void()> HeightChanged;
+		/// \brief [[BPR-1741]]. The post's reactions as the viewer
+		/// should see them; none when they were not read. Under the body,
+		/// with Add reaction among the post's tools when GitHub lets the
+		/// viewer react.
+		void               set_reactions(const std::optional<core::reaction_summary>& aSummary);
+		[[nodiscard]] auto reactions() const noexcept -> const std::optional<core::reaction_summary>&;
+		[[nodiscard]] auto react_button() const noexcept -> post_tool*;
+		[[nodiscard]] auto reaction_chips() const noexcept -> reaction_bar*;
+		/// \brief Opens the picker under Add reaction; null when the viewer
+		/// may not react.
+		auto open_reaction_picker() -> reaction_picker*;
+		/// \brief A reaction chosen in the picker or pressed under the body.
+		std::function<void(core::reaction_content)> ReactionRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -150,6 +169,10 @@ namespace bpr::qt {
 		markdown_body_view* Reader       = nullptr;
 		post_tool*          SourceButton = nullptr;
 		post_tool*          CopyButton   = nullptr;
+		/// [[BPR-1741]].
+		post_tool*                            ReactButton = nullptr;
+		reaction_bar*                         Reactions   = nullptr;
+		std::optional<core::reaction_summary> Summary;
 	};
 
 	/// \brief A button drawn as the prototype draws it: a filled signal pill
@@ -173,6 +196,7 @@ namespace bpr::qt {
 		/// joined to its right edge squares that edge.
 		void               set_joined(bool aJoined);
 		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -222,6 +246,14 @@ namespace bpr::qt {
 		/// suggested change in the reply is native in this thread or text only.
 		[[nodiscard]] auto suggestion_mark_widget() const noexcept -> suggestion_mark*;
 		[[nodiscard]] auto posts() const -> std::vector<thread_post_view*>;
+		/// \brief [[BPR-1741]]. Shows each post's reactions as \p aLookup
+		/// gives them for the post's identity, in place.
+		void present_reactions(const std::function<std::optional<core::reaction_summary>(const std::string&)>& aLookup);
+		/// \brief [[BPR-1741]]. Resolve conversation at the thread's
+		/// end; null where the thread offers none.
+		[[nodiscard]] auto resolve_conversation() const noexcept -> QAbstractButton*;
+		/// \brief [[BPR-1741]]. A reaction asked for on one post.
+		std::function<void(const std::string&, core::reaction_content)> Reaction;
 		/// \brief Updates durable read marks without replacing readers or their menus.
 		void present_read_state(const thread_card& aCard);
 		/// \brief Whether \p aWatched is a post's rendered or source text,
@@ -292,27 +324,28 @@ namespace bpr::qt {
 
 		std::string              Id;
 		open_card_style          Style;
-		bool                     Draft           = false;
-		bool                     Writing         = false;
-		bool                     Replying        = false;
-		bool                     Applying        = false;
-		bool                     Publishable     = false;
-		bool                     ImagesShown     = true;
-		int                      Notch           = 14;
-		QWidget*                 Header          = nullptr;
-		QBoxLayout*              HeaderRow       = nullptr;
-		QWidget*                 NewPill         = nullptr;
-		QWidget*                 NewRule         = nullptr;
-		QToolButton*             MarkRead        = nullptr;
-		int                      NewPillPosition = 0;
-		std::size_t              UnreadCount     = 0U;
-		QWidget*                 Foot            = nullptr;
-		note_button*             ReplyField      = nullptr;
-		QWidget*                 Editor          = nullptr;
-		QPlainTextEdit*          ReplyBox        = nullptr;
-		feedback_label_controls* Labels          = nullptr;
-		QLabel*                  ReplyStatus     = nullptr;
-		note_button*             Publish         = nullptr;
+		bool                     Draft               = false;
+		bool                     Writing             = false;
+		bool                     Replying            = false;
+		bool                     Applying            = false;
+		bool                     Publishable         = false;
+		bool                     ImagesShown         = true;
+		int                      Notch               = 14;
+		QWidget*                 Header              = nullptr;
+		QBoxLayout*              HeaderRow           = nullptr;
+		QWidget*                 NewPill             = nullptr;
+		QWidget*                 NewRule             = nullptr;
+		QToolButton*             MarkRead            = nullptr;
+		int                      NewPillPosition     = 0;
+		std::size_t              UnreadCount         = 0U;
+		QWidget*                 Foot                = nullptr;
+		note_button*             ReplyField          = nullptr;
+		note_button*             ResolveConversation = nullptr;
+		QWidget*                 Editor              = nullptr;
+		QPlainTextEdit*          ReplyBox            = nullptr;
+		feedback_label_controls* Labels              = nullptr;
+		QLabel*                  ReplyStatus         = nullptr;
+		note_button*             Publish             = nullptr;
 		/// [[BPR-1345]]. Start a review, Add review comment, or on a pending
 		/// draft Update review comment; and where the draft stands.
 		note_button* ReviewAction = nullptr;

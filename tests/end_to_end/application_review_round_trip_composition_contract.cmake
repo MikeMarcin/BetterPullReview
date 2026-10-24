@@ -1,3 +1,328 @@
+# Coordinator landing reseal (2026-10-24) over the reseal below, rename only:
+# provisional BPR-PENDING-AN and AQ1..AQ9 card references in src/app comments
+# became BPR-1747..BPR-1756. No behavior change; mutation 16d135419 stays exact.
+# [[BPR-1755]] reseal (2026-10-24) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, the owner's accept of look v007:
+# github_application.cpp's Reset agents also asks the existing agent
+# conversation host to forget which agent each pull request was last asked
+# with, keeping every turn. No grant, target, provider, credential, mutation
+# or publication path changes; no new src/app source. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-24) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v006: github_application.cpp
+# offers each added agent the models and effort levels its own harness listed
+# (the existing agent setup host's catalog, asked through the existing setup
+# launcher: a Codex protocol's app-server model/list, Claude Code's --help),
+# asks for them when the Agent tab shows the agent or opens its menu, and
+# replaces Set up agent with Reset agents, which resets the existing setup
+# host, forgets the clone links and folders through the existing clone link
+# host, and restores the built-in review skill through the existing skill
+# host. No grant, target, provider, credential, mutation or publication path
+# changes; no new src/app source. Full and manifest pins bind these bytes;
+# mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v004: github_application.cpp
+# names Claude Code's models with their versions; gives the Agent tab the pull
+# request's title and the language its inline code is coloured in
+# (core::markdown_inline_code_selector over the snapshot's file paths); passes
+# the private note a Save as note made back to the tab, so Go to note opens it
+# through the window's existing Notes area; resolves the files and lines a
+# question or answer names through the window's Files list and opens them in
+# Review through its existing file selection; and keeps the Suggestions toggle
+# with the existing agent setup host. No grant, target, provider, credential,
+# mutation or publication path changes; no new src/app source. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v003 and decisions of
+# 2026-10-23: github_application.cpp gives the Agent tab the profile's code
+# appearance; passes the reviewer's optional run time limit (none by default)
+# to the existing agent host; takes tour writing and Review Cycles Send to
+# Agent onto the agent list (review_cycle_desktop.cpp starts an added agent
+# through application::agent_entry_process in front of its existing ports);
+# and, for a finding card on a file not on screen, opens that file in Review
+# through the window's existing file selection, then makes the draft or note
+# at the line as before. No grant, target, provider, credential, mutation or
+# publication path changes; no new src/app source. Full and manifest pins bind
+# these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner amendment 2026-10-23 (agents
+# are a list) and decision (a session per agent): github_application.cpp
+# tells every host the agent-entry profile slots (core::agent_entry_profiles,
+# allowed where their protocol's built-in profile is), starts them through
+# application::agent_entry_process (the entry's program, inspected at each
+# launch, and its fixed arguments before the protocol's own) in front of the
+# existing located/wrapped processes, offers the picker the entries only,
+# carries an entry's model and effort as the request's requested settings,
+# keeps the conversation per agent entry, and routes Settings' list edits and
+# setup's Custom agent to agent_setup_host. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner decision 2026-10-23 ("Yep
+# build it like that"): github_application.cpp takes a finding card's Add as
+# draft comment through the existing private-text promotion into the line's
+# own draft (promote_private_item, now with an optional completion that keeps
+# the Agent tab in place), its Save as note and a reply's Save as note through
+# the existing ReviewLedgerHost::persist of a private note, and Dismiss through
+# the existing finding host. Nothing is published; no grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner decisions (a), (b) and (c) of
+# 2026-10-23: github_application.cpp composes application::agent_conversation_host
+# (a new application source on the decision lane, its store on the existing
+# workbench effect lane, in agent-setup.sqlite3) for the open pull request,
+# shows its kept turns in the Agent tab, keeps each turn that ends and Clear
+# session's none, and adds the earlier turns to the review brief the existing
+# launch path already builds (core::bound_review_brief). The tab's suggested
+# prompts read the open file's path and the selected lines. No grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v002: github_application.cpp
+# presents to the Agent tab what each agent runs with (its program, model and
+# effort, Claude's model being the existing Claude › Model preference) and
+# takes its model and effort changes, and /model and /effort, to the existing
+# workbench preference (Claude's model) and agent_setup_host::set_run_settings
+# (Claude's effort, Codex's model and effort, kept in agent-setup.sqlite3). A
+# request then names those settings in its requested runtime settings, which
+# the existing launch admission validates and passes as --effort, or -m and
+# -c model_reasoning_effort for Codex exec. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1753]] reseal (2026-10-23) over the rebase reseal below,
+# linear, on this card's commit. Pinned-scope change, owner look v002:
+# github_application.cpp hands the setup's and Settings' new Visual
+# Studio-style clone-folder list (the whole ordered list after an edit, a
+# removal or a move) to the existing clone_link_host::set_clone_folders, in
+# place of adding and removing one folder. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-1748 to AQ8)
+# rebased onto main ee99318f4 (BPR-1746, whose own notes follow). github_application.cpp
+# holds both lines of work with no overlapping hunk; the per-card notes below
+# name the rebased slices. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-1748 to AQ8)
+# rebased onto main b8d2ec6cf, whose own notes follow. github_application.cpp
+# holds both lines of work with no overlapping hunk; the per-card notes below
+# name the rebased slices. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# [[BPR-1755]] reseal (2026-10-22) over the BPR-1753 reseal
+# below, linear, on this card's commit. Pinned-scope change, tests-on only:
+# github_application.cpp's locate_agent_program finds this computer's own
+# agents for an attended look (AttendedAgentSearch, which main.cpp sets with
+# AttendedWindowBrowser for --attended-launch outside the automated test
+# boundary), so the person can set up and ask their own Claude Code or Codex.
+# Every automated course keeps its own search path. No grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays
+# exact.
+# [[BPR-1753]] reseal (2026-10-22) over the rebase reseal below,
+# linear, on this card's commit. Pinned-scope change, RFC-BPR-0092 M6 (owner
+# answer Q1 A): github_application.cpp, agent builds only, adopts the
+# window's qt::agent_setup_view into the Agent tab and wires its presses, and
+# the new Settings rows' (Codex program and protocol, a plain-text harness,
+# clone folders and linked clones, the review skill's editor), to the
+# existing agent_setup_host, clone_link_host and review_skill_host, whose
+# projections are all they show. The first time the tab is shown the setup
+# host looks for agents (file metadata only, owner answer Q2). Install Claude
+# Code and Install Codex open their vendors' pages through the window's
+# existing browser port. The ready line once both checks pass reads the
+# accepted snapshot's title, files and threads. No grant, target, provider,
+# credential, mutation or publication path changes; no new src/app source.
+# Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
+# Rebase reseal (2026-10-22): BPR-1748 to AQ5 rebased onto main
+# 4e318b625 (BPR-1741's reactions and Resolve conversation, whose notes
+# follow), and their RFC renumbered from RFC-BPR-0091, which main had taken,
+# to RFC-BPR-0092. github_application.cpp holds both lanes' changes with no
+# overlap; the only edits of this commit are the RFC number and commit
+# identities in comments. The per-card notes below keep their wording with
+# the rebased identities. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# [[BPR-1752]] reseal (2026-10-22) over the BPR-1751 reseal
+# below (f4ada43e5), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0092 M5 (owner decision D1, answer Q9 A): github_application.cpp,
+# agent builds only, gives every review request (each entry point but a
+# comment-workshop press, never a writing request) the review brief:
+# application::read_review_brief reads the accepted snapshot's title,
+# description, base branch, changed files and review threads, and
+# core::bound_review_brief bounds it (description 16 KiB cut at a line,
+# threads 64 KiB unresolved first, every cut counted). It carries the review
+# skill application::review_skill_host gives it: the built-in bpr-pr-review
+# until the profile edits it, then the copy adapters::sqlite::
+# make_review_skill_store keeps in the same agent-setup file. A file-local
+# save_review_skill_copy writes an edited copy to a new file in Downloads
+# (QIODevice::NewOnly) before Restore default removes it. The host is shut
+# down with the window and counted in quiescence. No grant, target,
+# provider, credential, mutation or publication path changes; no new src/app
+# source. Full and manifest pins bind these bytes; mutation 16d135419 stays
+# exact.
+# [[BPR-1751]] reseal (2026-10-22) over the BPR-1750 reseal
+# below (860bd14f4), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0092 M4 (owner answer Q7 of 2026-10-22): github_application.cpp,
+# agent builds only, gives each agent workspace request the linked clone the
+# repository's link names (an absolute path, or none for the private copy),
+# so the Git adapter's workspace borrows that clone's history through one
+# alternates line and copies only what the clone lacks; nothing is written
+# to the clone and the workspace has no remote. Check it works asks the agent
+# host's new probe_workspace, which makes and removes the workspace an Ask
+# would make on the accepted binding through the same workspace port, admits
+# no session, runs no process and answers on the decision lane. No grant,
+# target, provider, credential, mutation or publication path changes; no new
+# src/app source. Full and manifest pins bind these bytes; mutation 16d135419
+# stays exact.
+# [[BPR-1750]] reseal (2026-10-22) over the BPR-1749 reseal
+# below (d005bb3ae), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0092 M3 (owner decision D2 of 2026-10-22): github_application.cpp,
+# agent builds only, composes the profile's clone folders and repository
+# links: adapters::sqlite::make_clone_link_store over the same agent-setup
+# file (folder paths in order; per repository a clone path, a remote name or
+# the private copy; no URL or credential column) and
+# application::clone_link_host, whose reads are the workspace adapter's
+# scan_clone_folders, read_clone and existing_folders (metadata only, no
+# link followed, no Git run, nothing written). The accepted review's host
+# name, repository identity and owner/name are observed when its facts are
+# set and cleared with them; a link that serves, or the private copy, marks
+# setup's Repository step done. Shut down with the window and counted in
+# quiescence. No grant, target, provider, credential, mutation or publication
+# path changes; no new src/app source. Full and manifest pins bind these
+# bytes; mutation 16d135419 stays exact.
+# [[BPR-1749]] reseal (2026-10-22) over the BPR-1748 reseal
+# below (c3a561778), linear, on this card's commit. Pinned-scope change,
+# RFC-BPR-0092 M2 (owner answers Q2 and Q3 A of 2026-10-22):
+# github_application.cpp, agent builds only, composes the profile's agent
+# setup: adapters::sqlite::make_agent_setup_store over the application data
+# root (agent-setup.sqlite3: the chosen agent, the Codex and plain-text harness
+# programs and Codex's protocol; no credential column), a launcher and worker
+# lane of its own, and application::agent_setup_host, which reads file
+# metadata to detect agents, runs only the chosen agent's own status command
+# and --version, bounded, with the profile's environment allowlist and no
+# review context, and publishes the saved programs to the window's
+# agent_program_source. The host is given this review's host policy beside the
+# agent host's observe, shut down with the window and counted in quiescence.
+# present_agent_setup prefers the saved profile in the Agent panel and in Send
+# to Agent (review_cycle_desktop.{hpp,cpp}: prefer_send_profile keeps the given
+# profiles and their order, the preferred one first). No grant, target,
+# provider, credential, child environment, mutation or publication path
+# changes; host policy unchanged; no new src/app source. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1748]] reseal (2026-10-22) over last matching main 92162efed,
+# linear, on this card's commit. Pinned-scope change, RFC-BPR-0092 Q5 (owner,
+# 2026-10-22): github_application.cpp, agent builds only, puts
+# application::located_agent_process in front of the Claude wrapper port, so
+# a Codex or plain-text harness request that names its shipped bare program
+# (codex, bpr-agent-terminal) runs the profile's saved program or, for Codex
+# alone, the codex the agent adapter finds now on this application's PATH or
+# in Codex's usual folders (locate_agent_program); none found ends the request
+# failed_to_start and starts nothing. A request already naming its program by
+# path, and every Claude request, passes through unchanged. Tests-on only: the
+# fixture's CodexSearch, and a fixture course never finds the developer's own
+# codex. review_cycle_desktop.{hpp,cpp} take the same source and locator for
+# Send to Agent. No shell, grant, target, provider, credential, child
+# environment, mutation or publication path changes; host policy unchanged;
+# no new src/app source. Full and manifest pins bind these bytes; mutation
+# 16d135419 stays exact.
+# Upkeep reseal (2026-10-23): the only src/app change since the BPR-1746 note below
+# is renaming its [[BPR-PENDING-AX]] comment tags to [[BPR-1746]]; no code change.
+# [[BPR-1746]] reseal (2026-10-23) over last matching main b8d2ec6cf,
+# linear. Pinned-scope commit cb4cbfd9c (the owner's decision of 2026-10-23,
+# "Oh yeah sure let gh allow that."): github_application.cpp feeds GitHub's
+# viewerCanReply and the pull request's lock, now read with the conversation,
+# into core::decide_thread_reply (thread_reply_facts_of), and
+# begin_review_reply makes no draft for a thread the core refuses.
+# github_public_path_fixture.cpp and large_review_fixture.hpp, test-only, serve
+# viewerCanReply and locked as the recorded fixtures now do, and the large
+# review's read shape asks for them. The reply write the CLI connection now
+# admits is the adapter's (gh_cli_transport.cpp), outside src/app. No
+# credential, provider selection, ledger write or source-inventory change; the
+# production make_live_review_mutation_provider call is untouched. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-23): the only src/app change since the BPR-1745 note below
+# is renaming its [[BPR-PENDING-AT]] comment tags to [[BPR-1745]]; no code change.
+# [[BPR-1745]] reseal (2026-10-22) over last matching main 27d17fea5,
+# linear. Pinned-scope change, the owner's decision of 2026-10-22 ("Allow
+# replying to an outdated thread from the drawer, like GitHub does";
+# RFC-BPR-0028 amendment): github_application.cpp takes an outdated thread's
+# Reply (the window's new thread-reply dispatch) to begin_thread_bound_reply,
+# which decides the route with core::decide_thread_reply from the accepted
+# snapshot's thread, opens or makes a reply bound to the thread through the
+# private review's new select_thread_reply (waiting, as PendingThreadReply,
+# while drafts are restored or a line's draft is opened), and publishes it
+# with the thread's binding (review_mutation_publication_request::ThreadReply:
+# its path and its first comment's original commit, the head acknowledged)
+# under the one-shot gesture grant, which binds to the accepted handoff when no
+# selected diff exists. A Refresh holds the reply again without a line.
+# private_review_workflow.cpp carries thread-bound replies to a new head in
+# restore and select_thread_reply. main.cpp adds three reply-draft courses and
+# exempts outdated-restart's smart calls; github_public_path_fixture.cpp and
+# github_application_fixture_access.hpp, test-only, stage an outdated thread
+# and record the reply's binding. No credential, provider selection, ledger
+# write or source-inventory change; the production
+# make_live_review_mutation_provider call is untouched. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
+# Upkeep reseal (2026-10-22): the only src/app change since the BPR-1741 note below
+# is renaming its [[BPR-PENDING-AR1]] comment tags to [[BPR-1741]]; no code change.
+# [[BPR-1741]] reseal (2026-10-22) over last matching main 3ddfbc5f8,
+# linear. Pinned-scope commits 1e097ce42, 4ff78af59, 2fcdde895 and d8bc00b29 (the owner's
+# request of 2026-10-22 for reactions and Resolve conversation, RFC-DRAFT-0027).
+# github_application.cpp names the core's new not_permitted resolution refusal,
+# takes GitHub's per-thread viewerCanResolve / viewerCanUnresolve into the
+# resolution decision, no longer withholds resolution from the GitHub CLI
+# connection, keeps the core's conversation overlay (a reaction or resolution
+# shows at once, GitHub's answer and the next read reconcile it), presents
+# reactions and resolutions to the window after each accepted read, decides a
+# post's reaction through core::decide_reaction (public preview refuses the
+# new react_to_comment intent) and sends it to the mutation host's new react
+# under a one-shot gesture grant from issue_reaction, the grant a resolution
+# gets. Its BUILD_TESTING threaded-reply course goes on, with reactions served,
+# to Unresolve conversation and the reaction steps; main.cpp's --reaction-probe
+# alone serves reactions and resolves threads on the fixture for an attended
+# look (d8bc00b29). No credential, provider
+# selection, publication path, ledger write or source-inventory change; the
+# production make_live_review_mutation_provider call is untouched. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1736]] reseal (2026-10-22) over last matching main 293d6181a,
+# linear, on this card's composition commit. Pinned-scope change, owner
+# decisions D1 to D4 of 2026-10-22 (RFC-BPR-0022 amendment r6):
+# github_application.cpp opens the profile's learned off-hunk facts on their
+# own connection to the recovery journal (make_off_hunk_fact_store), passes
+# the presented fact to the mutation host as the source observation's
+# OffHunkFact, says what was learned in the Whole PR notice (Learned) and drops
+# the mark where GitHub accepted such a line, holds a pending comment outside
+# the diff unless the review fact is supported, re-presents the notice and the
+# holds after a publication's terminal, and, when a review carrying such a line
+# under a supported fact is refused for an unplaceable line
+# (review_submission_workflow's new unplaceable refusal observer), demotes the
+# fact for both operations and holds the comment; nothing is resent.
+# review_submission_workflow.cpp and .hpp are in the manifest;
+# review_submission_fixture.hpp and github_public_path_fixture.cpp, test-only,
+# are not (the fixture answers a core-placed off-hunk native comment in
+# GitHub.com's measured refusal by default). No credential, grant, provider
+# selection, ledger write or source-inventory change; the production
+# make_live_review_mutation_provider call is untouched. Full and manifest pins
+# bind these bytes; mutation 16d135419 stays exact.
+# [[BPR-1735]] reseal (2026-10-22) over last matching main 4ed30b995,
+# linear, on this card's commits. Pinned-scope change, owner decision of
+# 2026-10-22 (RFC-BPR-0022 amendment r5): github_application.cpp reads
+# GitHub's own diff of a file (the merge base to the head) through the epoch
+# host's new resolve_github_diff_lines, places the selected Whole PR line and
+# every comment pending in the review with the core's hunk rule, passes the
+# facts to the mutation host as the source observation's WholeDiff, holds a
+# pending comment the core places outside every hunk (the window's hold and
+# review_submission_workflow::hold_comments, which refuses Submit while one is
+# carried), and treats the journal's rejection (unplaceable_line,
+# refused_not_published, settled_not_published) as a definite refusal that
+# unlocks the draft. Its BUILD_TESTING courses: the attended draft seed
+# chooses a line GitHub's diff holds, and the start-review, label-authoring,
+# review round-trip and private-review courses place as a build before the
+# rule (set_whole_diff_placement_enabled), their subjects being the review,
+# the labels and RFC-BPR-0022's negotiation. review_submission_workflow.cpp
+# and .hpp are in the manifest; private_review_fixture_course.cpp and
+# github_application_fixture_access.hpp, test-only, are not. No credential, grant,
+# provider selection, ledger write or source-inventory change; publication now
+# admits a Whole PR off-hunk line to the file comment at once. Full and
+# manifest pins bind these bytes; mutation 16d135419 stays exact.
 # BPR-1694 combined integration over reviewed main b9a74b63a and release 0f52c515e.
 # All main feature reviews below are retained. Additional pinned-source difference
 # is exactly the retained complete_on_lane/observe_on_lane calls and the guarded
@@ -2013,7 +2338,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"777150d62bc2b381c740dd1ef150be933290577732c54c6693d7778fc5ce7f2c"
+		"85ca7a585b699f8257c9eec80673a0665fe1b491fac3318162c2294b394304ab"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2236,7 +2561,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "${app_source_root}"
         bpr_production_app_manifest_digest
     )
-# Release v0.3.3 review over a6485a95c: private_review_workflow retries a
+# Release v0.3.3 integration review over local main e82537ad1: private_review_workflow retries a
 # select read only when the same context and selected line acquire that line
 # comparison digest from an absent digest. Other binding/line changes and
 # closure refuse; the next attempt has a digest, bounding recovery to one.
@@ -2244,7 +2569,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "ce82e35703bff3793b3b7a241d11f0bc231c1acd0e7bd8518ee28a2db0e3465c"
+        "006f54f2531b55d44892960bdf006672ee58497833b5bcb9f794bacb09e0ea9c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

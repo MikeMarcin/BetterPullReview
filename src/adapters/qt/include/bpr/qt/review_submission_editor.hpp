@@ -181,13 +181,22 @@ namespace bpr::qt {
 		void set_pending_delete(std::function<void(const core::review_submission_comment&)> aDelete);
 		/// \brief [[RFC-BPR-0090]]. A suggestion GitHub cannot apply where it
 		/// goes (owner, Q3): why, and Convert's words.
+		/// \brief Why a comment is held: [[RFC-BPR-0090]] a suggestion GitHub
+		/// cannot apply, or [[BPR-1735]] a comment GitHub cannot place in a
+		/// review, whose action is Publish as file comment.
+		enum class held_kind : std::uint8_t {
+			suggestion,
+			unplaceable_line,
+		};
 		struct held_comment
 		{
 			QString Reason;
+			/// The action's words; none offers no action, only Delete.
 			QString Convert;
 			/// The reading amber the reason is written in.
-			QColor Ink;
-			auto   operator==(const held_comment&) const -> bool = default;
+			QColor    Ink;
+			held_kind Kind                                          = held_kind::suggestion;
+			auto      operator==(const held_comment&) const -> bool = default;
 		};
 		/// \brief [[RFC-BPR-0090]]. The review's held suggestions, by draft:
 		/// each row says why and offers Convert, and the review is not

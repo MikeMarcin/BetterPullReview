@@ -46,6 +46,13 @@
 //       `at-post` while the operator publishes exactly those placements.
 //       After `go-post` it refreshes and writes the lines the threads are
 //       marked at, on C1's diff with the last commit hidden and on Whole PR.
+//   --course whole-pr-comment --root DIR --pull N --path FILE
+//       [[BPR-1735]]. Opens MikeMarcin/BPR-Test#N on Whole PR, opens FILE and
+//       selects right-side lines 60, 14 and 13 (one-based), writing where the
+//       composition's core places a comment on each from GitHub's own diff,
+//       and what the editor says before Publish, into
+//       DIR/whole-pr-comment.jsonl. It then waits at `at-post` while the
+//       operator publishes exactly those placements.
 #include "bpr/app/github_application.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
@@ -178,10 +185,11 @@ namespace {
 			}
 		}
 		if ((result.Course != "observer" && result.Course != "reader" && result.Course != "epoch" && result.Course != "parity" && result.Course != "commit-filter"
-			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment")
+			 && result.Course != "generated" && result.Course != "force-push" && result.Course != "filtered-comment" && result.Course != "whole-pr-comment")
 			|| result.Root.empty() || result.Pull <= 0
-			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty())) || ((result.Course == "force-push" || result.Course == "filtered-comment") && result.Path.empty())) {
-			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
+			|| (result.Course == "observer" && (result.Author.empty() || result.Path.empty()))
+			|| ((result.Course == "force-push" || result.Course == "filtered-comment" || result.Course == "whole-pr-comment") && result.Path.empty())) {
+			fail("usage: --course observer|reader|epoch|parity|commit-filter|generated|force-push|filtered-comment|whole-pr-comment --root DIR --pull N [--author LOGIN --path PREFIX]");
 		}
 		return result;
 	}
@@ -846,6 +854,65 @@ namespace {
 		dump(aWindow);
 	}
 
+	/// [[BPR-1735]]. Where a comment on a Whole PR line goes, as the window's
+	/// composition places it with its core from GitHub's own diff (the merge
+	/// base to the head, read from the review's objects), and what the editor
+	/// says before Publish, written into DIR/whole-pr-comment.jsonl. A line
+	/// the core places on itself shows no placement; one outside every hunk
+	/// shows the file comment. A tests-enabled composition holds no
+	/// publication grant, so the operator publishes exactly these placements
+	/// through gh while the course waits at `at-post`.
+	void whole_pr_comment_course(const options& aOptions, qt::workbench_window& aWindow)
+	{
+		aWindow.resize(1300, 860);
+		open_pull(aWindow, aOptions.Pull);
+		require([&] { return aWindow.github_status_text() == "Pull request ready."; }, "the pull request is ready");
+		require([&] { return aWindow.overview_page()->projection().has_value() && !aWindow.overview_page()->projection()->Files.empty(); }, "the overview lists the files");
+		aWindow.choose_modality(qt::review_modality::review);
+		auto* const surface = aWindow.comparison_surface();
+		const auto  file    = core::file_identity_of(aOptions.Path);
+		require([&] { return aWindow.files_drawer()->contents()->index_for_file(file).isValid(); }, "the file is listed");
+		aWindow.files_drawer()->contents_view()->setCurrentIndex(aWindow.files_drawer()->contents()->index_for_file(file));
+		require([&] {
+			const auto& context = surface->current_context();
+			const auto& result  = surface->current_result();
+			return context && result && result->Alignment.Key == context->Key && context->Key.File == file && !context->Key.Filter;
+		},
+				"the file's Whole PR diff is shown", std::chrono::seconds{ 120 });
+		std::ofstream out{ aOptions.Root / "whole-pr-comment.jsonl" };
+		const auto    probe = [&](const std::uint32_t aLine, const bool aOffDiff) {
+			if (!surface->select_conversation_line(core::diff_side::right, aLine)) {
+				fail("line " + std::to_string(aLine + 1U) + " cannot be selected");
+			}
+			const auto placed = [&] {
+				const auto& shown     = aWindow.filtered_comment_placement();
+				const auto  selection = surface->selection();
+				return shown && selection && shown->Selection == selection->PreferredLine;
+			};
+			if (aOffDiff) {
+				require(placed, "where a comment on line " + std::to_string(aLine + 1U) + " goes", std::chrono::seconds{ 120 });
+			} else {
+				// GitHub's diff is read by now: no placement is the line itself.
+				wait_for([] { return false; }, "settle (expected)", std::chrono::seconds{ 3 });
+			}
+			const auto [notice, blocking] = aWindow.filtered_comment_notice();
+			const auto& shown             = aWindow.filtered_comment_placement();
+			const auto  target            = placed() ? std::optional{ shown->Target } : std::nullopt;
+			out << "{\"kind\":\"placement\",\"line\":" << aLine << ",\"placement\":" << (target ? std::to_string(static_cast<int>(target->Placement)) : std::string{ "null" })
+				<< ",\"refusal\":" << (target ? std::to_string(static_cast<int>(target->Refusal)) : std::string{ "null" })
+				<< ",\"commit\":" << (target && target->Commit.valid() ? json_text(core::canonical_hex(target->Commit).view()) : std::string{ "null" })
+				<< ",\"notice\":" << json_text(text(notice)) << ",\"blocks\":" << (blocking ? "true" : "false") << "}\n";
+			out.flush();
+			say("whole-pr-comment:RIGHT " + std::to_string(aLine + 1U) + " -> " + (target ? "placement=" + std::to_string(static_cast<int>(target->Placement)) : std::string{ "line comment" })
+				+ " notice=" + text(notice));
+		};
+		probe(59U, true);
+		probe(13U, true);
+		probe(12U, false);
+		checkpoint(aOptions.Root, "post", "placements written");
+		dump(aWindow);
+	}
+
 	/// RFC-BPR-0089 M3, AC06. Opens the pull request, marks `--path` read in
 	/// Review (a local receipt only), hides the chain's last commit, and waits
 	/// at `at-push` for the operator's force push. After `go-push` it
@@ -1139,6 +1206,8 @@ try {
 		force_push_course(chosen, *window);
 	} else if (chosen.Course == "filtered-comment") {
 		filtered_comment_course(chosen, *window);
+	} else if (chosen.Course == "whole-pr-comment") {
+		whole_pr_comment_course(chosen, *window);
 	} else {
 		reader_course(chosen, *window);
 	}

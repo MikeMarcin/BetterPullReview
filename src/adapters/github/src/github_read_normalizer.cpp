@@ -445,6 +445,7 @@ namespace bpr::adapters::github::detail {
 			bool                         IsOutdated         = false;
 			bool                         ViewerCanResolve   = false;
 			bool                         ViewerCanUnresolve = false;
+			std::optional<bool>          ViewerCanReply;
 			json_comment_connection      Comments;
 			struct glaze
 			{
@@ -459,6 +460,7 @@ namespace bpr::adapters::github::detail {
 					"isOutdated", &json_thread::IsOutdated,
 					"viewerCanResolve", &json_thread::ViewerCanResolve,
 					"viewerCanUnresolve", &json_thread::ViewerCanUnresolve,
+					"viewerCanReply", &json_thread::ViewerCanReply,
 					"comments", &json_thread::Comments);
 			};
 		};
@@ -499,6 +501,7 @@ namespace bpr::adapters::github::detail {
 		{
 			std::string            Id;
 			std::string            HeadRefOid;
+			std::optional<bool>    Locked;
 			json_file_connection   Files;
 			json_thread_connection ReviewThreads;
 			struct glaze
@@ -506,6 +509,7 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object(
 					"id", &json_graphql_pull::Id,
 					"headRefOid", &json_graphql_pull::HeadRefOid,
+					"locked", &json_graphql_pull::Locked,
 					"files", &json_graphql_pull::Files,
 					"reviewThreads", &json_graphql_pull::ReviewThreads);
 			};
@@ -893,6 +897,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
 			case read_operation::resolve_body_images:
+			case read_operation::list_reactions:
 			case read_operation::list_requested_reviewers:
 				request.PullRequestNumber = aContext.PullRequestRequest.Number.value();
 				break;
@@ -920,6 +925,8 @@ namespace bpr::adapters::github::detail {
 						.ViewedFileState     = true,
 						.ResolvePermission   = true,
 						.UnresolvePermission = true,
+						.ReplyPermission     = true,
+						.ConversationLock    = true,
 					},
 					.AfterCursor = { },
 					.ThreadId    = { },
@@ -941,6 +948,8 @@ namespace bpr::adapters::github::detail {
 				.ViewedFileState     = true,
 				.ResolvePermission   = true,
 				.UnresolvePermission = true,
+				.ReplyPermission     = true,
+				.ConversationLock    = true,
 			},
 			.Viewer = std::nullopt,
 		};
@@ -1020,6 +1029,7 @@ namespace bpr::adapters::github::detail {
 				case read_operation::list_requested_reviewers:
 				case read_operation::get_merge_base:
 				case read_operation::get_team_membership:
+				case read_operation::list_reactions:
 				case read_operation::list_home_pull_requests:       return failed(contract_failure_code::unexpected_operation);
 				case read_operation::get_viewer_identity:           decoded = decode_record(documents.Viewer, response.Response); break;
 				case read_operation::get_repository:                decoded = decode_record(documents.Repository, response.Response); break;
@@ -1259,6 +1269,16 @@ namespace bpr::adapters::github::detail {
 					|| graphqlPullRequest.HeadRefOid != headOid) {
 					return failed(contract_failure_code::identity_mismatch);
 				}
+				// [[BPR-1746]]. The lock and each thread's reply
+				// permission are present exactly when the shape asks.
+				if (graphqlPullRequest.Locked.has_value() != aAdmission.Shape.ConversationLock) {
+					return failed(contract_failure_code::unexpected_response_shape);
+				}
+				if (graphqlPullRequest.Locked.has_value()) {
+					result.PullRequest.ConversationLock = *graphqlPullRequest.Locked
+						? application::github_conversation_lock::locked
+						: application::github_conversation_lock::unlocked;
+				}
 				const auto& graphqlFiles = graphqlPullRequest.Files.Nodes;
 				if (
 					static_cast<std::size_t>(graphqlFiles.size())
@@ -1316,8 +1336,13 @@ namespace bpr::adapters::github::detail {
 						.Outdated                  = thread.IsOutdated,
 						.ViewerResolvePermission   = thread.ViewerCanResolve ? application::github_permission_state::allowed : application::github_permission_state::denied,
 						.ViewerUnresolvePermission = thread.ViewerCanUnresolve ? application::github_permission_state::allowed : application::github_permission_state::denied,
+						.ViewerReplyPermission     = !thread.ViewerCanReply ? application::github_permission_state::unavailable : *thread.ViewerCanReply ? application::github_permission_state::allowed
+																																						 : application::github_permission_state::denied,
 						.Comments                  = { },
 					};
+					if (thread.ViewerCanReply.has_value() != aAdmission.Shape.ReplyPermission) {
+						return failed(contract_failure_code::unexpected_response_shape);
+					}
 					const auto& comments = thread.Comments.Nodes;
 					threadRecord.Comments.reserve(
 						static_cast<std::size_t>(comments.size()));

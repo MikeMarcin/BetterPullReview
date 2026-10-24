@@ -419,6 +419,11 @@ bpr_add_network_isolated_test(
 )
 
 bpr_add_network_isolated_test(
+    NAME release_vulnerability_scan_contract
+    COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/verify_release_vulnerability_scan_tests.py"
+)
+
+bpr_add_network_isolated_test(
     NAME issue_id_allocation_contract
     WINDOWS_UNCONTAINED
     COMMAND

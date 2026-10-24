@@ -1,5 +1,7 @@
 #include "bpr/qt/release_maintenance_panel.hpp"
+
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 
 #include <QAccessible>
 #include <QAction>
@@ -212,7 +214,7 @@ namespace bpr::qt {
 		IncludeRecent->setToolTip(QStringLiteral("Already sanitized detail, limited to 512 events and 2 MiB."));
 		IncludeRecent->setObjectName(QStringLiteral("diagnosticExportRecent"));
 		fields->addWidget(IncludeRecent);
-		auto* refresh = new QPushButton{ QStringLiteral("Update preview"), optionsBody };
+		auto* refresh = new quiet_push_button{ QStringLiteral("Update preview"), optionsBody };
 		refresh->setObjectName(QStringLiteral("diagnosticExportRefresh"));
 		connect(refresh, &QPushButton::clicked, this, [this] { preview_diagnostics(ExportPolicy); });
 		fields->addWidget(refresh);
@@ -254,15 +256,17 @@ namespace bpr::qt {
 			auto* action = new QAction{ QString::fromUtf8(labels[item]), this };
 			action->setEnabled(false);
 			action->setObjectName(QStringLiteral("releaseMaintenanceAction%1").arg(item));
-			Actions[item] = action;
-			auto* button  = new QPushButton{ action->text(), this };
+			Actions[item]       = action;
+			QPushButton* button = item == 0U || item == 2U || item == 4U || item == 6U
+				? static_cast<QPushButton*>(new quiet_push_button{ action->text(), this })
+				: new QPushButton{ action->text(), this };
 			button->setEnabled(false);
 			button->setAutoDefault(false);
 			button->setObjectName(QStringLiteral("releaseMaintenanceCommand%1").arg(item));
 			if (item == 0U) {
 				exports->addWidget(button);
 			} else if (item == 1U) {
-				dialogButtons->addButton(button, QDialogButtonBox::ActionRole);
+				dialogButtons->addButton(button, QDialogButtonBox::AcceptRole);
 			} else {
 				buttons->addWidget(button, static_cast<int>((item - 2U) / 2U) + 1, static_cast<int>(item % 2U));
 			}

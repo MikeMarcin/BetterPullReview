@@ -1,5 +1,7 @@
 #include "bpr/qt/profile_management_window.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/home_row_delegate.hpp"
 
 #include <QApplication>
@@ -170,7 +172,7 @@ namespace bpr::qt {
 		NoticeText->setWordWrap(true);
 		NoticeText->setTextFormat(Qt::PlainText);
 		NoticeText->setAccessibleName(QStringLiteral("Profile failure"));
-		TryAgain = new QPushButton{ QStringLiteral("Try again"), Notice };
+		TryAgain = new quiet_push_button{ QStringLiteral("Try again"), Notice };
 		TryAgain->setObjectName(QStringLiteral("profileTryAgain"));
 		TryAgain->setAccessibleName(QStringLiteral("Try the profile operation again"));
 		auto* noticeRow = new QHBoxLayout{ Notice };
@@ -203,11 +205,11 @@ namespace bpr::qt {
 		Name->hide();
 		Name->installEventFilter(this);
 
-		Create = new QPushButton{ QStringLiteral("New profile"), this };
+		Create = new quiet_push_button{ QStringLiteral("New profile"), this };
 		Create->setObjectName(QStringLiteral("newProfile"));
 		Create->setFlat(true);
 		Create->setAccessibleName(QStringLiteral("New profile"));
-		Rename = new QPushButton{ QStringLiteral("Rename"), this };
+		Rename = new quiet_push_button{ QStringLiteral("Rename"), this };
 		Rename->setObjectName(QStringLiteral("renameProfile"));
 		Rename->setAccessibleName(QStringLiteral("Rename the selected profile"));
 		Open = new QPushButton{ QStringLiteral("Open"), this };
@@ -218,7 +220,7 @@ namespace bpr::qt {
 		Save->setObjectName(QStringLiteral("saveProfileName"));
 		Save->setAccessibleName(QStringLiteral("Save the profile name"));
 		Save->setDefault(true);
-		Cancel = new QPushButton{ QStringLiteral("Cancel"), this };
+		Cancel = new quiet_push_button{ QStringLiteral("Cancel"), this };
 		Cancel->setObjectName(QStringLiteral("cancelProfileName"));
 		Cancel->setAccessibleName(QStringLiteral("Cancel the profile name"));
 		Save->hide();

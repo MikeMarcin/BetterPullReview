@@ -2412,21 +2412,118 @@ its other is **Draft comment**, which copies it to a local draft at its own line
 nothing is published until the existing explicit Publish. Esc on unsaved
 changes says so once and discards on the second press. Notes stays available
 with no agent configured. [[BPR-1594]] (RFC-BPR-0085 D5). The **Agent** tab
-follows Tour, its spark beside its name. Its context row names the agent, the head its
-session reads, the scope in words (Selected lines, This file, Pull request,
-Repository) and History, a menu with a new session, continuing on an earlier
-head, the private history and runs, and the sessions. Below it the
-conversation holds the replies and one card per finding: severity, likelihood
-and category, its `file:lines`, the claim and the evidence; choosing a card
-shows its lines; **Draft a comment** copies it to a local draft at its line,
-then Ask follow-up and Add to notes, which fold into More (with Show the code,
-Draft a defect and Dismiss) when the drawer is narrow. The question field
-closes the tab with its context chips, Context and Ask (⌘↩). The tab says
-which of four states it is in: not set up ("Ask an agent about this pull
+follows Tour, its spark beside its name. Its header (owner look v003, after the
+agent drawers' convention) is the session's title, the pull request's number
+and title, the head its session reads, and two icons: History (Clear session,
+a new session, continuing on an earlier head, the private history and runs,
+and the sessions) and New session, which clears the current agent's thread.
+Below it the conversation is a thread ([[BPR-1753]], owner looks v002
+and v003): each turn is what was asked, in an outlined bubble with its time
+right-aligned above it, then the agent's reply in its own card: the answer
+as it writes it (its Markdown rendered, fenced code coloured by the shared
+Markdown code host as comments' code is, and its inline code too, in the
+language most of the pull request's files are in (owner look v004); images do
+nothing, and of its links only those to the pull request's files open
+anything), the
+turn's finding cards, one quiet line while the agent works ("● Claude Code is
+thinking, 0:05.") and how the turn ended (who answered, in how long, the
+model it reported, the cost when the harness said, and the findings that turn
+brought; in italics when it stopped), and a footer of Copy (the whole reply
+as Markdown), Save as note and the reply's time (near words, the whole time
+on hover). Once a reply is saved as a note, its Save as note is **Go to
+note**, which opens that note in Notes (owner look v004). A file and line a
+question or an answer names (`path:34`, `path line 34`, `path lines 34–36`,
+"before the change" for the base, and in an answer a bare "line 34" when the
+question named one file) is a link when the path is one of the pull
+request's files, and a click on it, with Command held or not, opens it in
+Review and scrolls the code to that line, selected, once the file's
+comparison is measured (owner look v005); fenced code is left as
+written, and Copy keeps the answer as the agent wrote it. The header names
+the pull request (#17 and its title). With nothing asked, the conversation shows an icon and "Ask about
+this pull request" with one line under it. The question field clears once a
+question is sent. The thread is
+one conversation per pull request and agent (owner decisions, 2026-10-23):
+it is kept for the pull request and shown again when it is opened again, on
+the agent it was last asked with; switching agents shows that agent's own
+thread and switching back resumes it; each question carries its agent's
+earlier turns; and Clear session empties only the current agent's, asking
+first when turns would leave it. Notes and drafts made from the thread are
+the review's, outside any session, and stay in the notes and drafts views. Suggested prompts
+are the thread's last item, after its last turn, and scroll with it (owner
+look v005), under "Ask about this pull request, or try:" while the thread is
+empty (owner decision (a)): Review this pull request, Review *the open file's
+path* when a file is open, What could this change break?, and, with lines
+selected, Explain *path* line N for one line or Explain the selected block
+(*path* lines a–b) for more; each is sent as written, as a question. They
+stay once the thread has turns, and the field's Suggestions toggle shows or
+hides them, kept for the profile (owner look v004); while the agent works
+they are hidden, and they return when its turn has finished (the owner's
+accept of look v007). A turn's findings are cards under its answer (owner decision,
+2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
+the evidence and the suggested comment; choosing a card shows its lines.
+**Add as draft comment** makes a private draft at its lines from the
+suggested comment, **Save as note** a private note on them, and **Dismiss**
+rules it out; the card then says Drafted, Saved as a private note, or
+Dismissed with **Undo**, and a refusal says why (for another file: open it,
+then try again). A reply offers **Save as note** for the whole of it, or the
+part selected. The reply is shown without its `bpr-findings` block. Findings
+delivered with no turn come after the thread, as cards of their own. The question field
+closes the tab (owner look v003, after the Claude Code and Codex
+composers): one rounded field holding any added context, the words, a thin
+rule, and one row: Context (+) and the Suggestions toggle as icons and what
+the agent may read on the left; on the right the agent pill (owner decision
+(c) and amendment, 2026-10-23: "Work Codex · gpt-5 · high effort", or
+"Claude Code · Sonnet 5.5"; a model by its name and version, and the agent's
+own default by the model it last reported, owner look v004), an icon alone when the field is
+narrower than 300 points; its tooltip names the program that runs and the
+model the last answer reported, and its menu lists every agent added in
+Settings › Agents & context, one press to switch, then the agent's own models
+and effort levels or Other…, kept with that agent, and last Agent settings…;
+owner look v006: the models and levels are the harness's own, Codex's from its
+App Server's `model/list` and Claude Code's levels from its `--help`, asked
+when the tab shows the agent or its menu opens) and Send (⌘↩), which is
+Stop while the agent works. `/model NAME`
+and `/effort LEVEL` (or `default`) in the question field do what the chip
+does without asking anything; `/model` or `/effort` alone opens the chip's
+menu, and a level the agent does not take is refused with the ones it does.
+The tab says
+which of its states it is in: not set up ("Ask an agent about this pull
 request. Nothing it says is published unless you make it a comment." and Set
-up an agent), working (what it reads, and Stop), head moved (Start a new
-session or Continue on the old head) and stopped (what happened, the question
-kept, Ask again and Show the log). ⌥⇧A opens the drawer on the Agent tab; ⌘I
+up an agent), setting up, working (whether its workspace is being made or the
+agent is running, the time it has taken, its latest line, and Stop), finished
+(how many findings, or that its answer is below, or that it found nothing),
+head moved (Start
+a new session or Continue on the old head) and stopped (what happened, the
+question kept, Ask again and Show the log; Check again when the Ask ended
+because the workspace could not be made or the agent did not start).
+[RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md): setting up replaces the conversation the first time it is
+needed: once the agents have been looked for and the repository's link has
+been checked, and a step is missing. Its four numbered steps are Agent
+(each found agent as a card the whole of which chooses it, by click or Space
+or Return, with its path and how it was found, a refused one disabled with
+why; Change keeps the agent already chosen a choice and offers Continue with
+it, and Custom agent… for a program of the reviewer's own; none found
+offers Install Claude Code, Install Codex and Custom agent…), Repository (the
+clones of the repository in the clone folders, Use this clone, Choose a
+folder…, or a private copy; with no clone folder, Where do your clones live?
+with one folder line, typed or Browse…, then Add (owner look v003; the full
+folder list is Settings › Repositories'), the line already holding the usual
+folder that exists, so Add takes it at once (owner look v004)), Check it works (the agent's status command and the workspace,
+each with its result and what to do, Check, Stop and Check again) and Ready.
+A finished step folds to one line with Change, and a step already reached
+opens from its header. Look again and Agent settings
+sit at the foot. When both checks pass, the conversation shows "AGENT is
+ready" and focuses the question field; its version and workspace and what the
+agent gets (the pull request, base and head, the changes and the named diff,
+the threads, the workspace, the review skill and what it may not do) wait
+under one collapsed disclosure. History
+adds Reset agents… (owner look v006): it asks first, then clears every agent
+setting, the clone folders and links and an edited review skill, forgets
+which agent each pull request was last asked with (its turns stay), and the
+setup starts again at Agent; there is no other way back into the setup. At
+full width the tray's tabs are their names alone, the Agent tab's as well;
+its glyph shows only in the narrow row (the owner's accept of look v007). A new window with a saved
+agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I
 and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its
 intents and the finding queue's actions are unchanged: nothing is published
@@ -2989,8 +3086,44 @@ visible code link supplies placement. The disclosure is keyboard operable and
 accessible; expanded text can require scrolling in a narrow drawer. Native and
 file subjects use the same focus and selection behavior. Three-scale, three-theme
 rendered evidence is in the [RFC-0022 ledger](../verification/RFC-BPR-0022.md).
-Production fallback remains unavailable until an exact unsupported response
-contract is admitted; the UI does not infer support from host name or version.
+The owner admitted measured placement in place of an exact unsupported response
+contract on 2026-10-22 ([[BPR-1735]]: "Accept option P (hold off-hunk comments
+before Submit and publish them as file comments; single Publish goes straight
+to a file comment), plus marking a refused single comment rejected. Build it.").
+On the Whole PR diff, and on a filtered diff's sides that are GitHub's own, the
+core places a line as a line comment only within three lines of a change of the
+merge base to the head on its side, the rule measured on BPR-Test #116 to #119
+and #124. A line more than three lines from a change is commented natively only
+when GitHub has accepted such a comment for this profile, repository, server
+version and operation. Without that, a single comment is posted as a file
+comment that links to the line, after at most one native attempt for an unknown
+server, and a review holds it. Support is learned only from GitHub's own answer
+to a comment, never from the host's name, product or version; a new server
+version forgets it ([[BPR-1736]], owner decisions of 2026-10-22). On a
+commit-filtered diff such a line is the file comment as before. On the Whole PR
+diff, before Publish, the editor says "GitHub can't place a comment on this
+line. It will be posted as a file comment that links to the line." once GitHub
+refused such a comment there, and "GitHub may not place a comment on this line.
+If it refuses, the comment is posted as a file comment that links to the line."
+while nothing is learned; a line GitHub accepted carries no mark. GitHub.com's
+refusal posts the file comment at once; a refusal BetterPullReview could not
+classify says "GitHub refused a line comment here. Publish as file comment?",
+keeps the draft, and the next Publish posts the file comment. Start a review
+refuses such a line unless GitHub accepted one. A comment already pending in a
+review that the core places outside GitHub's diff is held, unless GitHub
+accepted such a comment, as a suggestion GitHub cannot apply is held
+(RFC-BPR-0090): its row on Finish your review and the comment
+itself say why in the reading amber and offer **Publish as file comment**,
+which publishes it on its own and takes it out of the review, and Comment,
+Approve, Request changes and Submit wait until none is held. A range outside a
+hunk is held with no action: it is deleted or written on one line. A review
+that carried such a line because GitHub had accepted one, and that GitHub then
+refuses for a line it can't place, is reported not published; the learned fact
+drops to not accepted and the comment is held. A native
+single comment GitHub refuses with a fully received 4xx is reported not
+published with GitHub's reason, and can be published again. With the merge
+base unknown or the file's lines unread nothing is inferred, and Publish is as
+it always was. The UI does not infer support from host name or version.
 
 ## Draft status on Home
 

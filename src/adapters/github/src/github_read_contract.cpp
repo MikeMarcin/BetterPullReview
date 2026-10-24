@@ -340,10 +340,23 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
-		[[nodiscard]] auto body_images_query_body(const semantic_read_request& aRequest) -> std::expected<std::string, contract_failure>
+		/// [[BPR-1741]]. The reactions of the accepted pull request's
+		/// comments and reviews: the viewer's permission, and each group's
+		/// content, whether the viewer reacted, how many did and the first
+		/// five who did. Bound to the target like `ResolveBodyImages`; its
+		/// variables are the same.
+		constexpr std::string_view reactions_document = "query ListReactions($ids:[ID!]!,$name:String!,$number:Int!,$owner:String!)"
+														"{repository(owner:$owner,name:$name){id pullRequest(number:$number){id}}"
+														" nodes(ids:$ids){__typename ... on PullRequestReviewComment{id viewerCanReact reactionGroups{...Reactions}}"
+														" ... on IssueComment{id viewerCanReact reactionGroups{...Reactions}}"
+														" ... on PullRequestReview{id viewerCanReact reactionGroups{...Reactions}}}}"
+														" fragment Reactions on ReactionGroup{content viewerHasReacted reactors(first:5){totalCount"
+														" nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}";
+
+		[[nodiscard]] auto body_images_query_body(const semantic_read_request& aRequest, const std::string_view aDocument) -> std::expected<std::string, contract_failure>
 		{
 			auto document             = body_images_query_json{ };
-			document.Query            = body_images_document;
+			document.Query            = aDocument;
 			document.Variables.Ids    = { aRequest.Nodes.begin(), aRequest.Nodes.end() };
 			document.Variables.Name   = aRequest.Repository;
 			document.Variables.Number = aRequest.PullRequestNumber;
@@ -355,10 +368,10 @@ namespace bpr::adapters::github::detail {
 			return std::move(*bytes);
 		}
 
-		/// GraphQL node identities: 1 to 25 distinct opaque ASCII tokens.
-		[[nodiscard]] auto valid_body_nodes(const std::vector<std::string>& aNodes) -> bool
+		/// GraphQL node identities: 1 to `aMaximum` distinct opaque ASCII tokens.
+		[[nodiscard]] auto valid_body_nodes(const std::vector<std::string>& aNodes, const std::size_t aMaximum) -> bool
 		{
-			if (aNodes.empty() || aNodes.size() > core::markdown_image_bodies_per_resolution) {
+			if (aNodes.empty() || aNodes.size() > aMaximum) {
 				return false;
 			}
 			for (std::size_t index = 0; index < aNodes.size(); ++index) {
@@ -514,7 +527,8 @@ namespace bpr::adapters::github::detail {
 		{
 			const auto& shape = aPage.Shape;
 			if (
-				(shape.ResolvePermission || shape.UnresolvePermission)
+				(shape.ResolvePermission || shape.UnresolvePermission
+				 || shape.ReplyPermission || shape.ConversationLock)
 				&& !shape.ReviewThreads) {
 				return false;
 			}
@@ -586,6 +600,10 @@ namespace bpr::adapters::github::detail {
 			if (aShape.UnresolvePermission) {
 				result += " viewerCanUnresolve";
 			}
+			// [[BPR-1746]]. Whether GitHub lets this viewer reply.
+			if (aShape.ReplyPermission) {
+				result += " viewerCanReply";
+			}
 			result += " subjectType path diffSide line originalLine ";
 			result += comment_connection_selection("first:100");
 			result += "} ";
@@ -604,6 +622,10 @@ namespace bpr::adapters::github::detail {
 				query = "query GetReviewData($owner:String!,$name:String!,"
 						"$number:Int!){repository(owner:$owner,name:$name){id "
 						"pullRequest(number:$number){id headRefOid";
+				// [[BPR-1746]]. The conversation's lock, once.
+				if (aPage.Shape.ConversationLock) {
+					query += " locked";
+				}
 				if (aPage.Shape.ViewedFileState) {
 					query += ' ';
 					query += file_connection_selection("first:100", aPage.Shape);
@@ -685,6 +707,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_requests:
 			case read_operation::get_merge_assessment:
 			case read_operation::resolve_body_images:
+			case read_operation::list_reactions:
 				return true;
 			// [[BPR-1589]]. Bound to the pull request's repository for its
 			// correlation; the query names only the team and the login.
@@ -732,6 +755,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_merge_base:
 			case read_operation::get_team_membership:
 			case read_operation::list_home_pull_requests:
+			case read_operation::list_reactions:
 				return 1U;
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
@@ -1442,9 +1466,11 @@ namespace bpr::adapters::github::detail {
 				!json_is_object(pullRequest)
 				|| !has_exact_keys(
 					json_object(pullRequest),
-					{ "files", "headRefOid", "id", "reviewThreads" })
+					{ "files", "headRefOid", "id", "locked", "reviewThreads" })
 				|| !nonempty_string(json_member(json_object(pullRequest), "headRefOid"))
-				|| !nonempty_string(json_member(json_object(pullRequest), "id"))) {
+				|| !nonempty_string(json_member(json_object(pullRequest), "id"))
+				// [[BPR-1746]]. The recorded conversation's lock.
+				|| !json_is_bool(json_member(json_object(pullRequest), "locked"))) {
 				return false;
 			}
 			const auto files = json_member(json_object(pullRequest), "files");
@@ -1495,6 +1521,7 @@ namespace bpr::adapters::github::detail {
 						"originalLine",
 						"path",
 						"subjectType",
+						"viewerCanReply",
 						"viewerCanResolve",
 						"viewerCanUnresolve",
 					})) {
@@ -1525,6 +1552,7 @@ namespace bpr::adapters::github::detail {
 					|| !json_is_bool(json_member(thread, "isOutdated"))
 					|| !json_is_bool(json_member(thread, "viewerCanResolve"))
 					|| !json_is_bool(json_member(thread, "viewerCanUnresolve"))
+					|| !json_is_bool(json_member(thread, "viewerCanReply"))
 					|| !one_of(diffSide, { "LEFT", "RIGHT" })
 					|| (!fileSubject && !lineSubject)
 					|| !nonempty_string(json_member(thread, "path"))
@@ -1864,6 +1892,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
 			case read_operation::list_requested_reviewers:
+			case read_operation::list_reactions:
 				return false; // Discovery normalization belongs to its bounded production reader.
 			}
 			return false;
@@ -1912,6 +1941,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::get_team_membership:     return "GetTeamMembership";
 		case read_operation::list_home_pull_requests: return "ListHomePullRequests";
 		case read_operation::resolve_body_images:     return "ResolveBodyImages";
+		case read_operation::list_reactions:          return "ListReactions";
 		}
 		return { };
 	}
@@ -1925,7 +1955,7 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 
-		constexpr std::array<std::string_view, 9> mutations{
+		constexpr std::array<std::string_view, 11> mutations{
 			"MarkFileViewed",
 			"MarkFileUnviewed",
 			"CreateReview",
@@ -1936,6 +1966,9 @@ namespace bpr::adapters::github::detail {
 			"UnresolveThread",
 			// [[BPR-1368]]. The pending tour stop edit.
 			"UpdateReviewComment",
+			// [[BPR-1741]]. A reaction added or removed.
+			"AddReaction",
+			"RemoveReaction",
 		};
 		if (std::ranges::find(mutations, aName) != mutations.end()) {
 			return failure(contract_failure_code::mutation_operation);
@@ -2025,8 +2058,11 @@ namespace bpr::adapters::github::detail {
 		if ((home && !valid_home_numbers(aRequest.PullRequestNumbers)) || (!home && !aRequest.PullRequestNumbers.empty())) {
 			return failure(contract_failure_code::invalid_pull_request_number);
 		}
-		const auto images = aRequest.Operation == read_operation::resolve_body_images;
-		if ((images && !valid_body_nodes(aRequest.Nodes)) || (!images && !aRequest.Nodes.empty())) {
+		const auto images    = aRequest.Operation == read_operation::resolve_body_images;
+		const auto reactions = aRequest.Operation == read_operation::list_reactions;
+		if ((images && !valid_body_nodes(aRequest.Nodes, core::markdown_image_bodies_per_resolution))
+			|| (reactions && !valid_body_nodes(aRequest.Nodes, maximum_reaction_subjects_per_read))
+			|| (!images && !reactions && !aRequest.Nodes.empty())) {
 			return failure(contract_failure_code::unexpected_body);
 		}
 		const auto team = aRequest.Operation == read_operation::get_team_membership;
@@ -2135,8 +2171,17 @@ namespace bpr::adapters::github::detail {
 			result.Body = std::move(*body);
 			break;
 		}
+		case read_operation::list_reactions: {
+			auto body = body_images_query_body(aRequest, reactions_document);
+			if (!body) {
+				return std::unexpected{ body.error() };
+			}
+			result.Path = std::string{ *prefix } + "/graphql";
+			result.Body = std::move(*body);
+			break;
+		}
 		case read_operation::resolve_body_images: {
-			auto body = body_images_query_body(aRequest);
+			auto body = body_images_query_body(aRequest, body_images_document);
 			if (!body) {
 				return std::unexpected{ body.error() };
 			}
@@ -2243,7 +2288,7 @@ namespace bpr::adapters::github::detail {
 			if (const auto validation = validate_graphql_body(
 					aRequest.Body,
 					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty(),
-					aRequest.Operation == read_operation::resolve_body_images,
+					aRequest.Operation == read_operation::resolve_body_images || aRequest.Operation == read_operation::list_reactions,
 					aRequest.Operation == read_operation::get_team_membership,
 					aRequest.Operation == read_operation::list_home_pull_requests);
 				!validation.has_value()) {

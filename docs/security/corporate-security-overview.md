@@ -17,6 +17,12 @@ What BetterPullReview sends, stores and runs, for IT and security reviewers.
 > and full vulnerability and fuzz qualification remain open. See the
 > [qualification ledger](../verification/RFC-BPR-0038.md).
 
+On Windows and Linux, BetterPullReview is tested on Windows 11 and Ubuntu
+26.04 (WSL2). Other Windows and Linux versions, including Windows 10 and native
+Linux desktops, may work but are untested: the packages do not refuse them,
+and nothing in this overview has been observed there. Even on the tested
+environments, the qualification above is incomplete.
+
 ## Network destinations
 
 | Feature | Destination and what is sent |

@@ -642,6 +642,44 @@ namespace bpr::application {
 
 	using head_move_lines_completion = std::function<void(const head_move_lines_observation&)>;
 
+	/// \brief [[BPR-1735]]. Asks how one file's lines at the merge base
+	/// correspond to its lines at the accepted head: GitHub's own diff of the
+	/// pull request, whose hunks are where GitHub resolves a line comment.
+	///
+	/// \details `MergeBase` must be the accepted comparison's left commit. The
+	/// host reads the file by literal path at both commits from the review's
+	/// objects, as a filtered diff's sides are read, and compares them with
+	/// the review's own diff engine and exact whitespace, the merge base on the
+	/// left. A path absent at a commit compares as an empty file. `Key` is the
+	/// comparison shown; its blobs and endpoints are replaced by the two read.
+	struct github_diff_lines_request
+	{
+		workbench_pull_request_authority WorkbenchAuthority;
+		core::git_commit_oid             Head;
+		core::git_commit_oid             MergeBase;
+		core::file_comparison_key        Key;
+		std::string                      HeadPath;
+		std::string                      BasePath;
+
+		auto operator<=>(const github_diff_lines_request&) const = default;
+	};
+
+	/// \brief [[BPR-1735]]. The same answers as a filtered diff's:
+	/// `unauthorized` when the merge base is not the accepted comparison's left.
+	using github_diff_lines_status = filtered_comment_lines_status;
+
+	/// \brief [[BPR-1735]]. One exact answer to a `github_diff_lines_request`.
+	struct github_diff_lines_observation
+	{
+		github_diff_lines_request                Request;
+		github_diff_lines_status                 Status = github_diff_lines_status::failure;
+		std::optional<core::line_correspondence> BaseToHead;
+
+		auto operator<=>(const github_diff_lines_observation&) const = default;
+	};
+
+	using github_diff_lines_completion = std::function<void(const github_diff_lines_observation&)>;
+
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///
 	/// \details [[BPR-0654]]. The overview's "changed since my last review"

@@ -16,8 +16,10 @@
 #include "bpr/application/review_composition_application_host.hpp"
 #include "bpr/application/shared_draft_application_host.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "scratch_root.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <iostream>
 #include <optional>
@@ -276,6 +278,105 @@ namespace {
 	}
 }
 
+namespace {
+	// [[BPR-1745]]. A reply to an outdated thread is bound to the
+	// thread, not a line: the outdated thread's Reply opens it, it is saved
+	// privately, a restart finds it again, and a new head carries it, since a
+	// reply with no line has nothing a head change could move.
+	constexpr auto outdated_thread = std::string_view{ "PRRT_outdated_1" };
+	constexpr auto outdated_words  = std::string_view{ "question: Is this still true after the rename?" };
+
+	/// The outdated thread's Reply, as the composition asks for it.
+	auto select_thread_reply(composition& aApp, const fixture& aFixture) -> std::optional<revisioned_review_draft>
+	{
+		auto selected = aApp.Drafts.select_thread_reply(aFixture.Binding, std::string{ outdated_thread });
+		if (!selected || selected->records().empty() || !aApp.Shared.adopt(aApp.Authority, *selected)) {
+			return std::nullopt;
+		}
+		return aApp.Shared.read(aApp.Window, selected->records().back().Draft.Draft.Id).Accepted;
+	}
+
+	[[nodiscard]] auto write_thread_reply(fixture& aFixture) -> review_draft_id
+	{
+		composition app(aFixture);
+		const auto  reply = select_thread_reply(app, aFixture);
+		expect(reply && thread_bound_reply(reply->Draft) && reply->Draft.Anchor == thread_reply_anchor(*aFixture.Binding.Comparison)
+				   && reply->Draft.ReplyToThread == std::optional<std::string>{ std::string{ outdated_thread } },
+			   "the outdated thread's Reply opens a reply bound to the thread, with no line");
+		if (!reply) {
+			return { };
+		}
+		const auto again = select_thread_reply(app, aFixture);
+		expect(again && again->Draft.Id == reply->Draft.Id, "pressing Reply again opens the same reply, not a second one");
+		auto edit             = revisioned_review_draft_command{ };
+		edit.Command          = { .Id = reply->Draft.Id, .Kind = review_draft_command_kind::edit, .Body = std::string{ outdated_words } };
+		edit.ExpectedRevision = reply->Revision;
+		edit.Scope            = reply->Scope;
+		const auto written    = app.commit(edit);
+		expect(written && written->Draft.Body == outdated_words && thread_bound_reply(written->Draft), "its words are saved, and it stays bound to the thread");
+		expect(app.select(aFixture, std::nullopt).has_value() && app.select(aFixture, std::nullopt)->Draft.Id != reply->Draft.Id,
+			   "choosing a line never opens it");
+		return reply->Draft.Id;
+	}
+
+	[[nodiscard]] auto outdated_snapshot() -> github_pull_request_snapshot
+	{
+		auto value                      = github_pull_request_snapshot{ };
+		value.ReviewThreadsAvailability = github_collection_availability::available;
+		auto thread                     = github_review_thread_record{ };
+		thread.Thread                   = github_thread_id{ std::string{ outdated_thread } };
+		thread.Outdated                 = true;
+		value.ReviewThreads.push_back(std::move(thread));
+		return value;
+	}
+
+	void outdated_reply_restart()
+	{
+		fixture    f;
+		const auto id = write_thread_reply(f);
+		f.reopen();
+		composition app(f);
+		const auto  drafts = app.drafts();
+		const auto  shown  = std::ranges::find(drafts, id, &review_comment_draft::Id);
+		expect(shown != drafts.end() && shown->Body == outdated_words, "after a restart the reply is restored with its words");
+		const auto reopened = select_thread_reply(app, f);
+		expect(reopened && reopened->Draft.Id == id && reopened->Draft.Body == outdated_words, "the outdated thread's Reply opens it again");
+		const auto decision = decide_reply_draft(reopened.value_or(revisioned_review_draft{ }).Draft, observe_reply_threads(outdated_snapshot()));
+		expect(decision.Standing == reply_draft_standing::answerable && decision.Sendable && !decision.KeepableAsComment, "it stands on its thread and can be sent");
+	}
+
+	void outdated_reply_head_change()
+	{
+		fixture    f;
+		const auto id = write_thread_reply(f);
+		// A push: the pull request's head moves, and the comparison with it.
+		auto moved             = f.Binding;
+		moved.Revision.HeadOid = *parse_git_commit_oid("5555555555555555555555555555555555555555");
+		auto comparison        = moved.Comparison->bytes();
+		comparison[0]          = static_cast<std::uint8_t>(comparison[0] ^ 0x5AU);
+		moved.Comparison       = file_comparison_digest{ comparison };
+		const auto earlier     = f.Binding;
+		f.Binding              = moved;
+		auto       host        = review_composition_application_host{ *f.Store };
+		const auto before      = host.restore(moved.Revision.HeadOid);
+		expect(before && before->records().empty(), "before the carry, the new head has no drafts: a draft on a line stays on its own head");
+		const auto carried = host.carry_thread_replies(moved);
+		expect(carried && carried->records().size() == 1U, "the new head carries the one unsent thread-bound reply");
+		const auto again = host.carry_thread_replies(moved);
+		expect(again && again->records().empty(), "carrying again carries nothing more");
+		composition app(f);
+		const auto  drafts = app.drafts();
+		const auto  shown  = std::ranges::find_if(drafts, [](const review_comment_draft& aDraft) { return thread_bound_reply(aDraft); });
+		expect(shown != drafts.end() && shown->Id != id && shown->Body == outdated_words && shown->Anchor == thread_reply_anchor(*moved.Comparison)
+				   && shown->ReplyToThread == std::optional<std::string>{ std::string{ outdated_thread } },
+			   "on the new head the reply is restored with its words, bound to the same thread");
+		const auto reopened = select_thread_reply(app, f);
+		expect(reopened && shown != drafts.end() && reopened->Draft.Id == shown->Id, "the outdated thread's Reply opens the carried reply");
+		const auto old = f.Store->load_draft(id);
+		expect(old && old->Draft.Draft.State == review_draft_state::discarded && old->Binding == earlier, "the earlier head's copy is discarded, on its own binding");
+	}
+}
+
 int main()
 {
 	const auto run = [](const std::string_view aName, void (*aScenario)()) {
@@ -287,6 +388,8 @@ int main()
 	run("restart", restart);
 	run("thread deleted", thread_deleted);
 	run("thread resolved", thread_resolved);
+	run("outdated thread reply restart", outdated_reply_restart);
+	run("outdated thread reply head change", outdated_reply_head_change);
 	if (Failures != 0) {
 		std::cerr << Failures << " expectations failed\n";
 		return 1;

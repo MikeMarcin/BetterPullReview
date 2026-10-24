@@ -432,6 +432,10 @@ namespace bpr::app::detail {
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.
 		std::optional<claude_search_environment> ClaudeSearch;
+		/// [[BPR-1748]]. Where the shipped bare `codex` is looked for,
+		/// as `ClaudeSearch` is for `claude`. Absent, the application's
+		/// environment and Codex's usual folders are searched, as shipped.
+		std::optional<claude_search_environment> CodexSearch;
 		std::optional<std::filesystem::path>     GitExecutable;
 		// RFC-BPR-0016. Composes a registered device capability against the
 		// recorded BPR-0276 grant so the enrollment reaches the real vault.
@@ -476,7 +480,10 @@ namespace bpr::app::detail {
 		/// [[BPR-0657]]. Whether the fixture's mutation provider resolves
 		/// threads. Off, the composed editor reports the degradation, which
 		/// the round-trip course pins; on, the threaded-reply course resolves.
-		bool                                        ResolvesThreads         = false;
+		bool ResolvesThreads = false;
+		/// [[BPR-1741]]. The fixture answers reactions and its mutation
+		/// provider adds and removes them; off, no course reads any.
+		bool                                        ServesReactions         = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
 		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
@@ -493,6 +500,12 @@ namespace bpr::app::detail {
 		// `main` sets it only for `--attended-launch` outside the automated
 		// test boundary; a test that sets it substitutes the platform launch.
 		bool AttendedWindowBrowser = false;
+		/// [[BPR-1755]], RFC-BPR-0092. An attended look's Agent tab looks
+		/// for this computer's own agents, as a shipped build does, so the
+		/// person can set up and ask their own Claude Code or Codex. `main` sets
+		/// it with `AttendedWindowBrowser`; every automated course keeps its
+		/// own search path and never finds the developer's agent.
+		bool AttendedAgentSearch = false;
 		// [[BPR-0540]]. Puts the documented refresh shape in the refresh slot
 		// before this process has a session at all, which is the state a past
 		// grant's orderly shutdown used to leave behind: the access token
@@ -587,6 +600,8 @@ namespace bpr::app::detail {
 		/// resolutions asked of the provider.
 		std::size_t Replies     = 0U;
 		std::size_t Resolutions = 0U;
+		/// [[BPR-1741]]. Reaction changes asked of the provider.
+		std::size_t Reactions = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
 		/// it was a file comment.
@@ -603,6 +618,11 @@ namespace bpr::app::detail {
 		/// received, and how many named a commit other than the head.
 		std::string LastCommit;
 		std::size_t EarlierCommitPosts = 0U;
+		/// [[BPR-1745]]. The last reply's thread, whether it was bound to
+		/// the thread rather than a line, and the commit it was bound to.
+		std::string LastReplyThread;
+		bool        LastReplyThreadBound = false;
+		std::string LastReplyCommit;
 
 		auto operator<=>(const review_mutation_fixture_evidence&) const = default;
 	};
@@ -795,6 +815,18 @@ namespace bpr::app::detail {
 		bool ReplyUnderThread = false;
 		bool ResolveAsked     = false;
 		bool ThreadResolved   = false;
+		/// [[BPR-1741]]. With reactions served: Unresolve conversation
+		/// shown at once and settled by GitHub, the recorded reactions read, a
+		/// chip's reaction shown at once, confirmed and removed, a reaction
+		/// chosen in the picker by keyboard, and a later read agreeing.
+		bool ReopenShownAtOnce  = false;
+		bool Reopened           = false;
+		bool ReactionsRead      = false;
+		bool ReactionShown      = false;
+		bool ReactionConfirmed  = false;
+		bool ReactionRemoved    = false;
+		bool PickerReacted      = false;
+		bool ReactionReconciled = false;
 
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};
@@ -967,6 +999,12 @@ namespace bpr::app::detail {
 	/// reply copied and discarded (`deleted`) or kept as a comment on its
 	/// line (`kept`). `write` writes the reply and quits; `restart`, over the
 	/// same data root, finds it again. Nothing is ever sent to the server.
+	/// [[BPR-1745]]. The same thread made outdated by a push first
+	/// (`stage_server_thread_outdated`), then answered from its Reply: by the
+	/// thread, with no refusal and the quiet outdated line. `outdated-publish`
+	/// publishes it through the reply path; `outdated-write` writes it and
+	/// quits; `outdated-restart`, over the same data root, finds it again and
+	/// Reply opens it.
 	enum class reply_draft_course {
 		refresh,
 		edited,
@@ -975,6 +1013,9 @@ namespace bpr::app::detail {
 		deleted,
 		kept,
 		resolved,
+		outdated_publish,
+		outdated_write,
+		outdated_restart,
 	};
 
 	enum class reply_draft_probe_result {
@@ -1620,6 +1661,9 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1327]]. Turns preparation off or on in the active
 		/// window, so one course can measure opening files both ways.
 		static void set_preparation_enabled(github_application& aApplication, bool aEnabled);
+		/// \brief [[BPR-1735]]. Turns the Whole PR diff's placement off or on,
+		/// so a course can write what a build before it wrote.
+		static void set_whole_diff_placement_enabled(github_application& aApplication, bool aEnabled);
 		/// \brief [[BPR-1212]]. The next `aCount` base-numbering answers apply as
 		/// `cancelled`, as an accept that stops queued epoch work leaves them.
 		static void cancel_base_numbering_answers(github_application& aApplication, std::size_t aCount);
@@ -1938,6 +1982,10 @@ namespace bpr::app::detail {
 			-> std::string;
 		/// \brief [[BPR-1374]]. One tick of the unsent-reply course.
 		[[nodiscard]] static auto exercise_reply_draft(github_application& aApplication, reply_draft_course aCourse)
+			-> reply_draft_probe_result;
+		/// \brief [[BPR-1745]]. One tick of the outdated-thread reply
+		/// course.
+		[[nodiscard]] static auto exercise_outdated_reply(github_application& aApplication, reply_draft_course aCourse)
 			-> reply_draft_probe_result;
 		[[nodiscard]] static auto reply_draft_evidence(const github_application& aApplication)
 			-> reply_draft_probe_evidence;

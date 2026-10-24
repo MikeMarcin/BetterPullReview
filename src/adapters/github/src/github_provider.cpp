@@ -72,10 +72,12 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::search_pull_requests;
 			case read_operation::list_requested_reviewers:
 				return application::diagnostic_paged_operation::list_requested_reviewers;
-			case read_operation::get_team_membership:
-				return application::diagnostic_paged_operation::none;
 			case read_operation::list_home_pull_requests:
 				return application::diagnostic_paged_operation::list_home_pull_requests;
+			case read_operation::get_team_membership:
+			case read_operation::list_reactions:
+				// [[BPR-0988]]. Discovery is not part of a pull request read.
+				return application::diagnostic_paged_operation::none;
 			}
 			return application::diagnostic_paged_operation::none;
 		}
@@ -357,24 +359,58 @@ namespace bpr::adapters::github::detail {
 				Requests.fetch_add(1U, std::memory_order_relaxed);
 				LastOperation.store(diagnostic_operation_for(aRequest.Wire.Operation), std::memory_order_relaxed);
 				LastStatus.store(0U, std::memory_order_relaxed);
+				// [[BPR-1744]]. Its time in the transport and what kind of
+				// answer it was; a request that throws counts only its time.
+				const auto started = std::chrono::steady_clock::now();
+				struct wire_time
+				{
+					std::atomic<std::uint64_t>&           Total;
+					std::chrono::steady_clock::time_point Started;
+					~wire_time() { Total.fetch_add(static_cast<std::uint64_t>(std::max<std::int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - Started).count(), 0)), std::memory_order_relaxed); }
+				} timed{ WireMicroseconds, started };
 				auto completion = Inner.perform(aRequest, std::move(aStop));
-				if (const auto* success = std::get_if<github_wire_success>(&completion)) {
+				if (const auto* const success = std::get_if<github_wire_success>(&completion)) {
 					const auto status = success->Response.Status;
 					LastStatus.store(status >= 100 && status <= 599 ? static_cast<std::uint16_t>(status) : std::uint16_t{ 0U }, std::memory_order_relaxed);
-				} else if (const auto* error = std::get_if<github_wire_error>(&completion)) {
+					if (status == 403) {
+						Forbidden.fetch_add(1U, std::memory_order_relaxed);
+					} else if (status == 429) {
+						Throttled.fetch_add(1U, std::memory_order_relaxed);
+					} else if (status >= 500 && status <= 599) {
+						ServerErrors.fetch_add(1U, std::memory_order_relaxed);
+					}
+				} else if (const auto* const error = std::get_if<github_wire_error>(&completion)) {
 					LastStatus.store(error->Error.HttpStatus, std::memory_order_relaxed);
+					if (error->Error.Failure == application::github_provider_failure::timeout) {
+						Timeouts.fetch_add(1U, std::memory_order_relaxed);
+					}
 				}
 				return completion;
 			}
 			[[nodiscard]] auto requests() const noexcept -> std::uint32_t { return Requests.load(std::memory_order_relaxed); }
-			[[nodiscard]] auto last_operation() const noexcept -> application::diagnostic_paged_operation { return LastOperation.load(std::memory_order_relaxed); }
-			[[nodiscard]] auto last_status() const noexcept -> std::uint16_t { return LastStatus.load(std::memory_order_relaxed); }
+			/// \brief The answer counts and wire time into `aCost`.
+			void add_to(application::personal_discovery_cost& aCost) const noexcept
+			{
+				aCost.LastReadOperation = LastOperation.load(std::memory_order_relaxed);
+				aCost.LastHttpStatus    = LastStatus.load(std::memory_order_relaxed);
+				aCost.Requests          = requests();
+				aCost.WireMilliseconds  = static_cast<std::uint32_t>(std::min<std::uint64_t>(WireMicroseconds.load(std::memory_order_relaxed) / 1000U, std::numeric_limits<std::uint32_t>::max()));
+				aCost.Forbidden         = Forbidden.load(std::memory_order_relaxed);
+				aCost.Throttled         = Throttled.load(std::memory_order_relaxed);
+				aCost.ServerErrors      = ServerErrors.load(std::memory_order_relaxed);
+				aCost.Timeouts          = Timeouts.load(std::memory_order_relaxed);
+			}
 
 		private:
 			github_wire_transport_port&                          Inner;
 			std::atomic<std::uint32_t>                           Requests{ 0U };
+			std::atomic<std::uint64_t>                           WireMicroseconds{ 0U };
 			std::atomic<application::diagnostic_paged_operation> LastOperation{ application::diagnostic_paged_operation::none };
 			std::atomic<std::uint16_t>                           LastStatus{ 0U };
+			std::atomic<std::uint32_t>                           Forbidden{ 0U };
+			std::atomic<std::uint32_t>                           Throttled{ 0U };
+			std::atomic<std::uint32_t>                           ServerErrors{ 0U };
+			std::atomic<std::uint32_t>                           Timeouts{ 0U };
 		};
 
 		/// [[BPR-1680]]. Whole milliseconds between two steady instants, saturated.
@@ -982,6 +1018,12 @@ namespace bpr::adapters::github::detail {
 					-> application::git_smart_transport_result<std::shared_ptr<application::git_chain_tree_store>> override
 				{
 					return perform_guarded<std::shared_ptr<application::git_chain_tree_store>>(aStop, [&] { return Inner->acquire_chain_trees(aRequest, aStop); });
+				}
+				/// [[BPR-1738]]. An agent workspace's snapshot, under the same guard.
+				auto acquire_workspace_snapshot(const application::git_smart_workspace_snapshot_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_snapshot>> override
+				{
+					return perform_guarded<std::shared_ptr<application::git_workspace_snapshot>>(aStop, [&] { return Inner->acquire_workspace_snapshot(aRequest, aStop); });
 				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
@@ -2813,6 +2855,79 @@ namespace bpr::adapters::github::detail {
 								result->ViewerTeamMemberships.push_back(std::move(record));
 							}
 						}
+						// [[BPR-1741]]. The reactions of every review-thread
+						// comment, pull request comment and review with words, in
+						// pages of fifty and at most eight pages a read. A refused,
+						// rate-limited or malformed answer leaves reactions unread
+						// and fails nothing else; lost authentication fails the
+						// read as every optional read does.
+						if (state->ReadAuthority == github_provider_read_authority::authenticated) {
+							constexpr auto mostSubjects = std::size_t{ 400U };
+							auto           subjects     = std::vector<std::string>{ };
+							const auto     add          = [&subjects](const std::string_view aNode) {
+								if (!aNode.empty() && subjects.size() < mostSubjects + 1U && std::ranges::find(subjects, aNode) == subjects.end()) {
+									subjects.emplace_back(aNode);
+								}
+							};
+							for (const auto& thread : result->ReviewThreads) {
+								for (const auto& comment : thread.Comments) {
+									if (!comment.Deleted) {
+										add(comment.Comment.value());
+									}
+								}
+							}
+							for (const auto& comment : result->IssueComments) {
+								if (!comment.Deleted) {
+									add(comment.Comment.value());
+								}
+							}
+							for (const auto& review : result->Reviews) {
+								if (!review.Body.empty()) {
+									add(review.Review.value());
+								}
+							}
+							const auto partial = subjects.size() > mostSubjects;
+							if (partial) {
+								subjects.resize(mostSubjects);
+							}
+							auto availability = subjects.empty() ? application::github_reaction_availability::unobserved
+																 : application::github_reaction_availability::available;
+							for (std::size_t first = 0; first < subjects.size(); first += maximum_reaction_subjects_per_read) {
+								const auto last  = std::min(subjects.size(), first + maximum_reaction_subjects_per_read);
+								const auto batch = std::vector<std::string>{ subjects.begin() + static_cast<std::ptrdiff_t>(first), subjects.begin() + static_cast<std::ptrdiff_t>(last) };
+								const auto read  = perform_github_reaction_read(*readTransport, *profile, aRequest, result->Repository.Repository,
+																				result->Repository.Node.value(), result->PullRequest.Node.value(), batch,
+																				job->Stop.get_token(), { }, state->ReadAuthority, &observer);
+								if (read) {
+									if (read->RateLimits.Graphql) {
+										result->RateLimits.Graphql = read->RateLimits.Graphql;
+									}
+									for (const auto& record : read->Records) {
+										result->Reactions.push_back(record);
+									}
+									continue;
+								}
+								if (std::holds_alternative<github_paged_read_cancelled>(read.error())) {
+									cancelled();
+									return;
+								}
+								const auto& error = std::get<application::github_provider_error>(read.error());
+								if (error.Failure == application::github_provider_failure::authentication) {
+									failed(error);
+									return;
+								}
+								if (error.RateLimits.Graphql) {
+									result->RateLimits.Graphql = error.RateLimits.Graphql;
+								}
+								availability = application::github_reaction_availability::failed;
+								result->Reactions.clear();
+								break;
+							}
+							if (partial && availability == application::github_reaction_availability::available) {
+								availability = application::github_reaction_availability::partial;
+							}
+							result->ReactionsAvailability = availability;
+						}
 						if (finish_job(state, job)) {
 							delivery->deliver(
 								application::github_pull_request_cancelled{
@@ -2925,16 +3040,19 @@ namespace bpr::adapters::github::detail {
 				} release{ ended };
 				// [[BPR-1680]]. What the read cost: its wait for this lane, its
 				// run, and the requests it sent.
-				const auto started = std::chrono::steady_clock::now();
-				auto       counted = std::optional<counting_wire_transport>{ };
-				const auto cost    = [&] {
-					return application::personal_discovery_cost{
-						.Requests          = counted ? counted->requests() : 0U,
-						.WaitMilliseconds  = milliseconds_between(submitted, started),
-						.RunMilliseconds   = milliseconds_between(started, std::chrono::steady_clock::now()),
-						.LastReadOperation = counted ? counted->last_operation() : application::diagnostic_paged_operation::none,
-						.LastHttpStatus    = counted ? counted->last_status() : std::uint16_t{ 0U },
+				const auto started    = std::chrono::steady_clock::now();
+				auto       counted    = std::optional<counting_wire_transport>{ };
+				auto       credential = std::uint32_t{ 0U };
+				const auto cost       = [&] {
+					auto result = application::personal_discovery_cost{
+						.WaitMilliseconds       = milliseconds_between(submitted, started),
+						.RunMilliseconds        = milliseconds_between(started, std::chrono::steady_clock::now()),
+						.CredentialMilliseconds = credential,
 					};
+					if (counted) {
+						counted->add_to(result);
+					}
+					return result;
 				};
 				try {
 					// [[BPR-1679]]. A read cancelled while it waited for its
@@ -2947,8 +3065,12 @@ namespace bpr::adapters::github::detail {
 						delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });
 						return;
 					}
-					auto operation = lane ? accountTransport->Transport->begin_background_operation(*lane, job->Stop.get_token())
-										  : accountTransport->Transport->begin_operation(job->Stop.get_token());
+					// [[BPR-1744]]. Beginning the operation acquires the
+					// credential, on a GitHub CLI account with a process of its own.
+					const auto beginning = std::chrono::steady_clock::now();
+					auto       operation = lane ? accountTransport->Transport->begin_background_operation(*lane, job->Stop.get_token())
+												: accountTransport->Transport->begin_operation(job->Stop.get_token());
+					credential           = milliseconds_between(beginning, std::chrono::steady_clock::now());
 					if (!operation) {
 						if (finish_job(state, job)) {
 							delivery->deliver(application::personal_discovery_cancelled{ .Request = aRequest, .Cost = cost() });

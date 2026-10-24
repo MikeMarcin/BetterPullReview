@@ -1,10 +1,13 @@
 #include "bpr/app/github_application.hpp"
 #include "bpr/adapters/process_support/process_supervision.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/workspace/clone_folder_scan.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
+#include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/insights_host.hpp"
@@ -96,7 +99,14 @@
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/adapters/agent/agent_process_launcher.hpp"
 	#include "bpr/adapters/mcp/mcp_context_helper.hpp"
+	#include "bpr/application/agent_conversation_host.hpp"
+	#include "bpr/application/agent_program_resolution.hpp"
+	#include "bpr/application/agent_setup_host.hpp"
 	#include "bpr/application/claude_process_wrapper.hpp"
+	#include "bpr/application/clone_link_host.hpp"
+	#include "bpr/application/review_brief.hpp"
+	#include "bpr/application/review_skill_host.hpp"
+	#include "bpr/qt/agent_tab_view.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
@@ -164,10 +174,12 @@
 #include "bpr/application/workbench_snapshot_observation.hpp"
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_open.hpp"
+#include "bpr/core/markdown_code.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
 #include "bpr/core/suggestion_draft.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/event_loop_device_timer.hpp"
@@ -312,6 +324,32 @@ namespace bpr::app {
 	}
 
 	namespace {
+#if defined(BPR_AGENT_INTEGRATIONS)
+		/// [[BPR-1752]], RFC-BPR-0092 D1. Writes the edited review skill
+		/// to a new file in Downloads (else Documents or home) before Restore
+		/// default or Use version N removes it, and names the file. Never
+		/// replaces a file that is already there.
+		[[nodiscard]] auto save_review_skill_copy(const std::string& aText) -> std::optional<std::string>
+		{
+			const auto directory = resolve_diagnostic_export_directory(diagnostic_export_locations());
+			if (!directory) {
+				return std::nullopt;
+			}
+			const auto name = QStringLiteral("bpr-pr-review SKILL %1.md").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss")));
+			auto       file = QFile{ QDir{ QString::fromStdString(*directory) }.filePath(name) };
+			if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) {
+				return std::nullopt;
+			}
+			const auto written = file.write(aText.data(), static_cast<qint64>(aText.size()));
+			file.close();
+			if (written != static_cast<qint64>(aText.size()) || file.error() != QFileDevice::NoError) {
+				static_cast<void>(file.remove());
+				return std::nullopt;
+			}
+			return QDir::toNativeSeparators(file.fileName()).toStdString();
+		}
+#endif
+
 		class native_insights_metrics final : public application::process_metrics_port
 		{
 		public:
@@ -3540,8 +3578,17 @@ namespace bpr::app {
 
 		void offer(const std::span<const core::agent_profile> aProfiles) override
 		{
+			// [[BPR-1753]], owner amendment 2026-10-23. The picker offers
+			// the agents the reviewer added, not every profile the host knows.
+			if (OfferFilter) {
+				const auto offered = OfferFilter(aProfiles);
+				Panel.offer(offered);
+				return;
+			}
 			Panel.offer(aProfiles);
 		}
+
+		void set_offer_filter(std::function<std::vector<core::agent_profile>(std::span<const core::agent_profile>)> aFilter) { OfferFilter = std::move(aFilter); }
 
 		void refuse(const std::string_view aReason) override
 		{
@@ -3637,16 +3684,17 @@ namespace bpr::app {
 		}
 
 	private:
-		std::function<void(const application::private_review_delta&)> PrivateChanged;
-		std::function<void(const application::private_run_error&)>    PrivateFailed;
-		application::agent_invocation_projection_port&                Panel;
-		finding_sink                                                  Findings;
-		session_sink                                                  Sessions;
-		admit_sink                                                    Admissions;
-		run_sink                                                      Runs;
-		workspace_sink                                                Workspaces;
-		start_sink                                                    Starts;
-		std::function<void(std::string_view)>                         Refused;
+		std::function<void(const application::private_review_delta&)>                         PrivateChanged;
+		std::function<void(const application::private_run_error&)>                            PrivateFailed;
+		application::agent_invocation_projection_port&                                        Panel;
+		finding_sink                                                                          Findings;
+		session_sink                                                                          Sessions;
+		admit_sink                                                                            Admissions;
+		run_sink                                                                              Runs;
+		workspace_sink                                                                        Workspaces;
+		start_sink                                                                            Starts;
+		std::function<void(std::string_view)>                                                 Refused;
+		std::function<std::vector<core::agent_profile>(std::span<const core::agent_profile>)> OfferFilter;
 	};
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -5164,12 +5212,14 @@ namespace bpr::app {
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
 				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 				ClaudeSearch            = aFixtureOptions.ClaudeSearch;
+				CodexSearch             = aFixtureOptions.CodexSearch;
 				RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;
 				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
 				DeviceWallOffsetSeconds = aFixtureOptions.DeviceWallOffsetSeconds;
 				SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
 				AttendedWindowBrowser   = aFixtureOptions.AttendedWindowBrowser;
+				AttendedAgentSearch     = aFixtureOptions.AttendedAgentSearch;
 				LabelHelper             = aFixtureOptions.LabelHelper;
 				DisableDeviceAuthorizationPanelComposition
 					= aFixtureOptions
@@ -6413,6 +6463,7 @@ namespace bpr::app {
 		bool SuppressDeviceBrowser = false;
 		// [[BPR-1338]]. See `github_public_path_fixture_options`.
 		bool AttendedWindowBrowser = false;
+		bool AttendedAgentSearch   = false;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool LabelHelper = false;
@@ -6520,6 +6571,7 @@ namespace bpr::app {
 		std::optional<std::filesystem::path>             CodexAgentExecutable;
 		std::optional<std::filesystem::path>             ClaudeAgentExecutable;
 		std::optional<detail::claude_search_environment> ClaudeSearch;
+		std::optional<detail::claude_search_environment> CodexSearch;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool UseGrantedNotificationSink = false;
@@ -8267,7 +8319,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			CycleDesktop = std::make_unique<review_cycle_desktop>(*Window, ApplicationDataRoot, DraftWindow.Profile, WorkbenchEffects, DecisionLane,
 																  review_cycle_syntax{ .Definitions = SyntaxDefinitions.get(), .Effects = &AppearanceEffects, .Insights = Profile->InsightsRecorder }, nullptr,
 #if defined(BPR_AGENT_INTEGRATIONS)
-																  ClaudeWrapperSource, locate_claude()
+																  ClaudeWrapperSource, locate_claude(), AgentProgramSource, locate_agent_program()
 #else
 																  nullptr
 #endif
@@ -8340,6 +8392,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				},
 				[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 			ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
+			ReviewSubmission->set_unplaceable_refusal_observer([this](const application::review_submission_request& aRefused) { demote_off_hunk_fact(aRefused); });
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
@@ -8352,8 +8405,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](core::revisioned_review_draft_command aCommand) { dispatch_review_draft(std::move(aCommand)); });
 			Window->set_review_reply_dispatch(
 				[this](const std::string& aIdentity) { begin_review_reply(aIdentity); });
+			Window->set_thread_reply_dispatch(
+				[this](const std::string& aIdentity) { begin_thread_bound_reply(aIdentity); });
 			Window->set_thread_resolution_dispatch(
 				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
+			Window->set_reaction_dispatch(
+				[this](const qt::reaction_gesture& aGesture) { react_to_post(aGesture); });
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 			// BPR-0533. The six comment-workshop controls reach the composed
 			// workshop host and nothing else: the editor asks for an operation
@@ -8767,6 +8825,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
+			// [[BPR-1753]], owner amendment 2026-10-23. Every slot an
+			// added agent may launch as, told to every host once.
+			std::ranges::move(core::agent_entry_profiles(), std::back_inserter(agentProfiles));
 			// Stated once and given to both hosts. The chat host asks
 			// `core::decide_agent_action` the same host-policy question the
 			// launch host already asks, and two lists written apart are two
@@ -8779,6 +8840,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					core::git_host_id{ 2U },
 					core::built_in_agent_host_kind::explicit_ghes),
 			};
+			// [[BPR-1749]]. Setup's rows carry the same policy.
+			AgentPolicies = agentPolicies;
 	#if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
 				const auto external = std::ranges::find(
@@ -8788,12 +8851,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (external != agentProfiles.end()) {
 					external->Executable = ExternalAgentExecutable->string();
 				}
+				BuiltInProfilesOffered = true;
 			}
 			if (ClaudeAgentExecutable) {
 				const auto claude = std::ranges::find(agentProfiles, core::claude_stream_json_profile_id, &core::agent_profile::Id);
 				if (claude != agentProfiles.end()) {
 					claude->Executable = ClaudeAgentExecutable->string();
 				}
+				BuiltInProfilesOffered = true;
 			}
 			if (CodexAgentExecutable.has_value()) {
 				const auto codex = std::ranges::find(
@@ -8803,6 +8868,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (codex != agentProfiles.end()) {
 					codex->Executable = CodexAgentExecutable->string();
 				}
+				BuiltInProfilesOffered = true;
 			}
 	#endif
 	#if defined(BPR_BUILD_TESTING)
@@ -8819,10 +8885,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (AgentProcessProbe != nullptr) {
 				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+				// [[BPR-1748]], RFC-BPR-0092 Q5. Codex and the plain-text
+				// harness get an absolute program here, in front of the Claude
+				// wrapper, so a shipped build starts them.
+				LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
+				EntryProcess   = std::make_unique<application::agent_entry_process>(*AgentProcessProbe, *LocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper, locate_claude(), locate_agent_program());
 			}
 			if (!DisableAgentHostComposition && AgentProcessProbe != nullptr)
 	#else
-			ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+			ClaudeProcess  = std::make_unique<application::wrapped_claude_process>(*AgentProcess, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+			LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
+			EntryProcess   = std::make_unique<application::agent_entry_process>(*AgentProcess, *LocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper, locate_claude(), locate_agent_program());
 	#endif
 			{
 				// BPR-0532. The re-alignment a continued turn asks for, served
@@ -8839,7 +8912,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-					*ClaudeProcess,
+					*EntryProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -8858,6 +8931,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->withdraw_agent_surfaces();
 #endif
 #if defined(BPR_AGENT_INTEGRATIONS)
+			AgentProjections->set_offer_filter([this](const std::span<const core::agent_profile> aProfiles) {
+				HostOfferedProfiles.assign(aProfiles.begin(), aProfiles.end());
+				return offered_agent_profiles();
+			});
 			AgentProjections->set_private_sink([this](const auto& aDelta) {if(!Closing && PrivateReview){PrivateReview->changed(aDelta);} }, [this](const auto&) {if(!Closing && Window){Window->private_review()->show_status(QStringLiteral("Private run admission or retention refused; no missing provenance is inferred."));} });
 			Window->set_agent_dispatch(
 				[this](qt::agent_intent aIntent) {
@@ -9240,6 +9317,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// [[BPR-1375]]. The next Claude request names this model.
 					ClaudeModel = aPreferences.ClaudeModel;
 					Window->claude_wrapper()->present_model(aPreferences.ClaudeModel);
+					present_run_settings();
 #endif
 				}
 			});
@@ -9267,6 +9345,85 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 				});
+			// [[BPR-1749]], RFC-BPR-0092 M2. The profile's agent setup:
+			// its saved choice and programs, detection when setup shows (Q2) and
+			// the bounded status check (Q3 A) on a launcher and lane of its own.
+			AgentSetupStore    = adapters::sqlite::make_agent_setup_store(ApplicationDataRoot);
+			AgentSetupLauncher = std::make_unique<adapters::agent::agent_process_launcher>();
+			AgentSetupLane     = std::make_unique<worker_executor>();
+			{
+				auto dependencies          = application::agent_setup_dependencies{ };
+				dependencies.Store         = AgentSetupStore.get();
+				dependencies.Process       = AgentSetupLauncher.get();
+				dependencies.Locate        = locate_agent_program();
+				dependencies.Inspect       = &adapters::agent::inspect_claude_process_wrapper;
+				dependencies.ClaudeWrapper = ClaudeWrapperSource;
+				dependencies.Programs      = AgentProgramSource;
+				dependencies.Parent        = [](const std::string& aName) -> std::optional<std::string> {
+					if (!qEnvironmentVariableIsSet(aName.c_str())) {
+						return std::nullopt;
+					}
+					return qEnvironmentVariable(aName.c_str()).toStdString();
+				};
+				dependencies.Profiles = core::built_in_agent_profiles();
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Checks   = AgentSetupLane.get();
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
+				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
+			}
+			AgentSetup->load();
+			// [[BPR-1750]], RFC-BPR-0092 D2. The profile's clone folders
+			// and each repository's remembered clone, read by metadata alone.
+			CloneLinkStore = adapters::sqlite::make_clone_link_store(ApplicationDataRoot);
+			{
+				auto dependencies           = application::clone_link_dependencies{ };
+				dependencies.Store          = CloneLinkStore.get();
+				dependencies.Reads.Scan     = [](const std::span<const std::string> aFolders, std::stop_token aStop) { return adapters::workspace::scan_clone_folders(aFolders, std::move(aStop)); };
+				dependencies.Reads.Read     = [](const std::string& aPath) { return adapters::workspace::read_clone(aPath); };
+				dependencies.Reads.Existing = [](const std::span<const std::string> aFolders) { return adapters::workspace::existing_folders(aFolders); };
+				dependencies.Home           = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+	#if defined(Q_OS_WIN)
+				dependencies.Windows = true;
+	#endif
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::clone_link_projection& aProjection) { present_clone_links(aProjection); };
+				CloneLinks            = std::make_unique<application::clone_link_host>(std::move(dependencies));
+			}
+			CloneLinks->load();
+			observe_clone_repository();
+			// [[BPR-1752]], RFC-BPR-0092 D1. The review skill: the
+			// built-in default until the profile edits it.
+			ReviewSkillStore = adapters::sqlite::make_review_skill_store(ApplicationDataRoot);
+			{
+				auto dependencies     = application::review_skill_dependencies{ };
+				dependencies.Store    = ReviewSkillStore.get();
+				dependencies.BuiltIn  = std::string{ application::built_in_review_skill() };
+				dependencies.SaveCopy = [](const std::string& aText) { return save_review_skill_copy(aText); };
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::review_skill_projection& aProjection) {
+					if (!Closing && Window != nullptr) {
+						Window->review_skill()->present(aProjection, std::string{ application::built_in_review_skill() });
+					}
+				};
+				ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));
+			}
+			ReviewSkill->load();
+			// [[BPR-1753]], owner decision (b) 2026-10-23. One
+			// conversation per pull request, kept with the setup.
+			AgentConversationStore = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
+			{
+				auto dependencies     = application::agent_conversation_dependencies{ };
+				dependencies.Store    = AgentConversationStore.get();
+				dependencies.Effects  = &WorkbenchEffects;
+				dependencies.Decision = &DecisionLane;
+				dependencies.Publish  = [this](const application::agent_conversation_projection& aView) { present_conversation(aView); };
+				AgentConversation     = std::make_unique<application::agent_conversation_host>(std::move(dependencies));
+			}
+			compose_agent_setup_view();
+			observe_conversation();
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
@@ -11310,6 +11467,944 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return adapters::agent::locate_claude(path, std::string_view{ home });
 			};
 		}
+
+		/// [[BPR-1748]], RFC-BPR-0092 Q5 (owner, 2026-10-22). Finds the
+		/// `codex` a Codex launch with no saved program runs, exactly as
+		/// `locate_claude` finds `claude`: this application's own `PATH` and
+		/// home folder as they are when asked, and Codex's usual folders.
+		[[nodiscard]] auto locate_agent_program() const -> application::agent_program_locator
+		{
+	#if defined(BPR_BUILD_TESTING)
+			// A fixture course finds only what it put on its own search PATH,
+			// never the developer's own `codex`; an attended look is a person's
+			// session and finds theirs ([[BPR-1755]]).
+			if (!AttendedAgentSearch && (CodexSearch || ClaudeSearch || Fixture)) {
+				return [codex = CodexSearch, claude = ClaudeSearch](const core::agent_program aProgram) -> std::optional<core::agent_search_candidate> {
+					const auto& search = aProgram == core::agent_program::codex ? codex : claude;
+					if (!search) {
+						return std::nullopt;
+					}
+					return adapters::agent::locate_agent_program(aProgram, search->PathVariable, std::span<const std::string>{ search->UsualFolders });
+				};
+			}
+	#endif
+			return [](const core::agent_program aProgram) {
+				const auto path = qEnvironmentVariable(std::string{ core::agent_search_path_variable() }.c_str()).toStdString();
+				const auto home = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+				return adapters::agent::locate_agent_program(aProgram, path, std::string_view{ home });
+			};
+		}
+
+		/// [[BPR-1753]], owner decision 2026-10-23. A card's action
+		/// waiting for its file to open in Review: tried again until the file
+		/// is on screen, then given up with words after about ten seconds.
+		struct pending_card_open
+		{
+			qt::agent_finding_card_request Request;
+			int                            Tries = 0;
+		};
+		std::optional<pending_card_open> PendingCardOpen;
+
+		void resume_card_open()
+		{
+			if (Closing || Window == nullptr || !PendingCardOpen) {
+				return;
+			}
+			const auto* const surface  = Window->comparison_surface();
+			const auto&       finding  = PendingCardOpen->Request.Finding;
+			const auto        onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
+				&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			if (onScreen) {
+				auto request = std::move(PendingCardOpen->Request);
+				PendingCardOpen.reset();
+				act_on_agent_card(request);
+				return;
+			}
+			if (++PendingCardOpen->Tries > 40) {
+				const auto request = std::move(PendingCardOpen->Request);
+				PendingCardOpen.reset();
+				Window->agent_tab()->present_finding_card_state(request.Session, request.Ordinal, qt::agent_finding_card_state::refused,
+																QStringLiteral("%1 did not open, so nothing was made.").arg(QString::fromStdString(request.Finding.Path)));
+				return;
+			}
+			QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
+		}
+
+		/// [[BPR-1753]], owner decision 2026-10-23. A private note from
+		/// the Agent tab: on one line of the shown comparison when `aLine`
+		/// names one, otherwise on the review. It belongs to the review's
+		/// private state, not to any agent session.
+		void save_agent_note(std::string aText, std::optional<std::pair<core::diff_side, std::uint32_t>> aLine, std::string aPath, qt::agent_answer_note_done aDone)
+		{
+			const auto answer = [aDone](const bool aSaved, const QString& aWhy, const std::uint64_t aNote = 0U) {
+				if (aDone) {
+					aDone(aSaved, aWhy, aNote);
+				}
+			};
+			if (Closing || Window == nullptr || !ReviewLedgerHost || !ReviewLedgerAvailable || aText.empty()) {
+				answer(false, QStringLiteral("no review is open"));
+				return;
+			}
+			auto note      = application::local_note_record{ };
+			note.Id        = next_private_note_id();
+			note.Note.Text = std::move(aText);
+			if (aLine) {
+				const auto        attachment = current_note_attachment();
+				const auto* const surface    = Window->comparison_surface();
+				const auto        shown      = attachment && surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Digest == attachment->Comparison
+					? core::note_line_anchor_at(surface->current_result()->Alignment, aLine->first, aLine->second)
+					: std::nullopt;
+				if (!shown) {
+					answer(false, QStringLiteral("that line is not on screen"));
+					return;
+				}
+				note.Attachment       = *attachment;
+				note.Attachment->Line = shown;
+				if (!aPath.empty() && aPath.size() <= application::maximum_note_path_bytes) {
+					note.FilePath = std::move(aPath);
+				}
+			}
+			ReviewLedgerHost->persist(note, std::nullopt, ledger_answer([this, answer](const std::expected<application::local_note_record, application::local_note_failure>& aStored) {
+										  if (!aStored) {
+											  answer(false, QString::fromUtf8(application::name(aStored.error().Reason).data(), static_cast<qsizetype>(application::name(aStored.error().Reason).size())));
+											  return;
+										  }
+										  refresh_agent_private_context_choices();
+										  // Owner look v004: Go to note opens the note made.
+										  answer(true, { }, aStored->Id.value());
+									  }));
+		}
+
+		/// [[BPR-1753]], owner decision 2026-10-23. Add as draft comment,
+		/// Save as note and Dismiss on one card. A draft and a note are made
+		/// only at lines of the file on screen; for another file the card says
+		/// to open it first. Nothing is published.
+		void act_on_agent_card(const qt::agent_finding_card_request& aRequest)
+		{
+			auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
+			const auto  state = [tab, aRequest](const qt::agent_finding_card_state aState, const QString& aWhy = { }, const std::uint64_t aNote = 0U) {
+				if (tab != nullptr) {
+					tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy, aNote);
+				}
+			};
+			if (Closing || tab == nullptr) {
+				return;
+			}
+			const auto& finding = aRequest.Finding;
+			if (aRequest.Action == qt::agent_finding_card_action::dismiss || aRequest.Action == qt::agent_finding_card_action::undo_dismiss) {
+				if (aRequest.Action == qt::agent_finding_card_action::dismiss && FindingHost != nullptr) {
+					FindingHost->act({ .Session = core::agent_session_id{ aRequest.Session }, .Ordinal = aRequest.Ordinal, .Action = application::agent_finding_action::dismiss });
+				}
+				state(aRequest.Action == qt::agent_finding_card_action::dismiss ? qt::agent_finding_card_state::dismissed : qt::agent_finding_card_state::open);
+				return;
+			}
+			// The finding's first line, in the comparison on screen when that
+			// is the finding's file.
+			auto* const surface  = Window->comparison_surface();
+			const auto  side     = finding.Anchor.Line ? finding.Anchor.Line->Side : core::diff_side::right;
+			const auto  onScreen = SelectedDiffPublication && SelectedDiffPublication->Request.File.PresentationPath == finding.Path && surface != nullptr
+				&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
+			// Owner decision 2026-10-23: another file is opened in Review first,
+			// then the draft or note is made at its line.
+			if (!onScreen) {
+				if (!Window->open_file_in_review(QString::fromStdString(finding.Path))) {
+					state(qt::agent_finding_card_state::refused, QStringLiteral("%1 is not in this pull request at its current head, so there is no line to put it on.").arg(QString::fromStdString(finding.Path)));
+					return;
+				}
+				state(qt::agent_finding_card_state::working);
+				PendingCardOpen = pending_card_open{ .Request = aRequest };
+				QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
+				return;
+			}
+			// The line must be one the file has at the current head.
+			const auto& shownAlignment = surface->current_result()->Alignment;
+			const auto  lineCount      = side == core::diff_side::left ? shownAlignment.LeftLineCount : shownAlignment.RightLineCount;
+			if (finding.Lines.Begin >= lineCount) {
+				state(qt::agent_finding_card_state::refused,
+					  QStringLiteral("Line %1 is not in %2 at the current head, so nothing was made.").arg(finding.Lines.Begin + 1U).arg(QString::fromStdString(finding.Path)));
+				return;
+			}
+			const auto at = core::source_line_ref{ .Comparison = surface->current_result()->Alignment.Digest, .Side = side, .Line = finding.Lines.Begin };
+			if (aRequest.Action == qt::agent_finding_card_action::save_note) {
+				auto text = finding.Claim;
+				if (finding.SuggestedComment && !finding.SuggestedComment->empty()) {
+					text += "\n\n" + *finding.SuggestedComment;
+				}
+				save_agent_note(std::move(text), std::pair{ side, finding.Lines.Begin }, finding.Path, [state](const bool aSaved, const QString& aWhy, const std::uint64_t aNote) {
+					state(aSaved ? qt::agent_finding_card_state::noted : qt::agent_finding_card_state::refused, aSaved ? QString{ } : QStringLiteral("Not saved: %1.").arg(aWhy), aNote);
+				});
+				return;
+			}
+			const auto text    = finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim;
+			auto       refused = [state] { state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: resolve the draft open at that line first.")); };
+			auto       done    = [state] { state(qt::agent_finding_card_state::drafted); };
+			if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
+				promote_private_item(text, std::move(refused), std::move(done));
+				return;
+			}
+			// The line's own draft opens once its line is chosen, as Draft
+			// comment on a note does ([[BPR-1592]]).
+			PendingNotePromotion = pending_note_promotion{ .Text = text, .At = at, .Refused = std::move(refused), .Done = std::move(done) };
+			if (!surface->select_conversation_line(at.Side, at.Line)) {
+				PendingNotePromotion.reset();
+				state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: line %1 is not in the comparison on screen.").arg(at.Line + 1U));
+			}
+		}
+
+		/// [[BPR-1753]], owner amendment 2026-10-23. What the picker
+		/// offers: each added agent the host offers a slot for, in the list's
+		/// order and under its name; a test's own built-in programs as well.
+		[[nodiscard]] auto offered_agent_profiles() const -> std::vector<core::agent_profile>
+		{
+			auto offered = std::vector<core::agent_profile>{ };
+			if (AgentSetup) {
+				const auto listed = AgentSetup->projection().Preferences.Agents;
+				for (const auto& entry : listed) {
+					const auto slot = core::entry_profile_id(entry);
+					if (std::ranges::find(HostOfferedProfiles, slot, &core::agent_profile::Id) != HostOfferedProfiles.end()) {
+						offered.push_back(core::entry_profile(entry));
+					}
+				}
+			}
+			if (BuiltInProfilesOffered) {
+				for (const auto& profile : HostOfferedProfiles) {
+					if (!core::is_agent_entry_profile(profile.Id)) {
+						offered.push_back(profile);
+					}
+				}
+			}
+			return offered;
+		}
+
+		/// Owner decision 2026-10-23: the run time limit the reviewer set, or
+		/// none (the default), when the run goes until the agent finishes.
+		[[nodiscard]] auto run_limit_milliseconds() const -> std::optional<int>
+		{
+			const auto minutes = AgentSetup ? AgentSetup->projection().Preferences.RunLimitMinutes : 0U;
+			return minutes == 0U ? std::nullopt : std::optional{ static_cast<int>(minutes) * 60'000 };
+		}
+
+		/// Owner decision 2026-10-23 ("separate session for each agent"): the
+		/// agent chosen now is the one whose conversation the thread shows.
+		[[nodiscard]] auto current_conversation_agent() const -> std::uint32_t
+		{
+			if (Window == nullptr || !AgentSetup) {
+				return 0U;
+			}
+			const auto  selected = Window->agent_panel()->selected_profile();
+			const auto  agents   = AgentSetup->projection().Preferences.Agents;
+			const auto* entry    = selected ? core::entry_of_profile(agents, *selected) : nullptr;
+			return entry != nullptr ? entry->Id : 0U;
+		}
+
+		void observe_conversation_agent()
+		{
+			if (!Closing && AgentConversation) {
+				AgentConversation->switch_agent(current_conversation_agent());
+			}
+			// Send to Agent defaults to the agent the pull request's session uses.
+			if (!Closing && CycleDesktop && Window != nullptr) {
+				if (const auto selected = Window->agent_panel()->selected_profile(); selected && core::is_agent_entry_profile(*selected)) {
+					CycleDesktop->prefer_send_profile(selected);
+				}
+			}
+		}
+
+		/// [[BPR-1753]], owner decision (b) 2026-10-23. The pull request
+		/// now open, for its conversation.
+		void observe_conversation()
+		{
+			if (!AgentConversation) {
+				return;
+			}
+			if (!AgentReview) {
+				AgentConversation->close();
+				return;
+			}
+			AgentConversation->open(
+				{ .Host = AgentReview->Hostname, .Owner = AgentReview->Locator.Owner, .Name = AgentReview->Locator.Name, .Number = AgentReview->Number.value(), .Agent = current_conversation_agent() });
+		}
+
+		/// Owner look v004. The Agent tab's header names the pull request, and
+		/// its answers' inline code is coloured in the language most of the
+		/// pull request's files are in.
+		void present_agent_pull_request()
+		{
+			if (Closing || Window == nullptr || WindowRead == nullptr) {
+				return;
+			}
+			auto* const tab      = Window->agent_tab();
+			const auto& snapshot = WindowRead->accepted_snapshot();
+			if (!snapshot) {
+				tab->set_session_title({ });
+				tab->set_inline_code_file({ });
+				return;
+			}
+			tab->set_session_title(QStringLiteral("#%1 %2").arg(snapshot->PullRequest.Number.value()).arg(QString::fromStdString(snapshot->PullRequest.Title)));
+			auto paths = std::vector<std::string>{ };
+			paths.reserve(snapshot->Files.size());
+			for (const auto& file : snapshot->Files) {
+				paths.push_back(file.Path);
+			}
+			tab->set_inline_code_file(QString::fromStdString(core::markdown_inline_code_selector(paths)));
+		}
+
+		/// The open pull request's kept thread, shown in the Agent tab.
+		void present_conversation(const application::agent_conversation_projection& aView)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto shown = std::vector<qt::agent_thread_turn>{ };
+			shown.reserve(aView.Turns.size());
+			for (const auto& turn : aView.Turns) {
+				shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending) });
+			}
+			Window->agent_tab()->present_thread(shown);
+			present_agent_pull_request();
+			// A pull request opens on the agent it was last asked with.
+			if (aView.Loaded && aView.Key && aView.Key->Agent != 0U && AgentSetup && aView.Key->Agent != current_conversation_agent()) {
+				const auto agents = AgentSetup->projection().Preferences.Agents;
+				if (const auto found = std::ranges::find(agents, aView.Key->Agent, &core::agent_entry::Id); found != agents.end()) {
+					static_cast<void>(Window->agent_tab()->choose_agent(core::entry_profile_id(*found).value()));
+				}
+			}
+		}
+
+		/// [[BPR-1750]], RFC-BPR-0092 D2. The repository of the review
+		/// now open, for its remembered clone.
+		void observe_clone_repository()
+		{
+			if (!CloneLinks) {
+				return;
+			}
+			if (!AgentReview) {
+				CloneLinks->observe_repository(std::nullopt);
+				return;
+			}
+			auto repository       = application::clone_repository{ };
+			repository.Host       = AgentReview->Hostname;
+			repository.Repository = AgentReview->Repository.value();
+			repository.Owner      = AgentReview->Locator.Owner;
+			repository.Name       = AgentReview->Locator.Name;
+			CloneLinks->observe_repository(std::move(repository));
+		}
+
+		/// [[BPR-1749]], RFC-BPR-0092. What setup decided reaches the
+		/// window: the saved or chosen agent is the one the Agent tab and Send to
+		/// Agent offer first.
+		/// [[BPR-1751]], RFC-BPR-0092 Q7. The linked clone a review's
+		/// workspace borrows history from: the observed repository's serving
+		/// link, never for tool-free writing and never the private copy.
+		[[nodiscard]] auto linked_history_clone(const bool aWritingOnly) const -> std::optional<std::filesystem::path>
+		{
+			if (aWritingOnly || !CloneLinks || !CloneLinks->repository_chosen()) {
+				return std::nullopt;
+			}
+			const auto view = CloneLinks->projection();
+			if (!view.Linked || view.Linked->PrivateCopy || view.Linked->Path.empty()) {
+				return std::nullopt;
+			}
+			return std::filesystem::path{ std::u8string { reinterpret_cast<const char8_t*>(view.Linked->Path.data()),
+														  view.Linked->Path.size() } };
+		}
+
+		/// [[BPR-1751]], RFC-BPR-0092 Check it works. One Check runs the
+		/// agent's own status command and makes, then removes, the workspace an
+		/// Ask would make for the review on screen.
+		void check_agent_setup()
+		{
+			if (Closing || !AgentSetup) {
+				return;
+			}
+			AgentSetup->check();
+			check_agent_workspace();
+		}
+
+		void check_agent_workspace()
+		{
+			if (Closing || !AgentSetup) {
+				return;
+			}
+			const auto failed = [this](const std::optional<application::agent_workspace_unavailable_reason> aReason) {
+				LastWorkspaceProbeReason = aReason;
+				AgentSetup->set_workspace_check(core::fail_check(core::agent_setup_failure::workspace_unavailable));
+			};
+			if (AgentHost == nullptr || EpochHost == nullptr || !AgentReview) {
+				failed(std::nullopt);
+				return;
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority || !state.AcceptedRevision || !state.AcceptedComparison) {
+				failed(std::nullopt);
+				return;
+			}
+			const auto& authority  = *state.Authority;
+			const auto& revision   = *state.AcceptedRevision;
+			const auto& comparison = *state.AcceptedComparison;
+			auto        binding    = core::agent_revision_binding{
+				.Host        = authority.Host,
+				.Repository  = authority.Repository,
+				.PullRequest = authority.PullRequest,
+				.BaseOid     = revision.Base,
+				.HeadOid     = revision.Head,
+				.LeftEpoch   = comparison.Left.Identity.Epoch,
+				.RightEpoch  = comparison.Right.Identity.Epoch,
+			};
+			LastWorkspaceProbeReason.reset();
+			AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
+			AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false),
+									   [this, failed](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
+										   if (Closing || !AgentSetup) {
+											   return;
+										   }
+										   if (aProbed) {
+											   LastWorkspaceProbeReason.reset();
+											   AgentSetup->set_workspace_check({ .State = core::setup_check_state::passed });
+											   return;
+										   }
+										   failed(aProbed.error().Code == application::agent_workspace_failure::unavailable ? std::optional{ aProbed.error().Reason } : std::nullopt);
+									   });
+		}
+
+		/// [[BPR-1750]]. A repository with a serving link or the private
+		/// copy has its Repository step done.
+		void present_clone_links(const application::clone_link_projection& aProjection)
+		{
+			if (Closing || !CloneLinks || !AgentSetup) {
+				return;
+			}
+			if (Window != nullptr) {
+				Window->clone_folders()->present(aProjection);
+			}
+			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen());
+			present_setup_view();
+		}
+
+		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
+		/// Settings rows: every press is a request to the setup, clone link or
+		/// review skill host, and their projections are all the view shows.
+		void compose_agent_setup_view()
+		{
+			if (Window == nullptr || !AgentSetup || !CloneLinks || !ReviewSkill) {
+				return;
+			}
+			auto* const tab = Window->agent_tab();
+			tab->adopt_setup(*Window->agent_setup(), [this] { check_agent_setup(); });
+			tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+				return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
+			});
+			// [[BPR-1753]], owner decision (b). Each turn that ends is
+			// kept for the pull request, and Clear session keeps none.
+			tab->set_thread_observer([this](std::vector<qt::agent_thread_turn> aTurns) {
+				if (Closing || !AgentConversation) {
+					return;
+				}
+				auto kept = std::vector<application::agent_conversation_turn>{ };
+				kept.reserve(aTurns.size());
+				for (const auto& turn : aTurns) {
+					kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString() });
+				}
+				AgentConversation->record(std::move(kept));
+			});
+			// Owner decision 2026-10-23 ("Yep build it like that"): a card's
+			// three actions, and Save as note on a plain reply. Each makes a
+			// private draft or note in the review, never part of a session.
+			// Owner decision 2026-10-23: switching agents shows that agent's own
+			// conversation about the open pull request.
+			QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
+			tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
+			tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
+			// Owner look v004. Go to note; the files and lines a question or an
+			// answer names open in Review; the suggestions' toggle is kept.
+			tab->set_note_navigation([this](const std::uint64_t aNote) {
+				if (!Closing && Window != nullptr) {
+					Window->go_to_private_note(aNote);
+				}
+			});
+			tab->set_line_links(
+				[this](const QString& aPath) -> std::optional<QString> { return Closing || Window == nullptr ? std::nullopt : Window->review_file_named(aPath); },
+				[this](const QString& aPath, const std::uint32_t aLine, const bool aBefore) {
+					if (!Closing && Window != nullptr) {
+						static_cast<void>(Window->go_to_file_line(aPath, aLine, aBefore));
+					}
+				});
+			// Owner look v006. The agent shown is asked what its harness
+			// offers; Reset agents clears every agent setting and the setup
+			// starts again, leaving notes, drafts and conversations.
+			tab->set_catalog_dispatch([this](const std::uint64_t aProfile) {
+				if (Closing || !AgentSetup) {
+					return;
+				}
+				const auto agents = AgentSetup->projection().Preferences.Agents;
+				if (const auto* const entry = core::entry_of_profile(agents, core::agent_profile_id{ aProfile }); entry != nullptr) {
+					AgentSetup->load_catalog(entry->Id);
+				}
+			});
+			tab->set_reset_dispatch([this] {
+				if (Closing || !AgentSetup) {
+					return;
+				}
+				AgentSetup->reset();
+				// The fresh setup looks for agents again, as Set up did.
+				AgentSetup->restart();
+				// A new agent's id may be an old one's: no pull request opens
+				// on the agent it was last asked with. Its turns stay.
+				if (AgentConversation) {
+					AgentConversation->forget_agent_choices();
+				}
+				if (CloneLinks) {
+					const auto links = CloneLinks->projection().Links;
+					for (const auto& link : links) {
+						CloneLinks->forget(link);
+					}
+					CloneLinks->set_clone_folders({ });
+				}
+				if (ReviewSkill) {
+					const auto skill = ReviewSkill->projection();
+					if (skill.Source != core::review_skill_source::built_in || skill.CopyBaseVersion) {
+						ReviewSkill->use_built_in(true);
+					}
+				}
+			});
+			tab->set_suggestions_observer([this](const bool aShown) {
+				if (!Closing && AgentSetup) {
+					AgentSetup->set_suggestions_hidden(!aShown);
+				}
+			});
+			tab->set_clear_session_dispatch([this] {
+				if (!Closing && AgentConversation) {
+					AgentConversation->clear();
+				}
+			});
+			// Owner decision (a). The suggested prompts name the open file and
+			// the selected lines, one-based.
+			tab->set_suggestion_context([this] {
+				auto context = qt::agent_suggestion_context{ };
+				if (Closing || Window == nullptr || !SelectedDiffPublication) {
+					return context;
+				}
+				context.OpenFile = QString::fromStdString(SelectedDiffPublication->Request.File.PresentationPath);
+				if (const auto* const surface = Window->comparison_surface(); surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key) {
+					if (const auto range = surface->line_draft_range(); range && range->first.Side == range->second.Side) {
+						const auto first = std::min(range->first.Line, range->second.Line) + 1U;
+						const auto last  = std::max(range->first.Line, range->second.Line) + 1U;
+						context.Lines    = std::pair{ first, last };
+					}
+				}
+				return context;
+			});
+			// Looking for agents waits for the tab: showing the setup is what
+			// may look (owner answer Q2), and looking reads file metadata only.
+			tab->set_first_shown([this] {
+				if (!Closing && AgentSetup) {
+					AgentSetup->detect();
+				}
+			});
+			Window->agent_setup()->set_intents(qt::agent_setup_intents{
+				.Choose =
+					[this](const core::setup_agent aAgent) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->choose(aAgent);
+						}
+					},
+				.LookAgain =
+					[this] {
+						if (Closing) {
+							return;
+						}
+						if (AgentSetup) {
+							AgentSetup->detect();
+						}
+						if (CloneLinks) {
+							CloneLinks->look_again();
+						}
+					},
+				.OpenSettings           = [this] { Window->open_settings(qt::settings_page::agents_and_context); },
+				.OpenRepositorySettings = [this] { Window->open_settings(qt::settings_page::repositories); },
+				.OpenInstallPage =
+					[this](const core::setup_agent aAgent) {
+						if (Profile->WindowBrowser == nullptr) {
+							return;
+						}
+						const auto* const address = aAgent == core::setup_agent::codex ? "https://github.com/openai/codex" : "https://docs.anthropic.com/en/docs/claude-code/setup";
+						try {
+							static_cast<void>(Profile->WindowBrowser->open(address));
+						} catch (...) { }
+					},
+				.ChooseClone =
+					[this](std::string aPath) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->choose_clone(std::move(aPath));
+						}
+					},
+				.AddCloneFolder =
+					[this](std::string aFolder) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->add_clone_folder(std::move(aFolder));
+						}
+					},
+				.SetCloneFolders =
+					[this](std::vector<std::string> aFolders) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->set_clone_folders(std::move(aFolders));
+						}
+					},
+				.UsePrivateCopy =
+					[this] {
+						if (!Closing && CloneLinks) {
+							CloneLinks->use_private_copy();
+						}
+					},
+				.Check = [this] { check_agent_setup(); },
+				.Stop =
+					[this] {
+						if (!Closing && AgentSetup) {
+							AgentSetup->stop();
+						}
+					},
+				.AddCustomAgent =
+					[this](core::agent_entry aEntry) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->add_agent(std::move(aEntry), true, [this](const std::optional<core::agent_entry_refusal> aRefusal) {
+								if (aRefusal && !Closing && Window != nullptr) {
+									Window->agent_panel()->refuse(std::string{ core::describe(*aRefusal) });
+								}
+							});
+						}
+					},
+			});
+			Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
+				.Reset =
+					[this] {
+						if (!Closing && Window != nullptr) {
+							Window->agent_tab()->reset_agents();
+						}
+					},
+				// [[BPR-1753]], owner amendment 2026-10-23. The list's edits.
+				.Add =
+					[this](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->add_agent(std::move(aEntry), false, std::move(aAnswer));
+						}
+					},
+				.Update =
+					[this](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->update_agent(std::move(aEntry), std::move(aAnswer));
+						}
+					},
+				.Remove =
+					[this](const std::uint32_t aId) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->remove_agent(aId);
+						}
+					},
+				.Move =
+					[this](const std::uint32_t aId, const int aDelta) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->move_agent(aId, aDelta);
+						}
+					},
+				.SetRunLimit = [this](const std::uint32_t aMinutes) { return !Closing && AgentSetup && AgentSetup->set_run_limit(aMinutes); },
+				.SetProgram =
+					[this](const core::setup_agent aAgent, std::string aPath) {
+						if (Closing || !AgentSetup) {
+							return;
+						}
+						AgentSetup->set_program(aAgent, std::move(aPath), [this, aAgent](const std::optional<core::agent_wrapper_refusal> aRefusal) {
+							if (!Closing && Window != nullptr) {
+								Window->agent_programs()->show_answer(aAgent, aRefusal);
+							}
+						});
+					},
+				.SetProtocol =
+					[this](const core::codex_protocol_choice aChoice) {
+						if (!Closing && AgentSetup) {
+							AgentSetup->set_codex_protocol(aChoice);
+						}
+					},
+			});
+			Window->clone_folders()->set_dispatch(qt::clone_folders_panel::dispatch{
+				.SetFolders =
+					[this](std::vector<std::string> aFolders) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->set_clone_folders(std::move(aFolders));
+						}
+					},
+				.Forget =
+					[this](const application::repository_link& aLink) {
+						if (!Closing && CloneLinks) {
+							CloneLinks->forget(aLink);
+						}
+					},
+			});
+			const auto answered = [this](const application::review_skill_answer aAnswer) {
+				if (!Closing && Window != nullptr) {
+					Window->review_skill()->show_answer(aAnswer);
+				}
+			};
+			Window->review_skill()->set_dispatch(qt::review_skill_panel::dispatch{
+				.Save =
+					[this, answered](std::string aText) {
+						if (!Closing && ReviewSkill) {
+							ReviewSkill->save(std::move(aText), answered);
+						}
+					},
+				.UseBuiltIn =
+					[this, answered](const bool aSaveCopy) {
+						if (!Closing && ReviewSkill) {
+							ReviewSkill->use_built_in(aSaveCopy, answered);
+						}
+					},
+				.KeepMine =
+					[this, answered] {
+						if (!Closing && ReviewSkill) {
+							ReviewSkill->keep_mine(answered);
+						}
+					},
+			});
+			Window->review_skill()->present(ReviewSkill->projection(), std::string{ application::built_in_review_skill() });
+			present_setup_view();
+		}
+
+		/// [[BPR-1753]]. The setup's facts beside the two projections,
+		/// and the ready line once it finishes.
+		void present_setup_view()
+		{
+			if (Closing || Window == nullptr || !AgentSetup || !CloneLinks || Window->agent_setup() == nullptr) {
+				return;
+			}
+			auto facts = qt::agent_setup_facts{ };
+			if (AgentReview) {
+				facts.Repository = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
+			}
+			const auto* const state = EpochHost != nullptr ? &EpochHost->state() : nullptr;
+			if (state != nullptr && state->AcceptedRevision) {
+				facts.Head = std::string{ core::canonical_hex(state->AcceptedRevision->Head).view() }.substr(0U, 7U);
+			}
+			facts.WorkspaceReason = LastWorkspaceProbeReason;
+			auto* const setup     = Window->agent_setup();
+			setup->present(AgentSetup->projection(), CloneLinks->projection(), facts);
+			if (!setup->take_ready()) {
+				return;
+			}
+			auto gets = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
+			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
+				gets.Number     = snapshot->PullRequest.Number.value();
+				gets.Title      = snapshot->PullRequest.Title;
+				gets.BaseBranch = snapshot->PullRequest.BaseRef;
+				gets.Files      = snapshot->Files.size();
+				gets.Threads    = snapshot->ReviewThreads.size();
+				gets.Unresolved = static_cast<std::size_t>(std::ranges::count_if(snapshot->ReviewThreads, [](const auto& aThread) { return !aThread.Resolved; }));
+			}
+			if (state != nullptr && state->AcceptedRevision) {
+				gets.Base = std::string{ core::canonical_hex(state->AcceptedRevision->Base).view() }.substr(0U, 7U);
+			}
+			if (const auto linked = linked_history_clone(false)) {
+				gets.Clone = linked->string();
+			}
+			Window->agent_tab()->present_ready(setup->ready_title(), setup->ready_text(), qt::agent_ready_gets(gets));
+			Window->agent_tab()->focus_question();
+		}
+
+		/// Owner look v004 ("The models aren't listing their version numbers").
+		/// Claude Code's `--model` takes a model's full name; the list is the
+		/// current models, newest first in each line, by name and version.
+		[[nodiscard]] static auto claude_models() -> std::vector<std::pair<std::string, QString>>
+		{
+			return { { "claude-opus-5-5", QStringLiteral("Opus 5.5") },
+					 { "claude-sonnet-5-5", QStringLiteral("Sonnet 5.5") },
+					 { "claude-haiku-5-5", QStringLiteral("Haiku 5.5") },
+					 { "claude-fable-5-1",
+					   QStringLiteral("Fable 5.1") } };
+		}
+
+		/// [[BPR-1753]], owner look v002. What each agent runs with, for
+		/// the Agent tab's model and effort control and its /model and /effort.
+		void present_run_settings()
+		{
+			if (Closing || Window == nullptr || !AgentSetup) {
+				return;
+			}
+			const auto setup = AgentSetup->projection();
+			// [[BPR-1753]], owner amendment 2026-10-23. One per added
+			// agent, from its entry; its protocol says which settings apply.
+			auto shown = std::vector<qt::agent_run_settings>{ };
+			for (const auto& entry : setup.Preferences.Agents) {
+				auto settings    = qt::agent_run_settings{ };
+				settings.Profile = core::entry_profile_id(entry).value();
+				settings.Agent   = QString::fromStdString(entry.Name);
+				auto program     = entry.Program.empty() ? (entry.Preset == core::setup_agent::codex ? QStringLiteral("the codex found on this computer") : QStringLiteral("the claude found on this computer"))
+														 : QString::fromStdString(entry.Program);
+				for (const auto& argument : entry.Arguments) {
+					program += QStringLiteral(" ") + QString::fromStdString(argument);
+				}
+				settings.Program = program;
+				settings.Model   = entry.Model;
+				settings.Effort  = entry.Effort;
+				// Owner look v006 ("Codex is totally missing its model settings.
+				// And its effort is missing max"): what the harness itself said
+				// it offers, once asked; the known levels until then.
+				const auto  catalogAt = setup.Catalogs.find(entry.Id);
+				const auto* catalog   = catalogAt == setup.Catalogs.end() ? nullptr : &catalogAt->second;
+				settings.Listing      = std::ranges::contains(setup.Cataloguing, entry.Id);
+				switch (core::entry_settings_program(entry.Protocol).value_or(core::agent_program::claude)) {
+				case core::agent_program::claude:
+					settings.Models  = claude_models();
+					settings.Efforts = catalog != nullptr && !catalog->Efforts.empty() ? catalog->Efforts : core::known_agent_efforts(core::agent_program::claude);
+					break;
+				case core::agent_program::codex: {
+					settings.Efforts = core::known_agent_efforts(core::agent_program::codex);
+					if (catalog == nullptr) {
+						break;
+					}
+					for (const auto& model : catalog->Models) {
+						settings.Models.emplace_back(model.Model, QString::fromStdString(model.DisplayName));
+					}
+					// The chosen model's levels, else the default model's, else
+					// any model's.
+					const auto chosen = std::ranges::find(catalog->Models, entry.Model, &application::agent_model_option::Model);
+					const auto named  = std::ranges::find(catalog->Models, true, &application::agent_model_option::IsDefault);
+					if (chosen != catalog->Models.end() && !chosen->Efforts.empty()) {
+						settings.Efforts = chosen->Efforts;
+					} else if (entry.Model.empty() && named != catalog->Models.end() && !named->Efforts.empty()) {
+						settings.Efforts = named->Efforts;
+					} else if (!catalog->Efforts.empty()) {
+						settings.Efforts = catalog->Efforts;
+					}
+					break;
+				}
+				}
+				const auto choosable     = core::entry_settings_program(entry.Protocol).has_value();
+				settings.ModelChoosable  = choosable;
+				settings.EffortChoosable = choosable;
+				if (!choosable) {
+					settings.Models.clear();
+					settings.Efforts.clear();
+					settings.Note = QStringLiteral("A plain-text harness chooses its own model and effort.");
+				}
+				shown.push_back(std::move(settings));
+			}
+			if (!BuiltInProfilesOffered) {
+				Window->agent_tab()->present_run_settings(std::move(shown));
+				return;
+			}
+			const auto program = [&setup](const core::setup_agent aAgent) {
+				const auto found = std::ranges::find_if(setup.State.Rows, [aAgent](const core::agent_setup_row& aRow) { return aRow.Agent == aAgent; });
+				return found == setup.State.Rows.end() ? QString{ } : QString::fromStdString(found->Path);
+			};
+			auto claude            = qt::agent_run_settings{ };
+			claude.Profile         = core::claude_stream_json_profile_id.value();
+			claude.Agent           = QStringLiteral("Claude Code");
+			claude.Program         = program(core::setup_agent::claude_code);
+			claude.ModelChoosable  = true;
+			claude.EffortChoosable = true;
+			claude.Model           = ClaudeModel;
+			claude.Effort          = setup.Preferences.ClaudeEffort;
+			claude.Models          = claude_models();
+			claude.Efforts         = core::known_agent_efforts(core::agent_program::claude);
+			auto codex             = qt::agent_run_settings{ };
+			codex.Agent            = QStringLiteral("Codex");
+			codex.Program          = program(core::setup_agent::codex);
+			codex.ModelChoosable   = true;
+			codex.EffortChoosable  = true;
+			codex.Model            = setup.Preferences.CodexModel;
+			codex.Effort           = setup.Preferences.CodexEffort;
+			codex.Efforts          = core::known_agent_efforts(core::agent_program::codex);
+			auto appServer         = codex;
+			appServer.Profile      = core::codex_app_server_profile_id.value();
+			auto jsonl             = codex;
+			jsonl.Profile          = core::codex_jsonl_profile_id.value();
+			auto harness           = qt::agent_run_settings{ };
+			harness.Profile        = core::external_terminal_profile_id.value();
+			harness.Agent          = QStringLiteral("The plain-text harness");
+			harness.Program        = QString::fromStdString(setup.Preferences.HarnessProgram);
+			harness.Note           = QStringLiteral("A plain-text harness chooses its own model and effort.");
+			for (auto& builtIn : { claude, appServer, jsonl, harness }) {
+				shown.push_back(builtIn);
+			}
+			Window->agent_tab()->present_run_settings(std::move(shown));
+		}
+
+		[[nodiscard]] auto apply_run_settings(const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) -> bool
+		{
+			if (Closing || !AgentSetup) {
+				return false;
+			}
+			const auto preferences = AgentSetup->projection().Preferences;
+			// [[BPR-1753]]. An added agent keeps its model and effort.
+			if (const auto* const entry = core::entry_of_profile(preferences.Agents, core::agent_profile_id{ aProfile }); entry != nullptr) {
+				auto edited = *entry;
+				if (aModel) {
+					edited.Model = std::move(*aModel);
+				}
+				if (aEffort) {
+					edited.Effort = std::move(*aEffort);
+				}
+				if (core::inspect_agent_entry(edited)) {
+					return false;
+				}
+				AgentSetup->update_agent(std::move(edited));
+				return true;
+			}
+			if (aProfile == core::claude_stream_json_profile_id.value()) {
+				if (aModel && !core::storable_claude_model(*aModel)) {
+					return false;
+				}
+				if (aEffort && !aEffort->empty() && !core::valid_agent_effort(core::agent_program::claude, *aEffort)) {
+					return false;
+				}
+				if (aModel && !Profile->WorkbenchPreferences->apply_claude_model(*aModel)) {
+					return false;
+				}
+				if (aModel) {
+					ClaudeModel = *aModel;
+				}
+				const auto taken = !aEffort || AgentSetup->set_run_settings(core::setup_agent::claude_code, { }, std::move(*aEffort));
+				present_run_settings();
+				return taken;
+			}
+			if (aProfile == core::codex_app_server_profile_id.value() || aProfile == core::codex_jsonl_profile_id.value()) {
+				const auto taken = AgentSetup->set_run_settings(core::setup_agent::codex, aModel.value_or(preferences.CodexModel), aEffort.value_or(preferences.CodexEffort));
+				present_run_settings();
+				return taken;
+			}
+			return false;
+		}
+
+		void present_agent_setup(const application::agent_setup_projection& aProjection)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto found = std::vector<core::agent_detection>{ };
+			for (const auto& row : aProjection.State.Rows) {
+				found.push_back({ .Agent = row.Agent, .Path = row.Path, .How = row.How });
+			}
+			Window->agent_programs()->present(aProjection.Preferences, std::move(found));
+			// [[BPR-1753]], owner amendment 2026-10-23. The launches use
+			// the list as published, and the picker offers it.
+			AgentEntries->set(aProjection.Preferences.Agents);
+			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
+			Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
+			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
+			const auto  profile     = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
+			const auto  preferredAt = std::ranges::find(aProjection.Preferences.Agents, aProjection.Preferences.PreferredAgent, &core::agent_entry::Id);
+			const auto* preferred   = aProjection.Preferences.PreferredAgent == 0U || preferredAt == aProjection.Preferences.Agents.end() ? nullptr : &*preferredAt;
+			Window->agent_panel()->prefer_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+			Window->agent_panel()->offer_profiles(offered_agent_profiles());
+			// Owner decision 2026-10-23: Send to Agent offers the same list.
+			if (CycleDesktop) {
+				CycleDesktop->offer_agents(aProjection.Preferences.Agents);
+			}
+			present_run_settings();
+			present_setup_view();
+			if (CycleDesktop) {
+				CycleDesktop->prefer_send_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+			}
+			observe_conversation_agent();
+		}
 #endif
 		void cancel_writing()
 		{
@@ -11349,11 +12444,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			return core::writing_digest(key);
 		}
+		/// \brief [[BPR-1753]], owner decision 2026-10-23. The agent
+		/// tour writing asks: the one chosen in the Agent tab when it speaks
+		/// Claude Code's stream JSON (tool-free writing needs it), otherwise the
+		/// first added agent that does.
+		[[nodiscard]] auto writing_agent() const -> std::optional<core::agent_profile_id>
+		{
+			const auto selected = Window->agent_panel()->selected_profile();
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// A built-in profile chosen (a course's own program) is asked as is.
+			if (selected && (writes_tool_free(*selected) || !core::is_agent_entry_profile(*selected))) {
+				return selected;
+			}
+			if (AgentSetup) {
+				const auto listed = AgentSetup->projection().Preferences.Agents;
+				for (const auto& entry : listed) {
+					if (entry.Protocol == core::agent_protocol::claude_stream_json) {
+						return core::entry_profile_id(entry);
+					}
+				}
+			}
+			// None speaks it: the chosen one, which is then refused with why.
+			return selected;
+#else
+			return selected;
+#endif
+		}
+
+		/// Whether a profile may run tool-free writing: Claude's stream JSON.
+		[[nodiscard]] auto writes_tool_free(const core::agent_profile_id aProfile) const -> bool
+		{
+#if defined(BPR_AGENT_INTEGRATIONS)
+			if (core::is_agent_entry_profile(aProfile)) {
+				if (!AgentSetup) {
+					return false;
+				}
+				const auto        agents = AgentSetup->projection().Preferences.Agents;
+				const auto* const entry  = core::entry_of_profile(agents, aProfile);
+				return entry != nullptr && entry->Protocol == core::agent_protocol::claude_stream_json;
+			}
+#endif
+			return aProfile == core::claude_stream_json_profile_id;
+		}
+
 		auto writing_target(core::writing_hook aHook, const qt::prose_capture& aCapture) const -> std::optional<core::writing_target>
 		{
 			const auto& draft = Window->tour_editor()->shown().Draft;
 			const auto& prefs = Profile->WorkbenchPreferences->accepted();
-			const auto  agent = Window->agent_panel()->selected_profile();
+			const auto  agent = writing_agent();
 			if (!draft || !prefs || !agent || !EpochHost || !TourOwner || draft->Owner != *TourOwner || !current(DraftWindow)) {
 				return std::nullopt;
 			}
@@ -11489,9 +12627,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 			}
-			if (target->Agent != core::claude_stream_json_profile_id) {
+			if (!writes_tool_free(target->Agent)) {
 				WritingState.cancel();
-				Window->tour_editor()->show_writing_notice(QStringLiteral("This selected agent has no qualified tool-free writing mode. Select Approved Claude stream JSON in Agents & context, or keep writing manually."));
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This agent has no qualified tool-free writing mode: writing needs one that speaks Claude Code's stream JSON. Add one in Settings › Agents & context, or keep writing manually."));
 				return;
 			}
 			if (request->Scope == core::writing_scope::empty_field && (sources.empty() || (aHook == core::writing_hook::comment && std::ranges::find(sources, "stop-source", &application::writing_source::Id) == sources.end()))) {
@@ -11663,9 +12801,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			cancel_writing();
 			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
-			const auto  selected = Window->agent_panel()->selected_profile();
-			if (!prefs || !selected || *selected != core::claude_stream_json_profile_id || !agent_idle()) {
-				Window->writing_hooks()->show_notice("Select Approved Claude stream JSON for tool-free writing tests; wait for any running request.");
+			const auto  selected = writing_agent();
+			if (!prefs || !selected || !writes_tool_free(*selected) || !agent_idle()) {
+				Window->writing_hooks()->show_notice("Add an agent that speaks Claude Code's stream JSON in Settings › Agents & context for tool-free writing tests; wait for any running request.");
 				return;
 			}
 			core::writing_request request;
@@ -11990,7 +13128,123 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					author = index.data(qt::github_conversation_model::author_login_role).toString();
 				}
 			}
+			// [[BPR-1745]]. A reply bound to its outdated thread says so.
+			if (core::thread_bound_reply(*ReviewDraft)) {
+				editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this outdated thread") : QStringLiteral("Replying to %1's outdated thread").arg(author));
+				return;
+			}
 			editor->describe_reply_target(author.isEmpty() ? QStringLiteral("Replying in this thread") : QStringLiteral("Replying to %1's thread").arg(author));
+		}
+
+		/// \brief [[BPR-1745]]. What GitHub's thread data, as the
+		/// accepted snapshot holds it, says about replying in one thread.
+		/// \details [[BPR-1746]]. With GitHub's `viewerCanReply` and the
+		/// pull request's lock when the conversation read carries them; a
+		/// server whose schema lacks them leaves them unknown, and GitHub
+		/// decides at Publish.
+		[[nodiscard]] auto thread_reply_facts_of(const application::github_review_thread_record& aThread) const -> core::thread_reply_facts
+		{
+			const auto* const snapshot = WindowRead && WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+			return core::thread_reply_facts{
+				.ReviewThread   = !aThread.Path.empty() && aThread.Subject == application::github_review_thread_subject::line,
+				.Outdated       = aThread.Outdated,
+				.AnonymousRead  = snapshot == nullptr || snapshot->Mode != core::github_access_mode::authenticated,
+				.ViewerCanReply = aThread.ViewerReplyPermission == application::github_permission_state::unavailable
+					? std::nullopt
+					: std::optional{ aThread.ViewerReplyPermission == application::github_permission_state::allowed },
+				.Locked         = snapshot == nullptr || snapshot->ConversationLock == application::github_conversation_lock::unavailable
+					? std::nullopt
+					: std::optional{ snapshot->ConversationLock == application::github_conversation_lock::locked },
+			};
+		}
+
+		/// \brief [[BPR-1745]]. Where GitHub answers a reply bound to
+		/// an outdated thread: the thread's path and the commit its first
+		/// comment was written on, from the accepted snapshot.
+		[[nodiscard]] auto thread_reply_binding_of(const std::string_view aThread) const -> std::optional<application::review_mutation_thread_reply_binding>
+		{
+			const auto* const thread = accepted_thread("review-thread:" + std::string{ aThread });
+			if (thread == nullptr || core::decide_thread_reply(thread_reply_facts_of(*thread)).Route != core::thread_reply_route::on_thread) {
+				return std::nullopt;
+			}
+			const auto root = std::ranges::find_if(thread->Comments, [](const application::github_review_comment_record& aComment) { return !aComment.ReplyTo.has_value(); });
+			if (root == thread->Comments.end()) {
+				return std::nullopt;
+			}
+			const auto commit = core::parse_git_commit_oid(root->Observation.OriginalCommit);
+			if (!commit) {
+				return std::nullopt;
+			}
+			return application::review_mutation_thread_reply_binding{ .Path = thread->Path, .OriginalCommit = *commit };
+		}
+
+		/// \brief [[BPR-1745]]. An outdated thread's Reply: the reply
+		/// written in it and not sent opens again, or a new one bound to the
+		/// thread is made. It is a draft like any reply, saved privately,
+		/// published through the reply path and reconciled against the thread.
+		void begin_thread_bound_reply(const std::string& aIdentity)
+		{
+			constexpr auto prefix = std::string_view{ "review-thread:" };
+			if (Closing || Window == nullptr || !SharedDrafts || !aIdentity.starts_with(prefix)) {
+				return;
+			}
+			auto thread = std::string{ aIdentity.substr(prefix.size()) };
+			if (thread.empty() || !thread_reply_binding_of(thread)) {
+				return;
+			}
+			if (ReviewDraft && core::thread_bound_reply(*ReviewDraft) && *ReviewDraft->ReplyToThread == thread
+				&& (ReviewDraft->State == core::review_draft_state::drafting || ReviewDraft->State == core::review_draft_state::publishing)) {
+				describe_held_reply();
+				return;
+			}
+			ResumeReply.reset();
+			PendingThreadReply.reset();
+			if (PrivateReview) {
+				if (!PrivateDraftsReady || PrivateDraftSelectionPending) {
+					// The saved drafts are still being restored, or the line's
+					// own draft is being opened: the reply follows, so it is the
+					// draft the editor holds.
+					PendingThreadReply = aIdentity;
+					return;
+				}
+				const auto owner             = SharedDrafts;
+				PrivateDraftSelectionPending = true;
+				PrivateReview->select_thread_reply(thread, [this, owner](auto aCommit) {
+					PrivateDraftSelectionPending = false;
+					if (Closing || !owner || owner != SharedDrafts || !aCommit || aCommit->records().empty() || !owner->adopt(owner->authority(), *aCommit)) {
+						return;
+					}
+					present_saved_drafts();
+					const auto accepted = owner->read(DraftConsumer, aCommit->records().back().Draft.Draft.Id);
+					if (accepted.Accepted) {
+						accept_shared_draft(*accepted.Accepted);
+						describe_held_reply();
+					}
+				});
+				return;
+			}
+			// No private store: the reply is held for this session only.
+			const auto comparison = SelectedDiffPublication ? std::optional{ core::comparison_digest(SelectedDiffPublication->Key) } : std::nullopt;
+			if (!comparison) {
+				return;
+			}
+			const auto saved = core::reopen_thread_reply(saved_draft_values(), thread);
+			auto       held  = saved ? SharedDrafts->read(DraftConsumer, *saved) : SharedDrafts->select(DraftConsumer, core::thread_reply_anchor(*comparison), thread);
+			if (held.Accepted && !held.Failure) {
+				accept_shared_draft(*held.Accepted);
+				describe_held_reply();
+			}
+		}
+
+		/// \brief [[BPR-1745]]. An outdated thread's Reply pressed while
+		/// a line's draft was being opened, made once that has answered.
+		std::optional<std::string> PendingThreadReply;
+		void                       resume_pending_thread_reply()
+		{
+			if (Closing || PrivateDraftSelectionPending || !PrivateDraftsReady || !PendingThreadReply) {
+				return;
+			}
+			begin_thread_bound_reply(*std::exchange(PendingThreadReply, std::nullopt));
 		}
 
 		/// \brief [[BPR-1374]]. A Refresh retires the editor's draft with the
@@ -12030,7 +13284,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void resume_reply()
 		{
 			resume_comment();
-			if (Closing || !ResumeReply || !SharedDrafts || Window == nullptr || PendingReviewMutation || !SelectedDiffPublication) {
+			if (Closing || !ResumeReply || !SharedDrafts || Window == nullptr || PendingReviewMutation) {
 				return;
 			}
 			const auto drafts = saved_draft_values();
@@ -12040,6 +13294,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto reply = std::ranges::find(drafts, *again, &core::review_comment_draft::Id);
+			// [[BPR-1745]]. A reply bound to its thread has no line to
+			// choose: it is held again as it is.
+			if (reply != drafts.end() && core::thread_bound_reply(*reply)) {
+				if (const auto read = SharedDrafts->read(DraftConsumer, *again); read.Accepted) {
+					ResumeReply.reset();
+					accept_shared_draft(*read.Accepted);
+					describe_held_reply();
+					refresh_agent_private_context_choices();
+				}
+				return;
+			}
+			if (!SelectedDiffPublication) {
+				return;
+			}
 			if (reply == drafts.end() || core::comparison_digest(SelectedDiffPublication->Key) != reply->Anchor.Comparison) {
 				return;
 			}
@@ -12240,10 +13508,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::ranges::sort(comments, [](const core::review_submission_comment& aLeft, const core::review_submission_comment& aRight) {
 				return std::tie(aLeft.Path, aLeft.Side, aLeft.Line, aLeft.Draft) < std::tie(aRight.Path, aRight.Side, aRight.Line, aRight.Draft);
 			});
+			PendingReviewComments = comments;
 			ReviewSubmission->observe_review_comments(std::move(comments));
 			if (!held.empty()) {
 				ReviewSubmission->resolve_held(std::move(held));
 			}
+			present_review_comment_holds();
 		}
 
 		/// [[BPR-1345]]. Start a review, or Add review comment: the shown
@@ -12663,8 +13933,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					ReviewCommentPlacement.clear();
 				}
 			}
+			if (aUpdate.PullRequest) {
+				observe_conversation_state();
+			}
 			Window->publish(placed ? *placed : aUpdate);
+			if (aUpdate.PullRequest) {
+				present_conversation_state();
+			}
 			select_published_conversation();
+
 			if (aUpdate.PullRequest) {
 				observe_review_preflight();
 				// [[BPR-1374]]. A thread gone or resolved on the server changes
@@ -12712,7 +13989,84 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// Full-file alignment is not a provider patch-domain observation.
 				.Placement = core::review_placement::unknown,
 				.Filtered  = SelectedDiffPublication->Key.Filter ? filtered_comment_source() : std::nullopt,
+				// [[BPR-1735]]. GitHub's own diff of the file, read from the
+				// merge base and the head, which the core places a comment by.
+				.WholeDiff = SelectedDiffPublication->Key.Filter ? std::nullopt : whole_diff_source([&file] {
+					const auto bytes = file->CurrentPath.generic_u8string();
+					return std::string{ bytes.begin(), bytes.end() };
+				}()),
+				// [[BPR-1736]]. What this profile learned about a single comment
+				// outside GitHub's diff here; publication checks the exact key.
+				.OffHunkFact = presented_off_hunk_fact(false),
 			};
+		}
+
+		/// \brief [[BPR-1736]]. The scope the learned off-hunk facts of the
+		/// accepted pull request are kept under, and the profile's facts; none
+		/// before a pull request is accepted or when the journal can't open.
+		[[nodiscard]] auto off_hunk_facts() const -> std::optional<std::pair<application::off_hunk_fact_scope, application::off_hunk_fact_port*>>
+		{
+			if (!LastAcceptedHandoff || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto binding = select_observed_review_mutation(*LastAcceptedHandoff, *WindowRead->accepted_snapshot());
+			if (!binding) {
+				return std::nullopt;
+			}
+			const auto hostname = std::string{ binding->Target.Hostname.value() };
+			if (!OffHunkFactsOpened || OffHunkFactsRoot != ApplicationDataRoot) {
+				OffHunkFactsOpened = true;
+				OffHunkFactsRoot   = ApplicationDataRoot;
+				auto opened        = adapters::sqlite::make_off_hunk_fact_store({ .StorageRoot = ApplicationDataRoot,
+																				  .Host        = hostname,
+																				  .Account     = std::to_string(binding->ActingIdentity.Account.value()),
+																				  .Repository  = binding->Target.Repository.Owner + "/" + binding->Target.Repository.Name,
+																				  .PullRequest = static_cast<std::int64_t>(binding->Target.Number.value()) });
+				OffHunkFacts       = opened ? std::move(*opened) : nullptr;
+			}
+			return std::pair{ application::off_hunk_fact_scope{ .Profile              = LastAcceptedHandoff->Profile.value(),
+																.Host                 = hostname,
+																.Account              = binding->ActingIdentity.Account.value(),
+																.RepositoryDatabaseId = binding->Target.RepositoryDatabaseId },
+							  OffHunkFacts.get() };
+		}
+
+		/// \brief [[BPR-1736]]. The learned fact as presented now: for a single
+		/// comment, or for a review (decision D3: the newer of both).
+		[[nodiscard]] auto presented_off_hunk_fact(const bool aReview) const -> core::off_hunk_creation_capability
+		{
+			const auto facts = off_hunk_facts();
+			if (!facts) {
+				return core::off_hunk_creation_capability::unknown;
+			}
+			const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			return aReview ? application::presented_review_off_hunk_fact(facts->second, facts->first, now) : application::presented_off_hunk_fact(facts->second, facts->first, now);
+		}
+
+		/// \brief [[BPR-1736]]. GitHub refused a review for a line it can't
+		/// place. When a learned fact let it carry a comment outside the diff,
+		/// GitHub withdrew support: the fact drops to unsupported for both
+		/// operations and the page holds those comments. Nothing is resent.
+		void demote_off_hunk_fact(const application::review_submission_request& aRefused)
+		{
+			const auto facts = off_hunk_facts();
+			if (Closing || !facts || presented_off_hunk_fact(true) != core::off_hunk_creation_capability::supported) {
+				return;
+			}
+			const auto carried = std::ranges::find_if(aRefused.Proposal.Comments, [this](const core::review_submission_comment& aComment) {
+				const auto source = whole_diff_source(aComment.Path);
+				return source && core::holds_review_comment(core::place_on_github_diff(source->BaseToHead, aComment.Side, aComment.Line, aComment.StartLine), core::off_hunk_creation_capability::unknown);
+			});
+			if (carried == aRefused.Proposal.Comments.end() || !aRefused.LiveBinding) {
+				return;
+			}
+			const auto& target = aRefused.LiveBinding->Target;
+			const auto  now    = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+			static_cast<void>(application::demote_off_hunk_fact(facts->second, facts->first,
+																{ .Repository = target.Repository.Owner + "/" + target.Repository.Name, .PullRequest = target.Number.value(), .Path = carried->Path, .Line = carried->Line },
+																now));
+			present_review_comment_holds();
+			present_filtered_comment();
 		}
 
 		void retire_review_mutation_host()
@@ -12883,9 +14237,170 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											core::canonical_hex(aHandoff.Head).view()))
 										.arg(QString::fromStdString(WindowRead->accepted_snapshot()->Viewer.Login)));
 			editor->present(ReviewMutationHost->capabilities());
-			const auto* selectedProfile = find_profile(aHandoff.Profile);
-			const auto  cliProfile      = selectedProfile && selectedProfile->authentication_transport() == application::github_authentication_transport::github_cli;
-			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads && !cliProfile);
+			// [[BPR-1741]]. The GitHub CLI connection resolves threads
+			// too, through `gh api graphql`.
+			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+		}
+
+		/// [[BPR-1741]]. The posts' reactions and the threads'
+		/// resolutions as the viewer should see them: the accepted read, with
+		/// the viewer's own changes the core keeps until GitHub and a later
+		/// read agree with them.
+		void present_conversation_state()
+		{
+			if (Closing || Window == nullptr || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto& snapshot  = *WindowRead->accepted_snapshot();
+			const auto  viewer    = snapshot.Viewer.Login;
+			auto        reactions = std::map<std::string, core::reaction_summary>{ };
+			const auto  read      = snapshot.ReactionsAvailability == application::github_reaction_availability::available
+				|| snapshot.ReactionsAvailability == application::github_reaction_availability::partial;
+			if (read) {
+				for (const auto& record : snapshot.Reactions) {
+					if (auto shown = core::project_reaction_summary(&record.Reactions, ConversationOverlay, record.Subject, viewer)) {
+						reactions.insert_or_assign(record.Subject, std::move(*shown));
+					}
+				}
+			}
+			for (const auto& [subject, answered] : ConversationOverlay.Answered) {
+				if (!reactions.contains(subject)) {
+					if (auto shown = core::project_reaction_summary(nullptr, ConversationOverlay, subject, viewer)) {
+						reactions.insert_or_assign(subject, std::move(*shown));
+					}
+				}
+			}
+			auto resolutions = std::map<std::string, qt::thread_resolution_presentation>{ };
+			for (const auto& thread : snapshot.ReviewThreads) {
+				const auto identity  = thread_identity(thread);
+				const auto projected = core::project_thread_resolution(thread.Resolved, ConversationOverlay, identity);
+				resolutions.insert_or_assign(identity, qt::thread_resolution_presentation{
+														   .Resolved     = projected.Resolved,
+														   .Pending      = projected.Pending,
+														   .CanResolve   = thread.ViewerResolvePermission != application::github_permission_state::denied,
+														   .CanUnresolve = thread.ViewerUnresolvePermission != application::github_permission_state::denied,
+													   });
+			}
+			Window->present_conversation_state(std::move(reactions), std::move(resolutions));
+		}
+
+		/// [[BPR-1741]]. A new accepted read reconciles the viewer's
+		/// changes with what GitHub now says; another pull request drops them.
+		void observe_conversation_state()
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			if (ConversationOverlayPullRequest != snapshot.PullRequest.PullRequest) {
+				ConversationOverlay            = { };
+				ConversationOverlayPullRequest = snapshot.PullRequest.PullRequest;
+				ConversationChanges.clear();
+			}
+			auto observation              = core::conversation_read_observation{ };
+			observation.ReactionsObserved = snapshot.ReactionsAvailability == application::github_reaction_availability::available;
+			for (const auto& record : snapshot.Reactions) {
+				observation.Reactions.insert_or_assign(record.Subject, record.Reactions);
+			}
+			for (const auto& thread : snapshot.ReviewThreads) {
+				observation.Resolved.insert_or_assign(thread_identity(thread), thread.Resolved);
+			}
+			core::observe_conversation(ConversationOverlay, observation);
+		}
+
+		/// [[BPR-1741]]. A post's reaction: the core decides from the
+		/// session's anonymity, what was read of the post and GitHub's
+		/// permission, and whether the same change is still unanswered; the
+		/// count changes at once, and the host writes it under a one-shot grant.
+		void react_to_post(const qt::reaction_gesture& aGesture)
+		{
+			if (Closing || Window == nullptr || aGesture.Subject.empty()) {
+				return;
+			}
+			auto* const panel  = Window->conversation_panel();
+			const auto  notice = [panel](const QString& aText) {
+				if (panel != nullptr) {
+					panel->present_notice(aText);
+				}
+			};
+			const auto anonymous = Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(core::anonymous_read_intent::react_to_comment));
+			const auto refusal = core::decide_reaction(core::reaction_input{
+				.AnonymousRead  = anonymous,
+				.Observed       = aGesture.Observed,
+				.ViewerCanReact = aGesture.ViewerCanReact,
+				.InFlight       = core::reaction_in_flight(ConversationOverlay, aGesture.Subject, aGesture.Content),
+			});
+			++ReactionGestures;
+			switch (refusal) {
+			case core::reaction_refusal::anonymous_read:
+				notice(QStringLiteral("Sign in to react; a public preview only reads."));
+				return;
+			case core::reaction_refusal::unobserved:
+				notice(QStringLiteral("Reactions on this comment have not been read yet; refresh and try again."));
+				return;
+			case core::reaction_refusal::not_permitted:
+				notice(QStringLiteral("GitHub does not let you react to this comment."));
+				return;
+			case core::reaction_refusal::in_flight:
+				notice(QStringLiteral("Waiting for GitHub to answer the last change to this reaction."));
+				return;
+			case core::reaction_refusal::none:
+				break;
+			}
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().Reacts) {
+				notice(QStringLiteral("Reactions are unavailable for this pull request."));
+				return;
+			}
+			if (!core::begin_reaction_change(ConversationOverlay, aGesture.Subject, aGesture.Content, aGesture.Add)) {
+				return;
+			}
+			present_conversation_state();
+			auto request = application::review_reaction_publication_request{
+				.Subject = aGesture.Subject,
+				.Content = aGesture.Content,
+				.Add     = aGesture.Add,
+			};
+			auto grant = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_reaction(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			const auto context = ReviewMutationHost->react(std::move(request), std::move(grant));
+			ConversationChanges.insert_or_assign(context.Request.value(), aGesture.Subject);
+		}
+
+		void publish_reaction(const application::review_reaction_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto change = ConversationChanges.find(aTerminal.Context.Request.value());
+			if (change == ConversationChanges.end()) {
+				return;
+			}
+			ConversationChanges.erase(change);
+			if (aTerminal.Result.has_value()) {
+				++ReactionCompletions;
+				core::confirm_reaction_change(ConversationOverlay, aTerminal.Request.Subject, aTerminal.Request.Content, aTerminal.Result->Reactions);
+			} else {
+				++ReactionFailures;
+				core::abandon_reaction_change(ConversationOverlay, aTerminal.Request.Subject, aTerminal.Request.Content);
+				if (auto* const panel = Window->conversation_panel(); panel != nullptr) {
+					const auto words = QString::fromUtf8(core::reaction_label(aTerminal.Request.Content).data(),
+														 static_cast<qsizetype>(core::reaction_label(aTerminal.Request.Content).size()));
+					panel->present_notice(aTerminal.Result.error() == application::review_mutation_failure::not_confirmed
+											  ? QStringLiteral("GitHub does not show the %1 reaction; nothing was sent twice. Try again.").arg(words)
+											  : QStringLiteral("The %1 reaction could not be %2: %3.")
+													.arg(words, aTerminal.Request.Add ? QStringLiteral("added") : QStringLiteral("removed"),
+														 QString::fromUtf8(application::name(aTerminal.Result.error()))));
+				}
+			}
+			present_conversation_state();
 		}
 
 		// [[BPR-0657]]. A card's Resolve or Unresolve: the core decides from
@@ -12907,23 +14422,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					panel->present_notice(aText);
 				}
 			};
-			if (Host && Host->accepted_session()) {
-				const auto* selectedProfile = find_profile(Host->accepted_session()->Profile);
-				if (selectedProfile && selectedProfile->authentication_transport() == application::github_authentication_transport::github_cli) {
-					notice(QStringLiteral("Thread resolution is unavailable through the GitHub CLI profile."));
-					return;
-				}
-			}
 			const auto anonymous = Host != nullptr
+
 				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
 					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
 									 : core::anonymous_read_intent::unresolve_review_thread));
+			// [[BPR-1741]]. GitHub's own word on whether this viewer may
+			// resolve (or reopen) the thread, from the accepted read.
+			const auto* const thread    = accepted_thread(aGesture.Identity);
+			const auto        permitted = thread == nullptr
+				|| (aGesture.Resolve ? thread->ViewerResolvePermission : thread->ViewerUnresolvePermission) != application::github_permission_state::denied;
 			const auto refusal = core::decide_thread_resolution(core::thread_resolution_input{
-				.Capability    = aGesture.Capability,
-				.AnonymousRead = anonymous,
-				.Resolved      = aGesture.Resolved,
-				.Resolve       = aGesture.Resolve,
+				.Capability      = aGesture.Capability,
+				.AnonymousRead   = anonymous,
+				.Resolved        = aGesture.Resolved,
+				.Resolve         = aGesture.Resolve,
+				.ViewerPermitted = permitted,
 			});
+
 			++ThreadResolutionGestures;
 			switch (refusal) {
 			case core::thread_resolution_refusal::anonymous_read:
@@ -12934,6 +14450,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++ThreadResolutionRefusals;
 				notice(QStringLiteral("This server has not said it resolves threads."));
 				return;
+			case core::thread_resolution_refusal::not_permitted:
+				++ThreadResolutionRefusals;
+				notice(aGesture.Resolve ? QStringLiteral("GitHub does not let you resolve this conversation.")
+										: QStringLiteral("GitHub does not let you unresolve this conversation."));
+				return;
 			case core::thread_resolution_refusal::already_in_state:
 				++ThreadResolutionRefusals;
 				notice(aGesture.Resolve ? QStringLiteral("This thread is already resolved.")
@@ -12942,7 +14463,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case core::thread_resolution_refusal::none:
 				break;
 			}
+			if (core::resolution_in_flight(ConversationOverlay, aGesture.Identity)) {
+				++ThreadResolutionRefusals;
+				notice(QStringLiteral("Waiting for GitHub to answer the last change to this conversation."));
+				return;
+			}
 			auto request = application::review_thread_resolution_publication_request{
+
 				.Thread  = std::string{ aGesture.Identity.substr(prefix.size()) },
 				.Resolve = aGesture.Resolve,
 			};
@@ -12955,21 +14482,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return application::detail::review_mutation_user_authority_issuer::issue_thread(
 						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
 				});
-			notice(aGesture.Resolve ? QStringLiteral("Resolving the thread…")
-									: QStringLiteral("Reopening the thread…"));
+			notice(aGesture.Resolve ? QStringLiteral("Resolving the conversation…")
+									: QStringLiteral("Reopening the conversation…"));
+			// [[BPR-1741]]. The thread shows what was asked at once.
+			static_cast<void>(core::begin_resolution_change(ConversationOverlay, aGesture.Identity, aGesture.Resolve));
+			present_conversation_state();
 			PendingThreadResolution = ReviewMutationHost->resolve(std::move(request), std::move(grant));
+			ConversationChanges.insert_or_assign(PendingThreadResolution->Request.value(), aGesture.Identity);
 		}
 
 		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
 		{
-			if (Closing || Window == nullptr
-				|| PendingThreadResolution != std::optional{ aTerminal.Context }) {
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			// [[BPR-1741]]. Every answer settles its own change, the
+			// latest or not.
+			if (const auto change = ConversationChanges.find(aTerminal.Context.Request.value()); change != ConversationChanges.end()) {
+				if (aTerminal.Result.has_value()) {
+					core::confirm_resolution_change(ConversationOverlay, change->second);
+				} else {
+					core::abandon_resolution_change(ConversationOverlay, change->second);
+				}
+				ConversationChanges.erase(change);
+				present_conversation_state();
+			}
+			if (PendingThreadResolution != std::optional{ aTerminal.Context }) {
 				return;
 			}
 			PendingThreadResolution.reset();
 			auto* const panel = Window->conversation_panel();
 			if (!aTerminal.Result.has_value()) {
 				++ThreadResolutionFailures;
+
 				if (panel != nullptr) {
 					panel->present_notice(QStringLiteral("The thread could not be %1: %2.")
 											  .arg(aTerminal.Request.Resolve ? QStringLiteral("resolved")
@@ -12980,8 +14525,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			++ThreadResolutionCompletions;
 			if (panel != nullptr) {
-				panel->present_notice(aTerminal.Result->Resolved ? QStringLiteral("Thread resolved.")
-																 : QStringLiteral("Thread reopened."));
+				panel->present_notice(aTerminal.Result->Resolved ? QStringLiteral("Conversation resolved.")
+																 : QStringLiteral("Conversation reopened."));
 			}
 			// The thread's new state comes back from the server the way every
 			// other fact does.
@@ -13030,12 +14575,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			-> application::review_mutation_execution_grant
 		{
 			auto grant = application::review_mutation_execution_grant{ };
+			// [[BPR-1745]]. A reply bound to its thread is published
+			// without a selected diff; the accepted handoff names the session
+			// and pull request the grant binds to.
+			const auto threadReply = aTestingRequest && aTestingRequest->ThreadReply;
 			if (AttendedReviewMutationMode || !Host || !WindowRead->accepted_snapshot()
 				|| !InlineReviewBinding || WorkbenchHost == nullptr
-				|| !SelectedDiffPublication.has_value()) {
+				|| (!SelectedDiffPublication.has_value() && !(threadReply && LastAcceptedHandoff))) {
 				return grant;
 			}
-			const auto& authority = SelectedDiffPublication->Request.WorkbenchAuthority;
+			const auto  authority = SelectedDiffPublication.has_value() && !threadReply ? SelectedDiffPublication->Request.WorkbenchAuthority : workbench_authority(*LastAcceptedHandoff);
 			const auto& snapshot  = *WindowRead->accepted_snapshot();
 			// Reuse the accepted handoff binding retained by the host composition.
 			if (snapshot.Account != authority.Account
@@ -13084,6 +14633,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void begin_review_reply(const std::string& aIdentity)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
+			// [[BPR-1746]]. A thread GitHub says this viewer cannot
+			// reply in takes no reply: the window has said why, and no draft
+			// is made for a Publish GitHub would refuse.
+			if (const auto* const thread = accepted_thread(aIdentity);
+				thread != nullptr && core::decide_thread_reply(thread_reply_facts_of(*thread)).Route == core::thread_reply_route::refused) {
+				return;
+			}
 			// [[BPR-1374]]. A reply already written in this thread and not
 			// sent opens again, as the core picks it, rather than a new one:
 			// after a restart Reply used to start an empty reply beside it.
@@ -13119,6 +14675,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				PrivateDraftSelectionPending = true;
 				PrivateReview->select_reply(anchor, std::string{ aIdentity.substr(prefix.size()) }, [this, owner, anchor](auto aCommit) {
 					PrivateDraftSelectionPending = false;
+					const auto resume            = qScopeGuard([this] { resume_pending_thread_reply(); });
 					if (Closing || !owner || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
 						return;
 					}
@@ -13443,8 +15000,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				return;
 			}
-			if (!SelectedDiffPublication.has_value()
-				|| !SelectedSemanticSelection.has_value()) {
+			// [[BPR-1745]]. A reply bound to its outdated thread is
+			// published by the thread: its path and the commit it was written
+			// on, with no selection. A moved head is acknowledged, as for a
+			// resolution: a thread belongs to the pull request, not a commit.
+			auto threadReply = std::optional<application::review_mutation_thread_reply_binding>{ };
+			if (core::thread_bound_reply(*ReviewDraft)) {
+				threadReply = thread_reply_binding_of(*ReviewDraft->ReplyToThread);
+				if (!threadReply) {
+					complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
+					editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
+					editor->present(application::review_mutation_failure::undesignated_target);
+					return;
+				}
+			}
+			if (!threadReply && (!SelectedDiffPublication.has_value() || !SelectedSemanticSelection.has_value())) {
 				complete_shared_draft(false, { }, aPriorOutcome == core::review_publication_outcome::indeterminate);
 				editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 				refresh_agent_private_context_choices();
@@ -13460,11 +15030,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				present_inline_publication_failure(admission.error(), aPriorOutcome, InlineReviewBinding);
 				return;
 			}
-			auto request = application::review_mutation_publication_request{
-				.Proposal     = *proposal,
-				.Selection    = *SelectedSemanticSelection,
-				.SelectedDiff = *SelectedDiffPublication,
-			};
+			auto request = application::review_mutation_publication_request{ .Proposal = *proposal };
+			if (threadReply) {
+				request.Acknowledged = true;
+				request.ThreadReply  = std::move(threadReply);
+			} else {
+				request.Selection    = *SelectedSemanticSelection;
+				request.SelectedDiff = *SelectedDiffPublication;
+			}
 			auto grant = review_mutation_gesture_grant(
 				request,
 				[&request](const core::application_session_id           aSession,
@@ -13680,6 +15253,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				const auto anchor            = aSelection.PreferredLine;
 				PrivateReview->select_draft(anchor, [this, owner, anchor](auto aCommit) {
 					PrivateDraftSelectionPending = false;
+					// [[BPR-1745]]. An outdated thread's Reply that waited
+					// for this answer is made after it, whatever it was.
+					const auto resume = qScopeGuard([this] { resume_pending_thread_reply(); });
 					if (Closing || owner != SharedDrafts) {
 						return;
 					}
@@ -13744,13 +15320,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!aTerminal.Result) {
 				const auto failure         = aTerminal.Result.error();
 				const auto definiteRefusal = failure == application::review_mutation_failure::refused_by_server
+					|| application::journal_rejection(failure)
 					|| failure == application::review_mutation_failure::incompatible_body
 					|| failure == application::review_mutation_failure::unsupported;
 				const auto unconfirmed = (aTerminal.MutationAttempted && !definiteRefusal)
 					|| failure == application::review_mutation_failure::unavailable
 					|| failure == application::review_mutation_failure::target_unavailable
 					|| failure == application::review_mutation_failure::malformed_response;
-				currentOutcome = unconfirmed ? outcome::indeterminate : outcome::not_published;
+				// [[BPR-1735]]. The journal's rejection says no comment exists.
+				currentOutcome = application::journal_rejection(failure) ? outcome::rejected
+					: unconfirmed                                        ? outcome::indeterminate
+																		 : outcome::not_published;
 			}
 			const auto publicationOutcome = core::retain_review_publication_outcome(PublishingPriorOutcome, currentOutcome);
 			if (!Closing && PendingReviewMutation == std::optional{ aTerminal.Context } && PrivateReview && PrivateDraftsReady && PublishingDraft) {
@@ -13782,6 +15362,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			const auto failedBinding = std::exchange(PublishingBinding, std::nullopt);
 			refresh_review_projection(aTerminal);
+			// [[BPR-1736]]. And whatever follows: the answer may have taught it.
+			present_review_comment_holds();
 			const auto deferred = std::move(DeferredReviewSelection);
 			DeferredReviewSelection.reset();
 			if (!ReviewDraft.has_value()) {
@@ -13837,6 +15419,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			} else {
 				present_inline_publication_failure(aTerminal.Result.error(), aPublicationOutcome, failedBinding);
 			}
+			// [[BPR-1736]]. GitHub's answer may have taught the learned fact:
+			// the notice says what is known now.
+			present_filtered_comment();
 		}
 
 		void retire_review_ledger()
@@ -13920,6 +15505,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 						resume_reply();
 						flush_unsent_reply_commands();
+						resume_pending_thread_reply();
 					} else {
 						PrivateDraftsReady = false;
 					}
@@ -14338,6 +15924,28 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// and the answer.
 		std::optional<application::filtered_comment_lines_request>     FilteredCommentLinesAsked;
 		std::optional<application::filtered_comment_lines_observation> FilteredCommentLines;
+		/// [[BPR-1735]]. GitHub's own diff (the merge base to the head) of each
+		/// file a comment is placed on, by its head path: what was asked, at
+		/// which head and merge base, and the answer once it came.
+		struct github_diff_lines_entry
+		{
+			core::git_commit_oid                                      Head;
+			core::git_commit_oid                                      MergeBase;
+			std::optional<application::github_diff_lines_observation> Answer;
+		};
+		std::map<std::string, github_diff_lines_entry> GitHubDiffLines;
+		/// [[BPR-1736]]. The profile's learned off-hunk facts, opened once per
+		/// data root on their own connection to the recovery journal.
+		mutable std::unique_ptr<application::off_hunk_fact_port> OffHunkFacts;
+		mutable std::filesystem::path                            OffHunkFactsRoot;
+		mutable bool                                             OffHunkFactsOpened = false;
+		/// [[BPR-1735]]. The comments pending in the review on this head, as
+		/// last published to it, which the core holds back when it places one
+		/// outside GitHub's diff.
+		std::vector<core::review_submission_comment> PendingReviewComments;
+		/// [[BPR-1735]]. Testing only: a build that placed nothing on the Whole
+		/// PR diff, as before the owner's decision.
+		bool WholeDiffPlacementDisabled = false;
 		/// [[BPR-1733]]. Each comparison this window showed a file on, with the
 		/// commit its right side was read at and the file's path there: what a
 		/// kept suggestion on that comparison can be carried from.
@@ -14709,6 +16317,196 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// \brief RFC-BPR-0089 M4. Asks once per filtered diff for the lines a
 		/// placement needs; a diff whose sides are GitHub's own needs none. A
 		/// refusal is an answer: nothing can be placed off GitHub's diff.
+		/// \brief [[BPR-1735]]. The accepted head and the merge base GitHub
+		/// names for it; none when GitHub named no merge base, when nothing is
+		/// inferred about its diff.
+		[[nodiscard]] auto whole_diff_commits() const -> std::optional<std::pair<core::git_commit_oid, core::git_commit_oid>>
+		{
+			if (WholeDiffPlacementDisabled || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			if (snapshot.MergeBaseAvailability != application::github_merge_base_availability::available || !snapshot.MergeBaseOid) {
+				return std::nullopt;
+			}
+			const auto head = core::parse_git_commit_oid(snapshot.PullRequest.HeadOid.value());
+			const auto base = core::parse_git_commit_oid(snapshot.MergeBaseOid->value());
+			if (!head || !base) {
+				return std::nullopt;
+			}
+			return std::pair{ *head, *base };
+		}
+
+		/// \brief [[BPR-1735]]. The facts the core places a comment on GitHub's
+		/// own diff of the file at `aHeadPath` from, its lines once read.
+		[[nodiscard]] auto whole_diff_source(const std::string& aHeadPath) const -> std::optional<core::whole_diff_comment_source>
+		{
+			const auto commits = whole_diff_commits();
+			if (!commits) {
+				return std::nullopt;
+			}
+			auto       source = core::whole_diff_comment_source{ .Head = commits->first, .MergeBase = commits->second, .BaseToHead = std::nullopt };
+			const auto found  = GitHubDiffLines.find(aHeadPath);
+			if (found != GitHubDiffLines.end() && found->second.Head == commits->first && found->second.MergeBase == commits->second && found->second.Answer
+				&& found->second.Answer->Status == application::github_diff_lines_status::resolved) {
+				source.BaseToHead = found->second.Answer->BaseToHead;
+			}
+			return source;
+		}
+
+		/// \brief [[BPR-1735]]. GitHub's own diff of the file shown, once read:
+		/// none while it is being read, an empty answer when nothing is known
+		/// (no merge base named, a filtered diff, or the read failed). The
+		/// fixture courses that write line comments choose lines by it.
+		[[nodiscard]] auto shown_github_diff_lines() -> std::optional<std::optional<core::line_correspondence>>
+		{
+			if (!whole_diff_commits() || !SelectedDiffPublication || SelectedDiffPublication->Key.Filter) {
+				return std::optional<core::line_correspondence>{ };
+			}
+			const auto bytes = SelectedDiffPublication->Request.File.CurrentPath.generic_u8string();
+			const auto path  = std::string{ bytes.begin(), bytes.end() };
+			request_github_diff_lines({ path });
+			const auto found = GitHubDiffLines.find(path);
+			if (found != GitHubDiffLines.end() && !found->second.Answer) {
+				return std::nullopt;
+			}
+			auto       known  = std::optional<core::line_correspondence>{ };
+			const auto source = whole_diff_source(path);
+			if (source) {
+				known = source->BaseToHead;
+			}
+			return known;
+		}
+
+		/// \brief [[BPR-1735]]. Asks once per file, head and merge base for
+		/// GitHub's own diff of each path. A refusal is an answer: nothing is
+		/// inferred for that file. A cancelled read is asked again later.
+		void request_github_diff_lines(const std::vector<std::string>& aHeadPaths)
+		{
+			const auto commits = whole_diff_commits();
+			if (Closing || EpochHost == nullptr || !LastAcceptedHandoff || !commits) {
+				return;
+			}
+			// The accepted comparison names the pull request's diff; no file
+			// need be shown for it to be read.
+			const auto authority = workbench_authority(*LastAcceptedHandoff);
+			const auto context   = EpochHost->context(authority);
+			if (!context) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			for (const auto& path : aHeadPaths) {
+				if (const auto found = GitHubDiffLines.find(path); found != GitHubDiffLines.end() && found->second.Head == commits->first && found->second.MergeBase == commits->second) {
+					continue;
+				}
+				const auto whole    = std::ranges::find(snapshot.Files, path, &application::github_file_record::Path);
+				const auto basePath = whole != snapshot.Files.end() && whole->PreviousPath ? *whole->PreviousPath : path;
+				auto       request  = application::github_diff_lines_request{
+					.WorkbenchAuthority = authority,
+					.Head               = commits->first,
+					.MergeBase          = commits->second,
+					.Key                = core::file_comparison_key{ .Authority   = context->Authority,
+																	 .Repository  = context->Authority.Repository,
+																	 .PullRequest = context->Authority.PullRequest,
+																	 .LeftAnchor  = context->Comparison.Left.Identity,
+																	 .RightAnchor = context->Comparison.Right.Identity,
+																	 .File        = core::file_identity_of(path),
+																	 .Options     = context->OptionsDigest,
+																	 .Algorithm   = context->Algorithm },
+					.HeadPath           = path,
+					.BasePath           = basePath,
+				};
+				GitHubDiffLines.insert_or_assign(path, github_diff_lines_entry{ .Head = commits->first, .MergeBase = commits->second, .Answer = std::nullopt });
+				if (!EpochHost->resolve_github_diff_lines(request, [this, path](const application::github_diff_lines_observation& aObservation) {
+						const auto found = GitHubDiffLines.find(path);
+						if (Closing || found == GitHubDiffLines.end() || found->second.Head != aObservation.Request.Head || found->second.MergeBase != aObservation.Request.MergeBase) {
+							return;
+						}
+						if (aObservation.Status == application::github_diff_lines_status::cancelled || aObservation.Status == application::github_diff_lines_status::stale) {
+							GitHubDiffLines.erase(found);
+							return;
+						}
+						found->second.Answer = aObservation;
+						present_filtered_comment();
+						present_review_comment_holds();
+					})) {
+					GitHubDiffLines.insert_or_assign(path, github_diff_lines_entry{ .Head = commits->first, .MergeBase = commits->second, .Answer = application::github_diff_lines_observation{ .Request = request, .Status = application::github_diff_lines_status::unauthorized, .BaseToHead = std::nullopt } });
+				}
+			}
+		}
+
+		/// \brief [[BPR-1735]]. The selected line of the Whole PR diff placed by
+		/// the core, said only when it is not the line itself.
+		[[nodiscard]] auto whole_diff_presentation() -> std::optional<qt::filtered_comment_presentation>
+		{
+			if (!SelectedDiffPublication || SelectedDiffPublication->Key.Filter || !SelectedSemanticSelection
+				|| SelectedSemanticSelection->PreferredLine.Comparison != core::comparison_digest(SelectedDiffPublication->Key)) {
+				return std::nullopt;
+			}
+			const auto& line  = SelectedSemanticSelection->PreferredLine;
+			const auto  bytes = SelectedDiffPublication->Request.File.CurrentPath.generic_u8string();
+			const auto  path  = std::string{ bytes.begin(), bytes.end() };
+			request_github_diff_lines({ path });
+			// A base line is GitHub's only when its document is the merge base's.
+			if (line.Side == core::diff_side::left && !(ReviewSourceMaterial && ReviewSourceMaterial->BaseNumberedAsGitHub)) {
+				return std::nullopt;
+			}
+			const auto source = whole_diff_source(path);
+			const auto start  = ReviewDraft && ReviewDraft->Anchor == line ? ReviewDraft->StartLine : std::nullopt;
+			const auto target = source ? core::place_whole_diff_comment(*source, line.Side, line.Line, start) : std::nullopt;
+			if (!target || target->Placement == core::filtered_comment_placement::head) {
+				return std::nullopt;
+			}
+			// [[BPR-1736]]. Where GitHub accepted a comment outside the diff,
+			// such a line is native and carries no mark; otherwise the notice
+			// says what was learned.
+			const auto learned = presented_off_hunk_fact(false);
+			if (core::route_github_comment(core::place_on_github_diff(source->BaseToHead, line.Side, line.Line, start), learned) == core::github_comment_route::native_off_hunk) {
+				return std::nullopt;
+			}
+			const auto hex = core::canonical_hex(target->Commit);
+			return qt::filtered_comment_presentation{ .Selection = line, .Target = *target, .Commit = QString::fromUtf8(hex.view().substr(0U, 7U)), .Learned = learned };
+		}
+
+		/// \brief [[BPR-1735]]. Holds every comment pending in the review that
+		/// the core places outside GitHub's diff: Finish your review marks it,
+		/// and the review is not submitted while one is held.
+		void present_review_comment_holds()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto paths = std::vector<std::string>{ };
+			for (const auto& comment : PendingReviewComments) {
+				if (std::ranges::find(paths, comment.Path) == paths.end()) {
+					paths.push_back(comment.Path);
+				}
+			}
+			request_github_diff_lines(paths);
+			auto held = std::map<core::review_draft_id, qt::workbench_window::unplaceable_review_comment>{ };
+			auto ids  = std::vector<core::review_draft_id>{ };
+			// [[BPR-1736]]. A review never probes: a line outside the diff rides
+			// it only once GitHub accepted such a comment (decision D3).
+			const auto learned = PendingReviewComments.empty() ? core::off_hunk_creation_capability::unknown : presented_off_hunk_fact(true);
+			for (const auto& comment : PendingReviewComments) {
+				const auto source = whole_diff_source(comment.Path);
+				if (!source || !core::holds_review_comment(core::place_on_github_diff(source->BaseToHead, comment.Side, comment.Line, comment.StartLine), learned)) {
+					continue;
+				}
+				const auto target = core::place_whole_diff_comment(*source, comment.Side, comment.Line, comment.StartLine);
+				if (!target) {
+					continue;
+				}
+				const auto hex = core::canonical_hex(target->Placement == core::filtered_comment_placement::file_comment ? target->Commit : source->Head);
+				held.emplace(comment.Draft, qt::workbench_window::unplaceable_review_comment{ .Target = *target, .StartLine = comment.StartLine, .Commit = QString::fromUtf8(hex.view().substr(0U, 7U)) });
+				ids.push_back(comment.Draft);
+			}
+			if (ReviewSubmission) {
+				ReviewSubmission->hold_comments(std::move(ids));
+			}
+			Window->present_unplaceable_review_comments(std::move(held));
+		}
+
 		void request_filtered_comment_lines()
 		{
 			if (Closing || EpochHost == nullptr) {
@@ -14932,8 +16730,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (!selected_diff_filtered()) {
 				Window->present_filtered_comment(false, std::nullopt);
+				// [[BPR-1735]]. The Whole PR diff's own placement.
+				Window->present_whole_diff_comment(whole_diff_presentation());
 				return;
 			}
+			Window->present_whole_diff_comment(std::nullopt);
 			auto placement = std::optional<qt::filtered_comment_presentation>{ };
 			if (SelectedSemanticSelection && SelectedSemanticSelection->PreferredLine.Comparison == core::comparison_digest(SelectedDiffPublication->Key)) {
 				if (const auto source = filtered_comment_source()) {
@@ -15974,6 +17775,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					.Hostname    = std::string{ aHandoff.Hostname.value() },
 					.Locator     = aHandoff.Locator,
 				};
+#if defined(BPR_AGENT_INTEGRATIONS)
+				observe_clone_repository();
+				observe_conversation();
+#endif
 				const auto authority = workbench_authority(aHandoff);
 				const auto snapshot  = Host != nullptr
 					? WindowRead->accepted_snapshot()
@@ -16090,6 +17895,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			ReadingDestination.reset();
 			AcceptedReadingPosition.reset();
 			AgentReview.reset();
+#if defined(BPR_AGENT_INTEGRATIONS)
+			observe_clone_repository();
+			observe_conversation();
+#endif
 			// [[BPR-1365]]. No recent entry is open any more.
 			if (closed) {
 				publish_recent();
@@ -17288,6 +19097,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string           Text;
 			core::source_line_ref At;
 			std::function<void()> Refused;
+			std::function<void()> Done;
 		};
 		std::optional<pending_note_promotion>                     PendingNotePromotion;
 		std::optional<std::map<core::file_identity, std::string>> NotePaths;
@@ -17327,7 +19137,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// private review's answer, after this returns, so the result is read
 		/// there. Reading it on return refused every promotion the reviewer
 		/// then saw arrive in the draft.
-		void promote_private_item(std::string aText, std::function<void()> aRefused)
+		void promote_private_item(std::string aText, std::function<void()> aRefused, std::function<void()> aDone = { })
 		{
 			if (Closing || Window == nullptr || !ReviewDraft || !SharedDrafts
 				|| !Window->comment_action()->isEnabled() || Window->review_editor()->body_editor()->isReadOnly()) {
@@ -17349,7 +19159,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				aRefused();
 				return;
 			}
-			dispatch_review_draft(*command, [this, anchor, scope, id = command->Command.Id, text = std::move(aText), refused = std::move(aRefused)](const bool aAccepted) {
+			dispatch_review_draft(*command, [this, anchor, scope, id = command->Command.Id, text = std::move(aText), refused = std::move(aRefused), done = std::move(aDone)](const bool aAccepted) {
 				if (Closing || Window == nullptr) {
 					return;
 				}
@@ -17357,6 +19167,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					|| ReviewDraft->Id != id || ReviewDraft->Body != text
 					|| Window->review_editor()->rejected_candidate()) {
 					refused();
+					return;
+				}
+				// [[BPR-1753]]. A finding card stays where it is and
+				// says Drafted; every other promotion opens the draft.
+				if (done) {
+					done();
 					return;
 				}
 				Window->tray_tabs()->setCurrentIndex(0);
@@ -17398,7 +19214,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto pending = std::move(*PendingNotePromotion);
 			PendingNotePromotion.reset();
-			promote_private_item(std::move(pending.Text), std::move(pending.Refused));
+			promote_private_item(std::move(pending.Text), std::move(pending.Refused), std::move(pending.Done));
 		}
 
 		void dispatch_private_note(const qt::private_note_intent& aIntent)
@@ -17626,6 +19442,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				state.ApplicationSession, authority, observedBinding);
 			AgentHost->observe(
 				state.ApplicationSession, authority, observedBinding);
+			if (AgentSetup) {
+				// [[BPR-1749]]. Setup's rows carry this review's host
+				// policy, the same the agent host decides by.
+				AgentSetup->observe_policy(core::policy_for_host(AgentPolicies, authority.Host));
+			}
 			refresh_agent_private_context_choices();
 			if (ChatHost != nullptr) {
 				// Recorded, never retargeted. The chat host presents itself
@@ -17788,6 +19609,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			observation.CurrentDraft = current_agent_draft_observation();
+			// [[BPR-1752]], RFC-BPR-0092. A review request carries the
+			// brief: what the reviewer can read on GitHub about this pull
+			// request, bounded, and the review skill's text (Q9 A). A comment
+			// workshop press and a writing request are not review requests.
+			if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
+				auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
+				// [[BPR-1753]], owner decision (b). The conversation so
+				// far about this pull request, so a follow-up continues it.
+				if (AgentConversation) {
+					const auto earlier = AgentConversation->projection().Turns;
+					for (const auto& turn : earlier) {
+						brief.Conversation.push_back({ .Asked = turn.Asked, .Answered = turn.Answered });
+					}
+				}
+				observation.Brief = core::bound_review_brief(std::move(brief));
+			}
 			// Which file, and where in it. The two are told apart because
 			// only one of them names a comparison. The file is a path and a
 			// review receipt, which belong to the file rather than to any pair
@@ -17922,6 +19759,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aProfile == core::claude_stream_json_profile_id && !requested.Model && !ClaudeModel.empty()) {
 				requested.Model = ClaudeModel;
 			}
+			// [[BPR-1753]], owner look v002. The model and effort the tab
+			// shows are the ones this request runs with.
+			if (AgentSetup) {
+				const auto preferences = AgentSetup->projection().Preferences;
+				if (aProfile == core::claude_stream_json_profile_id && !requested.Effort && !preferences.ClaudeEffort.empty()) {
+					requested.Effort = preferences.ClaudeEffort;
+				}
+				if ((aProfile == core::codex_app_server_profile_id || aProfile == core::codex_jsonl_profile_id) && !aWritingOnly) {
+					if (!requested.Model && !preferences.CodexModel.empty()) {
+						requested.Model = preferences.CodexModel;
+					}
+					if (!requested.Effort && !preferences.CodexEffort.empty()) {
+						requested.Effort = preferences.CodexEffort;
+					}
+				}
+			}
+			// [[BPR-1753]], owner amendment 2026-10-23. An added agent runs
+			// with its own model and effort unless the request names one.
+			if (AgentSetup) {
+				const auto agents = AgentSetup->projection().Preferences.Agents;
+				if (const auto* const entry = core::entry_of_profile(agents, aProfile); entry != nullptr) {
+					if (!requested.Model && !entry->Model.empty()) {
+						requested.Model = entry->Model;
+					}
+					if (!requested.Effort && !entry->Effort.empty()) {
+						requested.Effort = entry->Effort;
+					}
+				}
+			}
 			if (!aWritingOnly && !privateRun && PrivateReview) {
 				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());
 			}
@@ -17937,6 +19803,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.WritingOnly            = aWritingOnly,
 				.RequestedSettings      = std::move(requested),
 				.PrivateRun             = std::move(privateRun),
+				.HistoryClone           = linked_history_clone(aWritingOnly),
+				// Owner decision 2026-10-23: a time limit only when the reviewer set one.
+				.RunLimitMilliseconds = run_limit_milliseconds(),
 			});
 			return true;
 		}
@@ -19129,6 +20998,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					// until another file was chosen and this one again.
 					request_filtered_comment_lines();
 					present_filtered_comment();
+					present_review_comment_holds();
 					observe_head_moves();
 #if defined(BPR_BUILD_TESTING)
 					++SelectedDiffPublications;
@@ -19142,12 +21012,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				SelectedDiffRequest = request;
 			}
 			SelectedDiffPublication = aPublication;
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-1753]], owner decision (a): Review <open file path>.
+			Window->agent_tab()->refresh_suggestions();
+			present_agent_pull_request();
+#endif
 			// RFC-BPR-0089 M4. A commit-filtered diff's threads are marked where
 			// the core places them on it (`place_filtered_threads`).
 			Window->set_thread_marks_suspended(false);
 			present_split_strip();
 			request_filtered_comment_lines();
 			present_filtered_comment();
+			// [[BPR-1735]]. GitHub's own diff can be read once a file is shown.
+			present_review_comment_holds();
 			observe_head_moves();
 			request_diff(
 				aPublication.Key,
@@ -19950,6 +21827,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (auto* const overview = Window->overview_page(); overview != nullptr) {
 				overview->adopt_appearance(*AppearanceProfile);
 			}
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-1753]], owner look v003. The agent's answers' code in
+			// the panes' colours and code font.
+			if (auto* const agent = Window->agent_tab(); agent != nullptr) {
+				agent->adopt_appearance(*AppearanceProfile);
+			}
+#endif
 			// [[BPR-1156]]. Suggest change paints its code in the panes' role colours.
 			if (CycleDesktop) {
 				CycleDesktop->adopt_appearance(*AppearanceProfile);
@@ -20122,6 +22006,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ClaudeWrapperEditor) {
 				ClaudeWrapperEditor->shutdown();
 			}
+			if (AgentSetup) {
+				AgentSetup->shutdown();
+			}
+			if (CloneLinks) {
+				CloneLinks->shutdown();
+			}
+			if (ReviewSkill) {
+				ReviewSkill->shutdown();
+			}
+			if (AgentConversation) {
+				AgentConversation->shutdown();
+			}
 #endif
 			if (TourHost) {
 				TourHost->shutdown();
@@ -20233,6 +22129,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (CycleDesktop && !CycleDesktop->is_quiescent())
 #if defined(BPR_AGENT_INTEGRATIONS)
 				|| (ClaudeWrapperEditor && !ClaudeWrapperEditor->is_quiescent())
+				|| (AgentSetup && !AgentSetup->is_quiescent())
+				|| (CloneLinks && !CloneLinks->is_quiescent())
+				|| (ReviewSkill && !ReviewSkill->is_quiescent())
+				|| (AgentConversation && !AgentConversation->is_quiescent())
 #endif
 				|| std::ranges::any_of(RetiredTourHosts, [](const auto& aRetained) { return !aRetained.Host->is_quiescent(); })
 				|| (PrivateReview && !PrivateReview->is_quiescent())
@@ -20734,6 +22634,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_reply_published,
 				awaiting_reply_seen,
 				awaiting_resolved,
+				// [[BPR-1741]].
+				awaiting_reopened,
+				awaiting_reactions_read,
+				awaiting_reaction_confirmed,
+				awaiting_reaction_removed,
+				awaiting_picker_reaction,
+				awaiting_reaction_reconciled,
 				passed,
 				failed,
 			};
@@ -20741,7 +22648,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			phase                                 Phase = phase::awaiting_ready;
 			std::string                           Diagnostic;
 			std::optional<std::uint32_t>          ThreadlessLine;
+			int                                   ReadsBeforeRefresh = 0;
 		};
+
 		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
 		// [[BPR-1083]]. One fixture file opened in Review, for an attended look
 		// and for the label-authoring course.
@@ -20896,6 +22805,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_copied,
 				awaiting_discarded,
 				awaiting_kept,
+				/// [[BPR-1745]]. The thread reads outdated after the push.
+				awaiting_outdated,
+				/// [[BPR-1745]]. The reply's Publish is answered.
+				awaiting_published,
 				passed,
 				failed,
 			};
@@ -21076,6 +22989,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
+		decltype(github_profile_runtime::CodexSearch)&                            CodexSearch                            = Profile->CodexSearch;
+		const bool&                                                               AttendedAgentSearch                    = Profile->AttendedAgentSearch;
 		bool                                                                      ReviewLedgerWasPresentOnEntry          = false;
 		bool                                                                      ReviewLedgerRoundTripPassed            = false;
 		bool                                                                      FixtureReviewMutationHostComposed      = false;
@@ -21165,6 +23080,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                                 ThreadResolutionRefusals    = 0U;
 		std::size_t                                                 ThreadResolutionCompletions = 0U;
 		std::size_t                                                 ThreadResolutionFailures    = 0U;
+		/// [[BPR-1741]]. The viewer's reaction and resolution changes
+		/// reads have not caught up with, the pull request they are on, and
+		/// each unanswered request's subject.
+		core::conversation_overlay           ConversationOverlay;
+		core::pull_request_id                ConversationOverlayPullRequest;
+		std::map<std::uint64_t, std::string> ConversationChanges;
+		std::size_t                          ReactionGestures    = 0U;
+		std::size_t                          ReactionCompletions = 0U;
+		std::size_t                          ReactionFailures    = 0U;
+
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
 		std::optional<application::review_mutation_request_context>
@@ -21234,11 +23159,46 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// holds the port, so the port outlives it.
 		std::shared_ptr<application::claude_process_wrapper_source> ClaudeWrapperSource = std::make_shared<application::claude_process_wrapper_source>();
 		std::unique_ptr<application::wrapped_claude_process>        ClaudeProcess;
-		std::unique_ptr<application::claude_wrapper_editor>         ClaudeWrapperEditor;
+		/// [[BPR-1748]]. The Codex and plain-text harness programs this
+		/// window's profile saved, and the port that gives those launches an
+		/// absolute program.
+		std::shared_ptr<application::agent_program_source> AgentProgramSource = std::make_shared<application::agent_program_source>();
+		/// [[BPR-1749]]. The host policies the agent host decides by,
+		/// kept so setup's rows carry the same verdicts.
+		std::vector<core::agent_host_policy>                AgentPolicies;
+		std::unique_ptr<application::located_agent_process> LocatedProcess;
+		std::unique_ptr<application::claude_wrapper_editor> ClaudeWrapperEditor;
+		/// [[BPR-1749]]. The profile's agent setup: its store, the
+		/// check's own launcher and lane, and the host. Declared in that order
+		/// so the host goes first.
+		std::unique_ptr<application::agent_setup_store_port>     AgentSetupStore;
+		std::unique_ptr<adapters::agent::agent_process_launcher> AgentSetupLauncher;
+		std::unique_ptr<worker_executor>                         AgentSetupLane;
+		std::unique_ptr<application::agent_setup_host>           AgentSetup;
+		/// [[BPR-1750]]. Clone folders and links: store, then host.
+		std::unique_ptr<application::clone_link_store_port> CloneLinkStore;
+		std::unique_ptr<application::clone_link_host>       CloneLinks;
+		/// [[BPR-1752]]. The review skill: store, then host.
+		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
+		std::unique_ptr<application::review_skill_host>       ReviewSkill;
+		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
+		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
+		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
+		/// [[BPR-1751]]. Why the last workspace probe could not make the
+		/// workspace, for its words; absent when it was not that.
+		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
-		std::unique_ptr<application::agent_invocation_host>      AgentHost;
+		/// [[BPR-1753]], owner amendment 2026-10-23. The agents the
+		/// reviewer added, for the launches, and the process that starts them.
+		std::shared_ptr<application::agent_entry_source>  AgentEntries = std::make_shared<application::agent_entry_source>();
+		std::unique_ptr<application::agent_entry_process> EntryProcess;
+		/// The profiles the host last offered, before the list chose among them.
+		std::vector<core::agent_profile> HostOfferedProfiles;
+		/// A test that put its own program on a built-in profile keeps it offered.
+		bool                                                BuiltInProfilesOffered = false;
+		std::unique_ptr<application::agent_invocation_host> AgentHost;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;
@@ -23193,6 +25153,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	void detail::github_application_fixture_access::stale_base_numbering_question(github_application& aApplication)
 	{
 		aApplication.Implementation->StaleBaseNumberingQuestion = true;
+	}
+
+	void detail::github_application_fixture_access::set_whole_diff_placement_enabled(github_application& aApplication, const bool aEnabled)
+	{
+		aApplication.Implementation->WholeDiffPlacementDisabled = !aEnabled;
 	}
 
 	void detail::github_application_fixture_access::set_preparation_enabled(github_application& aApplication, const bool aEnabled)
@@ -29315,6 +31280,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (!implementation->ReviewRoundTripCompositionProbe.has_value()) {
 			implementation->ReviewRoundTripCompositionProbe.emplace();
+			// [[BPR-1735]]. This course's off-hunk line exercises RFC-BPR-0022's
+			// native attempt and fallback, its subject, so it places as a build
+			// before the hunk rule did; the BPR-1735 courses cover the rule.
+			implementation->WholeDiffPlacementDisabled = true;
 		}
 		auto& probe = *implementation->ReviewRoundTripCompositionProbe;
 		if (probe.Phase == state_type::phase::failed) {
@@ -29962,9 +31931,41 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return advance(state_type::phase::awaiting_native_conversation);
 	}
 
+	namespace {
+		/// [[BPR-1741]]. One post of the open thread, by identity.
+		[[nodiscard]] auto post_view_of(const qt::conversation_cards_view& aCards, const std::string& aPost) -> QWidget*
+		{
+			if (aCards.open_card() == nullptr) {
+				return nullptr;
+			}
+			for (auto* const post : aCards.open_card()->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				if (post->property("postIdentity").toString().toStdString() == aPost) {
+					return post;
+				}
+			}
+			return nullptr;
+		}
+
+		/// [[BPR-1741]]. One reaction's chip under a post of the open thread.
+		[[nodiscard]] auto reaction_chip_of(const qt::conversation_cards_view& aCards, const std::string& aPost, const core::reaction_content aContent) -> QAbstractButton*
+		{
+			auto* const post = post_view_of(aCards, aPost);
+			if (post == nullptr) {
+				return nullptr;
+			}
+			for (auto* const chip : post->findChildren<QAbstractButton*>(QStringLiteral("reactionChip"))) {
+				if (chip->isVisible() && chip->property("reactionContent").toInt() == static_cast<int>(aContent)) {
+					return chip;
+				}
+			}
+			return nullptr;
+		}
+	} // namespace
+
 	auto detail::github_application_fixture_access::exercise_threaded_reply(
 		github_application& aApplication) -> detail::threaded_reply_probe_result
 	{
+
 		using result               = detail::threaded_reply_probe_result;
 		using state_type           = github_application::implementation::threaded_reply_probe_state;
 		auto* const implementation = aApplication.Implementation.get();
@@ -30253,7 +32254,176 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.ThreadResolved = true;
-			probe.Phase                   = state_type::phase::passed;
+			// [[BPR-1741]]. With reactions served, the course goes on:
+			// Unresolve conversation at the thread's end, then reactions.
+			if (!implementation->ReviewMutationHost->capabilities().Reacts) {
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			cards->open_thread(std::string{ threadIdentity });
+			QCoreApplication::processEvents();
+			auto* const reopen = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadResolveConversation")) : nullptr;
+			if (reopen == nullptr || !reopen->isEnabled() || reopen->text() != QStringLiteral("Unresolve conversation")) {
+				return fail("no-unresolve-conversation");
+			}
+			reopen->click();
+			QCoreApplication::processEvents();
+			const auto shown                 = std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id);
+			probe.Evidence.ReopenShownAtOnce = shown != cards->cards().end() && !shown->Resolved && shown->ResolutionPending;
+			if (!probe.Evidence.ReopenShownAtOnce) {
+				return fail("reopen-not-shown-at-once");
+			}
+			probe.Phase = state_type::phase::awaiting_reopened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reopened: {
+			note("completions=" + std::to_string(implementation->ThreadResolutionCompletions) + " failures=" + std::to_string(implementation->ThreadResolutionFailures));
+			if (implementation->ThreadResolutionFailures != 0U || implementation->ThreadResolutionRefusals != 0U) {
+				return fail("reopen-refused-or-failed");
+			}
+			const auto thread = model->index_for_id(threadIdentity);
+			const auto card   = std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id);
+			if (implementation->ThreadResolutionCompletions < 2U || !thread.isValid() || thread.data(qt::github_conversation_model::resolved_role).toBool()
+				|| card == cards->cards().end() || card->Resolved || card->ResolutionPending) {
+				return result::pending;
+			}
+			probe.Evidence.Reopened = true;
+			probe.Phase             = state_type::phase::awaiting_reactions_read;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reactions_read: {
+			const auto post  = std::string{ "review-comment:PRRC_fixture_1" };
+			const auto shown = cards->reactions_of(post);
+			note("read=" + std::to_string(shown.has_value() ? 1 : 0) + " reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount));
+			if (!shown.has_value()) {
+				return result::pending;
+			}
+			const auto* const thumbs     = core::find_reaction_group(*shown, core::reaction_content::thumbs_up);
+			probe.Evidence.ReactionsRead = thumbs != nullptr && thumbs->Count == 2U && !thumbs->ViewerReacted;
+			if (!probe.Evidence.ReactionsRead) {
+				return fail("reactions-not-as-recorded");
+			}
+			cards->open_thread(std::string{ threadIdentity });
+			QCoreApplication::processEvents();
+			auto* const chip = reaction_chip_of(*cards, post, core::reaction_content::thumbs_up);
+			if (chip == nullptr || !chip->isEnabled()) {
+				return fail("no-thumbs-up-chip");
+			}
+			chip->click();
+			QCoreApplication::processEvents();
+			const auto        now        = cards->reactions_of(post);
+			const auto* const pending    = now ? core::find_reaction_group(*now, core::reaction_content::thumbs_up) : nullptr;
+			probe.Evidence.ReactionShown = pending != nullptr && pending->Count == 3U && pending->ViewerReacted && pending->Pending;
+			if (!probe.Evidence.ReactionShown) {
+				return fail("reaction-not-shown-at-once");
+			}
+			probe.Phase = state_type::phase::awaiting_reaction_confirmed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reaction_confirmed:
+		case state_type::phase::awaiting_reaction_removed:
+		case state_type::phase::awaiting_picker_reaction:    {
+			const auto post = std::string{ "review-comment:PRRC_fixture_1" };
+			note("completions=" + std::to_string(implementation->ReactionCompletions) + " failures=" + std::to_string(implementation->ReactionFailures)
+				 + " asked=" + std::to_string(implementation->Fixture->review_mutation_evidence().Reactions));
+			if (implementation->ReactionFailures != 0U) {
+				return fail("reaction-failed");
+			}
+			const auto shown = cards->reactions_of(post);
+			if (!shown.has_value()) {
+				return result::pending;
+			}
+			const auto* const thumbs = core::find_reaction_group(*shown, core::reaction_content::thumbs_up);
+			const auto* const heart  = core::find_reaction_group(*shown, core::reaction_content::heart);
+			if (probe.Phase == state_type::phase::awaiting_reaction_confirmed) {
+				if (implementation->ReactionCompletions < 1U || thumbs == nullptr || thumbs->Pending) {
+					return result::pending;
+				}
+				probe.Evidence.ReactionConfirmed = thumbs->Count == 3U && thumbs->ViewerReacted;
+				if (!probe.Evidence.ReactionConfirmed) {
+					return fail("reaction-not-confirmed");
+				}
+				cards->open_thread(std::string{ threadIdentity });
+				QCoreApplication::processEvents();
+				auto* const chip = reaction_chip_of(*cards, post, core::reaction_content::thumbs_up);
+				if (chip == nullptr) {
+					return fail("no-chip-to-remove");
+				}
+				chip->click();
+				probe.Phase = state_type::phase::awaiting_reaction_removed;
+				return result::pending;
+			}
+			if (probe.Phase == state_type::phase::awaiting_reaction_removed) {
+				if (implementation->ReactionCompletions < 2U || thumbs == nullptr || thumbs->Pending) {
+					return result::pending;
+				}
+				probe.Evidence.ReactionRemoved = thumbs->Count == 2U && !thumbs->ViewerReacted;
+				if (!probe.Evidence.ReactionRemoved) {
+					return fail("reaction-not-removed");
+				}
+				// The picker, by keyboard alone: five steps right is heart.
+				cards->open_thread(std::string{ threadIdentity });
+				QCoreApplication::processEvents();
+				auto* const view  = post_view_of(*cards, post);
+				auto* const react = view != nullptr ? view->findChild<QAbstractButton*>(QStringLiteral("threadPostReact")) : nullptr;
+				if (react == nullptr || react->isHidden()) {
+					return fail("no-add-reaction");
+				}
+				react->click();
+				QCoreApplication::processEvents();
+				auto* picker = static_cast<QWidget*>(nullptr);
+				for (auto* const widget : QApplication::topLevelWidgets()) {
+					if (widget->objectName() == QStringLiteral("reactionPicker") && widget->isVisible()) {
+						picker = widget;
+					}
+				}
+				if (picker == nullptr || picker->focusWidget() == nullptr) {
+					return fail("no-picker");
+				}
+				const auto typeKey = [picker](const int aKey) {
+					auto event = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier };
+					QCoreApplication::sendEvent(picker->focusWidget() != nullptr ? picker->focusWidget() : picker, &event);
+				};
+				for (auto step = 0; step < 5; ++step) {
+					typeKey(Qt::Key_Right);
+				}
+				typeKey(Qt::Key_Return);
+				QCoreApplication::processEvents();
+				probe.Phase = state_type::phase::awaiting_picker_reaction;
+				return result::pending;
+			}
+			if (implementation->ReactionCompletions < 3U || heart == nullptr || heart->Pending) {
+				return result::pending;
+			}
+			probe.Evidence.PickerReacted = heart->Count == 1U && heart->ViewerReacted;
+			if (!probe.Evidence.PickerReacted) {
+				return fail("picker-reaction-not-heart");
+			}
+			probe.ReadsBeforeRefresh = implementation->Fixture->evidence().AccountReadCount;
+			if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+				refresh->trigger();
+			} else {
+				return fail("no-refresh");
+			}
+			probe.Phase = state_type::phase::awaiting_reaction_reconciled;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reaction_reconciled: {
+			const auto post  = std::string{ "review-comment:PRRC_fixture_1" };
+			const auto shown = cards->reactions_of(post);
+			note("reads=" + std::to_string(implementation->Fixture->evidence().AccountReadCount) + " overlay=" + std::to_string(implementation->ConversationOverlay.Reactions.size()));
+			if (implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh || !implementation->ConversationOverlay.Reactions.empty()
+				|| !shown.has_value()) {
+				return result::pending;
+			}
+			const auto* const thumbs          = core::find_reaction_group(*shown, core::reaction_content::thumbs_up);
+			const auto* const heart           = core::find_reaction_group(*shown, core::reaction_content::heart);
+			probe.Evidence.ReactionReconciled = thumbs != nullptr && thumbs->Count == 2U && !thumbs->ViewerReacted && heart != nullptr && heart->Count == 1U && heart->ViewerReacted
+				&& !heart->Pending;
+			if (!probe.Evidence.ReactionReconciled) {
+				return fail("reaction-not-reconciled");
+			}
+			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		}
 		case state_type::phase::passed:
@@ -30393,8 +32563,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// Chosen once and then kept selected, as the label-authoring course does.
 		auto& line = implementation->AttendedDraftLine;
 		if (!line) {
+			// [[BPR-1735]]. A line GitHub places in its own diff, once that
+			// diff is read where GitHub names a merge base: a line outside
+			// every hunk publishes as a file comment, not the line comment
+			// these courses write.
+			const auto lines = implementation->shown_github_diff_lines();
+			if (!lines) {
+				return result::pending;
+			}
 			for (auto candidate = std::uint32_t{ 0U }; candidate < 64U && !line; ++candidate) {
-				if (window->comparison_surface()->select_conversation_line(aSide, candidate)
+				if (core::place_on_github_diff(*lines, aSide, candidate, std::nullopt) != core::github_diff_placement::outside_diff
+					&& window->comparison_surface()->select_conversation_line(aSide, candidate)
 					&& window->conversation_panel()->anchor_line().has_value() && model->rowCount() == 0) {
 					line = candidate;
 				}
@@ -30430,6 +32609,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (!implementation->LabelAuthoringProbe.has_value()) {
 			implementation->LabelAuthoringProbe.emplace();
 			implementation->LabelAuthoringProbe->LineDraftOnly = aLineDraftOnly;
+			// [[BPR-1735]]. This course's lines lie outside GitHub's diff of its
+			// fixture and it publishes them natively; its subject is the
+			// labels, so it places as a build before the hunk rule did.
+			implementation->WholeDiffPlacementDisabled = true;
 		}
 		auto& probe = *implementation->LabelAuthoringProbe;
 		if (probe.Phase == state_type::phase::failed) {
@@ -31988,9 +34171,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto detail::github_application_fixture_access::exercise_reply_draft(
 		github_application& aApplication, const detail::reply_draft_course aCourse) -> detail::reply_draft_probe_result
 	{
-		using result               = detail::reply_draft_probe_result;
-		using course               = detail::reply_draft_course;
-		using state_type           = github_application::implementation::reply_draft_probe_state;
+		using result     = detail::reply_draft_probe_result;
+		using course     = detail::reply_draft_course;
+		using state_type = github_application::implementation::reply_draft_probe_state;
+		if (aCourse == course::outdated_publish || aCourse == course::outdated_write || aCourse == course::outdated_restart) {
+			return exercise_outdated_reply(aApplication, aCourse);
+		}
 		auto* const implementation = aApplication.Implementation.get();
 		if (implementation == nullptr) {
 			return result::failed;
@@ -32187,13 +34373,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto        stored   = saved();
 			const auto        gone     = aCourse == course::deleted || aCourse == course::kept;
 			switch (aCourse) {
-			case course::refresh:  probe.Evidence.ServerShown = onServer && thread != nullptr; break;
-			case course::edited:   probe.Evidence.ServerShown = onServer && thread != nullptr && !thread->Posts.empty() && thread->Posts.front().Body.toStdString() == edited; break;
-			case course::resolved: probe.Evidence.ServerShown = onServer && thread != nullptr && thread->Resolved; break;
+			case course::refresh:          probe.Evidence.ServerShown = onServer && thread != nullptr; break;
+			case course::edited:           probe.Evidence.ServerShown = onServer && thread != nullptr && !thread->Posts.empty() && thread->Posts.front().Body.toStdString() == edited; break;
+			case course::resolved:         probe.Evidence.ServerShown = onServer && thread != nullptr && thread->Resolved; break;
 			case course::deleted:
-			case course::kept:     probe.Evidence.ServerShown = snapshot && !onServer && thread == nullptr; break;
+			case course::kept:             probe.Evidence.ServerShown = snapshot && !onServer && thread == nullptr; break;
 			case course::write:
-			case course::restart:  break;
+			case course::restart:
+			case course::outdated_publish:
+			case course::outdated_write:
+			case course::outdated_restart: break;
 			}
 			probe.Evidence.Kept = stored && stored->Draft.Body == words.toStdString() && stored->Draft.State == core::review_draft_state::drafting
 				&& stored->Draft.ReplyToThread == std::optional<std::string>{ std::string{ threadId } };
@@ -32239,7 +34428,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = aCourse == course::deleted ? state_type::phase::awaiting_copied : state_type::phase::awaiting_kept;
 				return result::pending;
 			case course::write:
-			case course::restart: break;
+			case course::restart:
+			case course::outdated_publish:
+			case course::outdated_write:
+			case course::outdated_restart: break;
 			}
 			return fail("course");
 		}
@@ -32385,10 +34577,319 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		case state_type::phase::passed:
 			return result::passed;
+		case state_type::phase::awaiting_outdated:
+		case state_type::phase::awaiting_published:
 		case state_type::phase::failed:
 			break;
 		}
 		return result::failed;
+	}
+
+	/// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an
+	/// outdated thread from the drawer, like GitHub does". Over
+	/// conventional-comments-v1, `PRRT_cc_1` on src/engine/renderer.cpp is
+	/// made outdated by a push (its line left the diff; every post was written
+	/// on an earlier commit), the public Refresh reads it so, and its Reply in
+	/// the Comments drawer opens a reply bound to the thread, with no refusal
+	/// and one quiet line saying the thread's line has changed. Before the
+	/// change the Reply was refused with "This thread's line isn't in the code
+	/// shown, so it can't take a reply here." and no draft was made.
+	auto detail::github_application_fixture_access::exercise_outdated_reply(
+		github_application& aApplication, const detail::reply_draft_course aCourse) -> detail::reply_draft_probe_result
+	{
+		using result               = detail::reply_draft_probe_result;
+		using course               = detail::reply_draft_course;
+		using state_type           = github_application::implementation::reply_draft_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->ReplyDraftProbe.has_value()) {
+			implementation->ReplyDraftProbe.emplace();
+		}
+		auto& probe = *implementation->ReplyDraftProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr
+			|| implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		if (cards == nullptr || window->review_editor() == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path      = std::string_view{ "src/engine/renderer.cpp" };
+		constexpr auto threadId  = std::string_view{ "PRRT_cc_1" };
+		constexpr auto writtenOn = std::string_view{ "3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c" };
+		const auto     identity  = "review-thread:" + std::string{ threadId };
+		const auto     words     = QStringLiteral("question: Is this still true after the push? (outdated-thread reply)");
+		const auto     ready     = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value()
+				&& !implementation->PrivateDraftCommandPending && !implementation->PrivateDraftSelectionPending;
+		};
+		const auto now      = [&] { return implementation->Fixture->review_mutation_evidence(); };
+		const auto sentNone = [&] {
+			const auto after = now();
+			return std::tie(after.Submissions, after.NativePosts, after.FilePosts, after.Replies, after.Resolutions)
+				== std::tie(probe.Before.Submissions, probe.Before.NativePosts, probe.Before.FilePosts, probe.Before.Replies, probe.Before.Resolutions);
+		};
+		const auto saved = [&]() -> std::optional<core::revisioned_review_draft> {
+			if (!implementation->SharedDrafts || !probe.Draft) {
+				return std::nullopt;
+			}
+			return implementation->SharedDrafts->read(implementation->DraftConsumer, *probe.Draft).Accepted;
+		};
+		const auto cardFor = [&](const std::string& aId) -> const qt::thread_card* {
+			const auto found = std::ranges::find(cards->cards(), aId, &qt::thread_card::Id);
+			return found == cards->cards().end() ? nullptr : &*found;
+		};
+		const auto button = [&](const char* aName) -> QAbstractButton* {
+			auto* const open = cards->open_card();
+			return open != nullptr ? open->findChild<QAbstractButton*>(QString::fromLatin1(aName)) : nullptr;
+		};
+		const auto refused = [&] {
+			auto* const notice = window->conversation_panel()->notice_label();
+			return notice != nullptr && notice->isVisibleTo(window) && !notice->text().isEmpty();
+		};
+		const auto outdatedNote = [&] {
+			auto* const open  = cards->open_card();
+			auto* const label = open != nullptr ? open->findChild<QLabel*>(QStringLiteral("threadReplyOutdatedNote")) : nullptr;
+			return label != nullptr && label->isVisibleTo(window) && label->text() == QStringLiteral("Outdated: this thread's line has changed since it was written");
+		};
+		const auto renders = qEnvironmentVariable("BPR_REPLY_DRAFT_RENDER_DIRECTORY");
+		const auto render  = [&](const QString& aName) {
+			if (renders.isEmpty() || window->appearance_settings() == nullptr) {
+				return;
+			}
+			QDir{ }.mkpath(renders);
+			for (const auto& [mode, name] : std::array{ std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				window->appearance_settings()->choose_mode(mode);
+				for (auto turn = 0; turn < 6; ++turn) {
+					QCoreApplication::processEvents();
+				}
+				static_cast<void>(window->grab().save(renders + QStringLiteral("/outdated-") + aName + QLatin1Char{ '-' } + name + QStringLiteral(".png"), "PNG"));
+			}
+			window->appearance_settings()->choose_mode(core::appearance_mode::light);
+			for (auto turn = 0; turn < 6; ++turn) {
+				QCoreApplication::processEvents();
+			}
+		};
+		const auto openReply = [&]() -> bool {
+			if (window->current_modality() != qt::review_modality::review) {
+				window->choose_modality(qt::review_modality::review);
+				QCoreApplication::processEvents();
+				return false;
+			}
+			if (cards->open_thread_id() != identity) {
+				cards->open_thread(identity);
+				QCoreApplication::processEvents();
+			}
+			auto* const field = button("threadReplyField");
+			if (field == nullptr || !field->isEnabled() || !field->isVisibleTo(window)) {
+				return false;
+			}
+			field->click();
+			QCoreApplication::processEvents();
+			return true;
+		};
+		const auto held = [&](const QString& aWords) {
+			const auto& draft = implementation->ReviewDraft;
+			return draft && probe.Draft && draft->Id == *probe.Draft && core::thread_bound_reply(*draft) && draft->ReplyToThread == std::optional<std::string>{ std::string{ threadId } }
+			&& draft->Body == aWords.toStdString() && draft->State == core::review_draft_state::drafting;
+		};
+		const auto finish = [&] {
+			const auto& evidence = probe.Evidence;
+			if (!(evidence.Written && evidence.ServerShown && evidence.Kept && evidence.Presented && evidence.Flagged && evidence.Acted && evidence.NothingSent)) {
+				return fail("evidence");
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed != detail::fixture_file_reveal_result::shown || !ready()) {
+				return result::pending;
+			}
+			// The push: the thread's line leaves the diff, and the public
+			// Refresh reads it outdated.
+			probe.Before = now();
+			implementation->Fixture->stage_server_thread_outdated(std::string{ threadId }, std::string{ writtenOn });
+			window->github_refresh_action()->trigger();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_outdated;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_outdated: {
+			const auto* const thread   = implementation->accepted_thread(identity);
+			const auto* const card     = cardFor(identity);
+			probe.Evidence.ServerShown = thread != nullptr && thread->Outdated && !thread->Line && card != nullptr && card->ReplyOnThread;
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " outdated=" + std::to_string(thread != nullptr && thread->Outdated ? 1 : 0) + " card=" + std::to_string(card != nullptr ? 1 : 0)
+				 + " onThread=" + std::to_string(card != nullptr && card->ReplyOnThread ? 1 : 0) + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!probe.Evidence.ServerShown && ++probe.Waited < 160U)) {
+				return result::pending;
+			}
+			if (!probe.Evidence.ServerShown) {
+				return fail("not-outdated");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = aCourse == course::outdated_restart ? state_type::phase::awaiting_restored : state_type::phase::awaiting_reply_open;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_open:
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " open=" + cards->open_thread_id());
+			if (!ready() || !openReply()) {
+				return ++probe.Waited < 400U ? result::pending : fail("no-reply-field");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reply_draft;
+			return result::pending;
+		case state_type::phase::awaiting_reply_draft: {
+			const auto& draft = implementation->ReviewDraft;
+			note("reply=" + (draft && draft->ReplyToThread ? *draft->ReplyToThread : std::string{ "-" }) + " bound=" + std::to_string(draft && core::thread_bound_reply(*draft) ? 1 : 0)
+				 + " draft=" + (draft ? std::to_string(draft->Id.value()) + ":" + std::to_string(draft->Anchor.Line) : std::string{ "none" })
+				 + " private=" + std::to_string(implementation->PrivateReview ? 1 : 0) + std::to_string(implementation->PrivateDraftsReady ? 1 : 0)
+				 + std::to_string(implementation->PrivateDraftSelectionPending ? 1 : 0) + std::to_string(implementation->PendingThreadReply ? 1 : 0)
+				 + " selected=" + std::to_string(implementation->SelectedSemanticSelection ? 1 : 0) + " diff=" + std::to_string(implementation->SelectedDiffPublication ? 1 : 0)
+				 + " editor=" + std::to_string(cards->reply_editor() != nullptr ? 1 : 0) + " refused=" + std::to_string(refused() ? 1 : 0)
+				 + " notice=" + window->conversation_panel()->notice_label()->text().toStdString());
+			if (refused()) {
+				return fail("refused");
+			}
+			if (!draft || !core::thread_bound_reply(*draft) || draft->ReplyToThread != std::optional<std::string>{ std::string{ threadId } } || cards->reply_editor() == nullptr) {
+				return ++probe.Waited < 200U ? result::pending : fail("no-thread-bound-reply");
+			}
+			probe.Evidence.Flagged = outdatedNote();
+			if (!probe.Evidence.Flagged) {
+				return fail("no-outdated-note");
+			}
+			probe.Draft = draft->Id;
+			cards->reply_editor()->setPlainText(words);
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reply_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reply_saved: {
+			const auto stored = saved();
+			note("held=" + std::to_string(held(words) ? 1 : 0) + " saved=" + std::to_string(stored && stored->Draft.Body == words.toStdString() ? 1 : 0) + " ready=" + std::to_string(ready() ? 1 : 0));
+			if (!held(words) || !stored || stored->Draft.Body != words.toStdString() || !ready()) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-saved");
+			}
+			probe.Evidence.Written   = sentNone();
+			probe.Evidence.Kept      = core::thread_bound_reply(stored->Draft);
+			probe.Evidence.Presented = cards->reply_editor() != nullptr && cards->reply_editor()->toPlainText() == words;
+			render(QStringLiteral("written"));
+			if (aCourse == course::outdated_write) {
+				// Quit with the reply saved; `outdated-restart` reads it back.
+				probe.Evidence.Acted       = true;
+				probe.Evidence.NothingSent = sentNone();
+				return finish();
+			}
+			auto* const publish = button("threadReplyPublish");
+			if (publish == nullptr || !publish->isEnabled()) {
+				return ++probe.Waited < 400U ? result::pending : fail("publish-not-offered");
+			}
+			publish->click();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_published;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_published: {
+			const auto        after  = now();
+			const auto        stored = saved();
+			const auto* const card   = cardFor(identity);
+			const auto        landed = card != nullptr && std::ranges::any_of(card->Posts, [&](const qt::card_post& aPost) { return aPost.Body == words; });
+			const auto        bound  = after.Replies == probe.Before.Replies + 1U && after.LastReplyThread == threadId && after.LastReplyThreadBound && after.LastReplyCommit == writtenOn
+				&& after.NativePosts == probe.Before.NativePosts && after.FilePosts == probe.Before.FilePosts && after.Resolutions == probe.Before.Resolutions;
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " replies=" + std::to_string(after.Replies - probe.Before.Replies) + " bound=" + std::to_string(after.LastReplyThreadBound ? 1 : 0)
+				 + " commit=" + after.LastReplyCommit + " saved=" + (stored ? std::string{ core::name(stored->Draft.State) } : std::string{ "none" }) + " landed=" + std::to_string(landed ? 1 : 0)
+				 + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!(bound && stored && stored->Draft.State == core::review_draft_state::published && landed) && ++probe.Waited < 400U)) {
+				return result::pending;
+			}
+			// Exactly one write: the reply, bound to the thread and its commit.
+			probe.Evidence.NothingSent = bound;
+			probe.Evidence.Acted       = stored && stored->Draft.State == core::review_draft_state::published && landed;
+			render(QStringLiteral("published"));
+			return finish();
+		}
+		case state_type::phase::awaiting_restored: {
+			// After the restart: the saved reply bound to the outdated thread,
+			// found among the restored drafts, marked on its thread's note.
+			if (!probe.Draft && implementation->SharedDrafts) {
+				for (const auto& draft : implementation->SharedDrafts->recovery_snapshot()) {
+					if (core::thread_bound_reply(draft.Draft) && draft.Draft.ReplyToThread == std::optional<std::string>{ std::string{ threadId } } && draft.Draft.Body == words.toStdString()
+						&& draft.Draft.State == core::review_draft_state::drafting) {
+						probe.Draft = draft.Draft.Id;
+					}
+				}
+			}
+			const auto* const thread = cardFor(identity);
+			probe.Evidence.Written   = true;
+			probe.Evidence.Kept      = probe.Draft.has_value();
+			const auto marked        = thread != nullptr && thread->UnsentReply == std::optional{ core::reply_draft_standing::answerable } && thread->Notice.isEmpty();
+			note("ready=" + std::to_string(ready() ? 1 : 0) + " drafts=" + std::to_string(implementation->PrivateDraftsReady ? 1 : 0) + " saved=" + std::to_string(probe.Draft ? 1 : 0)
+				 + " marked=" + std::to_string(marked ? 1 : 0) + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || (!(probe.Evidence.Kept && marked) && ++probe.Waited < 160U)) {
+				return result::pending;
+			}
+			if (!probe.Evidence.Kept || !marked) {
+				return fail("not-restored");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_reopened;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reopened: {
+			if (refused()) {
+				return fail("refused");
+			}
+			if (!held(words) || cards->reply_editor() == nullptr) {
+				note("opening editor=" + (implementation->ReviewDraft ? std::to_string(implementation->ReviewDraft->Id.value()) : std::string{ "none" }));
+				if (ready() && probe.Waited++ % 10U == 0U) {
+					static_cast<void>(openReply());
+				}
+				return probe.Waited < 200U ? result::pending : fail("reply-not-reopened");
+			}
+			probe.Evidence.Flagged     = outdatedNote();
+			probe.Evidence.Presented   = cards->reply_editor()->toPlainText() == words;
+			probe.Evidence.Acted       = held(words);
+			probe.Evidence.NothingSent = sentNone();
+			render(QStringLiteral("restarted"));
+			return finish();
+		}
+		case state_type::phase::passed:
+			return result::passed;
+		default:
+			break;
+		}
+		return fail("phase");
 	}
 
 	auto detail::github_application_fixture_access::reply_draft_evidence(
@@ -32620,6 +35121,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (!implementation->StartReviewProbe.has_value()) {
 			implementation->StartReviewProbe.emplace();
+			// [[BPR-1735]]. This course's lines lie outside GitHub's diff of its
+			// fixture; its subject is the review, so it places as a build before
+			// the hunk rule did. The BPR-1735 courses cover placement.
+			implementation->WholeDiffPlacementDisabled = true;
 		}
 		auto& probe = *implementation->StartReviewProbe;
 		if (probe.Phase == state_type::phase::failed) {

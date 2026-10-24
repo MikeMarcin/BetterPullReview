@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1745"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "An outdated thread takes a reply from the drawer",
+  "created": "2026-10-23T00:43:37.601699+00:00",
+  "base": "b32931002950a5c69ec263fafba975b8f51d34e2"
+}

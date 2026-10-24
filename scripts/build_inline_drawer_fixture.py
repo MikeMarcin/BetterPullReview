@@ -173,6 +173,7 @@ def thread_node(identity: str, path: str, line: int, resolved: bool, posts: tupl
     node["isResolved"] = resolved
     node["viewerCanResolve"] = not resolved
     node["viewerCanUnresolve"] = resolved
+    node["viewerCanReply"] = True
     return node
 
 

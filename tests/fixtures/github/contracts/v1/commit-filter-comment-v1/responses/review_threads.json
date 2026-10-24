@@ -410,6 +410,7 @@
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_894",
+				"locked": false,
 				"reviewThreads": {
 					"nodes": [
 						{
@@ -449,6 +450,7 @@
 							"originalLine": 25,
 							"path": "src/notes.txt",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						},
@@ -489,6 +491,7 @@
 							"originalLine": 17,
 							"path": "src/notes.txt",
 							"subjectType": "LINE",
+							"viewerCanReply": true,
 							"viewerCanResolve": true,
 							"viewerCanUnresolve": false
 						}

@@ -3,6 +3,7 @@
 
 #include "../core/private_review_fixture.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/review_skill_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_wrapper.hpp"
@@ -334,12 +335,18 @@ namespace {
 
 	/// \brief [[BPR-1091]]. Helper off: the press's wire is byte for byte
 	/// what it was before the guidance existed.
+	/// \details [[BPR-1752]]. Version three changed the `schema` line
+	/// and nothing else a press writes: with that one line read as version
+	/// two, the bytes are still the pinned ones.
 	void test_a_press_without_guidance_keeps_its_wire_bytes()
 	{
 		const auto built = application::build_agent_context_supplement(workshop_press(core::workshop_operation::clarify), session());
-		expect(built.has_value() && !built->FeedbackGuidance.has_value(), "a press with no guidance builds and carries none");
-		const auto encoded = application::encode_agent_supplement(*built);
-		const auto digest  = hex_digest(encoded);
+		expect(built.has_value() && !built->FeedbackGuidance.has_value() && !built->Brief.has_value(), "a press with no guidance builds and carries none, and no brief");
+		auto       encoded = application::encode_agent_supplement(*built);
+		const auto version = encoded.find("schema\t3\n");
+		expect(version == 0U, "the press is version three");
+		encoded.replace(version, 9U, "schema\t2\n");
+		const auto digest = hex_digest(encoded);
 		if (digest != workshop_press_wire_before_guidance) {
 			std::cerr << "workshop-press-wire-digest:" << digest << '\n';
 		}
@@ -379,6 +386,8 @@ namespace {
 		expect(at != std::string::npos && encoded.find("feedback_guidance", at + expected.size()) == std::string::npos, "three escaped lines, once, directly after the operation they qualify");
 		auto stripped = encoded;
 		stripped.erase(at + std::string_view{ "workshop_operation\tclarify\n" }.size(), expected.size() - std::string_view{ "workshop_operation\tclarify\n" }.size());
+		// [[BPR-1752]]. Read as version two, as the press above is.
+		stripped.replace(0U, 9U, "schema\t2\n");
 		expect(hex_digest(stripped) == workshop_press_wire_before_guidance, "and every other byte of the press is the pre-guidance wire");
 
 		auto defaulted             = workshop_press(core::workshop_operation::shorten);
@@ -407,11 +416,108 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1752]], RFC-BPR-0092. A review request's brief crosses
+	/// whole after every version-two field, counted and with its cuts stated;
+	/// a launch without one writes no brief line.
+	void test_the_brief_crosses_after_the_version_two_fields()
+	{
+		auto observed  = observation();
+		observed.Brief = core::bound_review_brief({
+			.Title       = "Bound the retry",
+			.Description = "Line one\nLine two",
+			.BaseBranch  = "main",
+			.Files       = { { .Path = "src/retry.cpp" }, { .Path = "src/new.cpp", .PreviousPath = "src/old.cpp", .Status = core::brief_file_status::renamed } },
+			.Threads     = { { .Path = "src/retry.cpp", .Line = 12U, .Comments = { { .Author = "octo", .Body = "Is this bounded?" } } } },
+			.Workspace   = core::brief_workspace::linked_clone_history,
+			.Skill       = core::brief_review_skill{ .Source = core::review_skill_source::built_in, .Version = 1U, .Text = std::string{ application::built_in_review_skill() } },
+			// [[BPR-1753]], owner decision (b): the conversation so far.
+			.Conversation = { { .Asked = "Does this work?", .Answered = "Yes.\nThe loop ends." } },
+		});
+		expect(observed.Brief.has_value(), "the fixture brief is within its bounds");
+		const auto built = application::build_agent_context_supplement(observed, session());
+		expect(built.has_value() && built->Brief == observed.Brief, "the brief rides the supplement unchanged");
+		const auto encoded = application::encode_agent_supplement(*built);
+		for (const auto required : {
+				 "brief.title\tBound the retry\n",
+				 "brief.description\tLine one\\nLine two\n",
+				 "brief.description.cut_bytes\t0\n",
+				 "brief.base_branch\tmain\n",
+				 "brief.workspace\tlinked_clone_history\n",
+				 "brief.file.count\t2\n",
+				 "brief.file.1.status\trenamed\n",
+				 "brief.file.1.previous_path\tsrc/old.cpp\n",
+				 "brief.file.omitted\t0\n",
+				 "brief.thread.count\t1\n",
+				 "brief.thread.0.line\t12\n",
+				 "brief.thread.0.resolved\t0\n",
+				 "brief.thread.0.comment.0.author\tocto\n",
+				 "brief.thread.0.comment.0.body\tIs this bounded?\n",
+				 "brief.thread.omitted\t0\n",
+				 "brief.conversation.count\t1\n",
+				 "brief.conversation.0.asked\tDoes this work?\n",
+				 "brief.conversation.0.answered\tYes.\\nThe loop ends.\n",
+				 "brief.conversation.omitted\t0\n",
+				 "brief.skill.present\t1\n",
+				 "brief.skill.source\tbuilt_in\n",
+				 "brief.skill.version\t1\n",
+			 }) {
+			expect(encoded.find(required) != std::string::npos, "the exact brief field is encoded");
+		}
+		expect(encoded.find("brief.diff\tgit diff ") != std::string::npos && encoded.find("brief.skill.text\t---\\nname: bpr-pr-review") != std::string::npos,
+			   "the diff is named and the skill's text is carried whole");
+		expect(encoded.find("brief.title") > encoded.find("draft.count"), "the brief follows every version-two field");
+		auto snapshot              = *built;
+		snapshot.Brief->Workspace  = core::brief_workspace::private_snapshot;
+		const auto snapshotEncoded = application::encode_agent_supplement(snapshot);
+		expect(snapshotEncoded.find("brief.diff\t\n") != std::string::npos, "a snapshot names no diff: it has no base");
+		const auto without = application::encode_agent_supplement(*application::build_agent_context_supplement(observation(), session()));
+		expect(without.find("brief.") == std::string::npos, "a launch without a brief writes no brief line");
+		auto oversized         = observed;
+		oversized.Brief->Title = std::string(core::maximum_brief_title_bytes + 1U, 't');
+		expect(!application::build_agent_context_supplement(oversized, session()), "a brief outside its bounds refuses the build");
+	}
+
+	/// [[BPR-1753]], owner decision 2026-10-23 ("Yep build it like
+	/// that"). The findings a real agent writes in its answer, fenced as the
+	/// review skill asks, become findings the host states the rest of: the
+	/// provider and revisions are the session's, and only a file the snapshot
+	/// froze is anchored.
+	void test_review_findings_are_read_from_the_answer()
+	{
+		const auto frozen = core::agent_finding_snapshot{
+			.Binding = session().Binding,
+			.Files   = { { .Path = "src/retry.cpp", .Comparison = identity<core::file_comparison_digest>(7U), .LeftLineCount = 50U, .RightLineCount = 60U } },
+		};
+		const auto answer = std::string{ "**Summary:** two findings.\n\n```bpr-findings\n"
+										 "{\"findings\": ["
+										 "{\"path\": \"src/retry.cpp\", \"startLine\": 42, \"endLine\": 44, \"severity\": \"major\", \"category\": \"correctness\", "
+										 "\"confidence\": \"high\", \"claim\": \"The budget resets.\", \"suggestedComment\": \"Reset once per request?\"},"
+										 "{\"path\": \"src/other.cpp\", \"startLine\": 3, \"claim\": \"Unchecked.\"},"
+										 "{\"path\": \"\", \"startLine\": 1, \"claim\": \"No path.\"},"
+										 "{\"path\": \"src/x.cpp\", \"startLine\": 1, \"claim\": \"Bad\", \"severity\": \"huge\"}"
+										 "]}\n```\n" };
+		const auto read   = application::decode_agent_review_findings(answer, session(), frozen);
+		expect(read && read->Session == session().Id && read->Findings.size() == 2U, "the two findings are read; the malformed entries are left out");
+		const auto& first = read->Findings[0];
+		expect(first.Provider == session().Profile && first.AnalyzedBaseOid == session().Binding.BaseOid && first.AnalyzedHeadOid == session().Binding.HeadOid
+				   && first.Lines.Begin == 41U && first.Lines.End == 44U && first.Severity == core::defect_severity::major && first.SuggestedComment == std::optional<std::string>{ "Reset once per request?" }
+				   && first.Anchor.Line && first.Anchor.Line->Comparison == frozen.Files.front().Comparison && first.Anchor.Line->Side == core::diff_side::right && first.Anchor.Line->Line == 41U,
+			   "a finding on the frozen file is anchored at its first line, with the session's provider and revisions");
+		expect(core::validate_agent_finding(first, frozen).State == core::agent_finding_anchor_state::anchored, "and the core finds the anchor holds");
+		const auto& second = read->Findings[1];
+		expect(!second.Anchor.Line && second.Lines.Begin == 2U && second.Lines.End == 3U && second.Severity == core::defect_severity::minor && !second.SuggestedComment,
+			   "a finding on another file has no anchor, one line, and the defaults");
+		expect(core::validate_agent_finding(second, frozen).State == core::agent_finding_anchor_state::unanchored, "so it is delivered unanchored");
+		expect(!application::decode_agent_review_findings("No block here.", session(), frozen), "an answer without the fence has no findings");
+		const auto empty = application::decode_agent_review_findings("Nothing.\n```bpr-findings\n[]\n```", session(), frozen);
+		expect(empty && empty->Findings.empty(), "an empty list is an answer with no finding");
+	}
+
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()
 	{
 		const auto encoded = application::encode_agent_supplement(built_supplement());
 		for (const auto required : {
-				 "schema\t2\n",
+				 "schema\t3\n",
 				 "session\t40\n",
 				 "profile\t1\n",
 				 "host\t10\n",
@@ -533,7 +639,7 @@ namespace {
 					== "{\"method\":\"initialized\"}\n"
 					   "{\"method\":\"thread/start\",\"id\":1,\"params\":{}}\n"
 				&& turn && turn->find("\"threadId\":\"thread-7\"") != std::string::npos
-				&& turn->find("schema\\t2\\n") != std::string::npos,
+				&& turn->find("schema\\t3\\n") != std::string::npos,
 			"App Server context waits for its initialized thread and then travels in a turn input");
 	}
 
@@ -1204,8 +1310,8 @@ namespace {
 			}
 			expect(!application::build_agent_launch(selectedProfile, supplement, reader(), bad), "snapshot/source/settings mismatch refuses before launch");
 		}
-		for (const auto protocol : { core::agent_protocol::codex_jsonl_exec, core::agent_protocol::external_terminal }) {
-			auto       unsupported            = profile(protocol);
+		{
+			auto       unsupported            = profile(core::agent_protocol::external_terminal);
 			const auto requested              = application::build_agent_launch(unsupported, built_supplement(), reader(), { .Requested = { "model", "high" } });
 			unsupported.DefaultSettings.Model = "default";
 			const auto configured             = application::build_agent_launch(unsupported, built_supplement(), reader());
@@ -1213,12 +1319,32 @@ namespace {
 					   && configured.error() == requested.error(),
 				   "unsupported explicit requested/default settings refuse rather than becoming claims");
 		}
+		// [[BPR-1753]], owner look v002. Codex's exec takes a model and
+		// a reasoning effort, and Claude an effort, each as its own argument;
+		// a level outside the agent's own vocabulary refuses.
+		{
+			const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { "gpt-5", "high" } });
+			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-" }, "Codex exec runs the chosen model at the chosen effort");
+			// Owner look v006: the harness says its levels, so max and ultra
+			// are Codex's to take; only a word that could read as more than
+			// one argument refuses.
+			const auto maxExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max" } });
+			expect(maxExec && maxExec->Arguments[maxExec->Arguments.size() - 2U] == "model_reasoning_effort=\"max\"", "Codex takes max as its catalog lists it");
+			const auto badExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max\" -c x=\"1" } });
+			expect(!badExec && badExec.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that is not one word refuses");
+			const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "opus", "xhigh" } });
+			expect(claude && std::ranges::search(claude->Arguments, std::vector<std::string>{ "--model", "opus", "--effort", "xhigh" }).begin() != claude->Arguments.end(),
+				   "Claude runs the chosen model at the chosen effort");
+			const auto badClaude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { std::nullopt, "-x" } });
+			expect(!badClaude && badClaude.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that reads as an option refuses");
+		}
 		selectedProfile.DefaultSettings.Model = std::string(257, 'x');
 		expect(!application::build_agent_launch(selectedProfile, built_supplement(), reader()), "oversized configured setting refused");
 	}
 
-	/// [[BPR-1375]]. Claude takes a model as `--model` and nothing else:
-	/// an effort, or a name that could read as an option, refuses.
+	/// [[BPR-1375]]. Claude takes a model as `--model`, and
+	/// ([[BPR-1753]]) an effort of its own levels as `--effort`: a
+	/// name or level that could read as an option refuses.
 	void test_claude_takes_only_a_model_as_one_argument()
 	{
 		const auto claude   = profile(core::agent_protocol::claude_stream_json);
@@ -1231,8 +1357,12 @@ namespace {
 		const auto fromProfile           = application::build_agent_launch(configured, built_supplement(), reader());
 		expect(fromProfile && std::ranges::find(fromProfile->Arguments, "sonnet") - std::ranges::find(fromProfile->Arguments, "--model") == 1,
 			   "a configured Claude model is passed the same way");
+		// [[BPR-1753]]: Claude Code 2.1 takes `--effort` too, one of its
+		// own five levels; anything else still refuses.
 		const auto withEffort = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", "high" } });
-		expect(!withEffort && withEffort.error() == application::agent_launch_failure::unsupported_runtime_settings, "Claude takes no effort setting");
+		expect(withEffort && withEffort->Arguments.back() == "high" && withEffort->Arguments[withEffort->Arguments.size() - 2U] == "--effort", "Claude takes its effort as one argument after --effort");
+		const auto badEffort = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", "--verbose" } });
+		expect(!badEffort && badEffort.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that is not one of Claude's levels refuses");
 		for (const auto* hostile : { "--dangerously-skip-permissions", "-x", "claude sonnet", "model\nnext", "\"quoted\"", "" }) {
 			const auto refused = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { std::string{ hostile }, { } } });
 			expect(!refused, "a model name that is not one plain argument refuses before launch");
@@ -1367,6 +1497,8 @@ auto main() -> int
 	test_a_press_without_guidance_keeps_its_wire_bytes();
 	test_a_press_carries_the_effective_feedback_guidance_and_nothing_more();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
+	test_the_brief_crosses_after_the_version_two_fields();
+	test_review_findings_are_read_from_the_answer();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();
 	test_launch_refuses_inexact_profile_session_and_schema();

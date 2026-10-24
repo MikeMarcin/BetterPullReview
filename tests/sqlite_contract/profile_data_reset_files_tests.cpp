@@ -98,7 +98,7 @@ namespace {
 	{
 		return {
 			"state/v1/appearance-settings.sqlite3", "state/v1/workbench-settings.sqlite3", "state/v1/workbench-settings.sqlite3-shm",
-			"state/v1/diagnostic-preferences.sqlite3", "state/v1/window-restoration.sqlite3"
+			"state/v1/diagnostic-preferences.sqlite3", "state/v1/agent-setup.sqlite3", "state/v1/window-restoration.sqlite3"
 		};
 	}
 	auto review_files() -> std::set<std::string>

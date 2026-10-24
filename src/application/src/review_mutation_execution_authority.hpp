@@ -30,6 +30,11 @@ namespace bpr::application::detail {
 											   core::request_generation aGeneration, review_mutation_target_binding aTarget,
 											   review_mutation_acting_identity aActor, review_thread_resolution_publication_request aRequest)
 			-> review_mutation_execution_grant;
+		/// \brief [[BPR-1741]]. The one-shot grant for one exact reaction change.
+		[[nodiscard]] static auto issue_reaction(core::application_session_id aSession,
+												 core::request_generation aGeneration, review_mutation_target_binding aTarget,
+												 review_mutation_acting_identity aActor, review_reaction_publication_request aRequest)
+			-> review_mutation_execution_grant;
 	};
 
 	enum class designated_review_bootstrap_failure : std::uint8_t {
@@ -220,6 +225,15 @@ namespace bpr::application {
 		[[nodiscard]] auto permits_thread(
 			const review_mutation_thread_scope&                 aScope,
 			const review_thread_resolution_publication_request& aRequest) noexcept -> bool;
+		// [[BPR-1741]]. A reaction binds and is permitted like a
+		// resolution, its subject in the scope's `Thread`; a user one-shot grant
+		// permits only the exact change it was issued for.
+		explicit review_mutation_execution_authority(
+			review_mutation_thread_scope        aScope,
+			review_reaction_publication_request aRequest);
+		[[nodiscard]] auto permits_reaction(
+			const review_mutation_thread_scope&        aScope,
+			const review_reaction_publication_request& aRequest) noexcept -> bool;
 		void revoke() noexcept;
 
 		friend class review_mutation_application_host;
@@ -241,6 +255,7 @@ namespace bpr::application {
 
 		std::optional<review_mutation_publication_request>          Request;
 		std::optional<review_thread_resolution_publication_request> ThreadRequest;
+		std::optional<review_reaction_publication_request>          ReactionRequest;
 		mutable std::mutex                                          Mutex;
 		review_mutation_execution_scope                             Scope;
 		review_mutation_target_binding                              Target;

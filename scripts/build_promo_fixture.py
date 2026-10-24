@@ -583,6 +583,7 @@ def thread_node(identity: str, path: str, needle: str, resolved: bool, posts: tu
         "isOutdated": False,
         "viewerCanResolve": not resolved,
         "viewerCanUnresolve": resolved,
+        "viewerCanReply": True,
         "subjectType": "LINE",
         "path": path,
         "diffSide": "RIGHT",

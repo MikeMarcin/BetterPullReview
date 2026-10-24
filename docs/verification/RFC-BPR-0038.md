@@ -1,5 +1,156 @@
 # RFC-BPR-0038 qualification ledger
 
+## Owner matrix confirmation, 2026-10-23
+
+[BPR-1743](../issues/60-done/BPR-1743-confirm-or-withdraw-the-october-16-qualification-matrix-amendment.md)
+asked whether the 2026-10-16 matrix amendment stands. The owner answered on
+2026-10-23 UTC: "Windows 11 and ubuntu wsl2 are tested. If it works on other
+things is unproven, but not disallowed." The
+[confirmation](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-confirmation-20261023.json)
+sits beside the unchanged
+[2026-10-16 record](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-amendment-20261016.json).
+
+The tested Windows and Linux environments are Windows 11 x64 and Ubuntu 26.04
+x86_64 under WSL2/WSLg, both on JaegAW. macOS is unchanged. Windows 10, other
+distributions and native Linux desktops are unproven but not disallowed:
+nothing refuses them and nothing claims them. The RFC matrix, BPR-0960,
+BPR-0961, BPR-0962, BPR-0973, the package guide and its maintainer reference,
+the corporate security overview and README now say so. The RFC-0014 plan
+records it as dated
+[amendment r5](../rfcs/plans/rfc-bpr-0014-release-readiness/amendments/r5/amendment.json)
+with its M8 exit text unchanged. Shipped release notes keep their wording.
+
+This is wording and scope only. No environment is newly qualified. The M8/M9
+native, vault, crash-privacy and vulnerability gaps stay open, BPR-0958 to
+BPR-0962 stay Blocked, and all nine criteria remain open.
+
+## Security-audit port and current-release scan recheck, 2026-10-22
+
+Under the owner's 2026-10-22 direction to finish the unmerged work, a Claude
+rfc-implementer ported the RFC-0038 security-audit branch
+`codex/rfc0038-security-audit-20261016` (tip `b110288eb`). That branch already
+contains every commit of `codex/rfc0038-qualification` (tip `5271d9c9b`). The
+port grants no release trust, security-owner or legal approval, and it leaves
+the M8/M9 native, vault and crash gaps open.
+
+**Ported as current:**
+
+- The scan verifier,
+  [`verify_release_vulnerability_scan.py`](../../scripts/verify_release_vulnerability_scan.py),
+  and its controls, registered as `release_vulnerability_scan_contract`. Six
+  more controls were added: a narrower threshold, only-fixed, VEX, a foreign
+  SPDX, a foreign revision or platform, and count drift.
+- The [scan-binding course and row-review method](../security/release-policy.md#binding-a-scan-to-its-artifact).
+- The [owner's Qt known-issues decision](../security/release-policy.md#owner-decision-on-known-upstream-qt-issues-2026-10-16),
+  with its recorded Qt 6.11.2 scope.
+
+**Kept byte-identical as historical 0.2.x evidence:** these files apply only to
+Mac 0.2.1 (`c233c768`), Windows 0.2.2 (`23447f3a`) and Qt 6.11.2. The
+follow-up record binds them by hash.
+
+- [Dispositions](RFC-BPR-0038-vulnerability-dispositions-20261016.md).
+- The [Mac 0.2.1](RFC-BPR-0038-macos-0.2.1-vulnerability-scan-20261016.json)
+  and [Windows 0.2.2](RFC-BPR-0038-windows-0.2.2-vulnerability-scan-20261016.json)
+  scan summaries.
+- The [review packet](RFC-BPR-0038-independent-security-review-packet-20261016.md)
+  and its [64-row queue](RFC-BPR-0038-independent-security-review-queue-20261016.json).
+- The [independent review v1](RFC-BPR-0038-independent-security-review-20261016-v1.md)
+  and its [record](RFC-BPR-0038-independent-security-review-20261016-v1.json):
+  53 accept, 8 insufficient evidence, 3 remediate.
+- The [remediation follow-up](RFC-BPR-0038-security-remediation-followup-20261016-v1.md)
+  and its [record](RFC-BPR-0038-security-remediation-followup-20261016-v1.json).
+- The [evidence reconciliation](RFC-BPR-0038-evidence-reconciliation-20261016.json).
+- The [prerequisites](RFC-BPR-0038-prerequisites-20261016.md).
+- Three checkpoints under `docs/issues/_checkpoints/RFC-BPR-0038/`. Two are
+  owner decision records, one for the
+  [Qt known issues](../issues/_checkpoints/RFC-BPR-0038/owner-qt-known-issues-20261016.json)
+  and one for the [matrix](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-amendment-20261016.json).
+  The third is the [continuation](../issues/_checkpoints/RFC-BPR-0038/continuation.json).
+
+None of these decisions transfers to 0.3.x bytes.
+
+**Not applied:** the branch's edits to the RFC matrix, the RFC-0014 milestone
+plan, BPR-0959, BPR-0960, BPR-0961 and BPR-0973, the package guide and the
+security overview. They carried the 2026-10-16 owner matrix amendment, which
+removed Windows 10 qualification and limited Linux claims to WSL2/WSLg. Main
+never adopted that amendment. Main's RFC and README still say Windows 10/11.
+BPR-1743 asks the owner to confirm or withdraw it.
+
+**Dropped:** the branch's wizard definitions, milestone bindings, strategy
+selection and Codex session state. They were superseded by the 0.3.x release
+work.
+
+### Current-release recheck
+
+The rerun used Grype 0.120.1 offline (`GRYPE_DB_AUTO_UPDATE=false`) with the
+local database: valid schema v6.1.10, built `2026-10-21T06:31:02Z`, about 41
+hours before the scans on 2026-10-22. The verifier ran against each exact
+artifact. Package and SPDX digests were checked against the published GitHub
+asset digests first.
+
+| Artifact (source) | Package SHA-256 | Matches / advisories | Verifier |
+|---|---|---|---|
+| [Mac 0.3.1 ZIP](RFC-BPR-0038-macos-0.3.1-vulnerability-scan-20261022.json) (`2ed7e5f9`) | `07de4909…3ffc` | 21 / 21: 2 Critical, 4 High, 14 Medium, 1 Low | exit 2 |
+| [Windows 0.3.1 MSI](RFC-BPR-0038-windows-0.3.1-vulnerability-scan-20261022.json) (`2ed7e5f9`) | `ec3c3819…5064` | 19 / 17: 1 Critical, 7 High, 10 Medium, 1 Low | exit 2 |
+| [Ubuntu 0.3.1 DEB](RFC-BPR-0038-ubuntu-0.3.1-vulnerability-scan-20261022.json) (`2ed7e5f9`) | `c302a973…2a2b` | 21 / 21: 2 Critical, 5 High, 13 Medium, 1 Low | exit 2 |
+| [Mac 0.3.2 ZIP](RFC-BPR-0038-macos-0.3.2-vulnerability-scan-20261022.json) (`20ee6d72`, prerelease) | `d948d9de…a936` | 21 / 21, as Mac 0.3.1 | exit 2 |
+
+Each 0.3.1 row set matches the reviewed
+`.mask/sessions/release-v0.3.1/qt612-release031/security/grype-*-final-r2`
+reports exactly: same package, version, advisory and severity, on the earlier
+`2026-10-19` database. Mac 0.3.2 has the same 21 rows as Mac 0.3.1. The raw
+reports are kept outside the repository in
+`.mask/sessions/rfc0038-security-port-20261022/`. The summaries record their
+SHA-256 values.
+
+### Which 0.2.x conclusions still describe current rows
+
+The identical package, version and advisory rows below recur in 0.3.x. The
+0.2.x reasoning still describes them, as a proposal. The binding decisions for
+0.3.1 are the release's own independent factual dispositions, which expire
+2026-11-19.
+
+- Tika MIME XML (`c2972478…`, 12 advisories, all three platforms): an XML
+  resource, not Java Tika handlers.
+- SQLite 3.53.4 (three Bitnami rows): the version is beyond each upstream fix.
+- `GHSA-g857-hhfv-j68w` on `zlib` 1.3.2: concerns the Ruby gem, not native
+  zlib.
+- D-Bus header attribution 1.13.12 (Mac, Ubuntu): headers only. A libdbus
+  loaded at run time is not qualified.
+- Apple system zlib (Mac): the 0.2.x follow-up showed that `crc32_combine` and
+  `crc32_combine_gen` without the `64` suffix reach the negative-length path
+  on macOS 26.6.2. So the absence of the `*64` exports proves nothing. The
+  current disposition rests on caller absence instead.
+- Windows bundled zlib `CVE-2026-85091` (three High rows): still unpatched.
+  The `gzwrite.c` in the pinned Qt 6.12.0 archive (`a951bd16…`) hashes
+  `2ce78329…5b04`, byte-identical to Qt 6.11.2. 0.3.1 relies on a
+  closed-caller disposition only.
+
+Historical only:
+
+- The PCRE2 10.47 rows (`CVE-2026-89156` to `CVE-2026-89162`). Qt 6.12.0
+  bundles PCRE2 10.48, and the feed no longer matches them.
+- The partial-JIT probe, which used 10.47 sources.
+
+Still open:
+
+- The outside-feed PCRE2 `GHSA-r9hj-j2rw-4q3m` / `CVE-2026-103111`, fixed in
+  10.49. The Qt 6.12.0 attribution says 10.48, and its JIT stack-growth stub
+  is unchanged. On Qt 6.11.2, v0.3.0's independent `dd6` adoption disposed
+  of it as "reviewed product attacker-pattern exclusion, no arbitrary
+  extension immunity". No record of v0.3.1, v0.3.2 or this repository on
+  this Mac carries that to Qt 6.12.0. The v0.3.1 reviews covered only the
+  raw rows, and the PCRE2 rows had gone.
+  BPR-1742 carries it.
+
+### What still blocks BPR-0962
+
+The [card](../issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md#security-audit-port-and-what-still-blocks-2026-10-22)
+lists the blockers. Every current scan exits 2. No accountable named security
+owner has accepted any disposition. Windows zlib and `GHSA-r9hj` remain. The
+native, vault, crash, privacy, IPC and hardening courses have not been run.
+Two owner decisions are pending.
+
 ## Public stable 0.3.1 published, 2026-10-20
 
 [Stable v0.3.1](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1)
@@ -341,10 +492,13 @@ No suppression or security waiver exists.
 Native details: BPR0958 needs a disposable clean Apple Silicon account with a
 working default Keychain and authorized authentication, complete revised-package
 rendered course, full purge and residual inspection. BPR0959 needs native Intel.
-BPR0960 needs clean Windows 10/11 non-elevated desktop/auth/high-DPI/accessibility/
-Credential Manager/purge; full PE mechanics are no longer missing, but do not
-satisfy those requirements. BPR0961 needs Ubuntu 24.04/RHEL 10 native DEB/RPM
-courses. JaegAW Windows 11 elevated SSH and Ubuntu 26.04 WSL were used and remain
+BPR0960 needs a clean JaegAW Windows 11 non-elevated desktop/auth/high-DPI/
+accessibility/Credential Manager/purge course; full PE mechanics are no longer
+missing, but do not satisfy those requirements. BPR0961 needs the Ubuntu 26.04
+WSL2/WSLg ordinary-user DEB/per-user archive course with Secret Service, rendered
+interaction, purge and removal (owner amendments 2026-10-11 and 2026-10-16;
+Ubuntu 24.04, RHEL 10 and a native Ubuntu desktop left the matrix). JaegAW
+Windows 11 elevated SSH and Ubuntu 26.04 WSL shell runs were used and remain
 valid evidence for their actual narrower operations, not substitutes.
 
 The complete development run ended 374/415 passing (41 raw failures; two

@@ -40,6 +40,20 @@ namespace bpr::adapters::agent {
 	/// the home folder `aHome`: what a shipped launch searches.
 	[[nodiscard]] auto locate_claude(std::string_view aPathVariable, std::string_view aHome) -> std::optional<core::claude_search_candidate>;
 
+	/// \brief [[BPR-1748]], RFC-BPR-0092 Q5. The first of
+	/// `core::agent_search_candidates(aProgram, aPathVariable, aUsualFolders,
+	/// this platform)` that `inspect_claude_process_wrapper` accepts, under
+	/// exactly `locate_claude`'s rules: metadata only, nothing run, asked again
+	/// before every launch.
+	[[nodiscard]] auto locate_agent_program(core::agent_program aProgram, std::string_view aPathVariable, std::span<const std::string> aUsualFolders)
+		-> std::optional<core::agent_search_candidate>;
+
+	/// \brief The same over this platform's usual folders for `aProgram`
+	/// (`core::usual_claude_folders` or `core::usual_codex_folders`) under the
+	/// home folder `aHome`.
+	[[nodiscard]] auto locate_agent_program(core::agent_program aProgram, std::string_view aPathVariable, std::string_view aHome)
+		-> std::optional<core::agent_search_candidate>;
+
 	/// \brief Owns one bounded child-process and protocol lifecycle.
 	///
 	/// \details The child environment is constructed empty and receives only

@@ -1,5 +1,7 @@
 #include "bpr/qt/review_draft_editor.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include "bpr/core/feedback_workshop_candidate.hpp"
 #include "bpr/core/line_endings.hpp"
 
@@ -95,7 +97,7 @@ namespace bpr::qt {
 		Members.Revisioned.Reapply = make_action(this, tr("Reapply my text"), QStringLiteral("reviewDraftReapply"));
 		auto* conflictActions      = new QHBoxLayout;
 		for (auto* action : { Members.Revisioned.Reload, Members.Revisioned.Reapply }) {
-			auto* button = new QToolButton{ this };
+			QToolButton* button = action == Members.Revisioned.Reapply ? static_cast<QToolButton*>(new quiet_tool_button{ this }) : new QToolButton{ this };
 			button->setDefaultAction(action);
 			button->setObjectName(action->objectName() + QStringLiteral("Button"));
 			connect(action, &QAction::changed, button, [button, action] { button->setVisible(action->isVisible()); });
@@ -1102,6 +1104,28 @@ namespace bpr::qt {
 		case application::review_mutation_failure::refused_by_server:
 			set_publication_status(
 				QStringLiteral("The server refused publication."));
+			break;
+		case application::review_mutation_failure::unplaceable_line:
+			// [[BPR-1735]]. GitHub's own reason, in plain words; the draft is
+			// kept and can be published again.
+			set_publication_status(QStringLiteral(
+				"Not published: GitHub can't attach a comment to this line, such as a line outside the changes. Your draft is kept; edit it, or publish it again."));
+			break;
+		case application::review_mutation_failure::refused_not_published:
+			set_publication_status(QStringLiteral("Not published: GitHub refused this comment. Your draft is kept; check it and publish it again."));
+			break;
+		case application::review_mutation_failure::settled_not_published:
+			set_publication_status(QStringLiteral("Not published: GitHub has no comment from that attempt. Your draft is kept; publish it again."));
+			break;
+		case application::review_mutation_failure::off_hunk_refused:
+			// [[BPR-1736]]. A refusal no recorded shape matched, of a line
+			// outside the diff: asked once. The draft is kept, and Publish
+			// now posts it as a file comment that links to the line.
+			set_publication_status(QStringLiteral("GitHub refused a line comment here. Publish as file comment?"));
+			break;
+		case application::review_mutation_failure::not_confirmed:
+			// [[BPR-1741]]. Only a reaction or a resolution says this.
+			set_publication_status(QStringLiteral("GitHub does not show the change; nothing was sent twice."));
 			break;
 		case application::review_mutation_failure::undesignated_target:
 			set_publication_status(QStringLiteral(

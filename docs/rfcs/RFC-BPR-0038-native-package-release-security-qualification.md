@@ -39,12 +39,46 @@ closeout; accepting RFC-0014 M12 does not accept those milestones or this RFC.
 
 ## Supported qualification matrix
 
-- Windows 10 and 11 x64, native supported MSVC, clean non-elevated desktop/account.
+- Windows 11 x64 on JaegAW, native supported MSVC, clean non-elevated
+  desktop/account.
 - macOS 13+ universal x86_64/arm64, executed on native Intel and Apple Silicon.
-- Selected next-release Linux: Ubuntu 26.04 LTS x86_64 DEB and per-user archive,
-  glibc 2.43 ceiling with actual C++ runtime prerequisites recorded. WSL2 is an
-  admitted producer; clean Ubuntu desktop/vault/installation acceptance remains
-  distinct from WSL/WSLg observations.
+- Selected next-release Linux: Ubuntu 26.04 LTS x86_64 under WSL2/WSLg on
+  JaegAW, testing the DEB and per-user archive, with a glibc 2.43 ceiling and
+  actual C++ runtime prerequisites recorded.
+
+These are the tested environments. Other environments, such as Windows 10,
+other Linux distributions or a native Linux desktop, are unproven but not
+disallowed: packages do not refuse them, and no document claims them as tested
+or supported.
+
+## Owner amendment 2026-10-16 — tested Windows and Linux environments
+
+The owner selected JaegAW Windows 11 and its Ubuntu 26.04 WSL2/WSLg environment
+as the Windows and Linux qualification environments. Windows 10 and a separate
+native Ubuntu desktop left the required matrix
+([record](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-amendment-20261016.json)).
+The amendment stayed on an unmerged branch until
+[BPR-1743](../issues/60-done/BPR-1743-confirm-or-withdraw-the-october-16-qualification-matrix-amendment.md)
+asked whether it stands. The owner confirmed it on 2026-10-23 UTC: "Windows 11
+and ubuntu wsl2 are tested. If it works on other things is unproven, but not
+disallowed" ([confirmation](../issues/_checkpoints/RFC-BPR-0038/owner-matrix-confirmation-20261023.json)).
+
+Leaving the matrix is not a refusal. Untested environments stay installable,
+and no install check, platform gate or package floor changes. Support claims
+name only the tested environments and say plainly that others are untested.
+
+The Windows 10/11 and clean Ubuntu desktop wording in earlier records and
+shipped release notes remains history. It supplies no evidence. Windows 11
+still needs a real non-elevated ordinary-user desktop, Credential Manager,
+installation, authentication, rendered/accessibility and removal observations;
+elevated SSH and administrative MSI extraction do not satisfy them. Ubuntu
+still needs an actual WSL2/WSLg ordinary-user install, launch, authentication,
+rendered course, Secret Service vault behavior, purge and removal against the
+exact DEB and per-user archive; a build or WSL shell result alone does not
+satisfy them. The amendment accepts no native, vault, crash-privacy,
+vulnerability, trust, security-owner or distribution criterion. The RFC-0014
+plan records it as [dated amendment r5](plans/rfc-bpr-0014-release-readiness/amendments/r5/amendment.json)
+and leaves its M8/M9 text unchanged.
 
 ## Owner amendment 2026-10-11 — next-release Linux scope
 
@@ -127,8 +161,8 @@ credential disclosure, real-PR mutation or automatic diagnostic upload.
 |---|---|
 | [BPR-0958](../issues/50-blocked/BPR-0958-qualify-macos-arm64-package.md) | Clean Apple Silicon account/authentication/Keychain, complete exact-package rendered course, full purge and documented residuals. Three earlier scoped human accepts remain candidate-specific. |
 | [BPR-0959](../issues/50-blocked/BPR-0959-qualify-macos-intel-package.md) | Complete native Intel installation, authentication, rendering, vault, maintenance, purge and removal. |
-| [BPR-0960](../issues/50-blocked/BPR-0960-qualify-windows-x64-package.md) | Clean Windows 10/11 ordinary-user desktop, auth, high-DPI/accessibility, Credential Manager and purge/removal; completed PE mechanics do not satisfy these. |
-| [BPR-0961](../issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md) | Selected Ubuntu 26.04 signed DEB/per-user archive, complete native fixture/auth/vault/purge/removal; WSL production does not supply clean-desktop acceptance. |
+| [BPR-0960](../issues/50-blocked/BPR-0960-qualify-windows-x64-package.md) | JaegAW Windows 11 ordinary-user desktop, auth, high-DPI/accessibility, Credential Manager and purge/removal; completed PE mechanics do not satisfy these. Windows 10 is untested and not refused. |
+| [BPR-0961](../issues/50-blocked/BPR-0961-qualify-linux-x64-packages.md) | Ubuntu 26.04 under WSL2/WSLg on JaegAW: exact signed DEB/per-user archive, fixture/auth/Secret Service/purge/removal and rendered WSLg course. A WSL shell build alone does not supply it; other distributions and native desktops are untested and not refused. |
 | [BPR-0962](../issues/50-blocked/BPR-0962-verify-release-trust-and-security-boundaries.md) | Independent final trust, Windows/Linux licensing, source access/retention, unresolved vulnerabilities, external hardening/PE CFG, active-operation network/vault and foreign-user IPC, full sanitizer/fuzz coverage, resident-material crash/privacy and broader test failures. |
 | [BPR-0973](../issues/10-backlog/BPR-0973-close-rfc-0038.md) | Reconcile every original criterion against exact final artifacts, all follow-up decisions and explicit closeout dependencies. |
 

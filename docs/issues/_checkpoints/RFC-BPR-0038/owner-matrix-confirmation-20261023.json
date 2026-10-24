@@ -1,0 +1,20 @@
+{
+  "schema": "bpr.rfc0038.owner-matrix-confirmation.v1",
+  "card": "BPR-1743",
+  "date": "2026-10-23 UTC (2026-10-22 Pacific)",
+  "confirms": "docs/issues/_checkpoints/RFC-BPR-0038/owner-matrix-amendment-20261016.json",
+  "confirmed_record_sha256": "d41340704fbaf26237746d34eb707998ab236a892f57d197da9a7ebc21a20536",
+  "question": "Does the 2026-10-16 RFC-BPR-0038 qualification-matrix amendment stand?",
+  "owner_answer_verbatim": "Windows 11 and ubuntu wsl2 are tested. If it works on other things is unproven, but not disallowed",
+  "channel": "Owner message in the coordinating session, relayed to the implementer verbatim; no attended-review session was opened for this one question",
+  "decision": "stands",
+  "tested_environments": {
+    "windows": "Windows 11 x64 on JaegAW",
+    "linux": "Ubuntu 26.04 x86_64 under WSL2/WSLg on JaegAW",
+    "macos": "unchanged: macOS 13+ universal, native Intel and Apple Silicon"
+  },
+  "other_environments": "Unproven but not disallowed. Windows 10, other Linux distributions and native Linux desktops are not blocked, installs are not refused, and nothing claims them as tested or supported.",
+  "reading_of_the_2026_10_16_record": "removed_requirements and claim_limit mean those environments leave the qualification matrix and the support claim. They do not add an install refusal, a platform check or a package floor change.",
+  "qualification_effect": "None. This is wording and scope. No Windows 11 ordinary-user, WSL2/WSLg Secret Service, rendered, installer, removal, crash-privacy, vulnerability, trust or security-owner criterion is accepted. BPR-0958 to BPR-0962 stay Blocked, BPR-0973 stays Backlog and all nine RFC-BPR-0038 criteria remain open.",
+  "historical_records": "The 2026-10-16 record stays byte-identical. Shipped release notes keep their original platform wording."
+}

@@ -32,6 +32,7 @@ add_library(
         src/commit_filter.cpp
         src/generated_files.cpp
         src/filtered_comment.cpp
+        src/off_hunk_fact.cpp
         src/header_source_navigation.cpp
         src/diff_transition.cpp
         src/document_tabs.cpp
@@ -103,8 +104,12 @@ add_library(
         src/agent_context_supplement.cpp
         src/agent_finding.cpp
         src/agent_finding_promotion.cpp
+        src/agent_entry.cpp
         src/agent_profile.cpp
         src/agent_wrapper.cpp
+        src/agent_setup.cpp
+        src/clone_discovery.cpp
+        src/review_skill.cpp
         src/agent_session.cpp
         src/review_queue_attention.cpp
         src/home_ignore.cpp
@@ -127,9 +132,11 @@ add_library(
         src/review_tour_update.cpp
         src/review_tour.cpp
         src/review_round_trip.cpp
+        src/conversation_reactions.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/reply_draft_standing.cpp
+        src/thread_reply.cpp
         src/note_placement.cpp
         src/review_submission.cpp
         src/review_submission_unknown.cpp

@@ -1,7 +1,10 @@
 #include "bpr/qt/review_tour_editor.hpp"
+
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
+#include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
@@ -29,11 +32,14 @@
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
+#include <QTextLayout>
+#include <QTextOption>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <vector>
 namespace bpr::qt {
 	namespace {
 		constexpr int preparation_role = Qt::UserRole + 1;
@@ -347,9 +353,25 @@ namespace bpr::qt {
 				const auto right = width() - 30;
 				painter.setFont(font());
 				painter.setPen(Words.isEmpty() ? faint : ink);
-				const auto text = Words.isEmpty() ? Placeholder : Words;
-				painter.drawText(QRect{ left, 6, std::max(10, right - left), height() - 10 }, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap,
-								 QFontMetrics{ font() }.elidedText(QString{ text }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }), Qt::ElideRight, (right - left) * 2 - 24));
+				// [[BPR-1757]]. Two lines at most: the first as wrapping
+				// lays it out, the rest elided on the second, so a narrow
+				// outline never shows part of a third.
+				const auto room    = std::max(10, right - left);
+				const auto metrics = QFontMetrics{ font() };
+				const auto flat    = QString{ Words.isEmpty() ? Placeholder : Words }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
+				auto       layout  = QTextLayout{ flat, font() };
+				auto       option  = QTextOption{ };
+				option.setWrapMode(QTextOption::WordWrap);
+				layout.setTextOption(option);
+				layout.beginLayout();
+				auto first = layout.createLine();
+				if (first.isValid()) {
+					first.setLineWidth(room);
+				}
+				layout.endLayout();
+				const auto split = first.isValid() ? first.textStart() + first.textLength() : static_cast<int>(flat.size());
+				painter.drawText(QRect{ left, 6, room, metrics.lineSpacing() }, Qt::AlignLeft | Qt::AlignTop, metrics.elidedText(flat.left(split).trimmed(), Qt::ElideRight, room));
+				painter.drawText(QRect{ left, 6 + metrics.lineSpacing(), room, metrics.lineSpacing() }, Qt::AlignLeft | Qt::AlignTop, metrics.elidedText(flat.mid(split).trimmed(), Qt::ElideRight, room));
 				if (!Words.isEmpty()) {
 					const auto green = route_green(palette());
 					painter.setPen(QPen{ green, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
@@ -547,6 +569,147 @@ namespace bpr::qt {
 			}
 		}
 	}
+
+	/// \brief [[BPR-1757]]. A stop's actions on one row that keeps to
+	/// the width it is given.
+	///
+	/// \details Its fixed parts (the writing button and More) always show,
+	/// unless something else hid them. Each yielding action shows, in the
+	/// order it was added, only while it is wanted and the row has room for
+	/// it whole; otherwise it waits behind More, whose menu offers every one
+	/// of them. Nothing on the row is squeezed below its words, and the row
+	/// asks its parent for no more than its fixed parts.
+	class stop_action_row final : public QWidget
+	{
+	public:
+		explicit stop_action_row(QWidget* const aParent)
+			: QWidget{ aParent }
+			, Row{ new QHBoxLayout{ this } }
+		{
+			setObjectName(QStringLiteral("tourStopActions"));
+			Row->setContentsMargins(0, 0, 0, 0);
+			Row->setSpacing(2);
+		}
+
+		[[nodiscard]] auto row() const noexcept -> QHBoxLayout*
+		{
+			return Row;
+		}
+
+		/// \brief Makes \p aButton, already on the row, give way before every
+		/// yielding action added ahead of it.
+		void yield(QAbstractButton* const aButton, const bool aWanted)
+		{
+			Yielding.push_back({ aButton, aWanted });
+			refit();
+		}
+
+		void want(const QAbstractButton* const aButton, const bool aWanted)
+		{
+			for (auto& entry : Yielding) {
+				if (entry.Button == aButton) {
+					entry.Wanted = aWanted;
+				}
+			}
+			refit();
+		}
+
+		[[nodiscard]] auto sizeHint() const -> QSize override
+		{
+			auto parts = std::vector<const QWidget*>{ };
+			fixed_parts(parts);
+			for (const auto& entry : Yielding) {
+				if (entry.Wanted) {
+					parts.push_back(entry.Button);
+				}
+			}
+			return QSize{ width_of(parts), Row->sizeHint().height() };
+		}
+
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override
+		{
+			auto parts = std::vector<const QWidget*>{ };
+			fixed_parts(parts);
+			return QSize{ width_of(parts), Row->minimumSize().height() };
+		}
+
+	protected:
+		void resizeEvent(QResizeEvent* const aEvent) override
+		{
+			QWidget::resizeEvent(aEvent);
+			refit();
+		}
+
+		auto event(QEvent* const aEvent) -> bool override
+		{
+			// A part's words changed (Enhance text, Enhance selection).
+			if (aEvent->type() == QEvent::LayoutRequest) {
+				refit();
+			}
+			return QWidget::event(aEvent);
+		}
+
+	private:
+		struct yielding
+		{
+			QAbstractButton* Button = nullptr;
+			bool             Wanted = false;
+		};
+
+		[[nodiscard]] auto is_yielding(const QWidget* const aWidget) const -> bool
+		{
+			return std::ranges::any_of(Yielding, [aWidget](const yielding& aEntry) { return aEntry.Button == aWidget; });
+		}
+
+		void fixed_parts(std::vector<const QWidget*>& aParts) const
+		{
+			for (auto index = 0; index < Row->count(); ++index) {
+				if (const auto* const part = Row->itemAt(index)->widget(); part != nullptr && !part->isHidden() && !is_yielding(part)) {
+					aParts.push_back(part);
+				}
+			}
+		}
+
+		[[nodiscard]] auto width_of(const std::vector<const QWidget*>& aParts) const -> int
+		{
+			auto width = 0;
+			for (const auto* const part : aParts) {
+				width += part->sizeHint().width();
+			}
+			return width + Row->spacing() * std::max(0, static_cast<int>(aParts.size()) - 1);
+		}
+
+		void refit()
+		{
+			if (Fitting) {
+				return;
+			}
+			Fitting   = true;
+			auto used = std::vector<const QWidget*>{ };
+			fixed_parts(used);
+			auto room = true;
+			for (const auto& entry : Yielding) {
+				auto show = false;
+				if (entry.Wanted && room) {
+					used.push_back(entry.Button);
+					show = width_of(used) <= width();
+					if (!show) {
+						used.pop_back();
+						room = false;
+					}
+				}
+				if (entry.Button->isHidden() == show) {
+					entry.Button->setVisible(show);
+				}
+			}
+			Fitting = false;
+		}
+
+		QHBoxLayout*          Row = nullptr;
+		std::vector<yielding> Yielding;
+		bool                  Fitting = false;
+	};
+
 	review_tour_editor::review_tour_editor(QWidget* aParent)
 		: QWidget{ aParent }
 	{
@@ -574,7 +737,7 @@ namespace bpr::qt {
 		Imports->setObjectName(QStringLiteral("tourImportChoices"));
 		Imports->setAccessibleName(tr("GitHub tour index and list"));
 		Imports->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		Import = new QPushButton{ tr("Load selected GitHub tour"), Notices };
+		Import = new quiet_push_button{ tr("Load selected GitHub tour"), Notices };
 		Import->setObjectName(QStringLiteral("tourImport"));
 		connect(Import, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::import_selected); });
 		notes->addWidget(Imports);
@@ -594,7 +757,7 @@ namespace bpr::qt {
 		Conflict->hide();
 		notes->addWidget(Conflict);
 		auto* const conflictRow = new QHBoxLayout{ };
-		Retry                   = new QPushButton{ tr("Retry local save"), Notices };
+		Retry                   = new quiet_push_button{ tr("Retry local save"), Notices };
 		connect(Retry, &QPushButton::clicked, this, [this] {if(Action){Action(tour_editor_action::retry_save);} });
 		conflictRow->addWidget(Retry);
 		UseSaved = new QPushButton{ tr("Discard my edits and use saved copy"), Notices };
@@ -664,7 +827,7 @@ namespace bpr::qt {
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, column);
 			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
-			auto* map = new QPushButton{ tr("Use selected description text"), panel };
+			auto* map = new quiet_push_button{ tr("Use selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
 			map->setFlat(true);
 			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
@@ -732,7 +895,9 @@ namespace bpr::qt {
 		auto* const sendRow = new QHBoxLayout{ };
 		sendRow->setSpacing(6);
 		const auto button = [&](const QString& aLabel, const QString& aName, tour_editor_action aAction) {
-			auto* value = new QPushButton{ aLabel, PublicationPanel };
+			QPushButton* value = aAction == tour_editor_action::preview_publication
+				? static_cast<QPushButton*>(new quiet_push_button{ aLabel, PublicationPanel })
+				: new QPushButton{ aLabel, PublicationPanel };
 			value->setObjectName(aName);
 			connect(value, &QPushButton::clicked, this, [this, aAction] { trigger(aAction); });
 			sendRow->addWidget(value);
@@ -746,7 +911,7 @@ namespace bpr::qt {
 		auto* const recoverRow = new QHBoxLayout{ };
 		recoverRow->setSpacing(6);
 		const auto recover = [&](const QString& aLabel, const QString& aName, tour_editor_action aAction) {
-			auto* value = new QPushButton{ aLabel, PublicationPanel };
+			QPushButton* value = aAction == tour_editor_action::resume_publication ? new QPushButton{ aLabel, PublicationPanel } : static_cast<QPushButton*>(new quiet_push_button{ aLabel, PublicationPanel });
 			value->setObjectName(aName);
 			value->setFlat(true);
 			connect(value, &QPushButton::clicked, this, [this, aAction] { trigger(aAction); });
@@ -825,6 +990,7 @@ namespace bpr::qt {
 		auto* const right = new QWidget{ PageColumns };
 		right->setObjectName(QStringLiteral("tourPageGithub"));
 		right->setFixedWidth(360);
+		PageRight               = right;
 		auto* const rightColumn = new QVBoxLayout{ right };
 		rightColumn->setContentsMargins(14, 14, 14, 14);
 		rightColumn->addWidget(PublicationPanel, 1);
@@ -1044,7 +1210,7 @@ namespace bpr::qt {
 
 	void review_tour_editor::add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QBoxLayout* aLayout)
 	{
-		auto* button = new QPushButton{ aEditor->parentWidget() };
+		auto* button = new quiet_push_button{ aEditor->parentWidget() };
 		button->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
 																																				: QStringLiteral("tourStopMagic"));
 		button->setFocusPolicy(Qt::TabFocus);
@@ -1260,12 +1426,12 @@ namespace bpr::qt {
 		toolsColumn->setSpacing(6);
 		auto* const toolsRow = new QHBoxLayout{ };
 		toolsRow->setSpacing(6);
-		auto* add = new QPushButton{ tr("Add stop"), OutlineTools };
+		auto* add = new quiet_push_button{ tr("Add stop"), OutlineTools };
 		add->setObjectName(QStringLiteral("tourAddStop"));
 		add->setToolTip(tr("Add a stop on the lines selected in the code"));
 		toolsRow->addWidget(add);
 		connect(add, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_stop); });
-		auto* suggest = new QPushButton{ tr("Suggest an outline"), OutlineTools };
+		auto* suggest = new quiet_push_button{ tr("Suggest an outline"), OutlineTools };
 		suggest->setObjectName(QStringLiteral("tourSuggestOutline"));
 		suggest->setFlat(true);
 		suggest->setToolTip(tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops."));
@@ -1280,7 +1446,7 @@ namespace bpr::qt {
 		SuggestedOutline->setTextElideMode(Qt::ElideNone);
 		SuggestedOutline->setMaximumHeight(140);
 		toolsColumn->addWidget(SuggestedOutline);
-		InsertOutline = new QPushButton{ tr("Insert selected skeleton stops"), OutlineTools };
+		InsertOutline = new quiet_push_button{ tr("Insert selected skeleton stops"), OutlineTools };
 		InsertOutline->setObjectName(QStringLiteral("tourInsertOutline"));
 		toolsColumn->addWidget(InsertOutline, 0, Qt::AlignLeft);
 		connect(InsertOutline, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::insert_outline); });
@@ -1334,9 +1500,18 @@ namespace bpr::qt {
 		Body->setTabChangesFocus(true);
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
-		const auto  button  = [this](const QString& aText, const QString& aName, QHBoxLayout* aRow, auto aCallback) {auto* value=new QPushButton{aText,StopFields}; value->setObjectName(aName); aRow->addWidget(value); connect(value,&QPushButton::clicked,this,aCallback); return value; };
-		auto* const sources = new QHBoxLayout{ };
-		sources->setSpacing(2);
+		const auto button = [this](const QString& aText, const QString& aName, QHBoxLayout* aRow, auto aCallback) {
+			QPushButton* value = aName == QStringLiteral("tourRemoveRelated") ? new QPushButton{ aText, StopFields } : static_cast<QPushButton*>(new quiet_push_button{ aText, StopFields });
+			value->setObjectName(aName);
+			aRow->addWidget(value);
+			connect(value, &QPushButton::clicked, this, aCallback);
+			return value;
+		};
+		// [[BPR-1757]]. The row keeps to the stop's width: in a narrow
+		// drawer or page an action with no room waits behind More, which
+		// offers it too, rather than lose its words.
+		StopActions         = new stop_action_row{ StopFields };
+		auto* const sources = StopActions->row();
 		add_writing_button(Body, core::writing_hook::comment, sources);
 		auto* const useLines = button(tr("Use selected lines"), QStringLiteral("tourUseSelectedLines"), sources, [retarget] { retarget->trigger(); });
 		useLines->setFlat(true);
@@ -1372,15 +1547,19 @@ namespace bpr::qt {
 		}
 		more->setMenu(moreMenu);
 		sources->addWidget(more);
-		RouteOnly  = { addRelated, removeRelated };
-		MoreButton = more;
+		AddRelated    = addRelated;
+		RemoveRelated = removeRelated;
+		MoreButton    = more;
 		sources->addStretch(1);
-		fields->addLayout(sources);
-		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this, removeRelated](const int aRow) { removeRelated->setVisible(aRow >= 0 && Mode == tour_editor_mode::page); });
-		removeRelated->hide();
+		fields->addWidget(StopActions);
+		// The first to stay is the first a stop is written with.
+		StopActions->yield(useLines, true);
+		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
+		StopActions->yield(removeRelated, false);
+		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this](const int aRow) { StopActions->want(RemoveRelated, aRow >= 0 && Mode == tour_editor_mode::page); });
 		Related->setToolTip(tr("Double-click a related source to inspect it. Show in code restores this stop."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
-		Reaffirm = new QPushButton{ tr("Reaffirm explanation for current head"), StopFields };
+		Reaffirm = new quiet_push_button{ tr("Reaffirm explanation for current head"), StopFields };
 		Reaffirm->setObjectName(QStringLiteral("tourReaffirm"));
 		fields->addWidget(Reaffirm, 0, Qt::AlignLeft);
 		connect(Reaffirm, &QPushButton::clicked, this, [this] { structural(core::tour_command_kind::reaffirm); });
@@ -1821,6 +2000,11 @@ namespace bpr::qt {
 		// removing an item's widget deletes it.
 		StopFields->setParent(this);
 		for (int index = 0; index < Outline->count(); ++index) {
+			// [[BPR-1757]]. The card is deleted later; until then it
+			// must not stand in the page's outline at the route's width.
+			if (auto* const card = Outline->itemWidget(Outline->item(index)); card != nullptr) {
+				card->hide();
+			}
 			Outline->removeItemWidget(Outline->item(index));
 			Outline->item(index)->setSizeHint({ });
 		}
@@ -1874,9 +2058,11 @@ namespace bpr::qt {
 		}
 		StopHeader->setVisible(aMode == tour_editor_mode::page);
 		// The route keeps Related source behind More; the page has room.
-		if (RouteOnly.size() == 2U) {
-			RouteOnly[0]->setVisible(aMode == tour_editor_mode::page);
+		if (StopActions != nullptr) {
+			StopActions->want(AddRelated, aMode == tour_editor_mode::page);
+			StopActions->want(RemoveRelated, aMode == tour_editor_mode::page && Related->currentRow() >= 0);
 		}
+		fit_page_columns();
 		open_brief(aMode == tour_editor_mode::route ? -1 : BriefOpen);
 		place_stop_card();
 		refresh_excerpt();
@@ -1936,6 +2122,7 @@ namespace bpr::qt {
 					StopFields->setParent(this);
 					StopFields->hide();
 				}
+				Outline->itemWidget(item)->hide();
 				Outline->removeItemWidget(item);
 				item->setSizeHint({ });
 			}
@@ -2011,7 +2198,40 @@ namespace bpr::qt {
 	void review_tour_editor::resizeEvent(QResizeEvent* aEvent)
 	{
 		QWidget::resizeEvent(aEvent);
+		fit_page_columns();
 		place_stop_card();
+	}
+
+	void review_tour_editor::fit_page_columns()
+	{
+		// [[BPR-1757]]. The outline and On GitHub keep their 290 and
+		// 360 pixels while the section between them has its own 340. In a
+		// narrower page, down to the window's floor, they give way together
+		// in proportion, to 230 and 290 at the least, so no column runs past
+		// the window's edge.
+		if (PageColumns == nullptr || PageLeft == nullptr || PageRight == nullptr) {
+			return;
+		}
+		constexpr auto outline      = 290;
+		constexpr auto panel        = 360;
+		constexpr auto section      = 340;
+		constexpr auto outlineFloor = 230;
+		constexpr auto panelFloor   = 290;
+		constexpr auto give         = (outline - outlineFloor) + (panel - panelFloor);
+		// The page asks for no more than its floors; fixed side widths would
+		// otherwise make the window's layout hold it wider than the window.
+		if (PageColumns->minimumWidth() != section + outlineFloor + panelFloor) {
+			PageColumns->setMinimumWidth(section + outlineFloor + panelFloor);
+		}
+		const auto spare = std::clamp(width() - section - outlineFloor - panelFloor, 0, give);
+		const auto left  = outlineFloor + spare * (outline - outlineFloor) / give;
+		const auto right = panelFloor + spare - (left - outlineFloor);
+		if (PageLeft->minimumWidth() != left || PageLeft->maximumWidth() != left) {
+			PageLeft->setFixedWidth(left);
+		}
+		if (PageRight->minimumWidth() != right || PageRight->maximumWidth() != right) {
+			PageRight->setFixedWidth(right);
+		}
 	}
 
 	void review_tour_editor::changeEvent(QEvent* aEvent)

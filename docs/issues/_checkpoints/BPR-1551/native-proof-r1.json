@@ -1,0 +1,117 @@
+{
+  "candidate": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+  "complete": true,
+  "producer": "C:\\Users\\mikem\\bpr-v021\\build\\windows-app-release\\bpr_xdiff.dll",
+  "producer_sha256": "abe3cde04f9be9786007a9314c89be602a5af4eab0f664f58c39c1e6f913f00a",
+  "map_sha256": "2d284350cc5193ba5bc5a3d1568bb6ee897aa41c462c4ec0a375a70445899c41",
+  "producer_bytes": 44032,
+  "map_bytes": 46203,
+  "map_mtime_ns": 1792133617085633500,
+  "producer_mtime_ns": 1792133617083633500,
+  "checks": [
+    {
+      "control": "actual newly compiled DLL + full native map",
+      "result": "pass",
+      "symbol_count": 824,
+      "inspector": "byte-identical PE + bound full link /MAP + undname anchors",
+      "hardening": {
+        "aslr_dep": true,
+        "cfg_declared": true
+      }
+    },
+    {
+      "control": "altered installed DLL",
+      "result": "expected refusal",
+      "reason": "pe-producer-byte-mismatch"
+    },
+    {
+      "control": "identical undeclared DLL",
+      "result": "expected refusal",
+      "reason": "undeclared-pe-producer"
+    },
+    {
+      "control": "actual DLL with missing map",
+      "result": "expected refusal",
+      "reason": "pe-producer-map-missing"
+    },
+    {
+      "control": "actual DLL with wrong map identity",
+      "result": "expected refusal",
+      "reason": "pe-map-image-mismatch"
+    },
+    {
+      "control": "hidden fixture name in full map",
+      "result": "expected refusal",
+      "reason": "fixture-symbol-in-package"
+    }
+  ],
+  "script_reports": [
+    {
+      "script": "verify_release_security_tests.py",
+      "exit": 0,
+      "seconds": 1.4929847000166774
+    },
+    {
+      "script": "native_release_tests.py",
+      "exit": 0,
+      "seconds": 2.834459000005154
+    },
+    {
+      "script": "package_runtime_tests.py",
+      "exit": 0,
+      "seconds": 0.5768335000029765
+    },
+    {
+      "script": "verify_release_package_tests.py",
+      "exit": 0,
+      "seconds": 0.4261738999921363
+    }
+  ],
+  "scope": "Native compiled DLL/full-map/hardening/adversarial and script checks only; unsigned development producer, no packaging/signing/publication. New exact-source expanded-MSI audit/all4signatures remains coordinator phase.",
+  "schema": "bpr.private-library-native-proof.v1",
+  "mandate_revision": "authorized-release-continuation-final-gates-r3",
+  "owner": "/root/bpr1525_implementer",
+  "native_script_counts": {
+    "total": 71,
+    "passed": 68,
+    "skipped": 3,
+    "failed": 0
+  },
+  "native_skips": [
+    "Linux CPack native baseline fixture",
+    "Linux ldd deployment POSIX-path fixture (passed on Mac)",
+    "Bash publisher fixture (passed on Mac)"
+  ],
+  "mac_script_counts": {
+    "total": 71,
+    "passed": 69,
+    "skipped": 2,
+    "failed": 0
+  },
+  "mac_skips": [
+    "Linux CPack native baseline fixture",
+    "Native Windows PowerShell module fixture (passed on Windows)"
+  ],
+  "quiescence": {
+    "ownedRemaining": [],
+    "wslNative": [],
+    "nativeWindows": [],
+    "source": "23447f3a9bacf9a080a93df18b1fb2f54f6ebd3d",
+    "observedUtc": "2026-10-16T06:55:45.6405874Z",
+    "status": [],
+    "wslExit": 0,
+    "taskState": "Ready"
+  },
+  "private_archive_sha256": "319769f39af7e65fa3ecc6f1c0d1a91cc2b08e109088e6b9cdca5a534c3ac088",
+  "source_changed_paths": [
+    "cmake/Hardening.cmake",
+    "packaging/Install.cmake",
+    "packaging/package.py",
+    "packaging/package_runtime.py",
+    "packaging/verify_native_release.py",
+    "scripts/verify_pe_release.py",
+    "scripts/verify_release_package.py"
+  ],
+  "application_source_delta_since_4c": [],
+  "remaining": "AC5/extracted new exact-source MSI and all4image signatures pending coordinator-only rebuild/sign/audit. Old4cMSI remains failed evidence; BPR1551 InProgress."
+}

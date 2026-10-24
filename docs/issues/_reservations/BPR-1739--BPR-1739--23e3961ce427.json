@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1739"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Off-hunk fact server card and support details",
+  "created": "2026-10-22T20:53:16.416668+00:00",
+  "base": "208a2bc5a6b67e7bf82c1dd75b96796fd9f5c1fa"
+}

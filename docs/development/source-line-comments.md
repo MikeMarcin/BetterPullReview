@@ -3,16 +3,41 @@
 Select a current/right line in a text file already changed by the pull request,
 open the ordinary comment editor, enter prose and choose Publish. Unchanged
 lines use the same gesture. The app checks the exact current head, retained
-file/line and acting account again before posting. Left-side off-hunk and
-arbitrary historical publication are outside this feature.
+file/line and acting account again before posting. A base line off every hunk
+is published as a file comment only when its document is the merge base's;
+arbitrary historical publication is outside this feature.
 
-Native publication is attempted when support is unknown. The recorded rejection
-contract currently permits fallback only in the designated PR2 validation course
-with its exact source, account and profile. Other scopes remain unknown. A timeout or uncertain result also never starts a
-second POST. Keep the draft and report the typed result; a new representation
-is not a retry policy.
+Since the owner's 2026-10-22 decision ([[BPR-1735]], RFC-BPR-0022 amendment
+r5) the core places the line first. Once the app has read the file at the merge
+base GitHub names and at the head, a line more than three lines from every
+change of that diff on its side is published straight as a file comment with a
+permalink, with no native attempt; the editor says so before Publish, and Start
+a review refuses the line. A comment already pending in a review on such a line
+is held on Finish your review and on the comment, with Publish as file comment,
+and the review waits for it. With no merge base named, or the file unreadable,
+the line is published natively as before.
 
-When the approved exact contract makes file fallback available, the public body starts
+Since [[BPR-1736]] (RFC-BPR-0022 amendment r6) the app learns from GitHub's
+answer whether this server takes such a line, per profile, repository, server
+version and operation. With nothing learned, Publish makes one native attempt;
+GitHub.com's refusal posts the file comment at once, and any other refusal
+naming the line says "GitHub refused a line comment here. Publish as file
+comment?" and keeps the draft. Once a refusal is learned, such lines are file
+comments with no native attempt; once an acceptance is, they are native, in a
+review too. The fact lasts 14 days on GitHub.com and 30 on GitHub Enterprise
+Server, and a new server version forgets it. It is never set from the host's
+name or version.
+
+A native comment GitHub refuses with a fully received 4xx, once its complete
+comment list holds none of it, is recorded rejected: the editor says it was not
+published and why, the draft is kept, and Publish sends a new attempt. The
+recorded rejection contract still permits fallback after a native attempt only
+in the designated PR2 validation course with its exact source, account and
+profile. A timeout or uncertain result never starts a second POST and stays
+GET-only; only a comment an earlier version left unconfirmed settles, ten
+minutes after the upgrade kept it, when GitHub lists none of it.
+
+The file comment's public body starts
 with an immutable code permalink, a blank line and the original prose. Markdown
 source links include `?plain=1`. In BetterPullReview a validated link places the
 conversation at its exact source line. Collapsed Support details exposes its

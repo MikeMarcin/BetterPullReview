@@ -69,6 +69,12 @@ namespace bpr::application {
 		/// built from an immutable revision, so it has nothing uncommitted in
 		/// it by construction and reports `clean`.
 		checkout_cleanliness Cleanliness = checkout_cleanliness::clean;
+		/// [[BPR-1751]]. The workspace borrows its history from the
+		/// reviewer's linked clone.
+		bool BorrowsHistory = false;
+		/// [[BPR-1752]]. The workspace holds the head without its
+		/// history: a sparse review's snapshot whose parents no clone lent.
+		bool Shallow = false;
 
 		auto operator<=>(const prepared_workspace&) const = default;
 	};
@@ -89,6 +95,11 @@ namespace bpr::application {
 		core::pull_request_authority Authority;
 		core::agent_session          Session;
 		std::filesystem::path        ParentDirectory;
+		/// [[BPR-1751]], RFC-BPR-0092 Q7. The working tree of the
+		/// reviewer's linked clone whose history the workspace borrows, read
+		/// only, through Git's alternates. Absent: the workspace holds only
+		/// what the application's own copy gives it, as before.
+		std::optional<std::filesystem::path> HistoryClone;
 
 		auto operator<=>(const agent_workspace_materialization_request&) const
 			= default;
@@ -141,11 +152,35 @@ namespace bpr::application {
 		cleanup_failed,
 	};
 
+	/// \brief [[BPR-1738]]. Why an `unavailable` workspace could not be
+	/// made, in terms a reviewer can act on.
+	///
+	/// \details A closed set, so the presentation can say what happened and
+	/// what to do instead of naming the outcome and showing Git's own log.
+	enum class agent_workspace_unavailable_reason : std::uint8_t {
+		/// The review's local copy could not be copied into a workspace.
+		copy_failed,
+		/// The review holds only the files it reads, and the complete head
+		/// the agent needs could not be downloaded.
+		download_failed,
+		/// As `download_failed`, because GitHub could not be reached.
+		connection_failed,
+		/// As `download_failed`, because the account was refused.
+		sign_in_refused,
+		/// As `download_failed`, because the head is larger than a
+		/// workspace's snapshot may be.
+		too_large,
+	};
+
+	[[nodiscard]] auto stable_name(agent_workspace_unavailable_reason aReason) noexcept
+		-> std::string_view;
+
 	/// \brief Carries a workspace failure and any safe cache explanation.
 	struct agent_workspace_error
 	{
-		agent_workspace_failure Code = agent_workspace_failure::invalid_request;
-		std::string             Detail;
+		agent_workspace_failure            Code = agent_workspace_failure::invalid_request;
+		std::string                        Detail;
+		agent_workspace_unavailable_reason Reason = agent_workspace_unavailable_reason::copy_failed;
 
 		agent_workspace_error() = default;
 
@@ -160,6 +195,16 @@ namespace bpr::application {
 			decltype(Detail)              aDetail)
 			: Code{ aCode }
 			, Detail{ std::move(aDetail) }
+		{
+		}
+
+		agent_workspace_error(
+			const agent_workspace_failure            aCode,
+			decltype(Detail)                         aDetail,
+			const agent_workspace_unavailable_reason aReason)
+			: Code{ aCode }
+			, Detail{ std::move(aDetail) }
+			, Reason{ aReason }
 		{
 		}
 

@@ -24,6 +24,15 @@ namespace bpr::adapters::sqlite {
 		-> std::expected<
 			std::unique_ptr<application::review_mutation_recovery_port>,
 			application::review_mutation_recovery_failure>;
+
+	/// \brief [[BPR-1736]]. The learned off-hunk facts the recovery journal
+	/// under `aConfiguration.StorageRoot` keeps, on a connection of their own:
+	/// the facts are the profile's, whichever pull request opened them.
+	[[nodiscard]] auto make_off_hunk_fact_store(
+		const review_mutation_recovery_configuration& aConfiguration)
+		-> std::expected<
+			std::unique_ptr<application::off_hunk_fact_port>,
+			application::review_mutation_recovery_failure>;
 } // namespace bpr::adapters::sqlite
 
 #endif

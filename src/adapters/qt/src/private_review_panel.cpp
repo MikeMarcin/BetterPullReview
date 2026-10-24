@@ -1,5 +1,7 @@
 #include "bpr/qt/private_review_panel.hpp"
+
 #include "bpr/qt/destructive_question.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include <QAccessible>
 #include <QCheckBox>
 #include <QComboBox>
@@ -159,7 +161,16 @@ namespace bpr::qt {
 		ThreadList->setModel(Threads);
 		ThreadList->setFixedHeight(84);
 		layout->addWidget(ThreadList);
-		auto button = [&](const QString& aLabel, const QString& aName, application::private_conversation_action aAction) { auto* b = new QPushButton(aLabel, this); b->setObjectName(aName); b->setAccessibleName(aLabel); layout->addWidget(b); connect(b, &QPushButton::clicked, this, [this, aAction] { emit_action(aAction); }); return b; };
+		const auto button = [&](const QString& aLabel, const QString& aName, application::private_conversation_action aAction) {
+			const auto secondary = aAction == application::private_conversation_action::refresh || aAction == application::private_conversation_action::provenance
+				|| aAction == application::private_conversation_action::inspect_finding || aAction == application::private_conversation_action::open_draft;
+			QPushButton* result = secondary ? static_cast<QPushButton*>(new quiet_push_button{ aLabel, this }) : new QPushButton{ aLabel, this };
+			result->setObjectName(aName);
+			result->setAccessibleName(aLabel);
+			layout->addWidget(result);
+			connect(result, &QPushButton::clicked, this, [this, aAction] { emit_action(aAction); });
+			return result;
+		};
 		button(tr("Refresh private history"), QStringLiteral("privateRefresh"), application::private_conversation_action::refresh);
 		auto* archived = new QCheckBox(tr("Include archived threads"), this);
 		archived->setObjectName(QStringLiteral("privateIncludeArchived"));
@@ -197,11 +208,11 @@ namespace bpr::qt {
 		Selection = new QLabel(tr("0 exact sources selected"), this);
 		Selection->setWordWrap(true);
 		layout->addWidget(Selection);
-		auto* source = new QPushButton(tr("Select exact revision as source"), this);
+		auto* source = new quiet_push_button(tr("Select exact revision as source"), this);
 		source->setObjectName(QStringLiteral("privateSelectSource"));
 		layout->addWidget(source);
 		connect(source, &QPushButton::clicked, this, [this] { select_source(); });
-		auto* clear = new QPushButton(tr("Clear selected sources"), this);
+		auto* clear = new quiet_push_button(tr("Clear selected sources"), this);
 		layout->addWidget(clear);
 		connect(clear, &QPushButton::clicked, this, [this] { Sources.clear(); Selection->setText(tr("0 exact sources selected")); });
 		Findings = new QComboBox(this);
@@ -209,7 +220,7 @@ namespace bpr::qt {
 		Findings->setAccessibleName(tr("Exact retained findings, bounded page"));
 		layout->addWidget(Findings);
 		button(tr("Next retained findings"), QStringLiteral("privateMoreFindings"), application::private_conversation_action::next_findings);
-		auto* findingSource = new QPushButton(tr("Select exact finding as source"), this);
+		auto* findingSource = new quiet_push_button(tr("Select exact finding as source"), this);
 		findingSource->setObjectName(QStringLiteral("privateSelectFinding"));
 		layout->addWidget(findingSource);
 		connect(findingSource, &QPushButton::clicked, this, [this] {

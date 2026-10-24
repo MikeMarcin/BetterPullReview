@@ -1,5 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
@@ -16,6 +18,7 @@
 
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "github_presentation_text.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
@@ -49,6 +52,7 @@
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
@@ -2422,6 +2426,25 @@ namespace bpr::qt {
 				dispatch(aLogin);
 			}
 		});
+		// [[BPR-1741]]. A post's reaction travels with what the window
+		// shows of it: added when the viewer has not made it, removed when
+		// they have; the composition decides.
+		ConversationPanel->cards()->set_reaction_dispatch([this](const std::string& aPost, const core::reaction_content aContent) {
+			const auto dispatch = ReactionDispatch;
+			if (!dispatch || ConversationPanel == nullptr) {
+				return;
+			}
+			const auto shown = ConversationPanel->cards()->reactions_of(aPost);
+			auto       node  = aPost.substr(aPost.find(':') == std::string::npos ? 0U : aPost.find(':') + 1U);
+			dispatch(reaction_gesture{
+				.Post           = aPost,
+				.Subject        = std::move(node),
+				.Content        = aContent,
+				.Add            = core::reaction_toggle(shown, aContent),
+				.Observed       = shown.has_value(),
+				.ViewerCanReact = shown.has_value() && shown->ViewerCanReact,
+			});
+		});
 		ConversationPanel->cards()->set_action_dispatch(
 			[this](const card_action aAction, const std::string& aIdentity) {
 				// [[BPR-1046]]. A reply still waiting for its comparison is
@@ -2459,6 +2482,15 @@ namespace bpr::qt {
 					ConversationPanel->cards()->show_thread_menu(aIdentity);
 					break;
 				case card_action::convert_draft:
+					// [[BPR-1735]]. On a comment GitHub cannot place in the
+					// review, the held action is Publish as file comment.
+					if (const auto& shown = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::nullopt;
+						shown.has_value() && UnplaceableComments.contains(shown->Id) && !HeldSuggestions.contains(shown->Id)) {
+						if (ReviewEditor->publish_action()->isEnabled()) {
+							ReviewEditor->publish_action()->trigger();
+						}
+						break;
+					}
 					convert_pane_suggestion();
 					break;
 				case card_action::carry_suggestion:
@@ -2648,6 +2680,10 @@ namespace bpr::qt {
 		ComparisonSurface->set_selection_observer(
 			[this](const std::optional<core::semantic_selection>& aSelection,
 				   const bool                                     aInteractive) {
+				// [[BPR-1753]], owner decision (a). The Agent tab's
+				// suggestions name the selected lines; read once the gesture
+				// has settled (owner look v006).
+				schedule_agent_suggestions();
 				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 					return;
 				}
@@ -2831,7 +2867,7 @@ namespace bpr::qt {
 		OlderPairText->setAccessibleName(QStringLiteral("Threads on later updates"));
 		OlderPairText->setTextFormat(Qt::PlainText);
 		OlderPairText->setWordWrap(true);
-		ShowLaterThreads = new QPushButton{ tr("Show them"), OlderPairNotice };
+		ShowLaterThreads = new quiet_push_button{ tr("Show them"), OlderPairNotice };
 		ShowLaterThreads->setObjectName(QStringLiteral("showLaterThreads"));
 		ShowLaterThreads->setAccessibleDescription(QStringLiteral(
 			"Shows this file's threads on later updates"));
@@ -2928,7 +2964,7 @@ namespace bpr::qt {
 			column->setContentsMargins(24, 12, 24, 24);
 			column->setSpacing(10);
 			auto* const bar  = new QHBoxLayout{ };
-			auto*       back = new QPushButton{ aBack, page };
+			auto*       back = new quiet_push_button{ aBack, page };
 			back->setObjectName(aName + QStringLiteral("Back"));
 			back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
 			// [[BPR-1345]] v002. ⌘⇧M, as Maximize took the draft here; ⌘⇧↩
@@ -3063,6 +3099,17 @@ namespace bpr::qt {
 		// [[RFC-BPR-0090]]. Convert on a held suggestion (owner, Q3): the
 		// comment is opened at its line, and converted there once it shows.
 		ReviewSubmissionEditor->set_pending_convert([this](const core::review_submission_comment& aComment) {
+			// [[BPR-1735]]. Publish as file comment: the comment is opened at
+			// its line and published there on its own once the core places it.
+			if (UnplaceableComments.contains(aComment.Draft) && !HeldSuggestions.contains(aComment.Draft)) {
+				PendingFilePublish = aComment.Draft;
+				if (ReviewEditor != nullptr && ReviewEditor->shown_draft().has_value() && ReviewEditor->shown_draft()->Id == aComment.Draft) {
+					publish_pending_file_comment();
+					return;
+				}
+				open_pending_comment(aComment, core::workbench_thread_destination::review);
+				return;
+			}
 			if (!HeldSuggestions.contains(aComment.Draft)) {
 				return;
 			}
@@ -3139,7 +3186,7 @@ namespace bpr::qt {
 									SideChat->add_context_action(),
 									SideChat->new_session_action(),
 									SideChat->continue_old_revision_action() }) {
-			auto* const button = new QToolButton{ conversationContents };
+			QToolButton* const button = action == SideChat->send_action() ? new QToolButton{ conversationContents } : static_cast<QToolButton*>(new quiet_tool_button{ conversationContents });
 			button->setDefaultAction(action);
 			chatActions->addWidget(button);
 		}
@@ -3166,7 +3213,10 @@ namespace bpr::qt {
 			if (action == nullptr) {
 				continue;
 			}
-			auto* const button = new QToolButton{ conversationContents };
+			const auto         kind   = static_cast<finding_queue_action>(index);
+			QToolButton* const button = kind == finding_queue_action::open_evidence || kind == finding_queue_action::ask_follow_up || kind == finding_queue_action::add_to_private_notes
+				? static_cast<QToolButton*>(new quiet_tool_button{ conversationContents })
+				: new QToolButton{ conversationContents };
 			button->setDefaultAction(action);
 			findingActions->addWidget(button);
 		}
@@ -3207,7 +3257,32 @@ namespace bpr::qt {
 		// panels, moved into one layout; the private history is its History.
 		// The panels' own column stays, unseen, for every control not moved.
 		AgentTab = new agent_tab_view{ *AgentPanel, *SideChat, *FindingQueue, *privateTabs->widget(0), agentPage };
+		// Owner look v006 ("I selected a block and it still said the line
+		// suggestion and then when i clicked away ... the suggestion text
+		// updates to block"): the selected lines are the panes' own text
+		// selection, which a drag changes without a new selected line, and a
+		// press reports its line before the pane's selection moves. The
+		// suggestions are read from the panes' selections as they change,
+		// once the event that changed them has finished.
+		AgentSuggestionsTimer = new QTimer{ this };
+		AgentSuggestionsTimer->setSingleShot(true);
+		AgentSuggestionsTimer->setInterval(0);
+		connect(AgentSuggestionsTimer, &QTimer::timeout, this, [this] {
+			if (AgentTab != nullptr) {
+				AgentTab->refresh_suggestions();
+			}
+		});
+		if (ComparisonSurface != nullptr) {
+			for (auto* const pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane(), ComparisonSurface->unified_pane() }) {
+				if (pane != nullptr) {
+					connect(pane, &QPlainTextEdit::selectionChanged, this, [this] { schedule_agent_suggestions(); });
+					connect(pane, &QPlainTextEdit::cursorPositionChanged, this, [this] { schedule_agent_suggestions(); });
+				}
+			}
+		}
 		AgentTab->set_setup_dispatch([this] { open_settings(settings_page::agents_and_context); });
+		AgentSetup = new agent_setup_view{ agentPage };
+		AgentSetup->hide();
 		agentPageLayout->addWidget(AgentTab, 1);
 		notesPurpose->hide();
 		privateTabs->hide();
@@ -3445,7 +3520,7 @@ namespace bpr::qt {
 			// [[BPR-0771]]. A pull request that could not be loaded is said
 			// here, once, in one sentence, with its details a press away. The
 			// banner on Accounts & hosts that used to say it is gone.
-			HomeOpenDetails = new QPushButton{ tr("Copy details"), HomePage };
+			HomeOpenDetails = new quiet_push_button{ tr("Copy details"), HomePage };
 			HomeOpenDetails->setObjectName(QStringLiteral("homeOpenCopyDetails"));
 			HomeOpenDetails->setAccessibleName(QStringLiteral("Copy the details of the refusal"));
 			HomeOpenDetails->setFlat(true);
@@ -3467,12 +3542,12 @@ namespace bpr::qt {
 			HomeStatusText->setTextFormat(Qt::PlainText);
 			HomeStatusText->setTextInteractionFlags(Qt::TextSelectableByMouse);
 			HomeStatusText->hide();
-			HomeOpenCancel = new QPushButton{ tr("Cancel"), HomeStatus };
+			HomeOpenCancel = new quiet_push_button{ tr("Cancel"), HomeStatus };
 			HomeOpenCancel->setObjectName(QStringLiteral("homeOpenCancel"));
 			HomeOpenCancel->setAutoDefault(false);
 			HomeOpenCancel->setFocusPolicy(Qt::StrongFocus);
 			HomeOpenCancel->hide();
-			HomeOpenRetry = new QPushButton{ tr("Retry"), HomeStatus };
+			HomeOpenRetry = new quiet_push_button{ tr("Retry"), HomeStatus };
 			HomeOpenRetry->setObjectName(QStringLiteral("homeOpenRetry"));
 			HomeOpenRetry->setAutoDefault(false);
 			HomeOpenRetry->setFocusPolicy(Qt::StrongFocus);
@@ -3510,7 +3585,7 @@ namespace bpr::qt {
 			setupRow->setContentsMargins(24, 2, 24, 4);
 			SetupContinueButton = new QPushButton{ HomePage };
 			SetupContinueButton->setObjectName(QStringLiteral("homeSetupContinue"));
-			SetupCancelButton = new QPushButton{ tr("Cancel setup"), HomePage };
+			SetupCancelButton = new quiet_push_button{ tr("Cancel setup"), HomePage };
 			SetupCancelButton->setObjectName(QStringLiteral("homeSetupCancel"));
 			setupRow->addWidget(SetupContinueButton);
 			setupRow->addWidget(SetupCancelButton);
@@ -3655,7 +3730,7 @@ namespace bpr::qt {
 			cyclesTitle->setFont(cyclesFont);
 			cyclesHeader->addWidget(cyclesTitle);
 			cyclesHeader->addStretch(1);
-			auto* const openProject = new QToolButton{ HomeCycles };
+			auto* const openProject = new quiet_tool_button{ HomeCycles };
 			openProject->setObjectName(QStringLiteral("homeOpenProjectButton"));
 			openProject->setText(QStringLiteral("Open Project…"));
 			openProject->setToolTip(QStringLiteral("Review a local folder or file: no account, remote or agent needed"));
@@ -3985,7 +4060,7 @@ namespace bpr::qt {
 		savedPointerText->setWordWrap(true);
 		savedPointerText->setTextFormat(Qt::PlainText);
 		savedPointerRow->addWidget(savedPointerText, 1);
-		auto* const openRepositories = new QPushButton{ tr("Open Repositories"), savedPointer };
+		auto* const openRepositories = new quiet_push_button{ tr("Open Repositories"), savedPointer };
 		openRepositories->setObjectName(QStringLiteral("reviewsOpenRepositories"));
 		openRepositories->setAccessibleDescription(tr("Shows Settings › Repositories, where saved repositories are added and removed"));
 		openRepositories->setAutoDefault(false);
@@ -4168,7 +4243,7 @@ namespace bpr::qt {
 		emptyLayout->addStretch(1);
 		emptyLayout->addWidget(EmptyStateTitleLabel);
 		emptyLayout->addWidget(EmptyStateBodyLabel);
-		auto* const copyMessage = new QToolButton{ emptyState };
+		auto* const copyMessage = new quiet_tool_button{ emptyState };
 		copyMessage->setObjectName(QStringLiteral("copyGithubMessageButton"));
 		copyMessage->setText(QStringLiteral("Copy message"));
 		copyMessage->setAccessibleName(QStringLiteral("Copy GitHub message"));
@@ -4737,7 +4812,7 @@ namespace bpr::qt {
 		draft->setAccessibleName(QStringLiteral("Include current private draft"));
 		form->addRow(QStringLiteral("Private draft"), draft);
 		column->addLayout(form);
-		auto* const checkout = new QToolButton{ agents };
+		auto* const checkout = new quiet_tool_button{ agents };
 		checkout->setDefaultAction(AgentPanel->existing_checkout_action());
 		checkout->setAccessibleName(QStringLiteral("Use existing working copy for this request"));
 		column->addWidget(checkout);
@@ -4766,13 +4841,25 @@ namespace bpr::qt {
 		AgentPanel->set_configuration_observer(refresh);
 		// [[BPR-1301]]. Saved for the profile, unlike the choices above, so
 		// it sits apart under its own heading, beside the writing hooks.
-		ClaudeWrapper = new claude_wrapper_panel{ agents };
+		// [[BPR-1753]]. Agent setup's saved programs, beside the wrapper.
+		AgentPrograms = new agent_programs_panel{ agents };
 		column->addSpacing(12);
-		column->addWidget(ClaudeWrapper);
+		column->addWidget(AgentPrograms);
+		// [[BPR-1753]], owner decision 2026-10-23: the Claude process
+		// wrapper and model rows are gone from Settings; their values moved
+		// into the agent list. The panel stays unshown, for the profile's
+		// saved values that move once.
+		ClaudeWrapper = new claude_wrapper_panel{ this };
+		ClaudeWrapper->hide();
 		WritingHooks = new writing_hooks_panel{ agents };
 		column->addWidget(WritingHooks);
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
+		ReviewSkill = new review_skill_panel{ agents };
+		column->addSpacing(12);
+		column->addWidget(ReviewSkill);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+		CloneFolders = new clone_folders_panel;
+		SettingsWindow->adopt_panel(settings_page::repositories, CloneFolders);
 
 		auto* const storage       = new QWidget;
 		auto* const storageColumn = new QVBoxLayout{ storage };
@@ -4788,7 +4875,7 @@ namespace bpr::qt {
 		facts->setWordWrap(true);
 		storageColumn->addWidget(facts);
 		for (auto* action : { EpochSelectors->prune_action(), EpochSelectors->delete_cache_action(), EpochSelectors->cancel_maintenance_action() }) {
-			auto* const button = new QToolButton{ storage };
+			QToolButton* const button = action == EpochSelectors->cancel_maintenance_action() ? static_cast<QToolButton*>(new quiet_tool_button{ storage }) : new QToolButton{ storage };
 			button->setDefaultAction(action);
 			button->setAccessibleName(action->text());
 			storageColumn->addWidget(button);
@@ -4847,7 +4934,7 @@ namespace bpr::qt {
 			sources[i]->setParent(group);
 			form->addRow(labels[i], sources[i]);
 		}
-		QueueDefaultsReset = new QPushButton{ QStringLiteral("Reset queue defaults"), group };
+		QueueDefaultsReset = new quiet_push_button{ QStringLiteral("Reset queue defaults"), group };
 		form->addRow(QueueDefaultsReset);
 		connect(QueueDefaultsReset, &QPushButton::clicked, this, [this] {
 			if (!QueueReady || !QueuePreferencesDispatch) {
@@ -4875,10 +4962,10 @@ namespace bpr::qt {
 		auto* const explanation = new QLabel{ QStringLiteral("Notifications contain the repository, review number, attention category and unread count. They never include titles, source code or comment text. Choosing a notification selects that review in Home.\n\nYour operating system controls permission and presentation. BetterPullReview cannot confirm every system permission setting."), notifications };
 		explanation->setWordWrap(true);
 		column->addWidget(explanation);
-		NotificationPreview = new QPushButton{ QStringLiteral("Preview for selected Home review"), notifications };
+		NotificationPreview = new quiet_push_button{ QStringLiteral("Preview for selected Home review"), notifications };
 		NotificationPreview->setObjectName(QStringLiteral("notificationPreview"));
 		column->addWidget(NotificationPreview);
-		NotificationReset = new QPushButton{ QStringLiteral("Reset notification preferences"), notifications };
+		NotificationReset = new quiet_push_button{ QStringLiteral("Reset notification preferences"), notifications };
 		column->addWidget(NotificationReset);
 		NotificationStatus = new QLabel{ notifications };
 		NotificationStatus->setWordWrap(true);
@@ -5990,7 +6077,7 @@ namespace bpr::qt {
 		RepositoryAdditionStatus->setTextFormat(Qt::PlainText);
 		RepositoryAdditionStatus->setWordWrap(true);
 		RepositoryAdditionStatus->hide();
-		RepositoryPrepareButton = new QPushButton{ tr("Choose account or set up server…"), draft };
+		RepositoryPrepareButton = new quiet_push_button{ tr("Choose account or set up server…"), draft };
 		RepositoryPrepareButton->setObjectName(QStringLiteral("repositoryAdditionPrepare"));
 		RepositoryPrepareButton->setAccessibleDescription(tr("Keep this draft while signing in or explicitly adding its server; return here before saving"));
 		RepositoryPrepareButton->setAutoDefault(false);
@@ -6001,7 +6088,7 @@ namespace bpr::qt {
 		RepositoryAddButton->setAccessibleDescription(tr("Save this repository locally for the displayed account; nothing changes on GitHub"));
 		RepositoryAddButton->setAutoDefault(false);
 		RepositoryAddButton->setDefault(true);
-		RepositoryCancelButton = new QPushButton{ tr("Cancel"), draft };
+		RepositoryCancelButton = new quiet_push_button{ tr("Cancel"), draft };
 		RepositoryCancelButton->setObjectName(QStringLiteral("repositoryAdditionCancel"));
 		RepositoryCancelButton->setAccessibleName(tr("Cancel new repository"));
 		RepositoryCancelButton->setAccessibleDescription(tr("Discard this repository draft without saving"));
@@ -6186,7 +6273,7 @@ namespace bpr::qt {
 		EnterpriseServerAdd->setAutoDefault(false);
 		EnterpriseServerAdd->setAccessibleName(QStringLiteral("Add enterprise server"));
 		EnterpriseServerAdd->setAccessibleDescription(QStringLiteral("Keeps this server so it is offered as a host. No sign-in is stored."));
-		EnterpriseServerCancel = new QPushButton{ QStringLiteral("Cancel"), draft };
+		EnterpriseServerCancel = new quiet_push_button{ QStringLiteral("Cancel"), draft };
 		EnterpriseServerCancel->setObjectName(QStringLiteral("enterpriseServerCancel"));
 		EnterpriseServerCancel->setAutoDefault(false);
 		EnterpriseServerCancel->setFlat(true);
@@ -7761,6 +7848,11 @@ namespace bpr::qt {
 			ThreadsReturnFocus = Finder != nullptr && Finder->isAncestorOf(QApplication::focusWidget()) ? nullptr : QApplication::focusWidget();
 		}
 		if (Modality != nullptr) {
+			// [[BPR-1740]]. A reply refused in one modality says nothing
+			// about the next.
+			if (Modality->current() != aModality) {
+				clear_reply_refusal();
+			}
 			Modality->adopt(aModality);
 		}
 		// [[BPR-0661]]. "Last used" is the modality chosen while a pull
@@ -8265,17 +8357,24 @@ namespace bpr::qt {
 	{
 		using placement = core::filtered_comment_placement;
 		using refusal   = core::filtered_comment_refusal;
-		if (!FilteredComments || ComparisonSurface == nullptr) {
+		if (ComparisonSurface == nullptr) {
 			return { };
 		}
 		const auto selection = ComparisonSurface->selection();
 		if (!selection.has_value() || comment_reply_thread().has_value()) {
 			return { };
 		}
-		if (!FilteredPlacement || FilteredPlacement->Selection != selection->PreferredLine) {
+		// [[BPR-1735]]. On the Whole PR diff only a placement off the line
+		// itself is said; with none, Publish is as it always was.
+		if (!FilteredComments) {
+			if (!WholeDiffPlacement || WholeDiffPlacement->Selection != selection->PreferredLine) {
+				return { };
+			}
+		} else if (!FilteredPlacement || FilteredPlacement->Selection != selection->PreferredLine) {
 			return { tr("Working out where GitHub puts a comment on this line…"), true };
 		}
-		const auto& target = FilteredPlacement->Target;
+		const auto& shown  = FilteredComments ? *FilteredPlacement : *WholeDiffPlacement;
+		const auto& target = shown.Target;
 		const auto  line   = static_cast<qulonglong>(target.Line) + 1U;
 		switch (target.Placement) {
 		case placement::head:
@@ -8287,16 +8386,25 @@ namespace bpr::qt {
 					 false };
 		case placement::earlier_commit:
 			return { tr("Goes on commit %1, where this line was written. A later commit changed it, so GitHub shows this comment as outdated: in the conversation, not in Files changed.")
-						 .arg(FilteredPlacement->Commit),
+						 .arg(shown.Commit),
 					 false };
 		case placement::file_comment: {
+			// [[BPR-1736]]. On the Whole PR diff, what was learned: GitHub
+			// refused such a comment here, or nothing is known yet and Publish
+			// asks GitHub once. Never what the server's version supports.
+			if (shown.Learned == core::off_hunk_creation_capability::unsupported) {
+				return { tr("GitHub can't place a comment on this line. It will be posted as a file comment that links to the line."), false };
+			}
+			if (shown.Learned == core::off_hunk_creation_capability::unknown) {
+				return { tr("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line."), false };
+			}
 			// [[BPR-1706]]. Why GitHub takes no line comment here, then what
 			// Publish does instead.
 			const auto why = target.Refusal == refusal::base_line_changed ? tr("This line changed after the merge base, where GitHub counts base lines, so GitHub can't attach a comment to it.")
 				: target.Refusal == refusal::not_on_commit
-				? tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so GitHub can't attach a comment to it.").arg(FilteredPlacement->Commit)
+				? tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so GitHub can't attach a comment to it.").arg(shown.Commit)
 				: tr("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it.");
-			return { tr("%1 Publish adds a comment on the file instead, linking to line %2 of commit %3.").arg(why).arg(line).arg(FilteredPlacement->Commit), false };
+			return { tr("%1 Publish adds a comment on the file instead, linking to line %2 of commit %3.").arg(why).arg(line).arg(shown.Commit), false };
 		}
 		case placement::refused:
 			break;
@@ -8308,12 +8416,16 @@ namespace bpr::qt {
 			return { tr("A range can be commented on only where this diff's side is the pull request's own. Comment on one line."), true };
 		case refusal::not_on_commit:
 			return { tr("A later commit changed this line, and GitHub shows no change of commit %1 near it, so no comment can go there. Comment on it in the whole pull request instead.")
-						 .arg(FilteredPlacement->Commit),
+						 .arg(shown.Commit),
 					 true };
 		case refusal::base_line_changed:
 			return { tr("This line changed after the merge base, where GitHub counts base lines. Comment on a right-side line instead."), true };
 		case refusal::outside_github_diff:
 			return { tr("This line is unchanged at the head, where GitHub shows no change near it, so no line comment can go there. Comment on a changed line instead."), true };
+		case refusal::range_outside_github_diff:
+			// [[BPR-1735]]. A range has no file comment: one line's link would
+			// say less than the reviewer selected.
+			return { tr("GitHub shows no change near some of these lines, so it can't attach a comment to them, and a comment on several lines can't go on the file. Comment on one line."), true };
 		case refusal::outside_pull_request:
 			return { tr("This diff's commits are not the pull request's own, so nothing can be published on it."), true };
 		case refusal::lines_unavailable:
@@ -8325,7 +8437,71 @@ namespace bpr::qt {
 
 	auto workbench_window::filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&
 	{
-		return FilteredPlacement;
+		return FilteredComments ? FilteredPlacement : WholeDiffPlacement;
+	}
+
+	void workbench_window::present_whole_diff_comment(std::optional<filtered_comment_presentation> aPlacement)
+	{
+		if (WholeDiffPlacement == aPlacement) {
+			return;
+		}
+		WholeDiffPlacement = std::move(aPlacement);
+		present_filtered_notice();
+		update_comment_target();
+		present_inline_draft();
+		publish_pending_file_comment();
+	}
+
+	void workbench_window::present_unplaceable_review_comments(std::map<core::review_draft_id, unplaceable_review_comment> aHeld)
+	{
+		if (UnplaceableComments == aHeld) {
+			return;
+		}
+		UnplaceableComments = std::move(aHeld);
+		present_held_suggestions();
+		present_inline_draft();
+	}
+
+	auto workbench_window::unplaceable_review_comments() const noexcept -> const std::map<core::review_draft_id, unplaceable_review_comment>&
+	{
+		return UnplaceableComments;
+	}
+
+	auto workbench_window::unplaceable_hold(const unplaceable_review_comment& aComment) const -> std::pair<QString, QString>
+	{
+		// [[BPR-1735]]. Why GitHub refuses it in a review, and what to do: a
+		// line is published on its own as a file comment; a range, which has
+		// no file comment, is deleted or rewritten on one line.
+		const auto line = static_cast<qulonglong>(aComment.Target.Placement == core::filtered_comment_placement::file_comment ? aComment.Target.Line : 0U) + 1U;
+		if (aComment.Target.Placement == core::filtered_comment_placement::file_comment) {
+			return { tr("GitHub shows no change near line %1, so it can't place this comment in a review.").arg(line), tr("Publish as file comment") };
+		}
+		return { tr("GitHub shows no change near some of these lines, so it can't place this comment in a review, and a comment on several lines can't go on the file. Delete it, or write it on one line."),
+				 QString{ } };
+	}
+
+	void workbench_window::publish_pending_file_comment()
+	{
+		// [[BPR-1735]]. Finish your review's Publish as file comment, once the
+		// comment shows at its line and the core has placed it on the file:
+		// the drawer's own Publish, which takes it out of the review.
+		if (!PendingFilePublish.has_value() || ReviewEditor == nullptr) {
+			return;
+		}
+		const auto& draft = ReviewEditor->shown_draft();
+		if (!draft.has_value() || draft->Id != *PendingFilePublish) {
+			return;
+		}
+		if (!UnplaceableComments.contains(draft->Id)) {
+			PendingFilePublish.reset();
+			return;
+		}
+		if (!WholeDiffPlacement.has_value() || WholeDiffPlacement->Selection != draft->Anchor || WholeDiffPlacement->Target.Placement != core::filtered_comment_placement::file_comment
+			|| !ReviewEditor->publish_action()->isEnabled()) {
+			return;
+		}
+		PendingFilePublish.reset();
+		ReviewEditor->publish_action()->trigger();
 	}
 
 	void workbench_window::present_filtered_notice()
@@ -8480,7 +8656,10 @@ namespace bpr::qt {
 			return;
 		}
 		auto* const tabs = static_cast<tray_tab_bar*>(TrayTabs);
-		// [[BPR-1594]]. Four tabs; the Agent keeps its spark beside its name.
+		// [[BPR-1594]]. Four tabs. [[BPR-1755]], the owner's accept of
+		// look v007 ("Get rid of teh icon on agent when it's full width like
+		// the other tabs do. Only use it for the narrow."): at full width
+		// every tab is its name alone.
 		const QString tabNames[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
 		const QString about[]    = {
 			tr("The pull request's threads, with their scope and filters"),
@@ -8499,7 +8678,7 @@ namespace bpr::qt {
 		const auto textOf  = [&tabNames, current](const face aFace, const int aIndex) {
 			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? tabNames[aIndex] : QString{ };
 		};
-		const auto glyphOf = [](const face aFace, const int aIndex) { return aFace != face::names || aIndex == tray_findings_tab; };
+		const auto glyphOf = [](const face aFace, const int /*aIndex*/) { return aFace != face::names; };
 		// The room is what the header's grid gives the tabs alone on their
 		// row: its width less its left margin and the spacing of its columns.
 		auto room = TrayHeader->width();
@@ -8531,13 +8710,16 @@ namespace bpr::qt {
 				return drawer_icon(drawer_glyph::agent, palette());
 			}
 		};
+		auto reshaped = false;
 		for (auto index = 0; index < tabCount; ++index) {
 			const auto text  = textOf(chosen, index);
 			const auto shown = glyphOf(chosen, index);
 			if (aRepaint || tabs->tabIcon(index).isNull() == shown) {
+				reshaped = reshaped || tabs->tabIcon(index).isNull() == shown;
 				tabs->setTabIcon(index, shown ? glyph(index) : QIcon{ });
 			}
 			if (tabs->tabText(index) != text) {
+				reshaped = true;
 				tabs->setTabText(index, text);
 			}
 			// A tab showing only its glyph says its name first.
@@ -8545,6 +8727,15 @@ namespace bpr::qt {
 			if (tabs->tabToolTip(index) != tip) {
 				tabs->setTabToolTip(index, tip);
 			}
+		}
+		// [[BPR-1757]]. A hidden QTabBar only marks its tabs dirty when a
+		// face changes; the header's own sizeHint() query then lays them out,
+		// so the bar's showEvent has nothing left to announce and the header's
+		// grid keeps the old width (the window opens on Overview with the tray
+		// hidden, so a restored width left Tour and Agent behind scroll
+		// arrows). The bar says it changed size itself.
+		if (reshaped) {
+			tabs->updateGeometry();
 		}
 	}
 
@@ -8605,6 +8796,109 @@ namespace bpr::qt {
 		choose_modality(review_modality::review);
 		if (Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
+	}
+
+	auto workbench_window::open_file_in_review(const QString& aPath) -> bool
+	{
+		const auto file = file_for_path(aPath);
+		if (!file || !Dispatch) {
+			return false;
+		}
+		choose_home(false);
+		choose_modality(review_modality::review);
+		Dispatch(core::select_workbench_file_intent{ .File = *file });
+		return true;
+	}
+
+	auto workbench_window::review_file_named(const QString& aPath) const -> std::optional<QString>
+	{
+		const auto* const model = Drawers[0].Panel != nullptr ? Drawers[0].Panel->contents() : nullptr;
+		if (model == nullptr || aPath.isEmpty()) {
+			return std::nullopt;
+		}
+		auto       found  = std::optional<QString>{ };
+		const auto suffix = aPath.startsWith(QLatin1Char{ '/' }) ? aPath : QStringLiteral("/") + aPath;
+		for (int row = 0; row < model->rowCount(); ++row) {
+			auto path = model->data(model->index(row, 0), Qt::DisplayRole).toString();
+			if (path == aPath) {
+				return path;
+			}
+			if (path.endsWith(suffix)) {
+				if (found) {
+					return std::nullopt;
+				}
+				found = path;
+			}
+		}
+		return found;
+	}
+
+	auto workbench_window::go_to_file_line(const QString& aPath, const std::uint32_t aLine, const bool aBefore) -> bool
+	{
+		const auto path = review_file_named(aPath);
+		if (!path || aLine == 0U) {
+			statusBar()->showMessage(tr("%1 is not in this pull request at its current head.").arg(aPath), 6000);
+			return false;
+		}
+		PendingLineGo      = pending_line_go{ .File = core::file_identity_of(path->toStdString()), .Side = aBefore ? core::diff_side::left : core::diff_side::right, .Line = aLine - 1U };
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		if (!context.has_value() || context->Key.File != PendingLineGo->File || Modality == nullptr || Modality->current() != review_modality::review) {
+			if (!open_file_in_review(*path)) {
+				PendingLineGo.reset();
+				return false;
+			}
+		}
+		resume_line_go();
+		return true;
+	}
+
+	void workbench_window::resume_line_go()
+	{
+		if (!PendingLineGo || ComparisonSurface == nullptr) {
+			return;
+		}
+		// Owner look v005 ("The review link in the response isn't scrolling the
+		// window to the line"): the line is revealed, not only selected, and
+		// a long file is waited for until its geometry is adopted
+		// ([[BPR-1264]]); the conversation anchor keeps the reveal through
+		// the file's measurement, as a thread's pick does ([[BPR-1698]]).
+		const auto context = ComparisonSurface->current_context();
+		if (context.has_value() && context->Key.File == PendingLineGo->File && ComparisonSurface->current_result() != nullptr && !ComparisonSurface->geometry_pending()) {
+			const auto go = *PendingLineGo;
+			PendingLineGo.reset();
+			if (!ComparisonSurface->reveal_conversation_line(go.Side, go.Line)) {
+				statusBar()->showMessage(tr("Line %1 is not in this file at the %2.").arg(go.Line + 1U).arg(go.Side == core::diff_side::left ? tr("base") : tr("head")), 6000);
+			}
+			return;
+		}
+		if (++PendingLineGo->Tries > 100) {
+			PendingLineGo.reset();
+			return;
+		}
+		QTimer::singleShot(100, this, [this] { resume_line_go(); });
+	}
+
+	void workbench_window::schedule_agent_suggestions()
+	{
+		if (AgentSuggestionsTimer != nullptr) {
+			AgentSuggestionsTimer->start();
+		}
+	}
+
+	void workbench_window::go_to_private_note(const std::uint64_t aId)
+	{
+		if (PrivateNotes == nullptr) {
+			return;
+		}
+		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
+		}
+		if (TrayTabs != nullptr && TrayTabs->currentIndex() != tray_notes_tab) {
+			TrayTabs->setCurrentIndex(tray_notes_tab);
+		}
+		if (PrivateNotes->open_note_id() != aId) {
+			PrivateNotes->open_note(aId);
 		}
 	}
 
@@ -8918,7 +9212,7 @@ namespace bpr::qt {
 		auto* const bar = new QHBoxLayout{ };
 		bar->setContentsMargins(12, 6, 12, 0);
 		bar->addStretch(1);
-		auto* const back = new QPushButton{ tr("Back to the code"), TourPage };
+		auto* const back = new quiet_push_button{ tr("Back to the code"), TourPage };
 		back->setObjectName(QStringLiteral("workbenchTourPageBack"));
 		back->setFlat(true);
 		back->setIcon(conversation_icon(conversation_glyph::minimize, palette()));
@@ -9444,8 +9738,8 @@ namespace bpr::qt {
 		// its thread, wherever it was drafted from.
 		// RFC-BPR-0089 M4. On a commit-filtered diff the host's core places
 		// the line; its refusal is the reason, its pending answer is not one.
-		if (const auto [notice, blocks] = filtered_comment_notice(); blocks && FilteredPlacement && FilteredPlacement->Target.Refusal != core::filtered_comment_refusal::lines_pending
-			&& selection && FilteredPlacement->Selection == selection->PreferredLine) {
+		if (const auto [notice, blocks] = filtered_comment_notice(); blocks && filtered_comment_placement() && filtered_comment_placement()->Target.Refusal != core::filtered_comment_refusal::lines_pending
+			&& selection && filtered_comment_placement()->Selection == selection->PreferredLine) {
 			return say(notice, tr("Cannot comment on this line here"));
 		}
 		if (selection && selection->PreferredLine.Side == core::diff_side::left && !LeftConversationEndpointCurrent && !comment_reply_thread().has_value() && !FilteredComments) {
@@ -10196,6 +10490,10 @@ namespace bpr::qt {
 			input.Filtered = FilteredPlacement.has_value() && FilteredPlacement->Selection == PaneSuggestion->Anchor
 				? FilteredPlacement->Target
 				: core::filtered_comment_target{ .Placement = core::filtered_comment_placement::refused, .Refusal = core::filtered_comment_refusal::lines_pending };
+		} else if (WholeDiffPlacement.has_value() && WholeDiffPlacement->Selection == PaneSuggestion->Anchor) {
+			// [[BPR-1735]]. On the Whole PR diff a line GitHub resolves nowhere
+			// cannot take a suggestion either.
+			input.Filtered = WholeDiffPlacement->Target;
 		}
 		auto* const editor = PaneSuggestion->Open && ComparisonSurface != nullptr ? ComparisonSurface->head_editor() : nullptr;
 		if (editor != nullptr) {
@@ -10282,6 +10580,12 @@ namespace bpr::qt {
 		auto held = std::map<core::review_draft_id, review_submission_editor::held_comment>{ };
 		for (const auto& [id, suggestion] : HeldSuggestions) {
 			held.emplace(id, review_submission_editor::held_comment{ .Reason = suggestion.Reason, .Convert = suggestion.Convert, .Ink = ink });
+		}
+		// [[BPR-1735]]. A comment GitHub cannot place in a review is held the
+		// same way, its action Publish as file comment.
+		for (const auto& [id, comment] : UnplaceableComments) {
+			const auto [reason, action] = unplaceable_hold(comment);
+			held.insert_or_assign(id, review_submission_editor::held_comment{ .Reason = reason, .Convert = action, .Ink = ink, .Kind = review_submission_editor::held_kind::unplaceable_line });
 		}
 		ReviewSubmissionEditor->set_held_comments(std::move(held));
 	}
@@ -10784,16 +11088,18 @@ namespace bpr::qt {
 		// [[BPR-1212]] slice 1. A draft on several lines names them; v002, a
 		// draft on the base side says so.
 		const auto base  = draft.has_value() && draft->Anchor.Side == core::diff_side::left;
-		const auto words = !draft.has_value()      ? QString{ }
-			: draft->StartLine.has_value() && base ? tr("Base lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
-			: draft->StartLine.has_value()         ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
-			: base                                 ? tr("Base line %1").arg(draft->Anchor.Line + 1U)
-												   : tr("Line %1").arg(draft->Anchor.Line + 1U);
+		const auto words = !draft.has_value() ? QString{ }
+			// [[BPR-1745]]. A reply bound to its outdated thread has no line.
+			: core::thread_bound_anchor(draft->Anchor) ? tr("Outdated thread")
+			: draft->StartLine.has_value() && base     ? tr("Base lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+			: draft->StartLine.has_value()             ? tr("Lines %1–%2").arg(*draft->StartLine + 1U).arg(draft->Anchor.Line + 1U)
+			: base                                     ? tr("Base line %1").arg(draft->Anchor.Line + 1U)
+													   : tr("Line %1").arg(draft->Anchor.Line + 1U);
 		// The full composer's excerpt follows the same draft.
 		if (DraftExcerpt != nullptr) {
 			auto* const excerpt = static_cast<draft_excerpt_view*>(DraftExcerpt);
 			auto        shown   = false;
-			if (draft.has_value() && ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
+			if (draft.has_value() && !core::thread_bound_anchor(draft->Anchor) && ComparisonSurface != nullptr && ComparisonSurface->current_result() != nullptr
 				&& ComparisonSurface->current_context().has_value()
 				&& draft->Anchor.Comparison == ComparisonSurface->current_result()->Alignment.Digest) {
 				const auto& result   = *ComparisonSurface->current_result();
@@ -10847,6 +11153,13 @@ namespace bpr::qt {
 			cards->present_draft(std::nullopt);
 			return;
 		}
+		// [[BPR-1735]]. A comment GitHub cannot place in the review is held on
+		// the comment itself too, its action Publish as file comment.
+		if (hold.first.isEmpty()) {
+			if (const auto found = UnplaceableComments.find(draft->Id); found != UnplaceableComments.end()) {
+				hold = unplaceable_hold(found->second);
+			}
+		}
 		// [[BPR-1329]]. What the last Publish came to comes first: publishing,
 		// or why it did not happen. Otherwise, why Publish is unavailable.
 		auto notice = ReviewEditor->publication_status();
@@ -10872,6 +11185,7 @@ namespace bpr::qt {
 			.Retry       = ReviewEditor->publication_retry_offered(),
 			.Review      = draft_review(),
 		});
+		publish_pending_file_comment();
 	}
 
 	auto workbench_window::draft_review() const -> draft_review_state
@@ -11263,44 +11577,58 @@ namespace bpr::qt {
 		}
 	}
 
-	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool
+	auto workbench_window::thread_reply_anchor_of(const std::string& aIdentity) const -> thread_reply_anchor
 	{
-		if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
-			return false;
+		auto anchor = thread_reply_anchor{ };
+		if (ConversationPanel == nullptr) {
+			return anchor;
 		}
 		// The thread's anchor, from the panel's list when it holds the thread.
 		// [[BPR-1133]]. Otherwise from its card: while a line is selected the
 		// list holds only that line's threads, and a card beside the code can
 		// answer a thread on another line.
-		auto path     = QString{ };
-		auto side     = std::optional<core::diff_side>{ };
-		auto oneBased = std::uint64_t{ 0U };
-		auto current  = false;
-		auto root     = ConversationPanel->model()->index_for_id(aIdentity);
+		auto root = ConversationPanel->model()->index_for_id(aIdentity);
 		while (root.isValid() && root.parent().isValid()) {
 			root = root.parent();
 		}
 		if (root.isValid()) {
-			current = root.data(github_conversation_model::anchor_availability_role).toInt()
+			anchor.Known   = true;
+			anchor.Current = root.data(github_conversation_model::anchor_availability_role).toInt()
 				== static_cast<int>(application::github_conversation_anchor_availability::current);
-			path                 = root.data(github_conversation_model::path_role).toString();
+			anchor.Path          = root.data(github_conversation_model::path_role).toString();
+			anchor.Outdated      = root.data(github_conversation_model::outdated_role).toBool();
 			auto       validLine = false;
 			const auto line      = root.data(github_conversation_model::line_role).toULongLong(&validLine);
-			oneBased             = validLine ? line : 0U;
+			anchor.Line          = validLine ? line : 0U;
 			if (const auto sideValue = root.data(github_conversation_model::diff_side_role); sideValue.isValid()) {
-				side = github_conversation_source_side(sideValue.toInt());
+				anchor.Side = github_conversation_source_side(sideValue.toInt());
 			}
 		} else if (ConversationPanel->cards() != nullptr) {
 			const auto& cards = ConversationPanel->cards()->cards();
 			const auto  card  = std::ranges::find(cards, aIdentity, &thread_card::Id);
 			if (card != cards.end() && !card->Draft) {
-				current  = !card->AnchorUnavailable;
-				path     = card->Path;
-				side     = card->Side;
-				oneBased = card->Line.value_or(0U);
+				anchor.Known    = true;
+				anchor.Current  = !card->AnchorUnavailable;
+				anchor.Outdated = card->ReplyOnThread;
+				anchor.Path     = card->Path;
+				anchor.Side     = card->Side;
+				anchor.Line     = card->Line.value_or(0U);
 			}
 		}
-		const auto context = ComparisonSurface->current_context();
+		return anchor;
+	}
+
+	auto workbench_window::select_thread_line(const std::string& aIdentity) -> bool
+	{
+		if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
+			return false;
+		}
+		const auto anchor   = thread_reply_anchor_of(aIdentity);
+		const auto current  = anchor.Current;
+		const auto path     = anchor.Path;
+		const auto side     = anchor.Side;
+		const auto oneBased = anchor.Line;
+		const auto context  = ComparisonSurface->current_context();
 		if (!current || !context.has_value() || path.isEmpty()
 			|| context->Key.File != core::file_identity_of(path.toStdString())) {
 			return false;
@@ -11340,17 +11668,49 @@ namespace bpr::qt {
 
 	void workbench_window::begin_thread_reply(const std::string& aIdentity, const bool aInPlace)
 	{
+		clear_reply_refusal();
+		// [[BPR-1746]]. A thread GitHub says this viewer cannot reply
+		// in is refused here, before anything is written, with GitHub's
+		// reason in plain words.
+		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
+			const auto& cards = ConversationPanel->cards()->cards();
+			if (const auto card = std::ranges::find(cards, aIdentity, &thread_card::Id); card != cards.end() && card->ReplyRefusal != core::thread_reply_refusal::none) {
+				ReplyRefusalShown = true;
+				ConversationPanel->present_notice(thread_reply_refusal_text(card->ReplyRefusal));
+				return;
+			}
+		}
+		// [[BPR-1290]]. Beside the code the reply is written in place, at the
+		// foot of the open thread; it is the same draft, and nothing publishes
+		// but its Publish.
+		const auto inPlace = [this, &aIdentity, aInPlace] {
+			const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
+			return aInPlace && !discuss && Drawers[1].Panel->state() == core::workbench_drawer_state::expanded
+				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
+				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
+		};
+		// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an
+		// outdated thread from the drawer, like GitHub does". The core decides
+		// the route from GitHub's thread data; an outdated thread is answered
+		// by the thread, with no line to select, in Review, Discuss and
+		// Threads alike.
+		const auto anchor   = thread_reply_anchor_of(aIdentity);
+		const auto decision = core::decide_thread_reply({ .ReviewThread = anchor.Known && !anchor.Path.isEmpty(), .Outdated = anchor.Outdated });
+		if (decision.Route == core::thread_reply_route::on_thread && ThreadReplyDispatch && ReviewEditor != nullptr) {
+			ThreadReplyDispatch(aIdentity);
+			update_comment_target();
+			if (inPlace()) {
+				ConversationPanel->cards()->begin_reply(aIdentity);
+				present_inline_reply();
+				return;
+			}
+			open_review_composition(true);
+			return;
+		}
 		if (select_thread_line(aIdentity) && ReviewReplyDispatch && ReviewEditor != nullptr) {
 			ReviewReplyDispatch(aIdentity);
 			update_comment_target();
-			// [[BPR-1290]]. Beside the code the reply is written in place, at
-			// the foot of the open thread; it is the same draft, and nothing
-			// publishes but its Publish.
-			const auto discuss = Modality != nullptr && (Modality->current() == review_modality::discuss || Modality->current() == review_modality::threads);
-			const auto inPlace = aInPlace && !discuss && Drawers[1].Panel->state() == core::workbench_drawer_state::expanded
-				&& TrayTabs != nullptr && TrayTabs->currentIndex() == tray_comments_tab
-				&& std::ranges::any_of(ConversationPanel->cards()->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; });
-			if (inPlace) {
+			if (inPlace()) {
 				ConversationPanel->cards()->begin_reply(aIdentity);
 				present_inline_reply();
 				return;
@@ -11362,7 +11722,58 @@ namespace bpr::qt {
 			}
 			return;
 		}
-		ConversationPanel->present_notice(tr("Open this thread in code before replying."));
+		refuse_thread_reply(aIdentity);
+	}
+
+	void workbench_window::refuse_thread_reply(const std::string& aIdentity)
+	{
+		if (ConversationPanel == nullptr) {
+			return;
+		}
+		// [[BPR-1740]]. The owner, 2026-10-22, of "Open this thread in
+		// code before replying": "I also have no idea what that means I'm on
+		// the code". The words say what is true of this thread, and a thread
+		// on a file that is not in the code gets the click that shows it.
+		const auto anchor  = thread_reply_anchor_of(aIdentity);
+		const auto context = ComparisonSurface != nullptr ? ComparisonSurface->current_context() : std::nullopt;
+		const auto shown   = context.has_value() && !anchor.Path.isEmpty()
+			&& context->Key.File == core::file_identity_of(anchor.Path.toStdString());
+		ReplyRefusalShown = true;
+		if (anchor.Known && anchor.Current && !anchor.Path.isEmpty() && !shown) {
+			const auto origin = Modality != nullptr && Modality->current() == review_modality::discuss
+				? core::workbench_thread_origin::discuss
+				: core::workbench_thread_origin::review;
+			ConversationPanel->present_notice(
+				tr("This thread is on %1, which isn't the file in the code.").arg(anchor.Path.section(QLatin1Char{ '/' }, -1)),
+				tr("Show in code"),
+				[this, aIdentity, origin] {
+					clear_reply_refusal();
+					static_cast<void>(move_thread(aIdentity, origin, core::workbench_thread_destination::review));
+				});
+			return;
+		}
+		if (anchor.Known && anchor.Current && anchor.Side.has_value() && anchor.Line > 0U) {
+			if (*anchor.Side == core::diff_side::left && !LeftConversationEndpointCurrent) {
+				ConversationPanel->present_notice(tr("This thread is on the pull request's base, and this comparison starts from another commit."));
+				return;
+			}
+			if (*anchor.Side == core::diff_side::right && !RightConversationEndpointCurrent) {
+				ConversationPanel->present_notice(tr("This thread is on the pull request's latest commit, and this comparison ends at another one."));
+				return;
+			}
+		}
+		ConversationPanel->present_notice(tr("This thread's line isn't in the code shown, so it can't take a reply here."));
+	}
+
+	void workbench_window::clear_reply_refusal()
+	{
+		if (!ReplyRefusalShown) {
+			return;
+		}
+		ReplyRefusalShown = false;
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->present_notice(QString{ });
+		}
 	}
 
 	void workbench_window::resume_deferred_reply()
@@ -11382,9 +11793,28 @@ namespace bpr::qt {
 		ReviewReplyDispatch = std::move(aDispatch);
 	}
 
+	void workbench_window::set_thread_reply_dispatch(workbench_review_reply_dispatch aDispatch)
+	{
+		ThreadReplyDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch)
 	{
 		ThreadResolutionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_reaction_dispatch(workbench_reaction_dispatch aDispatch)
+	{
+		ReactionDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::present_conversation_state(std::map<std::string, core::reaction_summary> aReactions, std::map<std::string, thread_resolution_presentation> aResolutions)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		ConversationPanel->cards()->present_reactions(std::move(aReactions));
+		ConversationPanel->cards()->present_thread_resolutions(std::move(aResolutions));
 	}
 
 	void workbench_window::set_thread_resolution_provider(const bool aResolves)
@@ -11484,7 +11914,7 @@ namespace bpr::qt {
 			auto* const heading    = new QLabel{ aHeading, BehaviourEditor };
 			heading->setObjectName(aResetName + QStringLiteral("Heading"));
 			headingRow->addWidget(heading, 1);
-			auto* const reset = new QToolButton{ BehaviourEditor };
+			auto* const reset = new quiet_tool_button{ BehaviourEditor };
 			reset->setObjectName(aResetName);
 			reset->setText(QStringLiteral("Reset"));
 			reset->setAccessibleName(QStringLiteral("Reset %1").arg(aHeading.toLower()));
@@ -11536,7 +11966,7 @@ namespace bpr::qt {
 				auto* const group = new QButtonGroup{ BehaviourEditor };
 				group->setExclusive(true);
 				for (const auto& choice : one.Options) {
-					auto* const button = new QToolButton{ BehaviourEditor };
+					auto* const button = new quiet_tool_button{ BehaviourEditor };
 					button->setObjectName(choice.Name);
 					button->setText(choice.Label);
 					button->setAccessibleName(one.Label + QStringLiteral(": ") + choice.Label);
@@ -13815,6 +14245,10 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_code_syntax_dispatch(relay);
 		}
+		// [[BPR-1753]], owner look v003: the agent's answers' code too.
+		if (AgentTab != nullptr) {
+			AgentTab->set_code_syntax_dispatch(relay);
+		}
 	}
 
 	void workbench_window::apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans)
@@ -13825,6 +14259,9 @@ namespace bpr::qt {
 		}
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->apply_markdown_code_syntax(aSpans);
+		}
+		if (AgentTab != nullptr) {
+			AgentTab->apply_code_syntax(aSpans);
 		}
 	}
 
@@ -15845,6 +16282,8 @@ namespace bpr::qt {
 		if (shown && std::ranges::any_of(cards->cards(), [this](const thread_card& aCard) { return aCard.Id == PendingPick->Thread; })) {
 			const auto pick = *PendingPick;
 			PendingPick.reset();
+			// [[BPR-1740]]. The thread is open beside its code now.
+			clear_reply_refusal();
 			cards->open_thread_at(pick.Thread, pick.Post);
 			// The selection authority names the picked post itself, as a
 			// revealed comment always has; its thread stays the one open.

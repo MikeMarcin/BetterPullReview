@@ -252,7 +252,7 @@ namespace {
 	// [[BPR-0657]]. A thread resolution is refused, in this order, for an
 	// anonymous read, an absent capability, and a thread already in the
 	// state asked for; otherwise it is allowed.
-	void test_a_thread_resolution_is_refused_for_exactly_three_reasons()
+	void test_a_thread_resolution_is_refused_for_exactly_four_reasons()
 	{
 		using core::decide_thread_resolution;
 		using core::thread_resolution_refusal;
@@ -285,6 +285,17 @@ namespace {
 		unresolveResolved.Resolved = true;
 		expect(decide_thread_resolution(unresolveResolved) == thread_resolution_refusal::none,
 			   "unresolving a resolved thread is allowed");
+		// [[BPR-1741]]. GitHub's per-thread permission.
+		auto denied            = allowed;
+		denied.ViewerPermitted = false;
+		expect(decide_thread_resolution(denied) == thread_resolution_refusal::not_permitted,
+			   "a viewer GitHub does not let resolve the thread is refused");
+		denied.Resolved = true;
+		expect(decide_thread_resolution(denied) == thread_resolution_refusal::not_permitted,
+			   "the permission is asked before the state");
+		denied.Capability = core::github_capability_state::unknown;
+		expect(decide_thread_resolution(denied) == thread_resolution_refusal::capability_absent,
+			   "and after the server's capability");
 	}
 
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
@@ -498,6 +509,76 @@ namespace {
 			   "a replay returns the file comment's receipt");
 	}
 
+	/// [[BPR-1735]]. A fully received refusal retires the child as rejected;
+	/// GitHub holds no comment of it, so publishing again is a new attempt,
+	/// and a line the core now places outside GitHub's diff goes to its file
+	/// comment. Nothing else rejects.
+	void test_rejected_publication_policy()
+	{
+		using namespace core;
+		using action = review_publication_action;
+		using state  = review_publication_state;
+		using event  = review_publication_event;
+		review_publication_observation value{ .Eligible = true };
+		const auto                     step = [&value](event aEvent) { auto next=advance_review_publication(value,aEvent); expect(next.has_value(), "legal durable transition"); value.State=*next; };
+		step(event::prepare_native);
+		step(event::native_transmission_witness);
+		expect(plan_review_publication(value).Action == action::reconcile_native, "an unanswered native child only reconciles");
+		step(event::definitively_rejected);
+		expect(value.State == state::rejected, "a fully received refusal rejects the native child");
+		const auto again = plan_review_publication(value);
+		expect(again.Action == action::native_attempt && again.Representation == review_publication_representation::native_line, "a rejected comment can be published again");
+		expect(advance_review_publication(value, event::prepare_native) == std::optional{ state::native_prepared }, "as a new native attempt");
+		expect(!advance_review_publication(value, event::prepare_fallback) && !advance_review_publication(value, event::native_created)
+				   && !advance_review_publication(value, event::fallback_created) && !advance_review_publication(value, event::native_transmission_witness),
+			   "a rejection authorizes no fallback and no receipt");
+		value.Placement = review_placement::unresolvable_line;
+		expect(plan_review_publication(value).Action == action::admit_unresolvable_line, "a refused line now placed outside GitHub's diff goes to its file comment");
+		expect(advance_review_publication(value, event::admit_unresolvable_line) == std::optional{ state::unresolvable_line_admitted } && !advance_review_publication(value, event::prepare_native),
+			   "admitted, with no native attempt");
+		value.Placement         = review_placement::off_hunk;
+		value.Capability        = off_hunk_creation_capability::unsupported;
+		value.CapabilityCurrent = true;
+		expect(plan_review_publication(value).Action == action::admit_unsupported_evidence, "fresh scoped evidence is admitted as from the start");
+
+		// A file comment GitHub refused (subject_type file on a host that has
+		// none) is rejected too, and its draft kept.
+		value = { .Placement = review_placement::unresolvable_line, .Eligible = true };
+		step(event::admit_unresolvable_line);
+		step(event::prepare_fallback);
+		step(event::fallback_transmission_witness);
+		step(event::definitively_rejected);
+		expect(value.State == state::rejected, "a refused file comment is rejected");
+		expect(plan_review_publication(value).Action == action::admit_unresolvable_line, "and can be published again");
+		for (const auto unanswered : { state::initial, state::native_definitively_unsupported, state::unsupported_evidence_admitted, state::unresolvable_line_admitted, state::succeeded_native, state::succeeded_fallback, state::rejected }) {
+			expect(!advance_review_publication({ .State = unanswered, .Eligible = true }, event::definitively_rejected), "only a sent child is rejected");
+		}
+
+		// What settles a child that may have been sent, when GitHub's complete
+		// list holds no comment of it.
+		using answer       = review_publication_answer;
+		constexpr auto at  = std::int64_t{ 1'000'000 };
+		const auto     now = at + review_publication_settle_delay_ms;
+		expect(publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 4U, .RecordedUtcMs = at }, at), "a fully received 4xx settles at once");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 5U, .RecordedUtcMs = at }, now * 9), "a server error never does");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 3U, .RecordedUtcMs = at }, now * 9), "nor a redirect");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = at }, now * 9), "nor a POST with no definite answer: its outcome is unknown");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::success, .StatusClass = 2U, .RecordedUtcMs = at }, now * 9), "nor a success");
+		expect(!publication_definitely_unpublished(std::nullopt, now * 9), "nor a child with no answer kept");
+		const auto migrated = review_publication_post{ .Answer = answer::kept_before_answers, .StatusClass = 0U, .RecordedUtcMs = at };
+		expect(!publication_definitely_unpublished(migrated, now - 1) && publication_definitely_unpublished(migrated, now), "a migrated record settles ten minutes after it was migrated");
+		expect(!publication_definitely_unpublished(migrated, at - 1), "a clock earlier than the record waits");
+		expect(!valid(review_publication_post{ .Answer = answer::success, .StatusClass = 4U }) && !valid(review_publication_post{ .Answer = answer::no_answer, .StatusClass = 4U })
+				   && !valid(review_publication_post{ .Answer = static_cast<answer>(9), .StatusClass = 0U }) && !valid(review_publication_post{ .Answer = answer::no_answer, .RecordedUtcMs = -1 }),
+			   "answers out of range are invalid");
+		expect(!publication_definitely_unpublished(review_publication_post{ .Answer = answer::error_status, .StatusClass = 6U }, now), "and settle nothing");
+
+		using outcome = review_publication_outcome;
+		expect(retain_review_publication_outcome(outcome::indeterminate, outcome::rejected) == outcome::not_published, "the journal's rejection unlocks a draft whose outcome was unknown");
+		expect(retain_review_publication_outcome(outcome::indeterminate, outcome::not_published) == outcome::indeterminate, "a refused check does not");
+		expect(retain_review_publication_outcome(outcome::published, outcome::rejected) == outcome::published, "nor does anything undo a confirmed receipt");
+	}
+
 	void test_publication_policy()
 	{
 		using namespace core;
@@ -565,6 +646,7 @@ namespace {
 			}
 		}
 		test_unresolvable_line_policy();
+		test_rejected_publication_policy();
 		expect(classify_review_body("text\n```suggestion:-1+2\nx\n```") == review_body_compatibility::requires_line_subject, "suggestion ranges keep line semantics");
 		expect(classify_review_body("~~~  suggestion\ncode") == review_body_compatibility::requires_line_subject, "whitespace in a suggestion info string cannot degrade");
 		expect(classify_review_body("ordinary prose") == review_body_compatibility::portable, "plain prose is portable");
@@ -582,7 +664,7 @@ auto main() -> int
 	test_a_published_comment_is_no_longer_a_draft();
 	test_illegal_commands_carry_their_own_reason();
 	test_a_proposal_exists_only_while_publishing();
-	test_a_thread_resolution_is_refused_for_exactly_three_reasons();
+	test_a_thread_resolution_is_refused_for_exactly_four_reasons();
 	test_an_unchanged_target_publishes();
 	test_a_moved_head_stops_the_publication_until_acknowledged();
 	test_a_changed_target_can_never_be_acknowledged_away();

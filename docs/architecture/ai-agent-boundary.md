@@ -16,12 +16,34 @@ A profile declares executable, protocol, supported capabilities, workspace polic
 
 The shipped immutable registry contains Codex App Server and Codex JSONL
 (`codex`), approved Claude stream JSON (`claude`), and the external terminal
-harness (`bpr-agent-terminal`). Merely showing the panel performs no executable
-discovery. A missing executable becomes `failed_to_start` only after an explicit
-start gesture. The one search is Claude's with no wrapper saved, below, which
-Settings > Agents & context also runs to show its result. GitHub.com permits all four profiles; an explicit GHES host
-refuses Codex before workspace or launcher effects and offers only the approved
-corporate alternatives.
+harness (`bpr-agent-terminal`). The Agent tab and Send to Agent name them by
+plain name: Claude Code, Codex, and a harness that reads plain text.
+GitHub.com permits all four profiles; an explicit GHES host refuses Codex
+before workspace or launcher effects and offers only the approved corporate
+alternatives.
+
+**Looking for agents ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), owner answer Q2).**
+This amends the earlier rule that merely showing the panel performs no
+executable discovery. The first time a window's Agent tab is shown, and on
+**Look again**, the setup host looks for each agent the current Git host's
+policy permits. Looking reads file metadata only: no process starts, no shell
+runs, nothing is written, and the application's own `PATH` is used. Claude is
+found as before (a saved process wrapper, then `PATH`, then the usual
+folders, below). Codex is found the same way (Q5): a saved Codex program path
+in Settings > Agents & context, then `PATH`, then `HOME/.local/bin`,
+`/opt/homebrew/bin`, `/usr/local/bin` and `HOME/.npm-global/bin`; on Windows
+only `codex.exe`. The plain-text harness is never searched for: it runs only a
+program path the reviewer chose there. Every Codex and harness launch
+resolves the same way (`located_agent_process`), so a shipped build starts the
+found absolute program rather than handing a bare name to a launcher that
+refuses one; none found ends the request `failed_to_start` and starts nothing.
+
+**Check it works.** The setup's one explicit check runs only the chosen agent's
+own status command (`claude auth status --json`, `codex login status`) and a
+`--version` read, through the supervised launcher with the profile's
+environment allowlist, no review context and a 15-second bound, and then makes
+and removes the workspace an Ask would make (below). It sends no question, no
+code and no model request.
 
 Initial protocols:
 
@@ -156,11 +178,120 @@ staleness, and orderly shutdown use the same bounded path. The child working
 directory is assigned only after materialization. Existing-checkout mode
 remains a per-invocation choice and discloses dirty or unknown state.
 
+**A linked clone's history ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md), Q7, Q8 A).**
+When the pull request's repository is linked to the reviewer's own clone, the
+disposable workspace gets one `objects/info/alternates` line naming that
+clone's objects folder, the only alternate the topology check then admits.
+The agent reads the clone's history and blame through it; nothing is written
+to the clone, and the workspace still has no remote. Only what the clone lacks
+is copied, from the application's own cache and never through the reviewer's
+remote or credentials: nothing when the clone holds the head, the head's
+objects without the base's when it holds the base. Otherwise the private copy
+also holds the base its cache has, so the brief's named diff works when the
+base is not an ancestor of the head. A sparse review's workspace is shallow at
+the head unless the clone holds every parent of the head. This is in place of
+the `git worktree` the RFC first described, which the owner accepted on
+2026-10-22. Check it works makes and removes the same workspace through the
+agent host's `probe_workspace`, with a session identity from a reserved range,
+no admitted session and no process.
+
 ## Context supplement
 
-The agent retrieves PR data through its own GitHub tools. BetterPullReview's
-version-two supplement supplies only the approved local state that GitHub does
-not represent:
+Version three ([RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md))
+adds the review brief to every review request: each entry point but a
+comment-workshop press, and never a writing request. The brief holds what the
+signed-in reviewer can already read on GitHub, bounded with every cut counted:
+the title, the description (16 KiB, cut at a line), the base branch, the
+changed files with their status, the review threads (64 KiB in all, unresolved
+first, omissions counted), the workspace's kind (`linked_clone_history`,
+`private_copy` or `private_snapshot`, set once it is made), the diff named
+rather than copied (`git diff BASE...HEAD`, none for a snapshot), and the
+review skill's text. It also carries the conversation so far about the pull
+request ([[BPR-1753]], owner decision (b), 2026-10-23): the earlier
+questions and answers, oldest first (`brief.conversation.N.asked` and
+`.answered`), each side cut to 8 KiB, the newest 50 turns within 48 KiB and
+the older ones counted (`brief.conversation.omitted`). The application
+carries the conversation rather than a harness's own resumable session, so a
+follow-up continues it in whichever agent answers. The turns are kept, as the
+Agent tab shows them, in the profile's `agent-setup.sqlite3` for each pull
+request (host, owner, name and number; at most 50 turns, 64 KiB per text and
+500 pull requests, the least recently written going first); Clear session
+removes them, and settings resets remove the file. They are the reviewer's
+questions and the agent's prose, and no credential. Its lines follow every
+version-two field and are written only when present, so a launch without a
+brief differs from version two only in its `schema` line. The agent may still
+read GitHub through its own tools.
+
+**Agents the reviewer adds ([[BPR-1753]], owner amendment
+2026-10-23).** The picker offers only the agents in the profile's list
+(`core::agent_entry`, at most 16, kept in `agent-setup.sqlite3`): each a
+name, a protocol, a program and fixed arguments, with a default model and
+effort the protocol takes. Each launches as a fixed profile slot of its
+protocol (`core::agent_entry_profiles`), told to every host at composition
+and allowed by `core::built_in_agent_policy` wherever its protocol's built-in
+profile is; the policy question is unchanged. `application::agent_entry_process`
+starts a slot as its entry says: the entry's program, inspected again at each
+launch under the wrapper rules (a popular agent with none has its own program
+looked for again), and the entry's fixed arguments before the protocol's
+own. Nothing from a pull request, a question or a setting is put into the
+arguments, no shell runs them, the environment allowlist is the protocol's,
+and no credential is involved. A pull request's conversation is kept per
+agent (`agent_conversation_key::Agent`), so a follow-up carries only its own
+agent's earlier turns.
+
+**What a harness offers ([[BPR-1753]], owner look v006).** The setup
+host asks an added agent's harness for its models and effort levels when the
+Agent tab shows that agent or its menu opens, once per window: a Codex
+protocol runs the agent's own program and fixed arguments with `app-server`,
+`initialize`, `initialized` and `model/list`, and closes its input once the
+list is in (`agent_launch_purpose::model_catalog`); Claude Code runs with
+`--help`. Each is a tool-free run like the setup check: an empty folder of its
+own, the profile's environment allowlist, no workspace, no context and the
+check's 15-second bound. BetterPullReview reads no Codex or Claude
+configuration file.
+
+**No run time limit by default ([[BPR-1753]], owner decision
+2026-10-23).** A run has no time limit unless the reviewer sets one in
+Settings › Agents & context (one limit for every agent, in minutes, kept in
+`agent-setup.sqlite3`); with none, the launcher is given
+`application::agent_run_without_limit`, the longest wait an `int` of
+milliseconds names. Stop, closing the window and quitting end a run as
+before, through the same process-group supervision; output, workspace and
+frame bounds are unchanged and are not time limits. A custom agent's setup
+check runs only its program's own check arguments, fixed and without a
+shell, and must exit 0; with none it only inspects the program.
+
+**Findings in the answer ([[BPR-1753]], owner decision 2026-10-23).**
+A harness writes its own result frame, so its model cannot add `bprFindings`
+to it. The review skill therefore asks for a block fenced `bpr-findings` at
+the end of a review's answer: a `findings` array of `path`, one-based
+inclusive `startLine` and `endLine` (at the head unless `side` is `left`),
+`severity`, `category` and `confidence` by the payload's stable names,
+`claim`, and optionally `evidence`, `consequence` and `suggestedComment`.
+When a successful turn returned no structured payload,
+`application::decode_agent_review_findings` reads the last such block from
+its output (at most 32 findings within 48 KiB; an entry that is not a
+finding is left out), states the provider and analyzed base and head from
+the session, and anchors a finding to its first line only on a file the
+turn's frozen snapshot holds; any other finding has no anchor, and
+`core::validate_agent_finding` delivers it unanchored. Nothing reaches a
+draft or a note without the reviewer's gesture on its card.
+
+**The review skill (owner decision D1, Q9 A).** The method ships as an Agent
+Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into
+the application with `metadata.bpr-version`. Its text goes in every review
+request's brief, the same for every agent, and nothing is written to any
+harness's configuration. It grants nothing. The reviewer edits it in Settings
+> Agents & context > Review skill; the first edit keeps a copy in the profile's
+`agent-setup.sqlite3` with the built-in version and SHA-256 it came from. A
+save must keep the name `bpr-pr-review` and a description and stay within
+64 KiB. An update never changes an edited copy: a newer built-in is offered
+with **Compare**, **Use version N** and **Keep mine**, and Restore default and
+Use version N save the copy to Downloads first and remove nothing when that
+fails.
+
+The version-two fields supply the approved local state that GitHub does not
+represent:
 
 - exact session, profile, host, repository, PR URL and ID, base/head OIDs, and
   selected epoch pair;
@@ -1190,8 +1321,8 @@ none of these four transports has a typed content-self-report field.
 | Protocol | Requested/default settings sent | Reported facts admitted | Unknown facts |
 |---|---|---|---|
 | Codex App Server | `thread/start.params.model`; `turn/start.params.model` and `.effort` | `thread/start.result.model`, `.reasoningEffort`, `.thread.id`; `turn/start.result.turn.id` | Tool version, remote session/run, content-self-report |
-| Codex JSONL exec | Explicit settings refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
-| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort refuses as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model` | Effort, remote thread/turn/run, content-self-report |
+| Codex JSONL exec | Model as `-m NAME` and effort as `-c model_reasoning_effort="LEVEL"` ([[BPR-1753]]; names `core::valid_claude_model` admits, levels `minimal`, `low`, `medium`, `high`, `xhigh`); others refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
+| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort as `--effort LEVEL` ([[BPR-1753]]; `low`, `medium`, `high`, `xhigh`, `max`), any other refusing as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model`; the result frame's `total_cost_usd`, a plain decimal only, as the run's reported cost | Effort, remote thread/turn/run, content-self-report |
 | External terminal | Explicit settings refuse as `unsupported_runtime_settings` | None | All runtime facts |
 
 These are field-specific observations, not provider-execution attestation.

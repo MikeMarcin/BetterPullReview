@@ -12,6 +12,47 @@ blocked_by: "release-security-inputs"
 
 # Verify release trust and security boundaries
 
+## Security-audit port and what still blocks, 2026-10-22
+
+The unmerged 2026-10-16 audit (`codex/rfc0038-security-audit-20261016`, which
+contains `codex/rfc0038-qualification`) is now on main. That covers its scan
+verifier and controls, its row-review method, the owner's Qt known-issues
+decision and its 0.2.x evidence, kept as history. The
+[ledger](../../verification/RFC-BPR-0038.md#security-audit-port-and-current-release-scan-recheck-2026-10-22)
+lists what was taken. An offline rerun of the verifier against the published
+v0.3.1 Mac, Windows and Ubuntu packages and the v0.3.2 Mac prerelease exits 2
+on 21, 19, 21 and 21 matches. Those are the same rows v0.3.1's reviewers saw.
+No criterion is accepted. This card stays **Blocked** on
+`release-security-inputs`, for these reasons:
+
+- **AC3 fails.**
+  - Every current scan exits 2.
+  - v0.3.1's factual dispositions expire 2026-11-19. No accountable named
+    security owner has accepted them, as the release policy requires for
+    Critical and High rows.
+  - Windows bundled zlib `CVE-2026-85091` (High, three rows) is unpatched in
+    Qt 6.12.0. It rests on a closed-caller disposition only.
+  - PCRE2 `GHSA-r9hj-j2rw-4q3m` / `CVE-2026-103111`, which the feed omits,
+    has no Qt 6.12.0 disposition (BPR-1742).
+  - Coverage is incomplete, with 52, 44 and 61 flagged package rows.
+  - Complete sanitizer and fuzz coverage, secret scanning and crash canaries
+    with real resident material have not been run.
+- **AC2 is pending.** Active-operation network, process, loader, socket and
+  IPC inspection across the native matrix has not been done. Nor have the
+  foreign-user IPC refusals or the Windows and Linux ordinary-user runtime and
+  vault courses.
+- **AC1 is pending.** v0.3.1 has downloaded-byte trust checks and the owner's
+  material acceptance in its publication record, but nobody has assessed
+  that evidence against this criterion. Each later artifact, v0.3.2 included,
+  needs its own. Recipient access and retention are ongoing obligations.
+- **Native environments and decisions are missing.** There is no native Intel
+  Mac, clean Apple Silicon account, ordinary-user Windows 11 desktop or
+  Ubuntu 26.04 WSL2/WSLg course. The M8/M9 native, vault and crash gaps
+  remain. One owner decision is pending: whether the Qt deferral extends to
+  Qt 6.12.0 (AW1). The owner confirmed the 2026-10-16 matrix amendment on
+  2026-10-23 UTC (BPR-1743): Windows 11 and Ubuntu 26.04 WSL2 on JaegAW are
+  the tested environments, and others are unproven but not disallowed.
+
 Bounded work from the immutable RFC-BPR-0014 authored issue plan. The live
 RFC and its owner amendments remain authoritative. Reuse inherited evidence
 only for unchanged inputs; this card is unaccepted until its direct criteria pass.

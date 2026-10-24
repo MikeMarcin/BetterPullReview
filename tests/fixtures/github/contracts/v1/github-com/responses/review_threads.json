@@ -5,6 +5,7 @@
 		"pullRequest": {
 		  "id": "PR_fixture_17",
 		  "headRefOid": "2222222222222222222222222222222222222222",
+		  "locked": false,
 		  "files": {
           "totalCount": 1,
           "nodes": [
@@ -27,6 +28,7 @@
               "isOutdated": false,
               "viewerCanResolve": true,
               "viewerCanUnresolve": false,
+              "viewerCanReply": true,
               "subjectType": "LINE",
               "path": "review.cpp",
               "diffSide": "RIGHT",
@@ -61,6 +63,7 @@
 			  "isOutdated": false,
 			  "viewerCanResolve": true,
 			  "viewerCanUnresolve": false,
+			  "viewerCanReply": true,
 			  "subjectType": "LINE",
 			  "path": "review.cpp",
 			  "diffSide": "RIGHT",
@@ -110,6 +113,7 @@
               "isOutdated": true,
               "viewerCanResolve": false,
               "viewerCanUnresolve": false,
+              "viewerCanReply": true,
               "subjectType": "LINE",
               "path": "review.cpp",
               "diffSide": "LEFT",
@@ -159,6 +163,7 @@
               "isOutdated": false,
               "viewerCanResolve": true,
               "viewerCanUnresolve": false,
+              "viewerCanReply": true,
               "subjectType": "FILE",
               "path": "review.cpp",
               "diffSide": "RIGHT",

@@ -211,6 +211,20 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 7.0, 7.0 }, QPointF{ 17.0, 17.0 });
 				aPainter.drawLine(QPointF{ 17.0, 7.0 }, QPointF{ 7.0, 17.0 });
 				break;
+			case conversation_glyph::react: {
+				// [[BPR-1741]]. Add reaction: a face, as GitHub's, with
+				// a small plus at its shoulder.
+				aPainter.drawArc(QRectF{ 2.5, 4.5, 16.0, 16.0 }, 75 * 16, 300 * 16);
+				dot(aPainter, { 7.6, 10.6 }, 1.2);
+				dot(aPainter, { 13.4, 10.6 }, 1.2);
+				auto smile = QPainterPath{ };
+				smile.moveTo(6.6, 14.2);
+				smile.quadTo(10.5, 18.0, 14.4, 14.2);
+				aPainter.drawPath(smile);
+				aPainter.drawLine(QPointF{ 19.0, 2.5 }, QPointF{ 19.0, 9.5 });
+				aPainter.drawLine(QPointF{ 15.5, 6.0 }, QPointF{ 22.5, 6.0 });
+				break;
+			}
 			}
 		}
 

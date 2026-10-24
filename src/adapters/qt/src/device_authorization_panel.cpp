@@ -1,5 +1,7 @@
 #include "bpr/qt/device_authorization_panel.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "this_machine_text.hpp"
 
 #include <QAccessible>
@@ -248,9 +250,9 @@ namespace bpr::qt {
 
 		BeginButton  = new QPushButton{ tr("Sign in") };
 		CopyButton   = new QPushButton{ };
-		OpenButton   = new QPushButton{ tr("Open browser") };
-		CancelButton = new QPushButton{ tr("Cancel") };
-		TokenButton  = new QPushButton{ tr("Sign in with a token") };
+		OpenButton   = new quiet_push_button{ tr("Open browser") };
+		CancelButton = new quiet_push_button{ tr("Cancel") };
+		TokenButton  = new quiet_push_button{ tr("Sign in with a token") };
 		BeginButton->setObjectName(
 			QStringLiteral("bpr-device-authorization-begin"));
 		CopyButton->setObjectName(QStringLiteral("bpr-device-authorization-copy"));

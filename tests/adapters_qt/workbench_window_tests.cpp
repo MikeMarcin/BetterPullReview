@@ -61,6 +61,7 @@
 #include <QFileInfo>
 #include <QGridLayout>
 #include <QGroupBox>
+#include <QGuiApplication>
 #include <QHelpEvent>
 #include <QIcon>
 #include <QImage>
@@ -106,6 +107,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QThread>
@@ -115,6 +117,7 @@
 #include <QToolTip>
 #include <QWidget>
 #include <QWindow>
+#include <qpa/qplatformscreen.h>
 #include <qpa/qwindowsysteminterface.h>
 
 #include <QTreeView>
@@ -10989,7 +10992,7 @@ namespace {
 				   && window.comparison_surface()->selection() == selectionBeforeReply
 				   && window.current_modality() == qt::review_modality::discuss
 				   && window.conversation_panel()->notice_label()->text().contains(
-					   QStringLiteral("Open this thread in code")),
+					   QStringLiteral("which isn't the file in the code")),
 			   "Reply refuses an off-file anchor without dispatching or changing the retained code selection");
 
 		// [[BPR-1029]]. The reply's dispatch relays the list out, which rebuilds
@@ -12402,6 +12405,125 @@ namespace {
 		expect(course.Surface->head_editor() == nullptr, "Esc collapses the carets, then ends the edit");
 	}
 
+	/// \brief [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff a line the
+	/// host's core placed outside GitHub's diff says so before Publish, and a
+	/// \brief [[BPR-1753]], owner look v006 ("I selected a block and it
+	/// still said the line suggestion and then when i clicked away to unselect
+	/// the block thats when the suggestion text updates to block"). The
+	/// Agent tab's selected-lines suggestion follows the code's selection as
+	/// the pointer makes it: during a drag, after it, and after a click that
+	/// leaves one line, each without a further gesture.
+	void test_the_agent_suggestions_follow_the_selection_at_once()
+	{
+		auto  course = line_gesture_course{ false };
+		auto& window = course.Window;
+		course.reset();
+		auto* const agent   = window.agent_tab();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->refresh();
+		// As the composition reads it: the open file, and the selected lines.
+		agent->set_suggestion_context([&course] {
+			auto       context = qt::agent_suggestion_context{ .OpenFile = QStringLiteral("src/file.cpp") };
+			const auto range   = course.Surface->line_draft_range();
+			if (range && range->first.Side == range->second.Side) {
+				context.Lines = std::pair{ std::min(range->first.Line, range->second.Line) + 1U, std::max(range->first.Line, range->second.Line) + 1U };
+			}
+			return context;
+		});
+		const auto last = [agent] { return agent->suggestions().isEmpty() ? QString{ } : agent->suggestions().back(); };
+		// A drag from line 4 to line 8, a turn at its midpoint first.
+		const auto from = course.right(3U);
+		const auto to   = course.right(7U);
+		course.mouse(from, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+		course.mouse(from, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
+		course.mouse(course.right(5U), QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+		expect(last() == QStringLiteral("Explain the selected block (src/file.cpp lines 4–6)"), "while the drag is under way the suggestion names the block so far: " + last().toStdString());
+		course.mouse(to, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+		course.mouse(to, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+		expect(last() == QStringLiteral("Explain the selected block (src/file.cpp lines 4–8)"), "the moment the block is selected the suggestion names it: " + last().toStdString());
+		// A click on one line leaves that line alone selected, and says so.
+		course.click(course.right(12U));
+		expect(last() == QStringLiteral("Explain src/file.cpp line 13"), "a click that leaves one line selected names that line at once: " + last().toStdString());
+		agent->set_suggestion_context({ });
+	}
+
+	/// comment pending in the review there is held on the comment itself, as
+	/// a suggestion is: Publish as file comment takes the sending buttons'
+	/// place, publishes it, and Finish your review holds it until it leaves.
+	void test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment()
+	{
+		auto  course = line_gesture_course{ false };
+		auto& window = course.Window;
+		auto* cards  = window.conversation_panel()->cards();
+		course.reset();
+		course.click(course.right(6U));
+		wait_for([&course] { return course.Accepted && course.Accepted->Draft.Anchor.Line == 6U; }, 2000);
+		const auto anchor = core::source_line_ref{ .Comparison = course.Diff.Alignment.Digest, .Side = core::diff_side::right, .Line = 6U };
+		const auto target = core::filtered_comment_target{ .Placement = core::filtered_comment_placement::file_comment, .Refusal = core::filtered_comment_refusal::outside_github_diff, .Side = core::diff_side::right, .Line = 6U };
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc") });
+		window.comment_action()->trigger();
+		wait_for([cards] { return cards->writing_draft() && cards->draft_editor() != nullptr; }, 2000);
+		expect(cards->draft_editor() != nullptr, "Comment opens the line's draft in the drawer");
+		cards->draft_editor()->setPlainText(QStringLiteral("issue: outside every hunk."));
+		course.settle();
+		const auto [notice, blocks] = window.filtered_comment_notice();
+		expect(notice == QStringLiteral("GitHub shows no change near this line at the head, so GitHub can't attach a comment to it. Publish adds a comment on the file instead, linking to line 7 of commit 61e8dbc.") && !blocks,
+			   "before Publish the editor says GitHub can't attach a comment to the line and Publish adds one on the file");
+		expect(window.filtered_comment_placement() && window.filtered_comment_placement()->Target.Placement == core::filtered_comment_placement::file_comment,
+			   "the Whole PR placement is the one a review's Start asks about");
+		// [[BPR-1736]]. With what the profile learned, the card's words: never
+		// what the server's version supports.
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc"), .Learned = core::off_hunk_creation_capability::unsupported });
+		course.settle();
+		expect(window.filtered_comment_notice() == std::pair{ QStringLiteral("GitHub can't place a comment on this line. It will be posted as a file comment that links to the line."), false },
+			   "GitHub refused such a comment here: Publish posts the file comment");
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc"), .Learned = core::off_hunk_creation_capability::unknown });
+		course.settle();
+		expect(window.filtered_comment_notice() == std::pair{ QStringLiteral("GitHub may not place a comment on this line. If it refuses, the comment is posted as a file comment that links to the line."), false },
+			   "nothing learned yet: Publish asks GitHub once");
+		window.present_whole_diff_comment(qt::filtered_comment_presentation{ .Selection = anchor, .Target = target, .Commit = QStringLiteral("61e8dbc") });
+		course.settle();
+
+		const auto id = course.Accepted->Draft.Id;
+		window.present_unplaceable_review_comments({ { id, qt::workbench_window::unplaceable_review_comment{ .Target = target, .StartLine = std::nullopt, .Commit = QStringLiteral("61e8dbc") } } });
+		course.settle();
+		auto* const card    = cards->open_card();
+		auto* const action  = card->findChild<QAbstractButton*>(QStringLiteral("threadConvertDraft"));
+		auto* const publish = card->findChild<QAbstractButton*>(QStringLiteral("threadPublishDraft"));
+		auto* const review  = card->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft"));
+		const auto& held    = window.review_submission_editor_view()->held_comments();
+		expect(action != nullptr && action->isVisible() && action->text() == QStringLiteral("Publish as file comment") && publish != nullptr && !publish->isVisible() && review != nullptr
+				   && !review->isVisible(),
+			   "on the comment itself Publish as file comment takes the sending buttons' place");
+		expect(held.contains(id) && held.at(id).Kind == qt::review_submission_editor::held_kind::unplaceable_line
+				   && held.at(id).Reason == QStringLiteral("GitHub shows no change near line 7, so it can't place this comment in a review.") && held.at(id).Convert == QStringLiteral("Publish as file comment"),
+			   "Finish your review holds it, saying why, with the same action");
+		save_render(window, QStringLiteral("held-off-hunk-comment"));
+		const auto sent = course.Commands.size();
+		action->click();
+		process_events();
+		expect(std::ranges::any_of(std::span{ course.Commands }.subspan(sent), [](const core::revisioned_review_draft_command& aCommand) {
+				   return aCommand.Command.Kind == core::review_draft_command_kind::begin_publish;
+			   }),
+			   "Publish as file comment is the comment's own Publish");
+		window.present_unplaceable_review_comments({ });
+		course.settle();
+		expect(!window.review_submission_editor_view()->held_comments().contains(id), "once it leaves the review nothing is held");
+
+		// A range outside a hunk is held with no action: a range has no file comment.
+		const auto rangeTarget = core::filtered_comment_target{ .Placement = core::filtered_comment_placement::refused, .Refusal = core::filtered_comment_refusal::range_outside_github_diff };
+		window.present_unplaceable_review_comments({ { id, qt::workbench_window::unplaceable_review_comment{ .Target = rangeTarget, .StartLine = 4U, .Commit = QStringLiteral("61e8dbc") } } });
+		course.settle();
+		expect(window.review_submission_editor_view()->held_comments().at(id).Convert.isEmpty(), "a held range offers no action, only Delete");
+		window.present_unplaceable_review_comments({ });
+		window.present_whole_diff_comment(std::nullopt);
+		course.settle();
+	}
+
 	/// \brief [[RFC-BPR-0090]] M3. A suggestion GitHub cannot apply where it
 	/// goes is held, marked and converted on the comment (owner, Q3), and
 	/// Finish your review holds it too; a kept suggestion opens in the code
@@ -13066,7 +13188,7 @@ namespace {
 			process_events();
 			expect(replies.empty()
 					   && !window.conversation_panel()->notice_label()->text().contains(
-						   QStringLiteral("Open this thread in code")),
+						   QStringLiteral("which isn't the file in the code")),
 				   "Reply waits while its thread's own comparison loads: nothing is named and nothing refused");
 			if (aThreadFileArrives) {
 				arrive(window, threadFile);
@@ -13076,13 +13198,13 @@ namespace {
 						   && replies.front().Selection->PreferredLine.Line == 21U,
 					   "when the thread's comparison arrives its line is selected first, then the thread is named");
 				expect(!window.conversation_panel()->notice_label()->text().contains(
-						   QStringLiteral("Open this thread in code")),
+						   QStringLiteral("which isn't the file in the code")),
 					   "a reply that completes shows no refusal");
 			} else {
 				publish(window, otherFile);
 				expect(replies.empty()
 						   && window.conversation_panel()->notice_label()->text().contains(
-							   QStringLiteral("Open this thread in code")),
+							   QStringLiteral("which isn't the file in the code")),
 					   "a comparison of another file refuses the waiting reply with the notice");
 				publish(window, threadFile);
 				expect(replies.empty(),
@@ -13744,15 +13866,16 @@ namespace {
 		const auto cards = agent->finding_cards();
 		expect(cards.size() == 1U, "a finding is a card");
 		auto* const draft = cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"));
-		expect(draft != nullptr && draft->text() == QStringLiteral("Draft a comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingFollowUp")) != nullptr
-				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingAddToNotes")) != nullptr && cards.front()->findChild<QToolButton*>(QStringLiteral("agentFindingMore")) != nullptr,
-			   "its card offers Draft a comment, Ask follow-up, Add to notes and More");
+		// Owner decision 2026-10-23 ("Yep build it like that"): three actions.
+		expect(draft != nullptr && draft->text() == QStringLiteral("Add as draft comment") && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote")) != nullptr
+				   && cards.front()->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss")) != nullptr,
+			   "its card offers Add as draft comment, Save as note and Dismiss");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-findings.png"), "PNG"), "render saved");
 		}
 		draft->click();
 		process_events();
-		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Draft a comment asks the queue's own promotion, nothing more");
+		expect(!actions.empty() && actions.back() == qt::finding_queue_action::convert_to_draft_comment, "Add as draft comment asks the queue's own promotion, nothing more");
 
 		// Working: what it reads, and Stop.
 		window.agent_panel()->set_running(true);
@@ -13762,6 +13885,501 @@ namespace {
 		window.agent_panel()->set_running(false);
 		process_events();
 		agent->refresh();
+
+		// [[BPR-1753]], owner decision (a) 2026-10-23 ("Suggested
+		// prompts described that way sound great"). With an empty thread the
+		// suggestions stand above the question field: the pull request, the
+		// open file, what the change could break, and the selected lines.
+		auto suggestionContext = qt::agent_suggestion_context{ };
+		agent->set_suggestion_context([&suggestionContext] { return suggestionContext; });
+		process_events();
+		expect(agent->suggestions() == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("What could this change break?") }
+				   && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->suggestions_toggle()->isVisible() && agent->suggestions_toggle()->isChecked()
+				   && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->text() == QStringLiteral("Ask about this pull request, or try:"),
+			   "an empty thread offers the pull request and what it could break, under its line");
+		suggestionContext.OpenFile = QStringLiteral("src/engine/renderer.cpp");
+		suggestionContext.Lines    = std::pair{ 440U, 447U };
+		agent->refresh_suggestions();
+		process_events();
+		// Owner look v004 ("in an hour I wont remember which file line 34 was
+		// in"): the lines' prompt names their file.
+		expect(agent->suggestions()
+					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/engine/renderer.cpp"), QStringLiteral("What could this change break?"),
+									   QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)") }
+				   && agent->suggestion_buttons().size() == 4U,
+			   "an open file and selected lines add their own suggestions; a selected block says so, naming its file and lines (owner look v005)");
+		suggestionContext.Lines = std::pair{ 36U, 36U };
+		agent->refresh_suggestions();
+		expect(agent->suggestions().back() == QStringLiteral("Explain src/engine/renderer.cpp line 36"), "one selected line is named as the line of its file");
+		suggestionContext.Lines = std::pair{ 440U, 447U };
+		agent->refresh_suggestions();
+		// Owner look v005: the suggestions are in the conversation's scrolled
+		// thread, not docked to the question field.
+		expect(agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->widget()->isAncestorOf(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions")))
+				   && !agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))),
+			   "the suggestions are an item of the thread, not of the question field");
+		// Owner look v004: the Suggestions toggle shows and hides them, and
+		// says so to the host, which keeps it; the host's own choice is not
+		// said back.
+		{
+			auto toggled = std::vector<bool>{ };
+			agent->set_suggestions_observer([&toggled](const bool aShown) { toggled.push_back(aShown); });
+			agent->suggestions_toggle()->click();
+			process_events();
+			expect(!agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && toggled == std::vector<bool>{ false } && !agent->suggestions_shown(),
+				   "the toggle hides the suggestions, and the host is told");
+			agent->set_suggestions_shown(true);
+			process_events();
+			expect(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && toggled.size() == 1U && agent->suggestions_toggle()->isChecked(),
+				   "the host's kept choice shows them again, and is not said back");
+			agent->set_suggestions_observer({ });
+		}
+		// Owner decision (c) 2026-10-23 ("A chip in the message box like VS
+		// Code"): the model and effort are in the question field, not the
+		// context row.
+		expect(agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->run_settings_button())
+				   && !agent->findChild<QWidget*>(QStringLiteral("agentContextRow"))->isAncestorOf(agent->run_settings_button()),
+			   "the model and effort chip is inside the question field");
+		auto observedThread = std::vector<qt::agent_thread_turn>{ };
+		agent->set_thread_observer([&observedThread](std::vector<qt::agent_thread_turn> aTurns) { observedThread = std::move(aTurns); });
+
+		// [[BPR-1753]], owner look v001 ("no indication anything
+		// happened"). The working line follows the request's own projection:
+		// the workspace, then the run with its time and latest line, then a
+		// finished line that says what came of it.
+		{
+			auto identity                 = application::agent_invocation_projection_identity{ };
+			identity.ApplicationSession   = core::application_session_id{ 1U };
+			identity.Session.Id           = core::agent_session_id{ 8U };
+			identity.InvocationGeneration = 1U;
+			const auto title              = [agent] { return agent->findChild<QLabel*>(QStringLiteral("agentStateTitle"))->text(); };
+			window.agent_panel()->admit(identity);
+			process_events();
+			// Owner look v003: the turn's own quiet line says what is happening,
+			// and the field's Send is Stop while the agent works.
+			expect(agent->state() == qt::agent_tab_state::working && agent->turn_footer(0U).contains(QStringLiteral("is making its workspace")) && !agent->banner()->isVisible()
+					   && agent->ask_button()->text() == QStringLiteral("Stop"),
+				   "admitted, the turn says the workspace is being made, and Send is Stop");
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			process_events();
+			expect(agent->turn_footer(0U).startsWith(QStringLiteral("● ")) && agent->turn_footer(0U).contains(QStringLiteral("is thinking, 0:0")), "running, it says so with the time it has taken");
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Reading src/engine/renderer.cpp" });
+			process_events();
+			expect(agent->turn_footer(0U).contains(QStringLiteral("is writing")), "and says it writes as the answer streams");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-working.png"), "PNG"), "render saved");
+			}
+			expect(agent->turn_count() == 1U && agent->turn_question(0U) == QStringLiteral("Review this pull request") && agent->turn_answer(0U) == QStringLiteral("Reading src/engine/renderer.cpp")
+					   && agent->turn_footer(0U).contains(QStringLiteral("is writing")),
+				   "the request is a turn in the thread, its answer streaming in as the agent writes");
+			{
+				auto* const shownAnswer = agent->conversation_thread()->findChild<QWidget*>(QStringLiteral("agentTurnAnswer"));
+				expect(shownAnswer != nullptr && shownAnswer->isVisible() && shownAnswer->height() > 4, "the streaming answer is drawn in the thread, not only kept");
+			}
+			// The review delivers its finding before it ends.
+			window.finding_queue()->present(delivery);
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+			process_events();
+			expect(agent->state() == qt::agent_tab_state::idle && agent->turn_footer(0U).contains(QStringLiteral("answered in")) && agent->turn_footer(0U).contains(QStringLiteral("1 finding, above")),
+				   "finished, the turn says what came of it rather than going quiet");
+			static_cast<void>(title);
+
+			// Owner look v002 ("I asked 'Does this work?' and it thought for a
+			// while and said nothing. It also kept my question in the question
+			// box"). A chat answer with no finding is prose; it is the turn's
+			// answer, and the question field is cleared once the question is
+			// sent.
+			window.side_chat()->composer()->setPlainText(QStringLiteral("Does this work?"));
+			window.side_chat()->send_action()->setEnabled(true);
+			window.side_chat()->send_action()->trigger();
+			identity.InvocationGeneration = 2U;
+			window.agent_panel()->admit(identity);
+			process_events();
+			expect(agent->turn_count() == 2U && agent->turn_question(1U) == QStringLiteral("Does this work?") && window.side_chat()->composer()->toPlainText().isEmpty(),
+				   "the sent question is the next turn and leaves the field empty");
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "Yes. The retry budget is reset once per frame." });
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+			process_events();
+			expect(agent->turn_answer(1U) == QStringLiteral("Yes. The retry budget is reset once per frame.") && agent->turn_footer(1U).contains(QStringLiteral("answered in"))
+					   && !agent->turn_footer(1U).contains(QStringLiteral("finding")),
+				   "the agent's prose answer is shown, though it carried no finding, and names no finding it did not bring");
+			expect(agent->turn_answer(0U) == QStringLiteral("Reading src/engine/renderer.cpp"), "and the earlier turn keeps its own answer");
+			// Owner decision (b) 2026-10-23: each turn that ends goes to the
+			// host with the whole thread, for its pull request.
+			expect(observedThread.size() == 2U && observedThread[1].Question == QStringLiteral("Does this work?")
+					   && observedThread[1].Answer == QStringLiteral("Yes. The retry budget is reset once per frame.") && observedThread[1].Footer.contains(QStringLiteral("answered in")),
+				   "the thread is kept as each turn ends");
+			expect(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->isHidden()
+					   && agent->suggestions_toggle()->isVisible() && agent->clear_session_button()->isVisible(),
+				   "once the thread has turns the suggestions stay, without the empty thread's line, and Clear session is offered");
+			{
+				auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
+				auto* const lastTurn         = agent->conversation_thread();
+				expect(suggestionsShown->mapTo(suggestionsShown->window(), QPoint{ 0, 0 }).y() >= lastTurn->mapTo(lastTurn->window(), QPoint{ 0, lastTurn->height() }).y(),
+					   "they come after the last message, never over it");
+			}
+
+			// Owner decision 2026-10-23 ("Yep build it like that"). The review's
+			// finding is a card under its answer, with three actions; acting on
+			// it says what came of it, and a dismissal can be taken back.
+			expect(agent->turn_cards(0U).size() == 1U && agent->finding_cards().size() == 1U && agent->turn_cards(1U).empty(),
+				   "the finding the review brought is a card under that turn's answer, and only there");
+			auto cardAsks = std::vector<qt::agent_finding_card_request>{ };
+			agent->set_finding_card_dispatch([&cardAsks](const qt::agent_finding_card_request& aRequest) { cardAsks.push_back(aRequest); });
+			auto* const turnCard = agent->turn_cards(0U).front();
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->click();
+			process_events();
+			expect(cardAsks.size() == 1U && cardAsks.back().Action == qt::agent_finding_card_action::draft_comment && cardAsks.back().Finding.Claim == finding.Claim
+					   && agent->finding_card_state(0U) == qt::agent_finding_card_state::working,
+				   "Add as draft comment asks the host, and the card waits");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::drafted);
+			process_events();
+			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::drafted && turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Drafted"))
+					   && turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
+				   "drafted, the card says so and offers nothing more");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::refused, QStringLiteral("Open src/engine/renderer.cpp, then try again."));
+			process_events();
+			expect(turnCard->findChild<QLabel*>(QStringLiteral("agentFindingState"))->text().startsWith(QStringLiteral("Open src/engine")) && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingSaveNote"))->isHidden(),
+				   "refused, it says why and stays open");
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDismiss"))->click();
+			process_events();
+			expect(cardAsks.back().Action == qt::agent_finding_card_action::dismiss && agent->finding_card_state(0U) == qt::agent_finding_card_state::dismissed
+					   && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"))->isHidden(),
+				   "Dismiss says Dismissed, with Undo");
+			turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingUndo"))->click();
+			process_events();
+			expect(agent->finding_card_state(0U) == qt::agent_finding_card_state::open && !turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingDraftComment"))->isHidden(),
+				   "Undo opens the card again");
+			agent->set_finding_card_dispatch({ });
+			// Owner decision 2026-10-23: a finding on another file opens it in Review
+			// first; a path the pull request does not have is answered as such.
+			expect(!window.open_file_in_review(QStringLiteral("not/in/this/pull/request.cpp")), "a file the pull request does not have is not opened");
+			// Owner look v004: a link to a file the pull request does not have
+			// goes nowhere and says so.
+			expect(!window.review_file_named(QStringLiteral("not/in/this/pull/request.cpp")) && !window.go_to_file_line(QStringLiteral("not/in/this/pull/request.cpp"), 3U, false)
+					   && window.statusBar()->currentMessage().contains(QStringLiteral("is not in this pull request")),
+				   "a link to a file the pull request does not have opens nothing, and the status line says so");
+			// A plain reply offers Save as note for the whole of it.
+			auto savedNote = QString{ };
+			agent->set_answer_note_dispatch([&savedNote](const QString& aText, qt::agent_answer_note_done aDone) {
+				savedNote = aText;
+				aDone(true, { }, 77U);
+			});
+			auto wentToNote = std::vector<std::uint64_t>{ };
+			agent->set_note_navigation([&wentToNote](const std::uint64_t aNote) { wentToNote.push_back(aNote); });
+			auto* const saveNote = agent->turn_note_button(1U);
+			expect(saveNote != nullptr && !saveNote->isHidden(), "a reply offers Save as note");
+			saveNote->click();
+			process_events();
+			// Owner look v004 ("After save as note it should turn into Go to note").
+			expect(savedNote == QStringLiteral("Yes. The retry budget is reset once per frame.") && saveNote->text() == QStringLiteral("Go to note") && saveNote->isEnabled() && wentToNote.empty(),
+				   "Save as note keeps the reply as a note, and becomes Go to note");
+			saveNote->click();
+			process_events();
+			expect(wentToNote == std::vector<std::uint64_t>{ 77U } && savedNote == QStringLiteral("Yes. The retry budget is reset once per frame."), "Go to note opens the note it made, and saves nothing more");
+			// A finding saved as a note offers the same.
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::noted, { }, 78U);
+			process_events();
+			auto* const cardGo = turnCard->findChild<QPushButton*>(QStringLiteral("agentFindingGoToNote"));
+			expect(cardGo != nullptr && !cardGo->isHidden(), "a finding saved as a note offers Go to note");
+			if (cardGo != nullptr) {
+				cardGo->click();
+			}
+			expect(wentToNote.size() == 2U && wentToNote.back() == 78U, "and it opens that note");
+			agent->present_finding_card_state(cardAsks.back().Session, cardAsks.back().Ordinal, qt::agent_finding_card_state::open);
+			agent->set_answer_note_dispatch({ });
+			agent->set_note_navigation({ });
+			// Owner look v003 ("something we could copy the whole response ...
+			// Timestamp would also be nice"): each reply has Copy and its time.
+			auto* const copy = agent->turn_copy_button(1U);
+			expect(copy != nullptr && !copy->isHidden(), "a reply offers Copy");
+			copy->click();
+			expect(QGuiApplication::clipboard()->text() == agent->turn_answer(1U), "Copy copies the whole response as written");
+			expect(agent->turn_time(1U) != nullptr && !agent->turn_time(1U)->isHidden() && agent->turn_time(1U)->text() == QStringLiteral("just now")
+					   && !agent->turn_time(1U)->toolTip().isEmpty(),
+				   "and says when it answered, the whole time on hover");
+			agent->set_session_title(QStringLiteral("#17 Keep review snapshots deterministic"));
+			expect(agent->session_title()->text() == QStringLiteral("#17 Keep review snapshots deterministic"), "the header names the session");
+
+			// Owner look v002 ("Not having a model/effort picker in this window
+			// bothers the hell out of me. I can't even do /model"). The context
+			// row says what will run; the menu and /model and /effort change it.
+			auto asked               = std::vector<std::string>{ };
+			auto settings            = qt::agent_run_settings{ .Profile = window.agent_panel()->selected_profile()->value(), .Agent = QStringLiteral("Codex"), .Program = QStringLiteral("/Users/me/.local/bin/codex") };
+			settings.ModelChoosable  = true;
+			settings.EffortChoosable = true;
+			settings.Efforts         = { "minimal", "low", "medium", "high", "xhigh" };
+			agent->present_run_settings({ settings });
+			agent->set_run_settings_dispatch([&asked, &settings](const std::uint64_t, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+				if (aEffort && !aEffort->empty() && std::ranges::find(settings.Efforts, *aEffort) == settings.Efforts.end()) {
+					return false;
+				}
+				asked.push_back((aModel ? "model=" + *aModel : std::string{ }) + (aEffort ? "effort=" + *aEffort : std::string{ }));
+				return true;
+			});
+			process_events();
+			expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Codex · Default model")
+					   && agent->run_settings_button()->toolTip().contains(QStringLiteral("/Users/me/.local/bin/codex")),
+				   "the row names the model and effort, and its tooltip the program that runs");
+			auto* const composer = window.side_chat()->composer();
+			composer->setPlainText(QStringLiteral("/effort high"));
+			agent->ask_button()->setEnabled(true);
+			agent->ask_button()->click();
+			process_events();
+			expect(asked == std::vector<std::string>{ "effort=high" } && composer->toPlainText().isEmpty() && agent->turn_count() == 2U, "/effort high changes the effort, is not sent, and clears the field");
+			composer->setPlainText(QStringLiteral("/effort turbo"));
+			agent->ask_button()->click();
+			process_events();
+			expect(asked.size() == 1U && composer->toPlainText() == QStringLiteral("/effort turbo")
+					   && agent->findChild<QLabel*>(QStringLiteral("agentComposerNotice"))->text().contains(QStringLiteral("minimal, low, medium, high, xhigh")),
+				   "an effort the agent does not take is refused with the ones it does");
+			composer->setPlainText(QStringLiteral("/model gpt-5"));
+			agent->ask_button()->click();
+			process_events();
+			expect(asked.back() == "model=gpt-5", "/model NAME changes the model");
+			// Owner look v004 ("The models aren't listing their version numbers").
+			expect(qt::agent_model_display_name(QStringLiteral("claude-sonnet-5-5")) == QStringLiteral("Sonnet 5.5") && qt::agent_model_display_name(QStringLiteral("claude-opus-5-5[1m]")) == QStringLiteral("Opus 5.5 (1M)")
+					   && qt::agent_model_display_name(QStringLiteral("claude-fable-5-1")) == QStringLiteral("Fable 5.1") && qt::agent_model_display_name(QStringLiteral("claude-opus-4-5-20251101")) == QStringLiteral("Opus 4.5")
+					   && qt::agent_model_display_name(QStringLiteral("sonnet")) == QStringLiteral("Sonnet (newest)") && qt::agent_model_display_name(QStringLiteral("gpt-5.1-codex")) == QStringLiteral("gpt-5.1-codex"),
+				   "a model is named with its version; one the app does not know is shown as the agent reported it");
+			{
+				auto claude   = settings;
+				claude.Agent  = QStringLiteral("Claude Code");
+				claude.Model  = "claude-sonnet-5-5";
+				claude.Models = { { "claude-opus-5-5", QStringLiteral("Opus 5.5") }, { "claude-sonnet-5-5", QStringLiteral("Sonnet 5.5") } };
+				agent->present_run_settings({ claude });
+				process_events();
+				expect(agent->run_settings_text() == QStringLiteral("Claude Code · Sonnet 5.5"), "the chip names the chosen model with its version");
+				agent->present_run_settings({ settings });
+			}
+			// Owner look v006: the menu ends with Agent settings…; a harness
+			// being asked says so in Model; opening the menu asks the harness.
+			{
+				auto settingsOpened = 0;
+				auto catalogAsks    = std::vector<std::uint64_t>{ };
+				agent->set_setup_dispatch([&settingsOpened] { ++settingsOpened; });
+				agent->set_catalog_dispatch([&catalogAsks](const std::uint64_t aProfile) { catalogAsks.push_back(aProfile); });
+				auto listing    = settings;
+				listing.Listing = true;
+				agent->present_run_settings({ listing });
+				auto* const menu  = agent->run_settings_button()->menu();
+				const auto  items = menu->actions();
+				expect(!items.isEmpty() && items.back()->objectName() == QStringLiteral("agentRunSettingsOpenSettings") && items.back()->text() == QStringLiteral("Agent settings…"),
+					   "the agent menu ends with Agent settings…");
+				items.back()->trigger();
+				expect(settingsOpened == 1, "which opens Settings › Agents & context");
+				const auto* const models = [&items]() -> QMenu* {
+					for (auto* const item : items) {
+						if (item->menu() != nullptr && item->menu()->objectName() == QStringLiteral("agentRunSettingsModels")) {
+							return item->menu();
+						}
+					}
+					return nullptr;
+				}();
+				expect(models != nullptr && std::ranges::any_of(models->actions(), [](const QAction* aAction) { return aAction->text().startsWith(QStringLiteral("Asking Codex for its models")) && !aAction->isEnabled(); }),
+					   "while the harness is asked, Model says so");
+				emit menu->aboutToShow();
+				expect(!catalogAsks.empty() && catalogAsks.back() == settings.Profile, "opening the menu asks the agent's harness what it offers");
+				agent->set_catalog_dispatch({ });
+				agent->set_setup_dispatch({ });
+				agent->present_run_settings({ settings });
+			}
+			// Owner amendment 2026-10-23: every added agent is in the chip's
+			// menu, and choosing one switches to it.
+			{
+				auto work        = profile;
+				work.Id          = core::agent_profile_id{ 1102U };
+				work.DisplayName = "Work Codex";
+				window.agent_panel()->offer_profiles(std::vector{ profile, work });
+				auto other    = settings;
+				other.Profile = 1102U;
+				other.Agent   = QStringLiteral("Work Codex");
+				other.Effort  = "high";
+				agent->present_run_settings({ settings, other });
+				process_events();
+				emit agent->run_settings_button()->menu()->aboutToShow();
+				auto choices = QStringList{ };
+				for (auto* const item : agent->run_settings_button()->menu()->actions()) {
+					if (item->objectName() == QStringLiteral("agentRunSettingsAgent")) {
+						choices << item->text();
+					}
+				}
+				expect(choices == QStringList{ QStringLiteral("Codex"), QStringLiteral("Work Codex") }, "the chip's menu lists every added agent");
+				expect(agent->choose_agent(1102U) && window.agent_panel()->selected_profile() == std::optional{ core::agent_profile_id{ 1102U } }
+						   && agent->run_settings_text() == QStringLiteral("Work Codex · Default model · high effort"),
+					   "choosing one switches to it in one press, and the chip says agent, model and effort");
+				expect(agent->choose_agent(1U) && window.agent_panel()->selected_profile() == std::optional{ core::agent_profile_id{ 1U } }, "and back");
+				window.agent_panel()->offer_profiles(std::vector{ profile });
+				agent->present_run_settings({ settings });
+			}
+			composer->clear();
+
+			// Owner decision (a): a suggestion is sent as written, as a chat
+			// turn, so what was asked is in the thread.
+			auto* const breakItem = [agent] {
+				for (auto* const button : agent->suggestion_buttons()) {
+					if (button->property("agentPrompt").toString() == QStringLiteral("What could this change break?")) {
+						return button;
+					}
+				}
+				return static_cast<QPushButton*>(nullptr);
+			}();
+			expect(breakItem != nullptr && breakItem->isEnabled(), "the suggestions above the field hold the prompts");
+			breakItem->click();
+			identity.InvocationGeneration = 3U;
+			window.agent_panel()->admit(identity);
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			process_events();
+			// [[BPR-1755]], the owner's accept of look v007 ("Hide
+			// suggestions until the the agent is done thinking").
+			auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
+			expect(agent->state() == qt::agent_tab_state::working && suggestionsShown->isHidden() && agent->suggestions_toggle()->isChecked(),
+				   "while the agent works the suggestions are hidden, though the toggle still shows them");
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": []}\n```" });
+			process_events();
+			expect(suggestionsShown->isHidden(), "and stay hidden while it writes");
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+			process_events();
+			expect(agent->turn_count() == 3U && agent->turn_question(2U) == QStringLiteral("What could this change break?") && composer->toPlainText().isEmpty(),
+				   "the suggestion is the next turn's question, exactly");
+			expect(!suggestionsShown->isHidden() && agent->state() != qt::agent_tab_state::working, "once the turn has finished the suggestions return");
+			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
+				   "the reply is shown without its findings block, which is for the cards");
+
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-thread.png"), "PNG"), "render saved");
+			}
+			// Owner decision (b): Clear session asks first when turns would
+			// leave the thread, then empties it and tells the host.
+			auto cleared = 0;
+			auto asks    = std::vector<std::size_t>{ };
+			auto confirm = false;
+			agent->set_clear_session_dispatch([&cleared] { ++cleared; });
+			agent->set_clear_confirmation([&asks, &confirm](const std::size_t aTurns) {
+				asks.push_back(aTurns);
+				return confirm;
+			});
+			agent->clear_session_button()->click();
+			process_events();
+			expect(asks == std::vector<std::size_t>{ 3U } && cleared == 0 && agent->turn_count() == 3U, "declining keeps the thread");
+			confirm = true;
+			agent->clear_session_button()->click();
+			process_events();
+			expect(cleared == 1 && agent->turn_count() == 0U && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && !agent->clear_session_button()->isVisible(),
+				   "confirmed, the thread is empty, the host is told and the suggestions return");
+			// A pull request opened again shows its kept thread.
+			observedThread.clear();
+			agent->present_thread({ { .Question = QStringLiteral("Does this work?"), .Answer = QStringLiteral("Yes."), .Footer = QStringLiteral("Claude Code answered in 0:12.") } });
+			process_events();
+			expect(agent->turn_count() == 1U && agent->turn_question(0U) == QStringLiteral("Does this work?") && agent->turn_answer(0U) == QStringLiteral("Yes.")
+					   && agent->turn_footer(0U) == QStringLiteral("Claude Code answered in 0:12.") && observedThread.empty(),
+				   "a kept thread is shown again as it was, without being kept again");
+			// The answers' code is coloured by the shared Markdown code host.
+			auto codeAsks = std::size_t{ 0U };
+			agent->set_code_syntax_dispatch([&codeAsks](std::vector<application::markdown_code_syntax_request> aRequests) { codeAsks += aRequests.size(); });
+			agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```"), .Footer = QStringLiteral("answered") } });
+			process_events();
+			expect(codeAsks > 0U, "a reply's fenced code asks the code host for its colours");
+			// Owner look v004 ("Not drawing inline comment with syntax
+			// highlighing"): inline code is asked for as the pull request's
+			// language, and coloured when its spans come back.
+			{
+				auto inlineAsks = std::vector<application::markdown_code_syntax_request>{ };
+				agent->set_code_syntax_dispatch([&inlineAsks](std::vector<application::markdown_code_syntax_request> aRequests) {
+					for (auto& request : aRequests) {
+						inlineAsks.push_back(std::move(request));
+					}
+				});
+				// The thread shown before asks again for its own fenced code.
+				inlineAsks.clear();
+				agent->present_thread({ { .Question = QStringLiteral("Explain it"), .Answer = QStringLiteral("Line 34 returns `diagnostic::invalid_calibration` when `validate(scale, bias, gamma)` fails."), .Footer = QStringLiteral("answered") } });
+				process_events();
+				expect(inlineAsks.empty(), "without the pull request's language, inline code stays plain and asks for nothing");
+				agent->set_inline_code_file(QStringLiteral("code.cpp"));
+				process_events();
+				const auto askedInline = [&inlineAsks](const std::string& aText) {
+					return std::ranges::any_of(inlineAsks, [&aText](const application::markdown_code_syntax_request& aRequest) { return aRequest.Selector == "code.cpp" && aRequest.Text && *aRequest.Text == aText; });
+				};
+				expect(askedInline("diagnostic::invalid_calibration") && askedInline("validate(scale, bias, gamma)"), "with it, each inline code span is asked for as C++");
+				agent->set_inline_code_file({ });
+				// The dispatch holds this block's list; it goes with the block.
+				agent->set_code_syntax_dispatch({ });
+			}
+			// Owner look v004 ("This should be a link to the file and line I can
+			// click"): a file and line the question or answer names is a link
+			// that opens it in Review.
+			{
+				auto went = std::vector<std::tuple<QString, std::uint32_t, bool>>{ };
+				agent->set_line_links(
+					[](const QString& aPath) -> std::optional<QString> {
+						if (aPath == QStringLiteral("src/engine/renderer.cpp") || aPath == QStringLiteral("renderer.cpp")) {
+							return QStringLiteral("src/engine/renderer.cpp");
+						}
+						return std::nullopt;
+					},
+					[&went](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { went.emplace_back(aPath, aLine, aBefore); });
+				agent->present_thread({ { .Question = QStringLiteral("Explain src/engine/renderer.cpp line 34"),
+										  .Answer   = QStringLiteral("Line 34 returns early; see `renderer.cpp:36` and src/engine/other.cpp:5.\n\n```cpp\n// renderer.cpp:40 stays code\n```"),
+										  .Footer   = QStringLiteral("answered") } });
+				process_events();
+				auto* const question = agent->turn_question_label(0U);
+				expect(question != nullptr && question->textFormat() == Qt::RichText && question->text().contains(QStringLiteral("<a href=\"src/engine/renderer.cpp#L34\">src/engine/renderer.cpp line 34</a>")),
+					   "the question's file and line is a link");
+				if (question != nullptr) {
+					emit question->linkActivated(QStringLiteral("src/engine/renderer.cpp#L34"));
+				}
+				expect(went.size() == 1U && went.back() == std::tuple{ QStringLiteral("src/engine/renderer.cpp"), 34U, false }, "clicking it opens the file at that line");
+				{
+					const auto block = qt::agent_line_references(QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)"),
+																 [](const QString& aPath) -> std::optional<QString> { return aPath == QStringLiteral("src/engine/renderer.cpp") ? std::optional{ aPath } : std::nullopt; });
+					expect(block.size() == 1U && block.front().First == 440U && block.front().Last == 447U && block.front().Path == QStringLiteral("src/engine/renderer.cpp"),
+						   "the selected block's prompt names its file and lines as one link");
+				}
+				const auto shown = agent->turn_answer_view(0U) != nullptr ? QString::fromStdString(agent->turn_answer_view(0U)->original_body()) : QString{ };
+				expect(shown.contains(QStringLiteral("[Line 34](src/engine/renderer.cpp#L34)")) && shown.contains(QStringLiteral("[`renderer.cpp:36`](src/engine/renderer.cpp#L36)"))
+						   && shown.contains(QStringLiteral("src/engine/other.cpp:5.")) && !shown.contains(QStringLiteral("other.cpp#")) && shown.contains(QStringLiteral("// renderer.cpp:40 stays code")),
+					   "in the answer, the question's bare line, a code span naming a file's line and only the pull request's files are links; fenced code is not");
+				expect(agent->turn_answer(0U).startsWith(QStringLiteral("Line 34 returns early; see `renderer.cpp:36`")), "Copy and Save as note keep the answer as written");
+				agent->set_line_links({ }, { });
+			}
+			// Owner look v004: the answer's last line was cut off; the answer is
+			// as tall as its text at the width its card gives it.
+			{
+				auto longer = QString{ };
+				for (auto index = 0; index < 6; ++index) {
+					longer += QStringLiteral("This immediately exits the enclosing function, signaling invalid calibration and skipping finalize on line 36. ");
+				}
+				agent->present_thread({ { .Question = QStringLiteral("Explain it"), .Answer = longer + QStringLiteral("The surrounding snippet doesn't show which values validation accepts or rejects."), .Footer = QStringLiteral("answered") } });
+				process_events();
+				auto* const answer = agent->turn_answer_view(0U);
+				expect(answer != nullptr && answer->width() > 0 && answer->height() >= answer->heightForWidth(answer->width()), "the answer is as tall as its text at its own width, so its last line shows");
+			}
+			agent->set_code_syntax_dispatch({ });
+			agent->present_thread({ });
+			agent->set_clear_session_dispatch({ });
+			agent->set_clear_confirmation({ });
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-finished.png"), "PNG"), "render saved");
+			}
+			// Owner look v001: after the check, the ready line alone; its
+			// details wait under one collapsed disclosure.
+			agent->present_ready(QStringLiteral("Claude Code is ready"), QStringLiteral("Signed in, version 2.1.296."), QStringLiteral("Pull request: octo-org/review-repository #17"));
+			process_events();
+			auto* const details = agent->ready_card()->findChild<QToolButton*>(QStringLiteral("agentReadyGetsToggle"));
+			expect(agent->ready_card()->isVisible() && details != nullptr && !details->isChecked() && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyText"))->isVisible()
+					   && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(),
+				   "the ready card shows its line and keeps the details collapsed");
+			if (!root.isEmpty()) {
+				expect(window.grab().save(root + QStringLiteral("/agent-ready.png"), "PNG"), "render saved");
+			}
+			details->click();
+			process_events();
+			expect(agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(), "and opens them on request");
+			agent->present_ready({ }, { }, { });
+		}
+		agent->set_thread_observer({ });
+		agent->set_suggestion_context({ });
 
 		// The code's menu asks about the lines.
 		const auto diff = computed_comparison("int a = 1;\nint b = 2;\n", "int a = 1;\nint b = 20;\n", 0U);
@@ -13779,6 +14397,25 @@ namespace {
 			violations += qt::drawer_principle_violations(*agent->findChild<QWidget*>(QString::fromLatin1(name)));
 		}
 		expect(violations.isEmpty(), "the Agent tab keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
+		// Owner look v006 ("I dont think we should have this option to go back
+		// to the wizard, actually we can keep it if it's a "reset agents""):
+		// History offers Reset agents…, which asks first, then clears the
+		// agents and starts the setup again.
+		{
+			agent->adopt_setup(*window.agent_setup(), { });
+			const auto history = agent->history_button()->menu()->actions();
+			const auto named   = [&history](const char* aName) { return std::ranges::any_of(history, [aName](const QAction* aAction) { return aAction->objectName() == QString::fromLatin1(aName); }); };
+			expect(named("agentResetAgentsAction") && !named("agentSetUpAgainAction") && !named("agentChangeRepositoryAction"), "History has Reset agents… and no other way back into the setup");
+			auto resets  = 0;
+			auto confirm = false;
+			agent->set_reset_dispatch([&resets] { ++resets; }, [&confirm] { return confirm; });
+			agent->reset_agents();
+			expect(resets == 0, "declined, nothing is reset");
+			confirm = true;
+			agent->reset_agents();
+			expect(resets == 1 && window.agent_setup()->open_step() == core::setup_step::agent, "confirmed, the agents are reset and the setup opens at Agent");
+			agent->set_reset_dispatch({ });
+		}
 		window.hide();
 	}
 
@@ -14128,7 +14765,7 @@ namespace {
 		expect(tabs != nullptr && drawer->isAncestorOf(tabs) && tabs->count() == 4
 				   && tabs->tabText(0) == QStringLiteral("Comments") && tabs->tabText(1) == QStringLiteral("Notes")
 				   && tabs->tabText(2) == QStringLiteral("Tour") && tabs->accessibleTabName(2) == QStringLiteral("Tour")
-				   && tabs->tabText(3) == QStringLiteral("Agent") && !tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
+				   && tabs->tabText(3) == QStringLiteral("Agent") && tabs->tabIcon(3).isNull() && tabs->accessibleTabName(3) == QStringLiteral("Agent")
 				   && tabs->currentIndex() == 0 && tabs->isVisible(),
 			   "the tray's header is Comments, Notes, Tour and Agent, and it opens on Comments");
 		const auto privateHeader = [&] {
@@ -14249,8 +14886,9 @@ namespace {
 
 	/// \brief [[BPR-1684]]. The right tray's tabs keep their names for as
 	/// long as the row has room for them. Each tab is as wide as what it
-	/// shows: the Agent tab is its spark and its name, and Comments keeps no
-	/// room for a count it is not showing. Narrower, the row names the open
+	/// shows: at full width the Agent tab is its name alone, as the others
+	/// are (the owner's accept of look v007, [[BPR-1755]]), and
+	/// Comments keeps no room for a count it is not showing. Narrower, the row names the open
 	/// tab beside its glyph and shows the others' glyphs, then glyphs only.
 	/// A tab without its name says it in its tooltip and to accessibility,
 	/// and the count stays a pill beside the glyph, never over it. Checked
@@ -14387,16 +15025,15 @@ namespace {
 				expect(named() && pill->isVisible() == withCount && window.comments_count_text() == (withCount ? QStringLiteral("2") : QString{ }),
 					   "a wide row shows every tab's name, and the count only when there is one" + context);
 				// Each tab is its style's text tab for its name, plus the
-				// Agent's spark and the Comments count when they show.
+				// Comments count when it shows.
 				const auto metrics = tabs->fontMetrics();
 				const auto padding = [&](const int aIndex) {
 					return tabs->tabRect(aIndex).width() - metrics.size(Qt::TextShowMnemonic, names[aIndex]).width();
 				};
 				const auto notes = padding(1);
 				expect(std::abs(padding(2) - notes) <= 1, "Tour and Notes have the same padding" + context);
-				const auto spark = tabs->iconSize().width() + 4;
-				expect(std::abs(padding(3) - spark - notes) <= 1,
-					   "the Agent tab is as wide as its spark and its name, padded as Notes is" + context);
+				expect(std::abs(padding(3) - notes) <= 1 && tabs->tabIcon(3).isNull(),
+					   "at full width the Agent tab is its name alone, padded as Notes is, with no glyph" + context);
 				const auto count = withCount ? pill->sizeHint().width() + 4 : 0;
 				expect(std::abs(padding(0) - count - notes) <= 1,
 					   (withCount ? "the Comments tab is its name and its count, padded as Notes is"
@@ -17366,6 +18003,480 @@ namespace {
 				   && surface->source_line_visible(core::diff_side::right, 2'990U),
 			   "a pick into the prepared long file reveals its line too");
 		window.hide();
+	}
+
+	/// [[BPR-1753]], owner look v005 ("The review link in the response
+	/// isn't scrolling the window to the line when i cmd click it"). A file
+	/// and line an agent's answer names is a link; Command-click and a plain
+	/// click on it, delivered to the window as the platform delivers them,
+	/// open the file in Review and scroll the code to that line, selected:
+	/// into a long file that is not open, whose comparison is filled over
+	/// several turns ([[BPR-1264]], [[BPR-1698]]), and within the file already
+	/// open, which before only selected the line where it was.
+	void test_an_agent_answer_link_reveals_its_line()
+	{
+		auto  state   = core::workbench_interaction_state{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		auto                 selected = std::vector<core::file_identity>{ };
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				if (const auto* const choice = std::get_if<core::select_workbench_file_intent>(&aIntent); choice != nullptr) {
+					selected.push_back(choice->File);
+				}
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		const auto big   = core::file_identity_of("src/big.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = big, .Path = "src/big.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 300U, .ConversationsWidth = 430U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		auto shortText = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			shortText += "line " + std::to_string(line) + '\n';
+		}
+		auto shortLater = shortText;
+		shortLater.replace(shortLater.find("line 5"), 6U, "changed line 5");
+		auto bigText = std::string{ };
+		for (auto line = 0U; line < 3'200U; ++line) {
+			bigText += "source line " + std::to_string(line) + '\n';
+		}
+		auto bigLater = bigText;
+		for (const auto line : { 2'990U, 2'000U, 1'200U, 400U }) {
+			const auto was = "source line " + std::to_string(line) + '\n';
+			bigLater.replace(bigLater.find(was), was.size(), "changed source line " + std::to_string(line) + '\n');
+		}
+		const auto bigDiff = computed_comparison(bigText, bigLater, 3U, big);
+		auto*      surface = window.comparison_surface();
+		const auto answer  = [&](const core::file_identity aFile, const core::computed_file_diff& aDiff) {
+			state.Navigation = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+			auto moved       = application::workbench_projection{ };
+			moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+			window.publish(moved);
+			surface->set_loading(request_context(aDiff));
+			surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(aDiff), .Result = std::make_shared<const core::computed_file_diff>(aDiff) }));
+			settle_geometry(*surface, "the answered comparison");
+		};
+		answer(file, computed_comparison(shortText, shortLater, 0U, file));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+
+		// The Agent tab, set up, with an answer naming two lines of the long file.
+		auto* const agent   = window.agent_tab();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		window.open_agent_action()->trigger();
+		process_events();
+		agent->refresh();
+		agent->set_line_links([&window](const QString& aPath) { return window.review_file_named(aPath); },
+							  [&window](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { static_cast<void>(window.go_to_file_line(aPath, aLine, aBefore)); });
+		agent->present_thread({ { .Question = QStringLiteral("What could this change break?"),
+								  .Answer   = QStringLiteral("The clearest regression is at `src/big.cpp:2991`. The budget is set at src/big.cpp:401."),
+								  .Footer   = QStringLiteral("Claude Code answered in 0:09.") } });
+		process_events();
+		auto* const answerView = agent->turn_answer_view(0U);
+		expect(agent->isVisible() && answerView != nullptr && answerView->isVisible(), "the Agent tab shows the answer");
+		if (answerView == nullptr) {
+			return;
+		}
+		agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->ensureWidgetVisible(answerView);
+		process_events();
+		// Where a link is drawn, in the answer's viewport.
+		const auto linkAt = [answerView](const QString& aHref) -> std::optional<QPoint> {
+			auto* const view = answerView->rendered_view();
+			for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+				for (auto it = block.begin(); !it.atEnd(); ++it) {
+					if (const auto fragment = it.fragment(); fragment.charFormat().anchorHref() == aHref) {
+						auto cursor = QTextCursor{ view->document() };
+						cursor.setPosition(fragment.position() + fragment.length() / 2);
+						return view->cursorRect(cursor).center();
+					}
+				}
+			}
+			return std::nullopt;
+		};
+		// A click as the platform delivers it, to the window in its points.
+		const auto click = [&window, answerView](const QPoint aAt, const Qt::KeyboardModifiers aModifiers) {
+			auto* const viewport = answerView->rendered_view()->viewport();
+			const auto  local    = QPointF{ viewport->mapTo(&window, aAt) };
+			const auto  global   = QPointF{ viewport->mapToGlobal(aAt) };
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), local, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, aModifiers);
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), local, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, aModifiers);
+			process_events();
+		};
+		const auto deep = linkAt(QStringLiteral("src/big.cpp#L2991"));
+		const auto near = linkAt(QStringLiteral("src/big.cpp#L401"));
+		expect(deep.has_value() && near.has_value(), "both lines the answer names are links");
+		if (!deep || !near) {
+			return;
+		}
+
+		// Command-click (Qt's Control on macOS) on the long file it is not
+		// showing: the file is chosen, and once its comparison is adopted the
+		// line is selected and in view.
+		click(*deep, Qt::ControlModifier);
+		expect(selected.size() == 1U && selected.back() == big && window.current_modality() == qt::review_modality::review, "Command-click on the link chooses its file in Review");
+		answer(big, bigDiff);
+		wait_for([surface] { return surface->selection().has_value() && surface->selection()->PreferredLine.Line == 2'990U; }, 3'000);
+		settle_geometry(*surface, "the linked long file");
+		expect(surface->selection().has_value() && surface->selection()->PreferredLine.Side == core::diff_side::right && surface->selection()->PreferredLine.Line == 2'990U,
+			   "the linked line is selected");
+		expect(surface->source_line_visible(core::diff_side::right, 2'990U) && !surface->source_line_visible(core::diff_side::right, 0U), "and the code is scrolled to it, line 2,991 in view");
+		save_render(window, QStringLiteral("agent-link-long-file"));
+
+		// The file already open, as the owner had it: Command-click and a
+		// plain click each scroll to their line.
+		agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->ensureWidgetVisible(answerView);
+		process_events();
+		click(*linkAt(QStringLiteral("src/big.cpp#L401")), Qt::ControlModifier);
+		settle_geometry(*surface, "the open file's linked line");
+		expect(selected.size() == 1U && surface->selection().has_value() && surface->selection()->PreferredLine.Line == 400U && surface->source_line_visible(core::diff_side::right, 400U)
+				   && !surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "Command-click on a line of the open file scrolls to it without choosing the file again");
+		click(*linkAt(QStringLiteral("src/big.cpp#L2991")), Qt::NoModifier);
+		settle_geometry(*surface, "a plain click");
+		expect(surface->selection().has_value() && surface->selection()->PreferredLine.Line == 2'990U && surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "and a plain click does the same");
+		expect(answerView->rendered_view()->textCursor().selectedText().isEmpty(), "a click on a link selects none of the answer's text");
+		agent->set_line_links({ }, { });
+		agent->present_thread({ });
+		window.hide();
+	}
+
+	/// [[BPR-1740]]. The owner, 2026-10-22: a thread with a long reply,
+	/// opened in Review from Discuss, could not be scrolled to its Reply
+	/// field, and the drawer said "Open this thread in code before replying"
+	/// while the thread was open beside its code. Its clicks, wheel and keys
+	/// go to the window as the platform delivers them. Two courses: a current
+	/// thread, opened by Discuss's line button, which hangs from its line; and
+	/// an outdated one, opened by Discuss's Open in Review among its file's
+	/// unplaced threads ([[BPR-1581]]), whose every wheel step the code took.
+	/// In both the drawer scrolls to the Reply field, and past it until only
+	/// the thread's last line is at the top, as the code panes do
+	/// ([[BPR-1291]]); Page Down, End and Home move the notes, and focus
+	/// reaching the Reply field brings it into view. A refusal is said only
+	/// while it is true, in words true of the thread, and a thread on a file
+	/// that is not in the code is offered Show in code.
+	void test_a_long_thread_from_discuss_scrolls_to_its_reply()
+	{
+		const auto course = [](const bool aOutdated) {
+			const auto stage = [aOutdated](const char* aMessage) {
+				return std::string{ aMessage } + (aOutdated ? " (outdated thread)" : " (current thread)");
+			};
+			auto  state   = core::workbench_interaction_state{ };
+			auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+			auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+				auto projection          = application::workbench_projection{ };
+				projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+				projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+				projection.Commands      = core::project_workbench_commands(state);
+				projection.Refusal       = aRefusal;
+				shown->publish(projection);
+			};
+			qt::workbench_window window{
+				[&](core::workbench_interaction_intent aIntent) {
+					const auto output = core::transition(state, aIntent);
+					publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+				}
+			};
+			shown = &window;
+			window.resize(1'280, 820);
+			window.show();
+			window.activateWindow();
+			process_events();
+			auto replies = std::vector<std::string>{ };
+			window.set_review_reply_dispatch([&replies](const std::string& aIdentity) { replies.push_back(aIdentity); });
+			// [[BPR-1745]]. An outdated thread's Reply goes to the thread.
+			auto threadReplies = std::vector<std::string>{ };
+			window.set_thread_reply_dispatch([&threadReplies](const std::string& aIdentity) { threadReplies.push_back(aIdentity); });
+			const auto file  = core::file_identity_of("src/file.cpp");
+			const auto other = core::file_identity_of("src/long.cpp");
+			state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+			auto first       = application::workbench_projection{ };
+			first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+			first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = other, .Path = "src/long.cpp" } };
+			first.Layout     = application::workbench_layout_delta{ .FilesWidth = 330U, .ConversationsWidth = 410U, .RepositoriesWidth = 300U };
+			window.publish(first);
+			publish(std::nullopt);
+			const auto node = [aOutdated](std::string aId, std::optional<std::string> aParent, std::string aAuthor, std::string aBody, std::string aPath, std::uint32_t aLine) {
+				auto made               = application::github_conversation_projection{ };
+				made.Id                 = std::move(aId);
+				made.ParentId           = std::move(aParent);
+				made.Kind               = made.ParentId ? application::github_conversation_kind::review_comment : application::github_conversation_kind::review_thread;
+				made.AuthorLogin        = std::move(aAuthor);
+				made.Body               = std::move(aBody);
+				made.Path               = std::move(aPath);
+				made.Line               = aLine;
+				made.DiffSide           = application::github_conversation_diff_side::right;
+				made.AnchorAvailability = aOutdated && made.Path == "src/long.cpp" ? application::github_conversation_anchor_availability::outdated_revision
+																				   : application::github_conversation_anchor_availability::current;
+				made.Outdated           = aOutdated && made.Path == "src/long.cpp";
+				return made;
+			};
+			// Four posts of several paragraphs each: the open thread is
+			// several times the drawer's height.
+			const auto paragraphs = [](const std::string& aSubject) {
+				auto body = std::string{ };
+				for (auto paragraph = 1U; paragraph <= 4U; ++paragraph) {
+					body += "The " + aSubject + " keeps the retained position while the comparison is measured again, and the reader expects the line they were reading to stay where it was. "
+						+ "Paragraph " + std::to_string(paragraph) + " says so at length, so that the post wraps over many lines in a drawer this narrow.\n\n";
+				}
+				return body;
+			};
+			auto pull                   = application::github_pull_request_projection{ };
+			pull.ReviewThreadCount      = 2U;
+			pull.ReviewThreadsAvailable = true;
+			pull.Conversations          = {
+				node("review-thread:near", std::nullopt, { }, { }, "src/file.cpp", 6U),
+				node("review-comment:near-1", "review-thread:near", "tbutler", "on the short file", "src/file.cpp", 6U),
+				node("review-thread:long", std::nullopt, { }, { }, "src/long.cpp", 12U),
+				node("review-comment:long-1", "review-thread:long", "tbutler", "issue: " + paragraphs("first post"), "src/long.cpp", 12U),
+				node("review-comment:long-2", "review-comment:long-1", "jiayin", paragraphs("long reply"), "src/long.cpp", 12U),
+				node("review-comment:long-3", "review-comment:long-1", "tbutler", paragraphs("third post"), "src/long.cpp", 12U),
+				node("review-comment:long-4", "review-comment:long-1", "jiayin", paragraphs("last reply"), "src/long.cpp", 12U),
+			};
+			window.publish(application::github_presentation_update{ .PullRequest = pull });
+			const auto source = [](const std::uint32_t aLines, const std::uint32_t aChanged) {
+				auto text = std::string{ };
+				for (auto line = 0U; line < aLines; ++line) {
+					text += "source line " + std::to_string(line) + '\n';
+				}
+				auto       later = text;
+				const auto was   = "source line " + std::to_string(aChanged) + '\n';
+				later.replace(later.find(was), was.size(), "changed source line " + std::to_string(aChanged) + '\n');
+				return std::pair{ text, later };
+			};
+			auto*      surface = window.comparison_surface();
+			const auto answer  = [&](const core::file_identity aFile, const core::computed_file_diff& aDiff) {
+				state.Navigation = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+				auto moved       = application::workbench_projection{ };
+				moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+				window.publish(moved);
+				window.set_conversation_endpoint_placement(true, true);
+				surface->set_loading(request_context(aDiff));
+				surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(aDiff), .Result = std::make_shared<const core::computed_file_diff>(aDiff) }));
+				window.set_conversation_endpoint_placement(true, true);
+				settle_geometry(*surface, "the answered comparison");
+			};
+			// The outdated course's file is long, so the code has many steps
+			// to take before the notes would get any.
+			const auto [shortText, shortLater] = source(30U, 5U);
+			const auto [longText, longLater]   = source(aOutdated ? 400U : 40U, 11U);
+			const auto shortDiff               = computed_comparison(shortText, shortLater, 0U, file);
+			const auto longDiff                = computed_comparison(longText, longLater, 4U, other);
+			answer(file, shortDiff);
+			window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+			process_events();
+
+			// The platform delivers native pixels, which Qt's own scale (the
+			// 2x run) divides back into points.
+			const auto native = [&window](const QPoint aPoint) {
+				auto* const handle = window.windowHandle();
+				const auto  screen = handle->screen() != nullptr && handle->screen()->handle() != nullptr ? handle->screen()->handle()->devicePixelRatio() : 1.0;
+				return QPointF{ aPoint } * (handle->devicePixelRatio() / screen);
+			};
+			const auto click = [&window, native](QWidget& aWidget) {
+				const auto at     = aWidget.rect().center();
+				const auto local  = native(aWidget.mapTo(&window, at));
+				const auto global = native(aWidget.mapToGlobal(at));
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+					window.windowHandle(), local, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, Qt::NoModifier);
+				QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(
+					window.windowHandle(), local, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, Qt::NoModifier);
+				process_events();
+			};
+			auto* const cards       = window.conversation_panel()->cards();
+			auto* const notice      = window.conversation_panel()->notice_label();
+			auto* const showInCode  = window.conversation_panel()->notice_action();
+			const auto  noticeShown = [notice] { return notice->isVisibleTo(notice->window()) && !notice->text().isEmpty(); };
+			const auto  offered     = [showInCode] { return showInCode->isVisibleTo(showInCode->window()) && showInCode->text() == QStringLiteral("Show in code"); };
+			const auto  suffix      = QString::fromLatin1(aOutdated ? "-outdated" : "");
+
+			// Discuss, the long thread open there. A current thread's Reply is
+			// refused, as its file is not the one in the code, and the words
+			// say so. [[BPR-1745]]. An outdated thread's is not: it is
+			// answered by the thread, which needs no line in the code.
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			cards->open_thread("review-thread:long");
+			process_events();
+			expect(cards->open_card() != nullptr, stage("Discuss opens the long thread"));
+			auto* replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			expect(replyField != nullptr, stage("the open thread offers Reply in Discuss"));
+			if (!aOutdated) {
+				replyField->click();
+				process_events();
+				expect(replies.empty() && noticeShown() && !notice->text().contains(QStringLiteral("before replying")), stage("Discuss refuses the reply in words, not an instruction"));
+				expect(notice->text() == QStringLiteral("This thread is on long.cpp, which isn't the file in the code.") && offered(),
+					   stage("a thread on another file says which, and offers Show in code"));
+				save_render(window, QStringLiteral("long-thread-discuss-refusal") + suffix);
+			}
+
+			// Open in Review: the current thread by its line button, the
+			// outdated one by its menu.
+			cards->verticalScrollBar()->setValue(0);
+			process_events();
+			if (aOutdated) {
+				auto* const menu   = cards->thread_menu("review-thread:long");
+				const auto  items  = menu->actions();
+				const auto  review = std::ranges::find_if(items, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Open in Review"); });
+				expect(review != items.end() && (*review)->isEnabled(), stage("Discuss's menu offers Open in Review"));
+				(*review)->trigger();
+				process_events();
+				delete menu;
+			} else {
+				auto* const lineButton = cards->open_card()->findChild<QToolButton*>(QStringLiteral("threadShowLine"));
+				expect(lineButton != nullptr && lineButton->isVisibleTo(&window), stage("Discuss's line button is shown"));
+				click(*lineButton);
+			}
+			expect(window.current_modality() == qt::review_modality::review, stage("Open in Review enters Review"));
+			answer(other, longDiff);
+			expect(cards->open_thread_id() == "review-thread:long" && cards->open_card() != nullptr, stage("once the long file shows, the thread is open in Review"));
+			expect(!noticeShown(), stage("no refusal is left over once the thread is open in Review"));
+			replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			expect(replyField != nullptr, stage("the open thread offers Reply in Review"));
+			const auto inView = [cards](const QWidget& aWidget) {
+				const auto area = QRect{ aWidget.mapTo(cards->viewport(), QPoint{ 0, 0 }), aWidget.size() };
+				return aWidget.isVisible() && cards->viewport()->rect().contains(area);
+			};
+			expect(cards->open_card()->height() > 2 * cards->viewport()->height() && !inView(*replyField),
+				   stage("the open thread is far taller than the drawer, its Reply field below the view"));
+			save_render(window, QStringLiteral("long-thread-opened") + suffix);
+
+			// The wheel over the posts, as a mouse delivers it.
+			const auto wheel = [&window, cards, native](const int aDelta) {
+				const auto at     = QPoint{ cards->viewport()->width() / 2, cards->viewport()->height() / 2 };
+				const auto local  = native(cards->viewport()->mapTo(&window, at));
+				const auto global = native(cards->viewport()->mapToGlobal(at));
+				QWindowSystemInterface::handleWheelEvent(window.windowHandle(), local, global, QPoint{ }, QPoint{ 0, aDelta });
+				process_events();
+			};
+			for (auto step = 0; step < 80 && !inView(*replyField); ++step) {
+				wheel(-120);
+			}
+			expect(inView(*replyField), stage("the wheel over a long thread scrolls the drawer until its Reply field is in view"));
+			save_render(window, QStringLiteral("long-thread-reply-in-view") + suffix);
+
+			// Past the end, until only the thread's last line is at the top.
+			const auto line     = cards->fontMetrics().lineSpacing();
+			const auto cardFoot = [cards] { return cards->open_card()->mapTo(cards->viewport(), QPoint{ 0, cards->open_card()->height() }).y(); };
+			for (auto more = 0; more < 120; ++more) {
+				wheel(-120);
+			}
+			expect(cardFoot() > 0 && cardFoot() <= 3 * line, stage("the drawer scrolls past its end until only the thread's last line is at the top"));
+			save_render(window, QStringLiteral("long-thread-past-end") + suffix);
+
+			// Back to the top; Page Down from the notes reaches the Reply
+			// field, and End and Home go to the notes' end and top.
+			for (auto back = 0; back < 200; ++back) {
+				wheel(120);
+			}
+			auto* const bar = cards->verticalScrollBar();
+			expect(bar->value() == bar->minimum() && !inView(*replyField), stage("the wheel brings the thread's head back"));
+			cards->setFocus(Qt::OtherFocusReason);
+			process_events();
+			for (auto page = 0; page < 20 && !inView(*replyField); ++page) {
+				deliver_key(window, Qt::Key_PageDown, Qt::NoModifier);
+			}
+			expect(inView(*replyField), stage("Page Down in the notes reaches the Reply field"));
+			deliver_key(window, Qt::Key_Home, Qt::NoModifier);
+			expect(bar->value() == bar->minimum() && !inView(*replyField), stage("Home goes to the notes' top"));
+			deliver_key(window, Qt::Key_End, Qt::NoModifier);
+			expect(bar->value() == bar->maximum() && bar->maximum() > 0, stage("End goes to the notes' end"));
+			deliver_key(window, Qt::Key_Home, Qt::NoModifier);
+			expect(bar->value() == bar->minimum(), stage("and Home back to their top"));
+
+			// Focus reaching the Reply field brings it into view.
+			replyField->setFocus(Qt::TabFocusReason);
+			process_events();
+			expect(replyField->hasFocus() && inView(*replyField), stage("focus reaching the Reply field brings it into view"));
+
+			// Reply, by a click on the field.
+			click(*replyField);
+			if (aOutdated) {
+				// [[BPR-1745]]. Before the change: refused with "This
+				// thread's line isn't in the code shown, so it can't take a
+				// reply here." Now the reply is bound to the thread and written
+				// in place, with a quiet line saying the thread is outdated.
+				expect(replies.empty() && threadReplies == std::vector<std::string>{ "review-thread:long" } && !noticeShown(),
+					   stage("an outdated thread's Reply goes to the thread, with no refusal"));
+				auto* const editor = qobject_cast<QPlainTextEdit*>(QApplication::focusWidget());
+				expect(editor != nullptr && cards->open_card()->isAncestorOf(editor) && inView(*editor), stage("the outdated thread's reply is written in place, focused and in view"));
+				auto* const outdatedNote = cards->open_card()->findChild<QLabel*>(QStringLiteral("threadReplyOutdatedNote"));
+				expect(outdatedNote != nullptr && outdatedNote->isVisibleTo(&window)
+						   && outdatedNote->text() == QStringLiteral("Outdated: this thread's line has changed since it was written"),
+					   stage("the reply field says, quietly, that the thread's line has changed"));
+			} else {
+				expect(replies.size() == 1U && replies.front() == "review-thread:long" && !noticeShown(),
+					   stage("Reply on the thread open beside its code is not refused"));
+				auto* const editor = qobject_cast<QPlainTextEdit*>(QApplication::focusWidget());
+				expect(editor != nullptr && cards->open_card()->isAncestorOf(editor) && inView(*editor), stage("the reply is written in place, focused and in view"));
+			}
+			save_render(window, QStringLiteral("long-thread-replying") + suffix);
+			if (aOutdated) {
+				// [[BPR-1745]]. Discuss and Threads answer it the same
+				// way: by the thread, with no refusal, the composer opened.
+				deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
+				for (const auto modality : { qt::review_modality::discuss, qt::review_modality::threads }) {
+					window.choose_modality(modality);
+					process_events();
+					threadReplies.clear();
+					cards->open_thread("review-thread:long");
+					process_events();
+					auto* const field = cards->open_card() != nullptr ? cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField")) : nullptr;
+					expect(field != nullptr, stage("the outdated thread offers Reply there too"));
+					field->click();
+					process_events();
+					expect(replies.empty() && threadReplies == std::vector<std::string>{ "review-thread:long" } && !noticeShown(),
+						   stage(modality == qt::review_modality::discuss ? "Discuss answers the outdated thread by the thread" : "Threads answers the outdated thread by the thread"));
+					deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
+				}
+				window.hide();
+				return;
+			}
+
+			// Show in code from Discuss, with the code on another file: one
+			// click opens the thread in Review, and the refusal goes.
+			deliver_key(window, Qt::Key_Escape, Qt::NoModifier);
+			answer(file, shortDiff);
+			window.choose_modality(qt::review_modality::discuss);
+			process_events();
+			cards->open_thread("review-thread:long");
+			process_events();
+			replies.clear();
+			replyField = cards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			replyField->click();
+			process_events();
+			expect(replies.empty() && noticeShown() && offered(), stage("Discuss refuses the reply again, with Show in code"));
+			click(*showInCode);
+			expect(window.current_modality() == qt::review_modality::review && !noticeShown(), stage("Show in code opens Review, and the refusal goes"));
+			answer(other, longDiff);
+			expect(cards->open_thread_id() == "review-thread:long" && !noticeShown(), stage("and the thread opens beside its line"));
+			window.hide();
+		};
+		course(false);
+		course(true);
 	}
 
 	/// [[BPR-1356]]. Threads opens a thread in Discuss as well as in Review,
@@ -21906,9 +23017,11 @@ auto main(int argc, char** argv) -> int
 		runCase("test_a_suggestion_from_an_earlier_head_is_carried_or_copied", &test_a_suggestion_from_an_earlier_head_is_carried_or_copied);
 		runCase("test_the_pane_edit_takes_the_editor_gestures", &test_the_pane_edit_takes_the_editor_gestures);
 		runCase("test_a_held_suggestion_is_converted_and_a_kept_one_reopens", &test_a_held_suggestion_is_converted_and_a_kept_one_reopens);
+		runCase("test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment", &test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment);
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);
+		runCase("test_the_agent_suggestions_follow_the_selection_at_once", &test_the_agent_suggestions_follow_the_selection_at_once);
 		if (!listCases) {
 			std::cout << "workbench-line-draft:pass\n";
 		}
@@ -21932,6 +23045,8 @@ auto main(int argc, char** argv) -> int
 		runCase("test_thread_defect_menus_badges_and_navigation", &test_thread_defect_menus_badges_and_navigation);
 		runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
 		runCase("test_a_pick_into_a_long_unopened_file_reveals_its_line", &test_a_pick_into_a_long_unopened_file_reveals_its_line);
+		runCase("test_a_long_thread_from_discuss_scrolls_to_its_reply", &test_a_long_thread_from_discuss_scrolls_to_its_reply);
+		runCase("test_an_agent_answer_link_reveals_its_line", &test_an_agent_answer_link_reveals_its_line);
 		if (!listCases) {
 			std::cout << "workbench-conversation-reveal:pass\n";
 		}

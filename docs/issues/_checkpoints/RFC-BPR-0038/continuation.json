@@ -1,0 +1,59 @@
+{
+  "schema": "bpr.rfc0038.qualification-continuation.v1",
+  "owner_task": "01a1456b-b3b2-7793-b1f6-9da54ba6b000",
+  "branch": "codex/rfc0038-qualification",
+  "entry_source": "15f0bff176897fa329ba6d455d2aab503eff5270",
+  "mandate": "Michael: Kick off the qualification effort; existing0958-0962/0973 only; no publication or new Windows tasks",
+  "strategy": "direct; no subagent or remote worker started; no route/model claim",
+  "scope": "Existing M8/M9/M13 original definitions and pending acceptance unchanged",
+  "plan": "docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json",
+  "worktree": "/private/tmp/bpr-rfc0038-qualification",
+  "dependency_scratch": "/private/tmp/bpr-rfc0038-deps-iq11z7jb",
+  "completed_documentation": [
+    "14 retained release products rehashed against receipts",
+    "October16 source/platform evidence reconciled with historical-versus-current scope",
+    "BPR0940/0945/0967-0972, BPR1527 and BPR1551 reusable evidence cited at its recorded source/platform",
+    "Owner, hardware, attended-authentication, independent-security and distribution-decision prerequisites recorded"
+  ],
+  "pre_restriction_experiments": {
+    "status": "local development observations only; no acceptance or delivered remediation",
+    "observations": [
+      "Darwin arm64 native inspector observed only the owned child/socket/library surface in its bounded fixture",
+      "Installed Mac0.2.1 bound 44 files to its exact SPDX and source receipt",
+      "Six focused qualification/isolation contracts passed before the restriction",
+      "PCRE2 10.49 imported with the existing Qt importer; universal BundledPcre2 and QtCore development targets built; a headless Qt regular-expression smoke passed",
+      "A source-only zlib candidate built under sanitizers; no packaged runtime regression or exact-artifact qualification followed"
+    ],
+    "disposition": "All uncommitted product/test/source-preparation edits were removed from the documentation-only deliverable. Existing releases and dependency pins are unchanged."
+  },
+  "blocked_work": {
+    "reason": "service cybersecurity-risk restriction on the prior continuation",
+    "must_not_retry_here": [
+      "security probes or alternate routes to them",
+      "dependency remediation",
+      "crash, resident-secret or IPC tests",
+      "security-policy changes"
+    ],
+    "qualification_effect": "BPR0958-0962 and every unresolved RFC0038 criterion remain open"
+  },
+  "limitations": [
+    "MASK main readiness state.drift; worktree unregistered; no global settings changed",
+    "Full native lifecycle, authentication, vault, highDPI/accessibility and resident-secret crash not run on owner desktop",
+    "Windows new task access not authorized; native Intel and clean Ubuntu desktop unavailable",
+    "No named independent security-owner decision or current legal/source-access/retention acceptance",
+    "Pre-restriction dependency experiments are not a delivered/remediated app; current provider and existing releases are unchanged"
+  ],
+  "failures_retained": [
+    "initial CMake core-only network download refused; fixed via offline existing verified cache",
+    "initial unprivileged unit socket bind denied by sandbox; exact disposable-socket test rerun with approved execution passed",
+    "Qt configure refused /tmp symlink spelling; canonical /private/tmp configure passed",
+    "initial network-manifest/raw-registration checks saw task-owned extracted upstream sources inside.mask; moved own dependency tree outside checkout; unchanged gates passed"
+  ],
+  "documentation_verification": {
+    "git_diff_check": "pass",
+    "documentation_unit_tests": "67/67 pass",
+    "repository_gate": "blocked by unrelated concurrent board history: docs/issues/NEXT_ID is BPR-1558 while historical high water is BPR-1561; this task did not alter allocator state",
+    "board_helper": "the guarded move to Blocked was refused by the same allocator drift; the card path/status/link were reconciled manually without touching NEXT_ID"
+  },
+  "next": "Resume only through an authorized qualification owner after the service restriction is cleared; first supply the recorded hardware/account/reviewer/distribution prerequisites, then plan exact-artifact work without inheriting historical acceptance"
+}

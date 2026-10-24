@@ -201,6 +201,7 @@ namespace bpr::app {
 	}
 
 	void review_submission_workflow::set_publication_observer(publication_observer aObserver) { PublicationObserved = std::move(aObserver); }
+	void review_submission_workflow::set_unplaceable_refusal_observer(unplaceable_refusal_observer aObserver) { UnplaceableRefusalObserved = std::move(aObserver); }
 
 	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments)
 	{
@@ -458,6 +459,11 @@ namespace bpr::app {
 						  : QStringLiteral("Review status is still unknown. Check status again.");
 	}
 
+	void review_submission_workflow::hold_comments(std::vector<core::review_draft_id> aDrafts)
+	{
+		UnplaceableDrafts = std::move(aDrafts);
+	}
+
 	void review_submission_workflow::dispatch(qt::review_submission_editor_intent aIntent)
 	{
 		// Refuse stale draft identity before touching the supplied summary.
@@ -477,6 +483,16 @@ namespace bpr::app {
 				|| (kind == command_kind::begin_submit && controls.Submit)
 				|| (kind == command_kind::discard && controls.Discard);
 			if (!allowed) {
+				return;
+			}
+			// [[BPR-1735]]. GitHub refuses a whole review carrying a comment it
+			// cannot place; such a comment is published as a file comment or
+			// deleted first.
+			if (kind == command_kind::begin_submit && std::ranges::any_of(Draft->Comments, [this](const core::review_submission_comment& aComment) {
+					return std::ranges::find(UnplaceableDrafts, aComment.Draft) != UnplaceableDrafts.end();
+				})) {
+				Status = QStringLiteral("A comment GitHub can't place in a review is held. Publish it as a file comment or delete it, then submit.");
+				present();
 				return;
 			}
 			if (kind == command_kind::begin_submit) {
@@ -750,6 +766,9 @@ namespace bpr::app {
 					Status = QStringLiteral("Not published: GitHub refused this review. Your summary and comments are kept; check them and submit again.");
 				}
 				answer(refused, application::review_submission_publication::definitely_not_published);
+				if (result->Refusal == application::review_submission_refusal::unplaceable_line && UnplaceableRefusalObserved) {
+					UnplaceableRefusalObserved(refused);
+				}
 			} else {
 				// [[BPR-1475]]. Not reread: Check status is how an unknown outcome
 				// is settled, and a read accepted while it runs can replace the

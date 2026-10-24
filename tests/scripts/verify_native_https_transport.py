@@ -1403,6 +1403,9 @@ class LoopbackConnectTlsFixture:
                         ("X-RateLimit-Reset", "1999999999"),
                         ("X-RateLimit-Resource", "core"),
                         ("Retry-After", "7"),
+                        # [[BPR-1736]]. A read never carries the server
+                        # version on: only a review mutation's answer does.
+                        ("X-GitHub-Enterprise-Version", "3.20.8"),
                     ),
                     content_type="Application/JSON; Charset=UTF-8",
                 )

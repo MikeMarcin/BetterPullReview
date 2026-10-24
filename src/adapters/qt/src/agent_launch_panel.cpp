@@ -1,5 +1,10 @@
 #include "bpr/qt/agent_launch_panel.hpp"
 
+#include "bpr/core/agent_entry.hpp"
+
+#include "bpr/core/agent_setup.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include <QAction>
 #include <QCheckBox>
 #include <QComboBox>
@@ -15,6 +20,29 @@
 #include <utility>
 
 namespace bpr::qt {
+	namespace {
+		/// \brief [[BPR-1738]]. What a reviewer is told when the agent's
+		/// workspace could not be made: what happened, then what to do. Git's
+		/// own words stay in the log.
+		[[nodiscard]] auto workspace_stop_reason(const application::agent_workspace_unavailable_reason aReason) -> QString
+		{
+			using reason = application::agent_workspace_unavailable_reason;
+			switch (aReason) {
+			case reason::copy_failed:
+				return QStringLiteral("The agent's copy of this pull request could not be made. Reopen the pull request, then ask again.");
+			case reason::download_failed:
+				return QStringLiteral("The agent needs every file at this head, and this review holds only the files it shows. Downloading the rest failed. Ask again, or show the log for the cause.");
+			case reason::connection_failed:
+				return QStringLiteral("The agent needs every file at this head, and GitHub could not be reached to download them. Check the connection, then ask again.");
+			case reason::sign_in_refused:
+				return QStringLiteral("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then ask again.");
+			case reason::too_large:
+				return QStringLiteral("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
+			}
+			return { };
+		}
+	} // namespace
+
 	agent_launch_panel::agent_launch_panel(
 		agent_intent_dispatch aDispatch,
 		QWidget* const        aParent)
@@ -91,14 +119,14 @@ namespace bpr::qt {
 		// object names, and the single intent each emits are untouched - this
 		// is where they are drawn, not what they are.
 		auto* const actions    = new QVBoxLayout{ };
-		ExistingCheckoutButton = new QToolButton{ this };
+		ExistingCheckoutButton = new quiet_tool_button{ this };
 		ExistingCheckoutButton->setDefaultAction(ExistingCheckoutAction);
 		ExistingCheckoutButton->setAccessibleName(
 			QStringLiteral("Use existing working copy for this run"));
 		StartButton = new QToolButton{ this };
 		StartButton->setDefaultAction(StartAction);
 		StartButton->setAccessibleName(QStringLiteral("Ask selected AI agent"));
-		CancelButton = new QToolButton{ this };
+		CancelButton = new quiet_tool_button{ this };
 		CancelButton->setDefaultAction(CancelAction);
 		CancelButton->setAccessibleName(QStringLiteral("Stop running AI agent"));
 		actions->addWidget(ExistingCheckoutButton);
@@ -180,15 +208,40 @@ namespace bpr::qt {
 	{
 		ProfileSelector->clear();
 		for (const auto& profile : aProfiles) {
-			ProfileSelector->addItem(
-				QString::fromStdString(profile.DisplayName),
-				QVariant::fromValue<qulonglong>(profile.Id.value()));
+			// [[BPR-1753]], RFC-BPR-0092 Q4: the menu says the agent's
+			// plain name, as the setup does.
+			const auto plain = core::plain_name(core::setup_agent_of(profile.Protocol));
+			auto       name  = QString::fromUtf8(plain.data(), static_cast<qsizetype>(plain.size()));
+			if (profile.Protocol == core::agent_protocol::codex_jsonl_exec) {
+				name += QStringLiteral(" (JSONL)");
+			}
+			// [[BPR-1753]]. An added agent is named as the reviewer named it.
+			if (core::is_agent_entry_profile(profile.Id)) {
+				name = QString::fromStdString(profile.DisplayName);
+			}
+			ProfileSelector->addItem(name, QVariant::fromValue<qulonglong>(profile.Id.value()));
+			ProfileSelector->setItemData(ProfileSelector->count() - 1, QString::fromStdString(profile.DisplayName), Qt::ToolTipRole);
 		}
-		// A placeholder keeps QComboBox at -1; retain the offered first choice.
+		// A placeholder keeps QComboBox at -1; retain the offered first choice,
+		// or the profile setup saved when it is offered.
 		if (!aProfiles.empty()) {
-			ProfileSelector->setCurrentIndex(0);
+			const auto preferred = PreferredProfile ? ProfileSelector->findData(QVariant::fromValue<qulonglong>(PreferredProfile->value())) : -1;
+			ProfileSelector->setCurrentIndex(preferred >= 0 ? preferred : 0);
 		}
 		update_actions();
+	}
+
+	void agent_launch_panel::prefer_profile(const std::optional<core::agent_profile_id> aProfile)
+	{
+		PreferredProfile = aProfile;
+		if (!aProfile) {
+			return;
+		}
+		const auto index = ProfileSelector->findData(QVariant::fromValue<qulonglong>(aProfile->value()));
+		if (index >= 0 && index != ProfileSelector->currentIndex()) {
+			ProfileSelector->setCurrentIndex(index);
+			update_actions();
+		}
 	}
 
 	void agent_launch_panel::offer(
@@ -230,10 +283,12 @@ namespace bpr::qt {
 		}
 		Running = false;
 		Output->clear();
+		StopReason.clear();
 		Status->setText(
 			QStringLiteral("Not started: %1")
 				.arg(QString::fromUtf8(aReason.data(), static_cast<qsizetype>(aReason.size()))));
 		update_actions();
+		progressed();
 	}
 
 	void agent_launch_panel::admit(
@@ -246,8 +301,32 @@ namespace bpr::qt {
 		}
 		ActiveInvocation = aIdentity;
 		Output->clear();
+		StopReason.clear();
 		Status->setText(QStringLiteral("Preparing agent invocation"));
+		Phase = phase::preparing;
 		set_running(true);
+		progressed();
+	}
+
+	auto agent_launch_panel::latest_output_line() const -> QString
+	{
+		const auto text      = Output->toPlainText().trimmed();
+		const auto lineBreak = text.lastIndexOf(QLatin1Char{ '\n' });
+		return lineBreak < 0 ? text : text.mid(lineBreak + 1);
+	}
+
+	void agent_launch_panel::add_progress_observer(std::function<void()> aObserver)
+	{
+		if (aObserver) {
+			ProgressObservers.push_back(std::move(aObserver));
+		}
+	}
+
+	void agent_launch_panel::progressed()
+	{
+		for (const auto& observer : ProgressObservers) {
+			observer();
+		}
 	}
 
 	void agent_launch_panel::start(
@@ -261,7 +340,9 @@ namespace bpr::qt {
 		Status->setText(
 			QStringLiteral("Running in %1")
 				.arg(QString::fromStdString(aWorkspace.Path)));
+		Phase = phase::running;
 		set_running(true);
+		progressed();
 	}
 
 	void agent_launch_panel::stream(
@@ -274,6 +355,7 @@ namespace bpr::qt {
 			return;
 		}
 		Output->appendPlainText(QString::fromStdString(aEvent.Text));
+		progressed();
 	}
 
 	void agent_launch_panel::finish(
@@ -292,11 +374,29 @@ namespace bpr::qt {
 					QString::fromStdString(aResult.StandardError));
 			}
 		}
+		LastOutcome = aResult.Outcome;
+		LastModel.clear();
+		for (const auto& report : aResult.Metadata.ProtocolReported) {
+			if (report.Settings.Model) {
+				LastModel = QString::fromStdString(*report.Settings.Model);
+			}
+		}
+		LastCost   = aResult.ReportedCostUsd ? QString::fromStdString(*aResult.ReportedCostUsd) : QString{ };
+		StopReason = aResult.Outcome == application::agent_run_outcome::workspace_unavailable
+			? workspace_stop_reason(aResult.WorkspaceReason.value_or(application::agent_workspace_unavailable_reason::copy_failed))
+			: QString{ };
+		// Owner decision 2026-10-23: a run the time limit ended says so.
+		if (aResult.Outcome == application::agent_run_outcome::timeout) {
+			StopReason = RunLimitMinutes == 0U ? tr("Stopped: the run took longer than the process allows.")
+											   : tr("Stopped at your time limit of %n minute(s). Settings › Agents & context turns it off or raises it.", nullptr, static_cast<int>(RunLimitMinutes));
+		}
 		Status->setText(
 			QStringLiteral("Finished: %1")
 				.arg(QString::fromUtf8(application::name(aResult.Outcome))));
+		Phase = phase::idle;
 		set_running(false);
 		ActiveInvocation.reset();
+		progressed();
 	}
 
 	void agent_launch_panel::present_session_catalog(
@@ -380,6 +480,11 @@ namespace bpr::qt {
 	auto agent_launch_panel::status_text() const -> QString
 	{
 		return Status->text();
+	}
+
+	auto agent_launch_panel::stop_reason_text() const -> QString
+	{
+		return StopReason;
 	}
 
 	auto agent_launch_panel::output_text() const -> QString

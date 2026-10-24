@@ -1752,6 +1752,28 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 	}
+	// [[BPR-1752]], RFC-BPR-0092. The review brief, checked for what it
+	// must say about this fixture pull request and its workspace, then taken
+	// as sent for the exact comparison of every other field.
+	auto briefSays = false;
+	if (expectedFields.has_value() && actualFields.has_value()) {
+		const auto field = [&actualFields](const std::string& aName) {
+			const auto found = actualFields->find(aName);
+			return found == actualFields->end() ? std::string{ "<absent>" } : found->second;
+		};
+		briefSays = field("brief.title") == "Keep review snapshots deterministic" && field("brief.base_branch") == "main"
+			&& field("brief.workspace") == "private_copy" && field("brief.diff") == "git diff " + std::string{ fixture.BaseOid } + "..." + std::string{ fixture.HeadOneOid }
+			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
+			&& field("brief.skill.version") == "2" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
+			// [[BPR-1753]], owner decision (b): the first turn about this
+			// pull request carries no earlier one.
+			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0";
+		for (const auto& [name, value] : *actualFields) {
+			if (name.starts_with("brief.")) {
+				expectedFields->emplace(name, value);
+			}
+		}
+	}
 	// [[BPR-0826]]. Since BPR-0705 each window session owns an application
 	// session distinct from the profile runtime's ("Profile and window
 	// ownership", docs/architecture/system-architecture.md). The expected session
@@ -1812,7 +1834,7 @@ auto main(int argc, char** argv) -> int
 		&& output.find("worktrees\tabsent") != std::string::npos
 		&& acceptedAuthorities && actualFields.has_value()
 		&& expectedFields.has_value() && *actualFields == *expectedFields
-		&& actualFields->at("schema") == "2"
+		&& actualFields->at("schema") == "3" && briefSays
 		&& actualFields->at("file.count") == "1"
 		&& actualFields->at("file.0.read") == "2"
 		&& actualFields->at("file.0.changed_since_review") == "0"

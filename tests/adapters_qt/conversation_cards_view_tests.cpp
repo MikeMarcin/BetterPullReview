@@ -572,11 +572,12 @@ namespace {
 			   "in Discuss the line button opens the thread in the code");
 		view.set_resolution_offered(true);
 		QApplication::processEvents();
-		expect(button(view, "threadResolve") != nullptr && button(view, "threadResolve")->toolTip() == QStringLiteral("Resolve"),
+		expect(button(view, "threadResolve") != nullptr && button(view, "threadResolve")->toolTip() == QStringLiteral("Resolve conversation"),
 			   "offered, an open thread gains Resolve");
 		view.open_thread("t-resolved");
 		QApplication::processEvents();
-		expect(button(view, "threadResolve") != nullptr && button(view, "threadResolve")->toolTip() == QStringLiteral("Unresolve")
+		expect(button(view, "threadResolve") != nullptr && button(view, "threadResolve")->toolTip() == QStringLiteral("Unresolve conversation")
+
 				   && view.open_card()->findChild<QWidget*>(QStringLiteral("threadState")) != nullptr,
 			   "a resolved thread offers Unresolve and says it is resolved");
 		expect(view.thread_count() == 3U && view.unresolved_count() == 2U && view.unread_thread_count() == 1U,
@@ -781,6 +782,60 @@ namespace {
 		view.refresh_geometry();
 		expect(view.cards().front().Excerpt.isEmpty() && view.open_card()->findChild<QLabel*>(QStringLiteral("threadExcerpt")) == nullptr,
 			   "an unavailable comparison removes the excerpt");
+	}
+
+	/// [[BPR-1740]]. The owner, 2026-10-22: "Much like the code window
+	/// I want to be able to scroll the comments drawer up until only the last
+	/// line is visible." The drawer's End leaves its last note's last line at
+	/// the top and Home goes back; Discuss's feed still ends at its last note.
+	/// An open thread with no line to hang from takes the wheel before the
+	/// code does, however much the code could take.
+	auto test_the_drawer_scrolls_past_its_end() -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 600);
+		view.show();
+		view.adopt({ thread("t1", "src/a.cpp", 3U), reply("p1", "t1", "author", "a short post"),
+					 thread("t2", "src/a.cpp", 9U), reply("p2", "t2", "author", "another short post") });
+		QApplication::processEvents();
+		auto* const bar    = view.verticalScrollBar();
+		const auto  line   = view.fontMetrics().lineSpacing();
+		const auto  lowest = std::ranges::max(view.cards(), { }, [](const qt::thread_card& aCard) { return aCard.Rect.bottom(); }).Rect.bottom();
+		expect(lowest < view.viewport()->height() && bar->maximum() == lowest - 2 * line,
+			   "notes shorter than the drawer still scroll until the last note's last line is at the top");
+		const auto press = [&view](const int aKey) {
+			auto key = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier };
+			QApplication::sendEvent(&view, &key);
+			QApplication::processEvents();
+		};
+		press(Qt::Key_End);
+		expect(bar->value() == bar->maximum() && lowest - bar->value() == 2 * line, "End goes to the drawer's end, its last line at the top");
+		press(Qt::Key_Home);
+		expect(bar->value() == 0, "Home goes back to the top");
+
+		// An open thread that hangs from no line (none here: no comparison
+		// places it) moves on the wheel even while the code takes every step.
+		auto forwarded = 0;
+		view.set_scroll_forward([&forwarded](QWheelEvent&) {
+			++forwarded;
+			return true;
+		});
+		view.open_thread("t1");
+		QApplication::processEvents();
+		const auto centre = QPointF{ view.viewport()->rect().center() };
+		auto       wheel  = QWheelEvent{ centre, view.viewport()->mapToGlobal(centre), QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(view.viewport(), &wheel);
+		expect(bar->value() > 0 && forwarded == 0, "the notes take the wheel first for a thread that does not move with the code");
+		for (auto step = 0; step < 100; ++step) {
+			auto more = QWheelEvent{ centre, view.viewport()->mapToGlobal(centre), QPoint{ }, QPoint{ 0, -120 }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(view.viewport(), &more);
+		}
+		expect(bar->value() == bar->maximum() && forwarded > 0, "and the code only what the notes cannot take");
+
+		view.set_feed(true);
+		view.adopt({ thread("t1", "src/a.cpp", 3U), reply("p1", "t1", "author", "a short post") });
+		QApplication::processEvents();
+		expect(bar->maximum() == 0, "Discuss's feed, shorter than its view, does not scroll");
 	}
 
 	// [[BPR-1270]]. The excerpt is set in the code font the view was handed.
@@ -1817,6 +1872,169 @@ namespace {
 	// line, text only in an outdated thread, a file comment or on the base
 	// side, each from the accepted projection's own facts. The mark changes
 	// nothing in the text and is not shown for prose.
+	// [[BPR-1745]]. The owner, 2026-10-22: "Allow replying to an
+	// outdated thread from the drawer, like GitHub does". An outdated thread's
+	// menu offers Reply; its reply field opens in place with one quiet line
+	// saying its line has changed, in the card's secondary ink. A current
+	// thread's reply is unchanged and carries no such line. Before the change
+	// the outdated thread's Reply was disabled with "This thread's line isn't
+	// in the code shown, so it can't take a reply here."
+	void test_an_outdated_thread_takes_a_reply_with_a_quiet_note()
+	{
+		using availability          = application::github_conversation_anchor_availability;
+		auto outdated               = thread("t-outdated", "src/b.cpp", 4U);
+		outdated.Line               = std::nullopt;
+		outdated.OriginalLine       = 4U;
+		outdated.AnchorAvailability = availability::outdated_revision;
+		outdated.Outdated           = true;
+		const auto current          = thread("t-current", "src/a.cpp", 10U);
+
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		view.adopt({ current, reply("c-current", "t-current", "a", "first"), outdated, reply("c-outdated", "t-outdated", "b", "second") });
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		auto pressed = std::vector<std::string>{ };
+		view.set_action_dispatch([&view, &pressed](const qt::card_action aAction, const std::string& aId) {
+			if (aAction == qt::card_action::reply) {
+				pressed.push_back(aId);
+				view.begin_reply(aId);
+			}
+		});
+		QApplication::processEvents();
+		const auto card = std::ranges::find(view.cards(), std::string{ "t-outdated" }, &qt::thread_card::Id);
+		expect(card != view.cards().end() && card->ReplyOnThread && card->Outdated, "the core answers the outdated thread by the thread");
+		const auto lined = std::ranges::find(view.cards(), std::string{ "t-current" }, &qt::thread_card::Id);
+		expect(lined != view.cards().end() && !lined->ReplyOnThread, "a current thread is answered on its line");
+
+		auto* const menu  = view.thread_menu("t-outdated");
+		const auto  items = menu != nullptr ? menu->actions() : QList<QAction*>{ };
+		const auto  reply = std::ranges::find_if(items, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Reply"); });
+		expect(reply != items.end() && (*reply)->isEnabled(), "the outdated thread's menu offers Reply");
+		delete menu;
+
+		const auto note = [&view] { return view.open_card() != nullptr ? view.open_card()->findChild<QLabel*>(QStringLiteral("threadReplyOutdatedNote")) : nullptr; };
+		view.open_thread("t-outdated");
+		QApplication::processEvents();
+		auto* const field = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+		expect(field != nullptr && field->isVisibleTo(view.open_card()), "the outdated thread shows its Reply field as a current one does");
+		field->click();
+		QApplication::processEvents();
+		expect(pressed == std::vector<std::string>{ "t-outdated" } && view.reply_editor() != nullptr && view.reply_editor()->isVisibleTo(view.open_card()),
+			   "Reply opens the reply field in place");
+		expect(note() != nullptr && note()->isVisibleTo(view.open_card()) && note()->text() == QStringLiteral("Outdated: this thread's line has changed since it was written"),
+			   "one quiet line says the thread's line has changed since it was written");
+		expect(note()->palette().color(QPalette::WindowText) != view.palette().color(QPalette::WindowText) && note()->font().pointSizeF() < view.open_card()->font().pointSizeF(),
+			   "the note is set smaller, in the secondary ink");
+		expect(view.reply_editor()->accessibleName() == QStringLiteral("Reply to the outdated thread"), "the field is named for the thread it answers");
+		const auto noteBelow = note()->mapTo(view.open_card(), QPoint{ 0, note()->height() }).y();
+		const auto editorTop = view.reply_editor()->mapTo(view.open_card(), QPoint{ 0, 0 }).y();
+		expect(noteBelow <= editorTop, "the note sits above the field, not over it");
+		if (const auto path = qEnvironmentVariable("BPR_OUTDATED_REPLY_PNG"); !path.isEmpty()) {
+			view.grab().save(path);
+		}
+		view.close_thread();
+		QApplication::processEvents();
+
+		view.open_thread("t-current");
+		view.begin_reply("t-current");
+		QApplication::processEvents();
+		expect(view.reply_editor() != nullptr && note() == nullptr, "a current thread's reply carries no outdated note");
+		view.hide();
+	}
+
+	// [[BPR-1746]]. GitHub's `viewerCanReply` and the lock, read with
+	// the conversation, refuse a reply that could not succeed before it is
+	// written: no Reply field, a quiet line saying why, and the menu's Reply
+	// disabled with the same words. A collaborator on a locked pull request,
+	// and a thread whose permission was not read, keep Reply.
+	void test_a_thread_github_refuses_offers_no_reply()
+	{
+		using availability              = application::github_conversation_anchor_availability;
+		auto locked                     = thread("t-locked", "src/a.cpp", 10U);
+		locked.ViewerCanReply           = false;
+		locked.ConversationLocked       = true;
+		auto denied                     = thread("t-denied", "src/a.cpp", 12U);
+		denied.ViewerCanReply           = false;
+		denied.ConversationLocked       = false;
+		auto collaborator               = thread("t-collaborator", "src/a.cpp", 14U);
+		collaborator.ViewerCanReply     = true;
+		collaborator.ConversationLocked = true;
+		auto outdated                   = thread("t-outdated", "src/b.cpp", 4U);
+		outdated.Line                   = std::nullopt;
+		outdated.OriginalLine           = 4U;
+		outdated.AnchorAvailability     = availability::outdated_revision;
+		outdated.Outdated               = true;
+		outdated.ViewerCanReply         = false;
+		outdated.ConversationLocked     = true;
+		const auto unread               = thread("t-unread", "src/a.cpp", 16U);
+
+		qt::conversation_cards_view view;
+		view.resize(420, 900);
+		view.show();
+		QApplication::processEvents();
+		view.adopt({ locked, reply("c-locked", "t-locked", "a", "first"), denied, reply("c-denied", "t-denied", "b", "second"), collaborator,
+					 reply("c-collaborator", "t-collaborator", "c", "third"), outdated, reply("c-outdated", "t-outdated", "d", "fourth"), unread,
+					 reply("c-unread", "t-unread", "e", "fifth") });
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		auto pressed = std::vector<std::string>{ };
+		view.set_action_dispatch([&pressed](const qt::card_action aAction, const std::string& aId) {
+			if (aAction == qt::card_action::reply) {
+				pressed.push_back(aId);
+			}
+		});
+		QApplication::processEvents();
+		const auto card = [&view](const std::string& aId) { return *std::ranges::find(view.cards(), aId, &qt::thread_card::Id); };
+		expect(card("t-locked").ReplyRefusal == core::thread_reply_refusal::locked && card("t-denied").ReplyRefusal == core::thread_reply_refusal::viewer_cannot_reply
+				   && card("t-outdated").ReplyRefusal == core::thread_reply_refusal::locked && !card("t-outdated").ReplyOnThread,
+			   "the core refuses the threads GitHub refuses, and says whether the lock is why");
+		expect(card("t-collaborator").ReplyRefusal == core::thread_reply_refusal::none && card("t-unread").ReplyRefusal == core::thread_reply_refusal::none,
+			   "a collaborator on a locked pull request, and a thread whose permission was not read, are not refused");
+
+		const auto menuReply = [&view](const std::string& aId) -> std::pair<bool, QString> {
+			auto* const menu  = view.thread_menu(aId);
+			const auto  items = menu != nullptr ? menu->actions() : QList<QAction*>{ };
+			const auto  found = std::ranges::find_if(items, [](const QAction* aAction) { return aAction->text() == QStringLiteral("Reply"); });
+			auto        state = found != items.end() ? std::pair{ (*found)->isEnabled(), (*found)->toolTip() } : std::pair{ true, QString{ } };
+			delete menu;
+			return state;
+		};
+		const auto lockedWords = QStringLiteral("This conversation is locked. Only collaborators can reply.");
+		const auto deniedWords = QStringLiteral("GitHub doesn't let you reply in this thread.");
+		expect(menuReply("t-locked") == std::pair{ false, lockedWords } && menuReply("t-denied") == std::pair{ false, deniedWords },
+			   "the menu's Reply is disabled and says why");
+		expect(menuReply("t-collaborator").first && menuReply("t-unread").first, "the others keep the menu's Reply");
+		expect(qt::thread_reply_refusal_text(core::thread_reply_refusal::locked) == lockedWords
+				   && qt::thread_reply_refusal_text(core::thread_reply_refusal::anonymous_read).isEmpty(),
+			   "only GitHub's own refusals have words here");
+
+		for (const auto& [id, words] : { std::pair{ std::string{ "t-locked" }, lockedWords }, std::pair{ std::string{ "t-denied" }, deniedWords }, std::pair{ std::string{ "t-outdated" }, lockedWords } }) {
+			view.open_thread(id);
+			QApplication::processEvents();
+			auto* const field   = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+			auto* const refusal = view.open_card()->findChild<QLabel*>(QStringLiteral("threadReplyRefusal"));
+			expect(field == nullptr && refusal != nullptr && refusal->isVisibleTo(view.open_card()) && refusal->text() == words && refusal->accessibleName() == words,
+				   "a refused thread shows no Reply field, and one line says why");
+			expect(refusal != nullptr && refusal->palette().color(QPalette::WindowText) != view.palette().color(QPalette::WindowText)
+					   && refusal->font().pointSizeF() < view.open_card()->font().pointSizeF(),
+				   "the line is quiet: smaller, in the secondary ink");
+			if (const auto path = qEnvironmentVariable("BPR_REPLY_REFUSAL_PNG"); !path.isEmpty() && id == "t-locked") {
+				view.grab().save(path);
+			}
+			view.close_thread();
+			QApplication::processEvents();
+		}
+		view.open_thread("t-collaborator");
+		QApplication::processEvents();
+		auto* const field = view.open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
+		expect(field != nullptr && view.open_card()->findChild<QLabel*>(QStringLiteral("threadReplyRefusal")) == nullptr, "a collaborator keeps the Reply field");
+		field->click();
+		QApplication::processEvents();
+		expect(pressed == std::vector<std::string>{ "t-collaborator" }, "and Reply asks for the reply");
+		view.hide();
+	}
+
 	void test_a_reply_suggestion_is_marked_native_or_text_only()
 	{
 		using availability          = application::github_conversation_anchor_availability;
@@ -2145,6 +2363,247 @@ namespace {
 
 }
 
+namespace {
+	/// A key pressed and released on a widget, as a keyboard would.
+	void key_click(QWidget* const aWidget, const int aKey)
+	{
+		auto press   = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier, aKey == Qt::Key_Space ? QStringLiteral(" ") : QString{ } };
+		auto release = QKeyEvent{ QEvent::KeyRelease, aKey, Qt::NoModifier, aKey == Qt::Key_Space ? QStringLiteral(" ") : QString{ } };
+		QApplication::sendEvent(aWidget, &press);
+		QApplication::sendEvent(aWidget, &release);
+		QApplication::processEvents();
+	}
+
+	/// [[BPR-1741]]. A thread as the composition names it, with two
+	/// posts, and the reactions GitHub reported on them.
+	[[nodiscard]] auto reacting_view(qt::conversation_cards_view& aView) -> std::map<std::string, core::reaction_summary>
+	{
+		aView.resize(440, 900);
+		aView.show();
+		QApplication::processEvents();
+		aView.set_viewer_login(QStringLiteral("reviewer-one"));
+		aView.adopt({ thread("review-thread:T1", "src/a.cpp", 10U), reply("review-comment:C1", "review-thread:T1", "someone", "Please rename this."),
+					  reply("review-comment:C2", "review-comment:C1", "reviewer-one", "Done.") });
+		aView.set_feed(true);
+		aView.set_scope(qt::cards_scope::whole_pull_request);
+		aView.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		return {
+			{ "C1", core::reaction_summary{ .ViewerCanReact = true, .Groups = { core::reaction_group{ .Content = core::reaction_content::thumbs_up, .Count = 2U, .Reactors = { "someone", "octocat" } }, core::reaction_group{ .Content = core::reaction_content::heart, .Count = 1U, .ViewerReacted = true, .Reactors = { "reviewer-one" } } } } },
+			{ "C2", core::reaction_summary{ .ViewerCanReact = false } },
+		};
+	}
+
+	[[nodiscard]] auto post_named(const qt::conversation_cards_view& aView, const QString& aIdentity) -> QWidget*
+	{
+		for (auto* const post : aView.open_card()->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+			if (post->property("postIdentity").toString() == aIdentity) {
+				return post;
+			}
+		}
+		return nullptr;
+	}
+
+	[[nodiscard]] auto chips_of(QWidget* aPost) -> std::vector<QAbstractButton*>
+	{
+		auto chips = std::vector<QAbstractButton*>{ };
+		for (auto* const chip : aPost->findChildren<QAbstractButton*>(QStringLiteral("reactionChip"))) {
+			if (chip->isVisible()) {
+				chips.push_back(chip);
+			}
+		}
+		std::ranges::sort(chips, { }, [](const QAbstractButton* aChip) { return aChip->x(); });
+		return chips;
+	}
+
+	[[nodiscard]] auto open_picker() -> QWidget*
+	{
+		for (auto* const widget : QApplication::topLevelWidgets()) {
+			if (widget->objectName() == QStringLiteral("reactionPicker") && widget->isVisible()) {
+				return widget;
+			}
+		}
+		return nullptr;
+	}
+
+	/// [[BPR-1741]]. A post shows its reactions under its body, says
+	/// who reacted, and adds or removes mine from a chip or the picker, by
+	/// mouse and by keyboard alone; a post GitHub does not let me react to
+	/// offers neither.
+	auto test_reactions_show_and_toggle_by_mouse_and_keyboard() -> void
+	{
+		qt::conversation_cards_view view;
+		auto                        reactions = reacting_view(view);
+		auto                        asked     = std::vector<std::pair<std::string, core::reaction_content>>{ };
+		view.set_reaction_dispatch([&asked](const std::string& aPost, const core::reaction_content aContent) { asked.emplace_back(aPost, aContent); });
+		auto* const first = post_named(view, QStringLiteral("review-comment:C1"));
+		expect(first != nullptr && chips_of(first).empty() && first->findChild<QWidget*>(QStringLiteral("threadPostReact"))->isHidden(),
+			   "before reactions are read a post shows none and offers no Add reaction");
+		view.present_reactions(reactions);
+		QApplication::processEvents();
+		const auto chips = chips_of(first);
+		expect(chips.size() == 2U && chips[0]->property("reactionContent").toInt() == static_cast<int>(core::reaction_content::thumbs_up)
+				   && chips[1]->property("reactionContent").toInt() == static_cast<int>(core::reaction_content::heart),
+			   "the post's reactions are its chips, in GitHub's order");
+		expect(chips[0]->toolTip() == QStringLiteral("someone and octocat reacted with thumbs up") && chips[1]->toolTip() == QStringLiteral("You reacted with heart")
+				   && chips[0]->accessibleName() == QStringLiteral("Thumbs up 2") && chips[1]->accessibleDescription().contains(QStringLiteral("Press to remove yours")),
+			   "a chip says who reacted, and that pressing it adds or removes mine");
+		expect(chips[1]->y() > first->findChild<QWidget*>(QStringLiteral("threadPostReader"))->geometry().bottom() - first->findChild<QWidget*>(QStringLiteral("reactionBar"))->y(),
+			   "the chips sit under the body");
+		chips[0]->click();
+		expect(asked == std::vector<std::pair<std::string, core::reaction_content>>{ { "review-comment:C1", core::reaction_content::thumbs_up } },
+			   "pressing a chip asks for that reaction on that post");
+		chips[1]->setFocus(Qt::TabFocusReason);
+		key_click(chips[1], Qt::Key_Space);
+		expect(asked.size() == 2U && asked.back().second == core::reaction_content::heart, "Space on a focused chip asks for it");
+
+		auto* const react = first->findChild<QAbstractButton*>(QStringLiteral("threadPostReact"));
+		expect(react != nullptr && !react->isHidden() && react->focusPolicy() == Qt::StrongFocus && react->accessibleName() == QStringLiteral("Add reaction"),
+			   "Add reaction is among the post's tools, focusable and named");
+		react->click();
+		QApplication::processEvents();
+		auto* picker = open_picker();
+		expect(picker != nullptr, "Add reaction opens the picker");
+		auto options = picker->findChildren<QAbstractButton*>(QStringLiteral("reactionPickerOption"));
+		std::ranges::sort(options, { }, [](const QAbstractButton* aOption) { return aOption->x(); });
+		expect(options.size() == 8U && options[5]->isChecked() && options[5]->accessibleName() == QStringLiteral("Heart, you reacted")
+				   && std::ranges::count_if(options, &QAbstractButton::isChecked) == 1 && options[5]->hasFocus(),
+			   "the picker offers the eight reactions, mine checked and focused");
+		key_click(options[5], Qt::Key_Right);
+		expect(options[6]->hasFocus(), "an arrow moves to the next reaction");
+		key_click(options[6], Qt::Key_Return);
+		QApplication::processEvents();
+		expect(asked.size() == 3U && asked.back() == std::pair<std::string, core::reaction_content>{ "review-comment:C1", core::reaction_content::rocket } && open_picker() == nullptr,
+			   "Return chooses the focused reaction and closes the picker");
+		react->click();
+		QApplication::processEvents();
+		picker = open_picker();
+		expect(picker != nullptr, "the picker opens again");
+		key_click(picker->focusWidget(), Qt::Key_Escape);
+		QApplication::processEvents();
+		expect(open_picker() == nullptr && asked.size() == 3U, "Esc closes the picker without asking for anything");
+
+		auto* const second = post_named(view, QStringLiteral("review-comment:C2"));
+		expect(second != nullptr && chips_of(second).empty() && second->findChild<QWidget*>(QStringLiteral("threadPostReact"))->isHidden(),
+			   "a post GitHub does not let me react to offers no Add reaction");
+		reactions["C2"].Groups.push_back(core::reaction_group{ .Content = core::reaction_content::eyes, .Count = 3U });
+		view.present_reactions(reactions);
+		QApplication::processEvents();
+		expect(chips_of(second).size() == 1U && !chips_of(second).front()->isEnabled(), "and its chips show the count but cannot be pressed");
+
+		// A change shown at once: my thumbs up pending, the count one more.
+		reactions["C1"].Groups[0] = core::reaction_group{ .Content = core::reaction_content::thumbs_up, .Count = 3U, .ViewerReacted = true, .Reactors = { "reviewer-one", "someone", "octocat" }, .Pending = true };
+		const auto heldCard       = QPointer<QWidget>{ view.open_card() };
+		view.present_reactions(reactions);
+		QApplication::processEvents();
+		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		const auto shown = chips_of(post_named(view, QStringLiteral("review-comment:C1")));
+		expect(heldCard && heldCard == view.open_card() && shown.size() == 2U && shown[0]->accessibleName() == QStringLiteral("Thumbs up 3")
+				   && shown[0]->toolTip() == QStringLiteral("You, someone and octocat reacted with thumbs up, waiting for GitHub"),
+			   "new counts are shown in place, without rebuilding the thread, and say they wait for GitHub");
+		view.hide();
+	}
+
+	/// [[BPR-1741]]. Resolve conversation ends the thread beside Reply
+	/// once resolution is offered, shows a change at once, and is not offered
+	/// to a viewer GitHub does not let resolve the thread.
+	auto test_resolve_conversation_beside_reply() -> void
+	{
+		qt::conversation_cards_view view;
+		static_cast<void>(reacting_view(view));
+		auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+		view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+		expect(button(view, "threadResolveConversation") == nullptr, "not offered before the provider and server both resolve threads");
+		view.set_resolution_offered(true);
+		QApplication::processEvents();
+		auto* resolve = button(view, "threadResolveConversation");
+		expect(resolve != nullptr && resolve->text() == QStringLiteral("Resolve conversation") && resolve->isEnabled() && resolve->focusPolicy() == Qt::StrongFocus
+				   && resolve->parentWidget() == button(view, "threadReplyField")->parentWidget(),
+			   "Resolve conversation sits beside Reply, focusable");
+		resolve->setFocus(Qt::TabFocusReason);
+		key_click(resolve, Qt::Key_Space);
+		expect(actions == std::vector<std::pair<qt::card_action, std::string>>{ { qt::card_action::resolve, "review-thread:T1" } }, "pressing it, by keyboard too, asks to resolve the thread");
+		view.present_thread_resolutions({ { "review-thread:T1", qt::thread_resolution_presentation{ .Resolved = true, .Pending = true } } });
+		QApplication::processEvents();
+		resolve = button(view, "threadResolveConversation");
+		expect(view.cards().front().Resolved && view.cards().front().ResolutionPending && resolve != nullptr && !resolve->isEnabled()
+				   && resolve->text() == QStringLiteral("Unresolve conversation") && view.unresolved_count() == 0U,
+			   "the thread shows resolved at once, and waits for GitHub before it can be changed again");
+		view.present_thread_resolutions({ { "review-thread:T1", qt::thread_resolution_presentation{ .Resolved = true } } });
+		QApplication::processEvents();
+		expect(button(view, "threadResolveConversation") != nullptr && button(view, "threadResolveConversation")->isEnabled(), "GitHub's answer settles it");
+		view.close_thread();
+		QApplication::processEvents();
+		expect(!view.closed_meta(view.cards().front()).Resolved.isEmpty(), "closed, the resolved thread is one line with the green check");
+		view.present_thread_resolutions({ { "review-thread:T1", qt::thread_resolution_presentation{ .Resolved = false } } });
+		QApplication::processEvents();
+		expect(view.closed_meta(view.cards().front()).Resolved.isEmpty() && !view.cards().front().Resolved, "reopened, it loses the check");
+		view.open_thread("review-thread:T1");
+		view.present_thread_resolutions({ { "review-thread:T1", qt::thread_resolution_presentation{ .Resolved = false, .CanResolve = false } } });
+		QApplication::processEvents();
+		expect(button(view, "threadResolveConversation") == nullptr && button(view, "threadResolve") == nullptr,
+			   "a viewer GitHub does not let resolve the thread is offered neither");
+		view.hide();
+	}
+
+	/// [[BPR-1741]]. Chips and the picker are drawn from the palette:
+	/// mine in the accent, legible in light and dark. With a directory, the
+	/// renders are kept for a look.
+	auto test_reactions_render_in_light_and_dark(const QString& aDirectory) -> void
+	{
+		for (const auto dark : { false, true }) {
+			auto palette = QApplication::palette();
+			if (dark) {
+				palette.setColor(QPalette::Base, QColor{ 0x0D, 0x11, 0x17 });
+				palette.setColor(QPalette::Window, QColor{ 0x16, 0x1B, 0x22 });
+				palette.setColor(QPalette::Text, QColor{ 0xE6, 0xED, 0xF3 });
+				palette.setColor(QPalette::WindowText, QColor{ 0xE6, 0xED, 0xF3 });
+				palette.setColor(QPalette::ButtonText, QColor{ 0xE6, 0xED, 0xF3 });
+				palette.setColor(QPalette::Highlight, QColor{ 0x2F, 0x81, 0xF7 });
+			} else {
+				palette.setColor(QPalette::Base, Qt::white);
+				palette.setColor(QPalette::Text, QColor{ 0x1F, 0x23, 0x28 });
+				palette.setColor(QPalette::Highlight, QColor{ 0x09, 0x69, 0xDA });
+			}
+			qt::conversation_cards_view view;
+			view.setPalette(palette);
+			auto reactions = reacting_view(view);
+			view.set_resolution_offered(true);
+			view.present_reactions(reactions);
+			QApplication::processEvents();
+			auto* const post  = post_named(view, QStringLiteral("review-comment:C1"));
+			const auto  chips = chips_of(post);
+			expect(chips.size() == 2U, "the chips are drawn");
+			const auto mine   = chips[1]->grab().toImage();
+			const auto theirs = chips[0]->grab().toImage();
+			const auto accent = palette.color(QPalette::Highlight);
+			const auto near   = [&accent](const QImage& aImage) {
+				auto found = 0;
+				for (int y = 0; y < aImage.height(); ++y) {
+					for (int x = 0; x < aImage.width(); ++x) {
+						const auto pixel = aImage.pixelColor(x, y);
+						found += std::abs(pixel.red() - accent.red()) + std::abs(pixel.green() - accent.green()) + std::abs(pixel.blue() - accent.blue()) < 90 ? 1 : 0;
+					}
+				}
+				return found;
+			};
+			expect(near(mine) > near(theirs) + 4, dark ? "in dark, my reaction is drawn in the accent and another's is not" : "in light, my reaction is drawn in the accent and another's is not");
+			if (!aDirectory.isEmpty()) {
+				const auto suffix = dark ? QStringLiteral("dark") : QStringLiteral("light");
+				view.open_card()->grab().save(aDirectory + QStringLiteral("/thread-%1.png").arg(suffix));
+				auto* const react = post->findChild<QAbstractButton*>(QStringLiteral("threadPostReact"));
+				react->click();
+				QApplication::processEvents();
+				if (auto* const picker = open_picker(); picker != nullptr) {
+					picker->grab().save(aDirectory + QStringLiteral("/picker-%1.png").arg(suffix));
+					picker->close();
+				}
+			}
+			view.hide();
+		}
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -2153,7 +2612,13 @@ auto main(int argc, char** argv) -> int
 		std::cout << "discuss-alignment:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-reactions") {
+		test_reactions_render_in_light_and_dark(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-reactions:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
+
 		test_wrapped_publication_status_is_fully_visible();
 		std::cout << "publication-status-geometry:pass\n";
 		return EXIT_SUCCESS;
@@ -2176,15 +2641,22 @@ auto main(int argc, char** argv) -> int
 	test_reply_in_place_and_next_new();
 	test_reply_in_place_has_the_composers_label_controls();
 	test_a_reply_suggestion_is_marked_native_or_text_only();
+	test_an_outdated_thread_takes_a_reply_with_a_quiet_note();
+	test_a_thread_github_refuses_offers_no_reply();
 	test_published_suggestions_show_against_their_lines();
 	test_endpoint_changes_retain_exact_body_annotations();
 	test_unchanged_refresh_retains_measured_notes();
 	test_alternating_widths_keep_both_widths_measured();
 	test_discuss_geometry_refresh_updates_excerpts();
 	test_the_excerpt_follows_the_supplied_code_font();
+	test_the_drawer_scrolls_past_its_end();
 	test_cached_geometry_matches_a_fresh_view();
 	test_a_dispatch_that_relays_out_still_names_the_pressed_thread();
 	test_discuss_new_counts_share_one_column();
+	test_reactions_show_and_toggle_by_mouse_and_keyboard();
+	test_resolve_conversation_beside_reply();
+	test_reactions_render_in_light_and_dark({ });
 	std::cout << "conversation-cards-view-tests:pass\n";
+
 	return EXIT_SUCCESS;
 }

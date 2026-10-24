@@ -1,5 +1,6 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 
+#include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "review_mutation_execution_authority.hpp"
 
@@ -208,6 +209,58 @@ namespace bpr::application {
 			std::memory_order_acq_rel,
 			std::memory_order_acquire);
 	}
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_thread_scope        aScope,
+		review_reaction_publication_request aRequest)
+		: ReactionRequest{ std::move(aRequest) }
+		, Scope{ .ApplicationSession  = aScope.ApplicationSession,
+				 .WorkbenchGeneration = aScope.WorkbenchGeneration,
+				 .Target              = aScope.Target,
+				 .ActingIdentity      = aScope.ActingIdentity }
+		, Target{ aScope.Target }
+		, ActingIdentity{ aScope.ActingIdentity }
+		, ExpiresAt{ std::chrono::steady_clock::now() + std::chrono::minutes{ 5 } }
+		, Kind{ kind::user_one_shot }
+		, Bound{ true }
+	{
+	}
+	auto review_mutation_execution_authority::permits_reaction(
+		const review_mutation_thread_scope&        aScope,
+		const review_reaction_publication_request& aRequest) noexcept -> bool
+	{
+		if (aScope.ApplicationSession.value() == 0U || aScope.WorkbenchGeneration.value() == 0U
+			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity) || aScope.Thread.empty()
+			|| aRequest.Subject != aScope.Thread || Revoked.load(std::memory_order_acquire)) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (!Bound || Revoked.load(std::memory_order_relaxed)
+			|| !ActingIdentity.has_value()
+			|| Scope.ApplicationSession != aScope.ApplicationSession
+			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
+			|| Scope.Target != aScope.Target
+			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		// A one-shot grant issued for a publication or a resolution permits no
+		// reaction, and one issued for a reaction permits only that change.
+		if (Kind == kind::user_one_shot && (Request.has_value() || ThreadRequest.has_value() || !ReactionRequest || *ReactionRequest != aRequest)) {
+			return false;
+		}
+		if (Kind == kind::testing_reusable) {
+			return true;
+		}
+		if (std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		auto expected = false;
+		return Consumed.compare_exchange_strong(
+			expected,
+			true,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire);
+	}
 	void review_mutation_execution_authority::revoke() noexcept
 	{
 		std::scoped_lock lock{ Mutex };
@@ -239,6 +292,32 @@ namespace bpr::application {
 										  .Target              = std::move(aTarget),
 										  .ActingIdentity      = std::move(aActor),
 										  .Thread              = aRequest.Thread },
+			std::move(aRequest) } };
+#endif
+	}
+	auto detail::review_mutation_user_authority_issuer::issue_reaction(
+		core::application_session_id aSession, core::request_generation aGeneration,
+		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
+		review_reaction_publication_request aRequest) -> review_mutation_execution_grant
+	{
+#if defined(BPR_APPLICATION_TESTING)
+		static_cast<void>(aSession);
+		static_cast<void>(aGeneration);
+		static_cast<void>(aTarget);
+		static_cast<void>(aActor);
+		static_cast<void>(aRequest);
+		return { };
+#else
+		if (aSession.value() == 0U || aGeneration.value() == 0U
+			|| !valid(aTarget) || !valid(aActor) || aRequest.Subject.empty()) {
+			return { };
+		}
+		return review_mutation_execution_grant{ new review_mutation_execution_authority{
+			review_mutation_thread_scope{ .ApplicationSession  = aSession,
+										  .WorkbenchGeneration = aGeneration,
+										  .Target              = std::move(aTarget),
+										  .ActingIdentity      = std::move(aActor),
+										  .Thread              = aRequest.Subject },
 			std::move(aRequest) } };
 #endif
 	}
@@ -315,11 +394,29 @@ namespace bpr::application {
 			bool                                          Refusal    = false;
 		};
 
+		/// \brief The placement a validated publication is bound with: a file
+		/// comment's, a moved line's, [[BPR-1736]] a core-placed off-hunk
+		/// line's for its native attempt, or the source's own.
+		[[nodiscard]] static constexpr auto placed_as(const bool aFileComment, const bool aRemapped, const bool aOffHunk, const core::review_placement aSource) noexcept -> core::review_placement
+		{
+			if (aFileComment) {
+				return core::review_placement::unresolvable_line;
+			}
+			if (aRemapped) {
+				return core::review_placement::legacy_line;
+			}
+			return aOffHunk ? core::review_placement::off_hunk : aSource;
+		}
+
 		struct validated_publication final
 		{
 			review_mutation_anchor_binding                Anchor;
 			review_mutation_execution_scope               Scope;
 			std::optional<review_mutation_source_binding> Source;
+			/// [[BPR-1736]]. The core placed the line outside the diff and
+			/// nothing says GitHub takes such a line: a single Publish probes,
+			/// a review never carries it.
+			bool ReviewHeld = false;
 		};
 
 		// [[BPR-0657]]. One thread resolution in flight: its own record and
@@ -330,6 +427,14 @@ namespace bpr::application {
 			review_mutation_request_context              Context;
 			review_thread_resolution_publication_request Request;
 			std::stop_source                             Stop;
+		};
+		// [[BPR-1741]]. One reaction change in flight, kept like a
+		// resolution: its own record and queue.
+		struct reaction_record final
+		{
+			review_mutation_request_context     Context;
+			review_reaction_publication_request Request;
+			std::stop_source                    Stop;
 		};
 
 		implementation(
@@ -417,10 +522,61 @@ namespace bpr::application {
 			};
 		}
 
+		/// \brief [[BPR-1745]]. A reply bound to its outdated thread,
+		/// held to the thread: its path and the commit it was written on, the
+		/// designated target and actor. No line, selection or source is read,
+		/// and none is published: GitHub takes the reply by the thread alone.
+		[[nodiscard]] auto validate_thread_reply(
+			const review_mutation_publication_request& aRequest) const
+			-> std::expected<validated_publication, review_mutation_failure>
+		{
+			const auto& proposal = aRequest.Proposal;
+			if (!aRequest.ThreadReply.has_value() || !proposal.ReplyToThread.has_value() || proposal.ReplyToThread->empty()
+				|| !core::thread_bound_anchor(proposal.Anchor) || proposal.StartLine.has_value() || !proposal.Anchor.Comparison.valid()
+				|| proposal.Durable.has_value()) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
+			const auto& thread = *aRequest.ThreadReply;
+			// A thread written on the head is not outdated: it has a line.
+			if (!thread.OriginalCommit.valid() || thread.OriginalCommit == Coordinator.designated().ExpectedHead
+				|| thread.OriginalCommit.algorithm() != Coordinator.designated().ExpectedHead.algorithm()) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
+			auto path = portable_path_text(std::filesystem::path{ thread.Path, std::filesystem::path::generic_format });
+			if (!path.has_value()) {
+				return std::unexpected(review_mutation_failure::unsupported);
+			}
+			auto anchor = review_mutation_anchor_binding{
+				.Semantic = proposal.Anchor,
+				.Path     = *path,
+				.Commit   = thread.OriginalCommit,
+			};
+			if (!valid(anchor) || !thread_bound_binding(anchor)) {
+				return std::unexpected(review_mutation_failure::undesignated_target);
+			}
+			const auto scope = review_mutation_execution_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Comparison          = proposal.Anchor.Comparison,
+				.File                = core::file_identity_of(*path),
+				.Anchor              = proposal.Anchor,
+				.ResolvedPath        = *path,
+				.Commit              = Coordinator.designated().ExpectedHead,
+			};
+			return validated_publication{ .Anchor = std::move(anchor), .Scope = scope, .Source = std::nullopt };
+		}
+
 		[[nodiscard]] auto validate(
 			const review_mutation_publication_request& aRequest) const
 			-> std::expected<validated_publication, review_mutation_failure>
 		{
+			// [[BPR-1745]]. A thread-bound reply is held to its thread;
+			// anything else carrying its anchor is refused below the line rule.
+			if (aRequest.ThreadReply.has_value() || core::thread_bound_anchor(aRequest.Proposal.Anchor)) {
+				return validate_thread_reply(aRequest);
+			}
 			const auto& publication = aRequest.SelectedDiff;
 			const auto& selected    = aRequest.Selection;
 			const auto& key         = publication.Key;
@@ -532,11 +688,44 @@ namespace bpr::application {
 					return std::unexpected(review_mutation_failure::unsupported);
 				}
 			}
+			// [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff the core
+			// places a new comment by the measured hunk rule once the merge base
+			// to the head is read: a line outside every hunk is RFC-BPR-0022's
+			// file comment with no native attempt. A base line is placed only
+			// when its document is the merge base's; otherwise the refusal below
+			// stands. Unread lines infer nothing.
+			// [[BPR-1736]] (owner, 2026-10-22, D1). Unless GitHub has refused
+			// such a comment for this profile, server and repository: then the
+			// core routes the line to a native attempt, `off_hunk`, whose answer
+			// teaches the learned fact (unknown), or places it natively
+			// (supported). A range outside is refused unless supported.
+			const auto wholeBase  = !newOnBase || (source->Material.BaseNumberedAsGitHub && publication.LeftPath.has_value() && key.LeftBlob.has_value());
+			auto       offHunk    = false;
+			auto       reviewHeld = false;
+			if (!key.Filter.has_value() && !aRequest.Proposal.ReplyToThread.has_value() && source->WholeDiff && wholeBase) {
+				if (source->WholeDiff->Head != Coordinator.designated().ExpectedHead) {
+					return std::unexpected(review_mutation_failure::stale_head);
+				}
+				const auto onGitHub = core::place_on_github_diff(source->WholeDiff->BaseToHead, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine);
+				const auto route    = source->WholeDiff->Head.valid() && source->WholeDiff->MergeBase.valid() ? core::route_github_comment(onGitHub, source->OffHunkFact)
+																											  : core::github_comment_route::native;
+				if (route == core::github_comment_route::refused) {
+					return std::unexpected(review_mutation_failure::unsupported);
+				}
+				offHunk    = route == core::github_comment_route::native_off_hunk || route == core::github_comment_route::off_hunk_unknown;
+				reviewHeld = route == core::github_comment_route::off_hunk_unknown;
+				if (auto whole = offHunk ? std::nullopt : core::place_whole_diff_comment(*source->WholeDiff, selected.PreferredLine.Side, selected.PreferredLine.Line, aRequest.Proposal.StartLine)) {
+					if (whole->Placement == core::filtered_comment_placement::refused) {
+						return std::unexpected(review_mutation_failure::unsupported);
+					}
+					placement = std::move(*whole);
+				}
+			}
 			// [[BPR-1212]]. GitHub counts a `LEFT` line in the merge base's
 			// version of the file. Without the evidence that the left document
 			// is that version, a base line could land on another line. A
 			// filtered diff's base line was placed in the merge base above.
-			if (newOnBase && !placement && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
+			if (newOnBase && !placement && !offHunk && (!source->Material.BaseNumberedAsGitHub || !publication.LeftPath.has_value() || !key.LeftBlob.has_value())) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
 			auto path = portable_path_text(*publication.RightPath);
@@ -552,10 +741,14 @@ namespace bpr::application {
 			// file comment at the head, at the head's path; its permalink names
 			// the line at the diff's own commit on its side, from that side's
 			// endpoint. Nothing about it moves the anchor.
+			// [[BPR-1735]]. On the Whole PR diff that commit is the comparison's
+			// own side: the head, or the merge base on the left.
 			const auto fileComment = placement && placement->Placement == core::filtered_comment_placement::file_comment;
+			const auto sideCommit  = key.Filter                        ? (selected.PreferredLine.Side == core::diff_side::left ? key.Filter->Left : key.Filter->Right)
+				: selected.PreferredLine.Side == core::diff_side::left ? comparison.Left.Commit
+																	   : comparison.Right.Commit;
 			if (fileComment
-				&& (placement->Side != selected.PreferredLine.Side || placement->Line != selected.PreferredLine.Line
-					|| placement->Commit != (placement->Side == core::diff_side::left ? key.Filter->Left : key.Filter->Right)
+				&& (placement->Side != selected.PreferredLine.Side || placement->Line != selected.PreferredLine.Line || placement->Commit != sideCommit
 					|| (newOnBase && !publication.LeftEndpoint.has_value()))) {
 				return std::unexpected(review_mutation_failure::unsupported);
 			}
@@ -585,14 +778,16 @@ namespace bpr::application {
 				// The line count is the anchor's side's: a base line is counted
 				// in the base document.
 				// A moved line has no file-comment fallback: GitHub took it as a
-				// line comment where it was placed.
-				.Source = review_mutation_source_binding{ .Endpoint     = publication.RightEndpoint,
-														  .Comparison   = key,
-														  .LineCount    = newOnBase ? *lines : *source->Material.RightLines,
-														  .Placement    = fileComment ? core::review_placement::unresolvable_line
-															  : remapped              ? core::review_placement::legacy_line
-																					  : source->Placement,
-														  .LeftEndpoint = fileComment && newOnBase ? publication.LeftEndpoint : std::nullopt },
+				// line comment where it was placed. [[BPR-1736]]. An off-hunk base
+				// line's file comment, after a refusal, links to it in the merge
+				// base.
+				.Source     = review_mutation_source_binding{ .Endpoint          = publication.RightEndpoint,
+															  .Comparison        = key,
+															  .LineCount         = newOnBase ? *lines : *source->Material.RightLines,
+															  .Placement         = placed_as(fileComment, remapped, offHunk, source->Placement),
+															  .LeftEndpoint      = (fileComment || offHunk) && newOnBase ? publication.LeftEndpoint : std::nullopt,
+															  .CorePlacedOffHunk = offHunk },
+				.ReviewHeld = reviewHeld,
 			};
 		}
 
@@ -898,6 +1093,140 @@ namespace bpr::application {
 				}
 			}
 		}
+		[[nodiscard]] auto react(review_reaction_publication_request aRequest,
+								 review_mutation_execution_grant     aRequestGrant)
+			-> review_mutation_request_context
+		{
+			auto record = std::make_shared<reaction_record>(reaction_record{
+				.Context = context(),
+				.Request = std::move(aRequest),
+				.Stop    = { },
+			});
+			auto grant  = review_mutation_execution_grant{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				++Statistics.Attempts;
+				if (Closing) {
+					++Statistics.RefusedBeforeEffect;
+					return {
+						.Session    = Session,
+						.Generation = Generation,
+					};
+				}
+				grant = aRequestGrant ? std::move(aRequestGrant) : Grant;
+			}
+			if (record->Request.Subject.empty() || record->Request.Subject.size() > 256U
+				|| core::reaction_graphql_name(record->Request.Content).empty()) {
+				refuse_reaction(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			if (!Coordinator.capabilities().Reacts) {
+				refuse_reaction(record, review_mutation_failure::unsupported);
+				return record->Context;
+			}
+			if (!valid(TargetBinding) || !valid(ActingIdentityBinding)) {
+				refuse_reaction(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			const auto scope = review_mutation_thread_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Thread              = record->Request.Subject,
+			};
+			{
+				std::scoped_lock lock{ Mutex };
+				if (Closing || OutstandingReactions.size() >= maximum_outstanding_review_mutations
+					|| grant == nullptr || !grant->bind_thread(scope)
+					|| !grant->permits_reaction(scope, record->Request)) {
+					++Statistics.RefusedBeforeEffect;
+				} else {
+					OutstandingReactions.emplace(record->Context.Request.value(), record);
+					ReactionQueue.push_back(record);
+					++Statistics.EffectsQueued;
+					auto self = shared_from_this();
+					try {
+						Effects.post([self] { self->drain_reactions(); });
+						return record->Context;
+					} catch (...) {
+						OutstandingReactions.erase(record->Context.Request.value());
+						ReactionQueue.pop_back();
+					}
+				}
+			}
+			refuse_reaction(record, review_mutation_failure::unavailable);
+			return record->Context;
+		}
+		void refuse_reaction(const std::shared_ptr<reaction_record>& aRecord,
+							 const review_mutation_failure           aFailure)
+		{
+			auto self = shared_from_this();
+			try {
+				DecisionLane.post([self, aRecord, aFailure] {
+					self->complete_reaction(aRecord, std::unexpected(aFailure));
+				});
+			} catch (...) {
+				complete_reaction(aRecord, std::unexpected(aFailure));
+			}
+		}
+		void drain_reactions()
+		{
+			for (;;) {
+				auto record = std::shared_ptr<reaction_record>{ };
+				{
+					std::scoped_lock lock{ Mutex };
+					if (ReactionQueue.empty()) {
+						return;
+					}
+					record = std::move(ReactionQueue.front());
+					ReactionQueue.pop_front();
+				}
+				auto result = std::expected<review_reaction_receipt, review_mutation_failure>{
+					std::unexpected(review_mutation_failure::cancelled)
+				};
+				if (!record->Stop.stop_requested()) {
+					try {
+						result = Coordinator.set_reaction(
+							record->Request.Subject, record->Request.Content, record->Request.Add, record->Stop.get_token());
+					} catch (...) {
+						result = std::unexpected(review_mutation_failure::unavailable);
+					}
+				}
+				auto self = shared_from_this();
+				DecisionLane.post([self, record, answer = std::move(result)]() mutable {
+					self->complete_reaction(record, std::move(answer));
+				});
+			}
+		}
+		void complete_reaction(
+			const std::shared_ptr<reaction_record>&                         aRecord,
+			std::expected<review_reaction_receipt, review_mutation_failure> aResult)
+		{
+			auto publish = false;
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingReactions.erase(aRecord->Context.Request.value());
+				++Statistics.Completions;
+				publish = !Closing;
+				if (publish) {
+					++Statistics.TerminalsPublished;
+					if (aResult.has_value()) {
+						++Statistics.Reactions;
+					}
+				}
+			}
+			if (publish) {
+				try {
+					Projection.publish_reaction(review_reaction_terminal{
+						.Context = aRecord->Context,
+						.Request = aRecord->Request,
+						.Result  = std::move(aResult),
+					});
+				} catch (...) {
+				}
+			}
+		}
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
 								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
@@ -977,6 +1306,11 @@ namespace bpr::application {
 					++Statistics.ShutdownRequestsStopped;
 				}
 			}
+			for (auto& entry : OutstandingReactions) {
+				if (entry.second->Stop.request_stop()) {
+					++Statistics.ShutdownRequestsStopped;
+				}
+			}
 		}
 
 		std::unique_ptr<review_mutation_port> OwnedProvider;
@@ -999,13 +1333,16 @@ namespace bpr::application {
 		std::deque<std::shared_ptr<request_record>>                 EffectQueue;
 		std::deque<std::shared_ptr<resolution_record>>              ResolutionQueue;
 		std::map<std::uint64_t, std::shared_ptr<resolution_record>> OutstandingResolutions;
-		std::shared_ptr<request_record>                             Active;
-		review_mutation_application_host_statistics                 Statistics;
-		std::atomic<std::uint64_t>                                  NextRequest    = 1U;
-		bool                                                        Closing        = false;
-		bool                                                        DrainScheduled = false;
-		bool                                                        RepairPending  = false;
-		std::stop_source                                            RepairStop;
+		std::deque<std::shared_ptr<reaction_record>>                ReactionQueue;
+		std::map<std::uint64_t, std::shared_ptr<reaction_record>>   OutstandingReactions;
+
+		std::shared_ptr<request_record>             Active;
+		review_mutation_application_host_statistics Statistics;
+		std::atomic<std::uint64_t>                  NextRequest    = 1U;
+		bool                                        Closing        = false;
+		bool                                        DrainScheduled = false;
+		bool                                        RepairPending  = false;
+		std::stop_source                            RepairStop;
 	};
 
 	review_mutation_application_host::review_mutation_application_host(
@@ -1083,7 +1420,9 @@ namespace bpr::application {
 		}
 		// [[BPR-1706]]. A review's comments are line comments; a filtered
 		// diff's line GitHub resolves nowhere is a file comment published alone.
-		if (validated->Source && validated->Source->Placement == core::review_placement::unresolvable_line) {
+		// [[BPR-1736]]. And a line outside the diff joins one only once GitHub
+		// accepted such a comment: a review never probes.
+		if (validated->ReviewHeld || (validated->Source && validated->Source->Placement == core::review_placement::unresolvable_line)) {
 			return std::unexpected(review_mutation_failure::unsupported);
 		}
 		return std::move(validated->Anchor);
@@ -1095,6 +1434,14 @@ namespace bpr::application {
 		-> review_mutation_request_context
 	{
 		return Implementation->resolve(std::move(aRequest), std::move(aRequestGrant));
+	}
+
+	auto review_mutation_application_host::react(
+		review_reaction_publication_request aRequest,
+		review_mutation_execution_grant     aRequestGrant)
+		-> review_mutation_request_context
+	{
+		return Implementation->react(std::move(aRequest), std::move(aRequestGrant));
 	}
 
 	void review_mutation_application_host::cancel(

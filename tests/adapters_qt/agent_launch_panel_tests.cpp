@@ -16,6 +16,7 @@
 #include <ranges>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -115,6 +116,27 @@ namespace {
 		expect(
 			recorded.Intents.size() == 1U,
 			"and nothing else left the surface");
+	}
+
+	/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved is
+	/// selected when offered, and again when the profiles are offered anew.
+	void test_the_saved_profile_is_preferred()
+	{
+		auto       recorded = recorder{ };
+		auto       panel    = qt::agent_launch_panel{ recorded.sink() };
+		const auto shipped  = core::built_in_agent_profiles();
+		const auto claude   = QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value());
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentIndex() == 0, "with none saved the first offered profile is selected, as before");
+		panel.prefer_profile(core::claude_stream_json_profile_id);
+		expect(panel.profile_selector()->currentData() == claude, "an offered saved profile is selected at once");
+		panel.profile_selector()->setCurrentIndex(0);
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == claude, "offered again, the saved profile is the one selected");
+		panel.prefer_profile(std::nullopt);
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentIndex() == 0, "cleared, the first offered profile is selected again");
+		expect(recorded.Intents.empty(), "preferring a profile emits no intent");
 	}
 
 	/// \brief Disclosure comes before the action, not after.
@@ -420,6 +442,32 @@ namespace {
 			panel.status_text() == "Finished: workspace_unavailable"
 				&& panel.output_text() == diagnostic,
 			"a failed workspace terminal visibly renders its bounded diagnostic");
+		expect(
+			panel.stop_reason_text().startsWith(QStringLiteral("The agent's copy of this pull request could not be made."))
+				&& panel.stop_reason_text().contains(QStringLiteral("ask again")),
+			"a workspace stop with no reason says the copy failed and what to do [[BPR-1738]]");
+		for (const auto& [reason, phrase] : std::array{
+				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("Downloading the rest failed.") },
+				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then ask again.") },
+				 std::pair{ application::agent_workspace_unavailable_reason::sign_in_refused, QStringLiteral("Check that gh is signed in") },
+				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("larger than the agent's private copy allows") },
+			 }) {
+			const auto reasoned = identity(40U + static_cast<std::uint64_t>(reason));
+			panel.admit(reasoned);
+			expect(panel.stop_reason_text().isEmpty(), "an admitted run has no stop reason yet");
+			panel.finish(
+				reasoned,
+				application::agent_run_result{
+					.Session         = reasoned.Session.Id,
+					.Outcome         = application::agent_run_outcome::workspace_unavailable,
+					.StandardError   = diagnostic.toStdString(),
+					.WorkspaceReason = reason,
+				});
+			expect(
+				panel.status_text() == "Finished: workspace_unavailable" && panel.output_text() == diagnostic
+					&& panel.stop_reason_text().contains(phrase),
+				"a workspace stop says why in plain words and keeps Git's text in the log [[BPR-1738]]");
+		}
 
 		const auto active  = identity(5U);
 		const auto foreign = identity(6U);
@@ -447,6 +495,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_the_panel_only_emits_intents();
+	test_the_saved_profile_is_preferred();
 	test_the_scope_is_shown_before_launch_is_possible();
 	test_cancellation_is_a_distinct_action();
 	test_existing_checkout_is_off_by_default();

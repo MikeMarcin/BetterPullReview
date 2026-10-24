@@ -384,6 +384,7 @@ namespace {
 		unavailable.Target.Semantic.Repository = core::repository_id{ 99U };
 		expect(!parse_review_permalink_body(unavailable, canonical), "foreign source authority cannot invent an anchor");
 	}
+	[[nodiscard]] auto is_file(const review_mutation_wire_request& aPost) -> bool;
 	using journal_state    = core::review_publication_state;
 	using journal_record   = application::review_publication_recovery_record;
 	using recovery_failure = application::review_mutation_recovery_failure;
@@ -398,6 +399,9 @@ namespace {
 		auto mark_possibly_transmitted(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint) -> std::expected<application::review_mutation_recovery_record, recovery_failure> override { return Inner->mark_possibly_transmitted(aKey, aFingerprint); }
 		auto resolve(const std::string& aKey, const std::array<std::uint8_t, 32>& aFingerprint, const application::review_mutation_receipt& aReceipt) -> std::expected<application::review_mutation_recovery_record, recovery_failure> override { return Inner->resolve(aKey, aFingerprint, aReceipt); }
 		auto load_publication(const std::string& aKey) -> std::expected<std::optional<journal_record>, recovery_failure> override { return Inner->load_publication(aKey); }
+		auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost) -> std::expected<void, recovery_failure> override { return Inner->note_publication_post(aKey, aPost); }
+		auto load_publication_post(const std::string& aKey) -> std::expected<std::optional<core::review_publication_post>, recovery_failure> override { return Inner->load_publication_post(aKey); }
+		auto off_hunk_facts() noexcept -> application::off_hunk_fact_port* override { return Inner->off_hunk_facts(); }
 		auto advance_publication(const std::optional<journal_record>& aExpected, const journal_record& aNext) -> std::expected<journal_record, recovery_failure> override
 		{
 			if (InterruptBefore == aNext.State) {
@@ -526,6 +530,11 @@ namespace {
 					response.Body += item;
 				}
 				response.Body += ']';
+			} else if (wire.Operation == operation::observe_server_meta) {
+				// [[BPR-1736]]. GitHub Enterprise Server's version, once per session.
+				++MetaReads;
+				expect(wire.Path == "/api/v3/meta", "the version is read from GET /meta");
+				response.Body = MetaVersion.empty() ? std::string{ R"({"verifiable_password_authentication":false})" } : R"({"installed_version":")" + MetaVersion + R"(","verifiable_password_authentication":false})";
 			} else {
 				expect(wire.Operation == operation::create_review_comment, "only root write in publication fixture");
 				expect(!aStop.stop_requested(), "cancellation checked before POST");
@@ -546,6 +555,12 @@ namespace {
 				expect(!aWitness(), "transmission witness cannot be consumed twice");
 				Posts.push_back(wire);
 				const bool file = std::get<application::review_mutation_request>(wire.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
+				// [[BPR-1735]]. Native HTTPS carries a refusal it admits no
+				// answer for as an error with the status.
+				if (!file && ErrorStatus != 0U) {
+					boundary();
+					return github_mutation_wire_error{ .Failure = application::review_mutation_failure::refused_by_server, .Transmission = github_mutation_transmission::indeterminate, .HttpStatus = ErrorStatus };
+				}
 				if ((!file && RejectNative) || GenericStatus != 0) {
 					response = Rejection.value_or(fixture_rejection());
 					if (GenericStatus != 0) {
@@ -574,6 +589,9 @@ namespace {
 				}
 			}
 			boundary();
+			if (!AnswerVersion.empty()) {
+				response.Headers.push_back({ .Name = "X-GitHub-Enterprise-Version", .Value = AnswerVersion });
+			}
 			return github_mutation_wire_success{ .Response = std::move(response) };
 		}
 		void boundary()
@@ -601,8 +619,15 @@ namespace {
 		bool                                         Stacked         = false;
 		unsigned                                     ResetAtTarget   = 0U;
 		int                                          GenericStatus   = 0;
+		std::uint16_t                                ErrorStatus     = 0U;
 		std::stop_source*                            CancelAfterPost = nullptr;
 		std::function<void()>                        AfterPost;
+		/// [[BPR-1736]]. GitHub Enterprise Server's `installed_version` on
+		/// `GET /meta` (none when empty), the version every answer names, and
+		/// how often the version was read.
+		std::string MetaVersion;
+		std::string AnswerVersion;
+		unsigned    MetaReads = 0U;
 	};
 	[[nodiscard]] auto session_configuration(const application::review_mutation_request& aRequest) -> live_review_mutation_configuration
 	{
@@ -708,7 +733,14 @@ namespace {
 			}
 			auto session = review_mutation_session{ transport, config, std::make_shared<publication_lease>(), open_journal(scratch.path()) };
 			static_cast<void>(session.submit(request));
-			expect(transport.Posts.size() == 1U, "nearby error and restart never authorize a fallback or retry POST");
+			// [[BPR-1735]]. A fully received 4xx rejects the native child, so
+			// publishing again is a new native attempt; nothing else is.
+			const auto refused = response.Status >= 400 && response.Status < 500;
+			expect(transport.Posts.size() == (refused ? 2U : 1U), "nearby error and restart never authorize a fallback, and only a refusal a new attempt");
+			expect(std::ranges::all_of(transport.Posts, [](const review_mutation_wire_request& aPost) {
+					   return std::get<application::review_mutation_request>(aPost.Semantic).Representation == core::review_publication_representation::native_line;
+				   }),
+				   "no file comment follows a refusal the classifier does not admit");
 		}
 		auto scratch               = tests::sqlite_contract::scratch_root{ "recorded-success" };
 		auto transport             = publication_transport{ };
@@ -724,11 +756,14 @@ namespace {
 		expect(session.submit(request)->Duplicate && transport.Posts.size() == 2U, "completed recorded publication replay has no POST");
 		// An earlier build with no selected contract left a transmission witness.
 		// Loading the very same logical request under rev2 must remain GET-only.
+		// [[BPR-1735]]. A fully received refusal is now rejected, so the witness
+		// left unresolved is one whose answer was lost.
 		auto oldRoot             = tests::sqlite_contract::scratch_root{ "recorded-old-witness" };
 		auto oldWire             = publication_transport{ };
 		oldWire.RecordedIdentity = true;
 		oldWire.RejectNative     = true;
 		oldWire.Rejection        = recorded_rejection();
+		oldWire.LoseResponse     = true;
 		{
 			auto oldSession = review_mutation_session{ oldWire, config, std::make_shared<publication_lease>(), open_journal(oldRoot.path()), off_hunk_unsupported_contract{ } };
 			expect(!oldSession.submit(request), "old disabled classifier retains unresolved witness");
@@ -900,7 +935,9 @@ namespace {
 		expect(!session.submit(request) && transport.Posts.size() == 1U && log->Events.size() == 1U, "diagnostic session does not activate synthetic rejection or fallback");
 		expect(log->Events.front().HttpStatus == 422U && log->Events.front().ContextGeneration == 7U, "real session emits one scoped POST observation");
 		static_cast<void>(session.submit(request));
-		expect(transport.Posts.size() == 1U && log->Events.size() == 1U, "recovery stays GET-only and creates no synthetic POST diagnostic");
+		// [[BPR-1735]]. The refusal was rejected, so publishing again is one new
+		// native POST with its own observation, never a fallback.
+		expect(transport.Posts.size() == 2U && log->Events.size() == 2U && !is_file(transport.Posts.back()), "a rejected comment is sent again natively, and observed once more");
 	}
 
 	void test_session_ambiguity_and_refusals()
@@ -955,7 +992,11 @@ namespace {
 			const auto writes         = transport.Posts.size();
 			transport.CancelAfterPost = nullptr;
 			static_cast<void>(session.submit(request));
-			expect(transport.Posts.size() == writes, "reentry never blindly resubmits native");
+			// [[BPR-1735]]. A fully received 4xx (courses 0 to 3) is rejected:
+			// publishing again is one new native attempt. Nothing else resends.
+			const auto rejected = course <= 3U;
+			expect(!rejected || result.Result.error() == application::review_mutation_failure::refused_not_published, "a refusal is reported as not published");
+			expect(transport.Posts.size() == writes + (rejected ? 1U : 0U), "reentry never blindly resubmits native, and a rejected comment is sent again only natively");
 		}
 	}
 	void test_session_restart_states()
@@ -1486,8 +1527,11 @@ namespace {
 		expect(!compile_review_permalink_body(left, permalink_anchor(left), "Wrong side."), "an anchor on the other side than its endpoint is refused");
 		auto unfiltered              = left;
 		unfiltered.Comparison.Filter = std::nullopt;
-		expect(!compile_review_permalink_body(unfiltered, { .Comparison = core::comparison_digest(unfiltered.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base."),
-			   "an unfiltered left side has no permalink");
+		// [[BPR-1735]]. A Whole PR base line GitHub resolves nowhere names its
+		// line at the comparison's left commit, the merge base.
+		const auto onBase = compile_review_permalink_body(unfiltered, { .Comparison = core::comparison_digest(unfiltered.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base.");
+		expect(onBase && onBase->starts_with("https://github.com/MikeMarcin/BPR-Test/blob/" + std::string{ core::canonical_hex(unfiltered.Endpoint->request().Diff.Comparison.Left.Commit).view() } + "/dir/review.cpp#L13\n\n"),
+			   "an unfiltered left side's permalink names the comparison's left commit");
 		auto otherBlob                = left;
 		otherBlob.Comparison.LeftBlob = oid<core::git_blob_oid>(41U);
 		expect(!compile_review_permalink_body(otherBlob, { .Comparison = core::comparison_digest(otherBlob.Comparison), .Side = core::diff_side::left, .Line = 12U }, "Base."),
@@ -1569,12 +1613,442 @@ namespace {
 		auto range                            = base();
 		range.Proposal.StartLine              = 10U;
 		range.IdempotencyKey                  = application::idempotency_key_for(range.Proposal, range.Target);
-		for (const auto& refused : { suggestion, unfiltered, moved, leftless, range }) {
+		static_cast<void>(unfiltered);
+		for (const auto& refused : { suggestion, moved, leftless, range }) {
 			auto scratch   = tests::sqlite_contract::scratch_root{ "unresolvable-refused" };
 			auto transport = publication_transport{ };
 			auto session   = review_mutation_session{ transport, session_configuration(refused), std::make_shared<publication_lease>(), open_journal(scratch.path()), fixture_contract(application::github_server_contract::github_com_2022_11_28) };
-			expect(!session.submit(refused) && transport.Posts.empty(), "a suggestion, an unfiltered or moved source, a left line without its document and a range write nothing");
+			expect(!session.submit(refused) && transport.Posts.empty(), "a suggestion, a moved source, a left line without its document and a range write nothing");
 		}
+	}
+
+	[[nodiscard]] auto is_file(const review_mutation_wire_request& aPost) -> bool
+	{
+		return std::get<application::review_mutation_request>(aPost.Semantic).Representation == core::review_publication_representation::file_comment_with_permalink;
+	}
+
+	/// [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff a line the core
+	/// places outside every hunk is RFC-BPR-0022's file comment at once, with a
+	/// permalink to the line at its own side's commit: no native attempt, one
+	/// comment across retries and a restart.
+	void test_an_off_hunk_whole_pr_line_is_a_file_comment_at_once()
+	{
+		const auto head = std::string(40U, '1');
+		for (const auto side : { core::diff_side::right, core::diff_side::left }) {
+			auto source               = permalink_source();
+			auto request              = publication_request(source);
+			request.Source->Placement = core::review_placement::unresolvable_line;
+			const auto& comparison    = source.Endpoint->request().Diff.Comparison;
+			auto        named         = std::string{ core::canonical_hex(comparison.Right.Commit).view() };
+			if (side == core::diff_side::left) {
+				request.Source->LeftEndpoint         = application::make_workbench_selected_diff_endpoint_for_testing(source.Endpoint->request(), core::diff_side::left, oid<core::git_blob_oid>(40U), "dir/review.cpp");
+				request.Proposal.Anchor.Side         = core::diff_side::left;
+				request.LiveBinding->Anchor.Semantic = request.Proposal.Anchor;
+				request.IdempotencyKey               = application::idempotency_key_for(request.Proposal, request.Target);
+				named                                = std::string{ core::canonical_hex(comparison.Left.Commit).view() };
+			}
+			auto        scratch   = tests::sqlite_contract::scratch_root{ side == core::diff_side::right ? "whole-off-hunk-right" : "whole-off-hunk-left" };
+			auto        journal   = open_journal(scratch.path());
+			const auto* observed  = journal.get();
+			auto        transport = publication_transport{ };
+			{
+				auto       session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+				const auto first   = session.submit_and_reconcile(request);
+				expect(first.Result && first.Result->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 1U && is_file(transport.Posts.front()),
+					   "an off-hunk Whole PR line is published as one file comment, with no native attempt");
+				const auto& sent = transport.Posts.front();
+				expect(sent.Body.find("\"subject_type\":\"file\"") != std::string::npos && sent.Body.find("\"commit_id\":\"" + head + "\"") != std::string::npos
+						   && sent.Body.find("\"line\"") == std::string::npos && sent.Body.find("blob/" + named + "/dir/review.cpp#L13\\n\\nLiteral review prose.") != std::string::npos,
+					   "written at the head with a permalink to the line at its side's commit");
+				expect(observed->Saved.front().State == journal_state::unresolvable_line_admitted && observed->Saved.back().State == journal_state::succeeded_fallback,
+					   "through the journal's durable admission");
+				expect(session.submit(request) && transport.Posts.size() == 1U, "a replay sends nothing");
+			}
+			auto reopened = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			expect(reopened.submit(request) && transport.Posts.size() == 1U, "nor does a restart");
+		}
+	}
+
+	/// [[BPR-1735]]. A native single comment GitHub refuses with a fully
+	/// received 4xx is rejected, not left possibly sent: it is reported as not
+	/// published with GitHub's reason, and its draft can be published again
+	/// or, placed off the diff, as a file comment. An unknown outcome never is.
+	void test_a_refused_single_comment_is_rejected()
+	{
+		const auto courses = std::array<std::string_view, 3U>{ "answer", "error", "unplaceable" };
+		for (const auto course : courses) {
+			auto request   = publication_request(permalink_source());
+			auto scratch   = tests::sqlite_contract::scratch_root{ "refused-single" };
+			auto journal   = open_journal(scratch.path());
+			auto transport = publication_transport{ };
+			if (course == "answer") {
+				transport.GenericStatus = 422;
+			} else if (course == "error") {
+				transport.ErrorStatus = 422U;
+			} else {
+				transport.RejectNative = true;
+				transport.Rejection    = recorded_rejection();
+			}
+			auto       session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			const auto first   = session.submit_and_reconcile(request);
+			const auto reason  = course == "unplaceable" ? application::review_mutation_failure::unplaceable_line : application::review_mutation_failure::refused_not_published;
+			expect(!first.Result && first.Result.error() == reason && first.MutationAttempted && transport.Posts.size() == 1U,
+				   "a fully received refusal is not published, with GitHub's reason; through the GitHub CLI or native HTTPS alike");
+			transport.GenericStatus = 0;
+			transport.ErrorStatus   = 0U;
+			transport.RejectNative  = false;
+			const auto again        = session.submit_and_reconcile(request);
+			expect(again.Result && transport.Posts.size() == 2U && !is_file(transport.Posts.back()), "the draft can be published again, as a new native attempt");
+		}
+
+		// Refused natively, then placed outside GitHub's diff: the same draft
+		// becomes its file comment, from the rejected record.
+		{
+			auto request           = publication_request(permalink_source());
+			auto scratch           = tests::sqlite_contract::scratch_root{ "refused-then-file" };
+			auto transport         = publication_transport{ };
+			transport.RejectNative = true;
+			transport.Rejection    = recorded_rejection();
+			{
+				auto session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+				expect(!session.submit(request), "refused natively");
+			}
+			request.Source->Placement = core::review_placement::unresolvable_line;
+			auto       session        = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			const auto file           = session.submit(request);
+			expect(file && file->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 2U && is_file(transport.Posts.back()),
+				   "after a restart it is published once as a file comment");
+			expect(session.submit(request) && transport.Posts.size() == 2U, "and never again");
+		}
+
+		// Unknown outcomes are never rejected: a lost answer, a server error.
+		for (const auto lost : { true, false }) {
+			auto request      = publication_request(permalink_source());
+			auto scratch      = tests::sqlite_contract::scratch_root{ "unknown-single" };
+			auto transport    = publication_transport{ };
+			transport.Publish = false;
+			if (lost) {
+				transport.LoseResponse = true;
+			} else {
+				transport.GenericStatus = 502;
+			}
+			auto session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+			session.set_publication_clock([] { return std::int64_t{ 4'000'000'000'000 }; });
+			const auto first = session.submit_and_reconcile(request);
+			expect(!first.Result && !application::journal_rejection(first.Result.error()), "an unknown outcome is not rejected");
+			session.set_publication_clock([] { return std::int64_t{ 4'000'000'000'000 } + 86'400'000; });
+			static_cast<void>(session.submit(request));
+			expect(transport.Posts.size() == 1U, "and a day later it still only reconciles");
+		}
+	}
+
+	/// [[BPR-1736]]. A line the core placed outside GitHub's diff, bound
+	/// `off_hunk`, on the same server, repository, profile and account.
+	[[nodiscard]] auto core_off_hunk(application::review_mutation_request aRequest) -> application::review_mutation_request
+	{
+		aRequest.Source->Placement         = core::review_placement::off_hunk;
+		aRequest.Source->CorePlacedOffHunk = true;
+		return aRequest;
+	}
+	/// [[BPR-1736]]. The learned fact for a single comment in the session's
+	/// scope, as kept.
+	[[nodiscard]] auto kept_fact(recording_journal& aJournal, const application::review_mutation_request& aRequest) -> std::optional<application::off_hunk_fact_entry>
+	{
+		const auto config = session_configuration(aRequest);
+		const auto scope  = application::off_hunk_fact_scope{ .Profile              = config.CredentialContext.Authority.Profile.value(),
+															  .Host                 = std::string{ config.CredentialContext.Authority.Hostname.value() },
+															  .Account              = config.CredentialContext.Authority.Account.value(),
+															  .RepositoryDatabaseId = config.Target.RepositoryDatabaseId };
+		return aJournal.off_hunk_facts()->load_scope(scope, core::off_hunk_fact_operation::single_comment).value();
+	}
+
+	/// [[BPR-1736]] (owner, 2026-10-22, D1, D2 rejected, D4). With nothing
+	/// learned, a single Publish of a line the core placed outside the diff
+	/// makes one native attempt. GitHub.com's measured refusal teaches
+	/// unsupported and its file comment follows at once, one comment in all;
+	/// the next such line is a file comment with no native attempt. A refusal
+	/// naming the line in a shape no classifier records teaches unsupported and
+	/// asks once; publishing again posts the file comment. An unclear answer
+	/// teaches nothing and only reconciles.
+	void test_an_unknown_off_hunk_line_learns_from_one_native_attempt()
+	{
+		constexpr auto now = std::int64_t{ 4'000'000'000'000 };
+		// GitHub.com's refusal (BPR-Test PR2, #124, #125), on any repository.
+		{
+			auto  request          = core_off_hunk(publication_request(permalink_source()));
+			auto  scratch          = tests::sqlite_contract::scratch_root{ "learn-github-com" };
+			auto  journal          = open_journal(scratch.path());
+			auto* observed         = journal.get();
+			auto  transport        = publication_transport{ };
+			transport.RejectNative = true;
+			transport.Rejection    = recorded_rejection();
+			transport.Rejection->Headers.resize(1U);
+			auto session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			session.set_publication_clock([] { return now; });
+			expect(!kept_fact(*observed, request), "nothing is learned to begin with");
+			const auto first = session.submit_and_reconcile(request);
+			expect(first.Result && first.Result->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 2U
+					   && !is_file(transport.Posts.front()) && is_file(transport.Posts.back()),
+				   "one native attempt, refused in GitHub.com's shape, then its file comment at once");
+			expect(std::ranges::any_of(observed->Saved, [](const journal_record& aRecord) { return aRecord.State == journal_state::native_definitively_unsupported; })
+					   && observed->Saved.back().State == journal_state::succeeded_fallback,
+				   "through RFC-BPR-0022's classified refusal: the file child follows a fully received refusal only");
+			const auto fact = kept_fact(*observed, request);
+			expect(fact && fact->Fact.Observation.State == core::off_hunk_creation_capability::unsupported && fact->Fact.Observation.ObservedUtcMs == now
+					   && fact->Key.Product == core::github_server_product::github_com && fact->Key.ServerVersion.empty() && fact->Fact.Repository == "MikeMarcin/BPR-Test"
+					   && fact->Fact.Line == request.Proposal.Anchor.Line,
+				   "and the fact is now unsupported, taught by that comment");
+			expect(session.submit(request) && transport.Posts.size() == 2U, "a replay sends nothing");
+			next_draft(request);
+			const auto next = session.submit(request);
+			expect(next && next->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 3U && is_file(transport.Posts.back()),
+				   "the next such line is a file comment with no native attempt");
+			expect(observed->Saved.back().State == journal_state::succeeded_fallback
+					   && std::ranges::any_of(observed->Saved, [](const journal_record& aRecord) { return aRecord.State == journal_state::unresolvable_line_admitted; }),
+				   "admitted to it at once");
+		}
+		// A refusal naming the line in a shape no classifier records (GitHub
+		// Enterprise Server's is not recorded yet): learned, and asked once.
+		{
+			auto  request          = core_off_hunk(publication_request(permalink_source()));
+			auto  scratch          = tests::sqlite_contract::scratch_root{ "learn-unrecorded" };
+			auto  journal          = open_journal(scratch.path());
+			auto* observed         = journal.get();
+			auto  transport        = publication_transport{ };
+			transport.RejectNative = true;
+			transport.Rejection    = review_mutation_wire_response{ .Status  = 422,
+																	.Headers = { { .Name = "Content-Type", .Value = "application/json" } },
+																	.Body    = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"invalid","field":"line","message":"is not part of the diff"}],"documentation_url":"https://docs.github.com/enterprise-server@3.20/rest/pulls/comments","status":"422"})" };
+			auto session           = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			session.set_publication_clock([] { return now; });
+			const auto first = session.submit_and_reconcile(request);
+			expect(!first.Result && first.Result.error() == application::review_mutation_failure::off_hunk_refused && application::journal_rejection(first.Result.error()) && transport.Posts.size() == 1U,
+				   "not published, the row asking once; the journal rejected it");
+			const auto fact = kept_fact(*observed, request);
+			expect(fact && fact->Fact.Observation.State == core::off_hunk_creation_capability::unsupported, "the fact is unsupported");
+			transport.RejectNative = false;
+			const auto again       = session.submit_and_reconcile(request);
+			expect(again.Result && again.Result->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 2U && is_file(transport.Posts.back()),
+				   "publishing again posts the file comment, with no second native attempt");
+			expect(session.submit(request) && transport.Posts.size() == 2U, "and never twice");
+		}
+		// Unclear answers teach nothing: a lost answer, a server error, an
+		// unrelated 422.
+		for (const auto course : { 0, 1, 2 }) {
+			auto  request     = core_off_hunk(publication_request(permalink_source()));
+			auto  scratch     = tests::sqlite_contract::scratch_root{ "learn-unclear" };
+			auto  journal     = open_journal(scratch.path());
+			auto* observed    = journal.get();
+			auto  transport   = publication_transport{ };
+			transport.Publish = false;
+			if (course == 0) {
+				transport.LoseResponse = true;
+			} else {
+				transport.GenericStatus = course == 1 ? 502 : 422;
+			}
+			auto session = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			session.set_publication_clock([] { return now; });
+			const auto first = session.submit_and_reconcile(request);
+			expect(!first.Result && transport.Posts.size() == 1U && !kept_fact(*observed, request), "an unclear answer teaches nothing");
+			expect(course == 2 ? first.Result.error() == application::review_mutation_failure::refused_not_published : !application::journal_rejection(first.Result.error()),
+				   "an unrelated refusal is rejected as before, an unknown outcome is not");
+			if (course != 2) {
+				static_cast<void>(session.submit(request));
+				expect(transport.Posts.size() == 1U, "and the check-only reconciliation runs: no duplicate");
+			}
+		}
+	}
+
+	/// [[BPR-1736]]. Fixture only: no GitHub host has accepted a line comment
+	/// outside its diff (BPR-Test #125). A created comment at that line
+	/// teaches supported, and the next such line goes natively; a later
+	/// refusal demotes at once and its file comment follows.
+	void test_a_supported_off_hunk_line_is_native()
+	{
+		constexpr auto now       = std::int64_t{ 4'000'000'000'000 };
+		auto           request   = core_off_hunk(publication_request(permalink_source()));
+		auto           scratch   = tests::sqlite_contract::scratch_root{ "learn-supported" };
+		auto           journal   = open_journal(scratch.path());
+		auto*          observed  = journal.get();
+		auto           transport = publication_transport{ };
+		auto           session   = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+		session.set_publication_clock([] { return now; });
+		const auto first = session.submit_and_reconcile(request);
+		expect(first.Result && first.Result->Representation == core::review_publication_representation::native_line && transport.Posts.size() == 1U && !is_file(transport.Posts.front()),
+			   "a created comment at the line is published natively");
+		const auto fact = kept_fact(*observed, request);
+		expect(fact && fact->Fact.Observation.State == core::off_hunk_creation_capability::supported && fact->Fact.Observation.Source == core::off_hunk_fact_source::observed_acceptance,
+			   "and teaches supported");
+		next_draft(request);
+		expect(session.submit(request) && transport.Posts.size() == 2U && !is_file(transport.Posts.back()), "the next such line is native");
+		transport.RejectNative = true;
+		transport.Rejection    = recorded_rejection();
+		session.set_publication_clock([] { return now + 1000; });
+		next_draft(request);
+		const auto withdrawn = session.submit(request);
+		expect(withdrawn && withdrawn->Representation == core::review_publication_representation::file_comment_with_permalink && transport.Posts.size() == 4U && is_file(transport.Posts.back()),
+			   "a later refusal publishes the file comment once");
+		expect(kept_fact(*observed, request)->Fact.Observation.State == core::off_hunk_creation_capability::unsupported, "and demotes the fact at once");
+	}
+
+	/// [[BPR-1736]]. On GitHub Enterprise Server the fact is keyed by the
+	/// `installed_version` read once per session from `GET /meta`, and
+	/// recorded under the version the answer that taught it names in
+	/// `X-GitHub-Enterprise-Version`. A new version forgets it; an unreadable
+	/// version makes it unknown and records nothing.
+	void test_an_enterprise_fact_is_keyed_by_the_server_version()
+	{
+		constexpr auto now           = std::int64_t{ 4'000'000'000'000 };
+		auto           source        = permalink_source();
+		source.Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		source.Target.Hostname       = application::github_canonical_hostname{ "reviews.example.test" };
+		auto request                 = core_off_hunk(publication_request(source));
+		auto scratch                 = tests::sqlite_contract::scratch_root{ "learn-enterprise" };
+		auto transport               = publication_transport{ };
+		transport.RejectNative       = true;
+		transport.MetaVersion        = "3.20.8";
+		transport.AnswerVersion      = "3.20.8";
+		{
+			auto  journal  = open_journal(scratch.path());
+			auto* observed = journal.get();
+			auto  session  = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			session.set_publication_clock([] { return now; });
+			const auto first = session.submit_and_reconcile(request);
+			expect(!first.Result && first.Result.error() == application::review_mutation_failure::off_hunk_refused && transport.Posts.size() == 1U,
+				   "GitHub Enterprise Server's refusal is not yet recorded: asked once");
+			expect(transport.MetaReads == 1U, "its version was read once");
+			const auto fact = kept_fact(*observed, request);
+			expect(fact && fact->Key.Product == core::github_server_product::github_enterprise_server && fact->Key.ServerVersion == "3.20.8"
+					   && fact->Fact.Observation.State == core::off_hunk_creation_capability::unsupported,
+				   "the refusal is kept under 3.20.8");
+			next_draft(request);
+			expect(session.submit(request) && transport.Posts.size() == 2U && is_file(transport.Posts.back()) && transport.MetaReads == 1U,
+				   "the next such line is a file comment; the version is not read again");
+		}
+		// The server is upgraded: the new version forgets the fact.
+		transport.MetaVersion   = "3.22.2";
+		transport.AnswerVersion = "3.22.2";
+		{
+			auto  journal  = open_journal(scratch.path());
+			auto* observed = journal.get();
+			auto  session  = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			session.set_publication_clock([] { return now + 1000; });
+			next_draft(request);
+			const auto upgraded = session.submit_and_reconcile(request);
+			expect(!upgraded.Result && transport.Posts.size() == 3U && !is_file(transport.Posts.back()), "a new server version makes one native attempt again");
+			const auto fact = kept_fact(*observed, request);
+			expect(fact && fact->Key.ServerVersion == "3.22.2" && fact->Fact.Observation.ObservedUtcMs == now + 1000, "and keeps what it teaches under 3.22.2");
+		}
+		// No version anywhere: nothing is looked up or recorded.
+		auto quiet              = tests::sqlite_contract::scratch_root{ "learn-enterprise-unversioned" };
+		transport.MetaVersion   = "";
+		transport.AnswerVersion = "";
+		const auto posts        = transport.Posts.size();
+		auto       journal      = open_journal(quiet.path());
+		auto*      observed     = journal.get();
+		auto       session      = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+		next_draft(request);
+		const auto unversioned = session.submit_and_reconcile(request);
+		expect(!unversioned.Result && transport.Posts.size() == posts + 1U && !kept_fact(*observed, request), "an unreadable version: one native attempt, nothing recorded");
+		next_draft(request);
+		static_cast<void>(session.submit_and_reconcile(request));
+		expect(transport.Posts.size() == posts + 2U && !is_file(transport.Posts.back()), "and the fact stays unknown");
+	}
+
+	/// [[BPR-1736]] (D4). The general classifier is GitHub.com's measured
+	/// tuple with any documentation URL, status and header set, and nothing
+	/// else; GitHub Enterprise Server has none yet.
+	void test_the_general_classifier_is_github_coms_shape()
+	{
+		const auto request  = core_off_hunk(publication_request(permalink_source()));
+		const auto wire     = compile_review_comment_request(request, application::github_server_contract::github_com_2022_11_28);
+		const auto contract = general_off_hunk_contract(application::github_server_contract::github_com_2022_11_28);
+		expect(wire && contract && contract->General && !general_off_hunk_contract(application::github_server_contract::ghes_3_18_2022_11_28),
+			   "GitHub.com has the general classifier; GitHub Enterprise Server none");
+		const auto answer = [](std::string aBody, const int aStatus = 422) {
+			return review_mutation_wire_response{ .Status = aStatus, .Headers = { { .Name = "Content-Type", .Value = "application/json" }, { .Name = "X-Request-Id", .Value = "any" } }, .Body = std::move(aBody) };
+		};
+		const auto tuple = std::string{ R"({"resource":"PullRequestReviewComment","code":"custom","field":"pull_request_review_thread.line","message":"could not be resolved"})" };
+		expect(definitive_off_hunk_unsupported(recorded_rejection(), *wire, *contract), "the recorded PR2 answer");
+		expect(definitive_off_hunk_unsupported(answer(R"({"message":"Validation Failed","errors":[)" + tuple + R"(]})"), *wire, *contract), "with no documentation URL or status");
+		expect(definitive_off_hunk_unsupported(answer(R"({"message":"Validation Failed","errors":[)" + tuple + R"(],"documentation_url":"https://docs.github.com/other","status":"422"})"), *wire, *contract),
+			   "any documentation URL");
+		expect(!definitive_off_hunk_unsupported(answer(R"({"message":"Validation Failed","errors":[)" + tuple + R"(]})", 400), *wire, *contract), "a 422 only");
+		expect(!definitive_off_hunk_unsupported(answer(R"({"message":"Validation Failed","errors":[)" + tuple + "," + tuple + R"(]})"), *wire, *contract), "one error only");
+		expect(!definitive_off_hunk_unsupported(answer(R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"custom","field":"line","message":"could not be resolved"}]})"), *wire,
+												*contract),
+			   "that exact field");
+		expect(!definitive_off_hunk_unsupported(answer(R"({"message":"Validation Failed","errors":[)" + tuple + R"(],"extra":1})"), *wire, *contract), "no other member");
+		expect(!definitive_off_hunk_unsupported(answer(R"({"message":"Unprocessable Entity","errors":["Line could not be resolved"]})"), *wire, *contract), "not a review's refusal");
+		expect(refusal_names_comment_line(recorded_rejection())
+				   && refusal_names_comment_line(answer(R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"invalid","field":"line","message":"x"}]})")),
+			   "a refusal naming the line, either field");
+		expect(!refusal_names_comment_line(answer(R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"invalid","field":"body","message":"x"}]})"))
+				   && !refusal_names_comment_line(answer(R"({"message":"Validation Failed"})")) && !refusal_names_comment_line(answer(R"({"message":"Validation Failed","errors":[)" + tuple + R"(]})", 403)),
+			   "names nothing else");
+		expect(parse_server_meta(answer(R"({"installed_version":"3.20.8","verifiable_password_authentication":true})", 200)) == std::optional<std::string>{ "3.20.8" }, "GET /meta's installed_version");
+		expect(!parse_server_meta(answer(R"({"installed_version":"next"})", 200)) && !parse_server_meta(answer(R"({})", 200)) && !parse_server_meta(answer(R"({"installed_version":"3.20.8"})", 404)),
+			   "and nothing unparsable");
+		auto named = answer("{}", 200);
+		named.Headers.push_back({ .Name = "x-github-enterprise-version", .Value = "3.20.8" });
+		expect(enterprise_version_header(named) == std::optional<std::string>{ "3.20.8" }, "the version an answer names");
+		named.Headers.push_back({ .Name = "X-GitHub-Enterprise-Version", .Value = "3.22.2" });
+		expect(!enterprise_version_header(named) && !enterprise_version_header(answer("{}", 200)), "exactly one");
+		expect(!compile_server_meta_request(request.LiveBinding->Target, application::github_server_contract::github_com_2022_11_28), "GitHub.com has no version to read");
+	}
+
+	/// [[BPR-1735]]. A record an earlier version left possibly sent, with no
+	/// answer kept, is migrated as kept before answers; once ten minutes have
+	/// passed and GitHub's complete list holds no comment of it, a check
+	/// settles it as not published, and its draft can be published again.
+	void test_a_migrated_stuck_comment_settles()
+	{
+		auto request           = publication_request(permalink_source());
+		auto scratch           = tests::sqlite_contract::scratch_root{ "migrated-single" };
+		auto transport         = publication_transport{ };
+		transport.Publish      = false;
+		transport.LoseResponse = true;
+		std::string key;
+		{
+			auto  journal  = open_journal(scratch.path());
+			auto* recorded = journal.get();
+			auto  session  = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), std::move(journal) };
+			expect(!session.submit(request) && transport.Posts.size() == 1U, "an earlier version's lost answer");
+			key = recorded->Saved.back().Key;
+			expect(recorded->Saved.back().State == journal_state::native_possibly_transmitted, "is left possibly sent");
+			// As the version 7 migration keeps it, at the time of the upgrade.
+			expect(recorded->note_publication_post(key, { .Answer = core::review_publication_answer::kept_before_answers, .StatusClass = 0U, .RecordedUtcMs = 5'000'000 }).has_value(), "kept before answers");
+		}
+		transport.LoseResponse = false;
+		auto session           = review_mutation_session{ transport, session_configuration(request), std::make_shared<publication_lease>(), open_journal(scratch.path()) };
+		session.set_publication_clock([] { return std::int64_t{ 5'000'000 } + core::review_publication_settle_delay_ms - 1; });
+		const auto early = session.reconcile_publication(request);
+		expect(!early.Result && !application::journal_rejection(early.Result.error()) && transport.Posts.size() == 1U, "before the delay it only reconciles");
+		session.set_publication_clock([] { return std::int64_t{ 5'000'000 } + core::review_publication_settle_delay_ms; });
+		const auto settled = session.reconcile_publication(request);
+		expect(!settled.Result && settled.Result.error() == application::review_mutation_failure::settled_not_published && transport.Posts.size() == 1U,
+			   "after it, with no comment of it listed, the check settles it as not published and sends nothing");
+		const auto again = session.submit(request);
+		expect(again && transport.Posts.size() == 2U, "the draft is published again, once");
+
+		// A comment GitHub did create is found first, however late.
+		auto createdRequest   = publication_request(permalink_source());
+		auto createdScratch   = tests::sqlite_contract::scratch_root{ "migrated-created" };
+		auto created          = publication_transport{ };
+		created.LoseResponse  = true;
+		created.HideAfterPost = true;
+		{
+			auto  journal  = open_journal(createdScratch.path());
+			auto* recorded = journal.get();
+			auto  first    = review_mutation_session{ created, session_configuration(createdRequest), std::make_shared<publication_lease>(), std::move(journal) };
+			static_cast<void>(first.submit(createdRequest));
+			static_cast<void>(recorded->note_publication_post(recorded->Saved.back().Key, { .Answer = core::review_publication_answer::kept_before_answers, .StatusClass = 0U, .RecordedUtcMs = 0 }));
+		}
+		created.LoseResponse  = false;
+		created.HideAfterPost = false;
+		auto       check      = review_mutation_session{ created, session_configuration(createdRequest), std::make_shared<publication_lease>(), open_journal(createdScratch.path()) };
+		const auto found      = check.reconcile_publication(createdRequest);
+		expect(found.Result && created.Posts.size() == 1U, "a listed comment confirms it instead of settling");
 	}
 }
 
@@ -1597,6 +2071,13 @@ auto main() -> int
 	test_permalink_rejects_foreign_noncanonical_and_unavailable_sources();
 	test_a_filtered_diff_permalink_names_its_own_commit();
 	test_an_unresolvable_filtered_line_is_a_file_comment_at_once();
+	test_an_off_hunk_whole_pr_line_is_a_file_comment_at_once();
+	test_a_refused_single_comment_is_rejected();
+	test_a_migrated_stuck_comment_settles();
+	test_an_unknown_off_hunk_line_learns_from_one_native_attempt();
+	test_a_supported_off_hunk_line_is_native();
+	test_an_enterprise_fact_is_keyed_by_the_server_version();
+	test_the_general_classifier_is_github_coms_shape();
 	std::cout << "review-comment-permalink-tests:pass\n";
 	return EXIT_SUCCESS;
 }

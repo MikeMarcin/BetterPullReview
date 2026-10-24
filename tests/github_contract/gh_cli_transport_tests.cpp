@@ -1,4 +1,8 @@
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/application/manual_executor.hpp"
+#include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_paged_read.hpp"
@@ -371,6 +375,7 @@ namespace {
 			request.BaseOid = "1111111111111111111111111111111111111111";
 			break;
 		case read_operation::resolve_body_images:
+		case read_operation::list_reactions:
 			request.PullRequestNumber = 17U;
 			request.Nodes             = { "PR_kwDOA", "IC_kwDOB" };
 			break;
@@ -1746,6 +1751,309 @@ namespace {
 		}
 	}
 
+	// [[BPR-1746]]. GitHub as `gh api` reaches it, for the fixture pull
+	// request and two review threads: `PRRT_current_1`, current, whose replies
+	// sit on line 13 of the head, and `PRRT_outdated_2`, outdated, written on
+	// commit 5a…, whose replies GitHub holds with no line on that commit (as
+	// BPR-Test#135 did live). It answers by the request's shape: the viewer,
+	// the pull request, and for `gh api graphql` the operation the body names.
+	// A reply adds a comment to its thread; with `LoseNextReply` GitHub keeps
+	// it and the answer is lost, as a dropped connection would lose it.
+	struct gh_reply_server
+	{
+		struct posted
+		{
+			std::string Id;
+			std::string Body;
+		};
+		std::map<std::string, std::vector<posted>> Replies;
+		bool                                       LoseNextReply = false;
+		std::vector<std::string>                   Operations;
+		std::size_t                                NextReply = 45U;
+
+		[[nodiscard]] static auto outdated_commit() -> std::string { return "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a"; }
+		[[nodiscard]] static auto head() -> std::string { return "1111111111111111111111111111111111111111"; }
+		[[nodiscard]] static auto pull_request() -> std::string
+		{
+			return R"("pullRequest":{"id":"PR_kwDOTyvof879G6NV","databaseId":4246446933,"number":17,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"octo-org/review-repository"}})";
+		}
+		[[nodiscard]] static auto variable(const std::string& aBody, const std::string_view aName) -> std::string
+		{
+			const auto key   = "\"" + std::string{ aName } + "\":\"";
+			const auto start = aBody.find(key);
+			if (start == std::string::npos) {
+				return { };
+			}
+			const auto from = start + key.size();
+			return aBody.substr(from, aBody.find('"', from) - from);
+		}
+		[[nodiscard]] static auto outdated(const std::string& aThread) -> bool { return aThread == "PRRT_outdated_2"; }
+		[[nodiscard]] static auto comment(const std::string& aThread, const std::string& aId, const std::string& aBody, const bool aMine) -> std::string
+		{
+			const auto line   = outdated(aThread) ? std::string{ "null" } : std::string{ "13" };
+			const auto commit = outdated(aThread) ? outdated_commit() : head();
+			return "{\"id\":\"" + aId + "\",\"fullDatabaseId\":\"" + aId.substr(aId.rfind('_') + 1U) + "\",\"body\":\"" + aBody + "\",\"path\":\"fixture/review.txt\",\"line\":" + line
+				+ ",\"commit\":{\"oid\":\"" + commit + "\"},\"viewerDidAuthor\":" + (aMine ? "true" : "false") + ",\"author\":"
+				+ (aMine ? R"({"login":"fixture-reviewer","databaseId":22,"id":"MDQ6VXNlcjIy"})" : R"({"login":"someone-else","databaseId":23,"id":"MDQ6VXNlcjIz"})") + "}";
+		}
+
+		/// The answer, as `gh api --include` prints it, or none when lost.
+		[[nodiscard]] auto answer(const std::vector<std::string>& aArguments, const std::string& aBody) -> std::optional<std::string>
+		{
+			const auto ok = [](const std::string& aJson) { return std::optional<std::string>{ "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n" + aJson }; };
+			if (aArguments[1] == "user") {
+				Operations.emplace_back("viewer");
+				return ok(R"({"id":22,"node_id":"MDQ6VXNlcjIy","login":"fixture-reviewer"})");
+			}
+			if (aArguments[1] != "graphql") {
+				Operations.emplace_back("pull-request");
+				return ok(R"({"id":4246446933,"node_id":"PR_kwDOTyvof879G6NV","number":17,"state":"open","head":{"sha":"1111111111111111111111111111111111111111","ref":"feature/review"},"base":{"sha":"2222222222222222222222222222222222222222","ref":"main","repo":{"id":1328277631,"node_id":"R_kgDOTyvofw","full_name":"octo-org/review-repository"}}})");
+			}
+			const auto thread = variable(aBody, "thread");
+			if (aBody.find("query ObserveThreadComments(") != std::string::npos) {
+				Operations.emplace_back("ObserveThreadComments");
+				auto nodes = comment(thread, "PRRC_root_40", "Root comment.", false);
+				for (const auto& reply : Replies[thread]) {
+					nodes += "," + comment(thread, reply.Id, reply.Body, true);
+				}
+				return ok("{\"data\":{\"node\":{\"id\":\"" + thread + "\",\"diffSide\":\"RIGHT\"," + pull_request() + ",\"comments\":{\"pageInfo\":{\"hasNextPage\":false},\"nodes\":[" + nodes + "]}}}}");
+			}
+			if (aBody.find("query ObserveThread(") != std::string::npos) {
+				Operations.emplace_back("ObserveThread");
+				return ok("{\"data\":{\"node\":{\"id\":\"" + thread + "\",\"isResolved\":false," + pull_request() + "}}}");
+			}
+			if (aBody.find("mutation ReplyToThread(") != std::string::npos) {
+				Operations.emplace_back("ReplyToThread");
+				const auto id   = "PRRC_reply_" + std::to_string(NextReply++);
+				const auto body = variable(aBody, "body");
+				Replies[thread].push_back({ .Id = id, .Body = body });
+				if (std::exchange(LoseNextReply, false)) {
+					return std::nullopt;
+				}
+				return ok("{\"data\":{\"addPullRequestReviewThreadReply\":{\"comment\":{\"id\":\"" + id + "\",\"databaseId\":" + id.substr(11U) + ",\"body\":\"" + body
+						  + "\",\"path\":\"fixture/review.txt\",\"line\":" + (outdated(thread) ? "null" : "13") + ",\"commit\":{\"oid\":\"" + (outdated(thread) ? outdated_commit() : head())
+						  + "\"},\"author\":{\"login\":\"fixture-reviewer\"},\"viewerDidAuthor\":true," + pull_request() + "}}}}");
+			}
+			Operations.emplace_back("unexpected");
+			return std::nullopt;
+		}
+
+		[[nodiscard]] auto count(const std::string_view aOperation) const -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count(Operations, aOperation));
+		}
+	};
+
+	/// The application host's port over the shipped session, which a test
+	/// binary drives directly rather than through the concrete provider.
+	class gh_session_port final : public application::review_mutation_port
+	{
+	public:
+		explicit gh_session_port(review_mutation_session& aSession) noexcept
+			: Session{ &aSession }
+		{
+		}
+		auto observe_target() -> std::expected<core::review_mutation_target, application::review_mutation_failure> override { return Session->observe_target(); }
+		auto observe_target(const std::stop_token aStop) -> std::expected<core::review_mutation_target, application::review_mutation_failure> override { return Session->observe_target(aStop); }
+		auto submit(const application::review_mutation_request& aRequest) -> std::expected<application::review_mutation_receipt, application::review_mutation_failure> override { return Session->submit(aRequest); }
+		auto submit_and_reconcile(const application::review_mutation_request& aRequest, const std::stop_token aStop) -> application::review_mutation_submission override
+		{
+			return Session->submit_and_reconcile(aRequest, aStop);
+		}
+		[[nodiscard]] auto capabilities() const -> application::review_provider_capabilities override { return { }; }
+
+	private:
+		review_mutation_session* Session = nullptr;
+	};
+
+	class gh_recording_projection final : public application::review_mutation_projection_port
+	{
+	public:
+		void                                               publish(const application::review_mutation_terminal& aTerminal) override { Published.push_back(aTerminal); }
+		std::vector<application::review_mutation_terminal> Published;
+	};
+
+	/// An owner-private root for the SQLite journal, removed when it goes.
+	struct gh_journal_root
+	{
+		std::filesystem::path Path;
+		gh_journal_root()
+			: Path{ std::filesystem::temp_directory_path() / ("bpr-gh-reply-journal-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())) }
+		{
+			std::filesystem::remove_all(Path);
+			std::filesystem::create_directories(Path);
+			// The store refuses a root reached through a link, as macOS's
+			// temporary directory is.
+			Path = std::filesystem::canonical(Path);
+			expect(adapters::sqlite::make_storage_root_owner_private(Path), "the journal root is owner-private");
+		}
+		gh_journal_root(const gh_journal_root&)                    = delete;
+		gh_journal_root(gh_journal_root&&)                         = delete;
+		auto operator=(const gh_journal_root&) -> gh_journal_root& = delete;
+		auto operator=(gh_journal_root&&) -> gh_journal_root&      = delete;
+		~gh_journal_root()
+		{
+			auto ignored = std::error_code{ };
+			std::filesystem::remove_all(Path, ignored);
+		}
+
+		[[nodiscard]] auto open() const -> std::unique_ptr<application::review_mutation_recovery_port>
+		{
+			auto opened = adapters::sqlite::make_review_mutation_recovery_store({
+				.StorageRoot = Path,
+				.Host        = "github.com",
+				.Account     = "103",
+				.Repository  = "octo-org/review-repository",
+				.PullRequest = 17,
+			});
+			expect(opened.has_value(), "the reply journal opens for its exact scope");
+			return std::move(*opened);
+		}
+	};
+
+	// [[BPR-1746]]. The owner, 2026-10-23: "Oh yeah sure let gh allow
+	// that." A composed course on the GitHub CLI connection: the shipped
+	// session, the application host and the SQLite journal over
+	// `gh_cli_transport`, whose child is GitHub as `gh api` reaches it. A reply
+	// on a current thread and one bound to an outdated thread are each
+	// written once, confirmed from the thread and recorded; a restarted
+	// session answers them from the journal and writes nothing; a reply whose
+	// answer is lost is found in its thread and never sent twice.
+	[[maybe_unused]] void test_thread_replies_publish_over_the_cli_connection()
+	{
+		temporary_layout layout;
+		const auto       configuration          = validate_gh_cli_configuration(configuration_candidate(layout));
+		auto             candidate              = cloud_candidate();
+		candidate.CliAccountLogin               = "fixture-reviewer";
+		const auto                  profile     = validate_github_host_profile(candidate);
+		const auto                  pinned      = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
+		const auto                  wire        = mutation_request_for(*profile);
+		const auto                  lineRequest = std::get<application::review_mutation_request>(wire.Wire.Semantic);
+		const auto                  binding     = *lineRequest.LiveBinding;
+		const auto                  session     = live_review_mutation_configuration{ .CredentialContext = wire.Context, .Target = binding.Target, .ActingIdentity = binding.ActingIdentity };
+		const auto                  root        = gh_journal_root{ };
+		gh_reply_server             github;
+		successful_counting_process process;
+		process.EnableAcquisition = true;
+		process.OnRun             = [&] {
+			const auto args   = gh_arguments(*process.LastRequest);
+			const auto answer = github.answer(args, process.LastRequest->StandardInput);
+			process.Result    = answer ? github_cli_process_result{ github_cli_process_success{ .StandardOutput = *answer } } : github_cli_process_result{ std::unexpected{ github_cli_process_failure::timeout } };
+		};
+		const auto submit = [&](const application::review_mutation_request& aRequest) {
+			gh_cli_transport        transport{ *profile, *pinned, process };
+			review_mutation_session shipped{ transport, session, std::make_shared<fixture_mutation_lease>(), root.open() };
+			return shipped.submit_and_reconcile(aRequest, { });
+		};
+		const auto stored = [&](const std::string& aKey) {
+			const auto record = root.open()->load(aKey);
+			expect(record && record->has_value(), "the reply is in the journal");
+			return **record;
+		};
+
+		// A reply on the current thread's line.
+		auto current                   = lineRequest;
+		current.Proposal.ReplyToThread = "PRRT_current_1";
+		current.IdempotencyKey         = application::idempotency_key_for(current.Proposal, current.Target);
+		const auto first               = submit(current);
+		expect(first.Result.has_value() && !first.Result->Duplicate && first.Result->ServerCommentId == "PRRC_reply_45" && first.MutationAttempted
+				   && github.count("ReplyToThread") == 1U && github.Replies["PRRT_current_1"].size() == 1U && github.Replies["PRRT_current_1"].front().Body == "Please rename this.",
+			   "a reply to a current thread publishes over the CLI connection, once");
+		expect(github.Operations == std::vector<std::string>{ "ObserveThread", "ObserveThreadComments", "viewer", "pull-request", "ReplyToThread", "ObserveThreadComments" },
+			   "the CLI connection takes the native reply course: the thread, its baseline, the account and pull request, the write, the reconciliation");
+		expect(stored(current.IdempotencyKey).State == application::review_mutation_recovery_state::succeeded && stored(current.IdempotencyKey).Receipt->ServerCommentId == "PRRC_reply_45",
+			   "the journal records the receipt");
+		const auto again = submit(current);
+		expect(again.Result.has_value() && again.Result->Duplicate && !again.MutationAttempted && github.count("ReplyToThread") == 1U,
+			   "the same reply again, in a new session, is answered from the journal and not written");
+
+		// A reply bound to the outdated thread, through the application host.
+		const auto outdatedPublication = [](const std::uint64_t aDraft, std::string aBody) {
+			auto request     = application::review_mutation_publication_request{ };
+			request.Proposal = core::review_publication_proposal{
+				.Draft         = core::review_draft_id{ aDraft },
+				.Anchor        = core::thread_reply_anchor(core::file_comparison_digest{ std::array<std::uint8_t, 32>{ 0xA7U } }),
+				.Body          = std::move(aBody),
+				.ReplyToThread = "PRRT_outdated_2",
+			};
+			request.Acknowledged = true;
+			request.ThreadReply  = application::review_mutation_thread_reply_binding{ .Path = "fixture/review.txt", .OriginalCommit = *core::parse_git_commit_oid(gh_reply_server::outdated_commit()) };
+			return request;
+		};
+		const auto publish = [&](const application::review_mutation_publication_request& aRequest) {
+			gh_cli_transport        transport{ *profile, *pinned, process };
+			review_mutation_session shipped{ transport, session, std::make_shared<fixture_mutation_lease>(), root.open() };
+			auto                    effects    = application::manual_executor{ };
+			auto                    decisions  = application::manual_executor{ };
+			auto                    projection = gh_recording_projection{ };
+			auto                    host       = application::review_mutation_application_host{
+				std::make_unique<gh_session_port>(shipped),
+				binding.Target,
+				binding.ActingIdentity,
+				core::application_session_id{ 32U },
+				core::request_generation{ 8U },
+				application::make_review_mutation_testing_grant(core::application_session_id{ 32U }, core::request_generation{ 8U }, binding.Target, binding.ActingIdentity),
+				effects,
+				decisions,
+				projection,
+				nullptr,
+			};
+			const auto context = host.publish(aRequest);
+			expect(context.Request.value() != 0U, "the host takes the thread-bound reply");
+			effects.drain();
+			decisions.drain();
+			host.shutdown();
+			expect(!projection.Published.empty(), "the host answers the reply");
+			return projection.Published.back();
+		};
+		const auto keyOf = [&](const application::review_mutation_publication_request& aRequest) {
+			return application::idempotency_key_for(aRequest.Proposal, binding.Target.Semantic);
+		};
+		const auto outdated = outdatedPublication(901U, "Still true after the rename.");
+		const auto bound    = publish(outdated);
+		expect(bound.Result.has_value() && !bound.Result->Duplicate && bound.Result->ServerCommentId == "PRRC_reply_46" && github.count("ReplyToThread") == 2U
+				   && github.Replies["PRRT_outdated_2"].size() == 1U,
+			   "a reply bound to an outdated thread publishes over the CLI connection, once");
+		const auto boundRecord = stored(keyOf(outdated));
+		expect(boundRecord.State == application::review_mutation_recovery_state::succeeded && core::thread_bound_anchor(boundRecord.Anchor.Semantic)
+				   && core::canonical_hex(boundRecord.Anchor.Commit).view() == gh_reply_server::outdated_commit(),
+			   "the journal keeps the thread-bound anchor and the thread's own commit");
+		expect(publish(outdated).Result->Duplicate && github.count("ReplyToThread") == 2U, "the outdated reply again is answered from the journal");
+
+		// The answer is lost after GitHub took the reply: the attempt was
+		// witnessed before launch, the reconciliation finds the reply in the
+		// thread, and a new session never sends it again.
+		const auto lostReply = outdatedPublication(902U, "A second thought whose answer was lost.");
+		github.LoseNextReply = true;
+		const auto lost      = publish(lostReply);
+		expect(lost.Result.has_value() && !lost.Result->Duplicate && lost.Result->ServerCommentId == "PRRC_reply_47" && lost.MutationAttempted
+				   && github.count("ReplyToThread") == 3U && github.Replies["PRRT_outdated_2"].size() == 2U,
+			   "a reply whose answer is lost is found in its thread and confirmed, written once");
+		expect(stored(keyOf(lostReply)).State == application::review_mutation_recovery_state::succeeded, "the journal records the reconciled reply");
+		expect(publish(lostReply).Result->Duplicate && github.count("ReplyToThread") == 3U, "a restarted session answers it from the journal");
+
+		// Lost, and the thread shows nothing: unresolved, never resent.
+		const auto unseen    = outdatedPublication(903U, "Never reached the thread.");
+		github.LoseNextReply = true;
+		const auto before    = github.count("ReplyToThread");
+		process.OnRun        = [&] {
+			const auto args   = gh_arguments(*process.LastRequest);
+			auto       answer = github.answer(args, process.LastRequest->StandardInput);
+			if (!github.Operations.empty() && github.Operations.back() == "ReplyToThread") {
+				github.Replies["PRRT_outdated_2"].pop_back();
+			}
+			process.Result = answer ? github_cli_process_result{ github_cli_process_success{ .StandardOutput = *answer } } : github_cli_process_result{ std::unexpected{ github_cli_process_failure::timeout } };
+		};
+		const auto missing = publish(unseen);
+		expect(!missing.Result.has_value() && missing.MutationAttempted && github.count("ReplyToThread") == before + 1U
+				   && stored(keyOf(unseen)).State == application::review_mutation_recovery_state::unresolved
+				   && stored(keyOf(unseen)).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted,
+			   "a lost reply the thread does not show stays unresolved and possibly sent");
+		static_cast<void>(publish(unseen));
+		expect(github.count("ReplyToThread") == before + 1U, "an unresolved reply is never sent a second time");
+		expect(process.Acquisitions >= 6U, "every session acquires its own named credential");
+	}
+
 	[[maybe_unused]] void test_mutation_closed_shapes_and_ambiguous_results()
 	{
 		for (const auto& candidate : { cloud_candidate(), enterprise_candidate() }) {
@@ -1775,14 +2083,68 @@ namespace {
 						   && process.LastRequest->StandardOutputLimit == maximum_review_mutation_list_response_bytes + 32U * 1024U,
 					   "[[BPR-1538]] a page of the comment collection may carry a full page of GitHub's comments");
 			}
-			// Every GraphQL-rooted shape is refused before launch: the four
-			// the milestone never admitted, and [[BPR-0896]]'s thread
-			// reconciliation of a reply, which nothing this transport wrote
-			// can need.
-			auto reply                   = semanticRequest;
-			reply.Proposal.ReplyToThread = "PRRT_fixture_1";
-			reply.IdempotencyKey         = application::idempotency_key_for(reply.Proposal, reply.Target);
-			const auto resolution        = application::review_thread_resolution_request{
+			// [[BPR-1746]]. A reply, on a current line or bound to an
+			// outdated thread, and [[BPR-0896]]'s thread reconciliation of
+			// one go by `gh api graphql` with the exact compiled body on
+			// stdin. The reply is witnessed first; a body changed by one byte
+			// never launches. [[BPR-1741]]: a resolution, a reaction and the
+			// reads that bind them go the same way, below.
+			auto reply                        = semanticRequest;
+			reply.Proposal.ReplyToThread      = "PRRT_fixture_1";
+			reply.IdempotencyKey              = application::idempotency_key_for(reply.Proposal, reply.Target);
+			auto outdatedReply                = reply;
+			outdatedReply.Proposal.Anchor     = core::thread_reply_anchor(reply.Proposal.Anchor.Comparison);
+			outdatedReply.LiveBinding->Anchor = { .Semantic = outdatedReply.Proposal.Anchor, .Path = "fixture/review.txt", .Commit = *core::parse_git_commit_oid("5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a") };
+			outdatedReply.IdempotencyKey      = application::idempotency_key_for(outdatedReply.Proposal, outdatedReply.Target);
+			{
+				const auto replyPrevious = process.Result;
+				process.Result           = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n{}" };
+				for (const auto& semantic : { reply, outdatedReply }) {
+					const auto write   = compile_review_comment_request(semantic, profile->server_contract());
+					const auto observe = compile_review_comment_observation_request(semantic, profile->server_contract());
+					expect(write.has_value() && observe.has_value() && write->Operation == review_mutation_operation::reply_review_thread
+							   && observe->Operation == review_mutation_operation::observe_review_thread_comments && write->Path.ends_with("graphql") && observe->Path.ends_with("graphql"),
+						   "a reply and its thread read compile at the GraphQL root");
+					for (const auto& graphql : { *write, *observe }) {
+						const auto writes = graphql.Operation == review_mutation_operation::reply_review_thread;
+						auto       before = process.Calls;
+						if (writes) {
+							expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation({ .Context = request.Context, .Wire = graphql }, { }, { })) && process.Calls == before,
+								   "a reply is never launched without its durable witness");
+						}
+						std::size_t witnessed = 0U;
+						const auto  answered  = transport.perform_review_mutation({ .Context = request.Context, .Wire = graphql }, { }, [&] { ++witnessed; return true; });
+						const auto  args      = gh_arguments(*process.LastRequest);
+						expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == before + 1U && witnessed == (writes ? 1U : 0U) && args[0] == "api" && args[1] == "graphql"
+								   && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql.Body
+								   && std::ranges::none_of(args, [&](const std::string& aArgument) { return aArgument.find("Please rename this.") != std::string::npos; }),
+							   "a reply and its thread read go by gh api graphql with the exact body on stdin, never in the arguments");
+						// One byte changed anywhere, the thread swapped, or the
+						// read passed off as the write: never launched.
+						auto spaced = graphql;
+						spaced.Body.insert(spaced.Body.find('{') + 1U, " ");
+						auto otherThread = graphql;
+						otherThread.Body.replace(otherThread.Body.find("PRRT_fixture_1"), 14U, "PRRT_fixture_2");
+						auto swapped      = graphql;
+						swapped.Operation = writes ? review_mutation_operation::observe_review_thread_comments : review_mutation_operation::reply_review_thread;
+						auto mutated      = graphql;
+						mutated.Body.replace(mutated.Body.find("query") == std::string::npos ? mutated.Body.find("mutation") : mutated.Body.find("query"), 0U, "mutation Other{deleteRepository} ");
+						for (const auto& tampered : { spaced, otherThread, swapped, mutated }) {
+							before = process.Calls;
+							expect(std::holds_alternative<github_mutation_wire_error>(transport.perform_review_mutation({ .Context = request.Context, .Wire = tampered }, { }, [] { return true; })) && process.Calls == before,
+								   "a reply body or thread read that is not exactly the compiled one never launches");
+						}
+					}
+				}
+				// A lost answer after launch leaves the reply possibly sent.
+				process.Result   = std::unexpected{ github_cli_process_failure::timeout };
+				const auto write = compile_review_comment_request(reply, profile->server_contract());
+				const auto lost  = transport.perform_review_mutation({ .Context = request.Context, .Wire = *write }, { }, [] { return true; });
+				expect(std::holds_alternative<github_mutation_wire_error>(lost) && std::get<github_mutation_wire_error>(lost).Transmission == github_mutation_transmission::indeterminate,
+					   "a reply whose answer is lost stays possibly sent");
+				process.Result = replyPrevious;
+			}
+			const auto resolution = application::review_thread_resolution_request{
 				.Target         = binding.Target.Semantic,
 				.ActingIdentity = binding.ActingIdentity.Account,
 				.Thread         = "PRRT_fixture_1",
@@ -1791,12 +2153,35 @@ namespace {
 			};
 			auto unresolution    = resolution;
 			unresolution.Resolve = false;
-			for (const auto& graphql : { compile_review_comment_request(reply, profile->server_contract()), compile_review_comment_observation_request(reply, profile->server_contract()), compile_thread_resolution_request(resolution, profile->server_contract()), compile_thread_resolution_request(unresolution, profile->server_contract()), compile_thread_target_observation_request(resolution, profile->server_contract()) }) {
-				expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "GraphQL-rooted shape compiles at the GraphQL root");
+			const auto reaction  = application::review_reaction_request{
+				.Target         = binding.Target.Semantic,
+				.ActingIdentity = binding.ActingIdentity.Account,
+				.Subject        = "PRRC_fixture_1",
+				.Content        = core::reaction_content::rocket,
+				.Add            = true,
+				.LiveBinding    = binding,
+			};
+			auto unreaction          = reaction;
+			unreaction.Add           = false;
+			const auto statePrevious = process.Result;
+			process.Result           = github_cli_process_success{ .StandardOutput = "HTTP/2.0 200 OK\nContent-Type: application/json\r\n\r\n{}" };
+			for (const auto& graphql : { compile_thread_resolution_request(resolution, profile->server_contract()), compile_thread_resolution_request(unresolution, profile->server_contract()),
+										 compile_thread_target_observation_request(resolution, profile->server_contract()), compile_reaction_subject_observation_request(reaction, profile->server_contract()),
+										 compile_reaction_request(reaction, profile->server_contract()), compile_reaction_request(unreaction, profile->server_contract()) }) {
+				expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "a state change compiles at the GraphQL root");
 				const auto launches = process.Calls;
-				const auto refused  = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, [] { return true; });
-				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == launches, "a GraphQL-rooted shape never launches the CLI");
+				const auto answered = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, { });
+				const auto args     = gh_arguments(*process.LastRequest);
+				expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == launches + 1U && args[0] == "api" && args[1] == "graphql"
+						   && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql->Body,
+					   "a resolution, a reaction and their binding reads go by gh api graphql with the exact body on stdin");
+				auto changed = *graphql;
+				changed.Body.replace(changed.Body.find("query") == std::string::npos ? 0U : changed.Body.find("query"), 0U, " ");
+				const auto before  = process.Calls;
+				const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
+				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a body not exactly the compiled one never launches");
 			}
+			process.Result = statePrevious;
 
 			for (bool wholeReview : { false, true }) {
 				if (wholeReview) {
@@ -1810,6 +2195,16 @@ namespace {
 				expect(std::holds_alternative<github_mutation_wire_success>(transport.perform_review_mutation(request, { }, witness)) && witnessed == 1, "canonical mutation launches after witness");
 				const auto args = gh_arguments(*process.LastRequest);
 				expect(args[0] == "api" && args[1].starts_with("repos/") && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == request.Wire.Body, "mutation uses exact host REST endpoint and stdin body");
+				// [[BPR-1736]]. A mutation's answer keeps the server version
+				// GitHub Enterprise Server names, which keys the learned
+				// off-hunk fact; other headers outside the projection go.
+				process.Result   = github_cli_process_success{ .StandardOutput = "HTTP/2.0 201 Created\nContent-Type: application/json\r\nX-GitHub-Enterprise-Version: 3.20.8\r\nX-Request-Id: fixture\r\n\r\n{}" };
+				const auto  kept = transport.perform_review_mutation(request, { }, witness);
+				const auto* won  = std::get_if<github_mutation_wire_success>(&kept);
+				expect(won != nullptr && std::ranges::count_if(won->Response.Headers, [](const http_header& aHeader) { return aHeader.Name == "X-GitHub-Enterprise-Version" && aHeader.Value == "3.20.8"; }) == 1
+						   && std::ranges::none_of(won->Response.Headers, [](const http_header& aHeader) { return aHeader.Name == "X-Request-Id"; }),
+					   "a mutation's answer keeps the server version it names");
+				process.Result = github_cli_process_success{ .StandardOutput = "HTTP/2.0 201 Created\nContent-Type: application/json\r\n\r\n{}" };
 				for (const auto& arg : args) {
 					expect(arg.find(request.Wire.Body) == std::string::npos, "body absent from arguments");
 				}
@@ -2218,6 +2613,7 @@ try {
 	if constexpr (private_cli_configuration_available) {
 		test_strict_acquisition_failures();
 		test_cli_mutation_session_recovery();
+		test_thread_replies_publish_over_the_cli_connection();
 		test_mutation_closed_shapes_and_ambiguous_results();
 		test_staged_cli_catalog();
 		test_transport_parses_actual_response_and_fixed_failures();

@@ -1467,9 +1467,10 @@ namespace bpr::adapters::github::detail {
 		const validated_github_host_profile&          aProfile,
 		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
-		std::size_t aIndex, const std::uint32_t aDepth) -> std::optional<github_cli_process_request>
+		std::size_t aIndex, const std::uint32_t aDepth, const gh_cli_clone_content aContent) -> std::optional<github_cli_process_request>
 	{
 #if !defined(__APPLE__)
+		static_cast<void>(aContent);
 		static_cast<void>(aConfiguration);
 		static_cast<void>(aProfile);
 		static_cast<void>(aContext);
@@ -1482,8 +1483,11 @@ namespace bpr::adapters::github::detail {
 #else
 		// A complete clone takes no depth; a sparse one takes one generation
 		// for an epoch's commit, or the chain's (RFC-BPR-0089).
+		const auto snapshot = aContent == gh_cli_clone_content::snapshot;
 		if (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth
-			|| (aDepth != 1U && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)) {
+			|| (aDepth != 1U && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
+			|| (aContent != gh_cli_clone_content::trees && !snapshot)
+			|| (snapshot && (aDepth != 1U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
 			return std::nullopt;
 		}
 		std::error_code error;
@@ -1521,7 +1525,9 @@ namespace bpr::adapters::github::detail {
 											   "--config", "core.fsmonitor=false" };
 		if (aContext.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees) {
 			arguments.emplace_back("--depth=" + std::to_string(aDepth));
-			arguments.emplace_back("--filter=blob:none");
+			if (!snapshot) {
+				arguments.emplace_back("--filter=blob:none");
+			}
 		}
 		return constrain_gh_writes(github_cli_process_request{
 									   .Executable              = path_bytes(aConfiguration.Executable),
@@ -1847,30 +1853,46 @@ namespace bpr::adapters::github::detail {
 			} else if constexpr (std::same_as<semantic_type, application::review_mutation_request>) {
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.ActingIdentity == authority.Account;
+			} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>
+								 || std::same_as<semantic_type, application::review_reaction_request>) {
+				// [[BPR-1741]]. A resolution or a reaction is bound to
+				// the target and the actor exactly as a comment is.
+				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
+					&& aSemantic.LiveBinding->ActingIdentity.Account == authority.Account && aSemantic.ActingIdentity == authority.Account;
 			} else {
+
 				return false;
 			}
 		},
 										   aRequest.Wire.Semantic);
 		// Only the finite admitted mutation catalog may use this route.
-		// [[BPR-0896]]. A reply's reconciliation observes its thread at the
-		// GraphQL root too. This transport never writes a reply, so its own
-		// writes never need it; a reply attempt written through another
-		// transport and recovered here is refused, and stays unresolved
-		// rather than being resubmitted.
-		if (!correlated || aRequest.Wire.Operation == review_mutation_operation::reply_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments) {
+		if (!correlated) {
 			return github_mutation_wire_error{ };
 		}
 		const auto githubCom = Profile.server_contract() == application::github_server_contract::github_com_2022_11_28;
 		const auto prefix    = githubCom ? std::string_view{ "/" } : std::string_view{ "/api/v3/" };
-		// [[BPR-1368]]. The one GraphQL write admitted here is a tour stop
-		// edited while its review is pending, sent to `gh api graphql`, which
-		// names the host's own GraphQL root.
-		const auto graphql  = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment;
+		// [[BPR-1368]]. A tour stop edited while its review is pending is sent
+		// to `gh api graphql`, which names the host's own GraphQL root.
+		// [[BPR-1741]]. So are a thread resolved or reopened and a
+		// reaction added or removed, with the reads that bind them to the pull
+		// request first. Each is a fixed document the outbound validator above
+		// compared for exact equality; no other GraphQL write is admitted.
+		// [[BPR-1746]]. The owner, 2026-10-23: "Oh yeah sure let gh
+		// allow that." A reply to a thread (`ReplyToThread`, on a current
+		// line or bound to an outdated thread) goes the same way, with the
+		// read that reconciles it (`ObserveThreadComments`). Unlike a state
+		// write it is witnessed: the journal marks it possibly sent before
+		// launch, as on the native connection, so it is never sent twice.
+		const auto reply      = aRequest.Wire.Operation == review_mutation_operation::reply_review_thread;
+		const auto stateWrite = aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::add_reaction
+			|| aRequest.Wire.Operation == review_mutation_operation::remove_reaction;
+		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite || reply
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_reaction_subject;
+
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
 		if (!exchange || exchange->Graphql != graphql
 			|| (graphql ? aRequest.Wire.Path != (githubCom ? "/graphql" : "/api/graphql") : !aRequest.Wire.Path.starts_with(prefix))) {
@@ -1919,7 +1941,10 @@ namespace bpr::adapters::github::detail {
 		if (writes && (!aWitness || !aWitness())) {
 			return github_mutation_wire_error{ };
 		}
-		const auto sent             = writes ? transmission::indeterminate : transmission::definitely_not_sent;
+		// A state write keeps no witness, but once launched it may have been
+		// sent like any other write.
+		const auto sent = writes || stateWrite ? transmission::indeterminate : transmission::definitely_not_sent;
+
 		invocation.Insights         = insights_channel();
 		invocation.InsightsResource = exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core;
 		invocation.InsightsCategory = core::insights_category::publishing;
@@ -1930,9 +1955,15 @@ namespace bpr::adapters::github::detail {
 		if (!result || !configuration_unchanged()) {
 			return github_mutation_wire_error{ .Transmission = sent };
 		}
-		auto response = parse_gh_cli_response(result->StandardOutput);
+		// [[BPR-1736]]. The answer keeps the server version it names; Insights
+		// reads the rate-limit projection alone.
+		auto response = parse_gh_cli_response(result->StandardOutput, true);
 		if (insights_channel()) {
-			insights_channel()->request(exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core, core::insights_category::publishing, response ? &*response : nullptr, 0);
+			auto metered = response;
+			if (metered) {
+				std::erase_if(metered->Headers, [](const auto& aHeader) { return lowercase_header(aHeader.Name) == "x-github-enterprise-version"; });
+			}
+			insights_channel()->request(exchange->Graphql ? core::insights_resource::graphql : core::insights_resource::core, core::insights_category::publishing, metered ? &*metered : nullptr, 0);
 		}
 
 		// [[BPR-1538]]. A page of the review list or comment collection may

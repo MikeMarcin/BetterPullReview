@@ -730,14 +730,22 @@ namespace bpr::application {
 							.Authority          = aRequest.Authority,
 							.Session            = aInvocation->Identity.Session,
 							.ParentDirectory    = WorkspaceParent,
+							.HistoryClone       = aRequest.HistoryClone,
 						},
 						aInvocation->Stop->get_token());
 					if (!materialized.has_value()) {
-						finish_run(
-							{ .Session       = aInvocation->Identity.Session.Id,
-							  .Outcome       = workspace_outcome(materialized.error()),
-							  .StandardError = std::move(materialized.error().Detail) },
-							aInvocation);
+						auto failed = agent_run_result{
+							.Session       = aInvocation->Identity.Session.Id,
+							.Outcome       = workspace_outcome(materialized.error()),
+							.StandardError = std::move(materialized.error().Detail),
+						};
+						// [[BPR-1738]]. The reason travels with the outcome
+						// so the reviewer is told what happened and what to do;
+						// Git's own text stays in the log.
+						if (failed.Outcome == agent_run_outcome::workspace_unavailable) {
+							failed.WorkspaceReason = materialized.error().Reason;
+						}
+						finish_run(std::move(failed), aInvocation);
 						return;
 					}
 					workspace     = materialized->Workspace;
@@ -753,7 +761,17 @@ namespace bpr::application {
 					return;
 				}
 				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly };
-				auto launch  = build_agent_launch(aProfile, aSupplement, Environment, options);
+				// [[BPR-1752]]. The brief says what the workspace that
+				// was just made is, so the agent knows whether history and the
+				// base are there to compare with.
+				auto framed = std::optional<core::agent_context_supplement>{ };
+				if (aSupplement.Brief && workspace) {
+					framed                   = aSupplement;
+					framed->Brief->Workspace = workspace->Shallow ? core::brief_workspace::private_snapshot
+						: workspace->BorrowsHistory               ? core::brief_workspace::linked_clone_history
+																  : core::brief_workspace::private_copy;
+				}
+				auto launch = build_agent_launch(aProfile, framed ? *framed : aSupplement, Environment, options);
 				options.PrivateSources.clear();
 				if (aInvocation->PrivateAdmission) {
 					aInvocation->PrivateAdmission->Launch.PrivateSources.clear();
@@ -785,10 +803,12 @@ namespace bpr::application {
 				}
 				post_start(aInvocation, *workspace);
 				++ProcessStarts;
-				const auto weak   = weak_from_this();
-				auto       result = Processes.run(
+				const auto weak = weak_from_this();
+				// Owner decision 2026-10-23: no time limit unless the reviewer
+				// set one; Stop is always there.
+				auto result = Processes.run(
 					*launch,
-					120'000,
+					aRequest.RunLimitMilliseconds.value_or(agent_run_without_limit),
 					[weak, aInvocation](const agent_stream_event& aEvent) {
 						if (auto self = weak.lock()) {
 							self->post_stream(aInvocation, aEvent);
@@ -935,6 +955,19 @@ namespace bpr::application {
 						// rather than to never learn about.
 						auto payload = std::move(result.Findings);
 						result.Findings.reset();
+						// [[BPR-1753]], owner decision 2026-10-23. A
+						// harness writes its own result frame, so a real agent
+						// returns its review findings in its answer, fenced as
+						// the review skill asks; they are read against this
+						// turn's frozen snapshot and delivered like any other.
+						if (!payload.has_value() && result.Outcome == agent_run_outcome::success) {
+							auto answer = std::string{ };
+							for (const auto& event : result.Events) {
+								answer += event.Text;
+								answer += '\n';
+							}
+							payload = decode_agent_review_findings(answer, aInvocation->Identity.Session, aInvocation->Snapshot);
+						}
 						// Which revision this turn's outcome is judged
 						// against. A fresh turn is judged against the revision
 						// under review, unchanged. A continuation is judged
@@ -1150,8 +1183,11 @@ namespace bpr::application {
 		bool AdmissionPending   = false;
 		bool AdmissionCancelled = false;
 
-		std::atomic_bool                       Closing    = false;
-		std::atomic_size_t                     ActiveJobs = 0U;
+		std::atomic_bool   Closing    = false;
+		std::atomic_size_t ActiveJobs = 0U;
+		/// [[BPR-1751]]. Workspace probes posted and not yet answered.
+		std::atomic_size_t                     Probes        = 0U;
+		std::atomic_uint64_t                   ProbeSessions = 0U;
 		std::mutex                             GateMutex;
 		std::condition_variable                GateChanged;
 		std::size_t                            CallbacksInFlight = 0U;
@@ -1247,7 +1283,66 @@ namespace bpr::application {
 	auto agent_invocation_host::is_quiescent() const noexcept -> bool
 	{
 		const auto implementation = Implementation;
-		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U;
+		return implementation->ActiveJobs.load(std::memory_order_acquire) == 0U && implementation->Probes.load(std::memory_order_acquire) == 0U;
+	}
+
+	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,
+												core::agent_revision_binding aBinding, std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer)
+	{
+		const auto host = Implementation;
+		if (host->Closing.load(std::memory_order_acquire)) {
+			if (aAnswer) {
+				aAnswer(std::unexpected(agent_workspace_error{ agent_workspace_failure::cancelled }));
+			}
+			return;
+		}
+		// The reserved range: the high half of the session identities, which
+		// the durable catalog's monotonic identities never reach.
+		constexpr auto reserved    = std::uint64_t{ 1U } << 63U;
+		auto           request     = agent_workspace_materialization_request{ };
+		request.ApplicationSession = aApplicationSession;
+		request.Authority          = std::move(aAuthority);
+		request.Session.Id         = core::agent_session_id{ reserved + host->ProbeSessions.fetch_add(1U) + 1U };
+		request.Session.Profile    = core::external_terminal_profile_id;
+		request.Session.Binding    = std::move(aBinding);
+		request.ParentDirectory    = host->WorkspaceParent;
+		request.HistoryClone       = std::move(aHistoryClone);
+		++host->Probes;
+		try {
+			host->Effects.post([weak = std::weak_ptr{ host }, probe = std::move(request), answer = std::move(aAnswer)]() mutable {
+				auto self = weak.lock();
+				if (!self) {
+					return;
+				}
+				if (!self->enter_callback()) {
+					--self->Probes;
+					return;
+				}
+				auto guard  = implementation::callback_guard{ self };
+				auto result = std::expected<prepared_workspace, agent_workspace_error>{ std::unexpected(agent_workspace_error{ agent_workspace_failure::invalid_request }) };
+				try {
+					auto made = self->Workspaces.materialize_agent_workspace(probe, { });
+					if (made) {
+						result = made->Workspace;
+						static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));
+					} else {
+						result = std::unexpected(std::move(made.error()));
+					}
+				} catch (...) { }
+				try {
+					self->DecisionLane.post([self, reply = std::move(answer), outcome = std::move(result)]() mutable {
+						--self->Probes;
+						if (!self->Closing.load(std::memory_order_acquire) && reply) {
+							reply(std::move(outcome));
+						}
+					});
+				} catch (...) {
+					--self->Probes;
+				}
+			});
+		} catch (...) {
+			--host->Probes;
+		}
 	}
 
 	auto agent_invocation_host::statistics() const noexcept

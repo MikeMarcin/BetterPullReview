@@ -405,6 +405,8 @@ namespace {
 			fact{ capability::resolve_review_thread, state::unsupported, source::observed_contract },
 			fact{ capability::unresolve_permission, state::unsupported, source::observed_contract },
 			fact{ capability::unresolve_review_thread, state::unsupported, source::observed_contract },
+			fact{ capability::reply_permission, state::unsupported, source::observed_contract },
+			fact{ capability::conversation_lock, state::unsupported, source::observed_contract },
 		};
 	}
 

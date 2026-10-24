@@ -249,6 +249,8 @@ namespace {
 				.ViewedFileState     = true,
 				.ResolvePermission   = true,
 				.UnresolvePermission = true,
+				.ReplyPermission     = true,
+				.ConversationLock    = true,
 			},
 			.ContractVersion = 1,
 		};
@@ -352,6 +354,7 @@ namespace {
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_1" },
@@ -381,6 +384,7 @@ namespace {
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_4" },
@@ -424,6 +428,7 @@ namespace {
 					.Outdated                  = true,
 					.ViewerResolvePermission   = application::github_permission_state::denied,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_2" },
@@ -466,6 +471,7 @@ namespace {
 					.Outdated                  = false,
 					.ViewerResolvePermission   = application::github_permission_state::allowed,
 					.ViewerUnresolvePermission = application::github_permission_state::denied,
+					.ViewerReplyPermission     = application::github_permission_state::allowed,
 					.Comments                  = {
 						{
 							.Comment = application::github_comment_id{ "PRRC_fixture_file" },
@@ -484,7 +490,9 @@ namespace {
 					},
 				},
 			},
-			.IssueComments = {
+			// [[BPR-1746]]. The recorded conversation is not locked.
+			.ConversationLock = application::github_conversation_lock::unlocked,
+			.IssueComments    = {
 				{
 					.Comment = application::github_comment_id{ "IC_fixture_1" },
 					.Author  = application::github_actor_record{
@@ -544,6 +552,8 @@ namespace {
 						.ViewedFileState     = true,
 						.ResolvePermission   = true,
 						.UnresolvePermission = true,
+						.ReplyPermission     = true,
+						.ConversationLock    = true,
 					},
 					.AfterCursor = { },
 					.ThreadId    = { },
@@ -639,6 +649,7 @@ namespace {
 			request.BaseOid = "1111111111111111111111111111111111111111";
 			break;
 		case read_operation::resolve_body_images:
+		case read_operation::list_reactions:
 			request.PullRequestNumber = 17;
 			request.Nodes             = { "PR_kwDOA", "IC_kwDOB" };
 			break;
@@ -1044,7 +1055,7 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 23U
+			all_read_operations.size() == 24U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
@@ -1052,7 +1063,7 @@ namespace {
 									 read_operation::list_review_comments)
 					!= all_read_operations.end()
 				&& std::ranges::find(read_operation_catalog, read_operation::get_merge_base) == read_operation_catalog.end(),
-			"the compiled set holds twenty-three reads and the recording holds ten");
+			"the compiled set holds twenty-four reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(
@@ -1602,7 +1613,7 @@ namespace {
 		wire_response emptyThreads{
 			.Status       = 200,
 			.Headers      = { { "Content-Type", "application/json" } },
-			.Body         = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","headRefOid":"2222222222222222222222222222222222222222","files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
+			.Body         = R"({"data":{"repository":{"id":"R_fixture_repository","pullRequest":{"id":"PR_fixture_17","headRefOid":"2222222222222222222222222222222222222222","locked":false,"files":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}},"reviewThreads":{"totalCount":0,"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}}})",
 			.Completeness = page_completeness::complete,
 		};
 		expect(

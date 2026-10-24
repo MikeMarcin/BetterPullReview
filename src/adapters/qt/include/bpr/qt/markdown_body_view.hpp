@@ -117,6 +117,11 @@ namespace bpr::qt {
 		/// \brief Asks again for the current body's code, after the holder's
 		/// dispatch became able to answer.
 		void request_code_syntax();
+		/// \brief Owner look v004 ([[BPR-1753]]): colours the body's
+		/// inline code as a file named `aSelector` (`code.cpp`) is coloured,
+		/// through the same dispatch as fenced code. Empty, the default for
+		/// every body that does not ask, leaves inline code plain.
+		void set_inline_code_selector(std::string aSelector);
 		/// \brief [[BPR-1564]]. Shows `suggestion` blocks as a Suggested change,
 		/// or as plain code without a presentation (descriptions, issue
 		/// comments, review summaries), as GitHub does.

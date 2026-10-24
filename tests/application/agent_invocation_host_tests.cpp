@@ -19,6 +19,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -224,9 +225,11 @@ namespace {
 			// destroys twice when a later member throws ([[BPR-0816]]).
 			auto result = application::owned_agent_workspace{
 				.Workspace = application::prepared_workspace{
-					.Policy     = core::agent_workspace_policy::disposable_review_workspace,
-					.PinnedHead = aRequest.Session.Binding.HeadOid,
-					.Path       = "/tmp/bpr-agent-owned/exact-head",
+					.Policy         = core::agent_workspace_policy::disposable_review_workspace,
+					.PinnedHead     = aRequest.Session.Binding.HeadOid,
+					.Path           = "/tmp/bpr-agent-owned/exact-head",
+					.BorrowsHistory = BorrowsHistory,
+					.Shallow        = Shallow,
 				},
 				.ApplicationSession = aRequest.ApplicationSession,
 				.Authority          = aRequest.Authority,
@@ -268,6 +271,8 @@ namespace {
 		std::function<void()>                                               AfterMaterialization;
 		std::optional<application::agent_workspace_error>                   MaterializationFailure;
 		bool                                                                FailNextCleanup = false;
+		bool                                                                BorrowsHistory  = false;
+		bool                                                                Shallow         = false;
 	};
 
 	class process_spy final : public application::agent_process_port
@@ -275,12 +280,13 @@ namespace {
 	public:
 		[[nodiscard]] auto run(
 			const application::agent_launch_request& aRequest,
-			const int,
-			const application::agent_output_sink& aSink,
-			const std::stop_token                 aStop)
+			const int                                aTimeout,
+			const application::agent_output_sink&    aSink,
+			const std::stop_token                    aStop)
 			-> application::agent_run_result override
 		{
 			++Starts;
+			LastTimeout       = aTimeout;
 			LastRequest       = aRequest;
 			LastStopRequested = aStop.stop_requested();
 			if (AfterStart) {
@@ -316,6 +322,7 @@ namespace {
 
 		std::size_t                                      Starts            = 0U;
 		std::size_t                                      Cancels           = 0U;
+		int                                              LastTimeout       = 0;
 		bool                                             LastStopRequested = false;
 		std::optional<application::agent_launch_request> LastRequest;
 		std::function<void()>                            AfterStart;
@@ -675,14 +682,16 @@ namespace {
 	void test_explicit_settings_cross_the_existing_invocation_host()
 	{
 		const auto hostId = core::git_host_id{ 1 };
-		for (const auto profileId : { core::codex_app_server_profile_id, core::codex_jsonl_profile_id }) {
+		// [[BPR-1753]]: Codex exec now takes a model and an effort too,
+		// so the plain-text harness is the profile that takes neither.
+		for (const auto profileId : { core::codex_app_server_profile_id, core::codex_jsonl_profile_id, core::external_terminal_profile_id }) {
 			auto test = harness{ };
 			test.Host.observe(core::application_session_id{ 1 }, authority(hostId), binding(hostId));
 			auto input              = request(hostId, profileId);
 			input.RequestedSettings = { "requested-model", "high" };
 			test.Host.dispatch(input);
 			test.settle();
-			if (profileId == core::codex_app_server_profile_id) {
+			if (profileId != core::external_terminal_profile_id) {
 				expect(test.Processes.Starts == 1 && test.Processes.LastRequest->Metadata.Requested == input.RequestedSettings,
 					   "production invocation host passes explicitly requested settings to its existing launcher");
 			} else {
@@ -903,6 +912,7 @@ namespace {
 		test.Workspaces.MaterializationFailure = application::agent_workspace_error{
 			application::agent_workspace_failure::unavailable,
 			diagnostic,
+			application::agent_workspace_unavailable_reason::connection_failed,
 		};
 		test.Host.observe(
 			core::application_session_id{ 1U },
@@ -920,6 +930,12 @@ namespace {
 				&& test.Projection.Finished.front().StandardError == diagnostic
 				&& test.Processes.Starts == 0U && test.Host.is_quiescent(),
 			"workspace failure retains identity and diagnostic through its typed terminal");
+		// [[BPR-1738]]. The reason reaches the presentation with the
+		// outcome, so it can say what happened instead of the outcome's name.
+		expect(
+			test.Projection.Finished.front().WorkspaceReason
+				== std::optional{ application::agent_workspace_unavailable_reason::connection_failed },
+			"workspace failure carries its reason through its typed terminal");
 		// BPR-0348. `Starts == 0U` above already says no executable was reached,
 		// and the terminal must say the same thing. It used to answer
 		// `failed_to_start`, which sends whoever reads it to look at the agent
@@ -1653,6 +1669,83 @@ namespace {
 
 } // namespace
 
+namespace {
+	/// [[BPR-1752]], RFC-BPR-0092. The brief names the workspace that
+	/// was actually made: borrowed history, the private copy or a snapshot.
+	void test_the_brief_names_the_workspace_that_was_made()
+	{
+		const auto kinds = std::array{
+			std::tuple{ false, false, std::string_view{ "brief.workspace\tprivate_copy\n" } },
+			std::tuple{ true, false, std::string_view{ "brief.workspace\tlinked_clone_history\n" } },
+			std::tuple{ true, true, std::string_view{ "brief.workspace\tprivate_snapshot\n" } },
+		};
+		for (const auto& [borrows, shallow, expected] : kinds) {
+			auto test                      = harness{ };
+			test.Workspaces.BorrowsHistory = borrows;
+			test.Workspaces.Shallow        = shallow;
+			const auto hostId              = core::git_host_id{ 1U };
+			test.Host.observe(core::application_session_id{ 1U }, authority(hostId), binding(hostId));
+			auto asked          = request(hostId, core::external_terminal_profile_id);
+			asked.Context.Brief = core::bound_review_brief({ .Title = "Bound the retry" });
+			test.Host.dispatch(std::move(asked));
+			test.settle();
+			expect(test.Processes.LastRequest && test.Processes.LastRequest->Input.find(expected) != std::string::npos
+					   && test.Processes.LastRequest->Input.find("brief.title\tBound the retry\n") != std::string::npos,
+				   "the launched brief names the workspace that was made");
+		}
+	}
+
+	/// [[BPR-1753]], owner decision 2026-10-23 ("I guess we can keep a
+	/// timeout as an option, but i wouldnt want it on by default for my
+	/// work"). A run is given no time limit unless the request names one.
+	void test_a_run_has_no_time_limit_unless_one_is_set()
+	{
+		for (const auto limit : { std::optional<int>{ }, std::optional<int>{ 600'000 } }) {
+			auto       test   = harness{ };
+			const auto hostId = core::git_host_id{ 1U };
+			test.Host.observe(core::application_session_id{ 1U }, authority(hostId), binding(hostId));
+			auto asked                 = request(hostId, core::external_terminal_profile_id);
+			asked.RunLimitMilliseconds = limit;
+			test.Host.dispatch(std::move(asked));
+			test.settle();
+			expect(test.Processes.Starts == 1U && test.Processes.LastTimeout == limit.value_or(application::agent_run_without_limit),
+				   limit ? "a limit the reviewer set is the launcher's" : "with none set the launcher waits as long as it can: no limit");
+		}
+	}
+
+	/// [[BPR-1751]], RFC-BPR-0092 Check it works. The workspace probe
+	/// makes and removes the workspace an Ask would make, admits no session,
+	/// starts no process, answers on the decision lane and holds quiescence
+	/// until it does; a failure comes back with its reason.
+	void test_workspace_probe_makes_and_removes_a_workspace_without_a_session()
+	{
+		auto       test   = harness{ };
+		const auto hostId = core::git_host_id{ 1U };
+		auto       answer = std::optional<std::expected<application::prepared_workspace, application::agent_workspace_error>>{ };
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::filesystem::path{ "/tmp/reviewer-clone" },
+								  [&answer](auto aProbed) { answer = std::move(aProbed); });
+		expect(!test.Host.is_quiescent() && !answer, "a posted probe holds quiescence");
+		test.Effects.drain();
+		expect(!answer, "the probe answers on the decision lane, not the effect lane");
+		test.Decisions.drain();
+		expect(answer && answer->has_value() && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 1U && test.Processes.Starts == 0U && test.Host.is_quiescent(),
+			   "the probe makes the workspace, removes it and runs nothing");
+		expect(test.Workspaces.LastRequest && test.Workspaces.LastRequest->HistoryClone == std::filesystem::path{ "/tmp/reviewer-clone" }
+				   && test.Workspaces.LastRequest->Session.Id.value() >= (std::uint64_t{ 1U } << 63U) && test.Workspaces.LastRequest->ParentDirectory == test.Workspaces.LastCleanup->ParentDirectory,
+			   "it carries the linked clone and a reserved session identity");
+		expect(test.Projection.Finished.empty(), "no session finishes: none was admitted");
+
+		test.Workspaces.MaterializationFailure = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, "no head",
+																					 application::agent_workspace_unavailable_reason::download_failed };
+		answer.reset();
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); });
+		test.settle();
+		expect(answer && !answer->has_value() && answer->error().Reason == application::agent_workspace_unavailable_reason::download_failed && test.Workspaces.Cleanups == 1U
+				   && test.Host.is_quiescent(),
+			   "a workspace that cannot be made answers with its reason and leaves nothing to clean");
+	}
+}
+
 auto main() -> int
 {
 	test_explicit_settings_cross_the_existing_invocation_host();
@@ -1679,6 +1772,9 @@ auto main() -> int
 	test_a_continued_turn_survives_the_binding_moving_under_it();
 	test_a_fresh_turn_under_the_same_binding_change_is_superseded();
 	test_a_promoted_finding_reaches_only_the_note_authority();
+	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
+	test_the_brief_names_the_workspace_that_was_made();
+	test_a_run_has_no_time_limit_unless_one_is_set();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

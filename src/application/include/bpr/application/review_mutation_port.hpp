@@ -5,7 +5,9 @@
 #include "bpr/application/private_review_store.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/github_model.hpp"
+
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -37,7 +39,39 @@ namespace bpr::application {
 		credential_unavailable,
 		/// The credential tool failed before any publication request.
 		credential_tool_failed,
+		/// [[BPR-1735]]. GitHub refused the comment with a fully received
+		/// answer saying its line cannot be placed (outside the diff). The
+		/// journal recorded it rejected: it was not published.
+		unplaceable_line,
+		/// [[BPR-1735]]. GitHub refused the comment with another fully
+		/// received 4xx answer. The journal recorded it rejected: it was not
+		/// published.
+		refused_not_published,
+		/// [[BPR-1735]]. A comment an earlier version left unconfirmed was
+		/// settled: GitHub's complete comment list holds no comment of it
+		/// ten minutes after the upgrade kept it. The journal recorded it
+		/// rejected: it was not published.
+		settled_not_published,
+		/// [[BPR-1736]]. GitHub refused a line comment the core placed outside
+		/// the diff with a fully received answer naming its line, in a shape no
+		/// recorded classifier matched. The journal recorded it rejected, and
+		/// the learned fact is now unsupported, so publishing it again posts a
+		/// file comment that links to the line.
+		off_hunk_refused,
+		/// [[BPR-1741]]. A reaction or a resolution whose outcome was
+		/// ambiguous, and whose state GitHub, asked once more, does not show
+		/// as the one asked for. The write is not repeated.
+		not_confirmed,
 	};
+
+	/// \brief [[BPR-1735]]. Whether the failure is the journal's record of a
+
+	/// rejection, which says no comment of the publication exists.
+	[[nodiscard]] constexpr auto journal_rejection(const review_mutation_failure aFailure) noexcept -> bool
+	{
+		return aFailure == review_mutation_failure::unplaceable_line || aFailure == review_mutation_failure::refused_not_published
+			|| aFailure == review_mutation_failure::settled_not_published || aFailure == review_mutation_failure::off_hunk_refused;
+	}
 
 	/// \brief Returns the stable name for the supplied value.
 	[[nodiscard]] auto name(review_mutation_failure aFailure) noexcept
@@ -53,6 +87,8 @@ namespace bpr::application {
 	{
 		bool ResolvesThreads    = true;
 		bool RecordsViewedState = true;
+		/// [[BPR-1741]]. Adds and removes reactions on comments.
+		bool Reacts = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -206,15 +242,26 @@ namespace bpr::application {
 		return aAnchor.RemoteLine.value_or(aAnchor.Semantic.Line);
 	}
 
+	/// \brief [[BPR-1745]]. Whether the anchor binds a reply to its
+	/// outdated thread rather than to a line (`core::thread_bound_anchor`).
+	/// \details Its `Path` and `Commit` are the thread's path and the commit
+	/// it was written on, where GitHub answers the reply, with no line. Only a
+	/// reply may carry it; every compiler of a new comment refuses it.
+	[[nodiscard]] constexpr auto thread_bound_binding(const review_mutation_anchor_binding& aAnchor) noexcept -> bool
+	{
+		return core::thread_bound_anchor(aAnchor.Semantic) && !aAnchor.RemoteLine.has_value();
+	}
+
 	/// \brief RFC-BPR-0089 M4. Whether a comment may be written on the
 	/// anchor's commit: the head, or an earlier commit only for a right-side
 	/// line the host placed from a commit-filtered diff. The host admits that
 	/// placement only for a commit of the accepted pull request's first-parent
-	/// chain, before anything is written.
+	/// chain, before anything is written. [[BPR-1745]]. Or the commit an
+	/// outdated thread was written on, for a reply bound to that thread.
 	[[nodiscard]] inline auto admitted_anchor_commit(const review_mutation_anchor_binding& aAnchor, const core::git_commit_oid& aHead) noexcept
 		-> bool
 	{
-		return aAnchor.Commit == aHead || (aAnchor.RemoteLine.has_value() && aAnchor.Semantic.Side == core::diff_side::right);
+		return aAnchor.Commit == aHead || (aAnchor.RemoteLine.has_value() && aAnchor.Semantic.Side == core::diff_side::right) || thread_bound_binding(aAnchor);
 	}
 
 	/// \brief Carries the provider-free authority required by a live request.
@@ -254,7 +301,13 @@ namespace bpr::application {
 		std::uint32_t                                   LineCount = 0U;
 		core::review_placement                          Placement = core::review_placement::unknown;
 		std::optional<workbench_selected_diff_endpoint> LeftEndpoint;
-		auto                                            operator<=>(const review_mutation_source_binding&) const = default;
+		/// [[BPR-1736]]. The core placed this line outside every hunk of
+		/// GitHub's own diff (BPR-1735's rule) and bound it `off_hunk` for a
+		/// native attempt: GitHub's answer teaches the learned off-hunk fact,
+		/// its refusal in GitHub.com's measured shape is classified (decision
+		/// D4), and a learned refusal publishes it as a file comment.
+		bool CorePlacedOffHunk                                        = false;
+		auto operator<=>(const review_mutation_source_binding&) const = default;
 	};
 
 	enum class review_remote_comment_subject : std::uint8_t { line,
@@ -351,6 +404,43 @@ namespace bpr::application {
 		auto operator<=>(const review_thread_resolution_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-1741]]. Asks the provider to add or remove the
+	/// viewer's reaction on one comment or review.
+	///
+	/// \details `Subject` is the comment's or review's GraphQL node as the
+	/// read reported it. Bound to the accepted target and the acting identity
+	/// like a resolution, so a provider serving another pull request or
+	/// another account refuses it.
+	struct review_reaction_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		std::string                                 Subject;
+		core::reaction_content                      Content = core::reaction_content::thumbs_up;
+		bool                                        Add     = true;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_reaction_request&) const = default;
+	};
+
+	/// \brief The provider's answer: the subject's reactions as GitHub now
+	/// gives them, and how that was learned.
+	struct review_reaction_receipt
+	{
+		std::string            Subject;
+		core::reaction_content Content = core::reaction_content::thumbs_up;
+		/// Whether the viewer now has the reaction.
+		bool                   Reacted = false;
+		core::reaction_summary Reactions;
+		/// A write was sent; false when GitHub already showed the state asked.
+		bool Written = false;
+		/// The write's own answer was lost or unreadable, and GitHub's state
+		/// read back afterwards is the one asked.
+		bool ConfirmedByReadBack = false;
+
+		auto operator<=>(const review_reaction_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -423,7 +513,20 @@ namespace bpr::application {
 			static_cast<void>(aStop);
 			return std::unexpected(review_mutation_failure::unavailable);
 		}
+		/// \brief [[BPR-1741]]. Adds or removes the viewer's reaction
+		/// on one comment; a provider without the capability answers
+		/// `unsupported`.
+		[[nodiscard]] virtual auto set_reaction(
+			const review_reaction_request& aRequest,
+			std::stop_token                aStop)
+			-> std::expected<review_reaction_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
 		/// \brief Repairs a previously admitted logical attempt using only reads; never submits.
+
 		[[nodiscard]] virtual auto reconcile_publication(const review_mutation_request&, std::stop_token = { }) -> review_mutation_submission { return { }; }
 		/// One read-only pass over retained private publication joins.
 		virtual void               repair_pending_publications(std::stop_token = { }) { }

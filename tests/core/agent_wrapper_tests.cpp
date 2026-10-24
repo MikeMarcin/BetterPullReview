@@ -155,6 +155,41 @@ namespace {
 		expect(std::ranges::all_of(found, [](const claude_search_candidate& aFound) { return !core::inspect_agent_wrapper_text(aFound.Path, agent_wrapper_platform::windows); }),
 			   "every Windows candidate is a path a wrapper could be: an absolute .exe");
 	}
+
+	/// [[BPR-1748]], RFC-BPR-0092 Q5 (owner, 2026-10-22). Codex is
+	/// looked for as Claude is, in its own folders and by its own name.
+	void test_codex_search_order()
+	{
+		const auto folders = core::usual_codex_folders("/Users/me", agent_wrapper_platform::posix);
+		expect(folders == std::vector<std::string>{ "/Users/me/.local/bin", "/opt/homebrew/bin", "/usr/local/bin", "/Users/me/.npm-global/bin" },
+			   "Codex's usual folders are the native installer's, Homebrew's two and npm's global folder, without Claude's old local install");
+		for (const auto* const home : { "", "relative/home", "~" }) {
+			expect(core::usual_codex_folders(home, agent_wrapper_platform::posix) == std::vector<std::string>{ "/opt/homebrew/bin", "/usr/local/bin" },
+				   "a home that is not absolute adds none of Codex's home folders");
+		}
+		const auto found = core::agent_search_candidates(core::agent_program::codex, "/usr/bin::.:/opt/homebrew/bin", folders, agent_wrapper_platform::posix);
+		const auto want  = std::vector<core::agent_search_candidate>{
+			{ .Path = "/usr/bin/codex", .Origin = core::agent_found_in::path },
+			{ .Path = "/opt/homebrew/bin/codex", .Origin = core::agent_found_in::path },
+			{ .Path = "/Users/me/.local/bin/codex", .Origin = core::agent_found_in::usual_folder },
+			{ .Path = "/usr/local/bin/codex", .Origin = core::agent_found_in::usual_folder },
+			{ .Path = "/Users/me/.npm-global/bin/codex", .Origin = core::agent_found_in::usual_folder },
+		};
+		expect(found == want, "PATH first under Claude's rules, then the usual folders, nothing twice, every result named codex");
+		expect(core::agent_search_candidates(core::agent_program::claude, "/usr/bin", { }, agent_wrapper_platform::posix)
+				   == candidates("/usr/bin", { }, agent_wrapper_platform::posix),
+			   "the Claude search is the same search with Claude's name");
+
+		const auto windowsFolders = core::usual_codex_folders(R"(C:\Users\me)", agent_wrapper_platform::windows);
+		expect(windowsFolders == std::vector<std::string>{ R"(C:\Users\me\.local\bin)" }, "Windows adds only the native installer's folder for Codex");
+		const auto windowsFound = core::agent_search_candidates(core::agent_program::codex, R"(C:\Users\me\AppData\Roaming\npm)", windowsFolders, agent_wrapper_platform::windows);
+		expect(windowsFound
+				   == std::vector<core::agent_search_candidate>{ { .Path = R"(C:\Users\me\AppData\Roaming\npm\codex.exe)", .Origin = core::agent_found_in::path },
+																 { .Path = R"(C:\Users\me\.local\bin\codex.exe)", .Origin = core::agent_found_in::usual_folder } },
+			   "Windows looks for codex.exe only, so npm's codex.cmd script is never a candidate");
+		expect(std::ranges::all_of(windowsFound, [](const core::agent_search_candidate& aFound) { return !core::inspect_agent_wrapper_text(aFound.Path, agent_wrapper_platform::windows); }),
+			   "every Windows Codex candidate is an absolute .exe");
+	}
 }
 
 auto main() -> int
@@ -164,6 +199,7 @@ auto main() -> int
 	test_reasons_and_storage();
 	test_posix_search_order();
 	test_windows_search_order();
+	test_codex_search_order();
 	std::cout << "agent-wrapper-tests:pass\n";
 	return EXIT_SUCCESS;
 }

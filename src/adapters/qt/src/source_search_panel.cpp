@@ -1,7 +1,9 @@
 #include "bpr/qt/source_search_panel.hpp"
+
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "painted_glyph_icon.hpp"
 #include <QAbstractButton>
 #include <QAbstractItemModel>
@@ -700,7 +702,7 @@ namespace bpr::qt {
 		SkippedToggle->setAccessibleDescription(tr("Shows why each side was not searched"));
 		SkippedToggle->hide();
 		skippedRow->addWidget(SkippedToggle);
-		Retry = new QToolButton{ this };
+		Retry = new quiet_tool_button{ this };
 		Retry->setText(tr("Retry"));
 		Retry->setAccessibleName(tr("Retry unavailable reads"));
 		Retry->setToolTip(tr("Retry unavailable reads"));

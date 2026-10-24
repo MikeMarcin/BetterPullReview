@@ -365,28 +365,31 @@ namespace bpr::adapters::github::detail {
 			{
 			}
 
-			std::shared_ptr<operation_state>          Operation;
-			QNetworkReply*                            Reply                        = nullptr;
-			bool                                      Cancellation                 = false;
-			bool                                      Certificate                  = false;
-			bool                                      EncryptedSignalObserved      = false;
-			bool                                      Deadline                     = false;
-			bool                                      HeaderLimit                  = false;
-			bool                                      ResponseLimit                = false;
-			bool                                      Malformed                    = false;
-			bool                                      AuthenticationChallenge      = false;
-			bool                                      ProxyAuthenticationChallenge = false;
-			bool                                      PreSharedKeyChallenge        = false;
-			bool                                      MetadataChecked              = false;
-			int                                       Status                       = 0;
-			std::optional<std::string>                ContentType;
-			std::optional<std::uint64_t>              ContentLength;
-			std::optional<std::string>                Link;
-			std::optional<std::string>                RetryAfter;
-			std::optional<std::string>                RateLimitLimit;
-			std::optional<std::string>                RateLimitRemaining;
-			std::optional<std::string>                RateLimitReset;
-			std::optional<std::string>                RateLimitResource;
+			std::shared_ptr<operation_state> Operation;
+			QNetworkReply*                   Reply                        = nullptr;
+			bool                             Cancellation                 = false;
+			bool                             Certificate                  = false;
+			bool                             EncryptedSignalObserved      = false;
+			bool                             Deadline                     = false;
+			bool                             HeaderLimit                  = false;
+			bool                             ResponseLimit                = false;
+			bool                             Malformed                    = false;
+			bool                             AuthenticationChallenge      = false;
+			bool                             ProxyAuthenticationChallenge = false;
+			bool                             PreSharedKeyChallenge        = false;
+			bool                             MetadataChecked              = false;
+			int                              Status                       = 0;
+			std::optional<std::string>       ContentType;
+			std::optional<std::uint64_t>     ContentLength;
+			std::optional<std::string>       Link;
+			std::optional<std::string>       RetryAfter;
+			std::optional<std::string>       RateLimitLimit;
+			std::optional<std::string>       RateLimitRemaining;
+			std::optional<std::string>       RateLimitReset;
+			std::optional<std::string>       RateLimitResource;
+			/// [[BPR-1736]]. The server version GitHub Enterprise Server names
+			/// on every answer; absent when none or several were sent.
+			std::optional<std::string>                EnterpriseVersion;
 			std::string                               Body;
 			std::size_t                               ResponseBodyLimit = native_https_maximum_response_body_bytes;
 			application::github_capability_diagnostic CapabilityDetail  = application::github_capability_diagnostic::transport_invalid_metadata;
@@ -1030,11 +1033,15 @@ namespace bpr::adapters::github::detail {
 			return static_cast<std::uint32_t>(*parsed);
 		}
 
-		[[nodiscard]] auto allowlisted_success_headers(const hop_state& aState)
+		/// \brief The headers an answer carries on. [[BPR-1736]]: a review
+		/// mutation's also carries the server version GitHub Enterprise Server
+		/// names, which keys the learned off-hunk fact; no read metadata parser
+		/// admits it, so no other answer does.
+		[[nodiscard]] auto allowlisted_success_headers(const hop_state& aState, const bool aServerVersion = false)
 			-> std::vector<http_header>
 		{
 			auto headers = std::vector<http_header>{ };
-			headers.reserve(7U);
+			headers.reserve(8U);
 			const auto add = [&headers](const char* const                 aName,
 										const std::optional<std::string>& aValue) {
 				if (aValue.has_value()) {
@@ -1051,6 +1058,9 @@ namespace bpr::adapters::github::detail {
 			add("X-RateLimit-Reset", aState.RateLimitReset);
 			add("X-RateLimit-Resource", aState.RateLimitResource);
 			add("Retry-After", aState.RetryAfter);
+			if (aServerVersion) {
+				add("X-GitHub-Enterprise-Version", aState.EnterpriseVersion);
+			}
 			return headers;
 		}
 
@@ -1336,6 +1346,7 @@ namespace bpr::adapters::github::detail {
 			std::size_t rateRemainingCount   = 0U;
 			std::size_t rateResetCount       = 0U;
 			std::size_t rateResourceCount    = 0U;
+			std::size_t enterpriseCount      = 0U;
 			for (const auto& [name, value] : headers) {
 				const auto fieldSize = static_cast<std::size_t>(name.size())
 					+ static_cast<std::size_t>(value.size());
@@ -1391,7 +1402,15 @@ namespace bpr::adapters::github::detail {
 				} else if (header_name_equal(name, "X-RateLimit-Resource")) {
 					++rateResourceCount;
 					aState.RateLimitResource = safe_qbytearray_string(trimmed_ascii(value));
+				} else if (header_name_equal(name, "X-GitHub-Enterprise-Version")) {
+					// [[BPR-1736]]. Kept for the learned off-hunk fact's key only;
+					// it never decides whether an answer is admitted.
+					++enterpriseCount;
+					aState.EnterpriseVersion = safe_qbytearray_string(trimmed_ascii(value));
 				}
+			}
+			if (enterpriseCount > 1U) {
+				aState.EnterpriseVersion.reset();
 			}
 
 			if (contentTypeCount > 1U || contentLengthCount > 1U
@@ -3896,7 +3915,7 @@ namespace bpr::adapters::github::detail {
 			return hop_success{
 				.Status       = state.Status,
 				.Body         = std::move(state.Body),
-				.Headers      = allowlisted_success_headers(state),
+				.Headers      = allowlisted_success_headers(state, aOperation->Request.Surface == native_request_surface::review_mutation),
 				.Completeness = *completeness,
 			};
 		}

@@ -2116,9 +2116,23 @@ namespace bpr::app::detail {
 				/// [[BPR-1374]]. Another client deleted the thread's root, so the
 				/// thread is gone from every later read.
 				bool Deleted = false;
+				/// [[BPR-1745]]. A push changed the thread's line: GitHub
+				/// reads it outdated, with no line, every post (a reply too)
+				/// written on this commit, as BPR-Test#133 read on 2026-10-22.
+				std::optional<std::string> OutdatedOn;
 			};
 			std::map<std::string, thread_overlay> ThreadOverlays;
 			std::vector<QJsonObject>              CreatedReviewThreads;
+			// [[BPR-1741]]. With `--reaction-probe`, the reactions the
+			// fixture answers `ListReactions` with, by comment node, changed by
+			// its mutation provider; the repository and pull request nodes the
+			// recorded answers named, which bind that answer.
+			bool                                          ReactionsServed = false;
+			std::map<std::string, core::reaction_summary> Reactions;
+			std::string                                   RepositoryNode;
+			std::string                                   PullRequestNode;
+			std::size_t                                   ReactionReads = 0U;
+
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
 			std::optional<github_personal_discovery_fixture> PersonalDiscovery;
@@ -2790,6 +2804,19 @@ namespace bpr::app::detail {
 								rootId.isEmpty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ replyTo });
 					posts.append(post);
 				}
+				if (overlay->second.OutdatedOn) {
+					const auto commit = QJsonObject{ { QStringLiteral("oid"), QString::fromStdString(*overlay->second.OutdatedOn) } };
+					node.insert(QStringLiteral("isOutdated"), true);
+					node.insert(QStringLiteral("line"), QJsonValue{ QJsonValue::Null });
+					for (auto entry = posts.begin(); entry != posts.end(); ++entry) {
+						auto post = entry->toObject();
+						post.insert(QStringLiteral("line"), QJsonValue{ QJsonValue::Null });
+						post.insert(QStringLiteral("outdated"), true);
+						post.insert(QStringLiteral("commit"), commit);
+						post.insert(QStringLiteral("originalCommit"), commit);
+						*entry = post;
+					}
+				}
 				comments.insert(QStringLiteral("nodes"), posts);
 				comments.insert(QStringLiteral("totalCount"), posts.size());
 				node.insert(QStringLiteral("comments"), comments);
@@ -2893,6 +2920,41 @@ namespace bpr::app::detail {
 				nodes.append(QJsonObject{ { "__typename", type }, { "id", key }, { "bodyHTML", bodies.value(key).toString() } });
 			}
 			const auto repository = QJsonObject{ { "id", document.value(QStringLiteral("repository")).toString() }, { "pullRequest", QJsonObject{ { "id", document.value(QStringLiteral("pullRequest")).toString() } } } };
+			return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository }, { "nodes", nodes } } } } }.toJson(QJsonDocument::Compact).toStdString();
+		}
+
+		/// [[BPR-1741]]. The fixture's `ListReactions` answer: GitHub's
+		/// eight groups for every comment asked about, as GitHub gives them.
+		[[nodiscard]] auto reactions_response(const fixture_recording_state& aState, const std::vector<std::string>& aNodes) -> std::string
+		{
+			QJsonArray nodes;
+			for (const auto& node : aNodes) {
+				const auto key  = QString::fromStdString(node);
+				const auto type = key.startsWith(QStringLiteral("PRRC_")) ? QStringLiteral("PullRequestReviewComment")
+					: key.startsWith(QStringLiteral("PRR_"))              ? QStringLiteral("PullRequestReview")
+					: key.startsWith(QStringLiteral("IC_"))               ? QStringLiteral("IssueComment")
+																		  : QString{ };
+				if (type.isEmpty()) {
+					nodes.append(QJsonValue{ QJsonValue::Null });
+					continue;
+				}
+				const auto found  = aState.Reactions.find(node);
+				auto       groups = QJsonArray{ };
+				for (const auto content : core::reaction_contents) {
+					const auto* const group = found == aState.Reactions.end() ? nullptr : core::find_reaction_group(found->second, content);
+					auto              who   = QJsonArray{ };
+					if (group != nullptr) {
+						for (const auto& login : group->Reactors) {
+							who.append(QJsonObject{ { "__typename", "User" }, { "login", QString::fromStdString(login) } });
+						}
+					}
+					groups.append(QJsonObject{ { "content", QString::fromUtf8(core::reaction_graphql_name(content).data(), static_cast<qsizetype>(core::reaction_graphql_name(content).size())) },
+											   { "viewerHasReacted", group != nullptr && group->ViewerReacted },
+											   { "reactors", QJsonObject{ { "totalCount", static_cast<qint64>(group == nullptr ? 0U : group->Count) }, { "nodes", who } } } });
+				}
+				nodes.append(QJsonObject{ { "__typename", type }, { "id", key }, { "viewerCanReact", true }, { "reactionGroups", groups } });
+			}
+			const auto repository = QJsonObject{ { "id", QString::fromStdString(aState.RepositoryNode) }, { "pullRequest", QJsonObject{ { "id", QString::fromStdString(aState.PullRequestNode) } } } };
 			return QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository }, { "nodes", nodes } } } } }.toJson(QJsonDocument::Compact).toStdString();
 		}
 
@@ -3019,8 +3081,25 @@ namespace bpr::app::detail {
 					append_rate_limit_headers(response, aRequest.Wire.Operation);
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
 				}
+				// [[BPR-1741]]. Reactions are answered only by the reaction
+				// course, from its own state; every other course reads none.
+				if (aRequest.Wire.Operation == read_operation::list_reactions) {
+					if (!State->ReactionsServed || Role != fixture_transport_role::account || !validate_github_wire_request(State->Profile, aRequest)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
+					}
+					auto body = std::string{ };
+					{
+						const std::scoped_lock lock{ State->Mutex };
+						++State->ReactionReads;
+						body = reactions_response(*State, aRequest.Wire.Semantic.Nodes);
+					}
+					auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Body = std::move(body), .Completeness = page_completeness::complete };
+					append_rate_limit_headers(response, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
+				}
 				// [[BPR-1589]]. No recorded team answers membership.
 				if (aRequest.Wire.Operation == read_operation::get_team_membership) {
+
 					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
 				}
 				if (aRequest.Wire.Operation == read_operation::list_requested_reviewers && !State->PersonalDiscovery) {
@@ -3324,7 +3403,13 @@ namespace bpr::app::detail {
 					}
 				}
 				append_rate_limit_headers(*response, aRequest.Wire.Operation);
+				if (State->ReactionsServed && Role == fixture_transport_role::account && response->Status == 200
+					&& (aRequest.Wire.Operation == read_operation::get_repository || aRequest.Wire.Operation == read_operation::get_pull_request)) {
+					const auto node                                                                                              = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object().value(QStringLiteral("node_id")).toString().toStdString();
+					(aRequest.Wire.Operation == read_operation::get_repository ? State->RepositoryNode : State->PullRequestNode) = node;
+				}
 				if (State->PersonalDiscovery && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+
 					// [[BPR-1379]]. The older snapshot recording omitted fields a
 					// real PR response also supplies to the lightweight Home read.
 					const auto document = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body));
@@ -4829,6 +4914,10 @@ namespace bpr::app::detail {
 				return Inner->load_publication(aKey);
 			}
 			auto advance_publication(const std::optional<publication>& aExpected, const publication& aNext) -> std::expected<publication, failure> override { return Inner->advance_publication(aExpected, aNext); }
+			auto note_publication_post(const std::string& aKey, const core::review_publication_post& aPost) -> std::expected<void, failure> override { return Inner->note_publication_post(aKey, aPost); }
+			auto load_publication_post(const std::string& aKey) -> std::expected<std::optional<core::review_publication_post>, failure> override { return Inner->load_publication_post(aKey); }
+			// [[BPR-1736]]. The product journal's learned facts.
+			auto off_hunk_facts() noexcept -> application::off_hunk_fact_port* override { return Inner->off_hunk_facts(); }
 
 		private:
 			std::unique_ptr<application::review_mutation_recovery_port> Inner;
@@ -4936,6 +5025,23 @@ namespace bpr::app::detail {
 					if (!file && (request.Proposal.Body == "BPR-0571 off-hunk publication." || request.Proposal.Body.find("BPR-1084 off-hunk") != std::string::npos)) {
 						return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"line","code":"fixture_off_hunk_unsupported","message":"Fixture: no comment created for off-hunk line"}]})" } };
 					}
+					// [[BPR-1736]]. A line the core placed outside the diff, as
+					// the server chosen for the course answers it.
+					if (!file && request.Source && request.Source->CorePlacedOffHunk && State->PublishedTour) {
+						using answer = review_submission_fixture_state::off_hunk_answer;
+						auto mode    = answer::refuse_github_com;
+						{
+							const std::scoped_lock lock{ State->PublishedTour->Mutex };
+							mode = State->PublishedTour->OffHunkNative;
+							++State->PublishedTour->OffHunkNativePosts;
+						}
+						if (mode == answer::refuse_github_com) {
+							return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"custom","field":"pull_request_review_thread.line","message":"could not be resolved"}],"documentation_url":"https://docs.github.com/rest/pulls/comments#create-a-review-comment-for-a-pull-request","status":"422"})" } };
+						}
+						if (mode == answer::refuse_unrecorded) {
+							return github_mutation_wire_success{ .Response = { .Status = 422, .Headers = response.Headers, .Body = R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","code":"invalid","field":"line","message":"is not part of the diff"}],"documentation_url":"https://docs.github.com/enterprise-server@3.20/rest/pulls/comments#create-a-review-comment-for-a-pull-request","status":"422"})" } };
+						}
+					}
 					object        = QJsonDocument::fromJson(QByteArray::fromStdString(wire.Body)).object();
 					const auto id = QStringLiteral("PRRC_composed_%1").arg(Comments.size() + 1);
 					object.insert("id", Comments.size() + 100);
@@ -4972,6 +5078,7 @@ namespace bpr::app::detail {
 													 { "isOutdated", earlier },
 													 { "viewerCanResolve", true },
 													 { "viewerCanUnresolve", false },
+													 { "viewerCanReply", true },
 													 { "subjectType", file ? "FILE" : "LINE" },
 													 { "path", object.value("path") },
 													 { "diffSide", file ? QJsonValue{ "RIGHT" } : object.value("side") },
@@ -5132,6 +5239,11 @@ namespace bpr::app::detail {
 				// read, as GitHub's would.
 				if (aRequest.Proposal.ReplyToThread.has_value()) {
 					++Evidence.Replies;
+					// [[BPR-1745]]. What the reply was bound to.
+					Evidence.LastReplyThread      = *aRequest.Proposal.ReplyToThread;
+					Evidence.LastReplyThreadBound = aRequest.LiveBinding.has_value() && application::thread_bound_binding(aRequest.LiveBinding->Anchor)
+						&& core::thread_bound_anchor(aRequest.Proposal.Anchor);
+					Evidence.LastReplyCommit = aRequest.LiveBinding ? std::string{ core::canonical_hex(aRequest.LiveBinding->Anchor.Commit).view() } : std::string{ };
 					if (State != nullptr) {
 						const std::scoped_lock lock{ State->Mutex };
 						State->ThreadOverlays[*aRequest.Proposal.ReplyToThread].Replies.emplace_back(
@@ -5180,12 +5292,55 @@ namespace bpr::app::detail {
 				};
 			}
 
+			// [[BPR-1741]]. The reaction changes on the next read, and
+			// the answer carries the comment's reactions as GitHub's does.
+			auto set_reaction(
+				const application::review_reaction_request& aRequest,
+				std::stop_token)
+				-> std::expected<application::review_reaction_receipt, application::review_mutation_failure> override
+			{
+				const std::scoped_lock providerLock{ Mutex };
+				++Evidence.Reactions;
+				if (State == nullptr || !State->ReactionsServed) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				if (aRequest.Target != Designated || aRequest.Subject.empty()) {
+					return std::unexpected{ application::review_mutation_failure::undesignated_target };
+				}
+				const std::scoped_lock lock{ State->Mutex };
+				auto&                  summary = State->Reactions[aRequest.Subject];
+				summary.ViewerCanReact         = true;
+				auto group                     = std::ranges::find(summary.Groups, aRequest.Content, &core::reaction_group::Content);
+				if (group == summary.Groups.end()) {
+					summary.Groups.push_back(core::reaction_group{ .Content = aRequest.Content });
+					group = std::prev(summary.Groups.end());
+				}
+				if (aRequest.Add && !group->ViewerReacted) {
+					group->ViewerReacted = true;
+					++group->Count;
+					group->Reactors.insert(group->Reactors.begin(), "octo-reviewer");
+				} else if (!aRequest.Add && group->ViewerReacted) {
+					group->ViewerReacted = false;
+					--group->Count;
+					std::erase(group->Reactors, std::string{ "octo-reviewer" });
+				}
+				summary = core::canonical_reaction_summary(summary).value_or(summary);
+				return application::review_reaction_receipt{
+					.Subject   = aRequest.Subject,
+					.Content   = aRequest.Content,
+					.Reacted   = aRequest.Add,
+					.Reactions = summary,
+					.Written   = true,
+				};
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
 				return {
 					.ResolvesThreads    = ResolvesThreads,
 					.RecordsViewedState = false,
+					.Reacts             = State != nullptr && State->ReactionsServed,
 				};
 			}
 
@@ -5362,7 +5517,17 @@ namespace bpr::app::detail {
 			Recording->RepeatSessions              = aOptions.DeviceRefreshCourse
 				|| aOptions.PersistDeviceBindings
 				|| aOptions.IndependentWindowReads;
-			Recording->RepeatReads             = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
+			Recording->RepeatReads = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
+			// [[BPR-1741]]. Two others gave the first thread's first post
+			// a thumbs up.
+			Recording->ReactionsServed = aOptions.ServesReactions;
+			if (aOptions.ServesReactions) {
+				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
+					.ViewerCanReact = true,
+					.Groups         = { core::reaction_group{ .Content = core::reaction_content::thumbs_up, .Count = 2U, .Reactors = { "octo-author", "fixture-other-reviewer" } } },
+				};
+			}
+
 			Recording->RecentAccount           = aOptions.RecentAccount;
 			Recording->DistinctAccount         = distinctAccount;
 			Recording->ReviewTourCourse        = aOptions.ReviewTourCourse;
@@ -5686,6 +5851,12 @@ namespace bpr::app::detail {
 		if (aRootAuthor) {
 			overlay.RootAuthor = std::move(aRootAuthor);
 		}
+	}
+
+	void github_public_path_fixture_components::stage_server_thread_outdated(std::string aThread, std::string aWrittenOn)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		Implementation->Recording->ThreadOverlays[std::move(aThread)].OutdatedOn = std::move(aWrittenOn);
 	}
 
 	void github_public_path_fixture_components::stage_server_thread_deleted(std::string aThread)

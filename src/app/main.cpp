@@ -184,6 +184,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "device-authorization-refresh-course" },
 		bpr::app::command_line_option{ .Name = "device-authorization-orphan-course" },
 		bpr::app::command_line_option{ .Name = "threaded-reply-probe" },
+		bpr::app::command_line_option{ .Name = "reaction-probe" },
 		bpr::app::command_line_option{ .Name = "attended-launch" },
 		bpr::app::command_line_option{ .Name = "public-preview-enabled-course" },
 		bpr::app::command_line_option{ .Name = "public-preview-ghes-course" },
@@ -3774,6 +3775,8 @@ namespace {
 			const auto expectedSmartCalls = aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::finish }
 					|| aRun.StartReviewCourse == std::optional{ bpr::app::detail::start_review_course::restored }
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::restart }
+					// [[BPR-1745]]. And the outdated-thread reply's restart.
+					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::outdated_restart }
 				? 0
 				: aRun.MaintenanceProbe
 						== automated_run::epoch_maintenance_probe::verify_deleted
@@ -5004,6 +5007,11 @@ namespace {
 				   << "THREADED_REPLY_EVIDENCE:" << evidence.ReplyDrafted << evidence.ReplyPublished
 				   << evidence.ReplyUnderThread << evidence.ResolveAsked << evidence.ThreadResolved << '\n';
 			stream << "THREADED_REPLY_DIAGNOSTIC:" << QString::fromStdString(aRun.ThreadedReplyDiagnostic) << '\n';
+			if (evidence.ReactionsRead || evidence.Reopened || evidence.ReopenShownAtOnce) {
+				stream << (evidence.ReactionReconciled ? "REACTION_OK\n" : "REACTION_FAILED\n")
+					   << "REACTION_EVIDENCE:" << evidence.ReopenShownAtOnce << evidence.Reopened << evidence.ReactionsRead << evidence.ReactionShown
+					   << evidence.ReactionConfirmed << evidence.ReactionRemoved << evidence.PickerReacted << evidence.ReactionReconciled << '\n';
+			}
 		}
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
@@ -9444,7 +9452,11 @@ auto main(int argc, char** argv) -> int
 			|| fixtureOptions.SeedOrphanedRefreshMaterial;
 		// [[BPR-0657]]. The threaded-reply course refreshes the pull request
 		// after publishing, so the fixture replays its read script.
-		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe");
+		// [[BPR-1741]]. With `--reaction-probe` the fixture serves
+		// reactions and resolves threads; with the threaded-reply course too,
+		// the course goes on to them, and alone it is an attended look.
+		fixtureOptions.ServesReactions = launch.has("--reaction-probe");
+		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.
 		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads
@@ -9507,7 +9519,11 @@ auto main(int argc, char** argv) -> int
 			for (const auto& [name, value] : std::array{ std::pair{ std::string_view{ "refresh" }, course::refresh }, std::pair{ std::string_view{ "edited" }, course::edited },
 														 std::pair{ std::string_view{ "write" }, course::write }, std::pair{ std::string_view{ "restart" }, course::restart },
 														 std::pair{ std::string_view{ "deleted" }, course::deleted }, std::pair{ std::string_view{ "kept" }, course::kept },
-														 std::pair{ std::string_view{ "resolved" }, course::resolved } }) {
+														 std::pair{ std::string_view{ "resolved" }, course::resolved },
+														 // [[BPR-1745]]. The outdated-thread reply.
+														 std::pair{ std::string_view{ "outdated-publish" }, course::outdated_publish },
+														 std::pair{ std::string_view{ "outdated-write" }, course::outdated_write },
+														 std::pair{ std::string_view{ "outdated-restart" }, course::outdated_restart } }) {
 				if (replyDraftCourseName == std::optional{ name }) {
 					return value;
 				}
@@ -10079,6 +10095,7 @@ auto main(int argc, char** argv) -> int
 		// test boundary: a CTest row that passes `--attended-launch` keeps the
 		// recorder.
 		fixtureOptions.AttendedWindowBrowser              = attendedLaunch && !bpr::app::inside_automated_test_boundary();
+		fixtureOptions.AttendedAgentSearch                = fixtureOptions.AttendedWindowBrowser;
 		const auto nativeNotificationProbe                = launch.has("--native-notification-probe");
 		const auto nativeNotificationAttended             = launch.has("--native-notification-attended");
 		const auto nativeNotificationRequestCut           = launch.has("--native-notification-cut-request-wire");

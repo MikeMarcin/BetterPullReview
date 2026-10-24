@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_CONVERSATION_CARDS_VIEW_HPP
 
 #include "bpr/application/github_projection.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
@@ -9,6 +10,7 @@
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
+#include "bpr/core/thread_reply.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -48,6 +50,9 @@ class QWheelEvent;
 class QVariantAnimation;
 
 namespace bpr::qt {
+	/// \brief [[BPR-1746]]. Why a thread takes no reply, in the words
+	/// the card and the drawer show; empty for a refusal GitHub did not make.
+	[[nodiscard]] auto thread_reply_refusal_text(core::thread_reply_refusal aRefusal) -> QString;
 	class feedback_label_controls;
 
 	/// \brief Which threads the notes show.
@@ -209,6 +214,18 @@ namespace bpr::qt {
 		qsizetype Lead = 0;
 	};
 
+	/// \brief [[BPR-1741]]. A review thread's resolution as the viewer
+	/// should see it, and whether GitHub lets the viewer resolve or reopen it.
+	struct thread_resolution_presentation
+	{
+		bool Resolved     = false;
+		bool Pending      = false;
+		bool CanResolve   = true;
+		bool CanUnresolve = true;
+
+		auto operator==(const thread_resolution_presentation&) const -> bool = default;
+	};
+
 	/// \brief One thread's note: a review thread's root and its replies, or my draft.
 	struct thread_card
 	{
@@ -230,10 +247,25 @@ namespace bpr::qt {
 		/// [[BPR-1212]] slice 1. My draft on several lines: its one-based
 		/// first line; `Line` is its last, where it is anchored.
 		std::optional<std::uint32_t> FirstLine;
-		bool                         Resolved          = false;
-		bool                         Outdated          = false;
-		bool                         AnchorUnavailable = false;
-		bool                         Draft             = false;
+		bool                         Resolved = false;
+		/// [[BPR-1741]]. My resolve or reopen is unanswered; `Resolved`
+		/// already shows what I asked.
+		bool ResolutionPending = false;
+		/// [[BPR-1741]]. GitHub lets me resolve (or reopen) this thread.
+		bool ResolutionPermitted = true;
+		bool Outdated            = false;
+		bool AnchorUnavailable   = false;
+		/// [[BPR-1745]]. GitHub reports the thread outdated, and the
+		/// core answers it by the thread (`core::thread_reply_route::on_thread`):
+		/// Reply is offered without a line, and the reply field says quietly
+		/// that the thread's line has changed since it was written.
+		bool ReplyOnThread = false;
+		/// [[BPR-1746]]. GitHub says this viewer cannot reply in the
+		/// thread (`viewerCanReply`), because the conversation is locked or
+		/// otherwise: the core's refusal. Reply is not offered, and
+		/// `thread_reply_refusal_text` says why.
+		core::thread_reply_refusal ReplyRefusal = core::thread_reply_refusal::none;
+		bool                       Draft        = false;
 		/// [[BPR-1345]]. My draft is pending in my review, or held by its
 		/// submission.
 		bool Pending = false;
@@ -539,6 +571,16 @@ namespace bpr::qt {
 		/// \details Lays out again only when that thread's note is shown.
 		auto set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts)
 			-> std::vector<std::string>;
+		/// \brief [[BPR-1741]]. The posts' reactions as the viewer
+		/// should see them, by GitHub node; a post without an entry shows none.
+		void present_reactions(std::map<std::string, core::reaction_summary> aBySubject);
+		/// \brief The reactions of one post, named as its card names it.
+		[[nodiscard]] auto reactions_of(std::string_view aPost) const -> std::optional<core::reaction_summary>;
+		/// \brief A reaction asked for on a post: the post's identity and the reaction.
+		void set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch);
+		/// \brief [[BPR-1741]]. Each thread's resolution as the viewer
+		/// should see it and GitHub's permission for it, by thread identity.
+		void present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread);
 		/// \brief [[BPR-0657]]. Offers Resolve and Unresolve on the threads when the
 		/// provider and the server both resolve threads.
 		void               set_resolution_offered(bool aOffered);
@@ -731,6 +773,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto aligned() const noexcept -> bool;
 		[[nodiscard]] auto closed_measure_of(const thread_card& aCard) const -> const closed_measure*;
 		void               place_cards(bool aForce);
+		/// \brief [[BPR-1740]]. Sets the notes' scroll range from the
+		/// content's height. The drawer scrolls past its end as the code
+		/// panes do ([[BPR-1291]]), until only its last note's last line is
+		/// at the top; Discuss's feed ends with its last note at the bottom.
+		void set_scroll_range();
+		/// \brief [[BPR-1740]]. Whether the open thread hangs from its
+		/// line, and so moves with the code; true with none open.
+		[[nodiscard]] auto open_thread_hangs() const -> bool;
 		void               place_open_card();
 		void               sync_edges();
 		void               sync_pull_request_edge();
@@ -746,7 +796,10 @@ namespace bpr::qt {
 		/// \brief Brings what is being read in an open thread into view: the
 		/// notes' own overflow in Discuss, the code (which the drawer follows)
 		/// in Review, as a wheel over the notes would.
-		void               reveal_reading(const QRect& aViewportRect);
+		void reveal_reading(const QRect& aViewportRect);
+		/// \brief Brings a control of the open thread into view, or a text's
+		/// caret rather than all of it.
+		void               reveal_focus(QWidget& aWidget);
 		[[nodiscard]] auto card_index(const std::string& aId) const -> std::optional<std::size_t>;
 		[[nodiscard]] auto to_content(QPoint aViewportPoint) const -> QPoint;
 		[[nodiscard]] auto to_viewport(QRect aContentRect) const -> QRect;
@@ -837,7 +890,10 @@ namespace bpr::qt {
 		bool                                                                        ReadStateKnown    = false;
 		bool                                                                        Feed              = false;
 		bool                                                                        ResolutionOffered = false;
-		bool                                                                        HasFocus          = false;
+		std::map<std::string, core::reaction_summary>                               ReactionsBySubject;
+		std::map<std::string, thread_resolution_presentation>                       ResolutionsByThread;
+		std::function<void(const std::string&, core::reaction_content)>             ReactionDispatch;
+		bool                                                                        HasFocus = false;
 		discuss_filters                                                             Filters;
 		QString                                                                     PullRequestAuthor;
 		card_excerpt_locator                                                        ExcerptLocator;

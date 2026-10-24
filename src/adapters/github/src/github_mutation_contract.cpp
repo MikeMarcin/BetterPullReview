@@ -2,6 +2,8 @@
 
 #include "github_http_helpers.hpp"
 #include "github_json_preflight.hpp"
+#include "github_paged_read.hpp"
+
 #include "review_comment_permalink.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
@@ -108,6 +110,39 @@ namespace bpr::adapters::github::detail {
 		constexpr auto observe_thread_document = std::string_view{
 			"query ObserveThread($thread:ID!){node(id:$thread){... on PullRequestReviewThread{"
 			"id isResolved pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+		};
+		/// [[BPR-1741]]. A reaction subject: a review-thread comment, a
+		/// pull request comment or a review, each named with the pull request
+		/// it belongs to (as a thread is, [[BPR-0879]]) and its reactions as
+		/// `ListReactions` selects them.
+		constexpr auto observe_reaction_subject_document = std::string_view{
+			"query ObserveReactionSubject($subject:ID!){node(id:$subject){"
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"}}"
+		};
+		constexpr auto add_reaction_document = std::string_view{
+			"mutation AddReaction($subject:ID!,$content:ReactionContent!){addReaction(input:{subjectId:$subject,content:$content}){"
+			"reaction{content} subject{"
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"}}}"
+		};
+		constexpr auto remove_reaction_document = std::string_view{
+			"mutation RemoveReaction($subject:ID!,$content:ReactionContent!){removeReaction(input:{subjectId:$subject,content:$content}){"
+			"reaction{content} subject{"
+			"__typename id ... on Reactable{viewerCanReact reactionGroups{content viewerHasReacted reactors(first:5){totalCount "
+			"nodes{__typename ... on User{login} ... on Bot{login} ... on Organization{login} ... on Mannequin{login}}}}} "
+			"... on PullRequestReviewComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"}}}"
 		};
 		/// [[BPR-0896]]. The read that reconciles a reply. A reply is written
 		/// by GraphQL, so its own path is the GraphQL root and no REST
@@ -374,6 +409,21 @@ namespace bpr::adapters::github::detail {
 			};
 		};
 
+		/// \brief [[BPR-1736]] (D4). GitHub.com's refusal, its documentation URL
+		/// and status optional and unconstrained.
+		struct general_unsupported_response_json
+		{
+			std::string                         Message;
+			std::optional<std::string>          DocumentationUrl;
+			std::optional<std::string>          Status;
+			std::vector<unsupported_error_json> Errors;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("message", &general_unsupported_response_json::Message, "documentation_url", &general_unsupported_response_json::DocumentationUrl,
+														  "status", &general_unsupported_response_json::Status, "errors", &general_unsupported_response_json::Errors);
+			};
+		};
+
 		struct comment_response_json
 		{
 			std::uint64_t                Id = 0U;
@@ -463,6 +513,42 @@ namespace bpr::adapters::github::detail {
 					"variables", &resolution_query_json::Variables);
 			};
 		};
+		// [[BPR-1741]]. A reaction's envelopes, outbound.
+		struct reaction_variables_json
+		{
+			std::string_view Subject;
+			std::string_view Content;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("subject", &reaction_variables_json::Subject, "content", &reaction_variables_json::Content);
+			};
+		};
+		struct reaction_query_json
+		{
+			std::string_view        Query;
+			reaction_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &reaction_query_json::Query, "variables", &reaction_query_json::Variables);
+			};
+		};
+		struct reaction_subject_variables_json
+		{
+			std::string_view Subject;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("subject", &reaction_subject_variables_json::Subject);
+			};
+		};
+		struct reaction_subject_query_json
+		{
+			std::string_view                Query;
+			reaction_subject_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &reaction_subject_query_json::Query, "variables", &reaction_subject_query_json::Variables);
+			};
+		};
 		// [[BPR-1368]]. The pending stop edit's envelope, outbound.
 		struct update_comment_variables_json
 		{
@@ -547,15 +633,16 @@ namespace bpr::adapters::github::detail {
 		}
 		struct reply_comment_json
 		{
-			std::string              Id;
-			std::uint64_t            DatabaseId = 0U;
-			std::string              Body;
-			std::string              Path;
-			std::uint64_t            Line = 0U;
-			reply_commit_json        Commit;
-			reply_author_json        Author;
-			bool                     ViewerDidAuthor = false;
-			thread_pull_request_json PullRequest;
+			std::string   Id;
+			std::uint64_t DatabaseId = 0U;
+			std::string   Body;
+			std::string   Path;
+			// [[BPR-1745]]. Null for a reply to an outdated thread.
+			std::optional<std::uint64_t> Line;
+			reply_commit_json            Commit;
+			reply_author_json            Author;
+			bool                         ViewerDidAuthor = false;
+			thread_pull_request_json     PullRequest;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -625,6 +712,116 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("data", &thread_node_response_json::Data);
 			};
 		};
+		// [[BPR-1741]]. A reaction subject as an answer names it. The
+		// groups are kept raw and read by the same reader `ListReactions`
+		// uses, so a reaction answer is held to one rule.
+		struct reaction_subject_json
+		{
+			std::string              Typename;
+			std::string              Id;
+			bool                     ViewerCanReact = false;
+			glz::raw_json            ReactionGroups;
+			thread_pull_request_json PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"__typename", &reaction_subject_json::Typename,
+					"id", &reaction_subject_json::Id,
+					"viewerCanReact", &reaction_subject_json::ViewerCanReact,
+					"reactionGroups", &reaction_subject_json::ReactionGroups,
+					"pullRequest", &reaction_subject_json::PullRequest);
+			};
+		};
+		struct reaction_node_data_json
+		{
+			std::variant<reaction_subject_json, std::nullptr_t> Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &reaction_node_data_json::Node);
+			};
+		};
+		struct reaction_node_response_json
+		{
+			reaction_node_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &reaction_node_response_json::Data);
+			};
+		};
+		struct reaction_content_json
+		{
+			std::string Content;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("content", &reaction_content_json::Content);
+			};
+		};
+		struct reaction_payload_json
+		{
+			reaction_content_json Reaction;
+			reaction_subject_json Subject;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("reaction", &reaction_payload_json::Reaction, "subject", &reaction_payload_json::Subject);
+			};
+		};
+		struct add_reaction_data_json
+		{
+			reaction_payload_json Add;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("addReaction", &add_reaction_data_json::Add);
+			};
+		};
+		struct add_reaction_response_json
+		{
+			add_reaction_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &add_reaction_response_json::Data);
+			};
+		};
+		struct remove_reaction_data_json
+		{
+			reaction_payload_json Remove;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("removeReaction", &remove_reaction_data_json::Remove);
+			};
+		};
+		struct remove_reaction_response_json
+		{
+			remove_reaction_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &remove_reaction_response_json::Data);
+			};
+		};
+		/// [[BPR-1741]]. The subject's reactions, held to the
+		/// `ListReactions` reader: a subject of one of the three kinds, the
+		/// identity asked, in the designated pull request.
+		[[nodiscard]] auto reaction_subject_observation(
+			const reaction_subject_json&                aSubject,
+			const application::review_reaction_request& aExpected)
+			-> review_mutation_parse_result<review_reaction_subject_observation>
+		{
+			if ((aSubject.Typename != "PullRequestReviewComment" && aSubject.Typename != "IssueComment" && aSubject.Typename != "PullRequestReview")
+				|| aSubject.Id != aExpected.Subject || !aExpected.LiveBinding.has_value()
+				|| !binds_designated_pull_request(aSubject.PullRequest, aExpected.LiveBinding->Target)) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			auto object = std::string{ R"({"viewerCanReact":)" };
+			object += aSubject.ViewerCanReact ? "true" : "false";
+			object += R"(,"reactionGroups":)";
+			object += aSubject.ReactionGroups.str.empty() ? std::string_view{ "null" } : std::string_view{ aSubject.ReactionGroups.str };
+			object += "}";
+			auto summary = parse_reaction_summary(object);
+			if (!summary.has_value()) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			return review_reaction_subject_observation{ .Subject = aSubject.Id, .Reactions = std::move(*summary) };
+		}
+
 		// [[BPR-0896]]. The thread a reply landed in, with its comments, as
 		// the reconciliation observes it. `line`, `commit` and
 		// `fullDatabaseId` are nullable on the wire and the author's
@@ -926,7 +1123,10 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto permalink_source(const application::review_mutation_source_binding& aSource, const application::review_mutation_target_binding& aTarget,
 											const core::diff_side aSide) -> review_permalink_source
 		{
-			const auto left = aSource.Placement == core::review_placement::unresolvable_line && aSide == core::diff_side::left;
+			// [[BPR-1736]]. And an off-hunk base line the core placed, whose
+			// file comment follows a refusal.
+			const auto left = aSide == core::diff_side::left
+				&& (aSource.Placement == core::review_placement::unresolvable_line || (aSource.CorePlacedOffHunk && aSource.LeftEndpoint));
 			return { .Target = aTarget, .Endpoint = left ? aSource.LeftEndpoint : aSource.Endpoint, .Comparison = aSource.Comparison, .LineCount = aSource.LineCount };
 		}
 
@@ -1357,12 +1557,21 @@ namespace bpr::adapters::github::detail {
 		{
 			const auto     commit            = core::parse_git_commit_oid(aComment.Commit.Oid);
 			constexpr auto maximumGithubLine = static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) + 1U;
+			const auto&    binding           = *aExpected.LiveBinding;
+			// [[BPR-1745]]. A reply bound to its outdated thread is
+			// answered with no line, on the commit the thread was written on
+			// (live on BPR-Test#133, 2026-10-22). A line in that answer is not
+			// the reply asked for; neither is a missing one for a reply on a
+			// line.
+			const auto threadBound = application::thread_bound_binding(binding.Anchor);
 			if (aComment.Id.empty() || aComment.DatabaseId == 0U || !commit
-				|| aComment.Line == 0U || aComment.Line > maximumGithubLine) {
+				|| (aComment.Line.has_value() && (*aComment.Line == 0U || *aComment.Line > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			const auto& binding      = *aExpected.LiveBinding;
-			const auto  semanticLine = static_cast<std::uint32_t>(aComment.Line - 1U);
+			if (threadBound ? aComment.Line.has_value() : !aComment.Line.has_value()) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			const auto semanticLine = threadBound ? binding.Anchor.Semantic.Line : static_cast<std::uint32_t>(*aComment.Line - 1U);
 			// [[BPR-0879]]. The thread identity was free; the pull request the
 			// server says it answered is not.
 			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
@@ -1443,18 +1652,23 @@ namespace bpr::adapters::github::detail {
 				|| (aComment.Line.has_value() && (*aComment.Line == 0U || *aComment.Line > maximumGithubLine))) {
 				return failed(review_mutation_contract_failure::malformed_response);
 			}
-			const auto& author = aComment.Author;
+			const auto& author  = aComment.Author;
+			const auto& binding = *aExpected.LiveBinding;
+			// [[BPR-1745]]. A reply bound to its outdated thread has no
+			// line, and is ours on the thread's own path and commit; the thread
+			// observed is already the one asked for, so its side says nothing
+			// more. A reply on a line keeps every check it had.
+			const auto threadBound = application::thread_bound_binding(binding.Anchor);
 			if (!databaseId.has_value() || *databaseId == 0U || !commit.has_value()
-				|| !aComment.Line.has_value() || !author.has_value()
+				|| (threadBound ? aComment.Line.has_value() : !aComment.Line.has_value()) || !author.has_value()
 				|| !author->DatabaseId.has_value() || *author->DatabaseId == 0U
 				|| !author->Id.has_value()) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
-			const auto& binding      = *aExpected.LiveBinding;
-			const auto  expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
-			const auto  semanticLine = static_cast<std::uint32_t>(*aComment.Line - 1U);
+			const auto expectedSide = binding.Anchor.Semantic.Side == core::diff_side::left ? "LEFT" : "RIGHT";
+			const auto semanticLine = threadBound ? binding.Anchor.Semantic.Line : static_cast<std::uint32_t>(*aComment.Line - 1U);
 			if (aComment.Path != binding.Anchor.Path || *commit != binding.Anchor.Commit
-				|| aDiffSide != expectedSide || semanticLine != binding.Anchor.Semantic.Line
+				|| (!threadBound && aDiffSide != expectedSide) || semanticLine != binding.Anchor.Semantic.Line
 				|| aComment.Body != aExpected.Proposal.Body || !aComment.ViewerDidAuthor
 				|| *author->DatabaseId != binding.ActingIdentity.DatabaseId
 				|| *author->Id != binding.ActingIdentity.NodeId
@@ -2230,6 +2444,7 @@ namespace bpr::adapters::github::detail {
 		case operation::observe_merge_base:
 		case operation::observe_recorded_merge_base:
 		case operation::observe_base_ancestry:
+		case operation::observe_server_meta:
 			return review_mutation_exchange{ };
 		case operation::create_review_comment:
 			return review_mutation_exchange{
@@ -2255,7 +2470,14 @@ namespace bpr::adapters::github::detail {
 		case operation::unresolve_review_thread:
 		case operation::observe_review_thread:
 		case operation::observe_review_thread_comments:
+		// [[BPR-1741]]. A reaction keeps no recovery record either: it
+		// is idempotent by state, so an ambiguous one is confirmed by reading
+		// the state back, never by sending it again.
+		case operation::observe_reaction_subject:
+		case operation::add_reaction:
+		case operation::remove_reaction:
 			return review_mutation_exchange{
+
 				.Method  = http_method::post,
 				.Graphql = true,
 			};
@@ -2365,6 +2587,67 @@ namespace bpr::adapters::github::detail {
 			&& aAncestry->MergeBase == aTarget.BaseOid && aAncestry->BaseCommit == aTarget.BaseOid;
 	}
 
+	auto compile_server_meta_request(const application::review_mutation_target_binding& aTarget, const application::github_server_contract aServer)
+		-> review_mutation_request_result
+	{
+		if (!application::valid(aTarget) || aServer != application::github_server_contract::ghes_3_18_2022_11_28 || aTarget.ServerContract != aServer) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aTarget,
+			.Server    = aServer,
+			.Operation = review_mutation_operation::observe_server_meta,
+			.Method    = http_method::get,
+			.Path      = std::string{ rest_prefix(aServer) } + "/meta",
+			.Headers   = common_headers(),
+			.Body      = { },
+		};
+	}
+
+	namespace {
+		/// \brief [[BPR-1736]]. Only the one member read from `GET /meta`.
+		struct server_meta_json
+		{
+			std::optional<std::string> InstalledVersion;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("installed_version", &server_meta_json::InstalledVersion);
+			};
+		};
+	}
+
+	auto parse_server_meta(const review_mutation_wire_response& aResponse) -> std::optional<std::string>
+	{
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse) || has_header(aResponse, "location")) {
+			return std::nullopt;
+		}
+		const auto meta = document<server_meta_json>(aResponse);
+		if (!meta || !meta->InstalledVersion || !core::valid_github_server_version(core::github_server_product::github_enterprise_server, *meta->InstalledVersion)) {
+			return std::nullopt;
+		}
+		return meta->InstalledVersion;
+	}
+
+	auto enterprise_version_header(const review_mutation_wire_response& aResponse) -> std::optional<std::string>
+	{
+		auto found = std::optional<std::string>{ };
+		for (const auto& header : aResponse.Headers) {
+			auto name = header.Name;
+			std::ranges::transform(name, name.begin(), [](const unsigned char aByte) { return static_cast<char>(std::tolower(aByte)); });
+			if (name != "x-github-enterprise-version") {
+				continue;
+			}
+			if (found) {
+				return std::nullopt;
+			}
+			found = header.Value;
+		}
+		if (!found || !core::valid_github_server_version(core::github_server_product::github_enterprise_server, *found)) {
+			return std::nullopt;
+		}
+		return found;
+	}
+
 	auto compile_viewer_observation_request(
 		const application::review_mutation_acting_identity& aIdentity,
 		const application::github_server_contract           aServer)
@@ -2392,6 +2675,10 @@ namespace bpr::adapters::github::detail {
 		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
 			|| !application::valid(*aRequest.LiveBinding)
 			|| aRequest.Proposal.Anchor != aRequest.LiveBinding->Anchor.Semantic
+			// [[BPR-1745]]. Only a reply, in GitHub's own form, may be
+			// bound to its thread rather than a line.
+			|| (application::thread_bound_binding(aRequest.LiveBinding->Anchor)
+				&& (!aRequest.Proposal.ReplyToThread || aRequest.Source || aRequest.Representation != core::review_publication_representation::native_line))
 			|| (aRequest.Proposal.StartLine
 				&& (aRequest.Proposal.ReplyToThread || !core::supported_comment_target(aRequest.Proposal.Anchor.Side)
 					|| *aRequest.Proposal.StartLine >= aRequest.Proposal.Anchor.Line
@@ -2498,6 +2785,62 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
 		observation->Operation = review_mutation_operation::observe_review_thread;
+		observation->Body      = std::move(*body);
+		return observation;
+	}
+
+	auto compile_reaction_request(
+		const application::review_reaction_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		// A reaction binds the target and the actor, as a resolution does.
+		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
+			|| !application::valid(aRequest.LiveBinding->Target)
+			|| !application::valid(aRequest.LiveBinding->ActingIdentity)
+			|| aRequest.LiveBinding->Target.ServerContract != aServer
+			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
+			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
+			|| !graphql_token(aRequest.Subject) || core::reaction_graphql_name(aRequest.Content).empty()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto headers = common_headers();
+		headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+		auto body = glz::write<review_json_options{ }>(reaction_query_json{
+			.Query     = aRequest.Add ? add_reaction_document : remove_reaction_document,
+			.Variables = { .Subject = aRequest.Subject, .Content = core::reaction_graphql_name(aRequest.Content) },
+		});
+		if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aRequest,
+			.Server    = aServer,
+			.Operation = aRequest.Add ? review_mutation_operation::add_reaction : review_mutation_operation::remove_reaction,
+			.Method    = http_method::post,
+			.Path      = std::string{ graphql_path(aServer) },
+			.Headers   = std::move(headers),
+			.Body      = std::move(*body),
+		};
+	}
+
+	auto compile_reaction_subject_observation_request(
+		const application::review_reaction_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		auto observation = compile_reaction_request(aRequest, aServer);
+		if (!observation.has_value()) {
+			return observation;
+		}
+		auto body = glz::write<review_json_options{ }>(reaction_subject_query_json{
+			.Query     = observe_reaction_subject_document,
+			.Variables = { .Subject = aRequest.Subject },
+		});
+		if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		observation->Operation = review_mutation_operation::observe_reaction_subject;
 		observation->Body      = std::move(*body);
 		return observation;
 	}
@@ -2631,6 +2974,8 @@ namespace bpr::adapters::github::detail {
 							? compile_merge_base_observation_request(aSemantic, aRequest.Server, merge_base_observation_basis::recorded_base)
 							: aRequest.Operation == review_mutation_operation::observe_base_ancestry
 							? compile_merge_base_observation_request(aSemantic, aRequest.Server, merge_base_observation_basis::base_ancestry)
+							: aRequest.Operation == review_mutation_operation::observe_server_meta
+							? compile_server_meta_request(aSemantic, aRequest.Server)
 							: compile_target_observation_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_mutation_acting_identity>) {
 						canonical = compile_viewer_observation_request(aSemantic, aRequest.Server);
@@ -2640,7 +2985,12 @@ namespace bpr::adapters::github::detail {
 						canonical = aRequest.Operation == review_mutation_operation::observe_reviews
 							? compile_review_submission_observation_request(aSemantic, aRequest.Server)
 							: compile_review_submission_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::review_reaction_request>) {
+						canonical = aRequest.Operation == review_mutation_operation::observe_reaction_subject
+							? compile_reaction_subject_observation_request(aSemantic, aRequest.Server)
+							: compile_reaction_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>) {
+
 						canonical = aRequest.Operation
 								== review_mutation_operation::observe_review_thread
 							? compile_thread_target_observation_request(aSemantic, aRequest.Server)
@@ -2913,6 +3263,34 @@ namespace bpr::adapters::github::detail {
 		});
 	}
 
+	auto general_off_hunk_contract(const application::github_server_contract aServer) -> std::optional<off_hunk_unsupported_contract>
+	{
+		if (aServer != application::github_server_contract::github_com_2022_11_28) {
+			return std::nullopt;
+		}
+		return off_hunk_unsupported_contract{ .Server = aServer, .Resource = "PullRequestReviewComment", .Field = "pull_request_review_thread.line", .Code = "custom", .Message = "could not be resolved", .General = true };
+	}
+
+	auto refusal_names_comment_line(const review_mutation_wire_response& aResponse) -> bool
+	{
+		auto       envelope = diagnostic_json_object{ };
+		const auto body     = aResponse.Body;
+		if (aResponse.Status != 422 || body.size() > 4096U || !json_preflight{ body }.run() || glz::read<review_json_options{ }>(envelope, body)) {
+			return false;
+		}
+		const auto found  = envelope.find("errors");
+		auto       errors = std::vector<diagnostic_json_object>{ };
+		if (found == envelope.end() || glz::read<review_json_options{ }>(errors, found->second.str) || errors.size() > 8U) {
+			return false;
+		}
+		return std::ranges::any_of(errors, [](const diagnostic_json_object& aError) {
+			const auto field = aError.find("field");
+			auto       named = std::string{ };
+			return field != aError.end() && !glz::read<review_json_options{ }>(named, field->second.str)
+				&& (named == "line" || named == "pull_request_review_thread.line");
+		});
+	}
+
 	auto definitive_off_hunk_unsupported(const review_mutation_wire_response& aResponse,
 										 const review_mutation_wire_request& aRequest, const off_hunk_unsupported_contract& aContract) -> bool
 	{
@@ -2930,6 +3308,17 @@ namespace bpr::adapters::github::detail {
 		}
 		if (aResponse.Body.size() > 4096U || !json_preflight{ aResponse.Body }.run()) {
 			return false;
+		}
+		// [[BPR-1736]] (D4). GitHub.com's measured shape, any repository: the
+		// exact tuple, any documentation URL and status, no other member.
+		if (aContract.General) {
+			auto           parsed  = general_unsupported_response_json{ };
+			constexpr auto options = [] { auto value = review_json_options{ }; value.error_on_unknown_keys = true; return value; }();
+			if (glz::read<options>(parsed, aResponse.Body) || parsed.Message != "Validation Failed" || parsed.Errors.size() != 1U) {
+				return false;
+			}
+			const auto& error = parsed.Errors.front();
+			return error.Resource == aContract.Resource && error.Field == aContract.Field && error.Code == aContract.Code && error.Message == aContract.Message;
 		}
 		if (aContract.RecordedDesignatedScope) {
 			auto           parsed  = recorded_unsupported_response_json{ };
@@ -3050,6 +3439,62 @@ namespace bpr::adapters::github::detail {
 		return review_thread_resolution_observation{
 			.Receipt = { .Thread = thread->Id, .Resolved = thread->IsResolved },
 		};
+	}
+
+	auto parse_reaction_subject_observation(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>
+	{
+		if (!aExpected.LiveBinding.has_value()
+			|| !compile_reaction_subject_observation_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<reaction_node_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+			return failed(review_mutation_contract_failure::target_unavailable);
+		}
+		return reaction_subject_observation(std::get<reaction_subject_json>(response->Data.Node), aExpected);
+	}
+
+	auto parse_reaction_response(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reaction_request& aExpected)
+		-> review_mutation_parse_result<review_reaction_subject_observation>
+	{
+		if (!aExpected.LiveBinding.has_value() || !compile_reaction_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		auto payload = std::optional<reaction_payload_json>{ };
+		if (aExpected.Add) {
+			if (auto response = document<add_reaction_response_json>(aResponse); response) {
+				payload = std::move(response->Data.Add);
+			}
+		} else if (auto response = document<remove_reaction_response_json>(aResponse); response) {
+			payload = std::move(response->Data.Remove);
+		}
+		if (!payload.has_value() || payload->Reaction.Content != core::reaction_graphql_name(aExpected.Content)) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		auto observed = reaction_subject_observation(payload->Subject, aExpected);
+		if (!observed.has_value()) {
+			return observed;
+		}
+		// The write's own answer must show the state it asked for.
+		const auto* const group = core::find_reaction_group(observed->Reactions, aExpected.Content);
+		if ((group != nullptr && group->ViewerReacted) != aExpected.Add) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return observed;
 	}
 
 	auto parse_review_submission_response(
@@ -3406,6 +3851,12 @@ namespace bpr::adapters::github::detail {
 			event.ContextGeneration = contextGeneration;
 			static_cast<void>(Log->record(event));
 		}
+		// [[BPR-1735]]. The status of a refusal the transport carries as an
+		// error (native HTTPS admits no 4xx answer for every operation).
+		LastErrorStatus = 0U;
+		if (auto* error = std::get_if<github_mutation_wire_error>(&completion)) {
+			LastErrorStatus = error->HttpStatus;
+		}
 		if (auto* success = std::get_if<github_mutation_wire_success>(&completion)) {
 			return std::move(success->Response);
 		}
@@ -3658,28 +4109,153 @@ namespace bpr::adapters::github::detail {
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return std::unexpected(application::review_mutation_failure::undesignated_target);
 			}
-			if (const auto bound = observe_thread_target(aRequest, aStop);
-				!bound.has_value()) {
+			const auto bound = observe_thread_target(aRequest, aStop);
+			if (!bound.has_value()) {
 				return std::unexpected(bound.error());
+			}
+			// [[BPR-1741]]. A thread GitHub already shows in the state
+			// asked is not written again.
+			if (bound->Resolved == aRequest.Resolve) {
+				return application::review_thread_resolution_receipt{ .Thread = bound->Thread, .Resolved = bound->Resolved };
 			}
 			const auto wire = compile_thread_resolution_request(
 				aRequest, Configuration.CredentialContext.Authority.ServerContract);
 			if (!wire.has_value()) {
 				return std::unexpected(map_contract_failure(wire.error()));
 			}
-			auto response = perform(*wire, aStop, { });
-			if (!response.has_value()) {
-				return std::unexpected(response.error());
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				const auto observed = parse_thread_resolution_response(*response, aRequest);
+				if (observed.has_value()) {
+					return observed->Receipt;
+				}
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
 			}
-			const auto observed = parse_thread_resolution_response(*response, aRequest);
-			if (!observed.has_value()) {
-				return std::unexpected(map_contract_failure(observed.error()));
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
 			}
-			return observed->Receipt;
+			// [[BPR-1741]]. An ambiguous outcome is confirmed by one read
+			// of the thread's state, never by resolving it again.
+			const auto after = observe_thread_target(aRequest, aStop);
+			if (after.has_value() && after->Resolved == aRequest.Resolve) {
+				return application::review_thread_resolution_receipt{ .Thread = after->Thread, .Resolved = after->Resolved };
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+
 		} catch (const std::bad_alloc&) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 	}
+	auto review_mutation_session::observe_reaction_subject(
+		const application::review_reaction_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<review_reaction_subject_observation, application::review_mutation_failure>
+	{
+		const auto wire = compile_reaction_subject_observation_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+		if (!wire.has_value()) {
+			return std::unexpected(map_contract_failure(wire.error()));
+		}
+		auto response = perform(*wire, aStop, { });
+		if (!response.has_value()) {
+			return std::unexpected(response.error());
+		}
+		auto observed = parse_reaction_subject_observation(*response, aRequest);
+		if (!observed.has_value()) {
+			return std::unexpected(map_contract_failure(observed.error()));
+		}
+		return std::move(*observed);
+	}
+
+	auto review_mutation_session::set_reaction(
+		const application::review_reaction_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<application::review_reaction_receipt, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+				|| aRequest.LiveBinding->Target != Configuration.Target
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			const auto receipt = [&aRequest](const review_reaction_subject_observation& aObserved, const bool aWritten, const bool aReadBack) {
+				const auto* const group = core::find_reaction_group(aObserved.Reactions, aRequest.Content);
+				return application::review_reaction_receipt{
+					.Subject             = aObserved.Subject,
+					.Content             = aRequest.Content,
+					.Reacted             = group != nullptr && group->ViewerReacted,
+					.Reactions           = aObserved.Reactions,
+					.Written             = aWritten,
+					.ConfirmedByReadBack = aReadBack,
+				};
+			};
+			const auto asked = [&aRequest](const review_reaction_subject_observation& aObserved) {
+				const auto* const group = core::find_reaction_group(aObserved.Reactions, aRequest.Content);
+				return (group != nullptr && group->ViewerReacted) == aRequest.Add;
+			};
+			// Bound to the pull request before anything is written, and the
+			// state GitHub has now: a reaction already as asked is not sent.
+			const auto before = observe_reaction_subject(aRequest, aStop);
+			if (!before.has_value()) {
+				return std::unexpected(before.error());
+			}
+			if (asked(*before)) {
+				return receipt(*before, false, false);
+			}
+			if (!before->Reactions.ViewerCanReact) {
+				return std::unexpected(application::review_mutation_failure::refused_by_server);
+			}
+			const auto wire = compile_reaction_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+			if (!wire.has_value()) {
+				return std::unexpected(map_contract_failure(wire.error()));
+			}
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				const auto observed = parse_reaction_response(*response, aRequest);
+				if (observed.has_value()) {
+					return receipt(*observed, true, false);
+				}
+				// An answer naming another subject or pull request is not
+				// ambiguous; it is refused as the pre-flight would have.
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
+			}
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			// The outcome is ambiguous: ask once what GitHub shows. Success only
+			// when it is the state asked; the write is never sent again.
+			const auto after = observe_reaction_subject(aRequest, aStop);
+			if (after.has_value() && asked(*after)) {
+				return receipt(*after, true, true);
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+	}
+
 	namespace {
 		using publication_state = core::review_publication_state;
 		using representation    = core::review_publication_representation;
@@ -3770,6 +4346,142 @@ namespace bpr::adapters::github::detail {
 			aRecord.State           = file ? publication_state::succeeded_fallback : publication_state::succeeded_native;
 			return aRecord;
 		}
+		/// \brief [[BPR-1735]]. The record with its last sent child rejected.
+		[[nodiscard]] auto rejected_publication(application::review_publication_recovery_record aRecord) -> application::review_publication_recovery_record
+		{
+			aRecord.State = publication_state::rejected;
+			return aRecord;
+		}
+		/// \brief [[BPR-1735]]. Whether GitHub's complete comment list holds
+		/// no exact comment of this publication outside the child's baseline:
+		/// not one, where `new_exact_receipt` also answers none for several.
+		[[nodiscard]] auto no_new_exact_comment(const review_mutation_server_reconciliation& aObserved, const std::vector<std::string>& aBaseline) -> bool
+		{
+			return std::ranges::all_of(aObserved.ExactReceipts, [&aBaseline](const application::review_mutation_receipt& aReceipt) {
+				return std::ranges::binary_search(aBaseline, aReceipt.ServerCommentId);
+			});
+		}
+		[[nodiscard]] auto utc_now_ms() -> std::int64_t
+		{
+			return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		}
+		/// \brief [[BPR-1735]]. What a child's POST answered, by class only:
+		/// an answer's status, or the status an error carried; no answer
+		/// otherwise.
+		[[nodiscard]] auto kept_answer(const std::expected<review_mutation_wire_response, application::review_mutation_failure>& aResponse, const std::uint16_t aErrorStatus,
+									   const std::int64_t aNow) -> core::review_publication_post
+		{
+			const auto status = aResponse ? aResponse->Status : static_cast<int>(aErrorStatus);
+			const auto klass  = status >= 200 && status <= 599 ? static_cast<std::uint8_t>(status / 100) : std::uint8_t{ 0U };
+			if (aResponse && klass == 2U) {
+				return { .Answer = core::review_publication_answer::success, .StatusClass = klass, .RecordedUtcMs = aNow };
+			}
+			if (klass >= 3U) {
+				return { .Answer = core::review_publication_answer::error_status, .StatusClass = klass, .RecordedUtcMs = aNow };
+			}
+			return { .Answer = core::review_publication_answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = aNow };
+		}
+	}
+
+	auto review_mutation_session::off_hunk_key(std::string aVersion) const -> std::optional<application::off_hunk_fact_key>
+	{
+		const auto& authority = Configuration.CredentialContext.Authority;
+		const auto  product   = Configuration.Target.ServerContract == application::github_server_contract::github_com_2022_11_28 ? core::github_server_product::github_com
+																																  : core::github_server_product::github_enterprise_server;
+		auto        key       = application::off_hunk_fact_key{ .Scope              = { .Profile              = authority.Profile.value(),
+																						.Host                 = std::string{ authority.Hostname.value() },
+																						.Account              = authority.Account.value(),
+																						.RepositoryDatabaseId = Configuration.Target.RepositoryDatabaseId },
+																.Operation          = core::off_hunk_fact_operation::single_comment,
+																.ProfileRevision    = authority.ProfileRevision.value(),
+																.Product            = product,
+																.ServerVersion      = std::move(aVersion),
+																.ApiVersion         = 20221128U,
+																.ClassifierRevision = off_hunk_classifier_revision };
+		if (!valid(Configuration) || !application::valid(key)) {
+			return std::nullopt;
+		}
+		return key;
+	}
+
+	auto review_mutation_session::lookup_off_hunk_key(const std::stop_token aStop) -> std::optional<application::off_hunk_fact_key>
+	{
+		auto* const facts = Recovery ? Recovery->off_hunk_facts() : nullptr;
+		if (facts == nullptr) {
+			return std::nullopt;
+		}
+		// GitHub Enterprise Server names its version; GitHub.com has none.
+		if (Configuration.Target.ServerContract != application::github_server_contract::github_com_2022_11_28 && !ServerVersionAsked) {
+			ServerVersionAsked = true;
+			if (const auto request = compile_server_meta_request(Configuration.Target, Configuration.Target.ServerContract)) {
+				if (const auto answer = perform(*request, aStop)) {
+					ServerVersion = parse_server_meta(*answer);
+				}
+			}
+		}
+		const auto ghes = Configuration.Target.ServerContract != application::github_server_contract::github_com_2022_11_28;
+		if (ghes && !ServerVersion) {
+			return std::nullopt;
+		}
+		auto key = off_hunk_key(ghes ? *ServerVersion : std::string{ });
+		if (key && !OtherServersForgotten) {
+			OtherServersForgotten = facts->forget_other_servers(*key).has_value();
+		}
+		return key;
+	}
+
+	auto review_mutation_session::learned_file_comment(const application::review_mutation_request& aRequest, const std::stop_token aStop) -> std::optional<application::review_mutation_request>
+	{
+		if (!aRequest.Source || !aRequest.Source->CorePlacedOffHunk || aRequest.Source->Placement != core::review_placement::off_hunk || aRequest.Proposal.StartLine
+			|| aRequest.Proposal.ReplyToThread || aRequest.Representation != representation::native_line || !aRequest.LiveBinding
+			|| !compile_review_comment_request(aRequest, Configuration.Target.ServerContract)) {
+			return std::nullopt;
+		}
+		const auto key = lookup_off_hunk_key(aStop);
+		if (!key) {
+			return std::nullopt;
+		}
+		const auto kept = Recovery->off_hunk_facts()->load(*key);
+		if (!kept || !*kept
+			|| core::current_off_hunk_fact(key->Product, (**kept).Observation, PublicationClock ? PublicationClock() : utc_now_ms()) != core::off_hunk_creation_capability::unsupported) {
+			return std::nullopt;
+		}
+		// A fresh attempt only: a publication already under way keeps its course.
+		const auto loaded = Recovery->load_publication(digest_hex(publication_fingerprint(aRequest, Configuration)));
+		if (!loaded || (*loaded && (**loaded).State != publication_state::rejected)) {
+			return std::nullopt;
+		}
+		auto file                      = aRequest;
+		file.Source->Placement         = core::review_placement::unresolvable_line;
+		file.Source->CorePlacedOffHunk = false;
+		return file;
+	}
+
+	void review_mutation_session::learn_off_hunk(const application::review_mutation_request& aRequest, const review_mutation_wire_response& aResponse, const core::off_hunk_answer aAnswer)
+	{
+		auto* const facts = Recovery ? Recovery->off_hunk_facts() : nullptr;
+		const auto  now   = PublicationClock ? PublicationClock() : utc_now_ms();
+		const auto  fact  = core::learn_off_hunk_fact(aAnswer, now);
+		if (facts == nullptr || !fact || !aRequest.LiveBinding || !aRequest.Source || !aRequest.Source->CorePlacedOffHunk) {
+			return;
+		}
+		// Evidence is kept under the version the answer names; an answer from
+		// GitHub Enterprise Server naming none keeps nothing.
+		const auto ghes  = Configuration.Target.ServerContract != application::github_server_contract::github_com_2022_11_28;
+		const auto named = ghes ? enterprise_version_header(aResponse) : std::optional<std::string>{ std::string{ } };
+		if (!named) {
+			return;
+		}
+		const auto key = off_hunk_key(*named);
+		if (!key) {
+			return;
+		}
+		if (ghes && ServerVersion != named) {
+			ServerVersion         = named;
+			OtherServersForgotten = facts->forget_other_servers(*key).has_value();
+		}
+		const auto& binding = *aRequest.LiveBinding;
+		static_cast<void>(facts->record(*key, { .Observation = *fact, .Repository = binding.Target.Repository.Owner + "/" + binding.Target.Repository.Name, .PullRequest = binding.Target.Number.value(), .Path = binding.Anchor.Path, .Line = binding.Anchor.Semantic.Line }));
 	}
 
 	auto review_mutation_session::recover_publication(const application::review_mutation_request& aRequest, const application::review_publication_recovery_record& aRecord, const std::stop_token aStop) -> application::review_mutation_submission
@@ -3797,6 +4509,18 @@ namespace bpr::adapters::github::detail {
 		auto result  = application::review_mutation_submission{ .Reconciliation = observed->Projection };
 		auto receipt = new_exact_receipt(*observed, *child->BaselineExactCommentIds);
 		if (!receipt) {
+			// [[BPR-1735]]. GitHub's complete list holds no comment of it, and
+			// the kept answer settles it: a 4xx fully received, or a record an
+			// earlier version left, ten minutes after it was migrated. Any
+			// other answer stays unknown and only reconciles.
+			if (no_new_exact_comment(*observed, *child->BaselineExactCommentIds)) {
+				const auto post = Recovery->load_publication_post(aRecord.Key);
+				if (post && core::publication_definitely_unpublished(*post, PublicationClock ? PublicationClock() : utc_now_ms())
+					&& Recovery->advance_publication(aRecord, rejected_publication(aRecord))) {
+					result.Result = std::unexpected((**post).Answer == core::review_publication_answer::kept_before_answers ? application::review_mutation_failure::settled_not_published
+																															: application::review_mutation_failure::refused_not_published);
+				}
+			}
 			return result;
 		}
 		receipt->Duplicate  = true;
@@ -3819,10 +4543,10 @@ namespace bpr::adapters::github::detail {
 		if (aStop.stop_requested()) {
 			return publication_failure(application::review_mutation_failure::cancelled);
 		}
-		const auto wire      = compile_review_comment_request(request, Configuration.Target.ServerContract);
-		auto       result    = application::review_mutation_submission{ .MutationAttempted = true };
-		auto       witnessed = std::make_shared<std::atomic_bool>(false);
-		const auto response  = perform(*wire, aStop, [this, aRecord, witnessed] {
+		const auto wire        = compile_review_comment_request(request, Configuration.Target.ServerContract);
+		auto       result      = application::review_mutation_submission{ .MutationAttempted = true };
+		auto       witnessed   = std::make_shared<std::atomic_bool>(false);
+		const auto response    = perform(*wire, aStop, [this, aRecord, witnessed] {
 			if (witnessed->exchange(true, std::memory_order_acq_rel)) {
 				return false;
 			}
@@ -3830,9 +4554,16 @@ namespace bpr::adapters::github::detail {
 			const bool file                                    = file_child_state(next.State);
 			(file ? next.Fallback : next.Native)->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
 			next.State                                         = file ? publication_state::fallback_possibly_transmitted : publication_state::native_possibly_transmitted;
-			return Recovery->advance_publication(aRecord, next).has_value();
+			if (!Recovery->advance_publication(aRecord, next)) {
+				return false;
+			}
+			// [[BPR-1735]]. No answer yet, and since when. Best effort: a
+			// child with no answer kept only reconciles, as before.
+			static_cast<void>(Recovery->note_publication_post(aRecord.Key, { .Answer = core::review_publication_answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = PublicationClock ? PublicationClock() : utc_now_ms() }));
+			return true;
 		});
-		const auto loaded    = Recovery->load_publication(aRecord.Key);
+		const auto errorStatus = LastErrorStatus;
+		const auto loaded      = Recovery->load_publication(aRecord.Key);
 		if (!loaded || !*loaded) {
 			return result;
 		}
@@ -3848,9 +4579,20 @@ namespace bpr::adapters::github::detail {
 			}
 			return result;
 		}
+		// [[BPR-1736]]. A fully received refusal naming the line of a comment
+		// the core placed outside the diff teaches at once that this server
+		// refuses such a line, whatever the comment list shows next.
+		const auto coreOffHunk = !file && aRequest.Source->CorePlacedOffHunk && aRequest.Source->Placement == core::review_placement::off_hunk;
+		const auto namesLine   = coreOffHunk && response && refusal_names_comment_line(*response);
+		if (namesLine) {
+			learn_off_hunk(aRequest, *response, core::off_hunk_answer::refused_naming_line);
+		}
+		// [[BPR-1736]] (D4). Such a line's refusal in GitHub.com's measured
+		// shape is classified for any repository, as the designated PR's is.
 		const auto contract = UnsupportedContract ? UnsupportedContract : recorded_off_hunk_contract(Configuration);
-		if (!file && response && contract && aRequest.Source->Placement != core::review_placement::legacy_line
-			&& definitive_off_hunk_unsupported(*response, *wire, *contract)) {
+		const auto general  = coreOffHunk ? general_off_hunk_contract(Configuration.Target.ServerContract) : std::nullopt;
+		if (!file && response && aRequest.Source->Placement != core::review_placement::legacy_line
+			&& ((contract && definitive_off_hunk_unsupported(*response, *wire, *contract)) || (general && definitive_off_hunk_unsupported(*response, *wire, *general)))) {
 			auto rejected          = current;
 			rejected.State         = publication_state::native_definitively_unsupported;
 			rejected.Authorization = { .Source         = application::review_fallback_authorization_source::native_rejection,
@@ -3863,11 +4605,19 @@ namespace bpr::adapters::github::detail {
 			static_cast<void>(PublicationCapabilities.record(capability_key(Configuration, aRequest), { .State = core::off_hunk_creation_capability::unsupported, .Source = application::review_publication_evidence_source::observed_definitive_unsupported, .ContractDigest = rejected.Authorization.ContractDigest, .ObservedAt = now, .ExpiresAt = now + application::review_publication_capability_cache::maximum_lifetime_seconds }, now));
 			return result;
 		}
+		// [[BPR-1735]]. What GitHub answered, kept with the child, so a later
+		// check or restart can settle a refusal it could not confirm now. An
+		// exact unsupported rejection above is the classifier's, not this.
+		const auto answer  = kept_answer(response, errorStatus, PublicationClock ? PublicationClock() : utc_now_ms());
+		const auto refused = answer.Answer == core::review_publication_answer::error_status && answer.StatusClass == 4U;
+		static_cast<void>(Recovery->note_publication_post(current.Key, answer));
 		std::optional<application::review_mutation_receipt> receipt;
+		auto                                                parsedReceipt = false;
 		if (response) {
 			const auto parsed = parse_review_comment_response(*response, request);
 			if (parsed) {
-				receipt = parsed->Receipt;
+				receipt       = parsed->Receipt;
+				parsedReceipt = true;
 			} else {
 				result.Result = std::unexpected(map_contract_failure(parsed.error()));
 			}
@@ -3886,6 +4636,21 @@ namespace bpr::adapters::github::detail {
 			receipt = new_exact_receipt(*observed, *child->BaselineExactCommentIds);
 		}
 		if (!receipt) {
+			// [[BPR-1735]]. A fully received 4xx, and GitHub's complete list
+			// holds no comment of it: GitHub validates a comment before it
+			// creates one, so this child is rejected and its draft kept, to be
+			// published again. A refusal not yet confirmed by the list stays
+			// unknown and settles on a later check.
+			if (refused && observed && no_new_exact_comment(*observed, *child->BaselineExactCommentIds)
+				&& Recovery->advance_publication(current, rejected_publication(current))) {
+				// [[BPR-1736]]. A refusal of a line the core placed outside the
+				// diff that no classifier recognized: the fact now says such a
+				// line is refused, so publishing again posts its file comment.
+				const auto unplaceable = response && refusal_names_unplaceable_line(response->Body);
+				result.Result          = std::unexpected(namesLine         ? application::review_mutation_failure::off_hunk_refused
+															 : unplaceable ? application::review_mutation_failure::unplaceable_line
+																		   : application::review_mutation_failure::refused_not_published);
+			}
 			return result;
 		}
 		const auto resolved = resolved_publication(current, *receipt);
@@ -3893,6 +4658,12 @@ namespace bpr::adapters::github::detail {
 			return result;
 		}
 		result.Result = *(file ? resolved.Fallback : resolved.Native)->Receipt;
+		// [[BPR-1736]]. GitHub created the comment the core placed outside the
+		// diff, at that line, and answered it exactly: this server accepts such
+		// a line. A receipt found only by the list names no server version.
+		if (coreOffHunk && response && response->Status == 201 && parsedReceipt) {
+			learn_off_hunk(aRequest, *response, core::off_hunk_answer::created);
+		}
 		if (!file && aRequest.Source->Placement == core::review_placement::off_hunk) {
 			const auto now = publication_now();
 			static_cast<void>(PublicationCapabilities.record(capability_key(Configuration, aRequest), { .State = core::off_hunk_creation_capability::supported, .Source = application::review_publication_evidence_source::observed_native_success, .ContractDigest = child->RequestFingerprint, .ObservedAt = now, .ExpiresAt = now + application::review_publication_capability_cache::maximum_lifetime_seconds }, now));
@@ -3902,6 +4673,12 @@ namespace bpr::adapters::github::detail {
 
 	auto review_mutation_session::submit_publication(const application::review_mutation_request& aRequest, const std::stop_token aStop) -> application::review_mutation_submission
 	{
+		// [[BPR-1736]] (RFC-BPR-0022 invariant 2). A line the core placed
+		// outside the diff, on a server this profile learned refuses such a
+		// line, is the file comment from the start: no native attempt.
+		if (auto file = learned_file_comment(aRequest, aStop)) {
+			return submit_publication(*file, aStop);
+		}
 		const auto& source    = *aRequest.Source;
 		const auto& authority = Configuration.CredentialContext.Authority;
 		// [[BPR-1212]]. A new comment on the base side is GitHub's `side: LEFT`
@@ -3913,6 +4690,9 @@ namespace bpr::adapters::github::detail {
 		// head, its permalink naming the line at the diff's commit on its side.
 		const auto unresolvable = source.Placement == core::review_placement::unresolvable_line;
 		const auto onBase       = aRequest.Proposal.Anchor.Side == core::diff_side::left && !aRequest.Proposal.ReplyToThread;
+		// [[BPR-1736]]. A base line the core placed outside the diff has a file
+		// comment linking to it in the merge base, should GitHub refuse it.
+		const auto leftFileable = source.CorePlacedOffHunk && source.Placement == core::review_placement::off_hunk && source.LeftEndpoint.has_value();
 		const auto sourceFound  = onBase && !unresolvable
 			? aRequest.Representation == core::review_publication_representation::native_line && source.Endpoint
 				&& aRequest.Proposal.Anchor.Comparison == core::comparison_digest(source.Comparison) && aRequest.Proposal.Anchor.Line < source.LineCount
@@ -3929,8 +4709,10 @@ namespace bpr::adapters::github::detail {
 				&& !aRequest.Proposal.ReplyToThread
 				&& (anchor.Commit == Configuration.Target.Semantic.ExpectedHead
 					|| (anchor.Semantic.Side == core::diff_side::right && source.Comparison.Filter->Right == anchor.Commit)));
+		// [[BPR-1735]]. On the Whole PR diff too: the core placed the line
+		// outside every hunk of the merge base to the head.
 		const auto unresolvableOk = !unresolvable
-			|| (source.Comparison.Filter && !anchor.RemoteLine && anchor.Commit == Configuration.Target.Semantic.ExpectedHead
+			|| (!anchor.RemoteLine && anchor.Commit == Configuration.Target.Semantic.ExpectedHead
 				&& aRequest.Representation == core::review_publication_representation::native_line && !aRequest.Proposal.StartLine && !aRequest.Proposal.ReplyToThread);
 		if (!source.Endpoint || source.Placement > core::review_placement::unresolvable_line || !placedOk || !unresolvableOk
 			|| source.Comparison.Authority.Profile != authority.Profile || source.Comparison.Authority.ProfileRevision.value() != authority.ProfileRevision.value()
@@ -3959,7 +4741,7 @@ namespace bpr::adapters::github::detail {
 			const auto evidence    = PublicationCapabilities.lookup(capability_key(Configuration, aRequest), publication_now());
 			const auto observation = core::review_publication_observation{ .Placement         = source.Placement,
 																		   .Capability        = evidence ? evidence->State : core::off_hunk_creation_capability::unknown,
-																		   .Body              = aRequest.Proposal.StartLine || (onBase && !unresolvable) ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
+																		   .Body              = aRequest.Proposal.StartLine || (onBase && !unresolvable && !leftFileable) ? core::review_body_compatibility::requires_line_subject : core::classify_review_body(aRequest.Proposal.Body),
 																		   .State             = current ? current->State : publication_state::initial,
 																		   .Eligible          = true,
 																		   .CapabilityCurrent = evidence.has_value() };
@@ -3972,7 +4754,9 @@ namespace bpr::adapters::github::detail {
 			if (plan.Action == action::already_succeeded || plan.Action == action::reconcile_native || plan.Action == action::reconcile_fallback) {
 				return recover_publication(aRequest, *current, aStop);
 			}
-			if (!current) {
+			// [[BPR-1735]]. A rejected publication starts again as a new attempt
+			// under its own key: GitHub holds no comment of it.
+			if (!current || current->State == publication_state::rejected) {
 				if (const auto exact = observe_exact(aStop, publishes_left(aRequest)); !exact) {
 					return publication_failure(exact.error());
 				}
@@ -4003,7 +4787,7 @@ namespace bpr::adapters::github::detail {
 				if (aRequest.Proposal.Durable && (!Lineage || !localBody || !Lineage->prepare(aRequest, key, *localBody))) {
 					return publication_failure();
 				}
-				const auto saved = Recovery->advance_publication(std::nullopt, next);
+				const auto saved = Recovery->advance_publication(current, next);
 				if (!saved) {
 					return publication_failure();
 				}

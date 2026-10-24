@@ -6,10 +6,12 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_conversation.hpp"
+#include "bpr/core/thread_reply.hpp"
 
 #include "conversation_file_identities.hpp"
 #include "conversation_glyphs.hpp"
@@ -451,6 +453,20 @@ namespace bpr::qt {
 		};
 	} // namespace
 
+	auto thread_reply_refusal_text(const core::thread_reply_refusal aRefusal) -> QString
+	{
+		// [[BPR-1746]]. GitHub's own two refusals, in plain words. The
+		// others are not GitHub's to say and keep their own wording.
+		switch (aRefusal) {
+		case core::thread_reply_refusal::locked:              return QObject::tr("This conversation is locked. Only collaborators can reply.");
+		case core::thread_reply_refusal::viewer_cannot_reply: return QObject::tr("GitHub doesn't let you reply in this thread.");
+		case core::thread_reply_refusal::none:
+		case core::thread_reply_refusal::not_a_review_thread:
+		case core::thread_reply_refusal::anonymous_read:      return { };
+		}
+		return { };
+	}
+
 	auto suggestion_placement_of(const application::github_conversation_projection& aNode) -> core::suggestion_placement_observation
 	{
 		using subject = core::suggestion_subject;
@@ -569,7 +585,10 @@ namespace bpr::qt {
 			action->setToolTip(aEnabled ? action->text() : aReason);
 			connect(action, &QAction::triggered, menu, [this, identity, aKind] { if (ActionDispatch) { ActionDispatch(aKind, identity); } });
 		};
-		add(card_action::reply, QStringLiteral("Reply"), has_code_anchor(card), tr("This thread has no current code anchor. Open its current comparison before replying."));
+		// [[BPR-1745]]. An outdated thread takes a reply by the thread.
+		// [[BPR-1746]]. One GitHub refuses this viewer says why.
+		add(card_action::reply, QStringLiteral("Reply"), (has_code_anchor(card) || card.ReplyOnThread) && card.ReplyRefusal == core::thread_reply_refusal::none,
+			card.ReplyRefusal != core::thread_reply_refusal::none ? thread_reply_refusal_text(card.ReplyRefusal) : tr("This thread's line isn't in the code shown, so it can't take a reply here."));
 		const auto readAction = core::conversation_read_action_for(card.UnreadCount > 0U,
 																   std::ranges::any_of(card.Posts, [](const card_post& aPost) { return !aPost.Mine; }));
 		add(readAction == core::conversation_read_action::mark_read ? card_action::mark_read : card_action::mark_unread,
@@ -996,8 +1015,46 @@ namespace bpr::qt {
 		return Filters;
 	}
 
+	void conversation_cards_view::present_reactions(std::map<std::string, core::reaction_summary> aBySubject)
+	{
+		if (ReactionsBySubject == aBySubject) {
+			return;
+		}
+		ReactionsBySubject = std::move(aBySubject);
+		if (OpenCard != nullptr) {
+			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
+		}
+	}
+
+	auto conversation_cards_view::reactions_of(const std::string_view aPost) const -> std::optional<core::reaction_summary>
+	{
+		// A post is named by its kind and its GitHub node; reactions by the node.
+		for (const auto prefix : { std::string_view{ "review-comment:" }, std::string_view{ "issue-comment:" }, std::string_view{ "review:" } }) {
+			if (aPost.starts_with(prefix)) {
+				const auto found = ReactionsBySubject.find(std::string{ aPost.substr(prefix.size()) });
+				return found == ReactionsBySubject.end() ? std::nullopt : std::optional{ found->second };
+			}
+		}
+		return std::nullopt;
+	}
+
+	void conversation_cards_view::set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch)
+	{
+		ReactionDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread)
+	{
+		if (ResolutionsByThread == aByThread) {
+			return;
+		}
+		ResolutionsByThread = std::move(aByThread);
+		relayout();
+	}
+
 	void conversation_cards_view::set_resolution_offered(const bool aOffered)
 	{
+
 		if (ResolutionOffered == aOffered) {
 			return;
 		}
@@ -1782,19 +1839,35 @@ namespace bpr::qt {
 				card.DefectBadge       = badge->second.first;
 				card.DefectDescription = badge->second.second;
 			}
-			card.Kind              = isThread                                        ? QStringLiteral("Inline thread")
+			card.Kind      = isThread                                                ? QStringLiteral("Inline thread")
 				: node.Kind == application::github_conversation_kind::review         ? QStringLiteral("Review summary")
 				: node.Kind == application::github_conversation_kind::review_comment ? QStringLiteral("Inline comment")
 																					 : QStringLiteral("PR comment");
-			card.Path              = text(node.Path);
-			card.Side              = side_of(node);
-			card.Line              = node.Line;
-			card.StartLine         = node.StartLine;
-			card.Resolved          = node.Resolved;
+			card.Path      = text(node.Path);
+			card.Side      = side_of(node);
+			card.Line      = node.Line;
+			card.StartLine = node.StartLine;
+			card.Resolved  = node.Resolved;
+			// [[BPR-1741]]. My resolve or reopen shows at once, and
+			// GitHub's permission decides whether it is offered.
+			if (const auto presented = ResolutionsByThread.find(node.Id); isThread && presented != ResolutionsByThread.end()) {
+				card.Resolved            = presented->second.Resolved;
+				card.ResolutionPending   = presented->second.Pending;
+				card.ResolutionPermitted = presented->second.Resolved ? presented->second.CanUnresolve : presented->second.CanResolve;
+			}
+
 			card.AnchorUnavailable = !node.Path.empty() && node.AnchorAvailability != application::github_conversation_anchor_availability::current;
 			card.Outdated          = node.Outdated || card.AnchorUnavailable;
-			card.FileLevel         = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
-			card.Suggestion        = suggestion_placement_of(node);
+			// [[BPR-1745]]. The core decides where a reply to the thread
+			// goes; an outdated one takes it without a line, as GitHub does.
+			// [[BPR-1746]]. GitHub's `viewerCanReply` and the lock,
+			// when read, refuse a reply that could not succeed before it is
+			// written.
+			const auto replyDecision = core::decide_thread_reply({ .ReviewThread = isThread && !node.Path.empty(), .Outdated = node.Outdated, .ViewerCanReply = node.ViewerCanReply, .Locked = node.ConversationLocked });
+			card.ReplyOnThread       = replyDecision.Route == core::thread_reply_route::on_thread;
+			card.ReplyRefusal        = isThread && !thread_reply_refusal_text(replyDecision.Refusal).isEmpty() ? replyDecision.Refusal : core::thread_reply_refusal::none;
+			card.FileLevel           = node.SemanticAnchor.has_value() && node.RemoteSubject == application::github_conversation_remote_subject::file;
+			card.Suggestion          = suggestion_placement_of(node);
 			if (!isThread) {
 				const auto state = ReadStateByThread.find(node.Id);
 				card.RootUnread  = state != ReadStateByThread.end()
@@ -1926,8 +1999,9 @@ namespace bpr::qt {
 			card.Notice            = unsent_reply_notice(reply.Standing);
 			card.KeepableAsComment = reply.KeepableAsComment;
 			card.Side              = saved->Anchor.Side;
-			card.Line              = saved->Anchor.Line + 1U;
-			const auto mark        = feedback_body_mark_of(saved->Body);
+			// [[BPR-1745]]. A reply bound to its thread has no line.
+			card.Line       = core::thread_bound_anchor(saved->Anchor) ? std::nullopt : std::optional{ saved->Anchor.Line + 1U };
+			const auto mark = feedback_body_mark_of(saved->Body);
 			card.Posts.push_back(card_post{
 				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
 				.Body         = text(saved->Body),
@@ -2088,7 +2162,9 @@ namespace bpr::qt {
 		// A signature of everything the open card draws: an unchanged thread
 		// keeps its widgets, its focus and the reply being typed.
 		auto key = QString::fromStdString(card.Id) + QChar{ 0x1f } + card.DefectBadge + QChar{ 0x1f }
-			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated))
+			+ QString::number(static_cast<int>(card.Resolved)) + QString::number(static_cast<int>(card.Outdated)) + QString::number(static_cast<int>(card.ReplyOnThread)) + QString::number(static_cast<int>(card.ReplyRefusal))
+			+ QString::number(static_cast<int>(card.ResolutionPending)) + QString::number(static_cast<int>(card.ResolutionPermitted))
+
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
 			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment));
@@ -2100,8 +2176,10 @@ namespace bpr::qt {
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
+			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 			return;
 		}
+
 		auto* const previous    = OpenCard;
 		const auto  hadFocus    = previous != nullptr && previous->isAncestorOf(QApplication::focusWidget());
 		const auto  focusedName = hadFocus ? QApplication::focusWidget()->objectName() : QString{ };
@@ -2221,8 +2299,16 @@ namespace bpr::qt {
 				ImageDispatch(aPost, std::move(aReferences));
 			}
 		};
+		OpenCard->Reaction = [this](const std::string& aPost, const core::reaction_content aContent) {
+			const auto dispatch = ReactionDispatch;
+			if (dispatch) {
+				dispatch(aPost, aContent);
+			}
+		};
+		OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 		OpenCard->set_images_shown(ImagesShown);
 		OpenCard->request_images();
+
 		OpenCard->request_code_syntax();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {
@@ -2442,9 +2528,7 @@ namespace bpr::qt {
 			// The notes take only what the code cannot give them: the foot of a
 			// thread taller than what is left below its line.
 			ContentHeight = lowest + note_margin;
-			verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
-			verticalScrollBar()->setPageStep(viewport()->height());
-			verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
+			set_scroll_range();
 		} else {
 			auto bottom   = PullRequestComments ? edge_band : 4;
 			auto lastPath = QString{ };
@@ -2463,13 +2547,31 @@ namespace bpr::qt {
 				first  = false;
 			}
 			ContentHeight = bottom + note_margin;
-			verticalScrollBar()->setRange(0, std::max(0, ContentHeight - viewport()->height()));
-			verticalScrollBar()->setPageStep(viewport()->height());
-			verticalScrollBar()->setSingleStep(fontMetrics().lineSpacing());
+			set_scroll_range();
 		}
 		place_open_card();
 		sync_edges();
 		viewport()->update();
+	}
+
+	void conversation_cards_view::set_scroll_range()
+	{
+		// [[BPR-1740]]. The owner, 2026-10-22: "Much like the code
+		// window I want to be able to scroll the comments drawer up until only
+		// the last line is visible." The furthest position leaves the last
+		// note's last line, and the inset under it, at the top.
+		const auto line    = fontMetrics().lineSpacing();
+		const auto overrun = std::max(0, ContentHeight - viewport()->height());
+		const auto pastEnd = Feed ? 0 : std::max(0, ContentHeight - note_margin - 2 * line);
+		verticalScrollBar()->setRange(0, std::max(overrun, pastEnd));
+		verticalScrollBar()->setPageStep(viewport()->height());
+		verticalScrollBar()->setSingleStep(line);
+	}
+
+	auto conversation_cards_view::open_thread_hangs() const -> bool
+	{
+		const auto open = card_index(Open);
+		return !open.has_value() || Cards[*open].Placed;
 	}
 
 	void conversation_cards_view::place_open_card()
@@ -3009,6 +3111,25 @@ namespace bpr::qt {
 	{
 		QAbstractScrollArea::resizeEvent(aEvent);
 		relayout();
+		// [[BPR-1740]]. A notice under the drawer takes its height from
+		// it: the open thread's focused control stays in view rather than
+		// going under the notice, as the Reply field went under a refusal.
+		if (aEvent->size().height() < aEvent->oldSize().height() && OpenCard != nullptr) {
+			if (auto* const focus = QApplication::focusWidget(); focus != nullptr && OpenCard->isAncestorOf(focus)) {
+				reveal_focus(*focus);
+			}
+		}
+	}
+
+	void conversation_cards_view::reveal_focus(QWidget& aWidget)
+	{
+		auto area = QRect{ aWidget.mapTo(viewport(), QPoint{ 0, 0 }), aWidget.size() };
+		if (const auto* const text = qobject_cast<const QTextEdit*>(&aWidget); text != nullptr) {
+			area = QRect{ text->viewport()->mapTo(viewport(), text->cursorRect().topLeft()), text->cursorRect().size() };
+		} else if (const auto* const source = qobject_cast<const QPlainTextEdit*>(&aWidget); source != nullptr) {
+			area = QRect{ source->viewport()->mapTo(viewport(), source->cursorRect().topLeft()), source->cursorRect().size() };
+		}
+		reveal_reading(area);
 	}
 
 	// ------------------------------------------------------------- gestures
@@ -3310,8 +3431,16 @@ namespace bpr::qt {
 		}
 		// The drawer follows the code: move it as a wheel over the notes does.
 		const auto centre = QPointF{ viewport()->rect().center() };
+		const auto before = OpenCard != nullptr ? OpenCard->y() : 0;
 		auto       wheel  = QWheelEvent{ centre, viewport()->mapToGlobal(centre), QPoint{ 0, -move }, QPoint{ 0, -move }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
 		wheelEvent(&wheel);
+		// [[BPR-1740]]. What the code could not take, near the end of a
+		// short file, the notes' own overflow does: focus on the Reply field
+		// of a thread taller than the drawer left the field out of view.
+		const auto moved = OpenCard != nullptr ? before - OpenCard->y() : 0;
+		if (const auto rest = move - moved; rest != 0 && (rest > 0) == (move > 0)) {
+			verticalScrollBar()->setValue(verticalScrollBar()->value() + rest);
+		}
 	}
 
 	auto conversation_cards_view::focusNextPrevChild(const bool aNext) -> bool
@@ -3414,6 +3543,20 @@ namespace bpr::qt {
 		// notes' own overflow.
 		auto* const bar   = verticalScrollBar();
 		const auto  delta = !aEvent->pixelDelta().isNull() ? aEvent->pixelDelta().y() : aEvent->angleDelta().y() / 8 * 3;
+		if (!open_thread_hangs()) {
+			// [[BPR-1740]]. An open thread with no line to hang from (an
+			// outdated one opens among its file's unplaced threads,
+			// [[BPR-1581]]) does not move with the code, so the notes take the
+			// wheel first and the code only what they cannot. The code took
+			// every step of a long file, and the thread never moved.
+			const auto before = bar->value();
+			bar->setValue(before - delta);
+			if (bar->value() == before && ScrollForward) {
+				static_cast<void>(ScrollForward(*aEvent));
+			}
+			aEvent->accept();
+			return;
+		}
 		if (delta > 0 && bar->value() > bar->minimum()) {
 			bar->setValue(bar->value() - delta);
 			aEvent->accept();
@@ -3538,6 +3681,16 @@ namespace bpr::qt {
 		default:
 			break;
 		}
+		// [[BPR-1740]]. Home and End, and the platform's document start
+		// and end, go to the notes' top and their end, as in the code panes.
+		const auto edge = document_edge_for(*aEvent);
+		const auto home = edge == document_edge::start || (aEvent->key() == Qt::Key_Home && aEvent->modifiers() == Qt::NoModifier);
+		const auto end  = edge == document_edge::end || (aEvent->key() == Qt::Key_End && aEvent->modifiers() == Qt::NoModifier);
+		if (home || end) {
+			verticalScrollBar()->triggerAction(home ? QAbstractSlider::SliderToMinimum : QAbstractSlider::SliderToMaximum);
+			aEvent->accept();
+			return;
+		}
 		QAbstractScrollArea::keyPressEvent(aEvent);
 	}
 
@@ -3603,14 +3756,7 @@ namespace bpr::qt {
 			// Tab reaching a post's text or control brings it into view.
 			const auto reason = static_cast<QFocusEvent*>(aEvent)->reason();
 			if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason) {
-				auto* const widget = static_cast<QWidget*>(aWatched);
-				auto        area   = QRect{ widget->mapTo(viewport(), QPoint{ 0, 0 }), widget->size() };
-				if (const auto* const text = qobject_cast<const QTextEdit*>(widget); text != nullptr) {
-					area = QRect{ text->viewport()->mapTo(viewport(), text->cursorRect().topLeft()), text->cursorRect().size() };
-				} else if (const auto* const source = qobject_cast<const QPlainTextEdit*>(widget); source != nullptr) {
-					area = QRect{ source->viewport()->mapTo(viewport(), source->cursorRect().topLeft()), source->cursorRect().size() };
-				}
-				reveal_reading(area);
+				reveal_focus(*static_cast<QWidget*>(aWatched));
 			}
 			return false;
 		}

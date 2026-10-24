@@ -76,6 +76,15 @@ namespace bpr::application {
 			case state::succeeded_fallback:
 				return authorized && (firstAttempt ? !aRecord.Native : child_at(aRecord.Native, transmission::possibly_transmitted))
 					&& child_at(aRecord.Fallback, aRecord.State == state::fallback_prepared ? transmission::prepared : transmission::possibly_transmitted, aRecord.State == state::succeeded_fallback);
+			// [[BPR-1735]]. The last child sent was refused with a fully
+			// received answer: the native one with no fallback, or the file
+			// one under its authorization. Neither holds a receipt.
+			case state::rejected:
+				if (!aRecord.Fallback) {
+					return !authorized && auth.Source == source::none && child_at(aRecord.Native, transmission::possibly_transmitted);
+				}
+				return authorized && (firstAttempt ? !aRecord.Native : child_at(aRecord.Native, transmission::possibly_transmitted))
+					&& child_at(aRecord.Fallback, transmission::possibly_transmitted);
 			default: return false;
 			}
 		} catch (...) {
@@ -92,6 +101,12 @@ namespace bpr::application {
 		}
 		if (!valid(*aExpected)) {
 			return false;
+		}
+		// [[BPR-1735]]. A rejected publication starts again, under its own
+		// key, as a new first step: GitHub holds no comment of it.
+		if (aExpected->State == state::rejected) {
+			return aNext.Key == aExpected->Key && aNext.LegacyKey == aExpected->LegacyKey && aNext.Fingerprint == aExpected->Fingerprint
+				&& (aNext.State == state::native_prepared || aNext.State == state::unsupported_evidence_admitted || aNext.State == state::unresolvable_line_admitted);
 		}
 		auto permitted = *aExpected;
 		using event    = core::review_publication_event;
@@ -131,6 +146,14 @@ namespace bpr::application {
 			transition     = aNext.State == state::succeeded_native ? event::native_created : event::fallback_created;
 			break;
 		}
+		case state::rejected:
+			// [[BPR-1735]]. Only the state changes; the refused child stays
+			// as it was sent.
+			if (aExpected->State != state::native_possibly_transmitted && aExpected->State != state::fallback_possibly_transmitted) {
+				return false;
+			}
+			transition = event::definitively_rejected;
+			break;
 		default: return false;
 		}
 		const auto advanced = core::advance_review_publication({ .State = aExpected->State, .Eligible = true }, *transition);

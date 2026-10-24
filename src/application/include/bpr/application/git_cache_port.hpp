@@ -884,12 +884,17 @@ namespace bpr::application {
 		}
 
 		/// \brief Copies one exact accepted head into an isolated owned workspace.
+		/// \details [[BPR-1738]]. A sparse review supplies `aSnapshot`,
+		/// the head's complete snapshot, because its cache holds no blobs or
+		/// parents to copy; the workspace is then shallow at the head.
 		[[nodiscard]] virtual auto materialize_agent_workspace(
-			const agent_workspace_materialization_request& aRequest,
-			std::stop_token                                aStop)
+			const agent_workspace_materialization_request&    aRequest,
+			const std::optional<git_workspace_snapshot_pack>& aSnapshot,
+			std::stop_token                                   aStop)
 			-> git_cache_result<owned_agent_workspace>
 		{
 			static_cast<void>(aRequest);
+			static_cast<void>(aSnapshot);
 			static_cast<void>(aStop);
 			return std::unexpected{ git_cache_failure::invalid_request };
 		}

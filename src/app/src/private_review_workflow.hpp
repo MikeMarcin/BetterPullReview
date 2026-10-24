@@ -42,6 +42,9 @@ namespace bpr::app {
 		void restore(draft_completion);
 		void select_draft(core::source_line_ref, draft_completion);
 		void select_reply(core::source_line_ref, std::string, draft_completion);
+		/// [[BPR-1745]]. Opens the outdated thread's reply, bound to the
+		/// thread, under the bound comparison.
+		void select_thread_reply(std::string, draft_completion);
 		void change_draft(core::revisioned_review_draft_command, draft_completion);
 		void materialize_draft(core::revisioned_review_draft, core::revisioned_review_draft_command, draft_completion);
 		/// [[BPR-1345]]. Every command in one store transaction, or none.

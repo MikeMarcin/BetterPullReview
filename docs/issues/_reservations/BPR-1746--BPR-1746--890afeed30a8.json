@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1746"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "The GitHub CLI connection publishes thread replies",
+  "created": "2026-10-23T03:44:00.267981+00:00",
+  "base": "494bb2c45cda7c5061f659949011ace16749563d"
+}

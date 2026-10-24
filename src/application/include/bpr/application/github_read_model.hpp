@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
+#include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <algorithm>
@@ -123,6 +124,15 @@ namespace bpr::application {
 		unavailable,
 		denied,
 		allowed,
+	};
+
+	/// \brief [[BPR-1746]]. The pull request's conversation lock, as
+	/// the conversation read carries it (`locked`); unavailable when the read
+	/// shape does not select it.
+	enum class github_conversation_lock : std::uint8_t {
+		unavailable,
+		unlocked,
+		locked,
 	};
 
 	enum class github_review_state : std::uint8_t {
@@ -301,16 +311,19 @@ namespace bpr::application {
 	/// \brief Describes the github review thread record record.
 	struct github_review_thread_record
 	{
-		github_thread_id                          Thread;
-		github_review_thread_subject              Subject = github_review_thread_subject::line;
-		std::string                               Path;
-		std::optional<std::uint32_t>              Line;
-		std::optional<std::uint32_t>              OriginalLine;
-		github_diff_side                          DiffSide                  = github_diff_side::uninitialized;
-		bool                                      Resolved                  = false;
-		bool                                      Outdated                  = false;
-		github_permission_state                   ViewerResolvePermission   = github_permission_state::unavailable;
-		github_permission_state                   ViewerUnresolvePermission = github_permission_state::unavailable;
+		github_thread_id             Thread;
+		github_review_thread_subject Subject = github_review_thread_subject::line;
+		std::string                  Path;
+		std::optional<std::uint32_t> Line;
+		std::optional<std::uint32_t> OriginalLine;
+		github_diff_side             DiffSide                  = github_diff_side::uninitialized;
+		bool                         Resolved                  = false;
+		bool                         Outdated                  = false;
+		github_permission_state      ViewerResolvePermission   = github_permission_state::unavailable;
+		github_permission_state      ViewerUnresolvePermission = github_permission_state::unavailable;
+		/// [[BPR-1746]]. GitHub's `viewerCanReply`, when the read
+		/// shape selects it.
+		github_permission_state                   ViewerReplyPermission = github_permission_state::unavailable;
 		std::vector<github_review_comment_record> Comments;
 
 		auto operator<=>(const github_review_thread_record&) const = default;
@@ -410,6 +423,29 @@ namespace bpr::application {
 		std::string            Team;
 		github_team_membership Membership                                              = github_team_membership::unavailable;
 		auto                   operator<=>(const github_team_membership_record&) const = default;
+	};
+	/// \brief [[BPR-1741]]. One comment's or review's reactions, as
+	/// GitHub answered the read after the snapshot.
+	struct github_reaction_record
+	{
+		/// The comment's or review's GraphQL node: a review-thread comment, a
+		/// pull request comment or a review.
+		std::string            Subject;
+		core::reaction_summary Reactions;
+
+		auto operator<=>(const github_reaction_record&) const = default;
+	};
+	/// \brief [[BPR-1741]]. Whether the read after the snapshot
+	/// answered the reactions.
+	enum class github_reaction_availability : std::uint8_t {
+		/// Not asked: a signed-out read, or nothing to ask about.
+		unobserved,
+		available,
+		/// Asked about more comments than one read covers; the rest are unread.
+		partial,
+		/// GitHub refused or did not answer (limits, a schema without the
+		/// fields, a malformed answer).
+		failed,
 	};
 	enum class github_merge_assessment : std::uint8_t { unknown,
 														behind,
@@ -702,7 +738,8 @@ namespace bpr::application {
 		const github_read_shape& aShape) noexcept -> bool
 	{
 		return !aShape.ReviewThreads && !aShape.ViewedFileState
-			&& !aShape.ResolvePermission && !aShape.UnresolvePermission;
+			&& !aShape.ResolvePermission && !aShape.UnresolvePermission
+			&& !aShape.ReplyPermission && !aShape.ConversationLock;
 	}
 
 	/// \brief Reports the independent bounded timeline observation.
@@ -790,6 +827,9 @@ namespace bpr::application {
 		std::vector<github_review_record>        Reviews;
 		github_collection_availability           ReviewThreadsAvailability = github_collection_availability::unavailable;
 		std::vector<github_review_thread_record> ReviewThreads;
+		/// [[BPR-1746]]. Read with the threads when the read shape
+		/// selects it; unavailable otherwise.
+		github_conversation_lock ConversationLock = github_conversation_lock::unavailable;
 		// The REST inline review conversation is a separate observation from
 		// the GraphQL threads above and is never written into them: the
 		// threads are unavailable on a signed-out read, and an unavailable
@@ -822,7 +862,11 @@ namespace bpr::application {
 		/// [[BPR-1589]]. The viewer's membership of each requested team, read
 		/// after the snapshot; empty when no team was asked about.
 		std::vector<github_team_membership_record> ViewerTeamMemberships;
-		bool                                       ReviewRequestsStale = false;
+		/// [[BPR-1741]]. The reactions of the comments and reviews
+		/// above, read after the snapshot; empty unless available or partial.
+		github_reaction_availability        ReactionsAvailability = github_reaction_availability::unobserved;
+		std::vector<github_reaction_record> Reactions;
+		bool                                ReviewRequestsStale = false;
 		// A complete REST fallback observes actors, including an empty roster,
 		// independently of the richer connection's code-owner availability.
 		bool                             ReviewRequestActorsObserved = false;
@@ -1192,6 +1236,14 @@ namespace bpr::application {
 			return aValue == github_permission_state::unavailable
 				|| aValue == github_permission_state::denied
 				|| aValue == github_permission_state::allowed;
+		}
+
+		[[nodiscard]] constexpr auto valid_enum(
+			const github_conversation_lock aValue) noexcept -> bool
+		{
+			return aValue == github_conversation_lock::unavailable
+				|| aValue == github_conversation_lock::unlocked
+				|| aValue == github_conversation_lock::locked;
 		}
 
 		[[nodiscard]] constexpr auto valid_enum(
@@ -1629,7 +1681,8 @@ namespace bpr::application {
 			}
 			if (
 				!valid_enum(aRecord.ViewerResolvePermission)
-				|| !valid_enum(aRecord.ViewerUnresolvePermission)) {
+				|| !valid_enum(aRecord.ViewerUnresolvePermission)
+				|| !valid_enum(aRecord.ViewerReplyPermission)) {
 				return github_read_validation_error::invalid_enum;
 			}
 			const auto invalidLine = [](const std::optional<std::uint32_t>& aLine) {
@@ -2323,9 +2376,21 @@ namespace bpr::application {
 			|| (aSnapshot.CapabilityEvidence.Capabilities.UnresolveThread
 					== core::github_capability_state::supported
 				&& (!readShape.ReviewThreads
-					|| !readShape.UnresolvePermission))) {
+					|| !readShape.UnresolvePermission))
+			|| ((readShape.ReplyPermission || readShape.ConversationLock)
+				&& !readShape.ReviewThreads)) {
 			return detail::validation(
 				github_read_validation_error::relationship_review_threads_capability);
+		}
+		// [[BPR-1746]]. The lock is read exactly when the shape asks,
+		// and only with the threads it belongs to.
+		if (!detail::valid_enum(aSnapshot.ConversationLock)) {
+			return detail::validation(github_read_validation_error::invalid_enum);
+		}
+		if ((aSnapshot.ConversationLock != github_conversation_lock::unavailable)
+			!= (readShape.ConversationLock && threadsAvailable)) {
+			return detail::validation(
+				github_read_validation_error::relationship_thread_permission_capability);
 		}
 		for (const auto& file : aSnapshot.Files) {
 			const auto viewedAvailable = file.ViewedState != github_file_viewed_state::unavailable;
@@ -2339,9 +2404,12 @@ namespace bpr::application {
 				!= github_permission_state::unavailable;
 			const auto unresolveAvailable = thread.ViewerUnresolvePermission
 				!= github_permission_state::unavailable;
+			const auto replyAvailable = thread.ViewerReplyPermission
+				!= github_permission_state::unavailable;
 			if (
 				resolveAvailable != readShape.ResolvePermission
-				|| unresolveAvailable != readShape.UnresolvePermission) {
+				|| unresolveAvailable != readShape.UnresolvePermission
+				|| replyAvailable != readShape.ReplyPermission) {
 				return detail::validation(
 					github_read_validation_error::relationship_thread_permission_capability);
 			}

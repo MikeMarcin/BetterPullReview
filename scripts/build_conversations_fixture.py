@@ -181,6 +181,7 @@ def thread_node(conversation: dict) -> dict:
         "isOutdated": False,
         "viewerCanResolve": not resolved,
         "viewerCanUnresolve": resolved,
+        "viewerCanReply": True,
         "subjectType": "LINE",
         "path": conversation["f"],
         "diffSide": "RIGHT",

@@ -8,6 +8,7 @@
 #include <sqlite3.h>
 
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
@@ -500,9 +501,9 @@ namespace {
 		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect((*store)->admit(record()).has_value(), "v3 native input admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+		execute_sql(database_path(directory), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store && user_version(database_path(directory)) == 7 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
+		expect(store && user_version(database_path(directory)) == 9 && (*store)->load(record().IdempotencyKey).value() == record(), "v3 migrates transactionally without altering native row");
 		auto submission = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
 		expect(submission.has_value(), "whole-review journal remains compatible after migration");
 	}
@@ -525,17 +526,202 @@ namespace {
 		const auto value = publication();
 		expect((*store)->advance_publication(std::nullopt, value).has_value(), "v6 logical publication admitted");
 		store->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_post; PRAGMA user_version = 6; UPDATE recovery_meta SET schema_format = 6;");
+		execute_sql(database_path(directory), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; PRAGMA user_version = 6; UPDATE recovery_meta SET schema_format = 6;");
 		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
-		expect(store.has_value() && user_version(database_path(directory)) == 7
-				   && query_text(database_path(directory), "SELECT schema_format FROM recovery_meta WHERE singleton = 1") == "7",
-			   "v6 migrates to v7");
+		expect(store.has_value() && user_version(database_path(directory)) == 9
+				   && query_text(database_path(directory), "SELECT schema_format FROM recovery_meta WHERE singleton = 1") == "9",
+			   "v6 migrates to the current version");
 		expect((*store)->load(prepared.IdempotencyKey).value() == *sent, "v6 possibly sent source-line attempt is kept exactly");
 		expect((*store)->load_publication(value.Key).value() == value, "v6 logical publication is kept exactly");
 		expect(query_text(database_path(directory), "SELECT count(*) FROM submission_post") == "0",
 			   "no source-line attempt gains a whole review's POST answer");
 		expect(adapters::sqlite::make_review_submission_recovery_store(configuration(directory)).has_value(),
 			   "the whole-review journal opens the migrated database");
+	}
+
+	/// [[BPR-1735]]. A refused child is retired as rejected, survives a
+	/// restart, and starts again; its POST's answer is kept beside it; and a
+	/// version 7 journal migrates every logical publication with an answer
+	/// kept before answers were, at the time it is migrated.
+	void test_rejection_answers_and_version_seven_migration()
+	{
+		using state  = core::review_publication_state;
+		using answer = core::review_publication_answer;
+		temporary_directory directory;
+		auto                store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto          value = publication();
+		expect((*store)->advance_publication(std::nullopt, value).has_value(), "native parent admitted");
+		auto sent                 = value;
+		sent.State                = state::native_possibly_transmitted;
+		sent.Native->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(value, sent).has_value(), "the witness is durable");
+		expect((*store)->load_publication_post(value.Key).value() == std::nullopt, "no answer is kept until one is noted");
+		expect((*store)->note_publication_post(value.Key, { .Answer = answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = 1000 }).has_value(), "no answer yet is kept");
+		expect((*store)->note_publication_post(value.Key, { .Answer = answer::error_status, .StatusClass = 4U, .RecordedUtcMs = 2000 }).has_value(), "and replaced by the answer");
+		expect(!(*store)->note_publication_post(std::string(64U, 'd'), { .Answer = answer::no_answer, .StatusClass = 0U, .RecordedUtcMs = 1000 }), "an answer needs its publication");
+		expect(!(*store)->note_publication_post(value.Key, { .Answer = answer::success, .StatusClass = 4U, .RecordedUtcMs = 1000 }), "an answer out of range is refused");
+
+		auto rejected  = sent;
+		rejected.State = state::rejected;
+		expect(!(*store)->advance_publication(value, rejected), "a prepared child is never rejected");
+		expect((*store)->advance_publication(sent, rejected).has_value(), "a sent child is rejected with nothing else changed");
+		auto forged            = rejected;
+		forged.Native->Receipt = application::review_mutation_receipt{ .ServerCommentId = "PRRC_forged" };
+		forged.Native->State   = application::review_mutation_recovery_state::succeeded;
+		expect(!application::valid(forged), "a rejected child holds no receipt");
+		store->reset();
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect((*store)->load_publication(value.Key).value() == rejected, "the rejection survives a restart exactly");
+		expect((*store)->load_publication_post(value.Key).value() == core::review_publication_post{ .Answer = answer::error_status, .StatusClass = 4U, .RecordedUtcMs = 2000 }, "and so does its answer");
+
+		auto again = value;
+		expect((*store)->advance_publication(rejected, again).has_value(), "publishing again starts a new native attempt under the same key");
+		auto backTo  = again;
+		backTo.State = state::rejected;
+		expect(!(*store)->advance_publication(again, backTo), "a new prepared attempt is not rejected before it is sent");
+		auto admitted  = again;
+		admitted.State = state::unresolvable_line_admitted;
+		admitted.Native.reset();
+		admitted.Authorization = { .Source = application::review_fallback_authorization_source::unresolvable_line, .ContractDigest = { 7 }, .ScopeDigest = { 8 } };
+		expect(!(*store)->advance_publication(again, admitted), "a prepared native attempt is never admitted as unresolvable");
+
+		// A file comment refused under its admission is rejected too.
+		auto second      = publication();
+		second.Key       = std::string(64U, 'e');
+		second.LegacyKey = std::string(64U, 'f');
+		second.State     = state::unresolvable_line_admitted;
+		second.Native.reset();
+		second.Authorization = admitted.Authorization;
+		expect((*store)->advance_publication(std::nullopt, second).has_value(), "an unresolvable line admitted");
+		auto prepared                   = second;
+		prepared.State                  = state::fallback_prepared;
+		prepared.Fallback               = fallback_child(second);
+		prepared.Fallback->Transmission = application::review_mutation_recovery_transmission::prepared;
+		expect((*store)->advance_publication(second, prepared).has_value(), "its file comment prepared");
+		auto fileSent                   = prepared;
+		fileSent.State                  = state::fallback_possibly_transmitted;
+		fileSent.Fallback->Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
+		expect((*store)->advance_publication(prepared, fileSent).has_value(), "and sent");
+		auto fileRejected  = fileSent;
+		fileRejected.State = state::rejected;
+		expect((*store)->advance_publication(fileSent, fileRejected).has_value(), "a refused file comment is rejected");
+		expect((*store)->advance_publication(fileRejected, second).has_value(), "and is admitted again to be published again");
+
+		// Version 7: no answers were kept. Migration keeps one for every
+		// logical publication, as kept before answers, at the migration time.
+		store->reset();
+		execute_sql(database_path(directory), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; PRAGMA user_version = 7; UPDATE recovery_meta SET schema_format = 7;");
+		const auto before = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		store             = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		const auto after  = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+		expect(store.has_value() && user_version(database_path(directory)) == 9, "v7 migrates to the current version");
+		for (const auto& key : { value.Key, second.Key }) {
+			const auto kept = (*store)->load_publication_post(key);
+			expect(kept && *kept && (**kept).Answer == answer::kept_before_answers && (**kept).StatusClass == 0U && (**kept).RecordedUtcMs >= before - 1000
+					   && (**kept).RecordedUtcMs <= after + 1000,
+				   "each migrated publication is kept as answered before answers were, from now");
+		}
+		expect((*store)->load_publication(value.Key).value() == again && (*store)->load_publication(second.Key).value() == second, "migration keeps every publication exactly");
+	}
+
+	/// [[BPR-1736]]. The learned off-hunk facts the journal keeps: a round
+	/// trip through the store and a second connection, one entry per operation
+	/// per repository replaced by the newest observation, an entry kept under
+	/// another server version, profile revision, API version or classifier
+	/// forgotten by the exact key and deleted once that server is seen, the
+	/// core's lifetime of 14 days on GitHub.com and 30 on GitHub Enterprise
+	/// Server, and a version 8 journal migrating with nothing learned.
+	void test_learned_off_hunk_facts()
+	{
+		using operation          = core::off_hunk_fact_operation;
+		using state              = core::off_hunk_creation_capability;
+		constexpr auto day       = std::int64_t{ 24 } * 60 * 60 * 1000;
+		auto           directory = temporary_directory{ };
+		auto           store     = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value() && (*store)->off_hunk_facts() != nullptr, "the journal keeps learned facts");
+		auto* const facts  = (*store)->off_hunk_facts();
+		const auto  scope  = application::off_hunk_fact_scope{ .Profile = 2U, .Host = "ghe.example.com", .Account = 21U, .RepositoryDatabaseId = 1'328'277'631U };
+		const auto  key    = application::off_hunk_fact_key{ .Scope = scope, .Operation = operation::single_comment, .ProfileRevision = 4U, .Product = core::github_server_product::github_enterprise_server, .ServerVersion = "3.20.8", .ApiVersion = 20221128U, .ClassifierRevision = 2U };
+		const auto  taught = [](const state aState, const std::int64_t aAt) {
+			return application::off_hunk_fact{ .Observation = *core::learn_off_hunk_fact(aState == state::supported ? core::off_hunk_answer::created : core::off_hunk_answer::refused_naming_line, aAt),
+											   .Repository  = "octo-org/review-repository",
+											   .PullRequest = 125U,
+											   .Path        = "src/review.cpp",
+											   .Line        = 13U };
+		};
+		expect(facts->load(key).value() == std::nullopt && application::presented_off_hunk_fact(facts, scope, 100 * day) == state::unknown, "nothing is learned at first");
+		expect(facts->record(key, taught(state::unsupported, 100 * day)).has_value(), "a refusal is kept");
+		expect(facts->load(key).value() == taught(state::unsupported, 100 * day), "and read back exactly");
+		auto other = adapters::sqlite::make_off_hunk_fact_store(configuration(directory));
+		expect(other.has_value() && (*other)->load(key).value() == taught(state::unsupported, 100 * day), "and through its own connection");
+		const auto entry = (*other)->load_scope(scope, operation::single_comment).value();
+		expect(entry && entry->Key == key && entry->Fact == taught(state::unsupported, 100 * day), "with the key it was kept under");
+		expect((*other)->load_scope(scope, operation::review).value() == std::nullopt, "and for its operation only");
+
+		// The core decides how long it holds: 30 days on GitHub Enterprise Server.
+		expect(application::presented_off_hunk_fact(facts, scope, 100 * day + 29 * day) == state::unsupported, "a 29-day-old refusal holds");
+		expect(application::presented_off_hunk_fact(facts, scope, 100 * day + 30 * day) == state::unknown, "a 30-day-old one is unknown");
+		expect(application::presented_review_off_hunk_fact(facts, scope, 101 * day) == state::unsupported, "a review consults the single comment's (D3)");
+
+		// The newest observation replaces it.
+		expect(facts->record(key, taught(state::supported, 110 * day)).has_value() && facts->load(key).value() == taught(state::supported, 110 * day), "a later acceptance replaces it");
+
+		// Another server version is another key: forgotten, never reused.
+		auto upgraded          = key;
+		upgraded.ServerVersion = "3.22.2";
+		expect(facts->load(upgraded).value() == std::nullopt, "a new server version forgets the fact");
+		auto revised                  = key;
+		revised.ProfileRevision       = 5U;
+		auto api                      = key;
+		api.ApiVersion                = 20260310U;
+		auto classifier               = key;
+		classifier.ClassifierRevision = 3U;
+		for (const auto& changed : { revised, api, classifier }) {
+			expect(facts->load(changed).value() == std::nullopt, "as does a new profile revision, API version or classifier");
+		}
+		expect(facts->load_scope(scope, operation::single_comment).value().has_value(), "until that server is seen, a presentation still finds it");
+		auto elsewhere                       = key;
+		elsewhere.Scope.RepositoryDatabaseId = 7U;
+		expect(facts->record(elsewhere, taught(state::unsupported, 111 * day)).has_value(), "another repository keeps its own");
+		expect(facts->forget_other_servers(upgraded).has_value(), "the new server is seen");
+		expect(facts->load_scope(scope, operation::single_comment).value() == std::nullopt && facts->load_scope(elsewhere.Scope, operation::single_comment).value() == std::nullopt,
+			   "and every entry kept under the old one is gone");
+
+		// GitHub.com has no version and keeps a fact 14 days.
+		auto dotcom          = key;
+		dotcom.Scope.Host    = "github.com";
+		dotcom.Product       = core::github_server_product::github_com;
+		dotcom.ServerVersion = "";
+		expect(facts->record(dotcom, taught(state::unsupported, 200 * day)).has_value(), "GitHub.com's refusal is kept");
+		expect(application::presented_off_hunk_fact(facts, dotcom.Scope, 213 * day) == state::unsupported && application::presented_off_hunk_fact(facts, dotcom.Scope, 214 * day) == state::unknown,
+			   "for 14 days");
+		auto keyed          = dotcom;
+		keyed.ServerVersion = "3.20.8";
+		expect(!facts->record(keyed, taught(state::unsupported, 200 * day)).has_value(), "GitHub.com is never keyed by a version");
+		auto unparsable          = key;
+		unparsable.ServerVersion = "3.20.8-rc1";
+		expect(!facts->record(unparsable, taught(state::unsupported, 200 * day)).has_value() && !facts->load(unparsable).has_value(), "an unparsable version keys nothing");
+		auto mismatched               = taught(state::supported, 200 * day);
+		mismatched.Observation.Source = core::off_hunk_fact_source::observed_refusal;
+		expect(!facts->record(dotcom, mismatched).has_value(), "support never comes from a refusal");
+
+		// Demotion: a review refused for an unplaceable line under support.
+		expect(facts->record(dotcom, taught(state::supported, 300 * day)).has_value(), "GitHub.com accepts, say");
+		expect(application::presented_review_off_hunk_fact(facts, dotcom.Scope, 300 * day + 1) == state::supported, "so a review carries such a line");
+		expect(application::demote_off_hunk_fact(facts, dotcom.Scope, taught(state::supported, 0), 301 * day), "a review refused for an unplaceable line demotes it");
+		expect(application::presented_off_hunk_fact(facts, dotcom.Scope, 301 * day + 1) == state::unsupported && application::presented_review_off_hunk_fact(facts, dotcom.Scope, 301 * day + 1) == state::unsupported,
+			   "for both operations");
+		const auto demoted = facts->load_scope(dotcom.Scope, operation::review).value();
+		expect(demoted && demoted->Key.ServerVersion.empty() && demoted->Fact.Observation.ObservedUtcMs == 301 * day, "under the supported entry's key, now");
+		expect(!application::demote_off_hunk_fact(facts, dotcom.Scope, taught(state::supported, 0), 302 * day), "and nothing is demoted twice");
+
+		// Version 8 had no facts: it migrates with nothing learned.
+		other->reset();
+		store->reset();
+		execute_sql(database_path(directory), "DROP TABLE off_hunk_fact; PRAGMA user_version = 8; UPDATE recovery_meta SET schema_format = 8;");
+		store = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
+		expect(store.has_value() && user_version(database_path(directory)) == 9, "v8 migrates to v9");
+		expect((*store)->off_hunk_facts()->load_scope(dotcom.Scope, operation::single_comment).value() == std::nullopt, "with nothing learned: every key is unknown");
 	}
 
 	void test_durable_unresolved_and_success_reopen()
@@ -657,7 +843,7 @@ namespace {
 		static_cast<void>(::sqlite3_finalize(statement));
 		expect(::sqlite3_exec(
 				   database,
-				   "PRAGMA user_version = 8",
+				   "PRAGMA user_version = 10",
 				   nullptr,
 				   nullptr,
 				   nullptr)
@@ -706,7 +892,7 @@ namespace {
 			candidate.LegacyKey = std::string(64U, alias);
 			expect(!(*migrated)->advance_publication(std::nullopt, candidate), "migrated unresolved and succeeded aliases cannot admit another publication");
 		}
-		expect(user_version(database_path(directory)) == 7,
+		expect(user_version(database_path(directory)) == 9,
 			   "version-one migration commits the current schema version");
 	}
 
@@ -718,9 +904,9 @@ namespace {
 		const auto expected = record();
 		expect((*anchored)->admit(expected).has_value(), "anchored row admitted before migration");
 		anchored->reset();
-		execute_sql(database_path(directory), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
+		execute_sql(database_path(directory), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; DROP TABLE submission_baseline; DROP TABLE submission_attempt; PRAGMA user_version = 2; UPDATE recovery_meta SET schema_format = 2;");
 		auto sibling = adapters::sqlite::make_review_submission_recovery_store(configuration(directory));
-		expect(sibling.has_value() && user_version(database_path(directory)) == 7, "submission factory migrates exact v2 database to the current version");
+		expect(sibling.has_value() && user_version(database_path(directory)) == 9, "submission factory migrates exact v2 database to the current version");
 		anchored = adapters::sqlite::make_review_mutation_recovery_store(configuration(directory));
 		expect(anchored.has_value(), "source-line factory opens the shared current schema");
 		const auto loaded = (*anchored)->load(expected.IdempotencyKey);
@@ -833,6 +1019,8 @@ try {
 	test_an_unresolvable_line_admission_survives_a_restart();
 	test_version_three_keeps_both_journals();
 	test_version_six_migration_keeps_the_source_line_journal();
+	test_rejection_answers_and_version_seven_migration();
+	test_learned_off_hunk_facts();
 	test_logical_capacity_and_stale_compare_exchange();
 	test_durable_unresolved_and_success_reopen();
 	test_schema_identity_is_fail_closed_and_credential_free();

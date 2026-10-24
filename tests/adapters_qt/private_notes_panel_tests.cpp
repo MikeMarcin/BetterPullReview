@@ -200,6 +200,15 @@ int main(int argc, char** argv)
 				   && card->geometry().top() <= 10 * 20 && card->geometry().bottom() >= 10 * 20,
 			   name + ": a note opens in place beside its line, to write, with the keyboard in it");
 		expect(panel.line_marks(core::diff_side::right)[0].Open, name + ": its line is washed while it is open");
+		// [[BPR-1753]], owner look v003: the foot holds the actions
+		// alone, each whole, inside the card.
+		{
+			auto* const draft = card->findChild<QWidget*>(QStringLiteral("privateNoteDraftComment"));
+			auto* const save  = card->findChild<QWidget*>(QStringLiteral("privateNoteSave"));
+			expect(card->findChild<QWidget*>(QStringLiteral("privateNoteOnlyYou")) == nullptr && draft != nullptr && save != nullptr && draft->width() >= draft->sizeHint().width()
+					   && save->width() >= save->sizeHint().width() && save->geometry().right() <= card->width(),
+				   name + ": the note's foot is its actions, none cut short");
+		}
 		if (!root.isEmpty()) {
 			expect(panel.grab().save(QStringLiteral("%1/notes-open-%2.png").arg(root, QString::fromStdString(name)), "PNG"), "the open render is saved");
 		}

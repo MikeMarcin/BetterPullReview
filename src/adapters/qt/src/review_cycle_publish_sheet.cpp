@@ -1,5 +1,7 @@
 #include "bpr/qt/review_cycle_publish_sheet.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 
@@ -427,17 +429,17 @@ namespace bpr::qt {
 		Primary->setObjectName(QStringLiteral("cyclePublishPrimary"));
 		Primary->setDefault(true);
 		actions->addWidget(Primary);
-		ExactPlan = new QPushButton{ QStringLiteral("Read the Exact Plan"), this };
+		ExactPlan = new quiet_push_button{ QStringLiteral("Read the Exact Plan"), this };
 		ExactPlan->setObjectName(QStringLiteral("cyclePublishExactPlan"));
 		ExactPlan->setAutoDefault(false);
 		ExactPlan->setToolTip(QStringLiteral("Everything publishing sends, with the digest your confirmation names"));
 		actions->addWidget(ExactPlan);
-		Change = new QPushButton{ QStringLiteral("Change…"), this };
+		Change = new quiet_push_button{ QStringLiteral("Change…"), this };
 		Change->setObjectName(QStringLiteral("cyclePublishChange"));
 		Change->setAutoDefault(false);
 		Change->setToolTip(QStringLiteral("Back to the choices; this plan is dropped and a new one is made"));
 		actions->addWidget(Change);
-		CancelPublishing = new QPushButton{ QStringLiteral("Cancel Publishing"), this };
+		CancelPublishing = new quiet_push_button{ QStringLiteral("Cancel Publishing"), this };
 		CancelPublishing->setObjectName(QStringLiteral("cyclePublishCancelPublication"));
 		CancelPublishing->setAutoDefault(false);
 		CancelPublishing->setToolTip(QStringLiteral("Stop this publication; anything GitHub already holds stays there"));
@@ -446,20 +448,20 @@ namespace bpr::qt {
 		column->addLayout(actions);
 
 		auto* const foot = new QHBoxLayout{ };
-		SavePatch        = new QPushButton{ QStringLiteral("Save Patch…"), this };
+		SavePatch        = new quiet_push_button{ QStringLiteral("Save Patch…"), this };
 		SavePatch->setObjectName(QStringLiteral("cyclePublishSavePatch"));
 		SavePatch->setFlat(true);
 		SavePatch->setAutoDefault(false);
 		SavePatch->setToolTip(QStringLiteral("Save what would go out as a patch, to commit and push with your own Git tools"));
 		foot->addWidget(SavePatch);
-		Link = new QPushButton{ QStringLiteral("Link Existing Pull Request…"), this };
+		Link = new quiet_push_button{ QStringLiteral("Link Existing Pull Request…"), this };
 		Link->setObjectName(QStringLiteral("cyclePublishLink"));
 		Link->setFlat(true);
 		Link->setAutoDefault(false);
 		Link->setToolTip(QStringLiteral("Link a pull request you published yourself; it is read first and marked externally published"));
 		foot->addWidget(Link);
 		foot->addStretch(1);
-		Close = new QPushButton{ QStringLiteral("Cancel"), this };
+		Close = new quiet_push_button{ QStringLiteral("Cancel"), this };
 		Close->setObjectName(QStringLiteral("cyclePublishClose"));
 		Close->setAutoDefault(false);
 		Close->setToolTip(QStringLiteral("Close; a recorded plan stays as it is (Esc)"));

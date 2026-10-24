@@ -1,5 +1,7 @@
 #include "bpr/qt/server_card.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/qt/device_authorization_panel.hpp"
 #include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/identity_avatar.hpp"
@@ -278,7 +280,9 @@ namespace bpr::qt {
 			const QString& aText,
 			const QString& aAccessibleName) -> QPushButton*
 		{
-			auto* const button = new QPushButton{ aText, aParent };
+			QPushButton* const button = aObjectName == QStringLiteral("serverCardCliCheck") || aObjectName == QStringLiteral("serverCardCopyDetails")
+				? static_cast<QPushButton*>(new quiet_push_button{ aText, aParent })
+				: new QPushButton{ aText, aParent };
 			button->setObjectName(aObjectName);
 			button->setAccessibleName(aAccessibleName);
 			button->setFocusPolicy(Qt::StrongFocus);

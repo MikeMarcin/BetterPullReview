@@ -37,6 +37,7 @@
 
 #include <array>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -470,193 +471,27 @@ namespace {
 		expect(!settings->isVisible(), "Escape in an empty field still closes Settings");
 	}
 
-	/// \brief [[BPR-1301]]. Agents & context's Claude rows: the wrapper path,
-	/// saved only through the host, and the one line about sign-in. Withdrawing
-	/// the agent surfaces, as an agent-free build does, takes both away.
-	void test_agents_page_claude_wrapper_rows()
+	/// \brief [[BPR-1753]], owner decision 2026-10-23. The Claude
+	/// process wrapper and model rows are gone from Agents & context; the
+	/// agent list holds each agent's program, arguments and model, and
+	/// withdrawing the agent surfaces takes the list with them.
+	void test_agents_page_is_the_agent_list()
 	{
 		qt::workbench_window workbench;
-		auto* const          page    = workbench.settings()->page_widget(qt::settings_page::agents_and_context);
-		auto* const          panel   = workbench.claude_wrapper();
-		auto* const          path    = page->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath"));
-		auto* const          save    = page->findChild<QPushButton*>(QStringLiteral("claudeWrapperSave"));
-		auto* const          choose  = page->findChild<QPushButton*>(QStringLiteral("claudeWrapperChoose"));
-		auto* const          status  = page->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus"));
-		auto* const          signIn  = page->findChild<QLabel*>(QStringLiteral("claudeSignIn"));
-		auto* const          heading = page->findChild<QLabel*>(QStringLiteral("claudeWrapperHeading"));
-		expect(panel != nullptr && path != nullptr && save != nullptr && choose != nullptr && status != nullptr && signIn != nullptr && heading != nullptr,
-			   "Agents & context mounts the Claude rows");
-		expect(heading->text() == QStringLiteral("Claude") && path->text().isEmpty() && status->text().isEmpty(), "nothing is claimed before the profile publishes");
-		expect(signIn->text() == QStringLiteral("Claude and your wrapper handle sign-in. BetterPullReview never asks."),
-			   "one line says sign-in is Claude's and the wrapper's (owner, 2026-10-06: no switch)");
-		expect(page->findChildren<QCheckBox*>().size() == 1, "no sign-in switch is offered; the only check box is the private draft");
-
-		auto sent = std::vector<std::string>{ };
-		panel->set_dispatch([&sent](std::string aPath) { sent.push_back(std::move(aPath)); });
-		path->setText(QStringLiteral("/Users/me/bin/claude gateway ✓"));
-		save->click();
-		expect(sent == std::vector<std::string>{ "/Users/me/bin/claude gateway ✓" }, "Save hands the exact typed path to the host, spaces and all");
-		expect(status->text() == QStringLiteral("Checking…"), "the row says the path is being checked");
-		panel->show_answer({ .Path = sent.back(), .Refusal = core::agent_wrapper_refusal::not_executable });
-		expect(status->text() == QStringLiteral("Not saved. You do not have permission to run this file."), "a refusal says why in one line");
-		expect(path->text() == QStringLiteral("/Users/me/bin/claude gateway ✓"), "the refused text stays to be corrected");
-		QMetaObject::invokeMethod(path, "returnPressed");
-		expect(sent.size() == 2U, "Return saves too");
-		panel->show_answer({ .Path = sent.back(), .Submitted = true });
-		expect(status->text() == QStringLiteral("Saving…"), "an accepted path is being written");
-		panel->present("/Users/me/bin/claude gateway ✓");
-		expect(status->text() == QStringLiteral("Saved for this profile.") && path->text() == QStringLiteral("/Users/me/bin/claude gateway ✓"), "the published wrapper is shown as saved");
-		// For a look at the rows as drawn, when BPR_SETTINGS_RENDER_DIR is set.
-		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
-			workbench.settings()->present(qt::settings_page::agents_and_context);
-			workbench.settings()->resize(900, 820);
-			QApplication::processEvents();
-			expect(workbench.settings()->grab().save(directory + QStringLiteral("/agents-and-context-claude.png")), "the Agents & context render is saved");
-		}
-		path->clear();
-		save->click();
-		expect(sent.back().empty() && status->text() == QStringLiteral("Clearing…"), "an empty field clears the wrapper");
-		panel->present({ });
-		expect(status->text() == QStringLiteral("No wrapper is saved for this profile.") && path->text().isEmpty(), "a cleared profile says so");
-		panel->show_answer({ .Path = "/x" });
-		expect(status->text() == QStringLiteral("Not saved. This profile's settings are not available yet."), "an unavailable profile is said plainly");
-
-		// [[BPR-1301]], owner 2026-10-07. With no wrapper the row names the
-		// claude a launch would run, looked up whenever the row is shown.
-		auto* const found   = page->findChild<QLabel*>(QStringLiteral("claudeWrapperFound"));
-		auto        lookups = 0;
-		workbench.settings()->hide();
-		panel->set_dispatch([&sent](std::string aPath) { sent.push_back(std::move(aPath)); }, [&lookups] { ++lookups; });
-		expect(found != nullptr && found->text().isEmpty() && !found->isVisibleTo(page), "nothing is claimed about claude before a lookup answers");
-		expect(lookups == 0, "a hidden row looks nothing up");
-		// Laid out at its final size first, so the found line arrives under a
-		// page that has already placed its rows.
-		workbench.settings()->resize(900, 820);
-		workbench.settings()->present(qt::settings_page::agents_and_context);
-		QApplication::processEvents();
-		expect(lookups == 1, "showing the row with no wrapper looks claude up once");
-		panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude", .Origin = core::claude_found_in::path });
-		expect(found->text() == QStringLiteral("Using /opt/homebrew/bin/claude (found on PATH).") && found->isVisibleTo(page), "the found path is shown, and where it was found");
-		QApplication::processEvents();
-		auto* const help = page->findChild<QLabel*>(QStringLiteral("claudeWrapperHelp"));
-		expect(help != nullptr && help->height() >= help->heightForWidth(help->width()), "the explanation keeps its full height when the found line appears under a laid-out page");
-		if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
-			expect(workbench.settings()->grab().save(directory + QStringLiteral("/agents-and-context-claude-found.png")), "the found-line render is saved");
-		}
-		panel->show_found(core::claude_search_candidate{ .Path = "/Users/me/.local/bin/claude", .Origin = core::claude_found_in::usual_folder });
-		expect(found->text() == QStringLiteral("Using /Users/me/.local/bin/claude (found in a usual install folder, not on PATH)."), "a usual folder is named as such");
-		panel->show_found(std::nullopt);
-		expect(found->text() == QStringLiteral("claude not found on PATH or in the usual install folders; set a wrapper."), "none found says what to do");
-		expect((found->textInteractionFlags() & Qt::TextEditable) == 0, "the found line is read-only");
-		panel->present("/opt/tools/claude-gateway");
-		expect(!found->isVisibleTo(page) && lookups == 1, "a saved wrapper wins: the found line goes and nothing is looked up");
-		panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude" });
-		expect(!found->isVisibleTo(page), "a late answer does not show over a saved wrapper");
-		panel->present({ });
-		expect(found->isVisibleTo(page) && lookups == 2, "clearing the wrapper looks claude up again");
-		workbench.settings()->hide();
-		workbench.settings()->present(qt::settings_page::agents_and_context);
-		QApplication::processEvents();
-		expect(lookups == 3, "opening Settings again looks again");
-		workbench.settings()->hide();
-
+		auto* const          page = workbench.settings()->page_widget(qt::settings_page::agents_and_context);
+		expect(page->findChild<QLineEdit*>(QStringLiteral("claudeWrapperPath")) == nullptr && page->findChild<QLineEdit*>(QStringLiteral("claudeModel")) == nullptr,
+			   "the old Claude wrapper and model rows are not on the page");
+		expect(page->findChild<QListWidget*>(QStringLiteral("settingsAgentList")) != nullptr && page->findChild<QPushButton*>(QStringLiteral("settingsAddAgent")) != nullptr,
+			   "the page is the agent list with Add agent…");
+		// [[BPR-1753]]. The review skill's Restore default has its own
+		// "Save my copy to Downloads first", and the run limit its toggle;
+		// neither is a sign-in switch.
+		const auto boxes = page->findChildren<QCheckBox*>();
+		expect(std::ranges::count_if(boxes, [](const QCheckBox* aBox) { return aBox->objectName() != QStringLiteral("reviewSkillKeepCopy") && aBox->objectName() != QStringLiteral("settingsRunLimitOn"); }) == 1,
+			   "no sign-in switch is offered; the only other check box is the private draft");
 		auto* const settings = workbench.settings();
 		settings->search_field()->setText(QStringLiteral("process wrapper"));
-		expect(result_names(*settings).contains(QStringLiteral("Process wrapper")), "the wrapper row is found by search");
-		workbench.withdraw_agent_surfaces();
-		settings->search_field()->setText(QStringLiteral("process wrapper"));
-		expect(panel->isHidden() && !result_names(*settings).contains(QStringLiteral("Process wrapper")), "withdrawn agent surfaces take the Claude rows with them");
-	}
-
-	/// \brief Keeps form fields at their size hint, as the macOS style does,
-	/// so an offscreen run lays the Claude rows out the way the owner saw them.
-	class size_hint_fields_style final : public QProxyStyle
-	{
-	public:
-		using QProxyStyle::QProxyStyle;
-
-		[[nodiscard]] auto styleHint(const StyleHint aHint, const QStyleOption* const aOption, const QWidget* const aWidget, QStyleHintReturn* const aReturn) const
-			-> int override
-		{
-			if (aHint == SH_FormLayoutFieldGrowthPolicy) {
-				return QFormLayout::FieldsStayAtSizeHint;
-			}
-			return QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
-		}
-	};
-
-	/// \brief [[BPR-1301]] sign-in-line-v002, rejected "Cant read this". Every
-	/// line under Claude on Agents & context is drawn whole, in the page's own
-	/// text size, at 4.5:1 or better against the page in the light, dark and
-	/// both high-contrast themes and in the unthemed (native) palette.
-	void test_agents_page_claude_rows_are_readable()
-	{
-		const auto previous = QApplication::style()->name();
-		QApplication::setStyle(new size_hint_fields_style{ QStyleFactory::create(previous) });
-		{
-			qt::workbench_window workbench;
-			auto* const          settings = workbench.settings();
-			auto* const          page     = settings->page_widget(qt::settings_page::agents_and_context);
-			auto* const          panel    = workbench.claude_wrapper();
-			panel->set_dispatch([](std::string) { }, [] { });
-			panel->present({ });
-			panel->show_found(core::claude_search_candidate{ .Path = "/opt/homebrew/bin/claude", .Origin = core::claude_found_in::path });
-			const auto lines = std::array{
-				page->findChild<QLabel*>(QStringLiteral("claudeWrapperStatus")),
-				page->findChild<QLabel*>(QStringLiteral("claudeWrapperFound")),
-				page->findChild<QLabel*>(QStringLiteral("claudeWrapperHelp")),
-				page->findChild<QLabel*>(QStringLiteral("claudeSignIn")),
-			};
-			for (auto* const line : lines) {
-				expect(line != nullptr, "Agents & context mounts every Claude line");
-			}
-			const auto whole = [&](const int aWidth, const std::string_view aWhen) {
-				settings->resize(aWidth, 820);
-				settings->present(qt::settings_page::agents_and_context);
-				QApplication::processEvents();
-				for (auto* const line : lines) {
-					expect(line->isVisibleTo(page) && line->height() >= line->heightForWidth(line->width()),
-						   std::string{ "no Claude line is cut off with fields at their size hint, " } + std::string{ aWhen } + ": "
-							   + line->objectName().toStdString());
-				}
-			};
-			whole(900, "at the reviewed width");
-			whole(680, "in a narrow window");
-			whole(1300, "in a wide window");
-			for (auto* const line : lines) {
-				expect(QFontInfo{ line->font() }.pointSizeF() >= QFontInfo{ page->font() }.pointSizeF(),
-					   "every Claude line is set at the page's own text size: " + line->objectName().toStdString());
-			}
-			const auto readable = [&](const std::string_view aTheme) {
-				QApplication::processEvents();
-				const auto ground = page->palette().color(QPalette::Active, page->backgroundRole());
-				for (auto* const line : lines) {
-					const auto ink   = line->palette().color(QPalette::Active, line->foregroundRole());
-					const auto ratio = qt::contrast_ratio(qt::to_appearance_color(ink), qt::to_appearance_color(ground));
-					expect(ratio >= 4.5,
-						   std::string{ "WCAG AA (4.5:1) against the page in " } + std::string{ aTheme } + ": " + line->objectName().toStdString() + " reads "
-							   + std::to_string(ratio) + ":1");
-				}
-			};
-			readable("the native palette");
-			for (const auto& [mode, theme] : std::array{ std::pair{ core::appearance_mode::light, "Light" },
-														 std::pair{ core::appearance_mode::dark, "Dark" },
-														 std::pair{ core::appearance_mode::high_contrast_light, "High Contrast Light" },
-														 std::pair{ core::appearance_mode::high_contrast_dark, "High Contrast Dark" } }) {
-				auto profile = qt::appearance_profile{ };
-				static_cast<void>(profile.select_mode(mode));
-				profile.apply_to(*settings);
-				readable(theme);
-				if (const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR"); !directory.isEmpty()) {
-					settings->resize(900, 820);
-					QApplication::processEvents();
-					expect(settings->grab().save(directory + QStringLiteral("/agents-and-context-claude-%1.png").arg(QString::fromLatin1(theme).toLower().replace(QLatin1Char{ ' ' }, QLatin1Char{ '-' }))),
-						   "the themed Agents & context render is saved");
-				}
-			}
-			settings->hide();
-		}
-		QApplication::setStyle(QStyleFactory::create(previous));
+		expect(!result_names(*settings).contains(QStringLiteral("Process wrapper")), "search finds no wrapper row");
 	}
 
 	/// \brief [[BPR-1289]]. The index is the pages as shown: a withdrawn page is
@@ -779,8 +614,7 @@ auto main(int argc, char** argv) -> int
 	test_settings_search_finds_and_goes_to_a_setting();
 	test_settings_search_reads_the_pages_as_shown();
 	test_settings_are_organised_by_task();
-	test_agents_page_claude_wrapper_rows();
-	test_agents_page_claude_rows_are_readable();
+	test_agents_page_is_the_agent_list();
 	std::cout << "settings-window-tests:pass\n";
 	return EXIT_SUCCESS;
 }

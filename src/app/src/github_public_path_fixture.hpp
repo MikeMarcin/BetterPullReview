@@ -85,7 +85,11 @@ namespace bpr::app::detail {
 							   std::optional<std::pair<std::string, std::string>> aRootAuthor = std::nullopt);
 		/// [[BPR-1374]]. Another client deletes one thread's root: the thread
 		/// is gone from the fake server's next read and every one after.
-		void               stage_server_thread_deleted(std::string aThread);
+		void stage_server_thread_deleted(std::string aThread);
+		/// [[BPR-1745]]. A push makes one thread outdated: from the fake
+		/// server's next read it has no line, and every post in it, a reply
+		/// published later too, was written on `aWrittenOn`.
+		void               stage_server_thread_outdated(std::string aThread, std::string aWrittenOn);
 		void               report_review_mutation_target(core::review_mutation_target aTarget);
 		void               set_private_lineage(std::shared_ptr<application::review_publication_lineage_port>);
 		[[nodiscard]] auto review_mutation_provider() noexcept

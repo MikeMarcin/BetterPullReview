@@ -223,6 +223,16 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_head_move_lines(
 			head_move_lines_request    aRequest,
 			head_move_lines_completion aCompletion) -> bool;
+		/// \brief [[BPR-1735]]. Reads one file at the merge base and at the
+		/// accepted head, and answers which lines GitHub's own diff of the pull
+		/// request leaves unchanged, for placing comments on it.
+		/// \details Never fetches trees: the merge base must be the accepted
+		/// comparison's left commit and the head the accepted head. Runs on the
+		/// review's cache actor like `resolve_filtered_comment_lines`, with the
+		/// same admission, reads and completion.
+		[[nodiscard]] auto resolve_github_diff_lines(
+			github_diff_lines_request    aRequest,
+			github_diff_lines_completion aCompletion) -> bool;
 		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
 		/// the merge base's version of its file, which GitHub numbers `LEFT`
 		/// lines in.

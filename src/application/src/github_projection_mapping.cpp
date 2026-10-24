@@ -350,6 +350,12 @@ namespace bpr::application {
 				.Resolved           = thread.Resolved,
 				.Outdated           = thread.Outdated,
 				.RemoteSubject      = thread.Subject == github_review_thread_subject::file ? github_conversation_remote_subject::file : github_conversation_remote_subject::line,
+				.ViewerCanReply     = thread.ViewerReplyPermission == github_permission_state::unavailable
+					? std::nullopt
+					: std::optional{ thread.ViewerReplyPermission == github_permission_state::allowed },
+				.ConversationLocked = aSnapshot.ConversationLock == github_conversation_lock::unavailable
+					? std::nullopt
+					: std::optional{ aSnapshot.ConversationLock == github_conversation_lock::locked },
 			});
 			auto commentsById = review_comments_by_id{ };
 			commentsById.reserve(thread.Comments.size());

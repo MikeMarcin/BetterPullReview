@@ -28,9 +28,25 @@ Paths, blocked state and exact historical evidence remain intact. The
 candidates, completed PE mechanics, raw 32/30 Grype failures and unanswered
 Windows licensing-v002 decision; earlier records below remain historical.
 
+## Owner amendment 2026-10-16 — Windows 11 on JaegAW
+
+The owner selected Windows 11 x64 on JaegAW as the tested Windows environment
+and removed Windows 10 from the required matrix. The owner confirmed it under
+[BPR-1743](../60-done/BPR-1743-confirm-or-withdraw-the-october-16-qualification-matrix-amendment.md)
+on 2026-10-23 UTC: "Windows 11 and ubuntu wsl2 are tested. If it works on other
+things is unproven, but not disallowed." Windows 10 is untested, not refused:
+the amendment adds no install check and changes no package floor.
+
+AC1 before this amendment read "On clean native Windows 10/11 x64
+environments". The other words of AC1–AC3 are unchanged. The amendment
+supplies no evidence, so every criterion below stays pending on a real
+non-elevated ordinary-user Windows 11 desktop. Elevated SSH and administrative
+MSI extraction do not satisfy them. See the
+[RFC amendment](../../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md#owner-amendment-2026-10-16--tested-windows-and-linux-environments).
+
 ## Acceptance
 
-- AC1: On clean native Windows 10/11 x64 environments install the exact MSVC-built candidate per user without unnecessary administrator rights, launch, authenticate through an authorized safe route and open a fixture PR to the exact selected-file comparison.
+- AC1: On a clean native Windows 11 x64 environment (JaegAW) install the exact MSVC-built candidate per user without unnecessary administrator rights, launch, authenticate through an authorized safe route and open a fixture PR to the exact selected-file comparison.
 - AC2: Exercise real high-DPI source/navigation, one shared alignment controller and DiffLinkMap, keyboard/focus/accessibility, diagnostic preview and maintenance interactions; cross-compilation and hosted output cannot replace native evidence.
 - AC3: Uninstall and explicitly purge disposable owned roots and inspect documented Credential Manager/file/cache residuals; bind evidence to package/source/OS/toolchain identities.
 
@@ -54,7 +70,8 @@ Bounded verification passes 23 file hashes, 222 test-free compile units,
 16 native PE dependency checks and the exact app's producer-map composition.
 
 AC1–AC3 remain pending: SSH runs elevated and cannot establish ordinary-user
-installation or an attended clean desktop. Windows 10, native rendered/auth
+installation or an attended clean desktop. Windows 10 (since removed from the
+matrix by the 2026-10-16 amendment), native rendered/auth
 fixture work, Credential Manager continuity/purge and residual inspection
 remain unsupplied. The full installed-package audit also refuses stripped PE
 symbol inspection (`llvm-nm --demangle produced an empty symbol table`);

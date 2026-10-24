@@ -72,6 +72,19 @@ namespace bpr::application {
 		[[nodiscard]] auto allocate_draft(const core::private_composition_target&, const core::diff_semantic_index&, std::string aBody = { }) -> private_run_result<durable_draft_commit>;
 		/// \brief Ordinary replies may use either exact side; they carry no composition acceptance.
 		[[nodiscard]] auto allocate_reply(const core::private_review_binding&, core::source_line_ref, const core::diff_semantic_index&, std::string aThread) -> private_run_result<durable_draft_commit>;
+		/// \brief [[BPR-1745]]. The reply an outdated thread's Reply
+		/// opens: the unsent thread-bound reply to `aThread` this head keeps
+		/// (`core::reopen_thread_reply`), or a new one written in the bound
+		/// comparison. It has no line, so it needs no semantic index.
+		/// \details The commit carries only the draft opened.
+		[[nodiscard]] auto select_thread_reply(const core::private_review_binding&, std::string aThread) -> private_run_result<durable_draft_commit>;
+		/// \brief [[BPR-1745]]. Carries every unsent thread-bound reply
+		/// written on another head of this pull request to the bound one, in
+		/// one transaction: a new draft with the same words under the binding,
+		/// and the earlier one discarded. A reply has no line, so a head change
+		/// cannot move it. One whose thread already has an unsent reply on this
+		/// head, or one being published, stays where it is.
+		[[nodiscard]] auto carry_thread_replies(const core::private_review_binding&) -> private_run_result<durable_draft_commit>;
 		/// \brief Explicitly frees only never-edited empty placeholders; retains all authored and publishing records.
 		[[nodiscard]] auto clear_unused_drafts() -> private_run_result<durable_draft_commit>;
 		[[nodiscard]] auto restore(std::optional<core::git_commit_oid> aHead = { }, std::optional<core::review_draft_id> aDraft = { }) -> private_run_result<durable_draft_commit>;

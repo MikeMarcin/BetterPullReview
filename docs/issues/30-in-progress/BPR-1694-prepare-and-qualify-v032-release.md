@@ -608,3 +608,24 @@ observations and prints its compound predicate's state only on failure; its
 work, bounds and assertions remain unchanged. A passing rerun is not described
 as a root-cause fix. Stable publication still requires the remaining native
 qualification and GHES investigation disposition.
+
+
+### Owner amendment: integrate landed main and repair GHES without another diagnostic handoff
+
+The owner directed the next full release to include all changes landed on main
+and to attempt a grounded Home refresh repair from the supplied diagnostic,
+without making another round of diagnostic builds and human feedback a release
+prerequisite. The integrated local-main input is
+`e82537ad15b32871a8375b6143abe08e16a68b87`; canonical public remote main
+remains the immutable v0.3.2 source at integration time. The source merge keeps
+the release's narrow draft binding repair, GCC 15 build corrections and bounded
+last-operation/status observations alongside main's new request-cost metrics,
+features and drawer fixes. It does not turn prior native failures into passes.
+
+The production application manifest is resealed for the integrated main source
+plus the already reviewed release entry-point and private-draft binding changes.
+The full application digest matches main; the mutation branch digest is unchanged.
+The reviewed command-owned fixture retains main's additions and the release's
+stronger current-comparison wait, so its ownership digest is renewed for that
+merged file. The direct-bypass counterexample check passes; full native gates
+and artifact qualification remain separate.

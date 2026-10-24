@@ -121,6 +121,16 @@ namespace {
 				.State      = state::unsupported,
 				.Source     = source::observed_contract,
 			},
+			fact{
+				.Capability = capability::reply_permission,
+				.State      = state::unsupported,
+				.Source     = source::observed_contract,
+			},
+			fact{
+				.Capability = capability::conversation_lock,
+				.State      = state::unsupported,
+				.Source     = source::observed_contract,
+			},
 		};
 	}
 

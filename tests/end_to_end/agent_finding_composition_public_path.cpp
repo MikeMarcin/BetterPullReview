@@ -17,7 +17,9 @@
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/dif_runtime.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
@@ -409,7 +411,13 @@ auto main(int argc, char** argv) -> int
 		report_failure("arguments", "expected=<course> <canary>");
 		return EXIT_FAILURE;
 	}
-	const auto course = std::string_view{ argv[1] };
+	// [[BPR-1748]], RFC-BPR-0092 Q5. The codex-found course is the
+	// positive course with no fixture executable: the Codex profile names the
+	// shipped bare `codex`, and the only `codex` is the canary, put on the
+	// course's own search PATH under that name. A shipped build that hands the
+	// bare name to the launcher starts nothing and fails this course.
+	const auto codexFound = std::string_view{ argv[1] } == "codex-found";
+	const auto course     = codexFound ? std::string_view{ "positive" } : std::string_view{ argv[1] };
 	if (
 		course != "positive" && course != "full-agent"
 		&& course != "finding-host-construction-cut"
@@ -450,6 +458,19 @@ auto main(int argc, char** argv) -> int
 	const auto noAgent         = course == "workshop-guidance-no-agent";
 	const auto agentExecutable
 		= noAgent ? dataRoot / "no-agent-installed" / "codex" : std::filesystem::path{ argv[2] };
+	auto codexSearch = std::optional<app::detail::claude_search_environment>{ };
+	if (codexFound) {
+		const auto folder = dataRoot / "codex-search";
+		auto       error  = std::error_code{ };
+		std::filesystem::create_directory(folder, error);
+		std::filesystem::copy_file(agentExecutable, folder / "codex", error);
+		if (error) {
+			report_failure("codex-search-copy", error.message());
+			return EXIT_FAILURE;
+		}
+		std::filesystem::permissions(folder / "codex", std::filesystem::perms::owner_all, error);
+		codexSearch = app::detail::claude_search_environment{ .PathVariable = folder.string() };
+	}
 
 	std::unique_ptr<app::github_application> application;
 	auto                                     startupTerminal = false;
@@ -467,7 +488,8 @@ auto main(int argc, char** argv) -> int
 			= course == "chat-panel-construction-cut",
 			.DisableFindingQueueComposition
 			= course == "queue-construction-cut",
-			.CodexAgentExecutable = agentExecutable,
+			.CodexAgentExecutable = codexFound ? std::optional<std::filesystem::path>{ } : std::optional{ agentExecutable },
+			.CodexSearch          = codexSearch,
 			.LabelHelper          = guidanceCourse,
 		},
 		[&](auto aResult) {
@@ -502,15 +524,34 @@ auto main(int argc, char** argv) -> int
 	window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
 	window.home_open_action()->trigger();
 
-	auto* const panel     = window.agent_panel();
-	auto        offerings = wait_terms{ };
-	if (!wait_until_reporting(offerings, [&window, panel](wait_terms& aTerms) {
-			return aTerms.require(
-					   "files-listed",
-					   window.files_drawer()->contents_view()->model()->rowCount()
-						   != 0)
+	auto* const panel = window.agent_panel();
+	// [[BPR-1753]], owner amendment 2026-10-23. With no program of its
+	// own on a built-in profile, the picker offers only the agents added; the
+	// codex-found course adds Codex from Settings, as a reviewer would, and
+	// its launch looks for the shipped bare codex as the entry's own program.
+	if (codexFound) {
+		window.agent_programs()->set_editor([](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry     = aStart;
+			entry.Protocol = core::agent_protocol::codex_jsonl_exec;
+			return entry;
+		});
+	}
+	const auto offeredCount = codexFound ? 1 : 4;
+	auto       added        = !codexFound;
+	auto       offerings    = wait_terms{ };
+	if (!wait_until_reporting(offerings, [&window, panel, offeredCount, &added](wait_terms& aTerms) {
+			const auto listed = aTerms.require(
+				"files-listed",
+				window.files_drawer()->contents_view()->model()->rowCount()
+					!= 0);
+			// Added once the review is open, so the setup has loaded first.
+			if (listed && !added) {
+				window.agent_programs()->add_agent(core::setup_agent::codex);
+				added = true;
+			}
+			return listed
 				&& aTerms.require(
-					"profiles-is-four", panel->profile_selector()->count() == 4)
+					"profiles-offered", panel->profile_selector()->count() == offeredCount)
 				&& aTerms.require(
 					"disclosure-present", !panel->disclosure_text().isEmpty());
 		})) {
@@ -640,8 +681,9 @@ auto main(int argc, char** argv) -> int
 		difPaints = std::make_unique<dif_paint_observation>(*dif);
 	}
 
-	const auto codexIndex = panel->profile_selector()->findData(
-		QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
+	const auto codexProfile = codexFound ? core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U) : core::codex_jsonl_profile_id;
+	const auto codexIndex   = panel->profile_selector()->findData(
+		QVariant::fromValue<qulonglong>(codexProfile.value()));
 	if (codexIndex < 0) {
 		if (releaseFirstSave) {
 			releaseFirstSave();
@@ -1662,7 +1704,7 @@ auto main(int argc, char** argv) -> int
 			if (!shutdown(*application) || !exact) {
 				return EXIT_FAILURE;
 			}
-			std::cout << "agent-finding-composition:pass\n";
+			std::cout << (codexFound ? "agent-finding-codex-found:pass\n" : "agent-finding-composition:pass\n");
 			return EXIT_SUCCESS;
 		}
 		// The full-agent half. The launch above is the full agent session: a

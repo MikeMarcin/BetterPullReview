@@ -8,7 +8,7 @@ depends_on: ["BPR-0957"]
 milestone: "M8 UX/UI and clean-target verification"
 platforms: ["linux"]
 metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/rfcs/plans/rfc-bpr-0014-release-readiness/milestone-plan.json"}}
-blocked_by: "clean-ubuntu-desktop-vault"
+blocked_by: "wsl2-wslg-desktop-vault"
 ---
 
 # Qualify the Linux x64 packages
@@ -42,6 +42,29 @@ the two obsolete selected baselines are no longer required. AC2/AC3's complete
 rendered, authenticated, Secret Service, purge/residual and removal obligations
 remain pending, along with independent trust/security acceptance. No package is
 built or qualified by the owner's amendment, and this card stays Blocked.
+
+## Owner amendment 2026-10-16 — Ubuntu 26.04 under WSL2/WSLg
+
+The owner selected Ubuntu 26.04 x86_64 under WSL2/WSLg on JaegAW as the tested
+Linux environment, replacing the clean native Ubuntu desktop. The owner
+confirmed it under
+[BPR-1743](../60-done/BPR-1743-confirm-or-withdraw-the-october-16-qualification-matrix-amendment.md)
+on 2026-10-23 UTC: "Windows 11 and ubuntu wsl2 are tested. If it works on other
+things is unproven, but not disallowed." Other distributions and native Linux
+desktops are untested, not refused: the amendment adds no install check and
+changes no package floor.
+
+The current AC1, set by the 2026-10-11 section above, now runs under
+WSL2/WSLg on JaegAW. AC2/AC3 are
+unchanged in substance, with Secret Service, rendering, purge, residual and
+removal observed in that environment. The original acceptance below stays as
+authored history; its "clean Ubuntu desktop" and "native" wording is superseded
+for the environment only. A WSL shell build or producer run still does not
+satisfy any criterion. The ordinary-user WSLg install, launch, authentication,
+rendered course, Secret Service vault behavior, purge and removal must be
+observed on the exact DEB and per-user archive. No package is qualified by this
+amendment, and this card stays Blocked. See the
+[RFC amendment](../../rfcs/RFC-BPR-0038-native-package-release-security-qualification.md#owner-amendment-2026-10-16--tested-windows-and-linux-environments).
 
 ## Original acceptance (before the 2026-10-11 Linux scope amendment)
 

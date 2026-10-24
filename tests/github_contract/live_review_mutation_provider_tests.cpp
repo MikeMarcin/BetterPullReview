@@ -17,10 +17,12 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <random>
 #include <stdexcept>
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <tuple>
 #include <type_traits>
 #include <utility>
@@ -571,6 +573,10 @@ namespace {
 		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
 		case review_mutation_operation::observe_recorded_merge_base:   return "observe_recorded_merge_base";
 		case review_mutation_operation::observe_base_ancestry:         return "observe_base_ancestry";
+		case review_mutation_operation::observe_server_meta:           return "observe_server_meta";
+		case review_mutation_operation::observe_reaction_subject:      return "observe_reaction_subject";
+		case review_mutation_operation::add_reaction:                  return "add_reaction";
+		case review_mutation_operation::remove_reaction:               return "remove_reaction";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -1732,6 +1738,177 @@ namespace {
 		}
 	}
 
+	// [[BPR-1745]]. A reply to an outdated thread is bound to the
+	// thread, not a line: its anchor is the thread-bound one, its path and
+	// commit the thread's own (the commit it was written on). GitHub answers
+	// it with `line: null` on that commit, as BPR-Test#133 did live on
+	// 2026-10-22, and its thread observation shows it the same way.
+	[[nodiscard]] auto outdated_commit() -> core::git_commit_oid
+	{
+		return commit(0x5AU);
+	}
+
+	[[nodiscard]] auto thread_bound_reply_request() -> application::review_mutation_request
+	{
+		auto reply                = reply_request();
+		reply.Proposal.Anchor     = core::thread_reply_anchor(reply.Proposal.Anchor.Comparison);
+		reply.LiveBinding->Anchor = { .Semantic = reply.Proposal.Anchor, .Path = "fixture/review.txt", .Commit = outdated_commit() };
+		reply.IdempotencyKey      = application::idempotency_key_for(reply.Proposal, reply.Target);
+		return reply;
+	}
+
+	[[nodiscard]] auto outdated_reply_response(const bool aWithLine = false) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = std::string{ "{\"data\":{\"addPullRequestReviewThreadReply\":{\"comment\":{"
+									   "\"id\":\"PRRC_reply_45\",\"databaseId\":45,\"body\":\"Please rename this.\","
+									   "\"path\":\"fixture/review.txt\",\"line\":" }
+					+ (aWithLine ? "13" : "null") + ",\"commit\":{\"oid\":\""
+					+ std::string{ core::canonical_hex(outdated_commit()).view() }
+					+ "\"},\"author\":{\"login\":\"fixture-reviewer\"},\"viewerDidAuthor\":true,"
+					+ designated_pull_request_json() + "}}}}",
+			},
+		};
+	}
+
+	// The outdated thread: its root by someone else and our replies, all
+	// with no line, on the commit the thread was written on.
+	[[nodiscard]] auto outdated_thread_comments(const std::vector<std::size_t>& aOurReplies) -> github_mutation_wire_completion
+	{
+		const auto commit = "{\"oid\":\"" + std::string{ core::canonical_hex(outdated_commit()).view() } + "\"}";
+		auto       nodes  = "{\"id\":\"PRRC_fixture_40\",\"fullDatabaseId\":\"40\",\"body\":\"Root comment.\","
+							"\"path\":\"fixture/review.txt\",\"line\":null,\"commit\":"
+			+ commit + ",\"viewerDidAuthor\":false,\"author\":{\"login\":\"someone-else\",\"databaseId\":23,\"id\":\"MDQ6VXNlcjIz\"}}";
+		for (const auto reply : aOurReplies) {
+			nodes += ",{\"id\":\"PRRC_reply_" + std::to_string(reply) + "\",\"fullDatabaseId\":\"" + std::to_string(reply)
+				+ "\",\"body\":\"Please rename this.\",\"path\":\"fixture/review.txt\",\"line\":null,\"commit\":" + commit
+				+ ",\"viewerDidAuthor\":true,\"author\":{\"login\":\"fixture-reviewer\",\"databaseId\":22,\"id\":\"MDQ6VXNlcjIy\"}}";
+		}
+		return github_mutation_wire_success{
+			.Response = {
+				.Status = 200,
+				.Body   = "{\"data\":{\"node\":{\"id\":\"PRRT_fixture_1\",\"diffSide\":\"RIGHT\","
+					+ designated_pull_request_json()
+					+ ",\"comments\":{\"pageInfo\":{\"hasNextPage\":false},\"nodes\":[" + nodes + "]}}}}",
+			},
+		};
+	}
+
+	void script_outdated_reply_course(fake_transport& aTransport, github_mutation_wire_completion aWrite, const std::vector<std::size_t>& aAfter)
+	{
+		aTransport.answer(graphql("ObserveThread"), thread_observation_response(true));
+		aTransport.answer(graphql("ObserveThreadComments"), outdated_thread_comments({ }));
+		aTransport.answer(viewer_get(), viewer_response());
+		aTransport.answer(pull_request_get(), target_response());
+		aTransport.answer(graphql("ReplyToThread"), std::move(aWrite));
+		aTransport.answer(graphql("ObserveThreadComments"), outdated_thread_comments(aAfter));
+	}
+
+	/// An owner-private root for the SQLite journal, removed when it goes.
+	struct journal_root
+	{
+		std::filesystem::path Path;
+		journal_root()
+			: Path{ std::filesystem::temp_directory_path() / ("bpr-outdated-reply-journal-" + std::to_string(std::random_device{ }())) }
+		{
+			std::filesystem::remove_all(Path);
+			std::filesystem::create_directories(Path);
+			// The store refuses a root reached through a link, as macOS's
+			// temporary directory is.
+			Path = std::filesystem::canonical(Path);
+			expect(adapters::sqlite::make_storage_root_owner_private(Path), "the journal root is owner-private");
+		}
+		journal_root(const journal_root&)                    = delete;
+		journal_root(journal_root&&)                         = delete;
+		auto operator=(const journal_root&) -> journal_root& = delete;
+		auto operator=(journal_root&&) -> journal_root&      = delete;
+		~journal_root()
+		{
+			auto ignored = std::error_code{ };
+			std::filesystem::remove_all(Path, ignored);
+		}
+	};
+
+	void test_an_outdated_threads_reply_is_bound_to_its_thread()
+	{
+		// The whole course through the SQLite journal: written once, answered
+		// with no line, confirmed against the thread, recorded as the receipt.
+		{
+			const auto root      = journal_root{ };
+			auto       transport = fake_transport{ };
+			script_outdated_reply_course(transport, outdated_reply_response(), { 45U });
+			auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), open_recovery(root.Path) };
+			const auto submission = session.submit_and_reconcile(thread_bound_reply_request(), { });
+			expect(submission.Result.has_value() && !submission.Result->Duplicate && submission.Result->ServerCommentId == "PRRC_reply_45"
+					   && submission.MutationAttempted && submission.Reconciliation.has_value() && submission.Reconciliation->size() == 2U,
+				   "an outdated thread's reply is written once and confirmed with no line, on the thread's own commit");
+			expect_wires(transport.Requests, reply_course_wires(), "outdated thread reply");
+			const auto& reply = transport.Requests[4].Wire;
+			expect(reply.Body.find("PRRT_fixture_1") != std::string::npos && reply.Body.find("\"line\"") == std::string::npos,
+				   "the write names the thread and no line");
+			const auto stored = open_recovery(root.Path)->load(thread_bound_reply_request().IdempotencyKey);
+			expect(stored && stored->has_value() && (**stored).State == application::review_mutation_recovery_state::succeeded
+					   && (**stored).Receipt && (**stored).Receipt->ServerCommentId == "PRRC_reply_45"
+					   && core::thread_bound_anchor((**stored).Anchor.Semantic) && (**stored).Anchor.Commit == outdated_commit(),
+				   "the journal keeps the thread-bound anchor and the thread's commit with the receipt");
+		}
+		// An unclear outcome: the answer is lost. The journal keeps the
+		// attempt, possibly sent; a restarted session decides it from the
+		// thread alone and never writes again.
+		{
+			const auto root = journal_root{ };
+			{
+				auto transport = fake_transport{ };
+				script_outdated_reply_course(transport, lost_answer(), { });
+				auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), open_recovery(root.Path) };
+				const auto submission = session.submit_and_reconcile(thread_bound_reply_request(), { });
+				expect(!submission.Result.has_value() && submission.MutationAttempted, "the lost answer leaves the outcome unknown");
+				const auto stored = open_recovery(root.Path)->load(thread_bound_reply_request().IdempotencyKey);
+				expect(stored && stored->has_value() && (**stored).State == application::review_mutation_recovery_state::unresolved
+						   && (**stored).Transmission == application::review_mutation_recovery_transmission::possibly_transmitted,
+					   "the journal keeps the attempt unresolved and possibly sent");
+			}
+			auto transport = fake_transport{ };
+			transport.answer(viewer_get(), viewer_response());
+			transport.answer(pull_request_get(), target_response());
+			transport.answer(graphql("ObserveThreadComments"), outdated_thread_comments({ 45U }));
+			auto       session   = review_mutation_session{ transport, configuration(), mutation_lease(), open_recovery(root.Path) };
+			const auto recovered = session.submit_and_reconcile(thread_bound_reply_request(), { });
+			expect(recovered.Result.has_value() && recovered.Result->Duplicate && recovered.Result->ServerCommentId == "PRRC_reply_45" && !recovered.MutationAttempted,
+				   "the restarted session finds the reply with no line in its thread and confirms it without writing");
+			expect_wires(transport.Requests, reply_recovery_wires(), "outdated reply after restart");
+		}
+		// An answer with a line is not the reply asked for, and a reply on a
+		// line answered with none is not either: neither is confirmed.
+		{
+			auto transport = fake_transport{ };
+			script_outdated_reply_course(transport, outdated_reply_response(true), { });
+			auto       state      = std::make_shared<fake_recovery_state>();
+			auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery(state) };
+			const auto submission = session.submit_and_reconcile(thread_bound_reply_request(), { });
+			const auto found      = state->Records.find(thread_bound_reply_request().IdempotencyKey);
+			expect(!submission.Result.has_value() && found != state->Records.end() && found->second.State == application::review_mutation_recovery_state::unresolved,
+				   "a thread-bound reply answered on a line is never confirmed");
+		}
+		{
+			auto transport = fake_transport{ };
+			script_reply_course(transport, { }, outdated_reply_response(), { });
+			auto       session    = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto submission = session.submit_and_reconcile(reply_request(), { });
+			expect(!submission.Result.has_value(), "a reply on a line answered with no line is never confirmed");
+		}
+		// Only a reply may be bound to its thread.
+		auto comment                   = thread_bound_reply_request();
+		comment.Proposal.ReplyToThread = std::nullopt;
+		comment.IdempotencyKey         = application::idempotency_key_for(comment.Proposal, comment.Target);
+		expect(!compile_review_comment_request(comment, application::github_server_contract::github_com_2022_11_28).has_value(),
+			   "a new comment with the thread-bound anchor compiles to nothing");
+		expect(compile_review_comment_request(thread_bound_reply_request(), application::github_server_contract::github_com_2022_11_28).has_value(),
+			   "the thread-bound reply compiles to the thread reply");
+	}
+
 	// [[BPR-0879]]. The coordinator needs a port. The session is the exact
 	// production protocol without the concrete provider, which a test binary
 	// must not link (live_mutation_isolation), so the port forwards to the
@@ -1792,6 +1969,16 @@ namespace {
 				application::review_mutation_failure> override
 		{
 			return Session->resolve_thread(aRequest, aStop);
+		}
+
+		auto set_reaction(
+			const application::review_reaction_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<
+				application::review_reaction_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->set_reaction(aRequest, aStop);
 		}
 
 		[[nodiscard]] auto capabilities() const
@@ -1911,6 +2098,186 @@ namespace {
 	// [[BPR-0879]]. The coordinator applies one rule to every write it makes,
 	// and a resolution POST is counted as the submission it is. Counting only
 	// the attempt let diagnostics report zero submissions after a real write.
+	/// [[BPR-1741]]. A reaction subject's state as GitHub answers it:
+	/// a review comment of the designated pull request (or another), its
+	/// permission, and the viewer's thumbs up with a count.
+	[[nodiscard]] auto reaction_subject_json(const bool aDesignated, const bool aMine, const std::uint32_t aCount, const bool aCanReact = true) -> std::string
+	{
+		auto groups = std::string{ R"([{"content":"THUMBS_UP","viewerHasReacted":)" } + (aMine ? "true" : "false") + R"(,"reactors":{"totalCount":)"
+			+ std::to_string(aCount) + R"(,"nodes":[)" + (aMine ? R"({"__typename":"User","login":"fixture-reviewer"})" : "") + R"(]}},)"
+			+ R"({"content":"HEART","viewerHasReacted":false,"reactors":{"totalCount":0,"nodes":[]}}])";
+		return R"({"__typename":"PullRequestReviewComment","id":"PRRC_fixture_1","viewerCanReact":)" + std::string{ aCanReact ? "true" : "false" }
+		+ R"(,"reactionGroups":)" + groups + "," + (aDesignated ? designated_pull_request_json() : foreign_pull_request_json()) + "}";
+	}
+
+	[[nodiscard]] auto reaction_observation_response(const bool aDesignated, const bool aMine, const std::uint32_t aCount, const bool aCanReact = true)
+		-> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + reaction_subject_json(aDesignated, aMine, aCount, aCanReact) + "}}" } };
+	}
+
+	[[nodiscard]] auto reaction_write_response(const bool aAdd, const std::uint32_t aCount, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = {
+												 .Status = 200,
+												 .Body   = std::string{ R"({"data":{")" } + (aAdd ? "addReaction" : "removeReaction")
+													 + R"(":{"reaction":{"content":"THUMBS_UP"},"subject":)" + reaction_subject_json(aDesignated, aAdd, aCount) + "}}}",
+											 } };
+	}
+
+	[[nodiscard]] auto reaction_request(const bool aAdd) -> application::review_reaction_request
+	{
+		return {
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Subject        = "PRRC_fixture_1",
+			.Content        = core::reaction_content::thumbs_up,
+			.Add            = aAdd,
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+	}
+
+	[[nodiscard]] auto count_operation(const fake_transport& aTransport, const review_mutation_operation aOperation) -> std::size_t
+	{
+		return static_cast<std::size_t>(std::ranges::count_if(aTransport.Requests, [aOperation](const auto& aWire) { return aWire.Wire.Operation == aOperation; }));
+	}
+
+	// [[BPR-1741]]. A reaction is bound to the designated pull request
+	// before it is written, is not written when GitHub already shows it, and
+	// takes GitHub's own answer for the counts.
+	void test_a_reaction_is_observed_then_written_once()
+	{
+		for (const auto add : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, !add, add ? 2U : 3U));
+			transport.answer(graphql(add ? "AddReaction" : "RemoveReaction"), reaction_write_response(add, add ? 3U : 2U));
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto receipt = session.set_reaction(reaction_request(add));
+			expect(receipt.has_value() && receipt->Subject == "PRRC_fixture_1" && receipt->Reacted == add && receipt->Written && !receipt->ConfirmedByReadBack
+					   && receipt->Reactions.Groups.size() == 1U && receipt->Reactions.Groups[0].Count == (add ? 3U : 2U)
+					   && transport.Requests.size() == 2U && transport.Requests[0].Wire.Operation == review_mutation_operation::observe_reaction_subject
+					   && transport.Requests[1].Wire.Operation == (add ? review_mutation_operation::add_reaction : review_mutation_operation::remove_reaction),
+				   "a reaction inside the designated pull request is observed, then written once, and GitHub's counts come back");
+		}
+
+		auto already = fake_transport{ };
+		already.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, true, 4U));
+		auto       alreadySession = review_mutation_session{ already, configuration(), mutation_lease(), make_recovery() };
+		const auto kept           = alreadySession.set_reaction(reaction_request(true));
+		expect(kept.has_value() && kept->Reacted && !kept->Written && kept->Reactions.Groups[0].Count == 4U && already.Requests.size() == 1U,
+			   "a reaction GitHub already shows is not written again");
+
+		auto foreign = fake_transport{ };
+		foreign.answer(graphql("ObserveReactionSubject"), reaction_observation_response(false, false, 0U));
+		auto       foreignSession = review_mutation_session{ foreign, configuration(), mutation_lease(), make_recovery() };
+		const auto refused        = foreignSession.set_reaction(reaction_request(true));
+		expect(!refused && refused.error() == application::review_mutation_failure::undesignated_target && foreign.Requests.size() == 1U,
+			   "a comment outside the designated pull request is refused before any write");
+
+		auto forbidden = fake_transport{ };
+		forbidden.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 1U, false));
+		auto       forbiddenSession = review_mutation_session{ forbidden, configuration(), mutation_lease(), make_recovery() };
+		const auto denied           = forbiddenSession.set_reaction(reaction_request(true));
+		expect(!denied && denied.error() == application::review_mutation_failure::refused_by_server && forbidden.Requests.size() == 1U,
+			   "a comment GitHub says the viewer may not react to is not written");
+
+		auto gone = fake_transport{ };
+		gone.answer(graphql("ObserveReactionSubject"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":null}})" } });
+		auto       goneSession = review_mutation_session{ gone, configuration(), mutation_lease(), make_recovery() };
+		const auto missing     = goneSession.set_reaction(reaction_request(true));
+		expect(!missing && missing.error() == application::review_mutation_failure::target_unavailable && gone.Requests.size() == 1U,
+			   "a comment GitHub no longer shows is unavailable");
+
+		auto mismatched = fake_transport{ };
+		mismatched.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		mismatched.answer(graphql("AddReaction"), reaction_write_response(true, 1U, false));
+		auto       mismatchedSession = review_mutation_session{ mismatched, configuration(), mutation_lease(), make_recovery() };
+		const auto other             = mismatchedSession.set_reaction(reaction_request(true));
+		expect(!other && other.error() == application::review_mutation_failure::undesignated_target && mismatched.Requests.size() == 2U,
+			   "an answer naming another pull request is an undesignated target, and nothing is sent twice");
+	}
+
+	// [[BPR-1741]]. An ambiguous reaction or resolution is confirmed by
+	// reading its state back once, never by sending it again.
+	void test_an_ambiguous_change_is_confirmed_by_reading_it_back()
+	{
+		const auto lost = github_mutation_wire_error{
+			.Failure      = application::review_mutation_failure::unavailable,
+			.Transmission = github_mutation_transmission::indeterminate,
+		};
+		for (const auto took : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 1U));
+			transport.answer(graphql("AddReaction"), lost);
+			transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, took, took ? 2U : 1U));
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto result  = session.set_reaction(reaction_request(true));
+			expect(transport.Requests.size() == 3U && count_operation(transport, review_mutation_operation::add_reaction) == 1U,
+				   "an ambiguous reaction is observed once more and never sent twice");
+			if (took) {
+				expect(result.has_value() && result->Reacted && result->Written && result->ConfirmedByReadBack && result->Reactions.Groups[0].Count == 2U,
+					   "GitHub showing the reaction after a lost answer confirms it");
+			} else {
+				expect(!result && result.error() == application::review_mutation_failure::not_confirmed,
+					   "GitHub not showing it is named not_confirmed");
+			}
+		}
+		auto unreadable = fake_transport{ };
+		unreadable.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, true, 1U));
+		unreadable.answer(graphql("RemoveReaction"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{" } });
+		unreadable.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		auto       unreadableSession = review_mutation_session{ unreadable, configuration(), mutation_lease(), make_recovery() };
+		const auto removed           = unreadableSession.set_reaction(reaction_request(false));
+		expect(removed.has_value() && !removed->Reacted && removed->ConfirmedByReadBack && removed->Reactions.Groups.empty(),
+			   "an unreadable answer is settled by the state read back");
+
+		for (const auto took : { true, false }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveThread"), thread_observation_response(true, false));
+			transport.answer(graphql("ResolveThread"), lost);
+			transport.answer(graphql("ObserveThread"), thread_observation_response(true, took));
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto result  = session.resolve_thread(resolution_request(true));
+			expect(transport.Requests.size() == 3U && count_operation(transport, review_mutation_operation::resolve_review_thread) == 1U,
+				   "an ambiguous resolution is observed once more and never sent twice");
+			expect(took ? (result.has_value() && result->Resolved) : (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "a thread GitHub shows resolved after a lost answer is resolved" : "a thread still open is named not_confirmed");
+		}
+		auto resolved = fake_transport{ };
+		resolved.answer(graphql("ObserveThread"), thread_observation_response(true, true));
+		auto       resolvedSession = review_mutation_session{ resolved, configuration(), mutation_lease(), make_recovery() };
+		const auto again           = resolvedSession.resolve_thread(resolution_request(true));
+		expect(again.has_value() && again->Resolved && resolved.Requests.size() == 1U, "a thread GitHub already shows resolved is not resolved again");
+
+		auto cancelled = fake_transport{ };
+		cancelled.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		cancelled.answer(graphql("AddReaction"), github_mutation_wire_cancelled{ });
+		auto       cancelledSession = review_mutation_session{ cancelled, configuration(), mutation_lease(), make_recovery() };
+		const auto stopped          = cancelledSession.set_reaction(reaction_request(true));
+		expect(!stopped && stopped.error() == application::review_mutation_failure::cancelled && cancelled.Requests.size() == 2U,
+			   "a cancelled reaction is not read back; the next read reconciles it");
+	}
+
+	void test_the_coordinator_confirms_the_target_before_a_reaction()
+	{
+		auto transport = fake_transport{ };
+		transport.answer(pull_request_get(), target_response());
+		transport.answer(viewer_get(), viewer_response());
+		transport.answer(graphql("ObserveReactionSubject"), reaction_observation_response(true, false, 0U));
+		transport.answer(graphql("AddReaction"), reaction_write_response(true, 1U));
+		auto       session     = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+		auto       port        = session_port{ session };
+		auto       coordinator = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto receipt     = coordinator.set_reaction("PRRC_fixture_1", core::reaction_content::thumbs_up, true);
+		const auto counted     = coordinator.statistics();
+		expect(receipt.has_value() && receipt->Reacted && counted.TargetObservations == 1U && counted.Submissions == 1U && transport.Requests.size() == 4U,
+			   "the coordinator observes the target, then the provider observes the comment and reacts");
+		expect(!coordinator.set_reaction("", core::reaction_content::thumbs_up, true).has_value(), "a nameless comment is refused before any read");
+	}
+
 	void test_the_coordinator_confirms_the_target_and_counts_a_resolution()
 	{
 		auto transport = fake_transport{ };
@@ -2162,8 +2529,13 @@ namespace {
 		row{ "a_reply_is_reconciled_through_its_thread", &test_a_reply_is_reconciled_through_its_thread },
 		row{ "an_interrupted_reply_is_recovered_from_its_thread",
 			 &test_an_interrupted_reply_is_recovered_from_its_thread },
+		row{ "an_outdated_threads_reply_is_bound_to_its_thread", &test_an_outdated_threads_reply_is_bound_to_its_thread },
 		row{ "the_coordinator_confirms_the_target_and_counts_a_resolution",
 			 &test_the_coordinator_confirms_the_target_and_counts_a_resolution },
+		row{ "a_reaction_is_observed_then_written_once", &test_a_reaction_is_observed_then_written_once },
+		row{ "an_ambiguous_change_is_confirmed_by_reading_it_back", &test_an_ambiguous_change_is_confirmed_by_reading_it_back },
+		row{ "the_coordinator_confirms_the_target_before_a_reaction", &test_the_coordinator_confirms_the_target_before_a_reaction },
+
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};
 } // namespace

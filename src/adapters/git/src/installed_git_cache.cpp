@@ -4697,8 +4697,9 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto materialize_agent_workspace(
-				const application::agent_workspace_materialization_request& aRequest,
-				const std::stop_token                                       aStop)
+				const application::agent_workspace_materialization_request&    aRequest,
+				const std::optional<application::git_workspace_snapshot_pack>& aSnapshot,
+				const std::stop_token                                          aStop)
 				-> application::git_cache_result<
 					application::owned_agent_workspace> override
 			{
@@ -4725,6 +4726,7 @@ namespace bpr::adapters::git {
 					application::git_agent_workspace_request{
 						.Repository      = State->Repository,
 						.Materialization = aRequest,
+						.Snapshot        = aSnapshot,
 					},
 					aStop);
 				if (!State->active_boundary_still_owned()) {

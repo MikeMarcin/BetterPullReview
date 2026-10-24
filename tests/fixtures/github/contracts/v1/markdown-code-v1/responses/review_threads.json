@@ -81,6 +81,7 @@
 					"totalCount": 17
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
+				"locked": false,
 				"id": "PR_21",
 				"reviewThreads": {
 					"nodes": [
@@ -116,7 +117,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -152,7 +154,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -186,7 +189,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -220,7 +224,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -254,7 +259,8 @@
 							"path": "src/main.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						}
 					],
 					"pageInfo": {

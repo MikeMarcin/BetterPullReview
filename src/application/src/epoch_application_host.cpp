@@ -4373,6 +4373,105 @@ namespace bpr::application {
 			return std::move(*store);
 		}
 
+		/// \brief Whether the review loads only selected objects through a lease
+		/// that can acquire them: its cache holds commits and trees, no blobs.
+		[[nodiscard]] static auto sparse_review(const authority_context& aContext) -> bool
+		{
+			return object_loading_for(aContext.Handoff.Shape) == pull_request_object_loading::selected_objects && aContext.Handoff.SmartGit
+				&& !aContext.Handoff.SmartGit->revoked() && aContext.Handoff.SmartGit->supports_sparse_commit_trees();
+		}
+
+		/// \brief [[BPR-1738]]. Says, in a reviewer's terms, why the head's
+		/// snapshot could not be fetched, and keeps the transport's own words
+		/// for the log.
+		[[nodiscard]] static auto snapshot_failure(const git_smart_transport_error& aError) -> agent_workspace_error
+		{
+			using failure = git_smart_transport_failure;
+			auto reason   = agent_workspace_unavailable_reason::download_failed;
+			auto cause    = std::string_view{ "it could not be read" };
+			switch (aError.Failure) {
+			case failure::cancelled:
+				return agent_workspace_error{ agent_workspace_failure::cancelled };
+			case failure::authentication:
+			case failure::permission:
+				reason = agent_workspace_unavailable_reason::sign_in_refused;
+				cause  = "GitHub refused the signed-in account";
+				break;
+			case failure::network:
+			case failure::timeout:
+			case failure::certificate:
+			case failure::proxy:
+			case failure::redirect:
+				reason = agent_workspace_unavailable_reason::connection_failed;
+				cause  = "the connection to GitHub failed";
+				break;
+			case failure::request_limit:
+			case failure::response_limit:
+				reason = agent_workspace_unavailable_reason::too_large;
+				cause  = "it is larger than the download allows";
+				break;
+			case failure::invalid_request:
+			case failure::unavailable:
+			case failure::malformed_response:
+			case failure::consumer_rejected:
+			case failure::collision_detected:
+				break;
+			}
+			auto detail = std::string{ "The head's files were not downloaded for the agent: " };
+			detail.append(cause).append(" (transport failure ").append(std::to_string(static_cast<unsigned>(aError.Failure)));
+			detail.append(", step ").append(std::to_string(static_cast<unsigned>(aError.Step))).append(").\n");
+			return agent_workspace_error{ agent_workspace_failure::unavailable, std::move(detail), reason };
+		}
+
+		/// \brief [[BPR-1738]]. Fetches a sparse review's head snapshot for
+		/// an agent workspace through the review's own lease, or says why not.
+		///
+		/// \details Only a commit this review's cache already holds is fetched,
+		/// so the workspace can name no commit the review did not accept.
+		[[nodiscard]] auto acquire_workspace_snapshot(const std::shared_ptr<authority_effect_actor>& aActor, const authority_context& aContext,
+													  const git_cache_open_request& aExpected, const core::git_commit_oid& aHead, const std::stop_token aStop)
+			-> std::expected<std::shared_ptr<git_workspace_snapshot>, agent_workspace_error>
+		{
+			const auto held = run_on_actor<bool>(
+				aActor, aExpected,
+				[aActor, aHead](const std::stop_token aWorkStop) {
+					const auto inspected = aActor->Cache->inspect_sparse_commit_object(aHead, aWorkStop);
+					return inspected.has_value() && application::valid(*inspected) && inspected->Commit == aHead;
+				},
+				aStop);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::cancelled } };
+			}
+			if (!held || !*held) {
+				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable, "The review's copy no longer holds the head the agent asked about.\n",
+															   agent_workspace_unavailable_reason::copy_failed } };
+			}
+			const auto context = git_smart_request_context{
+				.ApplicationSession = aContext.Handoff.ApplicationSession,
+				.Authority          = aContext.Authority,
+				.Revision           = aContext.Revision,
+				.Repository         = aContext.Handoff.Locator,
+				.BaseRef            = aContext.Handoff.BaseRef,
+				.AcquisitionMode    = git_smart_acquisition_mode::sparse_commit_trees,
+			};
+			const auto request = git_smart_workspace_snapshot_request{ .Context = context, .Head = aHead };
+			if (!application::valid(request)) {
+				return std::unexpected{ snapshot_failure(git_smart_transport_error{ git_smart_transport_failure::invalid_request }) };
+			}
+			auto transport = aContext.Handoff.SmartGit->acquire(context);
+			if (!transport || !*transport) {
+				return std::unexpected{ snapshot_failure(transport ? git_smart_transport_error{ } : transport.error()) };
+			}
+			auto snapshot = (*transport)->acquire_workspace_snapshot(request, aStop);
+			if (!snapshot) {
+				return std::unexpected{ snapshot_failure(snapshot.error()) };
+			}
+			if (!*snapshot || (*snapshot)->head() != aHead) {
+				return std::unexpected{ snapshot_failure(git_smart_transport_error{ git_smart_transport_failure::malformed_response }) };
+			}
+			return std::move(*snapshot);
+		}
+
 		/// \brief RFC-BPR-0089 M2. See `epoch_application_host::resolve_generated_attributes`.
 		[[nodiscard]] auto resolve_generated_attributes(
 			generated_attributes_request    aRequest,
@@ -4685,6 +4784,81 @@ namespace bpr::application {
 				return false;
 			}
 			return true;
+		}
+
+		/// \brief [[BPR-1735]]. See `epoch_application_host::resolve_github_diff_lines`.
+		[[nodiscard]] auto resolve_github_diff_lines(
+			github_diff_lines_request    aRequest,
+			github_diff_lines_completion aCompletion) -> bool
+		{
+			const auto pathValid = [](const std::string& aPath) {
+				return !aPath.empty() && aPath.size() <= maximum_git_tree_entry_path_bytes && !aPath.starts_with('/');
+			};
+			if (!aCompletion || !aRequest.MergeBase.valid() || !aRequest.Head.valid() || aRequest.MergeBase.algorithm() != aRequest.Head.algorithm()
+				|| !pathValid(aRequest.HeadPath) || !pathValid(aRequest.BasePath) || !State.AcceptedComparison.has_value()
+				|| State.AcceptedComparison->Left.Commit != aRequest.MergeBase || State.AcceptedComparison->Right.Commit != aRequest.Head) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto       actor         = std::move(reviewActor->first);
+			const auto expected      = std::move(reviewActor->second);
+			auto       reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+			auto       admitted      = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 context = std::move(reviewContext),
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation   = github_diff_lines_observation{ .Request = request, .Status = github_diff_lines_status::failure, .BaseToHead = std::nullopt };
+						observation.Status = github_diff_lines(*actor, expected, context, request, control->Stop.get_token(), observation.BaseToHead);
+						if (observation.Status != github_diff_lines_status::resolved) {
+							observation.BaseToHead.reset();
+						}
+						enqueue_completion(gate, decisionLane, std::move(control), [answer = std::move(observation), deliver = std::move(completion)](implementation&) { deliver(answer); });
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
+		/// \brief [[BPR-1735]]. The file at the merge base and at the head,
+		/// compared, on the actor, read as a filtered diff's sides are.
+		[[nodiscard]] auto github_diff_lines(authority_effect_actor& aActor, const git_cache_open_request& aExpected,
+											 const std::shared_ptr<authority_context>& aContext, const github_diff_lines_request& aRequest,
+											 const std::stop_token aStop, std::optional<core::line_correspondence>& aLines) -> github_diff_lines_status
+		{
+			using status = github_diff_lines_status;
+			return read_exact_file_sides(aActor, aExpected, aContext, aRequest.Head, aRequest.Key, aStop, [&](const auto& aLoad, const auto& aCompare) -> status {
+				auto base = aLoad(aRequest.BasePath, aRequest.MergeBase);
+				if (!base) {
+					return base.error();
+				}
+				auto head = aLoad(aRequest.HeadPath, aRequest.Head);
+				if (!head) {
+					return head.error();
+				}
+				aLines = aCompare(*base, *head);
+				return aStop.stop_requested() ? status::cancelled : aLines ? status::resolved
+																		   : status::failure;
+			});
 		}
 
 		/// \brief RFC-BPR-0089 M4. The file at the filtered diff's commits, the
@@ -7077,6 +7251,39 @@ namespace bpr::application {
 			if (!authorizationGeneration.has_value()) {
 				return std::unexpected{ agent_workspace_failure::stale };
 			}
+			const auto expected = git_cache_open_request{
+				.ApplicationSession = aRequest.ApplicationSession,
+				.Authority          = aRequest.Authority,
+				.ObjectFormat       = aRequest.Session.Binding.HeadOid.algorithm(),
+			};
+			// [[BPR-1738]]. A sparse review's cache holds the head's commit
+			// and trees and none of its blobs or parents, so the workspace cannot
+			// be copied out of it. The head's snapshot is fetched first, off the
+			// actor, under the review's own lease; it lives until the workspace
+			// made from it is done.
+			auto snapshot = std::shared_ptr<git_workspace_snapshot>{ };
+			{
+				auto context = std::shared_ptr<authority_context>{ };
+				{
+					std::scoped_lock lock{ actor->BlobAuthorityMutex };
+					context = actor->BlobContext.lock();
+				}
+				if (context && blob_authority_for(*context) == authorization && sparse_review(*context)) {
+					auto acquired = acquire_workspace_snapshot(actor, *context, expected, aRequest.Session.Binding.HeadOid, aStop);
+					if (!acquired) {
+						return std::unexpected{ std::move(acquired.error()) };
+					}
+					snapshot = std::move(*acquired);
+				}
+			}
+			auto snapshotPack = std::optional<git_workspace_snapshot_pack>{ };
+			if (snapshot) {
+				snapshotPack = git_workspace_snapshot_pack{
+					.Pack  = snapshot->pack(),
+					.Bytes = snapshot->pack_bytes(),
+					.Head  = snapshot->head(),
+				};
+			}
 			auto waiter = std::shared_ptr<workspace_waiter>{ };
 			try {
 				waiter = std::make_shared<workspace_waiter>();
@@ -7092,12 +7299,7 @@ namespace bpr::application {
 			if (!admitted.has_value()) {
 				return std::unexpected{ agent_workspace_failure::unavailable };
 			}
-			auto       control  = std::move(*admitted);
-			const auto expected = git_cache_open_request{
-				.ApplicationSession = aRequest.ApplicationSession,
-				.Authority          = aRequest.Authority,
-				.ObjectFormat       = aRequest.Session.Binding.HeadOid.algorithm(),
-			};
+			auto control = std::move(*admitted);
 			try {
 				enqueue_actor_work(
 					actor,
@@ -7109,7 +7311,9 @@ namespace bpr::application {
 					 aRequest,
 					 aStop,
 					 waiter,
-					 control] {
+					 control,
+					 snapshot,
+					 snapshotPack] {
 						auto result = std::expected<
 							owned_agent_workspace,
 							agent_workspace_error>{
@@ -7123,6 +7327,8 @@ namespace bpr::application {
 								}
 							};
 							const auto workStop = control->Stop.get_token();
+							// Held, not read: the snapshot's pack outlives the copy.
+							static_cast<void>(snapshot);
 							if (
 								workStop.stop_requested()
 								|| !Consumer->active() || BlobIngressClosing.load(std::memory_order_acquire)) {
@@ -7137,6 +7343,7 @@ namespace bpr::application {
 								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
 								auto materialized = actor->Cache->materialize_agent_workspace(
 									aRequest,
+									snapshotPack,
 									workStop);
 								if (materialized.has_value()) {
 									std::scoped_lock authorityLock{
@@ -10761,6 +10968,13 @@ namespace bpr::application {
 		head_move_lines_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_head_move_lines(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_github_diff_lines(
+		github_diff_lines_request    aRequest,
+		github_diff_lines_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_github_diff_lines(std::move(aRequest), std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_filtered_comment_lines(

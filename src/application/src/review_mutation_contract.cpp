@@ -160,6 +160,16 @@ namespace bpr::application {
 			return "incompatible_body";
 		case review_mutation_failure::malformed_response:
 			return "malformed_response";
+		case review_mutation_failure::unplaceable_line:
+			return "unplaceable_line";
+		case review_mutation_failure::refused_not_published:
+			return "refused_not_published";
+		case review_mutation_failure::settled_not_published:
+			return "settled_not_published";
+		case review_mutation_failure::off_hunk_refused:
+			return "off_hunk_refused";
+		case review_mutation_failure::not_confirmed:
+			return "not_confirmed";
 		}
 		return "unavailable";
 	}

@@ -143,6 +143,47 @@ namespace bpr::application {
 		return Provider->resolve_thread(request, aStop);
 	}
 
+	auto review_mutation_coordinator::set_reaction(
+		const std::string&           aSubject,
+		const core::reaction_content aContent,
+		const bool                   aAdd,
+		const std::stop_token        aStop)
+		-> std::expected<review_reaction_receipt, review_mutation_failure>
+	{
+		++Statistics.Attempts;
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
+		if (Provider == nullptr || aSubject.empty()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
+		// [[BPR-1741]]. A reaction is a write, so it answers to the
+		// rule a resolution does: the server must still describe the
+		// designated pull request, and a moved head is acknowledged because a
+		// comment belongs to a pull request, not to a commit.
+		if (auto confirmed = confirm_target(true, aStop); !confirmed) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(confirmed.error());
+		}
+		auto request = review_reaction_request{
+			.Target         = Designated,
+			.ActingIdentity = ActingIdentity,
+			.Subject        = aSubject,
+			.Content        = aContent,
+			.Add            = aAdd,
+		};
+		if (TargetBinding.has_value() && ActingIdentityBinding.has_value()) {
+			request.LiveBinding = review_mutation_live_binding{
+				.Target         = *TargetBinding,
+				.ActingIdentity = *ActingIdentityBinding,
+			};
+		}
+		++Statistics.Submissions;
+		return Provider->set_reaction(request, aStop);
+	}
+
 	auto review_mutation_coordinator::publish_attempt(
 		const core::review_publication_proposal&      aProposal,
 		review_mutation_anchor_binding                aAnchor,

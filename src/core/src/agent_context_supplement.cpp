@@ -3,6 +3,8 @@
 #include "bpr/core/review_preparation.hpp"
 
 #include <algorithm>
+#include <cstddef>
+#include <iterator>
 #include <ranges>
 
 namespace bpr::core {
@@ -214,6 +216,7 @@ namespace bpr::core {
 			|| !valid_chat_message(aRequest.Session, aRequest.Message)
 			|| (aRequest.Operation && !declared(*aRequest.Operation))
 			|| (aRequest.FeedbackGuidance && !valid_feedback_guidance(aRequest.Operation, *aRequest.FeedbackGuidance))
+			|| (aRequest.Brief && !valid_brief(*aRequest.Brief))
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
 			return std::nullopt;
 		}
@@ -249,6 +252,7 @@ namespace bpr::core {
 			.Drafts             = aRequest.SelectedDrafts,
 			.Operation          = aRequest.Operation,
 			.FeedbackGuidance   = aRequest.FeedbackGuidance,
+			.Brief              = aRequest.Brief,
 		};
 	}
 
@@ -289,5 +293,170 @@ namespace bpr::core {
 		built->Notes  = std::move(admitted.Notes);
 		built->Drafts = std::move(admitted.Drafts);
 		return built;
+	}
+
+	namespace {
+		/// The longest prefix of `aText` within `aBound` that ends on a
+		/// character boundary.
+		[[nodiscard]] auto cut_text(const std::string_view aText, const std::size_t aBound) -> std::string
+		{
+			if (aText.size() <= aBound) {
+				return std::string{ aText };
+			}
+			auto size = aBound;
+			while (size > 0U && !writing_boundary(aText, size)) {
+				--size;
+			}
+			return std::string{ aText.substr(0U, size) };
+		}
+
+		[[nodiscard]] auto thread_bytes(const brief_thread& aThread) noexcept -> std::size_t
+		{
+			auto bytes = aThread.Path.size();
+			for (const auto& comment : aThread.Comments) {
+				bytes += comment.Author.size() + comment.Body.size();
+			}
+			return bytes;
+		}
+
+		[[nodiscard]] auto valid_skill(const brief_review_skill& aSkill) -> bool
+		{
+			return enumerator_at_most(aSkill.Source, review_skill_source::profile_copy) && inspect_review_skill(aSkill.Text).has_value();
+		}
+	} // namespace
+
+	auto stable_name(const brief_file_status aStatus) noexcept -> std::string_view
+	{
+		switch (aStatus) {
+		case brief_file_status::added:
+			return "added";
+		case brief_file_status::modified:
+			return "modified";
+		case brief_file_status::removed:
+			return "removed";
+		case brief_file_status::renamed:
+			return "renamed";
+		case brief_file_status::copied:
+			return "copied";
+		case brief_file_status::type_changed:
+			return "type_changed";
+		case brief_file_status::other:
+			return "other";
+		}
+		return { };
+	}
+
+	auto stable_name(const brief_workspace aWorkspace) noexcept -> std::string_view
+	{
+		switch (aWorkspace) {
+		case brief_workspace::linked_clone_history:
+			return "linked_clone_history";
+		case brief_workspace::private_copy:
+			return "private_copy";
+		case brief_workspace::private_snapshot:
+			return "private_snapshot";
+		}
+		return { };
+	}
+
+	auto bound_review_brief(review_brief_input aInput) -> std::optional<supplement_brief>
+	{
+		if (!enumerator_at_most(aInput.Workspace, brief_workspace::private_snapshot) || (aInput.Skill && !valid_skill(*aInput.Skill))) {
+			return std::nullopt;
+		}
+		auto brief = supplement_brief{
+			.Title      = cut_text(aInput.Title, maximum_brief_title_bytes),
+			.BaseBranch = cut_text(aInput.BaseBranch, maximum_brief_branch_bytes),
+			.Workspace  = aInput.Workspace,
+			.Skill      = std::move(aInput.Skill),
+		};
+		if (aInput.Description.size() <= maximum_brief_description_bytes) {
+			brief.Description = std::move(aInput.Description);
+		} else {
+			const auto window         = std::string_view{ aInput.Description }.substr(0U, maximum_brief_description_bytes);
+			const auto line           = window.rfind('\n');
+			brief.Description         = line == std::string_view::npos ? cut_text(aInput.Description, maximum_brief_description_bytes)
+																	   : std::string{ window.substr(0U, line + 1U) };
+			brief.DescriptionCutBytes = aInput.Description.size() - brief.Description.size();
+		}
+		for (auto& file : aInput.Files) {
+			if (brief.Files.size() == maximum_brief_files || file.Path.empty() || file.Path.size() > maximum_brief_path_bytes
+				|| (file.PreviousPath && file.PreviousPath->size() > maximum_brief_path_bytes) || !enumerator_at_most(file.Status, brief_file_status::other)) {
+				++brief.FilesOmitted;
+				continue;
+			}
+			brief.Files.push_back(std::move(file));
+		}
+		std::ranges::stable_partition(aInput.Threads, [](const brief_thread& aThread) { return !aThread.Resolved; });
+		auto budget = maximum_brief_thread_bytes;
+		for (auto& thread : aInput.Threads) {
+			if (thread.Comments.empty()) {
+				continue;
+			}
+			for (auto& comment : thread.Comments) {
+				comment.Author = cut_text(comment.Author, maximum_brief_login_bytes);
+			}
+			const auto bytes = thread_bytes(thread);
+			if (thread.Path.size() > maximum_brief_path_bytes || bytes > budget) {
+				++brief.ThreadsOmitted;
+				continue;
+			}
+			budget -= bytes;
+			brief.Threads.push_back(std::move(thread));
+		}
+		// [[BPR-1753]]. The newest turns are the ones a follow-up
+		// leans on, so the cut falls on the oldest.
+		auto room = maximum_brief_conversation_bytes;
+		auto kept = std::size_t{ 0U };
+		for (auto turn = aInput.Conversation.rbegin(); turn != aInput.Conversation.rend(); ++turn) {
+			turn->Asked      = cut_text(turn->Asked, maximum_brief_turn_bytes);
+			turn->Answered   = cut_text(turn->Answered, maximum_brief_turn_bytes);
+			const auto bytes = turn->Asked.size() + turn->Answered.size();
+			if (kept == maximum_brief_turns || bytes > room) {
+				break;
+			}
+			room -= bytes;
+			++kept;
+		}
+		brief.ConversationOmitted = aInput.Conversation.size() - kept;
+		brief.Conversation.assign(std::make_move_iterator(aInput.Conversation.end() - static_cast<std::ptrdiff_t>(kept)), std::make_move_iterator(aInput.Conversation.end()));
+		return brief;
+	}
+
+	auto valid_brief(const supplement_brief& aBrief) -> bool
+	{
+		if (aBrief.Title.size() > maximum_brief_title_bytes || aBrief.Description.size() > maximum_brief_description_bytes
+			|| aBrief.BaseBranch.size() > maximum_brief_branch_bytes || aBrief.Files.size() > maximum_brief_files
+			|| !enumerator_at_most(aBrief.Workspace, brief_workspace::private_snapshot) || (aBrief.Skill && !valid_skill(*aBrief.Skill))) {
+			return false;
+		}
+		if (std::ranges::any_of(aBrief.Files, [](const brief_changed_file& aFile) {
+				return aFile.Path.empty() || aFile.Path.size() > maximum_brief_path_bytes || (aFile.PreviousPath && aFile.PreviousPath->size() > maximum_brief_path_bytes)
+					|| !enumerator_at_most(aFile.Status, brief_file_status::other);
+			})) {
+			return false;
+		}
+		auto bytes = std::size_t{ 0U };
+		for (const auto& thread : aBrief.Threads) {
+			if (thread.Comments.empty() || thread.Path.size() > maximum_brief_path_bytes
+				|| std::ranges::any_of(thread.Comments, [](const brief_comment& aComment) { return aComment.Author.size() > maximum_brief_login_bytes; })) {
+				return false;
+			}
+			bytes += thread_bytes(thread);
+			if (bytes > maximum_brief_thread_bytes) {
+				return false;
+			}
+		}
+		if (aBrief.Conversation.size() > maximum_brief_turns) {
+			return false;
+		}
+		auto said = std::size_t{ 0U };
+		for (const auto& turn : aBrief.Conversation) {
+			if (turn.Asked.size() > maximum_brief_turn_bytes || turn.Answered.size() > maximum_brief_turn_bytes) {
+				return false;
+			}
+			said += turn.Asked.size() + turn.Answered.size();
+		}
+		return said <= maximum_brief_conversation_bytes;
 	}
 } // namespace bpr::core

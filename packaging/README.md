@@ -111,7 +111,7 @@ CA bundle or proxy implementation in this slice.
 |---|---|
 | macOS arm64 development host | Qt Network 6.11.1; active TLS backend reported as OpenSSL; the public tests-off Release self-test reports native platform-vault selection; the binary links Security/CoreFoundation and imports `SecItemAdd`, `SecItemCopyMatching`, `SecItemUpdate`, and `SecItemDelete`; current binary is ad-hoc linker-signed |
 | Linux x86_64 full-system QEMU guest | Historical v1 Secret Service and internal native-HTTPS evidence: Ubuntu 26.04, Linux 7.0.0-28, GCC 15.2, Qt 6.10.2; adapter build includes Threads and `libsecret-1>=0.20.0`; native HTTPS test ELF directly needs Qt6Network and Qt6Core; runtime selected OpenSSL and one direct proxy candidate. The pinned BPR-0029 v2 recorded public-composition path, idle runtime sample, exact native cleanup, tests-disabled seam absence, and dependency/runtime/ELF audits passed on that snapshot |
-| Windows 10/11 x64 | Qt Core/Network, Threads, and `Advapi32` for Credential Manager are selected by the build; native runtime, TLS/proxy, and PE dependency inspection remain BPR-0036 work |
+| Windows x64 (tested on Windows 11; other versions untested, MSI floor Windows 10) | Qt Core/Network, Threads, and `Advapi32` for Credential Manager are selected by the build; native runtime, TLS/proxy, and PE dependency inspection remain BPR-0036 work |
 
 The pinned BPR-0029 v2 Linux run completed fresh tests-on and tests-off
 Release builds at 81/81 and 36/36 targets. All 40 non-native registered test

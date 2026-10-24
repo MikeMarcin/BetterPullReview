@@ -27,6 +27,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -191,6 +192,8 @@ namespace {
 			core::github_capability_state::unsupported,
 			core::github_capability_state::unsupported,
 			core::github_capability_state::supported,
+			core::github_capability_state::unsupported,
+			core::github_capability_state::unsupported,
 			core::github_capability_state::unsupported,
 		};
 		for (std::size_t index = 0U; index < schema.size(); ++index) {
@@ -531,6 +534,10 @@ namespace {
 		}
 
 		std::vector<github_wire_request> Requests;
+		// [[BPR-1746]]. The thread's `viewerCanReply` and the pull
+		// request's `locked`, served only when set.
+		std::optional<fixture_value> ViewerCanReply;
+		std::optional<fixture_value> Locked;
 		// Alter literal wire bytes after serialization so rounding or parser
 		// normalization in fixture construction cannot hide boundary failures.
 		std::function<void(const github_wire_request&, wire_response&)> RewriteResponse;
@@ -1251,6 +1258,10 @@ namespace {
 				{ "subjectType", "LINE" },
 				{ "viewerCanUnresolve", true },
 			};
+			// [[BPR-1746]]. GitHub's reply permission, when served.
+			if (ViewerCanReply) {
+				thread.insert_or_assign("viewerCanReply", *ViewerCanReply);
+			}
 			if (Scenario == fixture_scenario::thread_side_missing) {
 				thread.erase("diffSide");
 			} else if (Scenario == fixture_scenario::thread_side_null) {
@@ -1286,7 +1297,7 @@ namespace {
 				thread.insert_or_assign("diffSide", Scenario == fixture_scenario::file_thread_wrong_side ? "LEFT" : "RIGHT");
 			}
 
-			const auto pullRequest = fixture_object{
+			auto pullRequest = fixture_object{
 				{ "headRefOid",
 				  Scenario == fixture_scenario::graphql_head_moved
 					  ? std::string{ base_oid }
@@ -1300,6 +1311,9 @@ namespace {
 							   std::optional<std::string_view>{ "THREAD_END" }),
 				},
 			};
+			if (Locked) {
+				pullRequest.insert_or_assign("locked", *Locked);
+			}
 			auto envelope = fixture_object{
 				{
 					"data",
@@ -1524,6 +1538,7 @@ namespace {
 				case read_operation::list_requested_reviewers:
 				case read_operation::get_merge_base:
 				case read_operation::resolve_body_images:
+				case read_operation::list_reactions:
 				case read_operation::get_team_membership:
 				case read_operation::list_home_pull_requests:
 					break;
@@ -1920,6 +1935,84 @@ namespace {
 		invalid.Page = 2U;
 		expect(!compile_read_request(invalid).has_value(),
 			   "initial GraphQL page is sequence one only");
+	}
+
+	// [[BPR-1746]]. A read shape that carries GitHub's reply
+	// permission and the lock selects them, reads them into the snapshot and
+	// refuses an answer without them or with another type; one that does not
+	// carry them selects neither and leaves both unavailable, as on a GHES
+	// whose schema lacks them.
+	[[nodiscard]] auto reply_shaped_request() -> application::github_pull_request_provider_request
+	{
+		auto  request                                         = provider_request();
+		auto& facts                                           = request.CapabilityEvidence.SchemaFacts;
+		facts[8U].State                                       = core::github_capability_state::supported;
+		facts[9U].State                                       = core::github_capability_state::supported;
+		request.CapabilityEvidence.ReadShape.ReplyPermission  = true;
+		request.CapabilityEvidence.ReadShape.ConversationLock = true;
+		return request;
+	}
+
+	auto test_reply_permission_and_lock_read() -> void
+	{
+		{
+			auto transport           = paged_fixture_transport{ fixture_scenario::success };
+			transport.ViewerCanReply = fixture_value(false);
+			transport.Locked         = fixture_value(true);
+			const auto result        = perform_paged_github_read(transport, profile(), reply_shaped_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			const auto initial       = std::ranges::find_if(transport.Requests, [](const github_wire_request& aRequest) { return aRequest.Wire.Body.find("GetReviewData") != std::string::npos; });
+			expect(initial != transport.Requests.end() && initial->Wire.Body.find("{id headRefOid locked reviewThreads(") != std::string::npos
+					   && initial->Wire.Body.find("viewerCanUnresolve viewerCanReply subjectType") != std::string::npos,
+				   "the conversation read selects viewerCanReply and the lock");
+			expect(result.has_value() && result->ReviewThreads.size() == 1U
+					   && result->ReviewThreads.front().ViewerReplyPermission == application::github_permission_state::denied
+					   && result->ConversationLock == application::github_conversation_lock::locked,
+				   "GitHub's refusal and the lock are read into the snapshot");
+		}
+		{
+			auto transport           = paged_fixture_transport{ fixture_scenario::success };
+			transport.ViewerCanReply = fixture_value(true);
+			transport.Locked         = fixture_value(false);
+			const auto result        = perform_paged_github_read(transport, profile(), reply_shaped_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			expect(result.has_value() && result->ReviewThreads.front().ViewerReplyPermission == application::github_permission_state::allowed
+					   && result->ConversationLock == application::github_conversation_lock::unlocked,
+				   "GitHub's permission and an open conversation are read too");
+		}
+		for (const auto& [reply, locked, why] : { std::tuple{ std::optional<fixture_value>{ }, std::optional<fixture_value>{ fixture_value(false) }, "viewerCanReply absent" },
+												  std::tuple{ std::optional<fixture_value>{ fixture_value(true) }, std::optional<fixture_value>{ }, "locked absent" },
+												  std::tuple{ std::optional<fixture_value>{ fixture_value("yes") }, std::optional<fixture_value>{ fixture_value(false) }, "viewerCanReply not a boolean" },
+												  std::tuple{ std::optional<fixture_value>{ fixture_value(true) }, std::optional<fixture_value>{ fixture_value(nullptr) }, "locked null" } }) {
+			auto transport           = paged_fixture_transport{ fixture_scenario::success };
+			transport.ViewerCanReply = reply;
+			transport.Locked         = locked;
+			const auto result        = perform_paged_github_read(transport, profile(), reply_shaped_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			expect(!result.has_value() && provider_failure_of(result) == application::github_provider_failure::malformed_response,
+				   std::string{ "an answer that does not carry what was asked is refused: " } + why);
+		}
+		{
+			// The schema without them: neither is asked, and one served
+			// anyway is not an exact answer.
+			auto       transport = paged_fixture_transport{ fixture_scenario::success };
+			const auto result    = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ });
+			const auto initial   = std::ranges::find_if(transport.Requests, [](const github_wire_request& aRequest) { return aRequest.Wire.Body.find("GetReviewData") != std::string::npos; });
+			expect(initial != transport.Requests.end() && initial->Wire.Body.find("viewerCanReply") == std::string::npos
+					   && initial->Wire.Body.find(" locked") == std::string::npos,
+				   "a shape without them selects neither");
+			expect(result.has_value() && result->ReviewThreads.front().ViewerReplyPermission == application::github_permission_state::unavailable
+					   && result->ConversationLock == application::github_conversation_lock::unavailable,
+				   "and both stay unavailable, so nothing is refused on them");
+			auto extra           = paged_fixture_transport{ fixture_scenario::success };
+			extra.ViewerCanReply = fixture_value(true);
+			expect(!perform_paged_github_read(extra, profile(), provider_request(), core::provider_snapshot_id{ 55U }, std::stop_token{ }).has_value(),
+				   "a field the shape did not ask for is refused");
+		}
+		{
+			auto shape                                       = reply_shaped_request();
+			shape.CapabilityEvidence.ReadShape.ReviewThreads = false;
+			auto transport                                   = paged_fixture_transport{ fixture_scenario::success };
+			expect(!perform_paged_github_read(transport, profile(), shape, core::provider_snapshot_id{ 55U }, std::stop_token{ }).has_value(),
+				   "the reply permission and the lock are read only with the threads");
+		}
 	}
 
 	auto test_graphql_head_is_bound_to_rest_snapshot() -> void
@@ -3710,6 +3803,109 @@ namespace {
 			   "a signed-out read sends nothing");
 	}
 
+	/// [[BPR-1741]]. One subject's answer: its type, identity,
+	/// permission and groups as `ListReactions` selects them.
+	[[nodiscard]] auto reaction_node(const std::string_view aType, const std::string_view aId, const bool aCanReact, const std::string_view aGroups) -> std::string
+	{
+		return "{\"__typename\":\"" + std::string{ aType } + "\",\"id\":\"" + std::string{ aId } + "\",\"viewerCanReact\":" + (aCanReact ? "true" : "false")
+			+ ",\"reactionGroups\":[" + std::string{ aGroups } + "]}";
+	}
+
+	[[nodiscard]] auto reaction_group_json(const std::string_view aContent, const bool aMine, const std::uint32_t aTotal, const std::string_view aNodes) -> std::string
+	{
+		return "{\"content\":\"" + std::string{ aContent } + "\",\"viewerHasReacted\":" + (aMine ? "true" : "false") + ",\"reactors\":{\"totalCount\":"
+			+ std::to_string(aTotal) + ",\"nodes\":[" + std::string{ aNodes } + "]}}";
+	}
+
+	[[nodiscard]] auto reactions_body(const std::vector<std::string>& aNodes, const std::string_view aRepository = "R_1", const std::string_view aPull = "PR_17") -> std::string
+	{
+		auto nodes = std::string{ };
+		for (const auto& node : aNodes) {
+			nodes += (nodes.empty() ? "" : ",") + node;
+		}
+		return "{\"data\":{\"repository\":{\"id\":\"" + std::string{ aRepository } + "\",\"pullRequest\":{\"id\":\"" + std::string{ aPull } + "\"}},\"nodes\":[" + nodes + "]}}";
+	}
+
+	auto test_reaction_read() -> void
+	{
+		const auto subjects = std::vector<std::string>{ "PRRC_1", "IC_2", "PRR_3" };
+		const auto read     = [&subjects](merge_base_fixture_transport& aTransport, const validated_github_host_profile& aProfile, const application::github_pull_request_provider_request& aRequest,
+										  const github_provider_read_authority aAuthority = github_provider_read_authority::authenticated) {
+			return perform_github_reaction_read(aTransport, aProfile, aRequest, core::repository_id{ 101U }, "R_1", "PR_17", subjects, { }, { }, aAuthority);
+		};
+		const auto answered = [&](std::string aBody) {
+			auto transport = merge_base_fixture_transport{ };
+			transport.Responses.push_back(graphql_answer(std::move(aBody)));
+			auto result = read(transport, profile(), provider_request());
+			expect(transport.Requests.size() == 1U, "one request a page");
+			return std::pair{ std::move(result), std::move(transport.Requests) };
+		};
+		const auto thumbs        = reaction_group_json("THUMBS_UP", true, 7U, R"({"__typename":"User","login":"octo-reviewer"},{"__typename":"Bot","login":"dependabot"},{"__typename":"Mannequin"})");
+		const auto heart         = reaction_group_json("HEART", false, 1U, R"({"__typename":"User","login":"octo-author"})");
+		const auto empty         = reaction_group_json("EYES", false, 0U, "");
+		const auto [good, asked] = answered(reactions_body({ reaction_node("PullRequestReviewComment", "PRRC_1", true, heart + "," + thumbs + "," + empty),
+															 reaction_node("IssueComment", "IC_2", false, ""), "null" }));
+		expect(good.has_value() && good->Records.size() == 2U, "every answered subject is kept and a null one is left out");
+		const auto& first = good->Records[0].Reactions;
+		expect(good->Records[0].Subject == "PRRC_1" && first.ViewerCanReact && first.Groups.size() == 2U && first.Groups[0].Content == core::reaction_content::thumbs_up
+				   && first.Groups[0].Count == 7U && first.Groups[0].ViewerReacted && first.Groups[0].Reactors == std::vector<std::string>{ "octo-reviewer", "dependabot" }
+				   && first.Groups[1].Content == core::reaction_content::heart && !first.Groups[1].ViewerReacted,
+			   "groups are GitHub's order, zero ones dropped, counts from totalCount, my flag kept and a reactor without a login counted, not named");
+		expect(good->Records[1].Subject == "IC_2" && !good->Records[1].Reactions.ViewerCanReact && good->Records[1].Reactions.Groups.empty(), "a comment I may not react to says so");
+		const auto& wire = asked[0].Wire;
+		expect(wire.Operation == read_operation::list_reactions && wire.Method == http_method::post && wire.Path == "/graphql"
+				   && wire.Body.find(R"("ids":["PRRC_1","IC_2","PRR_3"])") != std::string::npos
+				   && wire.Body.find(R"("name":"review-repository","number":17,"owner":"octo-org")") != std::string::npos
+				   && wire.Body.find("query ListReactions(") != std::string::npos && wire.Body.find("reactors(first:5){totalCount") != std::string::npos,
+			   "one GraphQL query names the subjects and the pull request, and selects the first five reactors");
+
+		const auto refused = [&](std::string aBody, const char* aMessage) {
+			const auto result = answered(std::move(aBody)).first;
+			expect(!result && std::holds_alternative<application::github_provider_error>(result.error()), aMessage);
+		};
+		refused(reactions_body({ "null", "null", "null" }, "R_1", "PR_99"), "an answer about another pull request is refused");
+		refused(reactions_body({ "null", "null", "null" }, "R_9"), "an answer about another repository is refused");
+		refused(reactions_body({ "null", "null" }), "an answer with fewer nodes than asked is refused");
+		refused(reactions_body({ reaction_node("Commit", "PRRC_1", true, ""), "null", "null" }), "a subject of another type is refused");
+		refused(reactions_body({ reaction_node("IssueComment", "IC_9", true, ""), "null", "null" }), "a subject that is not the one asked is refused");
+		refused(reactions_body({ reaction_node("IssueComment", "PRRC_1", true, reaction_group_json("PLUS_ONE", false, 1U, "")), "null", "null" }), "an unknown content is refused");
+		refused(reactions_body({ reaction_node("IssueComment", "PRRC_1", true, heart + "," + heart), "null", "null" }), "a content twice is refused");
+		refused(reactions_body({ reaction_node("IssueComment", "PRRC_1", true, reaction_group_json("HEART", true, 0U, "")), "null", "null" }), "my reaction in an empty group is refused");
+		refused(reactions_body({ reaction_node("IssueComment", "PRRC_1", true,
+											   reaction_group_json("HEART", false, 9U,
+																   R"({"__typename":"User","login":"a"},{"__typename":"User","login":"b"},{"__typename":"User","login":"c"},{"__typename":"User","login":"d"},{"__typename":"User","login":"e"},{"__typename":"User","login":"f"})")),
+								 "null", "null" }),
+				"more than five named reactors is refused");
+		refused(R"({"data":{"repository":{"id":"R_1","pullRequest":{"id":"PR_17"}}}})", "an answer without nodes is refused");
+
+		// A server whose schema lacks the fields says so; reactions are then unavailable.
+		const auto schema = answered(R"({"errors":[{"type":"undefinedField","message":"Field 'reactors' doesn't exist on type 'ReactionGroup'"}]})").first;
+		expect(!schema && std::holds_alternative<application::github_provider_error>(schema.error())
+				   && std::get<application::github_provider_error>(schema.error()).Failure == application::github_provider_failure::unsupported_capability,
+			   "a schema without the reaction fields is an unsupported capability");
+
+		// GHES serves the same query under its API root.
+		auto enterprise = merge_base_fixture_transport{ };
+		enterprise.Responses.push_back(graphql_answer(reactions_body({ "null", "null", "null" })));
+		const auto ghes = read(enterprise, enterprise_profile(), provider_request(application::github_server_contract::ghes_3_18_2022_11_28));
+		expect(ghes && ghes->Records.empty() && enterprise.Requests.size() == 1U && enterprise.Requests[0].Wire.Path == "/api/graphql",
+			   "GHES asks the same query at its GraphQL root");
+
+		// Signed out, nothing is asked; and an empty or oversized page is not sent.
+		auto signedOut = merge_base_fixture_transport{ };
+		expect(!read(signedOut, profile(), anonymous_provider_request(), github_provider_read_authority::anonymous_public) && signedOut.Requests.empty(),
+			   "a signed-out read sends nothing");
+		auto oversized = merge_base_fixture_transport{ };
+		auto many      = std::vector<std::string>{ };
+		for (std::size_t index = 0; index <= maximum_reaction_subjects_per_read; ++index) {
+			many.push_back("IC_" + std::to_string(index));
+		}
+		expect(!perform_github_reaction_read(oversized, profile(), provider_request(), core::repository_id{ 101U }, "R_1", "PR_17", many, { }) && oversized.Requests.empty(),
+			   "more than one page of subjects is refused before anything is sent");
+		expect(!perform_github_reaction_read(oversized, profile(), provider_request(), core::repository_id{ 101U }, "R_1", "PR_17", { }, { }) && oversized.Requests.empty(),
+			   "no subjects, no read");
+	}
+
 	// [[BPR-0988]]. Personal discovery over a scripted wire.
 	[[nodiscard]] auto discovery_request(const application::personal_discovery_reason aReason,
 										 const application::github_server_contract    aServer = application::github_server_contract::github_com_2022_11_28)
@@ -4932,12 +5128,15 @@ auto main() -> int
 	test_timeline_atomic_failures();
 	test_merge_base_read();
 	test_team_membership_read();
+	test_reaction_read();
+
 	test_metadata_and_viewer();
 	test_glaze_viewer_numbers_and_syntax();
 	test_glaze_paged_identity_and_lifetime();
 	test_glaze_paged_raw_refusals();
 	test_capability_shaped_query();
 	test_successful_exhaustive_read();
+	test_reply_permission_and_lock_read();
 	test_graphql_head_is_bound_to_rest_snapshot();
 	test_measured_files_page_shapes();
 	test_raw_structural_limits();

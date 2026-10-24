@@ -116,12 +116,17 @@ namespace bpr::adapters::github::detail {
 			// file at the filter's commit on that side, not at the comparison's
 			// right anchor (the head): its permalink names that commit. Only a
 			// filtered diff's left side has a permalink.
+			// [[BPR-1735]]. On the Whole PR diff a left line GitHub resolves
+			// nowhere names its line at the comparison's left commit, whose
+			// file the host found to be the merge base's.
 			const auto  right = endpoint.side() == core::diff_side::right;
 			const auto& blob  = right ? key.RightBlob : key.LeftBlob;
-			if (!right && !key.Filter) {
+			if (!right && !key.Filter && request.Diff.Comparison.Left.Availability != core::anchor_availability::available) {
 				return std::nullopt;
 			}
-			const auto& commit = key.Filter ? (right ? key.Filter->Right : key.Filter->Left) : request.Diff.Comparison.Right.Commit;
+			const auto& commit = key.Filter ? (right ? key.Filter->Right : key.Filter->Left)
+				: right                     ? request.Diff.Comparison.Right.Commit
+											: request.Diff.Comparison.Left.Commit;
 			if (!application::valid(authority) || !blob || *blob != endpoint.blob()
 				|| key.File != request.File.File || key.RightAnchor != request.Diff.Comparison.Right.Identity
 				|| key.LeftAnchor != request.Diff.Comparison.Left.Identity || key.Authority != request.Diff.Authority

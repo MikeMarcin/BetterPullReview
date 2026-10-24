@@ -86,6 +86,14 @@ namespace bpr::core {
 	/// Linguist names and aliases; a leading dot names an extension.
 	[[nodiscard]] auto markdown_code_language_of(std::string_view aInfo) -> markdown_code_language;
 
+	/// \brief [[BPR-1753]], owner look v004. The file name inline
+	/// code about a change is coloured as: the selector of the language most
+	/// of `aPaths` are in, by extension, leaving out prose and data
+	/// (Markdown, JSON, YAML, TOML, INI, XML, reStructuredText, AsciiDoc).
+	/// A `.h` header counts as C++ when any C++ file is there. The earliest
+	/// language wins a tie; empty when no path is in a coloured language.
+	[[nodiscard]] auto markdown_inline_code_selector(std::span<const std::string> aPaths) -> std::string;
+
 	/// \brief How GitHub's diff grammar marks a run of a `diff` block's line.
 	enum class markdown_diff_mark_kind : std::uint8_t {
 		/// `+`, `>` and `+++ file`: GitHub's inserted text.

@@ -19,6 +19,9 @@ add_library(
         src/review_cycle_publish_sheet.cpp
         src/review_cycle_promote_sheet.cpp
         src/keyboard_focus_ring.cpp
+        src/button_surface.cpp
+        src/quiet_tool_button.cpp
+        src/quiet_push_button.cpp
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp
@@ -55,6 +58,10 @@ add_library(
         src/defect_card_view.cpp
         src/private_notes_panel.cpp
         src/agent_tab_view.cpp
+        src/agent_setup_view.cpp
+        src/agent_setup_settings.cpp
+        src/agent_entry_dialog.cpp
+        src/folder_list_editor.cpp
         src/desktop_menu_bar.cpp
         src/device_authorization_panel.cpp
         src/dif_runtime.cpp
@@ -87,6 +94,7 @@ add_library(
         src/painted_glyph_icon.cpp
         src/progress_mark.cpp
         src/conversation_open_card.cpp
+        src/conversation_reactions.cpp
         src/repositories_drawer.cpp
         src/files_tree.cpp
         src/steady_columns.cpp

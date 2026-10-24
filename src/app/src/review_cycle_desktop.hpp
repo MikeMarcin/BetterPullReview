@@ -3,6 +3,7 @@
 
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_program_resolution.hpp"
 #include "bpr/application/appearance_runtime_ports.hpp"
 #include "bpr/application/claude_process_wrapper.hpp"
 #include "bpr/application/github_publication_port.hpp"
@@ -79,7 +80,8 @@ namespace bpr::app {
 		/// manual lanes names its lane here.
 		review_cycle_desktop(qt::workbench_window& aWindow, const std::filesystem::path& aProfileRoot, core::bpr_profile_id aProfile, application::effect_executor& aEffects,
 							 application::decision_executor& aDecisions, review_cycle_syntax aSyntax = { }, application::effect_executor* aCaptures = nullptr,
-							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr, application::claude_locator aLocateClaude = { });
+							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr, application::claude_locator aLocateClaude = { },
+							 std::shared_ptr<const application::agent_program_source> aPrograms = nullptr, application::agent_program_locator aLocatePrograms = { });
 		~review_cycle_desktop() override;
 		review_cycle_desktop(const review_cycle_desktop&)                    = delete;
 		auto operator=(const review_cycle_desktop&) -> review_cycle_desktop& = delete;
@@ -120,6 +122,14 @@ namespace bpr::app {
 		/// keeping the installed adapter: a course points them at its own
 		/// executables. Nothing changes where no adapter is installed.
 		void set_send_profiles(std::vector<core::agent_profile> aProfiles);
+		/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved
+		/// is offered first; the others keep their order. Absent, the order is
+		/// the one given.
+		void prefer_send_profile(std::optional<core::agent_profile_id> aProfile);
+		/// \brief [[BPR-1753]], owner decision 2026-10-23. Send to Agent
+		/// offers the agents the reviewer added and launches each as its entry
+		/// says; with none added the profiles given stay.
+		void offer_agents(std::vector<core::agent_entry> aEntries);
 		/// \brief Replaces where the account comes from, keeping the catalog.
 		void set_publication_account(std::function<std::optional<application::github_publication_account>()> aAccount);
 		/// \brief What this window holds of cycle `aCycle`'s round draft that
@@ -184,8 +194,17 @@ namespace bpr::app {
 		/// with the agent integrations; an agent-free build has neither.
 		/// [[BPR-1301]]. The supervised launcher, and in front of it the port
 		/// that points a Claude send at the window's profile wrapper.
-		std::unique_ptr<application::agent_process_port>     SendLauncher;
+		std::unique_ptr<application::agent_process_port> SendLauncher;
+		/// [[BPR-1749]]. The profiles Send to Agent offers, as given,
+		/// and the one setup saved, offered first.
+		std::vector<core::agent_profile>      SendProfiles;
+		std::optional<core::agent_profile_id> PreferredSendProfile;
+		/// [[BPR-1748]]. The Claude wrapper's port, in front of which
+		/// `SendProcesses` gives Codex and the plain-text harness a program.
+		std::unique_ptr<application::agent_process_port>     SendClaude;
 		std::unique_ptr<application::agent_process_port>     SendProcesses;
+		std::shared_ptr<application::agent_entry_source>     SendEntries;
+		std::unique_ptr<application::agent_process_port>     SendEntryProcess;
 		std::unique_ptr<worker_executor>                     SendLane;
 		std::shared_ptr<application::review_cycle_sender>    Sender;
 		std::unique_ptr<application::review_cycle_workbench> Host;

@@ -1,4 +1,6 @@
 #include "bpr/qt/conversation_finder.hpp"
+
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
 #include "bpr/core/feedback_convention.hpp"
@@ -1272,7 +1274,7 @@ namespace bpr::qt {
 			text->setForegroundRole(QPalette::PlaceholderText);
 			layout->addWidget(text);
 			if (!aButton.isEmpty()) {
-				auto* const button = new QPushButton{ aButton, page };
+				auto* const button = new quiet_push_button{ aButton, page };
 				button->setObjectName(aName + QStringLiteral("Reset"));
 				QObject::connect(button, &QPushButton::clicked, this, [this] {
 					set_filters({ });

@@ -530,11 +530,21 @@ namespace bpr::application {
 			/// reader's order and recent context after them. Version-one lines
 			/// carry no time and count as the oldest. Events order by time, then
 			/// session and sequence, which the duplicate check makes unique.
-			auto select() -> std::size_t
+			///
+			/// [[BPR-1744]]. The running session (`aCurrent`) is the
+			/// newest whatever its clock says, and its records order by
+			/// sequence, so a wall clock set back cannot make its latest
+			/// records look older than another session's and leave them out.
+			auto select(const std::string_view aCurrent) -> std::size_t
 			{
-				std::ranges::stable_sort(Candidates, [](const export_candidate& aLeft, const export_candidate& aRight) {
+				std::ranges::stable_sort(Candidates, [aCurrent](const export_candidate& aLeft, const export_candidate& aRight) {
 					if (aLeft.Legacy || aRight.Legacy) {
 						return aLeft.Legacy && !aRight.Legacy;
+					}
+					const bool leftCurrent  = aLeft.Session == aCurrent;
+					const bool rightCurrent = aRight.Session == aCurrent;
+					if (leftCurrent || rightCurrent) {
+						return leftCurrent && rightCurrent ? aLeft.Sequence < aRight.Sequence : rightCurrent;
 					}
 					return std::tie(aLeft.UtcMs, aLeft.Session, aLeft.Sequence) < std::tie(aRight.UtcMs, aRight.Session, aRight.Sequence);
 				});
@@ -654,7 +664,7 @@ namespace bpr::application {
 				}
 			}
 		}
-		builder.emit(builder.select());
+		builder.emit(builder.select(aCapture.Session));
 		auto& document = builder.Document;
 		document.Descriptor.Fields |= core::release_diagnostic_classified_fields | (aOptions.Policy == export_policy::identifying ? static_cast<std::uint32_t>(core::release_diagnostic_field::captured_identity) : 0U);
 		document.Descriptor.Sessions = static_cast<std::uint32_t>(builder.Sessions.size());

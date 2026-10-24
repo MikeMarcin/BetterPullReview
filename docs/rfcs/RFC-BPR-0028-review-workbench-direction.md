@@ -960,3 +960,41 @@ My pull requests has a neutral header, existing state-colored row anatomy and a 
 ## Overview successor amendment (2026-10-11)
 
 RFC-BPR-0068 and RFC-BPR-0069 extend the Overview summary with inspectable check results, outstanding user/team requests and merge-requirements explanations. The files table, progress, modality controls, summary splitter and review entry action retain their existing obligations. Historical acceptance and remaining native criteria are unchanged; successor acceptance is recorded in the new RFC ledgers.
+
+## Owner decision, 2026-10-22: an outdated thread takes a reply
+
+[[BPR-1740]] found that an outdated thread could not take a reply in the
+Comments drawer: the reply was a draft on the thread's current line, which an
+outdated thread no longer has, and Reply was refused with "This thread's line
+isn't in the code shown, so it can't take a reply here." GitHub accepts a
+reply to an outdated thread, because a reply names only the thread it answers.
+The owner, in chat, verbatim: "Allow replying to an outdated thread from the
+drawer, like GitHub does; open a card for it." [[BPR-1745]] owns it.
+
+The Review paragraph's "each opening in place to the whole conversation with a
+reply", and Discuss's Reply, are amended to include outdated threads:
+
+- The core decides where a reply goes from GitHub's thread data
+  (`core::decide_thread_reply`). A current thread is answered on its line, as
+  before. An outdated thread is answered by the thread: its reply is a draft
+  bound to the thread rather than a line, so no line is selected and none is
+  needed. A thread GitHub says the viewer cannot reply in takes no reply; an
+  anonymous read takes none. [[BPR-1746]] reads GitHub's
+  `viewerCanReply` and the pull request's lock with the conversation; a refused
+  thread says why in place of its Reply field. The lock is the reason when it
+  applies, but on its own refuses nothing: GitHub lets a collaborator reply on
+  a locked pull request, and its `viewerCanReply` says so. A server whose
+  schema lacks the fields leaves them unknown, and GitHub's answer to Publish
+  decides.
+- The reply field appears as it does for a current thread, in Review, Discuss
+  and Threads alike, with one quiet line above it: "Outdated: this thread's
+  line has changed since it was written". The refusal no longer applies to an
+  outdated thread.
+- The reply is saved privately like any reply, survives a restart, and is
+  carried to a new head, since a reply with no line has nothing a head change
+  could move. It is published through the existing reply path, with its
+  journal record and idempotency key, and reconciled against the thread, where
+  GitHub reports it with no line on the commit the thread was written on.
+
+The amendment adds a reply route; it does not change this RFC's closeout
+dependencies or its other criteria.

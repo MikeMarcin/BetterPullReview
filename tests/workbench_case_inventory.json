@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "7ffba61500a599be4b27319243dfde2812903fe15456c679aa4bc1445b50c740",
+  "source_sha256": "7ef2d306fd877c38cbb0009d71e9084825ed8adefa02f08a0781f50eebbb15f1",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -119,9 +119,11 @@
       "test_a_suggestion_from_an_earlier_head_is_carried_or_copied",
       "test_the_pane_edit_takes_the_editor_gestures",
       "test_a_held_suggestion_is_converted_and_a_kept_one_reopens",
+      "test_an_off_hunk_review_comment_is_held_with_publish_as_file_comment",
       "test_line_numbers_select_lines",
       "test_a_drag_onto_an_empty_line_takes_it",
-      "test_comment_takes_the_selected_lines"
+      "test_comment_takes_the_selected_lines",
+      "test_the_agent_suggestions_follow_the_selection_at_once"
     ],
     "--conversation-reveal": [
       "test_discard_and_back_keep_the_comments_drawer",
@@ -140,7 +142,9 @@
       "test_defect_queue_navigation_and_semantic_dispatch",
       "test_thread_defect_menus_badges_and_navigation",
       "test_threads_finds_and_picks_into_review",
-      "test_a_pick_into_a_long_unopened_file_reveals_its_line"
+      "test_a_pick_into_a_long_unopened_file_reveals_its_line",
+      "test_a_long_thread_from_discuss_scrolls_to_its_reply",
+      "test_an_agent_answer_link_reveals_its_line"
     ],
     "--overview": [
       "test_overview_refuses_a_hand_opened_drawer_and_says_so",

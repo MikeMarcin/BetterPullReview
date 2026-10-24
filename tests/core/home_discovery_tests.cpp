@@ -36,9 +36,28 @@ namespace {
 			.RunMilliseconds  = 3900U,
 		};
 		const auto text = describe(read);
-		expect(text == "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900",
+		expect(text == "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=0 wire_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=0",
 			   "a read's line names its keys in their fixed order");
 		expect(parse_discovery_diagnosis(text) == read, "the line reads back as the same diagnosis");
+
+		// [[BPR-1744]]. The timing split and answer counts follow in
+		// their fixed order; a line written before them still reads.
+		auto timed                   = read;
+		timed.CredentialMilliseconds = 700U;
+		timed.WireMilliseconds       = 2900U;
+		timed.DecisionMilliseconds   = 45U;
+		timed.Forbidden              = 1U;
+		timed.Throttled              = 2U;
+		timed.ServerErrors           = 3U;
+		timed.Timeouts               = 4U;
+		expect(describe(timed).ends_with(" run_ms=3900 credential_ms=700 wire_ms=2900 decision_ms=45 http_403=1 http_429=2 http_5xx=3 timeouts=4 backoff_s=0")
+				   && parse_discovery_diagnosis(describe(timed)) == timed,
+			   "a read's timing split and answer counts are named and read back");
+		expect(parse_discovery_diagnosis("discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900") == read,
+			   "the line of a build before the timing split reads with those fields zero");
+		auto backoff           = read;
+		backoff.BackoffSeconds = 60U;
+		expect(describe(backoff).empty(), "only a refresh's end says how long a rate limit holds the next");
 
 		const auto refresh = discovery_diagnosis{
 			.Scope            = discovery_diagnosis_scope::refresh,
@@ -51,6 +70,7 @@ namespace {
 			.Requests         = 220U,
 			.WaitMilliseconds = 4100U,
 			.RunMilliseconds  = 143000U,
+			.BackoffSeconds   = 120U,
 		};
 		expect(parse_discovery_diagnosis(describe(refresh)) == refresh, "a refresh's end reads back");
 		for (const auto state : { discovery_diagnosis_state::none, discovery_diagnosis_state::current, discovery_diagnosis_state::partial,
@@ -97,6 +117,11 @@ namespace {
 				 "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=4294967296",
 				 "discovery=read  refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900",
 				 "discovery=read refresh=3 reason=authored read=7 state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900",
+				 "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=700",
+				 "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=0 wire_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=0 ",
+				 "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=0 wire_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=0 host=example.com",
+				 "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 wire_ms=0 credential_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=0",
+				 "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=0 wire_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=60",
 				 "review_submission=review_not_listed post=not_sent post_class=0 http_class=0 expected=0 found=0 matched=0 candidates=0 pages=0",
 			 }) {
 			expect(!parse_discovery_diagnosis(hostile), "anything but exactly a line describe writes reads as none");

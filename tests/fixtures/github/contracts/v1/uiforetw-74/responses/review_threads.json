@@ -34,6 +34,7 @@
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
 				"id": "PR_74",
+				"locked": false,
 				"reviewThreads": {
 					"nodes": [],
 					"pageInfo": {

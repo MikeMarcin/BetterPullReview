@@ -150,6 +150,12 @@ namespace bpr::application {
 		bool ViewedFileState     = false;
 		bool ResolvePermission   = false;
 		bool UnresolvePermission = false;
+		/// [[BPR-1746]]. Each review thread carries GitHub's
+		/// `viewerCanReply`; needs `ReviewThreads`.
+		bool ReplyPermission = false;
+		/// [[BPR-1746]]. The conversation read carries the pull
+		/// request's `locked`; needs `ReviewThreads`.
+		bool ConversationLock = false;
 
 		auto operator<=>(const github_read_shape&) const = default;
 	};

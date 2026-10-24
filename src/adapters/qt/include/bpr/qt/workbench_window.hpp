@@ -17,12 +17,15 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/claude_wrapper_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -180,7 +183,26 @@ namespace bpr::qt {
 		auto operator<=>(const thread_resolution_gesture&) const = default;
 	};
 	using workbench_thread_resolution_dispatch = std::function<void(const thread_resolution_gesture&)>;
-	using workbench_defect_dispatch            = std::function<void(core::defect_command)>;
+	/// [[BPR-1741]]. A reaction added or removed on one post, with what
+	/// the window shows of it, so the composition can decide it.
+	struct reaction_gesture
+	{
+		/// The post as its card names it ("review-comment:…").
+		std::string Post;
+		/// The post's GitHub node.
+		std::string            Subject;
+		core::reaction_content Content = core::reaction_content::thumbs_up;
+		/// Add the reaction (the viewer has not made it), or remove it.
+		bool Add = true;
+		/// The post's reactions were read.
+		bool Observed = false;
+		/// GitHub's `viewerCanReact` for the post.
+		bool ViewerCanReact = false;
+
+		auto operator<=>(const reaction_gesture&) const = default;
+	};
+	using workbench_reaction_dispatch = std::function<void(const reaction_gesture&)>;
+	using workbench_defect_dispatch   = std::function<void(core::defect_command)>;
 
 	/// \brief Carries the exact placeable conversation anchor chosen in Qt.
 	struct workbench_defect_classification
@@ -385,6 +407,10 @@ namespace bpr::qt {
 		core::filtered_comment_target Target;
 		/// The diff's right commit, abbreviated, to name an earlier commit.
 		QString Commit;
+		/// [[BPR-1736]]. On the Whole PR diff, for a line outside every hunk:
+		/// what this profile learned about GitHub taking a comment there, which
+		/// the notice says. Absent on a filtered diff.
+		std::optional<core::off_hunk_creation_capability> Learned;
 
 		auto operator==(const filtered_comment_presentation&) const -> bool = default;
 	};
@@ -494,8 +520,31 @@ namespace bpr::qt {
 		/// \brief The words above Publish for the selected line, and whether
 		/// they are why Publish is unavailable; empty off a filtered diff.
 		[[nodiscard]] auto filtered_comment_notice() const -> std::pair<QString, bool>;
-		/// \brief The placement the host last gave, for whichever line.
+		/// \brief The placement the host last gave, for whichever line: on a
+		/// filtered diff its own, otherwise the Whole PR diff's ([[BPR-1735]]).
 		[[nodiscard]] auto filtered_comment_placement() const noexcept -> const std::optional<filtered_comment_presentation>&;
+		/// \brief [[BPR-1735]]. Where a comment on the selected line of the
+		/// Whole PR diff goes, as the host's core placed it from GitHub's own
+		/// diff, when that is not the line itself: a file comment, or a range
+		/// refused. None while the diff is unread or the line is in a hunk;
+		/// then Publish is as it always was.
+		void present_whole_diff_comment(std::optional<filtered_comment_presentation> aPlacement);
+		/// \brief [[BPR-1735]]. A comment pending in the review that the core
+		/// placed outside GitHub's diff: GitHub refuses a review carrying it.
+		struct unplaceable_review_comment
+		{
+			core::filtered_comment_target Target;
+			std::optional<std::uint32_t>  StartLine;
+			/// The commit its permalink names, abbreviated.
+			QString Commit;
+
+			auto operator==(const unplaceable_review_comment&) const -> bool = default;
+		};
+		/// \brief [[BPR-1735]]. The review's held comments, by draft: each is
+		/// marked on Finish your review and on the comment, with Publish as
+		/// file comment (owner, 2026-10-22), and the review waits for them.
+		void               present_unplaceable_review_comments(std::map<core::review_draft_id, unplaceable_review_comment> aHeld);
+		[[nodiscard]] auto unplaceable_review_comments() const noexcept -> const std::map<core::review_draft_id, unplaceable_review_comment>&;
 		/// \brief One of the split file's diffs chosen, by its position.
 		void               set_split_segment_dispatch(std::function<void(std::size_t)> aDispatch);
 		[[nodiscard]] auto split_strip() const noexcept -> split_diff_strip*;
@@ -660,8 +709,17 @@ namespace bpr::qt {
 		void set_carried_suggestion_dispatch(std::function<void(core::review_draft_id, std::uint64_t)> aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Reply names its thread to.
 		void set_review_reply_dispatch(workbench_review_reply_dispatch aDispatch);
+		/// \brief [[BPR-1745]]. Adopts the sink an outdated thread's
+		/// Reply names its thread to: the composition opens a reply bound to
+		/// the thread, since the thread has no line to select.
+		void set_thread_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
 		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
+		/// \brief [[BPR-1741]]. Where a post's reaction goes.
+		void set_reaction_dispatch(workbench_reaction_dispatch aDispatch);
+		/// \brief [[BPR-1741]]. The posts' reactions, by GitHub node,
+		/// and each thread's resolution as the viewer should see them.
+		void present_conversation_state(std::map<std::string, core::reaction_summary> aReactions, std::map<std::string, thread_resolution_presentation> aResolutions);
 		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with
 		/// the server's capability this is what offers Resolve on the cards.
 		void set_thread_resolution_provider(bool aResolves);
@@ -907,6 +965,25 @@ namespace bpr::qt {
 		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
 		/// \brief [[BPR-1594]]. The Agent tab, and its two keys' actions.
 		[[nodiscard]] auto agent_tab() const noexcept -> agent_tab_view* { return AgentTab; }
+		/// \brief [[BPR-1753]], owner decision 2026-10-23. Opens one of
+		/// the pull request's files in Review, as choosing it in Files does, for
+		/// a finding card's draft or note at its lines. False when the path is
+		/// not one of the pull request's files now.
+		auto open_file_in_review(const QString& aPath) -> bool;
+		/// \brief Owner look v004 ("This should be a link to the file and line
+		/// I can click"). The pull request's file a reference names: the path
+		/// itself, or the one file whose path ends with it; nothing when no
+		/// file, or more than one, is it.
+		[[nodiscard]] auto review_file_named(const QString& aPath) const -> std::optional<QString>;
+		/// \brief Opens the file in Review and selects its one-based line, at
+		/// the head or (`aBefore`) the base, once its comparison is shown.
+		/// False, and the status line says so, when the path is not one of the
+		/// pull request's files.
+		auto go_to_file_line(const QString& aPath, std::uint32_t aLine, bool aBefore) -> bool;
+		/// \brief Owner look v004 ("After save as note it should turn into Go
+		/// to note"): opens one private note in Notes, its file first when it
+		/// is on another; an open note stays open.
+		void               go_to_private_note(std::uint64_t aId);
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
 		void               open_review_tour();
@@ -1156,6 +1233,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
+		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
+		/// Settings rows; an agent build adopts the setup into the tab.
+		[[nodiscard]] auto agent_setup() const noexcept -> agent_setup_view* { return AgentSetup; }
+		[[nodiscard]] auto agent_programs() const noexcept -> agent_programs_panel* { return AgentPrograms; }
+		[[nodiscard]] auto clone_folders() const noexcept -> clone_folders_panel* { return CloneFolders; }
+		[[nodiscard]] auto review_skill() const noexcept -> review_skill_panel* { return ReviewSkill; }
 		/// \brief The side chat, placed beside the agent launcher it belongs to.
 		///
 		/// \details BPR-0513. The panel is composed here because the drawer is
@@ -1975,6 +2058,27 @@ namespace bpr::qt {
 		/// [[BPR-0657]]. Selects a thread's line on the comparison, as a click on
 		/// it would, so the draft a card starts anchors on the thread's line.
 		[[nodiscard]] auto select_thread_line(const std::string& aIdentity) -> bool;
+		/// [[BPR-0657]]. Where a thread's reply would be anchored, as the
+		/// conversation panel holds it.
+		struct thread_reply_anchor
+		{
+			QString                        Path;
+			std::optional<core::diff_side> Side;
+			std::uint64_t                  Line    = 0U;
+			bool                           Current = false;
+			bool                           Known   = false;
+			/// [[BPR-1745]]. GitHub reports the thread outdated.
+			bool Outdated = false;
+		};
+		[[nodiscard]] auto thread_reply_anchor_of(const std::string& aIdentity) const -> thread_reply_anchor;
+		/// [[BPR-1740]]. Says why a thread's reply cannot start, in
+		/// words that are true of it, and offers Show in code when its own
+		/// file would let it.
+		void refuse_thread_reply(const std::string& aIdentity);
+		/// [[BPR-1740]]. Takes a reply's refusal back once it may no
+		/// longer be true: a reply starts, a pick opens its thread, Show in
+		/// code is used or the modality changes.
+		void clear_reply_refusal();
 		/// [[BPR-1046]]. Whether the comparison of a current thread's own file
 		/// has been asked for and has not arrived, so its line cannot be
 		/// selected yet but will be.
@@ -2397,6 +2501,21 @@ namespace bpr::qt {
 		void show_agent(bool aAsk);
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
+		/// Owner look v004. A line a link asked for, selected once its file's
+		/// comparison is shown and measured; tried again until then, ten seconds at most.
+		struct pending_line_go
+		{
+			core::file_identity File;
+			core::diff_side     Side  = core::diff_side::right;
+			std::uint32_t       Line  = 0U;
+			int                 Tries = 0;
+		};
+		std::optional<pending_line_go> PendingLineGo;
+		void                           resume_line_go();
+		/// Owner look v006. The Agent tab's suggestions, read once the
+		/// selection gesture that changed them has finished.
+		QTimer* AgentSuggestionsTimer = nullptr;
+		void    schedule_agent_suggestions();
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
 		/// tabs show their names.
 		QWidget* TrayHeader = nullptr;
@@ -2576,9 +2695,13 @@ namespace bpr::qt {
 		void resume_pending_comment_open();
 		/// [[BPR-1356]]. Discuss's notice says which filters a Threads pick
 		/// cleared, until the reviewer changes one or picks again.
-		bool         ThreadsRevealNotice = false;
-		QVBoxLayout* ConversationLayout  = nullptr;
-		QScrollArea* ComposeReviewPage   = nullptr;
+		bool ThreadsRevealNotice = false;
+		/// [[BPR-1740]]. The notice says why a reply was refused. It
+		/// stayed after the thread opened in Review, and said the reviewer
+		/// was not in the code while they were.
+		bool         ReplyRefusalShown  = false;
+		QVBoxLayout* ConversationLayout = nullptr;
+		QScrollArea* ComposeReviewPage  = nullptr;
 		/// [[BPR-1590]]. Finish your review over the surface, and whether it is
 		/// open; the review composer lives in it or in the expanded page.
 		compose_review_sheet* ReviewSheet     = nullptr;
@@ -2650,11 +2773,19 @@ namespace bpr::qt {
 		std::map<core::review_draft_id, held_suggestion> HeldSuggestions;
 		/// A held draft Finish your review asked to convert, once it shows.
 		std::optional<core::review_draft_id> PendingConvert;
-		QString                              CommentDraftUnavailable;
-		std::optional<core::source_line_ref> WritingAnchor;
-		QAction*                             AddCommentAction    = nullptr;
-		QAction*                             SuggestChangeAction = nullptr;
-		QPointer<QWidget>                    DiscussReturnFocus;
+		/// [[BPR-1735]]. The Whole PR diff's placement of the selected line,
+		/// the review's comments GitHub cannot place, and the one Finish your
+		/// review asked to publish as a file comment, once it shows placed.
+		std::optional<filtered_comment_presentation>                WholeDiffPlacement;
+		std::map<core::review_draft_id, unplaceable_review_comment> UnplaceableComments;
+		std::optional<core::review_draft_id>                        PendingFilePublish;
+		[[nodiscard]] auto                                          unplaceable_hold(const unplaceable_review_comment& aComment) const -> std::pair<QString, QString>;
+		void                                                        publish_pending_file_comment();
+		QString                                                     CommentDraftUnavailable;
+		std::optional<core::source_line_ref>                        WritingAnchor;
+		QAction*                                                    AddCommentAction    = nullptr;
+		QAction*                                                    SuggestChangeAction = nullptr;
+		QPointer<QWidget>                                           DiscussReturnFocus;
 		/// [[BPR-1089]]. Where focus was on the Overview when a count opened
 		/// Discuss, so going back to the Overview finds the same cell.
 		QPointer<QWidget> OverviewReturnFocus;
@@ -2837,11 +2968,13 @@ namespace bpr::qt {
 		bool                                                         RepositoryDraftOpen      = false;
 		workbench_saved_server_dispatch                              SavedServerDispatch;
 		workbench_review_reply_dispatch                              ReviewReplyDispatch;
+		workbench_review_reply_dispatch                              ThreadReplyDispatch;
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
 		/// loading; the next comparison to arrive completes or refuses it.
 		std::optional<std::string>           DeferredReply;
 		bool                                 DeferredReplyInPlace = false;
 		workbench_thread_resolution_dispatch ThreadResolutionDispatch;
+		workbench_reaction_dispatch          ReactionDispatch;
 		bool                                 ProviderResolvesThreads = false;
 		core::github_capabilities            Capabilities;
 		// [[BPR-0661]].
@@ -2922,6 +3055,10 @@ namespace bpr::qt {
 		QPointer<settings_window>                          MountedSettings;
 		writing_hooks_panel*                               WritingHooks  = nullptr;
 		claude_wrapper_panel*                              ClaudeWrapper = nullptr;
+		agent_setup_view*                                  AgentSetup    = nullptr;
+		agent_programs_panel*                              AgentPrograms = nullptr;
+		clone_folders_panel*                               CloneFolders  = nullptr;
+		review_skill_panel*                                ReviewSkill   = nullptr;
 		std::function<void()>                              InsightsPresenter;
 		std::function<void(settings_page)>                 SettingsPresenter;
 		settings_window*                                   SettingsWindow = nullptr;

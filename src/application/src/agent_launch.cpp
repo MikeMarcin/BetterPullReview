@@ -793,6 +793,41 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 
+		/// \brief Owner look v006. One frame of a catalog run: the
+		/// initialize reply, then the `model/list` reply, whose result's
+		/// bytes are kept; every notification and server request is read
+		/// past.
+		[[nodiscard]] auto decode_app_server_catalog_frame(const std::string_view aFrame, std::uint8_t& aPhase)
+			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
+		{
+			auto parsed = bounded_json_parser{ aFrame }.parse();
+			if (!parsed || parsed->Kind != json_kind::object_value) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			const auto* id = member(*parsed, "id");
+			if (id == nullptr || member(*parsed, "method") != nullptr) {
+				return no_protocol_events();
+			}
+			const auto expected = aPhase == 0U ? std::string_view{ "0" } : aPhase == 2U ? std::string_view{ "1" }
+																						: std::string_view{ };
+			if (id->Kind != json_kind::number_value || expected.empty() || id->Text != expected) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			if (member(*parsed, "error") != nullptr) {
+				return std::unexpected(agent_protocol_failure::remote_failed);
+			}
+			const auto* result = object_member(*parsed, "result");
+			if (result == nullptr) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			if (aPhase == 0U) {
+				aPhase = 1U;
+				return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::initialization_complete } };
+			}
+			aPhase = 6U;
+			return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::model_catalog, .Text = std::string{ aFrame.substr(result->Begin, result->End - result->Begin) } } };
+		}
+
 		[[nodiscard]] auto decode_codex_jsonl_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
@@ -963,8 +998,15 @@ namespace bpr::application {
 				if (!aSawAssistant || string_member(aRoot, "result") == nullptr) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				aPhase = 2U;
-				return payload_events(aRoot, aFrame);
+				aPhase      = 2U;
+				auto events = payload_events(aRoot, aFrame);
+				// [[BPR-1753]]. The turn's cost, when Claude says it: a
+				// plain non-negative decimal only, never a value it did not write.
+				if (const auto* cost = member(aRoot, "total_cost_usd"); cost != nullptr && cost->Kind == json_kind::number_value && !cost->Text.empty() && cost->Text.size() <= 24U
+					&& std::ranges::all_of(cost->Text, [](const char aByte) { return (aByte >= '0' && aByte <= '9') || aByte == '.'; })) {
+					events.push_back({ .Kind = agent_protocol_event_kind::usage_report, .Text = cost->Text });
+				}
+				return events;
 			}
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
@@ -1661,6 +1703,7 @@ namespace bpr::application {
 			.Selection          = aObservation.Selection,
 			.Operation          = admittedOperation,
 			.FeedbackGuidance   = aObservation.FeedbackGuidance,
+			.Brief              = aObservation.Brief,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
@@ -1827,6 +1870,67 @@ namespace bpr::application {
 				return *this;
 			}
 		};
+		/// [[BPR-1752]], RFC-BPR-0092. The review brief's wire form, after
+		/// every version-two field. Each collection is counted, and each cut is
+		/// stated, so a reader never has to guess what a missing line meant.
+		template <typename TSink>
+		void encode_brief_into(TSink& aResult, const core::supplement_brief& aBrief, const core::agent_revision_binding& aBinding)
+		{
+			append_field(aResult, "brief.title", aBrief.Title);
+			append_field(aResult, "brief.description", aBrief.Description);
+			append_number(aResult, "brief.description.cut_bytes", aBrief.DescriptionCutBytes);
+			append_field(aResult, "brief.base_branch", aBrief.BaseBranch);
+			append_field(aResult, "brief.workspace", core::stable_name(aBrief.Workspace));
+			// The diff is named rather than copied; a snapshot has no base to
+			// compare with, and says so by naming none.
+			auto diff = std::string{ };
+			if (aBrief.Workspace != core::brief_workspace::private_snapshot) {
+				diff = "git diff " + std::string{ core::canonical_hex(aBinding.BaseOid).view() } + "..." + std::string{ core::canonical_hex(aBinding.HeadOid).view() };
+			}
+			append_field(aResult, "brief.diff", diff);
+			append_number(aResult, "brief.file.count", aBrief.Files.size());
+			for (auto index = std::size_t{ 0U }; index < aBrief.Files.size(); ++index) {
+				const auto  prefix = "brief.file." + std::to_string(index);
+				const auto& file   = aBrief.Files[index];
+				append_field(aResult, prefix + ".path", file.Path);
+				append_field(aResult, prefix + ".status", core::stable_name(file.Status));
+				append_field(aResult, prefix + ".previous_path", file.PreviousPath.value_or(std::string{ }));
+			}
+			append_number(aResult, "brief.file.omitted", aBrief.FilesOmitted);
+			append_number(aResult, "brief.thread.count", aBrief.Threads.size());
+			for (auto index = std::size_t{ 0U }; index < aBrief.Threads.size(); ++index) {
+				const auto  prefix = "brief.thread." + std::to_string(index);
+				const auto& thread = aBrief.Threads[index];
+				append_field(aResult, prefix + ".path", thread.Path);
+				append_field(aResult, prefix + ".line", thread.Line ? std::to_string(*thread.Line) : std::string{ });
+				append_number(aResult, prefix + ".resolved", thread.Resolved ? 1 : 0);
+				append_number(aResult, prefix + ".outdated", thread.Outdated ? 1 : 0);
+				append_number(aResult, prefix + ".comment.count", thread.Comments.size());
+				for (auto comment = std::size_t{ 0U }; comment < thread.Comments.size(); ++comment) {
+					const auto at = prefix + ".comment." + std::to_string(comment);
+					append_field(aResult, at + ".author", thread.Comments[comment].Author);
+					append_field(aResult, at + ".body", thread.Comments[comment].Body);
+				}
+			}
+			append_number(aResult, "brief.thread.omitted", aBrief.ThreadsOmitted);
+			// [[BPR-1753]], owner decision (b). The conversation so far
+			// about this pull request, oldest first, so a follow-up continues it
+			// in whichever harness answers.
+			append_number(aResult, "brief.conversation.count", aBrief.Conversation.size());
+			for (auto index = std::size_t{ 0U }; index < aBrief.Conversation.size(); ++index) {
+				const auto prefix = "brief.conversation." + std::to_string(index);
+				append_field(aResult, prefix + ".asked", aBrief.Conversation[index].Asked);
+				append_field(aResult, prefix + ".answered", aBrief.Conversation[index].Answered);
+			}
+			append_number(aResult, "brief.conversation.omitted", aBrief.ConversationOmitted);
+			append_number(aResult, "brief.skill.present", aBrief.Skill ? 1 : 0);
+			if (aBrief.Skill) {
+				append_field(aResult, "brief.skill.source", core::stable_name(aBrief.Skill->Source));
+				append_field(aResult, "brief.skill.version", aBrief.Skill->Version ? std::to_string(*aBrief.Skill->Version) : std::string{ });
+				append_field(aResult, "brief.skill.text", aBrief.Skill->Text);
+			}
+		}
+
 		template <typename TSink>
 		void encode_supplement_into(TSink& aResult, const core::agent_context_supplement& aSupplement)
 		{
@@ -2069,6 +2173,12 @@ namespace bpr::application {
 				}
 				append_field(aResult, prefix + ".text", draft.Text);
 			}
+
+			// [[BPR-1752]]. Written only when present, as the feedback
+			// guidance is: a launch that is not a review request adds no line.
+			if (aSupplement.Brief) {
+				encode_brief_into(aResult, *aSupplement.Brief, aSupplement.Session.Binding);
+			}
 		}
 
 		template <typename TSink>
@@ -2145,8 +2255,17 @@ namespace bpr::application {
 			if (aProtocol == core::agent_protocol::codex_app_server) {
 				return true;
 			}
+			// [[BPR-1753]], owner look v002: Claude Code also takes an
+			// effort as `--effort`, and Codex's exec a model and a reasoning
+			// effort, each one argument of a closed vocabulary or a name
+			// `core::valid_claude_model` admits.
 			if (aProtocol == core::agent_protocol::claude_stream_json) {
-				return !aSettings.Effort && (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
+				return (!aSettings.Effort || core::valid_agent_effort(core::agent_program::claude, *aSettings.Effort))
+					&& (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
+			}
+			if (aProtocol == core::agent_protocol::codex_jsonl_exec) {
+				return (!aSettings.Effort || core::valid_agent_effort(core::agent_program::codex, *aSettings.Effort))
+					&& (!aSettings.Model || core::valid_claude_model(*aSettings.Model));
 			}
 			return !aSettings.Model && !aSettings.Effort;
 		}
@@ -2155,6 +2274,21 @@ namespace bpr::application {
 			if (aSettings.Model) {
 				aArguments.emplace_back("--model");
 				aArguments.push_back(*aSettings.Model);
+			}
+			if (aSettings.Effort) {
+				aArguments.emplace_back("--effort");
+				aArguments.push_back(*aSettings.Effort);
+			}
+		}
+		void append_codex_exec_settings(std::vector<std::string>& aArguments, const core::agent_setting_facts& aSettings)
+		{
+			if (aSettings.Model) {
+				aArguments.emplace_back("-m");
+				aArguments.push_back(*aSettings.Model);
+			}
+			if (aSettings.Effort) {
+				aArguments.emplace_back("-c");
+				aArguments.push_back("model_reasoning_effort=\"" + *aSettings.Effort + "\"");
 			}
 		}
 		[[nodiscard]] auto settings_json(const core::agent_runtime_metadata& aMetadata) -> std::string
@@ -2251,6 +2385,7 @@ namespace bpr::application {
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
 			arguments.emplace_back("--json");
+			append_codex_exec_settings(arguments, settings);
 			arguments.emplace_back("-");
 			break;
 		case core::agent_protocol::claude_stream_json:
@@ -2279,6 +2414,7 @@ namespace bpr::application {
 			.Input       = frame_agent_input(aProfile.Protocol, payload),
 			.WritingOnly = aOptions.WritingOnly,
 		};
+		request.Profile = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;
 		}
@@ -2349,6 +2485,7 @@ namespace bpr::application {
 			.Input            = std::move(input),
 			.Metadata         = metadata,
 		};
+		request.Profile = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = std::string{ aDocument };
 		}
@@ -2404,6 +2541,96 @@ namespace bpr::application {
 				return malformed_payload();
 			}
 			payload.Findings.push_back(std::move(*finding));
+		}
+		return payload;
+	}
+
+	auto decode_agent_review_findings(const std::string_view aAnswer, const core::agent_session& aSession, const core::agent_finding_snapshot& aSnapshot)
+		-> std::optional<agent_finding_payload>
+	{
+		const auto opened = aAnswer.rfind(agent_review_findings_fence);
+		if (opened == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto body = aAnswer.find('\n', opened);
+		if (body == std::string_view::npos) {
+			return std::nullopt;
+		}
+		const auto closed = aAnswer.find("```", body + 1U);
+		const auto text   = aAnswer.substr(body + 1U, closed == std::string_view::npos ? std::string_view::npos : closed - body - 1U);
+		if (text.size() > maximum_agent_finding_payload_bytes) {
+			return std::nullopt;
+		}
+		const auto parsed = bounded_json_parser{ text }.parse();
+		if (!parsed) {
+			return std::nullopt;
+		}
+		const auto* list = parsed->Kind == json_kind::array_value ? &*parsed : member(*parsed, "findings");
+		if (list == nullptr || list->Kind != json_kind::array_value) {
+			return std::nullopt;
+		}
+		auto payload = agent_finding_payload{ .Session = aSession.Id };
+		for (const auto& element : list->Elements) {
+			if (payload.Findings.size() == maximum_agent_findings_per_turn) {
+				break;
+			}
+			if (element.Kind != json_kind::object_value) {
+				continue;
+			}
+			const auto* path       = string_member(element, "path");
+			const auto* claim      = string_member(element, "claim");
+			const auto* severity   = string_member(element, "severity");
+			const auto* category   = string_member(element, "category");
+			const auto* confidence = string_member(element, "confidence");
+			const auto  first      = decode_unsigned(member(element, "startLine"), 0xFFFF'FFFFU);
+			const auto  last       = member(element, "endLine") == nullptr ? first : decode_unsigned(member(element, "endLine"), 0xFFFF'FFFFU);
+			if (path == nullptr || path->empty() || path->size() > core::maximum_identified_path_bytes || claim == nullptr || claim->empty()
+				|| claim->size() > core::maximum_finding_claim_bytes || !first || !last || *first == 0U || *last < *first) {
+				continue;
+			}
+			const auto side = string_member(element, "side") == nullptr ? std::optional{ core::diff_side::right } : decode_side(*string_member(element, "side"));
+			const auto decodedSeverity
+				= severity == nullptr ? std::optional{ core::defect_severity::minor }
+									  : decode_named_enumerator(*severity, std::array{ core::defect_severity::trivial, core::defect_severity::minor, core::defect_severity::major, core::defect_severity::critical });
+			const auto decodedCategory   = category == nullptr ? std::optional{ core::defect_category::correctness }
+															   : decode_named_enumerator(*category, std::array{ core::defect_category::correctness, core::defect_category::security, core::defect_category::performance, core::defect_category::maintainability, core::defect_category::style, core::defect_category::documentation, core::defect_category::other });
+			const auto decodedConfidence = confidence == nullptr ? std::optional{ core::agent_finding_confidence::unstated } : decode_confidence(*confidence);
+			if (!side || !decodedSeverity || !decodedCategory || !decodedConfidence) {
+				continue;
+			}
+			const auto optionalText = [&element](const std::string_view aName, const std::size_t aMaximum) -> std::optional<std::string> {
+				const auto* found = string_member(element, aName);
+				if (found == nullptr) {
+					return std::string{ };
+				}
+				return found->size() <= aMaximum ? std::optional{ *found } : std::nullopt;
+			};
+			const auto evidence    = optionalText("evidence", core::maximum_finding_evidence_bytes);
+			const auto consequence = optionalText("consequence", core::maximum_finding_consequence_bytes);
+			const auto suggested   = optionalText("suggestedComment", core::maximum_finding_comment_bytes);
+			if (!evidence || !consequence || !suggested) {
+				continue;
+			}
+			auto finding = core::agent_finding{
+				.Provider         = aSession.Profile,
+				.Severity         = *decodedSeverity,
+				.Confidence       = *decodedConfidence,
+				.Category         = *decodedCategory,
+				.Path             = *path,
+				.Lines            = { .Begin = static_cast<std::uint32_t>(*first - 1U), .End = static_cast<std::uint32_t>(*last) },
+				.Claim            = *claim,
+				.Evidence         = *evidence,
+				.Consequence      = *consequence,
+				.SuggestedComment = suggested->empty() ? std::nullopt : suggested,
+				.AnalyzedBaseOid  = aSession.Binding.BaseOid,
+				.AnalyzedHeadOid  = aSession.Binding.HeadOid,
+			};
+			// Anchored only where the frozen snapshot holds the file; the core
+			// then checks the line against that file's line counts.
+			if (const auto frozen = std::ranges::find(aSnapshot.Files, *path, &core::agent_finding_snapshot_file::Path); frozen != aSnapshot.Files.end()) {
+				finding.Anchor.Line = core::source_line_ref{ .Comparison = frozen->Comparison, .Side = *side, .Line = static_cast<std::uint32_t>(*first - 1U) };
+			}
+			payload.Findings.push_back(std::move(finding));
 		}
 		return payload;
 	}
@@ -2492,6 +2719,13 @@ namespace bpr::application {
 		if (const auto admitted = admit_agent_input(aRequest); !admitted) {
 			return std::unexpected(admitted.error() == agent_launch_failure::input_too_large ? agent_protocol_failure::input_too_large : agent_protocol_failure::invalid_runtime_metadata);
 		}
+		if (aRequest.Purpose == agent_launch_purpose::model_catalog) {
+			// Owner look v006: the models, and nothing else.
+			if (aControl.Kind == agent_protocol_event_kind::initialization_complete) {
+				return std::string{ "{\"method\":\"initialized\"}\n{\"method\":\"model/list\",\"id\":1,\"params\":{}}\n" };
+			}
+			return std::unexpected(agent_protocol_failure::malformed_frame);
+		}
 		switch (aControl.Kind) {
 		case agent_protocol_event_kind::initialization_complete:
 			return app_server_thread_start(aRequest.Metadata);
@@ -2503,15 +2737,18 @@ namespace bpr::application {
 			return app_server_turn_input(aRequest.DeferredContext, aControl.Text, aRequest.Metadata);
 		}
 		case agent_protocol_event_kind::output:
-		case agent_protocol_event_kind::finding_payload: break;
+		case agent_protocol_event_kind::finding_payload:
+		case agent_protocol_event_kind::usage_report:
+		case agent_protocol_event_kind::model_catalog:   break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
 
 	agent_protocol_decoder::agent_protocol_decoder(
-		const core::agent_protocol aProtocol, bool aWritingOnly)
+		const core::agent_protocol aProtocol, bool aWritingOnly, const agent_launch_purpose aPurpose)
 		: Protocol{ aProtocol }
 		, WritingOnly{ aWritingOnly }
+		, Purpose{ aPurpose }
 	{
 	}
 
@@ -2520,6 +2757,37 @@ namespace bpr::application {
 	{
 		if (Failed) {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
+		}
+		if (Purpose == agent_launch_purpose::model_catalog) {
+			// Owner look v006. A catalog run carries no conversation, so the
+			// causal order its two follow-ups protect does not apply; the
+			// server's notifications are read past.
+			if (Protocol != core::agent_protocol::codex_app_server || aBytes.size() > maximum_agent_stdout_bytes - TotalBytes) {
+				Failed = true;
+				return std::unexpected(agent_protocol_failure::output_too_large);
+			}
+			TotalBytes += aBytes.size();
+			Pending.append(aBytes);
+			auto events = std::vector<agent_protocol_event>{ };
+			for (auto newline = Pending.find('\n'); newline != std::string::npos; newline = Pending.find('\n')) {
+				if (newline > maximum_agent_frame_bytes) {
+					Failed = true;
+					return std::unexpected(agent_protocol_failure::frame_too_large);
+				}
+				const auto frame = Pending.substr(0U, newline);
+				Pending.erase(0U, newline + 1U);
+				auto decoded = decode_app_server_catalog_frame(frame, Phase);
+				if (!decoded) {
+					Failed = true;
+					return std::unexpected(decoded.error());
+				}
+				events.insert(events.end(), std::make_move_iterator(decoded->begin()), std::make_move_iterator(decoded->end()));
+			}
+			if (Pending.size() > maximum_agent_frame_bytes) {
+				Failed = true;
+				return std::unexpected(agent_protocol_failure::frame_too_large);
+			}
+			return events;
 		}
 		if (
 			Protocol == core::agent_protocol::codex_app_server
@@ -2751,6 +3019,226 @@ namespace bpr::application {
 			aResult.Events.clear();
 		}
 		return aResult;
+	}
+
+	namespace {
+		/// The longest output of a status or version run that is read.
+		constexpr std::size_t maximum_status_output_bytes = 16U * 1024U;
+
+		[[nodiscard]] auto status_output(const agent_run_result& aResult) -> std::string
+		{
+			auto text = std::string{ };
+			for (const auto& event : aResult.Events) {
+				if (text.size() + event.Text.size() + 1U > maximum_status_output_bytes) {
+					break;
+				}
+				text += event.Text;
+				text += '\n';
+			}
+			return text;
+		}
+
+		/// The first word of the output that reads as a version: a digit, then
+		/// letters, digits, `.`, `+` and `-`, bounded.
+		[[nodiscard]] auto version_word(const std::string_view aOutput) -> std::string
+		{
+			auto position = std::size_t{ 0U };
+			while (position < aOutput.size()) {
+				while (position < aOutput.size() && (aOutput[position] == ' ' || aOutput[position] == '\n' || aOutput[position] == '\t' || aOutput[position] == '\r')) {
+					++position;
+				}
+				const auto begin = position;
+				while (position < aOutput.size() && aOutput[position] != ' ' && aOutput[position] != '\n' && aOutput[position] != '\t' && aOutput[position] != '\r') {
+					++position;
+				}
+				const auto word  = aOutput.substr(begin, position - begin);
+				const auto plain = !word.empty() && word.size() <= core::maximum_agent_version_bytes && word.front() >= '0' && word.front() <= '9'
+					&& std::ranges::all_of(word, [](const char aCharacter) {
+						   return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z')
+							   || aCharacter == '.' || aCharacter == '+' || aCharacter == '-';
+					   });
+				if (plain) {
+					return std::string{ word };
+				}
+			}
+			return { };
+		}
+	} // namespace
+
+	auto build_agent_status_launches(const core::setup_agent aAgent, const core::agent_profile& aProfile, std::string aProgram, const environment_reader& aParent)
+		-> std::optional<agent_status_launches>
+	{
+		if (aAgent == core::setup_agent::plain_text_harness || aProgram.empty() || core::setup_agent_of(aProfile.Protocol) != aAgent) {
+			return std::nullopt;
+		}
+		auto status       = agent_launch_request{ };
+		status.Protocol   = core::agent_protocol::external_terminal;
+		status.Session    = core::agent_session_id{ 1U };
+		status.Executable = std::move(aProgram);
+		status.Arguments  = aAgent == core::setup_agent::claude_code ? std::vector<std::string>{ "auth", "status", "--json" } : std::vector<std::string>{ "login", "status" };
+		// Not a review: no workspace, no context, an empty folder of its own.
+		status.WritingOnly = true;
+		status.Environment = materialize_agent_environment(aProfile, aParent);
+		auto version       = status;
+		version.Arguments  = { "--version" };
+		auto launches      = agent_status_launches{ };
+		launches.Status    = std::move(status);
+		launches.Version   = std::move(version);
+		return launches;
+	}
+
+	auto build_agent_model_catalog_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::codex_app_server;
+		request.Purpose    = agent_launch_purpose::model_catalog;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aProgram);
+		request.Arguments  = std::move(aFixed);
+		request.Arguments.emplace_back("app-server");
+		// Not a review: no workspace, no context, an empty folder of its own.
+		request.WritingOnly = true;
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Input       = frame_agent_input(core::agent_protocol::codex_app_server, { });
+		request.Profile     = aProfile.Id;
+		return request;
+	}
+
+	namespace {
+		/// \brief An effort as a harness names it: lowercase letters, a few.
+		[[nodiscard]] auto effort_word(const std::string_view aWord) -> bool
+		{
+			return !aWord.empty() && aWord.size() <= 16U && std::ranges::all_of(aWord, [](const char aByte) { return aByte >= 'a' && aByte <= 'z'; });
+		}
+	} // namespace
+
+	auto decode_agent_model_catalog(const agent_run_result& aResult) -> std::vector<agent_model_option>
+	{
+		auto models = std::vector<agent_model_option>{ };
+		if (aResult.Outcome != agent_run_outcome::success || !aResult.ModelCatalog) {
+			return models;
+		}
+		const auto  parsed = bounded_json_parser{ *aResult.ModelCatalog }.parse();
+		const auto* data   = parsed && parsed->Kind == json_kind::object_value ? member(*parsed, "data") : nullptr;
+		if (data == nullptr || data->Kind != json_kind::array_value) {
+			return models;
+		}
+		for (const auto& item : data->Elements) {
+			if (models.size() >= maximum_catalog_models || item.Kind != json_kind::object_value) {
+				break;
+			}
+			const auto* model    = string_member(item, "model");
+			const auto* name     = string_member(item, "displayName");
+			const auto* hidden   = member(item, "hidden");
+			const auto* chosen   = member(item, "isDefault");
+			const auto* fallback = string_member(item, "defaultReasoningEffort");
+			if (model == nullptr || !core::valid_claude_model(*model) || (hidden != nullptr && hidden->Kind == json_kind::boolean_value && hidden->Boolean)) {
+				continue;
+			}
+			auto option        = agent_model_option{ };
+			option.Model       = *model;
+			option.DisplayName = name != nullptr && !name->empty() && name->size() <= 80U ? *name : *model;
+			option.IsDefault   = chosen != nullptr && chosen->Kind == json_kind::boolean_value && chosen->Boolean;
+			if (fallback != nullptr && effort_word(*fallback)) {
+				option.DefaultEffort = *fallback;
+			}
+			if (const auto* efforts = member(item, "supportedReasoningEfforts"); efforts != nullptr && efforts->Kind == json_kind::array_value) {
+				for (const auto& effort : efforts->Elements) {
+					const auto* word = effort.Kind == json_kind::object_value ? string_member(effort, "reasoningEffort") : nullptr;
+					if (word != nullptr && effort_word(*word) && option.Efforts.size() < maximum_catalog_efforts && std::ranges::find(option.Efforts, *word) == option.Efforts.end()) {
+						option.Efforts.push_back(*word);
+					}
+				}
+			}
+			models.push_back(std::move(option));
+		}
+		return models;
+	}
+
+	auto build_agent_help_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::external_terminal;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aProgram);
+		request.Arguments  = std::move(aFixed);
+		request.Arguments.emplace_back("--help");
+		request.WritingOnly = true;
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Profile     = aProfile.Id;
+		return request;
+	}
+
+	auto decode_agent_help_efforts(const agent_run_result& aResult) -> std::vector<std::string>
+	{
+		auto efforts = std::vector<std::string>{ };
+		if (aResult.Outcome != agent_run_outcome::success) {
+			return efforts;
+		}
+		const auto output = status_output(aResult);
+		const auto option = output.find("--effort");
+		if (option == std::string::npos) {
+			return efforts;
+		}
+		// The levels are the first parenthesised list after the option, on
+		// its line or the next: "(low, medium, high, xhigh, max)".
+		const auto open  = output.find('(', option);
+		const auto close = open == std::string::npos ? std::string::npos : output.find(')', open);
+		if (open == std::string::npos || close == std::string::npos || open - option > 200U) {
+			return efforts;
+		}
+		auto list = std::string_view{ output }.substr(open + 1U, close - open - 1U);
+		while (!list.empty() && efforts.size() < maximum_catalog_efforts) {
+			const auto comma = list.find(',');
+			auto       word  = list.substr(0U, comma);
+			while (!word.empty() && (word.front() == ' ' || word.front() == '\n')) {
+				word.remove_prefix(1U);
+			}
+			while (!word.empty() && (word.back() == ' ' || word.back() == '\n')) {
+				word.remove_suffix(1U);
+			}
+			if (!effort_word(word)) {
+				return { };
+			}
+			efforts.emplace_back(word);
+			list = comma == std::string_view::npos ? std::string_view{ } : list.substr(comma + 1U);
+		}
+		return efforts;
+	}
+
+	auto decode_agent_status(const core::setup_agent aAgent, const agent_run_result& aStatus, const agent_run_result& aVersion) -> core::agent_status_check
+	{
+		auto       check = core::agent_status_check{ };
+		const auto ran   = [](const agent_run_result& aResult) {
+			return aResult.Outcome == agent_run_outcome::success || aResult.Outcome == agent_run_outcome::nonzero_exit;
+		};
+		if (!ran(aStatus)) {
+			return check;
+		}
+		const auto output = status_output(aStatus);
+		if (aAgent == core::setup_agent::claude_code) {
+			// `claude auth status` answers JSON by default: {"loggedIn": ...}.
+			auto parsed = bounded_json_parser{ output }.parse();
+			if (parsed && parsed->Kind == json_kind::object_value) {
+				const auto found = std::ranges::find(parsed->Members, std::string_view{ "loggedIn" }, &json_member::Name);
+				if (found != parsed->Members.end() && found->Value.Kind == json_kind::boolean_value) {
+					check.Status = found->Value.Boolean ? core::agent_status::signed_in : core::agent_status::not_signed_in;
+				}
+			}
+		} else if (aAgent == core::setup_agent::codex) {
+			// `codex login status` says "Logged in ..." and exits 0, or "Not
+			// logged in" and exits nonzero; it may write either stream.
+			const auto said = output + aStatus.StandardError.substr(0U, std::min(aStatus.StandardError.size(), maximum_status_output_bytes));
+			if (said.find("Not logged in") != std::string::npos) {
+				check.Status = core::agent_status::not_signed_in;
+			} else if (aStatus.Outcome == agent_run_outcome::success && said.find("Logged in") != std::string::npos) {
+				check.Status = core::agent_status::signed_in;
+			}
+		}
+		if (check.Status == core::agent_status::signed_in && ran(aVersion)) {
+			check.Version = version_word(status_output(aVersion));
+		}
+		return check;
 	}
 #endif
 } // namespace bpr::application

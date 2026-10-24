@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1736"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Learn when GitHub accepts a comment outside the diff",
+  "created": "2026-10-22T19:11:16.623785+00:00",
+  "base": "87c78a4ba60c3275dc7945444306b7380801fe4f"
+}

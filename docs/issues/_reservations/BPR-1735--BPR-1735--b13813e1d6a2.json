@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1735"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "An off-hunk comment never reaches the file-comment fallback",
+  "created": "2026-10-22T16:34:43.397460+00:00",
+  "base": "2721e0891999addf07879e37daef1468bc359aaf"
+}

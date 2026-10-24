@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <span>
@@ -69,9 +70,22 @@ namespace bpr::application {
 		bool                               WritingOnly = false;
 		core::agent_setting_facts          RequestedSettings;
 		std::optional<private_run_intent>  PrivateRun;
+		/// [[BPR-1751]], RFC-BPR-0092 Q7. The reviewer's linked clone,
+		/// whose history the session's workspace borrows read-only.
+		std::optional<std::filesystem::path> HistoryClone;
+		/// [[BPR-1753]], owner decision 2026-10-23 ("I guess we can keep
+		/// a timeout as an option, but i wouldnt want it on by default for my
+		/// work"): the run's time limit when the reviewer set one; none runs
+		/// until the agent finishes or Stop.
+		std::optional<int> RunLimitMilliseconds;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
+
+	/// \brief What "no limit" is to the process launchers: the longest wait
+	/// an `int` of milliseconds can name, a little under 25 days. A run that
+	/// long is ended only by Stop, closing the window or quitting.
+	inline constexpr int agent_run_without_limit = std::numeric_limits<int>::max();
 
 	/// \brief Exact identity admitted for one invocation's UI projections.
 	struct agent_invocation_projection_identity
@@ -182,6 +196,16 @@ namespace bpr::application {
 		void cancel();
 		void shutdown();
 		void retry_cleanup();
+
+		/// \brief [[BPR-1751]], RFC-BPR-0092 Check it works. Makes the
+		/// workspace an Ask on this binding would make, through the same
+		/// workspace port, then removes it, and answers on the decision lane.
+		/// \details No session is admitted and no agent runs: the probe's
+		/// session identity is from a reserved range no durable session uses.
+		/// It counts toward quiescence until it answers.
+		using workspace_probe_answer = std::function<void(std::expected<prepared_workspace, agent_workspace_error>)>;
+		void probe_workspace(core::application_session_id aApplicationSession, core::pull_request_authority aAuthority, core::agent_revision_binding aBinding,
+							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer);
 
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto statistics() const noexcept

@@ -613,7 +613,7 @@ Mandate `inline-markdown-images-r1` adopts RFC-DRAFT-0022 (owner decision 2026-1
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0085](RFC-BPR-0085-drawer-design-system.md) | One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status | In Progress | None |
+| [RFC-BPR-0085](RFC-BPR-0085-drawer-design-system.md) | One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status | Auto-Verified | Closed 2026-10-24 by [BPR-1595](../issues/60-done/BPR-1595-close-rfc-0085.md): the milestones' courses and the owner's accept of every milestone's frozen build; AC08's clipping course in the four themes at three scales after [BPR-1757](../issues/60-done/BPR-1757-drawer-surfaces-keep-their-words-at-every-width.md)'s layout repairs. Depends on None |
 
 Mandate `drawer-design-system-r1` adopts RFC-DRAFT-0023 as decided by the owner in attended session 9b6359b5 (BPR-1574). [Import and provenance](assets/drawers-and-agent-redesign-v1.LIVE_IMPORT.md); [plan](plans/drawer-design-system-v1/milestone-plan.json).
 
@@ -629,10 +629,15 @@ Mandate `insights-window-v1-r3` closes the available implementation: r2 retains 
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0087](RFC-BPR-0087-shared-action-buttons.md) | Carry the Overview button treatment through the app | In Progress | None |
+| [RFC-BPR-0087](RFC-BPR-0087-shared-action-buttons.md) | Carry the Overview button treatment through the app | Auto-Verified | Closed 2026-10-22 by [BPR-1662](../issues/60-done/BPR-1662-close-rfc-0087.md): AC02 to AC05 on the rebased candidate through the focused suites and the four-theme style and scale matrix, and the owner's Accept of AC01's look on a frozen build. No dependencies |
 
-Owner mandate `shared-action-buttons-r1` authorizes RFC authoring and initial
-implementation in an isolated worktree; no merge, push or release.
+Owner mandate `shared-action-buttons-r1` and the later disk-cleanup steering
+authorized the planned rollout on a Codex branch; on 2026-10-22 the owner
+directed it taken over, and it was rebased onto main with main's newer button
+surfaces brought in or retained with reasons. AC02 to AC05 pass on the
+rebased candidate, and the owner accepted AC01's look on a frozen build
+(session `053ec09c3451efe1c5ae725858a177fd`, closed). Native Windows and Linux
+desktops are not claimed. [Takeover and evidence](../verification/RFC-BPR-0087.md#takeover-onto-main--2026-10-22).
 [Import](assets/shared-action-buttons-v1.LIVE_IMPORT.md);
 [plan](plans/shared-action-buttons-v1/milestone-plan.json).
 
@@ -676,3 +681,36 @@ editable, one suggestion per Suggest change, an unplaceable change is marked
 and offered Convert to file comment, one pane shows the head file while
 editing, and the drawer no longer prefills a block.
 [Import](assets/pr-in-pane-suggestions-v1.LIVE_IMPORT.md).
+
+## Reactions and resolving conversations
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0091](RFC-BPR-0091-comment-reactions-and-resolve-conversation.md) | React to comments and resolve conversations as GitHub's web interface does | Auto-Verified | Closed 2026-10-22 by [BPR-1741](../issues/60-done/BPR-1741-react-to-comments-and-resolve-conversations.md): fixture rows and the composed course through the shipped composition on github-com and ghes-3.18, the live course on MikeMarcin/BPR-Test #132 with a second identity, and the owner's Accept of all three looks on a frozen build. Depends on RFC-BPR-0008, RFC-BPR-0015 |
+
+Drafted 2026-10-22 as RFC-DRAFT-0027 from the owner's report that reacting to
+a comment with an emoji and resolving a conversation were missing. Reactions
+are read after each snapshot and added or removed through the review mutation
+host; a write whose outcome is unclear is confirmed by reading GitHub's state
+back, never by sending it again. Resolve and reactions now go through the
+GitHub CLI connection as fixed GraphQL documents. The owner accepted the
+chips, the picker and Resolve conversation (session
+`3b59571c0c371e211a07e6a1c88e5711`, closed). Windows and Linux native runs are
+not claimed. [Import](assets/reactions-and-resolve-v1.LIVE_IMPORT.md).
+
+## Agent setup
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0092](RFC-BPR-0092-agent-first-run-setup.md) | Set up an agent the first time the Agent tab opens | Auto-Verified | Closed 2026-10-24 by [BPR-1756](../issues/60-done/BPR-1756-close-rfc-0092.md): fixture courses through the shipped composition and the owner's accept of the frozen build (AC14), AC06, AC07, AC09 and AC12 as the owner amended them. Depends on RFC-BPR-0003, RFC-BPR-0011, RFC-BPR-0012, RFC-BPR-0060, RFC-BPR-0085 |
+
+Drafted 2026-10-22 as RFC-DRAFT-0026 from the owner's request for setup UX
+the first time the Agent tab opens
+([BPR-1747](../issues/60-done/BPR-1747-set-up-an-agent-the-first-time.md)).
+Revision r3 records the owner's decisions D1 (the review workflow ships as an
+editable skill) and D2 (a clone folders setting) and answers to Q1 to Q9: a
+four-step setup in the tab, detection when it shows, the agent's status
+command as the check, plain names, Codex found as Claude is, a worktree of the
+reviewer's clone by default with the head from the application's own copy, and
+the review skill in each request's brief. Milestones BPR-1748 to AQ9.
+[Import](assets/agent-first-run-setup-v1.LIVE_IMPORT.md).

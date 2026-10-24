@@ -5,6 +5,12 @@ cmake_minimum_required(VERSION 4.4.2)
 # draft answers the thread and says so, publishes, the reply lands under its
 # thread on the next read, Resolve on the card resolves the thread through
 # the port and the thread comes back resolved.
+#
+# [[BPR-1741]]. With `--reaction-probe` the course goes on: Unresolve
+# conversation at the thread's end shows the thread open at once and GitHub's
+# answer settles it; the recorded thumbs up is read; pressing its chip shows
+# mine at once, the write confirms it and a second press removes it; Heart is
+# chosen in the picker by keyboard alone; and a refresh agrees with all of it.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -28,6 +34,7 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
             --github-fixture
             "${fixture}"
             --threaded-reply-probe
+            --reaction-probe
             --automated-run-budget-ms
             "${BPR_RUN_BUDGET_MS}"
         RESULT_VARIABLE probe_result
@@ -47,6 +54,8 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
         GITHUB_FIXTURE_OK:${fixture_label}
         THREADED_REPLY_OK
         THREADED_REPLY_EVIDENCE:11111
+        REACTION_OK
+        REACTION_EVIDENCE:11111111
     )
         string(FIND "${probe_output}" "${marker}" found)
         if(found EQUAL -1)

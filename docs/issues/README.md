@@ -42,10 +42,12 @@ its exact revised recovery question was accepted at hand-back 460. BPR-0958
 is Blocked on clean-account Keychain/authentication, full purge and residual
 evidence; the three scoped human accepts do not complete native qualification.
 BPR-0959 needs a native Intel Mac; BPR-0960 needs clean ordinary-user Windows
-10/11 desktop/auth/vault evidence; M9 completed exact PE mechanics but not those
-native courses. BPR-0961 now needs clean Ubuntu 26.04 desktop/vault and
-exact-package evidence under the owner's 2026-10-11 next-release amendment;
-WSL2 is an admitted producer, and Ubuntu 24.04/RHEL are outside the selected set. The
+11 desktop/auth/vault evidence on JaegAW; M9 completed exact PE mechanics but not
+those native courses. BPR-0961 now needs Ubuntu 26.04 WSL2/WSLg ordinary-user
+desktop/vault and exact-package evidence on JaegAW under the owner's 2026-10-11
+and 2026-10-16 amendments (confirmed by BPR-1743); Ubuntu 24.04/RHEL are outside
+the selected set. Windows 10 and other Linux environments are untested, not
+refused. The
 [M8 ledger](../verification/RFC-BPR-0014.md#milestone-8-native-candidates-and-pending-acceptance)
 retains the observed fixes and exact limitations. The
 [successor ledger](../verification/RFC-BPR-0038.md) preserves Qt 6.11.2,

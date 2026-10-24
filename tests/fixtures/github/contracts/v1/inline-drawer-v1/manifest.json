@@ -84,7 +84,7 @@
 			}
 		},
 		{
-			"body": "{\"query\":\"query GetReviewData($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid files(first:100){totalCount nodes{path viewerViewedState} pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve subjectType path diffSide line originalLine comments(first:100){totalCount nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{__typename login ... on Node{id}} replyTo{id}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}\",\"variables\":{\"name\":\"inline-drawer\",\"number\":22,\"owner\":\"bpr-fixtures\"}}",
+			"body": "{\"query\":\"query GetReviewData($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){id pullRequest(number:$number){id headRefOid locked files(first:100){totalCount nodes{path viewerViewedState} pageInfo{hasNextPage endCursor}} reviewThreads(first:100){totalCount nodes{id isResolved isOutdated viewerCanResolve viewerCanUnresolve viewerCanReply subjectType path diffSide line originalLine comments(first:100){totalCount nodes{id bodyText body url updatedAt fullDatabaseId commit{oid} originalCommit{oid} startLine originalStartLine pullRequestReview{id} path line originalLine outdated author{__typename login ... on Node{id}} replyTo{id}} pageInfo{hasNextPage endCursor}}} pageInfo{hasNextPage endCursor}}}}}\",\"variables\":{\"name\":\"inline-drawer\",\"number\":22,\"owner\":\"bpr-fixtures\"}}",
 			"canonical_query": "",
 			"method": "POST",
 			"operation": "ListReviewThreads",

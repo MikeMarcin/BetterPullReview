@@ -9,18 +9,22 @@
 #include <QAction>
 #include <QApplication>
 #include <QDateTime>
+#include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QMessageBox>
 #include <QPlainTextEdit>
+#include <QProxyStyle>
 #include <QPushButton>
 #include <QRegularExpression>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QSpacerItem>
 #include <QStackedWidget>
 #include <QTextCursor>
 #include <QThread>
@@ -447,6 +451,56 @@ namespace {
 		expect(text.contains(QStringLiteral("not private")) && !text.contains(QStringLiteral("changed")),
 			   "the panel names a refusal for privacy, not a changed selection");
 	}
+	/// [[BPR-1744]]. Each platform's button order, forced on the box.
+	class dialog_button_layout final : public QProxyStyle
+	{
+	public:
+		explicit dialog_button_layout(const QDialogButtonBox::ButtonLayout aLayout)
+			: Layout{ aLayout }
+		{ }
+		auto styleHint(const StyleHint aHint, const QStyleOption* aOption, const QWidget* aWidget, QStyleHintReturn* aReturn) const -> int override
+		{
+			return aHint == QStyle::SH_DialogButtonLayout ? static_cast<int>(Layout) : QProxyStyle::styleHint(aHint, aOption, aWidget, aReturn);
+		}
+
+	private:
+		QDialogButtonBox::ButtonLayout Layout;
+	};
+	/// \brief [[BPR-1744]]. The export dialog's Save is the box's accept
+	/// button, so on every platform it sits with Cancel at the right end, not
+	/// alone at the left as an action button does on macOS.
+	void save_sits_beside_cancel()
+	{
+		fixture test;
+		auto*   save = test.button(command::export_diagnostics);
+		auto*   box  = save != nullptr ? qobject_cast<QDialogButtonBox*>(save->parentWidget()) : nullptr;
+		expect(box != nullptr && box->button(QDialogButtonBox::Cancel) != nullptr && save->text() == QStringLiteral("Save…"),
+			   "Save is in the export dialog's button box with Cancel");
+		expect(box->buttonRole(save) == QDialogButtonBox::AcceptRole && box->buttonRole(box->button(QDialogButtonBox::Cancel)) == QDialogButtonBox::RejectRole,
+			   "Save accepts and Cancel rejects");
+		for (const auto layout : { QDialogButtonBox::MacLayout, QDialogButtonBox::WinLayout, QDialogButtonBox::KdeLayout, QDialogButtonBox::GnomeLayout }) {
+			dialog_button_layout style{ layout };
+			box->setStyle(&style);
+			auto       stretch = -1;
+			auto       saveAt  = -1;
+			auto       cancel  = -1;
+			const auto items   = box->layout()->count();
+			for (auto index = 0; index < items; ++index) {
+				auto* const item = box->layout()->itemAt(index);
+				if (item->widget() == save) {
+					saveAt = index;
+				} else if (item->widget() == box->button(QDialogButtonBox::Cancel)) {
+					cancel = index;
+				} else if (item->spacerItem() != nullptr && (item->spacerItem()->expandingDirections() & Qt::Horizontal) != 0) {
+					stretch = index;
+				}
+			}
+			box->setStyle(nullptr);
+			expect(stretch >= 0 && saveAt > stretch && cancel > stretch && (saveAt - cancel == 1 || cancel - saveAt == 1),
+				   "Save and Cancel sit together at the right, after the stretch, in every platform's order");
+			expect(layout != QDialogButtonBox::MacLayout || cancel < saveAt, "on macOS Save is the rightmost, after Cancel");
+		}
+	}
 }
 
 auto main(int aArgc, char** aArgv) -> int
@@ -459,6 +513,7 @@ auto main(int aArgc, char** aArgv) -> int
 	destructive_confirmation_and_stale_selection();
 	cancel_barrier_and_partial_failure();
 	not_private_refusal_is_named();
+	save_sits_beside_cancel();
 	std::cout << "release-maintenance-panel:pass keyboard accessibility exact-target default-cancel stale-dialog partial-failure worker-boundary incremental-preview\n";
 	return EXIT_SUCCESS;
 }

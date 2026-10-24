@@ -94,6 +94,11 @@ namespace bpr::app::detail {
 				if (window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled()) {
 					window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
 					window.home_open_action()->trigger();
+					// [[BPR-1735]]. This course publishes on review.cpp's line 2,
+					// outside GitHub's diff of the fixture, through RFC-BPR-0022's
+					// negotiation; its subject is that negotiation, so it places
+					// as a build before the hunk rule did.
+					github_application_fixture_access::set_whole_diff_placement_enabled(aApp, false);
 					++aCourse->Stage;
 				}
 				break;

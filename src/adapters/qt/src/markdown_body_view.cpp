@@ -1,5 +1,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "markdown_code.hpp"
 #include "markdown_document.hpp"
 #include "markdown_github.hpp"
@@ -628,10 +630,10 @@ namespace bpr::qt {
 		Controls       = new QWidget{ this };
 		auto* controls = new QHBoxLayout{ Controls };
 		controls->setContentsMargins(0, 0, 0, 0);
-		Toggle = new QPushButton{ QStringLiteral("View source"), this };
+		Toggle = new quiet_push_button{ QStringLiteral("View source"), this };
 		Toggle->setObjectName(QStringLiteral("markdownSourceToggle"));
 		Toggle->setAccessibleName(QStringLiteral("View original Markdown source"));
-		auto* copy = new QPushButton{ QStringLiteral("Copy source"), this };
+		auto* copy = new quiet_push_button{ QStringLiteral("Copy source"), this };
 		Copy       = copy;
 		copy->setAccessibleName(QStringLiteral("Copy original Markdown source"));
 		copy->setObjectName(QStringLiteral("markdownCopySource"));
@@ -1497,6 +1499,18 @@ namespace bpr::qt {
 			theme              = markdown_code_theme{ .Colors = code_role_colors_of(builtin_appearance_palette(variant)), .Variant = variant };
 		}
 		Code->style(*Rendered->document(), detail::markdown_code_colours_of(*theme, palette()), theme->Colors, theme->Variant, font(), CodeFont);
+	}
+
+	void markdown_body_view::set_inline_code_selector(std::string aSelector)
+	{
+		if (Code->inline_selector() == aSelector) {
+			return;
+		}
+		Code->set_inline_selector(std::move(aSelector));
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
 	}
 
 	void markdown_body_view::set_suggestions(std::optional<markdown_suggestion_presentation> aSuggestions)

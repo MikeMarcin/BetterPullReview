@@ -81,6 +81,7 @@
 					"totalCount": 17
 				},
 				"headRefOid": "2222222222222222222222222222222222222222",
+				"locked": false,
 				"id": "PR_21",
 				"reviewThreads": {
 					"nodes": [
@@ -161,7 +162,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -225,7 +227,8 @@
 							"path": "src/engine/renderer.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -274,7 +277,8 @@
 							"path": "src/main.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -323,7 +327,8 @@
 							"path": "src/ui/widgets/button.cpp",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -372,7 +377,8 @@
 							"path": "README.md",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						},
 						{
 							"comments": {
@@ -421,7 +427,8 @@
 							"path": "src/engine/shaders/post/bloom.frag",
 							"subjectType": "LINE",
 							"viewerCanResolve": true,
-							"viewerCanUnresolve": false
+							"viewerCanUnresolve": false,
+							"viewerCanReply": true
 						}
 					],
 					"pageInfo": {

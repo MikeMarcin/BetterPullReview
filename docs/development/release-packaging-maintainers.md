@@ -35,7 +35,7 @@ Build from committed, clean source.
 | Native build host | Preset and output | Required operator inputs |
 |---|---|---|
 | macOS | `macos-release`: universal x86_64/arm64, minimum macOS 14.4; app and ZIP, plus DMG for a full release | The existing Qt/macOS toolchain. Local prepare mode needs no Apple credential. |
-| Windows 10/11 x64 | `windows-app-release`: WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, the Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
+| Windows x64 (tested on Windows 11) | `windows-app-release`: WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, the Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
 | Ubuntu 26.04 LTS x86_64 (WSL2 can produce it) | `linux-package`: DEB and per-user archive | A C++23 compiler and library that pass the build's checks, the Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools, and libsecret and libxcb development files |
 
 All hosts also need CMake 4.4.2, Ninja, Python 3.10+ and a C++23 compiler and
@@ -80,8 +80,11 @@ No Linux compiler or libstdc++ baseline has completed native qualification yet.
   never silently bundled.
 - Linux selects X11 (`qxcb`), with XWayland on Wayland desktops. Native Wayland
   plugins are not included or claimed.
-- WSL2 may produce ordinary Linux binaries. WSL and WSLg testing does not
-  qualify a clean Ubuntu desktop, Secret Service or the installer.
+- WSL2 may produce ordinary Linux binaries. The tested Linux environment is
+  Ubuntu 26.04 under WSL2/WSLg (owner amendment 2026-10-16, confirmed
+  2026-10-23 UTC). A WSL shell build does not qualify the rendered WSLg
+  course, Secret Service or the installer. Native Linux desktops and other
+  distributions are untested, not refused.
 
 ## Prepare an unpublished candidate
 

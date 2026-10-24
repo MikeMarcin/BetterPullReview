@@ -1,5 +1,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include "bpr/qt/keyboard_focus_ring.hpp"
 
 #include "painted_glyph_icon.hpp"
@@ -285,6 +287,76 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 11.0 * unit, 6.0 * unit }, QPointF{ 13.0 * unit, 8.0 * unit });
 			},
 									  ink, disabled);
+		case drawer_glyph::copy:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				aPainter.drawRoundedRect(QRectF{ 8.5 * unit, 8.5 * unit, 11.0 * unit, 11.0 * unit }, 2.0 * unit, 2.0 * unit);
+				auto back = QPainterPath{ QPointF{ 5.0 * unit, 15.0 * unit } };
+				back.lineTo(5.0 * unit, 6.5 * unit);
+				back.quadTo(QPointF{ 5.0 * unit, 4.5 * unit }, QPointF{ 7.0 * unit, 4.5 * unit });
+				back.lineTo(15.0 * unit, 4.5 * unit);
+				aPainter.drawPath(back);
+			},
+									  ink, disabled);
+		case drawer_glyph::plus:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 12.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				const auto unit = aSide / 24.0;
+				aPainter.drawLine(QPointF{ 12.0 * unit, 6.0 * unit }, QPointF{ 12.0 * unit, 18.0 * unit });
+				aPainter.drawLine(QPointF{ 6.0 * unit, 12.0 * unit }, QPointF{ 18.0 * unit, 12.0 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::clear:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				aPainter.drawArc(QRectF{ 5.0 * unit, 5.0 * unit, 14.0 * unit, 14.0 * unit }, 100 * 16, 290 * 16);
+				aPainter.drawLine(QPointF{ 10.8 * unit, 5.1 * unit }, QPointF{ 7.5 * unit, 3.0 * unit });
+				aPainter.drawLine(QPointF{ 10.8 * unit, 5.1 * unit }, QPointF{ 8.4 * unit, 8.2 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::send:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 11.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				const auto unit = aSide / 24.0;
+				aPainter.drawLine(QPointF{ 12.0 * unit, 19.0 * unit }, QPointF{ 12.0 * unit, 5.5 * unit });
+				aPainter.drawLine(QPointF{ 12.0 * unit, 5.5 * unit }, QPointF{ 6.5 * unit, 11.0 * unit });
+				aPainter.drawLine(QPointF{ 12.0 * unit, 5.5 * unit }, QPointF{ 17.5 * unit, 11.0 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::history:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				aPainter.drawArc(QRectF{ 4.5 * unit, 4.5 * unit, 15.0 * unit, 15.0 * unit }, 150 * 16, -300 * 16);
+				aPainter.drawLine(QPointF{ 5.4 * unit, 8.2 * unit }, QPointF{ 5.0 * unit, 4.8 * unit });
+				aPainter.drawLine(QPointF{ 5.4 * unit, 8.2 * unit }, QPointF{ 8.7 * unit, 7.8 * unit });
+				aPainter.drawLine(QPointF{ 12.0 * unit, 8.0 * unit }, QPointF{ 12.0 * unit, 12.5 * unit });
+				aPainter.drawLine(QPointF{ 12.0 * unit, 12.5 * unit }, QPointF{ 15.0 * unit, 14.0 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::new_session:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 14.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				auto       box  = QPainterPath{ QPointF{ 12.0 * unit, 5.0 * unit } };
+				box.lineTo(6.5 * unit, 5.0 * unit);
+				box.quadTo(QPointF{ 4.5 * unit, 5.0 * unit }, QPointF{ 4.5 * unit, 7.0 * unit });
+				box.lineTo(4.5 * unit, 17.5 * unit);
+				box.quadTo(QPointF{ 4.5 * unit, 19.5 * unit }, QPointF{ 6.5 * unit, 19.5 * unit });
+				box.lineTo(17.0 * unit, 19.5 * unit);
+				box.quadTo(QPointF{ 19.0 * unit, 19.5 * unit }, QPointF{ 19.0 * unit, 17.5 * unit });
+				box.lineTo(19.0 * unit, 12.0 * unit);
+				aPainter.drawPath(box);
+				aPainter.drawLine(QPointF{ 10.5 * unit, 13.5 * unit }, QPointF{ 18.5 * unit, 5.5 * unit });
+				aPainter.drawLine(QPointF{ 10.5 * unit, 13.5 * unit }, QPointF{ 10.0 * unit, 14.0 * unit });
+			},
+									  ink, disabled);
 		case drawer_glyph::page:
 			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
 				aPainter.setPen(QPen{ aInk, aSide / 16.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
@@ -443,7 +515,7 @@ namespace bpr::qt {
 		Sentence->setForegroundRole(QPalette::PlaceholderText);
 		column->addWidget(Sentence);
 		if (aAction != nullptr) {
-			Action = new QToolButton{ this };
+			Action = new quiet_tool_button{ this };
 			Action->setObjectName(QStringLiteral("drawerEmptyAction"));
 			Action->setDefaultAction(aAction);
 			Action->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);

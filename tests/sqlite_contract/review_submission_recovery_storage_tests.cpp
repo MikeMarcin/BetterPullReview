@@ -157,7 +157,7 @@ namespace {
 				expect(saved.has_value(), "v3 receipt saved");
 			}
 			store.reset();
-			execute_sql(database(root), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
+			execute_sql(database(root), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; DROP TABLE logical_publication; PRAGMA user_version=3; UPDATE recovery_meta SET schema_format=3;");
 			store = storage(root.Path);
 			// [[BPR-1715]]. An unresolved one was possibly sent with no
 			// answer kept, since time zero.
@@ -204,7 +204,7 @@ namespace {
 		const auto          original = record();
 		expect(store->admit(original).has_value(), "v4 summary exists");
 		store.reset();
-		execute_sql(database(root), "DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
+		execute_sql(database(root), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; DROP TABLE staged_publication; PRAGMA user_version=4; UPDATE recovery_meta SET schema_format=4;");
 		store = storage(root.Path);
 		expect(store->load(original.Request.IdempotencyKey).value() == original && store->pending_staged()->empty(), "v4 migration preserves existing summary and admits empty staged table");
 	}
@@ -268,7 +268,7 @@ namespace {
 			auto                migrated = storage(older.Path);
 			expect(migrated->admit(expected).has_value(), "a v5 attempt exists");
 			migrated.reset();
-			execute_sql(database(older), "DROP TABLE submission_post; DROP TABLE submission_unknown; PRAGMA user_version=5; UPDATE recovery_meta SET schema_format=5;");
+			execute_sql(database(older), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; DROP TABLE submission_unknown; PRAGMA user_version=5; UPDATE recovery_meta SET schema_format=5;");
 			migrated = storage(older.Path);
 			expect(migrated->load(expected.Request.IdempotencyKey).value() == expected
 					   && migrated->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, first).has_value(),
@@ -325,7 +325,7 @@ namespace {
 					   && legacy->note_unknown(expected.Request.IdempotencyKey, expected.RequestFingerprint, diagnosis).has_value(),
 				   "a version 6 attempt is possibly sent and unknown");
 			legacy.reset();
-			execute_sql(database(older), "DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;");
+			execute_sql(database(older), "DROP TABLE off_hunk_fact; DROP TABLE publication_post; DROP TABLE submission_post; PRAGMA user_version=6; UPDATE recovery_meta SET schema_format=6;");
 			legacy            = storage(older.Path);
 			auto sent         = expected;
 			sent.Transmission = application::review_mutation_recovery_transmission::possibly_transmitted;
@@ -350,7 +350,7 @@ namespace {
 			expect(!store->load(expected.Request.IdempotencyKey), "corrupt snapshot or baseline fails integrity checks");
 			expect(!store->pending(), "pending discovery rejects corrupt records atomically");
 		}
-		for (const auto* mutation : { "PRAGMA user_version = 8", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT", "ALTER TABLE submission_unknown ADD COLUMN detail TEXT", "ALTER TABLE submission_post ADD COLUMN detail TEXT" }) {
+		for (const auto* mutation : { "PRAGMA user_version = 10", "ALTER TABLE submission_attempt ADD COLUMN unexpected TEXT", "ALTER TABLE submission_unknown ADD COLUMN detail TEXT", "ALTER TABLE submission_post ADD COLUMN detail TEXT" }) {
 			temporary_directory root;
 			auto                store = storage(root.Path);
 			store.reset();

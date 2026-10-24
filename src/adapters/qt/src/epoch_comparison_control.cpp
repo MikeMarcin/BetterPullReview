@@ -1,5 +1,7 @@
 #include "bpr/qt/epoch_comparison_control.hpp"
 
+#include "bpr/qt/quiet_tool_button.hpp"
+
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/menu_tool_button.hpp"
 #include "bpr/qt/pending_veil.hpp"
@@ -458,7 +460,7 @@ namespace bpr::qt {
 		auto* const aliasRow = new QHBoxLayout;
 		aliasRow->setContentsMargins(0, 0, 0, 0);
 		const auto makeButton = [this, aliasRow](QAction* const aAction) {
-			auto* const button = new QToolButton{ this };
+			auto* const button = new quiet_tool_button{ this };
 			button->setDefaultAction(aAction);
 			button->setFocusPolicy(Qt::StrongFocus);
 			button->setToolButtonStyle(Qt::ToolButtonTextOnly);
@@ -538,7 +540,7 @@ namespace bpr::qt {
 		statusColumn->addWidget(StatusLabel);
 		statusColumn->addWidget(ComparisonLabel);
 		footer->addLayout(statusColumn, 1);
-		LoadHistoryButton = new QToolButton{ this };
+		LoadHistoryButton = new quiet_tool_button{ this };
 		LoadHistoryButton->setObjectName(QStringLiteral("loadEpochHistoryButton"));
 		LoadHistoryButton->setDefaultAction(LoadHistoryAction);
 		LoadHistoryButton->setFocusPolicy(Qt::StrongFocus);
@@ -547,11 +549,11 @@ namespace bpr::qt {
 			QStringLiteral("returnToNewestEpochsButton"));
 		ReturnNewestButton->setDefaultAction(ReturnNewestAction);
 		ReturnNewestButton->setFocusPolicy(Qt::StrongFocus);
-		RefreshButton = new QToolButton{ this };
+		RefreshButton = new quiet_tool_button{ this };
 		RefreshButton->setObjectName(QStringLiteral("refreshEpochsButton"));
 		RefreshButton->setDefaultAction(RefreshAction);
 		RefreshButton->setFocusPolicy(Qt::StrongFocus);
-		CancelButton = new QToolButton{ this };
+		CancelButton = new quiet_tool_button{ this };
 		CancelButton->setObjectName(QStringLiteral("cancelEpochRefreshButton"));
 		CancelButton->setDefaultAction(CancelAction);
 		CancelButton->setFocusPolicy(Qt::StrongFocus);

@@ -1,5 +1,7 @@
 #include "bpr/qt/review_cycle_view.hpp"
 
+#include "bpr/qt/quiet_push_button.hpp"
+
 #include "bpr/core/sha256.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
@@ -601,7 +603,7 @@ namespace bpr::qt {
 		trayColumn->addWidget(Notes, 1);
 		// One discussion across files: the selection becomes a related location
 		// of the chosen note, which keeps its own.
-		RelateButton = new QPushButton{ QStringLiteral("Link selection to note"), tray };
+		RelateButton = new quiet_push_button{ QStringLiteral("Link selection to note"), tray };
 		RelateButton->setObjectName(QStringLiteral("cycleRelateSelection"));
 		RelateButton->setToolTip(QStringLiteral("Add the selected source as a related location of the selected note"));
 		trayColumn->addWidget(RelateButton);
@@ -624,7 +626,7 @@ namespace bpr::qt {
 		commentColumn->addWidget(CommentEditor);
 		auto* const commentButtons = new QHBoxLayout{ };
 		commentButtons->addStretch(1);
-		auto* const cancelComment = new QPushButton{ QStringLiteral("Cancel"), commentPage };
+		auto* const cancelComment = new quiet_push_button{ QStringLiteral("Cancel"), commentPage };
 		cancelComment->setObjectName(QStringLiteral("cycleCommentCancel"));
 		cancelComment->setToolTip(QStringLiteral("Discard this note (%1)").arg(cancel_key_words()));
 		auto* const saveComment = new QPushButton{ commentPage };
@@ -659,7 +661,7 @@ namespace bpr::qt {
 		replyColumn->addWidget(ReplyEditor);
 		auto* const replyButtons = new QHBoxLayout{ };
 		replyButtons->addStretch(1);
-		auto* const cancelReply = new QPushButton{ QStringLiteral("Cancel"), ReplyPage };
+		auto* const cancelReply = new quiet_push_button{ QStringLiteral("Cancel"), ReplyPage };
 		cancelReply->setObjectName(QStringLiteral("cycleReplyCancel"));
 		auto* const saveReply = new QPushButton{ ReplyPage };
 		saveReply->setObjectName(QStringLiteral("cycleReplySave"));

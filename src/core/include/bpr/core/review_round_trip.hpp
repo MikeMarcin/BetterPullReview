@@ -116,6 +116,41 @@ namespace bpr::core {
 		auto operator<=>(const review_comment_draft&) const = default;
 	};
 
+	/// \brief [[BPR-1745]]. The anchor line of a reply bound to its thread
+	/// rather than to a line.
+	/// \details The owner, 2026-10-22: "Allow replying to an outdated thread
+	/// from the drawer, like GitHub does". An outdated thread has no line in
+	/// the code, and GitHub takes a reply to it by the thread alone. Such a
+	/// reply keeps the comparison it was written in and this line, which no
+	/// document has (a line count is a 32-bit value, so the last index is one
+	/// below this), so nothing that looks for a draft at a line finds it,
+	/// while the store, the journal and the idempotency key keep the binding
+	/// as they keep any line. It is written on the right, the side the
+	/// journal keeps; the thread, not the side, says where it goes.
+	inline constexpr std::uint32_t thread_reply_line = 0xFFFF'FFFFU;
+
+	/// \brief [[BPR-1745]]. Whether an anchor is a thread-bound reply's.
+	[[nodiscard]] constexpr auto thread_bound_anchor(const source_line_ref& aAnchor) noexcept -> bool
+	{
+		return aAnchor.Line == thread_reply_line && aAnchor.Side == diff_side::right;
+	}
+
+	/// \brief [[BPR-1745]]. The anchor a thread-bound reply written in
+	/// `aComparison` takes.
+	[[nodiscard]] constexpr auto thread_reply_anchor(const file_comparison_digest& aComparison) noexcept -> source_line_ref
+	{
+		return source_line_ref{ .Comparison = aComparison, .Side = diff_side::right, .Line = thread_reply_line };
+	}
+
+	/// \brief [[BPR-1745]]. A reply bound to its thread, not a line: it
+	/// answers a thread, carries the thread-bound anchor, and has neither a
+	/// range nor a pending mark.
+	[[nodiscard]] constexpr auto thread_bound_reply(const review_comment_draft& aDraft) noexcept -> bool
+	{
+		return aDraft.ReplyToThread.has_value() && !aDraft.ReplyToThread->empty() && thread_bound_anchor(aDraft.Anchor)
+			&& !aDraft.StartLine.has_value() && !aDraft.InReview.has_value();
+	}
+
 	/// rief [[BPR-1345]]. A draft still being written that is pending in
 	/// the review: counted in it and sent with it.
 	[[nodiscard]] constexpr auto pending_in_review(const review_comment_draft& aDraft) noexcept -> bool
@@ -312,6 +347,9 @@ namespace bpr::core {
 		anonymous_read,
 		/// The server never said it resolves threads, or said it does not.
 		capability_absent,
+		/// GitHub says this viewer may not resolve (or unresolve) this
+		/// thread: `viewerCanResolve` / `viewerCanUnresolve` is false.
+		not_permitted,
 		/// The thread is already in the state asked for.
 		already_in_state,
 	};
@@ -323,6 +361,10 @@ namespace bpr::core {
 		bool                    AnonymousRead = false;
 		bool                    Resolved      = false;
 		bool                    Resolve       = true;
+		/// GitHub's per-thread permission for the direction asked. True when
+		/// GitHub did not say (an older read), so only a positive denial
+		/// refuses.
+		bool ViewerPermitted = true;
 
 		auto operator<=>(const thread_resolution_input&) const = default;
 	};
@@ -336,6 +378,9 @@ namespace bpr::core {
 		}
 		if (aInput.Capability != github_capability_state::supported) {
 			return thread_resolution_refusal::capability_absent;
+		}
+		if (!aInput.ViewerPermitted) {
+			return thread_resolution_refusal::not_permitted;
 		}
 		if (aInput.Resolved == aInput.Resolve) {
 			return thread_resolution_refusal::already_in_state;

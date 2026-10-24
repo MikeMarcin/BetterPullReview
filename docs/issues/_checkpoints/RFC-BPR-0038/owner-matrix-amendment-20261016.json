@@ -1,0 +1,26 @@
+{
+  "schema": "bpr.rfc0038.owner-matrix-amendment.v1",
+  "owner_task": "01a145b0-22d2-7343-acec-6e77ebe74d98",
+  "date": "2026-10-16",
+  "source_commit_before_amendment": "d0893a34964bf93886b3ef8f55246c6e16207ac9",
+  "active_targets": {
+    "macos": "native Intel and Apple Silicon macOS 13+; owner will set up Intel hardware",
+    "windows": "JaegAW Windows 11 x64, clean non-elevated ordinary-user desktop with Credential Manager",
+    "linux": "JaegAW Ubuntu 26.04 x86_64 under WSL2/WSLg, exact DEB and per-user archive, actual Secret Service and rendered ordinary-user courses"
+  },
+  "removed_requirements": [
+    "Windows 10 qualification",
+    "separate native Ubuntu desktop qualification"
+  ],
+  "claim_limit": "Linux release qualification and claims are limited to WSL2/WSLg; no native Ubuntu desktop support claim follows",
+  "historical_evidence": "Earlier elevated JaegAW SSH, administrative MSI extraction and WSL shell/producer results retain only their recorded narrow scopes",
+  "execution": "Documentation and scope amendment only; no new JaegAW package or desktop course run",
+  "unchanged_gates": "Exact final-artifact evidence, Mac clean accounts, ordinary-user Windows 11, WSL2/WSLg Secret Service, rendered/accessibility/authentication, native privacy, raw vulnerability failures, independent security and distribution decisions, source obligations and trust remain pending",
+  "verification": {
+    "milestone_plan_check": "pass; generated MILESTONES.md matches the adopted plan",
+    "documentation_unit_tests": "67/67 pass",
+    "git_diff_check": "pass",
+    "repository_documentation_gate": "blocked by unrelated allocator drift: NEXT_ID BPR-1558, historical high water BPR-1566 at this check; unchanged"
+  },
+  "status": "BPR-0959, BPR-0960, BPR-0961 and BPR-0962 stay Blocked; BPR-0973 stays Backlog; all nine RFC-BPR-0038 criteria remain open"
+}

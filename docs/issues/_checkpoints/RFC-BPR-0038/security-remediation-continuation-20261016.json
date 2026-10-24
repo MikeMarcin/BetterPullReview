@@ -1,0 +1,53 @@
+{
+  "schema": "bpr.rfc0038.security-remediation-continuation.v1",
+  "date": "2026-10-16",
+  "ownerTask": "01a14646-bfaa-7fd3-bc0b-a152e9ea9900",
+  "branch": "codex/rfc0038-security-audit-20261016",
+  "entryRevision": "af4eef944c94ca850ccf5dbd241cc1c7a6444f70",
+  "worktree": "/Users/jaeger/.codex/worktrees/rfc0038-security-audit/BetterPullReview",
+  "target": "BPR-0962",
+  "milestone": "m9-security-boundary-verification",
+  "strategySelection": "docs/issues/_checkpoints/RFC-BPR-0038/strategy-selection-security-audit-20261016.json",
+  "entryBinding": "docs/issues/_checkpoints/RFC-BPR-0038/milestone-binding-official-qt-followup-20261016.json",
+  "mandateRevision": "owner-qt-known-issues-20261016",
+  "ownerConstraint": "Qt-bundled PCRE2 and Windows zlib fixes must come through updated official Qt releases; no maintained Qt fork.",
+  "scope": "Engineering follow-up to the frozen independent review, with the owner accepting the listed Qt issues for deferral until official releases contain fixes. No product source or dependency pin changed, no replacement artifact built, no independent non-applicability evidence supplied by this decision.",
+  "report": "docs/verification/RFC-BPR-0038-security-remediation-followup-20261016-v1.md",
+  "evidence": "docs/verification/RFC-BPR-0038-security-remediation-followup-20261016-v1.json",
+  "completed": [
+    "Checked official Qt 6.12.0 and peeled its source tag: PCRE2 10.48 lacks the required stack fix; Windows gzwrite.c is identical to the vulnerable Qt 6.11.2 file.",
+    "Added source-backed D-Bus applicability proposals for MAC-025 through MAC-027 with exact-package library initialization and detector controls on both available architecture paths.",
+    "Mapped Apple distribution source tags and exported CRC-combine aliases; reproduced four bounded negative-length timeouts on macOS 26.6.2 arm64 and Rosetta x86_64.",
+    "Rechecked exact first-party source consumers and all 14 Mach-O images / 28 slices; no CRC-combine import or inspected consumer found.",
+    "Preserved the original review, queue, packet, proposals, artifact identities and raw scan failures.",
+    "Confirmed official Qt PCRE2 10.49 commits reference QTBUG-151047 and are merged into 6.11.3 and 6.12 source branches; no released-package qualification follows.",
+    "Recorded the owner decision to retain the seven listed scanner rows and outside-feed PCRE2 stack advisory as known upstream Qt issues, with proportionate technical documentation and no repeated deferral approval."
+  ],
+  "remaining": [
+    "Complete Apple supported-runtime patch evidence or complete delivered-closure proof for MAC-032; current system-library failure prevents claiming the runtime fixed.",
+    "Independent review and accountable security-owner acceptance of the remaining applicability proposals, including the D-Bus follow-up; the scoped owner Qt deferral needs no repeated approval.",
+    "Existing final-artifact trust, distribution/source-access and native privacy/vault/hardening obligations remain as listed in the RFC ledger."
+  ],
+  "workflowLimits": [
+    "Direct recipe preserved; no delegates. Serving route and scoped host enforcement not verified.",
+    "Isolated-worktree MASK preflight reports project.not_registered; shared registration unchanged.",
+    "Board inspect refuses stale NEXT_ID against shared historical high water. No counter rewind override, new allocation, claim, card move or acceptance."
+  ],
+  "validationRecord": "docs/verification/RFC-BPR-0038-security-remediation-followup-20261016-v1.json#/validation",
+  "acceptance": "BPR-0962 remains Blocked on release-security-inputs for the remaining requirements; AC1/AC2 pending, AC3 failed; all nine RFC-BPR-0038 criteria remain open. The listed Qt issues are accepted for deferral and are not blockers by themselves.",
+  "nextAction": "Continue the non-deferred qualification work. Recheck the known Qt issues when selecting an official Qt release or when material evidence changes exposure; no background monitoring scheduled.",
+  "activeCommandsOrWritersAtHandoff": [],
+  "ownerDecision": "docs/issues/_checkpoints/RFC-BPR-0038/owner-qt-known-issues-20261016.json",
+  "amendmentEntryRevision": "cab000578f779da62d2c602a01cbdf4c585c9460",
+  "deferredQtIssues": {
+    "decision": "docs/issues/_checkpoints/RFC-BPR-0038/owner-qt-known-issues-20261016.json",
+    "status": "accepted-known-issues-pending-official-qt-release",
+    "nextStep": "Verify the applicable fixes in official Qt source, update the project dependency through that release, and qualify the actual resulting packages before marking fixed.",
+    "recheckTriggers": [
+      "Selection of a new official Qt release",
+      "Material new evidence changing the assessed exposure"
+    ],
+    "releaseBlockerByThemselves": false
+  },
+  "ownerDecisionValidation": "docs/issues/_checkpoints/RFC-BPR-0038/owner-qt-known-issues-20261016.json#/validation"
+}

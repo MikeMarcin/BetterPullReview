@@ -7,6 +7,7 @@
 #include <QWidget>
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <span>
@@ -83,6 +84,9 @@ namespace bpr::qt {
 
 		void set_dispatch(agent_intent_dispatch aDispatch);
 		void set_configuration_observer(std::function<void()> aObserver);
+		/// \brief Owner decision 2026-10-23: the run time limit the reviewer
+		/// set (0 for none), so a run it ends says so plainly.
+		void set_run_limit_minutes(std::uint32_t aMinutes) noexcept { RunLimitMinutes = aMinutes; }
 
 		/// \brief Offers the profiles this host permits, and no others.
 		///
@@ -91,6 +95,10 @@ namespace bpr::qt {
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
 		void offer_profiles(std::span<const core::agent_profile> aProfiles);
+		/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved:
+		/// selected now when offered, and whenever profiles are offered again.
+		/// Absent, the first offered profile is selected, as before.
+		void prefer_profile(std::optional<core::agent_profile_id> aProfile);
 		/// \brief Offers only opaque current private-context identities, unchecked.
 		void offer_private_context(
 			std::span<const application::local_note_id>    aNotes,
@@ -124,6 +132,27 @@ namespace bpr::qt {
 		[[nodiscard]] auto existing_checkout_action() const noexcept -> QAction*;
 		[[nodiscard]] auto disclosure_text() const -> QString;
 		[[nodiscard]] auto status_text() const -> QString;
+		/// \brief [[BPR-1738]]. Why the last run stopped and what to do,
+		/// in a reviewer's words, when there is more to say than its outcome.
+		[[nodiscard]] auto stop_reason_text() const -> QString;
+		/// \brief [[BPR-1753]], owner look v001. Where the running
+		/// request is: its workspace being made, or the agent running.
+		enum class phase : std::uint8_t {
+			idle,
+			preparing,
+			running,
+		};
+		[[nodiscard]] auto current_phase() const noexcept -> phase { return Phase; }
+		/// The last line the agent wrote, for a live line while it works.
+		[[nodiscard]] auto latest_output_line() const -> QString;
+		/// Called whenever the request's phase, output or end changes.
+		void add_progress_observer(std::function<void()> aObserver);
+		/// [[BPR-1753]], owner look v002. What the last request's agent
+		/// reported running: its model, and its cost when the harness said.
+		[[nodiscard]] auto last_reported_model() const -> QString { return LastModel; }
+		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
+		/// [[BPR-1753]]. How the last request ended, while nothing runs.
+		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
@@ -137,9 +166,12 @@ namespace bpr::qt {
 	private:
 		void update_actions();
 
-		std::function<void()>                          ConfigurationObserver;
-		agent_intent_dispatch                          Dispatch;
-		QComboBox*                                     ProfileSelector        = nullptr;
+		std::function<void()> ConfigurationObserver;
+		std::uint32_t         RunLimitMinutes = 0U;
+		agent_intent_dispatch Dispatch;
+		QComboBox*            ProfileSelector = nullptr;
+		/// [[BPR-1749]]. Selected whenever it is offered.
+		std::optional<core::agent_profile_id>          PreferredProfile;
 		QAction*                                       StartAction            = nullptr;
 		QAction*                                       CancelAction           = nullptr;
 		QAction*                                       ExistingCheckoutAction = nullptr;
@@ -155,6 +187,13 @@ namespace bpr::qt {
 		bool                                           Running                = false;
 		bool                                           Disclosed              = false;
 		std::optional<application::agent_draft_choice> OfferedDraft;
+		QString                                        StopReason;
+		std::optional<application::agent_run_outcome>  LastOutcome;
+		QString                                        LastModel;
+		QString                                        LastCost;
+		phase                                          Phase = phase::idle;
+		std::vector<std::function<void()>>             ProgressObservers;
+		void                                           progressed();
 		std::optional<application::agent_invocation_projection_identity>
 			ActiveInvocation;
 

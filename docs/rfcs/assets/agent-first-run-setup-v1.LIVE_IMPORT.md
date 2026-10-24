@@ -1,0 +1,51 @@
+# Live import: agent-first-run-setup-v1
+
+Imported 2026-10-22 on the lane `worktree-agent-a7c9be9edf974a7e8`, based on
+local `main` at `92162efed`, which holds the draft as committed in
+`c47ad93e6`, `996f560ba` and `cb22d35be`.
+
+Renumbered 2026-10-22 from RFC-BPR-0091 to RFC-BPR-0092 when the lane was
+rebased onto `main` at `4e318b625`: RFC-BPR-0091 had landed there first, for
+comment reactions and resolving conversations. The rebased slices are
+`c3a561778` (AQ1), `d005bb3ae` (AQ2), `860bd14f4` (AQ3), `f4ada43e5` (AQ4) and
+`c3dda29b6` (AQ5), as rebased again onto `main` at `27d17fea5` and then `b8d2ec6cf` , `ee99318f4` and `055bed96e` (look v002's frozen build is of `f51ae6acf`, the same lane on `b8d2ec6cf`) (RFC-BPR-0087's
+shared action buttons, which the setup's new buttons use); AQ6 is `a7d0d3768`
+and AQ7 `9b5ac1811`. Their cards and reseal notes name these identities.
+
+## Mapping
+
+| Draft | Live | Note |
+|---|---|---|
+| `RFC-DRAFT-0026` (r2) | [RFC-BPR-0092](../RFC-BPR-0092-agent-first-run-setup.md) (r3) | Revised to the owner's answers to Q1 to Q9 and to [[BPR-1738]]'s sparse workspace before adoption; the draft is kept here unchanged as provenance. |
+| Proposed card `BPR-1747` | `docs/issues/60-done/BPR-1747-set-up-an-agent-the-first-time.md` | The phase 1 card, done with the answers recorded. |
+| Plan card 1 (core and Codex) | BPR-1748 | |
+| Plan card 5 (application setup host) | BPR-1749 | Ordered second, as the coordinator directed. |
+| Plan card 2 (clone discovery) | BPR-1750 | |
+| Plan card 3 (agent worktrees) | BPR-1751 | |
+| Plan card 4 (brief and skill) | BPR-1752 | With the Settings editor from plan card 7. |
+| Plan card 6 (Qt setup) | BPR-1753 | With the remaining Settings rows from plan card 7. |
+| Plan card 8 (documentation) | BPR-1754 | |
+| Plan card 8 (frozen build and look) | BPR-1755 | |
+| (none) | BPR-1756 | Closeout card for RFC-BPR-0092. |
+| Design frames v1 r2 | `docs/design/BPR-1747-agent-setup-v1/` | Kept as the questions' evidence and the adopted design. |
+
+Card IDs are provisional (`BPR-1747`, `AQ1` to `AQ9`). They are
+allocated on `main` by the coordinator with
+`python3 scripts/allocate_issue_id.py`, which renames the files and every
+reference together; this lane commits no counter or reservation.
+
+## Sessions
+
+- `29049098deb24f47c839771a46b05c4c` (r1's Q1 to Q6): no answers, superseded
+  by r2, released and stopped.
+- `349862f0cb991e14b6cb57cf80653c5f` (r2's Q1 to Q9): Q1 A and Q3 A saved by
+  the page; Q2 and Q4 to Q9 given in chat because the page's Accept/Reject
+  and Next controls failed. Stopped through the script and released.
+
+## Deliberate exclusions
+
+- The draft's Q8 B (the clone's own remote): the head never comes through the
+  reviewer's remote or credentials. A sparse review offers the fetch command
+  to copy instead.
+- The draft's Q9 B and C (writing the skill into worktrees or harness
+  folders).

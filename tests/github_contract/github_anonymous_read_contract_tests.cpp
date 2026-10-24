@@ -371,6 +371,7 @@ namespace {
 				|| operation == read_operation::list_branch_rules
 				|| operation == read_operation::get_branch_protection
 				|| operation == read_operation::resolve_body_images
+				|| operation == read_operation::list_reactions
 				|| operation == read_operation::get_team_membership
 				|| operation == read_operation::list_home_pull_requests) {
 				expect(!onGithub.has_value()
@@ -382,8 +383,8 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 12U && all_read_operations.size() == 23U,
-			   "twelve of twenty-three operations admit anonymous REST reads");
+		expect(eligible == 12U && all_read_operations.size() == 24U,
+			   "twelve of twenty-four operations admit anonymous REST reads");
 		expect(anonymous_read_operations.size() + 3U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
@@ -447,6 +448,7 @@ namespace {
 				semantic.PullRequestNumber = 17U;
 				break;
 			case read_operation::resolve_body_images:
+			case read_operation::list_reactions:
 				semantic.PullRequestNumber = 17U;
 				semantic.Nodes             = { "PR_kwDOA" };
 				break;

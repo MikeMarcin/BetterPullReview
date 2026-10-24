@@ -147,11 +147,21 @@ namespace bpr::application {
 	/// \brief [[BPR-1680]]. What one discovery read cost, for the diagnostics
 	/// log: the wire requests it sent, how long it waited for its turn on the
 	/// provider's lane after it was submitted, and how long it then ran.
+	/// [[BPR-1744]]. Of that run, how long its account operation took
+	/// to begin and how long its requests spent in the transport, and how
+	/// many of its answers were HTTP 403, 429 or 5xx or timed out, optional
+	/// reads' included (`core::discovery_diagnosis`).
 	struct personal_discovery_cost
 	{
-		std::uint32_t Requests         = 0U;
-		std::uint32_t WaitMilliseconds = 0U;
-		std::uint32_t RunMilliseconds  = 0U;
+		std::uint32_t Requests               = 0U;
+		std::uint32_t WaitMilliseconds       = 0U;
+		std::uint32_t RunMilliseconds        = 0U;
+		std::uint32_t CredentialMilliseconds = 0U;
+		std::uint32_t WireMilliseconds       = 0U;
+		std::uint32_t Forbidden              = 0U;
+		std::uint32_t Throttled              = 0U;
+		std::uint32_t ServerErrors           = 0U;
+		std::uint32_t Timeouts               = 0U;
 		/// Last attempted operation and observed status only; no URL or response content.
 		diagnostic_paged_operation LastReadOperation = diagnostic_paged_operation::none;
 		std::uint16_t              LastHttpStatus    = 0U;

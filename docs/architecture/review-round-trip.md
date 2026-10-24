@@ -597,6 +597,62 @@ A provider that cannot resolve threads or record viewed state reports that
 rather than skipping the operation. Silently skipping would leave a reviewer
 believing they had resolved something.
 
+## Reactions and resolving conversations ([[BPR-1741]])
+
+After the snapshot an authenticated read asks for the reactions of the pull
+request's review-thread comments, pull request comments and reviews with words
+(`ListReactions`, fifty node identities a page, at most four hundred a read,
+bound to the repository and pull request the snapshot read). A refused or
+rate-limited reaction read leaves reactions unread and the snapshot whole;
+public preview asks nothing.
+
+`core::decide_reaction` refuses a reaction for an anonymous read, unread
+reactions, GitHub's `viewerCanReact` false and a change to the same reaction
+still unanswered; `core::decide_thread_resolution` also refuses a direction
+GitHub denies the viewer (`viewerCanResolve`, `viewerCanUnresolve`). The
+mutation host carries a reaction as it carries a resolution, under a one-shot
+gesture grant bound to session, generation, target, actor and subject.
+
+The session observes the subject first (it must belong to the designated pull
+request), sends nothing when GitHub already shows the state asked, writes once,
+and takes the counts from the write's own answer. Neither a reaction nor a
+resolution keeps a recovery record: both are idempotent by state. An ambiguous
+outcome (a lost answer, a non-200 status or an unreadable body) is settled by
+one read of the subject's state: success only when GitHub shows the state
+asked, `not_confirmed` otherwise, and the write is never sent twice. An answer
+naming another subject or pull request is refused as the pre-flight would
+refuse it.
+
+The composition keeps `core::conversation_overlay`: a change shows at once,
+GitHub's answer replaces the read for that comment until the next read, and a
+confirmed change is dropped when a read agrees with it or disagrees twice, so
+a read begun before the write cannot undo it on screen. A failed change shows
+the read again and names why.
+
+## Replies on the GitHub CLI connection ([[BPR-1746]])
+
+The owner, 2026-10-23: "Oh yeah sure let gh allow that." `gh_cli_transport`
+carries a reply to a review thread (`ReplyToThread`), on a current line or
+bound to an outdated thread ([[BPR-1745]]), and its reconciliation read
+(`ObserveThreadComments`), each a fixed document compared byte for byte with
+its compiled form. The reply is the native reply: the same session, account
+lease, journal record, idempotency key and read-back. The journal marks it
+possibly sent before `gh` launches; a lost answer is settled from the thread,
+and the reply is never written a second time.
+
+The conversation read now carries GitHub's `viewerCanReply` for each thread and
+the pull request's lock, when the schema has them. `core::decide_thread_reply`
+refuses a reply GitHub would refuse before anything is written: GitHub's
+`viewerCanReply` false refuses it, with the lock as the reason when the pull
+request is locked. The lock alone refuses nothing, because GitHub's
+`viewerCanReply` already weighs it: on a locked pull request it is false for a
+reader and true for a collaborator, who can still reply (observed live on
+BPR-Test, 2026-10-23). A thread GitHub refuses shows no Reply field; one quiet
+line in its place says "This conversation is locked. Only collaborators can
+reply." or "GitHub doesn't let you reply in this thread.", and the menu's Reply
+is disabled with the same words. A schema without the fields leaves both
+unknown, and nothing is refused on them.
+
 ## Credential acquisition has no impact here
 
 RFC-BPR-0016 adds a second way to acquire the credential and changes nothing
@@ -1262,3 +1318,114 @@ refreshed publication is adopted without being presented again, the window
 asks again for its filtered line facts under the new request. Before, the
 placement waited on the previous request's answer until another file was
 chosen and this one again.
+
+## Comments outside GitHub's diff on the Whole PR diff ([[BPR-1735]])
+
+The owner's decision of 2026-10-22 (RFC-BPR-0022 amendment r5) admits the
+hunk rule above as placement evidence on the Whole PR diff too.
+`core::place_on_github_diff` answers, for a line or range of one side and the
+merge base to the head's correspondence, `in_diff` within
+`github_comment_context_lines` (three) of a change, `outside_diff` beyond it,
+`range_outside_diff` for a range not wholly in one hunk (hunks whose context
+touches are one, as Git's are), and `unknown` with no correspondence.
+`core::place_whole_diff_comment` turns that into a `filtered_comment_target`:
+`head` at the line, a `file_comment` (`outside_github_diff`) naming the line at
+the head or, on the left, the merge base, or `refused`
+(`range_outside_github_diff`). `place_filtered_comment` applies the same rule
+to a filtered diff's sides that are GitHub's own, which it used to place at the
+head unconditionally.
+
+The epoch host reads one file at the merge base GitHub names and at the
+accepted head, from the review's objects, and compares them with the review's
+own engine and exact whitespace (`resolve_github_diff_lines`); the merge base
+must be the accepted comparison's left commit. The composition asks once per
+file, head and merge base, for the selected line's file and for every file
+holding a comment pending in the review; no file need be shown. The mutation
+host repeats the placement from the source observation's
+`review_mutation_source_observation::WholeDiff` before any effect: a line
+outside every hunk is bound at the head with no remote line and marked
+`unresolvable_line` (a base line only when its document is the merge base's,
+with the left document for its permalink), so the provider admits it straight
+to the file comment as [[BPR-1706]] does; a range outside is refused; and
+`comment_destination` refuses such a line for a review. A source for another
+head is `stale_head`. With no merge base named or the lines unread, nothing is
+inferred and the comment is published natively, as before.
+
+A comment pending in the review that the core places outside GitHub's diff is
+held: the window marks it on Finish your review and on the comment with
+Publish as file comment (`workbench_window::present_unplaceable_review_comments`,
+`review_submission_editor::held_kind::unplaceable_line`), every verdict waits,
+and `review_submission_workflow` refuses Submit while one is carried. Publish
+as file comment opens the comment at its line and, once the core has placed it
+on the file, presses the drawer's own Publish, which takes it out of the
+review and publishes it alone through the logical journal.
+
+A fully received 4xx answer to a child whose reconciliation finds no new
+exact comment moves the publication to `rejected` and reports
+`unplaceable_line` (GitHub's words name a line it cannot place),
+`refused_not_published` or, for a migrated record, `settled_not_published`.
+`core::review_publication_outcome::rejected` unlocks a draft whose outcome was
+unknown, the one non-receipt that may. The core plans a rejected publication
+as from `initial`, and the journal admits a new first step under the same key
+(`native_prepared`, `unsupported_evidence_admitted` or
+`unresolvable_line_admitted`). Schema 8's `publication_post` keeps each child
+POST's answer: "no answer" with the transmission witness (best effort; a child
+with none kept only reconciles), then success, an error status's class, or no
+answer. Migration from schema 7 keeps every logical publication as answered
+before answers were, at the migration time;
+`core::publication_definitely_unpublished` settles such a child ten minutes
+later when GitHub's complete list holds none of it, and settles a kept 4xx at
+once. No answer, a success, a redirect and a server error never settle.
+
+## The learned comment-anywhere fact ([[BPR-1736]])
+
+The owner's decisions of 2026-10-22 (RFC-BPR-0022 amendment r6) let GitHub's
+own answer decide whether a line outside every hunk can be a native line
+comment. The fact is `core::off_hunk_creation_capability`, learned per
+profile, host, account, repository, operation, profile revision, product,
+server version, API version and classifier revision
+(`application::off_hunk_fact_key`), and kept in the recovery journal's
+`off_hunk_fact` table (schema 9) with the comment that taught it. The core
+decides everything about it as pure functions of explicit inputs
+(`bpr/core/off_hunk_fact.hpp`): what an answer teaches
+(`learn_off_hunk_fact`: created is supported, a 422 naming the line is
+unsupported, anything else nothing), how long a kept fact holds
+(`current_off_hunk_fact`: 14 days on GitHub.com, 30 on GitHub Enterprise
+Server), which of two is newer (`newer_off_hunk_fact`, a tie the refusal),
+which versions may key it, and where a comment goes under it
+(`route_github_comment`: `native`, `native_off_hunk`, `off_hunk_file`,
+`off_hunk_unknown`, `refused`; `holds_review_comment` with the fact).
+
+The composition opens the facts on their own connection to the journal
+(`adapters::sqlite::make_off_hunk_fact_store`) and presents the scope's fact
+without a server version (`load_scope`): the editor's notice
+(`filtered_comment_presentation::Learned`), the review's holds (the newer of
+the single comment's and the review's entries, D3) and the source
+observation's `OffHunkFact`. The mutation host routes a Whole PR line by it
+before any effect: `off_hunk_file` is `unresolvable_line` as before;
+`native_off_hunk` and `off_hunk_unknown` are bound `off_hunk` with
+`review_mutation_source_binding::CorePlacedOffHunk` (and, for a base line,
+the left document for a later file comment); `comment_destination` keeps
+`off_hunk_unknown` out of a review, and a range outside is refused unless
+supported.
+
+The provider decides by the exact key (`review_mutation_session::
+learned_file_comment`). On GitHub Enterprise Server it reads
+`installed_version` once per session (`review_mutation_operation::
+observe_server_meta`, `GET /meta`); the first key forgets entries kept under
+another server (`forget_other_servers`). A kept unsupported fact sends a fresh
+attempt straight to the file comment. Otherwise the native child is sent. A
+fully received 422 naming the line records unsupported under the version the
+answer names (`X-GitHub-Enterprise-Version`, kept by both transports on a
+review mutation's answer only, since no read metadata parser admits it).
+GitHub.com's measured tuple (`general_off_hunk_contract`, D4) makes the child
+`native_definitively_unsupported`, so the file child follows in the same
+Publish; any other such refusal rejects the child as `off_hunk_refused`, and
+the next Publish takes the file comment. A created comment, exactly parsed,
+records supported. Nothing else records anything.
+
+A review is never a probe. When `review_submission_workflow` reports a review
+refused for an unplaceable line that carried a line outside the diff under a
+supported fact, the composition demotes the fact for both operations
+(`application::demote_off_hunk_fact`) and re-presents the holds. Nothing is
+resent.
