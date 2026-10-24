@@ -25546,10 +25546,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 
 	auto detail::github_application_fixture_access::epoch_refresh_identity(
-		const github_application& aApplication) -> epoch_refresh_identity_evidence
+		const github_application& aApplication, const std::optional<core::bpr_window_context> aContext) -> epoch_refresh_identity_evidence
 	{
-		auto              result         = epoch_refresh_identity_evidence{ };
-		const auto* const implementation = aApplication.Implementation.get();
+		auto        result         = epoch_refresh_identity_evidence{ };
+		const auto* implementation = aApplication.Implementation.get();
+		if (aContext) {
+			const auto found = aApplication.Sessions.find(*aContext);
+			implementation   = found == aApplication.Sessions.end() ? nullptr : found->second.get();
+		}
 		if (implementation == nullptr || implementation->Window == nullptr
 			|| implementation->WorkbenchHost == nullptr
 			|| implementation->EpochHost == nullptr || implementation->TabHost == nullptr) {
@@ -25564,8 +25568,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr) {
 			result.ActiveTab = *active;
 		}
-		result.TabPending = tabs.Pending.has_value();
+		result.TabPending                = tabs.Pending.has_value();
+		result.AcceptedReading           = implementation->AcceptedReadingPosition;
+		result.PendingRestoration        = implementation->PendingRestoration.has_value();
+		result.ReadingRestoreUnavailable = implementation->ReadingRestoreUnavailable;
+		result.ReadingDestination        = implementation->ReadingDestination.has_value();
+		result.TabLoad                   = implementation->TabLoad.has_value();
+		result.TabPresented              = implementation->TabPresented.has_value();
+		result.Closing                   = implementation->Closing;
+		if (implementation->PaneFind) {
+			const auto counters    = implementation->PaneFind->counters();
+			result.SearchCounters  = { counters.Admitted, counters.Scheduled, counters.Terminals, counters.StaleTerminals, counters.ProjectionFailures, counters.IngressRefusals };
+			result.SearchQuiescent = implementation->PaneFind->is_quiescent();
+		}
 		if (const auto& publication = implementation->SelectedDiffPublication; publication) {
+			result.DiffRequestMatches   = implementation->SelectedDiffRequest == std::optional{ publication->Request };
+			result.GenerationMatches    = implementation->WorkbenchHost->generation() == publication->Request.Context.Generation;
 			result.PublishedFile        = publication->Request.File.File;
 			result.PublishedComparison  = publication->Request.Diff.Comparison;
 			const auto* surface         = implementation->Window->comparison_surface();

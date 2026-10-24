@@ -70,7 +70,7 @@ namespace {
 		expect(QDir{ }.mkpath(root), "owned render root");
 		expect(aWindow.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")), "full shipped composition render saved");
 	}
-	void query(qt::source_find_bar& aFind, const QString& aQuery)
+	void query(app::github_application& aApplication, qt::source_find_bar& aFind, const QString& aQuery)
 	{
 		static std::uint32_t ordinal = 0U;
 		++ordinal;
@@ -78,6 +78,7 @@ namespace {
 		aFind.flush();
 		wait_for([&] { return aFind.projection().Status != core::source_search_status::searching; }, "pane query terminal", [&] {
 			const auto& projection = aFind.projection();
+			const auto host = access::epoch_refresh_identity(aApplication);
 			const auto* surface = dynamic_cast<const qt::diff_workbench*>(aFind.parentWidget());
 			std::cerr << "PANE_QUERY_FAILURE ordinal=" << ordinal << " query=" << aQuery.toStdString()
 				<< " status=" << static_cast<int>(projection.Status) << " generation=" << projection.Generation
@@ -85,7 +86,11 @@ namespace {
 				<< " matches=" << projection.Summary.Matches << " hidden=" << aFind.isHidden()
 				<< " field_match=" << (aFind.query() == aQuery)
 				<< " matching_runs=" << (surface ? surface->statistics().FindMatchingRuns : 0U)
-				<< " cached_runs=" << (surface ? surface->statistics().FindCachedRuns : 0U) << '\n'; });
+				<< " cached_runs=" << (surface ? surface->statistics().FindCachedRuns : 0U)
+				<< " host_admitted=" << host.SearchCounters[0] << " host_scheduled=" << host.SearchCounters[1]
+				<< " host_terminals=" << host.SearchCounters[2] << " host_stale=" << host.SearchCounters[3]
+				<< " projection_failures=" << host.SearchCounters[4] << " ingress_refusals=" << host.SearchCounters[5]
+				<< " search_quiet=" << host.SearchQuiescent << " displayed=" << host.PublicationDisplayed << '\n'; });
 		settle();
 	}
 	/// [[BPR-1503]], [[BPR-1527]]. Find leaves both pane layouts and
@@ -193,13 +198,13 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(pane_geometry(*surface) == closedPanes, "opening Find leaves every pane's geometry unchanged");
 	expect_floating(*surface, *bar, *surface->right_pane(), "Find floats over the focused right pane's top-right corner");
-	query(*bar, QStringLiteral("offscreen needle"));
+	query(*application, *bar, QStringLiteral("offscreen needle"));
 	expect(pane_geometry(*surface) == closedPanes, "a query and its reveal leave the panes' geometry unchanged");
 	expect(bar->projection().Summary.Matches == 1U && surface->right_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"), "Find reaches full offscreen unchanged source");
 	expect(surface->left_pane()->textCursor().selectedText().isEmpty() && surface->selection()->PreferredLine.Side == core::diff_side::right, "right Find does not select left source");
 	expect(surface->source_line_visible(core::diff_side::right, 1102U), "shared controller reveals offscreen actual row");
 	render(window, QStringLiteral("01-split-offscreen"));
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	expect(bar->projection().Summary.Matches == 2U, "complete match count");
 	{
 		const auto [matches, currents] = find_washes(*surface->right_pane());
@@ -254,7 +259,7 @@ int main(int aArgc, char** aArgv)
 	expect(pane_geometry(*surface) == closedPanes, "closing Find leaves the panes' geometry unchanged");
 	surface->right_pane()->setFocus();
 	findAction->trigger();
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	const auto records     = bar->projection().Matches;
 	const auto diff        = surface->current_result();
 	const auto index       = surface->current_semantic_index();
@@ -270,11 +275,11 @@ int main(int aArgc, char** aArgv)
 	expect(bar->projection().Matches == records && surface->current_result() == diff && surface->current_semantic_index() == index, "traversal shares exact records/material/index without replacement");
 	expect(surface->statistics().FindEndpointConversions == conversions, "1,000 traversals perform zero source endpoint conversions");
 	expect(surface->statistics().FindMatchingRuns == scans, "1,000 traversals call no source matcher");
-	query(*bar, QStringLiteral("earlier only"));
+	query(*application, *bar, QStringLiteral("earlier only"));
 	expect(bar->projection().NoResults, "right pane cannot match left-only content");
 	surface->left_pane()->setFocus();
 	findAction->trigger();
-	query(*bar, QStringLiteral("earlier only"));
+	query(*application, *bar, QStringLiteral("earlier only"));
 	expect(bar->projection().Summary.Matches == 1U && surface->left_pane()->textCursor().selectedText() == QStringLiteral("earlier only"), "explicit left Find retargets exact earlier source");
 	surface->close_source_find();
 	settle();
@@ -288,7 +293,7 @@ int main(int aArgc, char** aArgv)
 	QApplication::sendEvent(surface->left_pane()->viewport(), &release);
 	findAction->trigger();
 	expect(bar->query() == "earlier", "real source caret seeds its native word");
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	bar->query_editor()->setPlainText(QStringLiteral("nee"));
 	auto editCaret = bar->query_editor()->textCursor();
 	editCaret.movePosition(QTextCursor::End);
@@ -314,7 +319,7 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return bar->projection().Summary.Matches == 1U; }, "selected text seeded through worker");
 	expect(bar->query() == "offscreen needle", "native selection seed");
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindSelection"))->click();
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	const auto fixed = bar->projection().Scope->Selection;
 	expect(fixed && bar->projection().Summary.Matches == 1U, "Find in Selection excludes other occurrence");
 	for (int step = 0; step < 20; ++step) {
@@ -322,7 +327,7 @@ int main(int aArgc, char** aArgv)
 	}
 	expect(bar->projection().Scope->Selection == fixed, "navigation never moves fixed source bounds");
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindSelection"))->click();
-	query(*bar, QString::fromUtf8("𝄞 café Σσς"));
+	query(*application, *bar, QString::fromUtf8("𝄞 café Σσς"));
 	auto queryCaret = bar->query_editor()->textCursor();
 	queryCaret.movePosition(QTextCursor::End);
 	bar->query_editor()->setTextCursor(queryCaret);
@@ -331,31 +336,31 @@ int main(int aArgc, char** aArgv)
 	tests::window_system_key(window, Qt::Key_Return);
 	wait_for([&] { return bar->projection().Summary.Matches == 1U && bar->projection().Status == core::source_search_status::complete; }, "Enter bypasses multiline typing debounce");
 	settle();
-	query(*bar, QString::fromUtf8("𝄞 café Σσς\nStraße K𐐀"));
+	query(*application, *bar, QString::fromUtf8("𝄞 café Σσς\nStraße K𐐀"));
 	expect(bar->projection().Summary.Matches == 1U, "Unicode multiline CRLF logical query");
 	expect(surface->left_pane()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')) == QString::fromUtf8("𝄞 café Σσς\nStraße K𐐀"), "exact surrogate/scalar and CRLF native span");
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindRegex"))->click();
-	query(*bar, QStringLiteral("("));
+	query(*application, *bar, QStringLiteral("("));
 	expect(bar->projection().Status == core::source_search_status::invalid_pattern && !bar->projection().Matches && !nextAction->isEnabled(), "invalid regex clears current hits and navigation");
 	expect(bar->error_state() && bar->status_text() == QStringLiteral("Invalid regular expression") && bar->query_editor()->parentWidget()->toolTip() == QStringLiteral("Invalid regular expression"), "an invalid regex is an error state on the field, its message in the tooltip");
 	render(window, QStringLiteral("05-invalid-regex"));
-	query(*bar, QStringLiteral("(?=needle)"));
+	query(*application, *bar, QStringLiteral("(?=needle)"));
 	expect(bar->projection().Status == core::source_search_status::unsupported_pattern && bar->error_state(), "bounded unsupported regex status");
-	query(*bar, QStringLiteral("\\z"));
+	query(*application, *bar, QStringLiteral("\\z"));
 	expect(bar->projection().Summary.Matches == 1U && surface->left_pane()->textCursor().position() == surface->left_pane()->document()->characterCount() - 1, "terminal zero-width match selects actual native EOF once");
 	expect(!surface->selection(), "EOF without a source line cannot invent a comment anchor");
 
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindRegex"))->click();
-	query(*bar, QStringLiteral("ΣΣΣ"));
+	query(*application, *bar, QStringLiteral("ΣΣΣ"));
 	expect(bar->projection().Summary.Matches == 1U, "shared Unicode simple fold default");
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindCase"))->click();
 	wait_for([&] { return bar->projection().NoResults; }, "Match Case distinguishes exact source scalars");
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindCase"))->click();
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindWord"))->click();
-	query(*bar, QStringLiteral("need"));
+	query(*application, *bar, QStringLiteral("need"));
 	expect(bar->projection().NoResults, "Whole Word excludes prefixes");
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindWord"))->click();
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	const auto beforeCloseScans       = surface->statistics().FindMatchingRuns;
 	const auto beforeCloseConversions = surface->statistics().FindEndpointConversions;
 	const auto beforeCloseMatch       = *bar->projection().CurrentMatch;
@@ -378,9 +383,9 @@ int main(int aArgc, char** aArgv)
 	findAction->trigger();
 	settle();
 	expect(bar->query() == "needle" && bar->status_text().contains(QStringLiteral("4 KiB")) && bar->error_state() && bar->findChild<QLabel*>(QStringLiteral("sourceFindStatus"))->toolTip().contains(QStringLiteral("4 KiB")), "oversized source seed retains the query and shows the input limit as the field's error, its words in the tooltip");
-	query(*bar, QString(4097, QLatin1Char('a')));
+	query(*application, *bar, QString(4097, QLatin1Char('a')));
 	expect(bar->projection().Status == core::source_search_status::invalid_input && !bar->projection().Matches && !nextAction->isEnabled(), "oversized native query refuses work and old hits");
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	surface->close_source_find();
 	bar->findChild<QToolButton*>(QStringLiteral("sourceFindRegex"))->click();
 	const auto literal = surface->left_pane()->document()->find(QStringLiteral("a+b(c)[d]?"));
@@ -396,13 +401,13 @@ int main(int aArgc, char** aArgv)
 	surface->focus_source();
 	QApplication::processEvents();
 	findAction->trigger();
-	query(*bar, QStringLiteral("offscreen needle"));
+	query(*application, *bar, QStringLiteral("offscreen needle"));
 	expect(bar->projection().Summary.Matches == 1U, "unified unchanged row is searched once");
-	query(*bar, QStringLiteral("removed bridge\nadded bridge"));
+	query(*application, *bar, QStringLiteral("removed bridge\nadded bridge"));
 	expect(bar->projection().NoResults, "unified adjacency cannot fabricate cross-version match");
-	query(*bar, QStringLiteral("removed bridge"));
+	query(*application, *bar, QStringLiteral("removed bridge"));
 	expect(bar->projection().Summary.Matches == 1U && surface->selection()->PreferredLine.Side == core::diff_side::left, "unified removed hit selects actual version");
-	query(*bar, QStringLiteral("removed bridge\n// unchanged source row 0000"));
+	query(*application, *bar, QStringLiteral("removed bridge\n// unchanged source row 0000"));
 	expect(bar->projection().Summary.Matches == 1U, "unified multiline follows contiguous actual earlier version");
 	auto* unified = surface->findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
 	expect_floating(*surface, *bar, *unified, "Find floats over the unified pane's top-right corner");
@@ -417,7 +422,7 @@ int main(int aArgc, char** aArgv)
 	tests::window_system_key(window, Qt::Key_C, Qt::ControlModifier, QStringLiteral("c"));
 	expect(QApplication::clipboard()->text() == QStringLiteral("removed bridge\n// unchanged source row 0000"), "explicit Copy yields actual source occurrence around opposing rows");
 	bar->query_editor()->setFocus();
-	query(*bar, QStringLiteral("added bridge"));
+	query(*application, *bar, QStringLiteral("added bridge"));
 	expect(bar->projection().Summary.Matches == 1U && surface->selection()->PreferredLine.Side == core::diff_side::right, "unified added hit selects actual version");
 	render(window, QStringLiteral("02-unified"));
 	window.resize(1920, 1080);
@@ -430,7 +435,7 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return !surface->one_pane_enabled() && !surface->geometry_pending(); }, "split source ready again");
 	surface->right_pane()->setFocus();
 	findAction->trigger();
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	window.resize(900, 700);
 	settle();
 	std::cerr << "source-find-narrow window=" << window.width() << " surface=" << surface->width()
@@ -476,7 +481,7 @@ int main(int aArgc, char** aArgv)
 	settle();
 	appearance->choose_mode(beforeMode);
 	settle();
-	query(*bar, QStringLiteral("needle"));
+	query(*application, *bar, QStringLiteral("needle"));
 	open(*application, "src/other.cpp");
 	expect(!bar->projection().Matches && !bar->findChild<QToolButton*>(QStringLiteral("sourceFindSelection"))->isChecked(), "document replacement clears decorations and fixed selection immediately");
 	surface->close_source_find();
