@@ -2435,7 +2435,9 @@ note**, which opens that note in Notes (owner look v004). A file and line a
 question or an answer names (`path:34`, `path line 34`, `path lines 34–36`,
 "before the change" for the base, and in an answer a bare "line 34" when the
 question named one file) is a link when the path is one of the pull
-request's files, and opens it in Review at that line; fenced code is left as
+request's files, and a click on it, with Command held or not, opens it in
+Review and scrolls the code to that line, selected, once the file's
+comparison is measured (owner look v005); fenced code is left as
 written, and Copy keeps the answer as the agent wrote it. The header names
 the pull request (#17 and its title). With nothing asked, the conversation shows an icon and "Ask about
 this pull request" with one line under it. The question field clears once a
@@ -2447,13 +2449,14 @@ thread and switching back resumes it; each question carries its agent's
 earlier turns; and Clear session empties only the current agent's, asking
 first when turns would leave it. Notes and drafts made from the thread are
 the review's, outside any session, and stay in the notes and drafts views. Suggested prompts
-stand above the question field, under "Ask about this pull request, or try:"
-while the thread is empty (owner decision (a)): Review this pull request,
-Review *the open file's path* when a file is open, What could this change
-break?, and Explain *path* lines a–b when lines are selected; each is sent as
-written, as a question. Owner look v004: they stay there once the thread has
-turns, and the field's Suggestions toggle shows or hides them, kept for the
-profile. A turn's findings are cards under its answer (owner decision,
+are the thread's last item, after its last turn, and scroll with it (owner
+look v005), under "Ask about this pull request, or try:" while the thread is
+empty (owner decision (a)): Review this pull request, Review *the open file's
+path* when a file is open, What could this change break?, and, with lines
+selected, Explain *path* line N for one line or Explain the selected block
+(*path* lines a–b) for more; each is sent as written, as a question. They
+stay once the thread has turns, and the field's Suggestions toggle shows or
+hides them, kept for the profile (owner look v004). A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the

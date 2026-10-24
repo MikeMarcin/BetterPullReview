@@ -208,4 +208,19 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14), the Agent tab after the v004 notes: "The first time
     I open the Agent tab it tells me what to do, and I end up asking a
     question that the agent answers from my repository."
-- Pending: the owner's decision.
+- Handed back 2026-10-24: **Q1 Reject**. The owner's note, verbatim (line
+  breaks joined): "This is good but I want the suggestions to draw more like
+  they're in the chat window rather than attached to the bottom pane. That
+  way they show up after the last chat message not overtop of it. The
+  explain review.cpp line 36 option should change to explain selected block
+  or something when there's a selection, especially a multi-line selection.
+  The review link in the response isn't scrolling the window to the line
+  when i cmd click it." Their screenshot showed the four suggestions stacked
+  over the end of an answer above the field, and the comparison still at
+  lines 110–116 after the answer's `review.cpp:36` link was pressed.
+- Owner, in chat (relayed), verbatim: "Very close, i think the setup wizard
+  is done. Just a little more to go." **The setup wizard is accepted**: its
+  Agent, Repository, Check it works and Ready steps as look v005 showed them.
+  What remains of Q1 is the conversation.
+- Look v005's host was stopped, its candidate released and its root removed.
+  v006 builds the three notes.

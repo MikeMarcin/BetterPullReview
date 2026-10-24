@@ -732,6 +732,18 @@ coordinator, verbatim:
   exists, so Add works at once. An answer's last line is no longer cut off:
   its height is measured at the width its card gives it. The header names the
   pull request.
+- **Look v005 (Reject, "Very close, i think the setup wizard is done. Just a
+  little more to go.").** The owner accepted the setup wizard: its four
+  steps as v005 showed them. The suggested prompts are now the thread's last
+  item, after the last turn, scrolling with it, never over it; the toggle
+  stays. With a multi-line selection the prompt reads "Explain the selected
+  block (*path* lines a–b)", with one line "Explain *path* line N", and the
+  prompt sent is a link to them. A link to a file and line now scrolls the
+  code to it: the window revealed nothing before, only selected the line,
+  so a link into the file already open left the code where it was; it now
+  reveals the line through the comparison's conversation anchor, waiting for
+  a long file's geometry as a thread's pick does ([[BPR-1698]]). Command-click
+  and a plain click both do it.
 
 ## Acceptance
 

@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "3ec0e7762914d1223bba7303d4f9489acfbd186792eadc97535ccdced7245693",
+  "source_sha256": "8efeb99a9e8284dcab836a7143944985d7d970332391430f7d669e95c54b22e7",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -142,7 +142,8 @@
       "test_thread_defect_menus_badges_and_navigation",
       "test_threads_finds_and_picks_into_review",
       "test_a_pick_into_a_long_unopened_file_reveals_its_line",
-      "test_a_long_thread_from_discuss_scrolls_to_its_reply"
+      "test_a_long_thread_from_discuss_scrolls_to_its_reply",
+      "test_an_agent_answer_link_reveals_its_line"
     ],
     "--overview": [
       "test_overview_refuses_a_hand_opened_drawer_and_says_so",

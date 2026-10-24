@@ -8821,16 +8821,21 @@ namespace bpr::qt {
 		if (!PendingLineGo || ComparisonSurface == nullptr) {
 			return;
 		}
+		// Owner look v005 ("The review link in the response isn't scrolling the
+		// window to the line"): the line is revealed, not only selected, and
+		// a long file is waited for until its geometry is adopted
+		// ([[BPR-1264]]); the conversation anchor keeps the reveal through
+		// the file's measurement, as a thread's pick does ([[BPR-1698]]).
 		const auto context = ComparisonSurface->current_context();
-		if (context.has_value() && context->Key.File == PendingLineGo->File && ComparisonSurface->current_result() != nullptr) {
+		if (context.has_value() && context->Key.File == PendingLineGo->File && ComparisonSurface->current_result() != nullptr && !ComparisonSurface->geometry_pending()) {
 			const auto go = *PendingLineGo;
 			PendingLineGo.reset();
-			if (!ComparisonSurface->select_conversation_line(go.Side, go.Line)) {
+			if (!ComparisonSurface->reveal_conversation_line(go.Side, go.Line)) {
 				statusBar()->showMessage(tr("Line %1 is not in this file at the %2.").arg(go.Line + 1U).arg(go.Side == core::diff_side::left ? tr("base") : tr("head")), 6000);
 			}
 			return;
 		}
-		if (++PendingLineGo->Tries > 40) {
+		if (++PendingLineGo->Tries > 100) {
 			PendingLineGo.reset();
 			return;
 		}

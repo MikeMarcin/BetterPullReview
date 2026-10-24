@@ -763,6 +763,23 @@ namespace bpr::qt {
 		CardColumn->setContentsMargins(0, 0, 0, 0);
 		CardColumn->setSpacing(8);
 		contentCol->addWidget(Cards);
+		// Owner decision (a) 2026-10-23: suggested prompts, each sent as
+		// written. Owner look v005 ("I want the suggestions to draw more like
+		// they're in the chat window rather than attached to the bottom pane.
+		// That way they show up after the last chat message not overtop of
+		// it"): they are the thread's last item and scroll with it.
+		Suggestions = new QWidget{ content };
+		Suggestions->setObjectName(QStringLiteral("agentSuggestions"));
+		SuggestionColumn = new QVBoxLayout{ Suggestions };
+		SuggestionColumn->setContentsMargins(0, 2, 0, 0);
+		SuggestionColumn->setSpacing(6);
+		auto* const suggestLine = new QLabel{ tr("Ask about this pull request, or try:"), Suggestions };
+		SuggestionsLine         = suggestLine;
+		suggestLine->setObjectName(QStringLiteral("agentSuggestionsLine"));
+		suggestLine->setForegroundRole(QPalette::PlaceholderText);
+		suggestLine->setWordWrap(true);
+		SuggestionColumn->addWidget(suggestLine);
+		contentCol->addWidget(Suggestions);
 		contentCol->addStretch(1);
 		scroll->setWidget(content);
 		talk->addWidget(scroll, 1);
@@ -773,20 +790,6 @@ namespace bpr::qt {
 		auto* const askCol = new QVBoxLayout{ ask };
 		askCol->setContentsMargins(10, 8, 10, 10);
 		askCol->setSpacing(6);
-		// Owner decision (a) 2026-10-23: with an empty thread, suggested
-		// prompts stand above the field; each is sent as written.
-		Suggestions = new QWidget{ ask };
-		Suggestions->setObjectName(QStringLiteral("agentSuggestions"));
-		SuggestionColumn = new QVBoxLayout{ Suggestions };
-		SuggestionColumn->setContentsMargins(0, 0, 0, 0);
-		SuggestionColumn->setSpacing(4);
-		auto* const suggestLine = new QLabel{ tr("Ask about this pull request, or try:"), Suggestions };
-		SuggestionsLine         = suggestLine;
-		suggestLine->setObjectName(QStringLiteral("agentSuggestionsLine"));
-		suggestLine->setForegroundRole(QPalette::PlaceholderText);
-		suggestLine->setWordWrap(true);
-		SuggestionColumn->addWidget(suggestLine);
-		askCol->addWidget(Suggestions);
 		// Owner look v003 ("This bottom menu area is a big mess") and the
 		// Claude Code and Codex composers: one rounded field. Any added
 		// context, the words, a thin rule, and one row: Context and
@@ -1490,11 +1493,14 @@ namespace bpr::qt {
 		if (context.Lines) {
 			// Owner look v004 ("in an hour I wont remember which file line 34
 			// was in"): the prompt names the file, and the thread links it.
+			// Owner look v005 ("should change to explain selected block or
+			// something when there's a selection, especially a multi-line
+			// selection"): a block says so, and still names its file and lines.
 			const auto [first, last] = *context.Lines;
 			if (context.OpenFile.isEmpty()) {
-				prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected lines (%1–%2)").arg(first).arg(last));
+				prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last));
 			} else {
-				prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain %1 lines %2–%3").arg(context.OpenFile).arg(first).arg(last));
+				prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last));
 			}
 		}
 		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;

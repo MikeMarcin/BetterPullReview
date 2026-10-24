@@ -2502,7 +2502,7 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. A note on another file, opened once its file shows.
 		std::optional<std::uint64_t> PendingNoteOpen;
 		/// Owner look v004. A line a link asked for, selected once its file's
-		/// comparison is shown; tried again until then, a few seconds at most.
+		/// comparison is shown and measured; tried again until then, ten seconds at most.
 		struct pending_line_go
 		{
 			core::file_identity File;

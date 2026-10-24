@@ -107,6 +107,7 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QThread>
@@ -13860,9 +13861,19 @@ namespace {
 		// in"): the lines' prompt names their file.
 		expect(agent->suggestions()
 					   == QStringList{ QStringLiteral("Review this pull request"), QStringLiteral("Review src/engine/renderer.cpp"), QStringLiteral("What could this change break?"),
-									   QStringLiteral("Explain src/engine/renderer.cpp lines 440–447") }
+									   QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)") }
 				   && agent->suggestion_buttons().size() == 4U,
-			   "an open file and selected lines add their own suggestions, the lines' naming the file");
+			   "an open file and selected lines add their own suggestions; a selected block says so, naming its file and lines (owner look v005)");
+		suggestionContext.Lines = std::pair{ 36U, 36U };
+		agent->refresh_suggestions();
+		expect(agent->suggestions().back() == QStringLiteral("Explain src/engine/renderer.cpp line 36"), "one selected line is named as the line of its file");
+		suggestionContext.Lines = std::pair{ 440U, 447U };
+		agent->refresh_suggestions();
+		// Owner look v005: the suggestions are in the conversation's scrolled
+		// thread, not docked to the question field.
+		expect(agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->widget()->isAncestorOf(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions")))
+				   && !agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))),
+			   "the suggestions are an item of the thread, not of the question field");
 		// Owner look v004: the Suggestions toggle shows and hides them, and
 		// says so to the host, which keeps it; the host's own choice is not
 		// said back.
@@ -13957,7 +13968,13 @@ namespace {
 				   "the thread is kept as each turn ends");
 			expect(agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && agent->findChild<QLabel*>(QStringLiteral("agentSuggestionsLine"))->isHidden()
 					   && agent->suggestions_toggle()->isVisible() && agent->clear_session_button()->isVisible(),
-				   "once the thread has turns the suggestions stay where they were, without the empty thread's line, and Clear session is offered");
+				   "once the thread has turns the suggestions stay, without the empty thread's line, and Clear session is offered");
+			{
+				auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
+				auto* const lastTurn         = agent->conversation_thread();
+				expect(suggestionsShown->mapTo(suggestionsShown->window(), QPoint{ 0, 0 }).y() >= lastTurn->mapTo(lastTurn->window(), QPoint{ 0, lastTurn->height() }).y(),
+					   "they come after the last message, never over it");
+			}
 
 			// Owner decision 2026-10-23 ("Yep build it like that"). The review's
 			// finding is a card under its answer, with three actions; acting on
@@ -14228,6 +14245,12 @@ namespace {
 					emit question->linkActivated(QStringLiteral("src/engine/renderer.cpp#L34"));
 				}
 				expect(went.size() == 1U && went.back() == std::tuple{ QStringLiteral("src/engine/renderer.cpp"), 34U, false }, "clicking it opens the file at that line");
+				{
+					const auto block = qt::agent_line_references(QStringLiteral("Explain the selected block (src/engine/renderer.cpp lines 440–447)"),
+																 [](const QString& aPath) -> std::optional<QString> { return aPath == QStringLiteral("src/engine/renderer.cpp") ? std::optional{ aPath } : std::nullopt; });
+					expect(block.size() == 1U && block.front().First == 440U && block.front().Last == 447U && block.front().Path == QStringLiteral("src/engine/renderer.cpp"),
+						   "the selected block's prompt names its file and lines as one link");
+				}
 				const auto shown = agent->turn_answer_view(0U) != nullptr ? QString::fromStdString(agent->turn_answer_view(0U)->original_body()) : QString{ };
 				expect(shown.contains(QStringLiteral("[Line 34](src/engine/renderer.cpp#L34)")) && shown.contains(QStringLiteral("[`renderer.cpp:36`](src/engine/renderer.cpp#L36)"))
 						   && shown.contains(QStringLiteral("src/engine/other.cpp:5.")) && !shown.contains(QStringLiteral("other.cpp#")) && shown.contains(QStringLiteral("// renderer.cpp:40 stays code")),
@@ -17875,6 +17898,165 @@ namespace {
 		expect(cards->open_thread_id() == "review-thread:deep" && surface->conversation_anchor().has_value() && surface->conversation_anchor()->Line == 2'990U
 				   && surface->source_line_visible(core::diff_side::right, 2'990U),
 			   "a pick into the prepared long file reveals its line too");
+		window.hide();
+	}
+
+	/// [[BPR-PENDING-AQ6]], owner look v005 ("The review link in the response
+	/// isn't scrolling the window to the line when i cmd click it"). A file
+	/// and line an agent's answer names is a link; Command-click and a plain
+	/// click on it, delivered to the window as the platform delivers them,
+	/// open the file in Review and scroll the code to that line, selected:
+	/// into a long file that is not open, whose comparison is filled over
+	/// several turns ([[BPR-1264]], [[BPR-1698]]), and within the file already
+	/// open, which before only selected the line where it was.
+	void test_an_agent_answer_link_reveals_its_line()
+	{
+		auto  state   = core::workbench_interaction_state{ };
+		auto* shown   = static_cast<qt::workbench_window*>(nullptr);
+		auto  publish = [&state, &shown](const std::optional<core::workbench_reason_code> aRefusal) {
+			auto projection          = application::workbench_projection{ };
+			projection.Drawers       = core::workbench_drawer_delta{ .Files = state.FilesDrawer, .Conversations = state.ConversationsDrawer, .Repositories = state.RepositoriesDrawer };
+			projection.DrawerRestore = core::project_workbench_drawer_restore(state);
+			projection.Commands      = core::project_workbench_commands(state);
+			projection.Refusal       = aRefusal;
+			shown->publish(projection);
+		};
+		auto                 selected = std::vector<core::file_identity>{ };
+		qt::workbench_window window{
+			[&](core::workbench_interaction_intent aIntent) {
+				if (const auto* const choice = std::get_if<core::select_workbench_file_intent>(&aIntent); choice != nullptr) {
+					selected.push_back(choice->File);
+				}
+				const auto output = core::transition(state, aIntent);
+				publish(output.Reason == core::workbench_reason_code::none ? std::nullopt : std::optional{ output.Reason });
+			}
+		};
+		shown = &window;
+		window.resize(1'280, 820);
+		window.show();
+		window.activateWindow();
+		process_events();
+		const auto file  = core::file_identity_of("src/file.cpp");
+		const auto big   = core::file_identity_of("src/big.cpp");
+		state.Navigation = core::workbench_navigation_cursor{ .File = file, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+		auto first       = application::workbench_projection{ };
+		first.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+		first.Files      = std::vector<application::workbench_file_projection>{ { .File = file, .Path = "src/file.cpp" }, { .File = big, .Path = "src/big.cpp" } };
+		first.Layout     = application::workbench_layout_delta{ .FilesWidth = 300U, .ConversationsWidth = 430U, .RepositoriesWidth = 300U };
+		window.publish(first);
+		publish(std::nullopt);
+		auto shortText = std::string{ };
+		for (auto line = 0U; line < 30U; ++line) {
+			shortText += "line " + std::to_string(line) + '\n';
+		}
+		auto shortLater = shortText;
+		shortLater.replace(shortLater.find("line 5"), 6U, "changed line 5");
+		auto bigText = std::string{ };
+		for (auto line = 0U; line < 3'200U; ++line) {
+			bigText += "source line " + std::to_string(line) + '\n';
+		}
+		auto bigLater = bigText;
+		for (const auto line : { 2'990U, 2'000U, 1'200U, 400U }) {
+			const auto was = "source line " + std::to_string(line) + '\n';
+			bigLater.replace(bigLater.find(was), was.size(), "changed source line " + std::to_string(line) + '\n');
+		}
+		const auto bigDiff = computed_comparison(bigText, bigLater, 3U, big);
+		auto*      surface = window.comparison_surface();
+		const auto answer  = [&](const core::file_identity aFile, const core::computed_file_diff& aDiff) {
+			state.Navigation = core::workbench_navigation_cursor{ .File = aFile, .Ordinal = 1U, .ActionableCount = 2U, .NextAvailable = true };
+			auto moved       = application::workbench_projection{ };
+			moved.Selection  = core::workbench_selection_delta{ .Cursor = state.Navigation };
+			window.publish(moved);
+			surface->set_loading(request_context(aDiff));
+			surface->publish(bpr::qt::test::prepare_publication({ .Context = request_context(aDiff), .Result = std::make_shared<const core::computed_file_diff>(aDiff) }));
+			settle_geometry(*surface, "the answered comparison");
+		};
+		answer(file, computed_comparison(shortText, shortLater, 0U, file));
+		window.choose_modality(qt::review_modality::review, core::workbench_modality_entry::choose);
+		process_events();
+
+		// The Agent tab, set up, with an answer naming two lines of the long file.
+		auto* const agent   = window.agent_tab();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		window.open_agent_action()->trigger();
+		process_events();
+		agent->refresh();
+		agent->set_line_links([&window](const QString& aPath) { return window.review_file_named(aPath); },
+							  [&window](const QString& aPath, const std::uint32_t aLine, const bool aBefore) { static_cast<void>(window.go_to_file_line(aPath, aLine, aBefore)); });
+		agent->present_thread({ { .Question = QStringLiteral("What could this change break?"),
+								  .Answer   = QStringLiteral("The clearest regression is at `src/big.cpp:2991`. The budget is set at src/big.cpp:401."),
+								  .Footer   = QStringLiteral("Claude Code answered in 0:09.") } });
+		process_events();
+		auto* const answerView = agent->turn_answer_view(0U);
+		expect(agent->isVisible() && answerView != nullptr && answerView->isVisible(), "the Agent tab shows the answer");
+		if (answerView == nullptr) {
+			return;
+		}
+		agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->ensureWidgetVisible(answerView);
+		process_events();
+		// Where a link is drawn, in the answer's viewport.
+		const auto linkAt = [answerView](const QString& aHref) -> std::optional<QPoint> {
+			auto* const view = answerView->rendered_view();
+			for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
+				for (auto it = block.begin(); !it.atEnd(); ++it) {
+					if (const auto fragment = it.fragment(); fragment.charFormat().anchorHref() == aHref) {
+						auto cursor = QTextCursor{ view->document() };
+						cursor.setPosition(fragment.position() + fragment.length() / 2);
+						return view->cursorRect(cursor).center();
+					}
+				}
+			}
+			return std::nullopt;
+		};
+		// A click as the platform delivers it, to the window in its points.
+		const auto click = [&window, answerView](const QPoint aAt, const Qt::KeyboardModifiers aModifiers) {
+			auto* const viewport = answerView->rendered_view()->viewport();
+			const auto  local    = QPointF{ viewport->mapTo(&window, aAt) };
+			const auto  global   = QPointF{ viewport->mapToGlobal(aAt) };
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), local, global, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress, aModifiers);
+			QWindowSystemInterface::handleMouseEvent<QWindowSystemInterface::SynchronousDelivery>(window.windowHandle(), local, global, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease, aModifiers);
+			process_events();
+		};
+		const auto deep = linkAt(QStringLiteral("src/big.cpp#L2991"));
+		const auto near = linkAt(QStringLiteral("src/big.cpp#L401"));
+		expect(deep.has_value() && near.has_value(), "both lines the answer names are links");
+		if (!deep || !near) {
+			return;
+		}
+
+		// Command-click (Qt's Control on macOS) on the long file it is not
+		// showing: the file is chosen, and once its comparison is adopted the
+		// line is selected and in view.
+		click(*deep, Qt::ControlModifier);
+		expect(selected.size() == 1U && selected.back() == big && window.current_modality() == qt::review_modality::review, "Command-click on the link chooses its file in Review");
+		answer(big, bigDiff);
+		wait_for([surface] { return surface->selection().has_value() && surface->selection()->PreferredLine.Line == 2'990U; }, 3'000);
+		settle_geometry(*surface, "the linked long file");
+		expect(surface->selection().has_value() && surface->selection()->PreferredLine.Side == core::diff_side::right && surface->selection()->PreferredLine.Line == 2'990U,
+			   "the linked line is selected");
+		expect(surface->source_line_visible(core::diff_side::right, 2'990U) && !surface->source_line_visible(core::diff_side::right, 0U), "and the code is scrolled to it, line 2,991 in view");
+		save_render(window, QStringLiteral("agent-link-long-file"));
+
+		// The file already open, as the owner had it: Command-click and a
+		// plain click each scroll to their line.
+		agent->findChild<QScrollArea*>(QStringLiteral("agentConversationScroll"))->ensureWidgetVisible(answerView);
+		process_events();
+		click(*linkAt(QStringLiteral("src/big.cpp#L401")), Qt::ControlModifier);
+		settle_geometry(*surface, "the open file's linked line");
+		expect(selected.size() == 1U && surface->selection().has_value() && surface->selection()->PreferredLine.Line == 400U && surface->source_line_visible(core::diff_side::right, 400U)
+				   && !surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "Command-click on a line of the open file scrolls to it without choosing the file again");
+		click(*linkAt(QStringLiteral("src/big.cpp#L2991")), Qt::NoModifier);
+		settle_geometry(*surface, "a plain click");
+		expect(surface->selection().has_value() && surface->selection()->PreferredLine.Line == 2'990U && surface->source_line_visible(core::diff_side::right, 2'990U),
+			   "and a plain click does the same");
+		expect(answerView->rendered_view()->textCursor().selectedText().isEmpty(), "a click on a link selects none of the answer's text");
+		agent->set_line_links({ }, { });
+		agent->present_thread({ });
 		window.hide();
 	}
 
@@ -22759,6 +22941,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
 		runCase("test_a_pick_into_a_long_unopened_file_reveals_its_line", &test_a_pick_into_a_long_unopened_file_reveals_its_line);
 		runCase("test_a_long_thread_from_discuss_scrolls_to_its_reply", &test_a_long_thread_from_discuss_scrolls_to_its_reply);
+		runCase("test_an_agent_answer_link_reveals_its_line", &test_an_agent_answer_link_reveals_its_line);
 		if (!listCases) {
 			std::cout << "workbench-conversation-reveal:pass\n";
 		}
