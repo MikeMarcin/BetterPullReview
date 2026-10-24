@@ -14964,6 +14964,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			Window->review_editor()->acknowledge(aRevisionedCommand, *aOutcome.Accepted);
+			// A durable edit can finish after another line was selected. Keep
+			// its acknowledgement, without selecting that earlier draft again.
+			if (aCommand.Kind == core::review_draft_command_kind::edit
+				&& (!ReviewDraft || aOutcome.Accepted->Scope != DraftScope
+					|| ReviewDraft->Id != aOutcome.Accepted->Draft.Id
+					|| ReviewDraft->Anchor != aOutcome.Accepted->Draft.Anchor
+					|| ReviewDraftRevision > aOutcome.Accepted->Revision)) {
+				Window->accept_dif_draft(aRevisionedCommand, *aOutcome.Accepted);
+				refresh_agent_private_context_choices();
+				return;
+			}
 			accept_shared_draft(*aOutcome.Accepted);
 			if (aRevisionedCommand.ChangeReplyTarget && aRevisionedCommand.ReplyToThread) {
 				Window->review_editor()->describe_reply_target(QStringLiteral("Replying in this thread"));
