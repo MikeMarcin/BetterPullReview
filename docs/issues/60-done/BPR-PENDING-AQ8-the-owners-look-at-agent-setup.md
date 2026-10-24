@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-PENDING-AQ8"
 title: "A frozen build and the owner's look at agent setup"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-PENDING-AQ6", "BPR-PENDING-AQ7"]
 priority: "P2"
 platforms: ["mac"]
 metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"077adf53047441a3224b3687ceddf38e","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v002","transport":"serve --tailscale","lifecycle":"v002 handed back (Reject) and stopped"},"previous_sessions":["89855cd96f098cd74e28d271acd60d8a (look v001, handed back, stopped, released)"],"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v002.fwb9a7cz","commit":"f51ae6acf","executable_sha256":"ba4e00b091b96d50baae12381ec20e3fd8ccb82c36e5a3a66f10d61f6e2d2fa9","fixture":"github-com"}}
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "08acf5b1003cc07132eb47c806da627fea62e70e", "evidence": {"kind": "observation", "command": "attended session 17312f2f1e95ac0107fa57bb5a50affe (look v007, frozen build of d431745f2); ctest --test-dir build/rel -R '^qt_workbench_window_scale_100$'", "detail": "RFC AC14: the owner accepted look v007 (decision 52f55363-457e-4397-ad30-d3962a4b80a6) after looks v001 to v006, the setup wizard already accepted in v005: \"Hide suggestions until the the agent is done thinking. Get rid of teh icon on agent when it's full width like the other tabs do. Only use it for the narrow. Otherwise we're done.\" The two conditions are built on the accepted state without another look and verified offscreen: the suggested prompts are hidden while the agent works and return when its turn has finished; at full width the Agent tab is its name alone, its glyph kept for the narrow row. No attended root or session of this card remains.", "refs": ["docs/rfcs/RFC-BPR-0092-agent-first-run-setup.md"]}}]
 ---
 
 # BPR-PENDING-AQ8: A frozen build and the owner's look at agent setup

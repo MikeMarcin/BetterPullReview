@@ -14,7 +14,10 @@ In Progress, revision r3. Adopted from
 ([import record](assets/agent-first-run-setup-v1.LIVE_IMPORT.md)) after the
 owner answered its nine questions and made decisions D1 and D2. Card
 [[BPR-PENDING-AN]] holds the phase 1 finding; the milestone cards are listed
-under [Milestones](#milestones).
+under [Milestones](#milestones). Every criterion passes at `08acf5b10` and
+the owner accepted the look (AC14) on 2026-10-24; the closeout card
+[[BPR-PENDING-AQ9]] records them and sets this RFC's status once its
+dependency RFC-BPR-0085 is `Auto-Verified`.
 
 ## Problem and grounded current behavior
 
@@ -771,7 +774,7 @@ coordinator, verbatim:
   request was last asked with, so a new agent whose id an old one had does
   not open on that agent's thread; every turn stays.
 
-## Acceptance
+## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a
   github.com fixture shows the setup, not a conversation, in light and dark,
