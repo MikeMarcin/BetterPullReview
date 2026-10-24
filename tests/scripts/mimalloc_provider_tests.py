@@ -85,6 +85,22 @@ endif()
     assert redirect_digest == 'bc3dfdf51fbc80b88cb62cdb6a6784ecc894164bdd4ae7f3885048d870809491'
     assert redirect_digest in (ROOT / 'scripts/verify_pe_release.py').read_text()
     print('pinned-redirect-bytes:pass')
+    if os.name == 'nt':
+        command = ['cmake', '--build', str(build), '--target', 'app_bpr']
+        subprocess.run(command, check=True, capture_output=True, timeout=180)
+        producers = [path for path in (build / '_bpr/mimalloc').glob('mimalloc*.dll')
+                     if path.name != 'mimalloc-redirect.dll']
+        assert len(producers) == 1, producers
+        deployed = build / producers[0].name
+        expected = hashlib.sha256(producers[0].read_bytes()).digest()
+        assert hashlib.sha256(deployed.read_bytes()).digest() == expected
+        executable = build / 'app_bpr.exe'
+        before = executable.stat().st_mtime_ns
+        deployed.write_bytes(b'stale runtime copy')
+        subprocess.run(command, check=True, capture_output=True, timeout=180)
+        assert executable.stat().st_mtime_ns == before, 'regression control relinked the executable'
+        assert hashlib.sha256(deployed.read_bytes()).digest() == expected, 'runtime copy stayed stale without a relink'
+        print('runtime-refresh-without-executable-relink:pass')
     config = (build / '_bpr/mimalloc-source/mimalloc-3.5.3/include/mimalloc.h')
     config.write_text('editable cached source must never be trusted')
     result = subprocess.run(['cmake', '-S', str(build.parent), '-B', str(build)], text=True, capture_output=True, timeout=180)
