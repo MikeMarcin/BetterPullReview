@@ -279,11 +279,13 @@ namespace {
 		expect(path->text() == QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")) && add->isEnabled(), "the folder found is the line's text, and Add can be pressed at once");
 		add->click();
 		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString(), "Add adds the prefilled folder in one press");
+		const auto acceptedFolderIntent = test.Intents.back();
+		const auto acceptedIntentCount  = test.Intents.size();
 		path->clear();
 		expect(!add->isEnabled(), "an empty line waits for a path");
 		path->setText(QStringLiteral("work/clones"));
 		add->click();
-		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub" && test.View.findChild<QLabel*>(QStringLiteral("agentSetupFolderStatus"))->text().contains(QStringLiteral("full path")),
+		expect(test.Intents.size() == acceptedIntentCount && test.Intents.back() == acceptedFolderIntent && test.View.findChild<QLabel*>(QStringLiteral("agentSetupFolderStatus"))->text().contains(QStringLiteral("full path")),
 			   "a relative path is refused with what to write");
 		path->setText(QStringLiteral("~/src"));
 		add->click();
