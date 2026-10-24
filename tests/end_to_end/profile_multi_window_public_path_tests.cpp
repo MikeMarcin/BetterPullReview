@@ -472,10 +472,34 @@ try {
 	expect(windowA->comparison_surface()->current_result() == comparisonA, "sibling file selection preserved first comparison");
 	capture(*windowA, QStringLiteral("window-a.png"));
 	capture(*windowB, QStringLiteral("window-b.png"));
-	const auto unrelatedReceiptB = windowB->review_editor()->shown_receipt();
+	const auto unrelatedReceiptB      = windowB->review_editor()->shown_receipt();
+	const auto unrelatedPublicationsB = windowB->comparison_surface()->statistics().Publications;
+	const auto unrelatedLedgerB       = app::detail::github_application_fixture_access::scaling_evidence(*owner, second).Ledger;
 	action(*windowA, "toggleSelectedFileReadAction")->trigger();
 	wait_for([&] { return windowA->review_editor()->shown_receipt() && windowA->review_editor()->shown_receipt()->Read == core::file_read_state::read; }, "first review accepts the public receipt action");
 	QApplication::processEvents();
+	if (windowB->review_editor()->shown_receipt() != unrelatedReceiptB
+		|| windowB->comparison_surface()->current_result() != comparisonB
+		|| windowB->comparison_surface()->selection() != selectionB) {
+		const auto  identity         = app::detail::github_application_fixture_access::epoch_refresh_identity(*owner, second);
+		const auto& currentReceipt   = windowB->review_editor()->shown_receipt();
+		const auto& currentSelection = windowB->comparison_surface()->selection();
+		const auto  currentLedger    = app::detail::github_application_fixture_access::scaling_evidence(*owner, second).Ledger;
+		std::cerr << "MULTI_WINDOW_RECEIPT_FAILURE receipt_before=" << unrelatedReceiptB.has_value()
+				  << " receipt_after=" << currentReceipt.has_value() << " receipt_equal=" << (currentReceipt == unrelatedReceiptB)
+				  << " before_read=" << (unrelatedReceiptB ? static_cast<int>(unrelatedReceiptB->Read) : -1)
+				  << " after_read=" << (currentReceipt ? static_cast<int>(currentReceipt->Read) : -1)
+				  << " material_equal=" << (unrelatedReceiptB && currentReceipt && unrelatedReceiptB->Material == currentReceipt->Material)
+				  << " publications_before=" << unrelatedPublicationsB << " publications_after=" << windowB->comparison_surface()->statistics().Publications
+				  << " ledger_operations_before=" << unrelatedLedgerB.Operations << " ledger_operations_after=" << currentLedger.Operations
+				  << " ledger_completions_before=" << unrelatedLedgerB.Completions << " ledger_completions_after=" << currentLedger.Completions
+				  << " comparison_same=" << (windowB->comparison_surface()->current_result() == comparisonB)
+				  << " selection_equal=" << (currentSelection == selectionB)
+				  << " before_line=" << (selectionB ? selectionB->PreferredLine.Line : 99999U)
+				  << " after_line=" << (currentSelection ? currentSelection->PreferredLine.Line : 99999U)
+				  << " tab_pending=" << identity.TabPending << " tab_load=" << identity.TabLoad
+				  << " displayed=" << identity.PublicationDisplayed << " request_match=" << identity.DiffRequestMatches << '\n';
+	}
 	expect(windowB->review_editor()->shown_receipt() == unrelatedReceiptB
 			   && windowB->comparison_surface()->current_result() == comparisonB
 			   && windowB->comparison_surface()->selection() == selectionB,
