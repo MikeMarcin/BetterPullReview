@@ -77,7 +77,7 @@ def prepare(build: Path, output: Path) -> dict:
     revision = runtime.run('git', '-C', runtime.ROOT, 'rev-parse', 'HEAD').strip()
     output.mkdir(parents=True, exist_ok=False)
     root = output / 'runtime'
-    subprocess.run(['cmake', '--build', str(build), '--target', 'app_bpr'], check=True)
+    subprocess.run(['cmake', '--build', str(build), '--target', 'app_bpr', 'tool_better_pull_review_agent_supervisor'], check=True)
     subprocess.run(['cmake', '--install', str(build), '--component', 'TourCLI', '--prefix', str(root)], check=True)
     archive = output / runtime.source_asset_name(info)
     # The existing legal producer binds the CLI subset of dependencies and actual
