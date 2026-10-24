@@ -8660,8 +8660,8 @@ namespace bpr::qt {
 		// look v007 ("Get rid of teh icon on agent when it's full width like
 		// the other tabs do. Only use it for the narrow."): at full width
 		// every tab is its name alone.
-		const QString names[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
-		const QString about[] = {
+		const QString tabNames[] = { tr("Comments"), tr("Notes"), tr("Tour"), tr("Agent") };
+		const QString about[]    = {
 			tr("The pull request's threads, with their scope and filters"),
 			tr("Your private notes at their lines. Nothing here is published; Draft comment copies a note to a draft."),
 			tr("Your review tour, stop by stop. Nothing in it is published until you publish the tour."),
@@ -8675,8 +8675,8 @@ namespace bpr::qt {
 										 open_named,
 										 glyphs };
 		const auto current = tabs->currentIndex();
-		const auto textOf  = [&names, current](const face aFace, const int aIndex) {
-			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? names[aIndex] : QString{ };
+		const auto textOf  = [&tabNames, current](const face aFace, const int aIndex) {
+			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? tabNames[aIndex] : QString{ };
 		};
 		const auto glyphOf = [](const face aFace, const int /*aIndex*/) { return aFace != face::names; };
 		// The room is what the header's grid gives the tabs alone on their

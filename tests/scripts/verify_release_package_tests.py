@@ -134,7 +134,7 @@ class ReleasePackageTests(unittest.TestCase):
                 libraries = audit.private_libraries(root, info)
                 self.assertEqual([path.relative_to(root).as_posix() for path in libraries],
                                  {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"], "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"],
-                                  "Linux": ["libbpr_xdiff.so"]}[system])
+                                      "Linux": ["libbpr_xdiff.so", "libmimalloc.so.3"]}[system])
                 for path in libraries:
                     path.parent.mkdir(parents=True, exist_ok=True)
                     path.touch()
