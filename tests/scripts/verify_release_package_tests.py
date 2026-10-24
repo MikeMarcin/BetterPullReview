@@ -338,6 +338,26 @@ class ReleasePackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "incomplete-package-graph"):
                     check()
 
+    def test_standalone_cli_requires_its_installed_runtime_selection(self):
+        with ContainedTemporaryDirectory() as directory:
+            build = Path(directory)
+            commands = [{"file": str(ROOT / "src" / region / "source.cpp"), "command": "c++ -O3"}
+                        for region in ("core", "application", "adapters", "app")]
+            runtime = {"file": str(ROOT / "src/app/src/installed_runtime.cpp"),
+                       "command": "c++ -DBPR_DISTRIBUTION_BUILD=1 -DBPR_INSTALLED_TOUR_CLI=1"}
+            commands.append(runtime)
+            def check():
+                (build / "compile_commands.json").write_text(json.dumps(commands))
+                return audit.check_graph(build, {"platform": "Linux", "layout": "tour-cli"}, "a" * 40)
+            with patch.object(audit.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+                self.assertEqual(check()["first_party_compile_units"], 5)
+                runtime["command"] = "c++ -DBPR_DISTRIBUTION_BUILD=1"
+                with self.assertRaisesRegex(ValueError, "incomplete-package-graph"):
+                    check()
+                runtime["command"] = "c++ -DBPR_INSTALLED_TOUR_CLI=1"
+                with self.assertRaisesRegex(ValueError, "installed-runtime-not-selected"):
+                    check()
+
     def test_dependency_check_rejects_external_origin_even_without_browser_tokens(self):
         root = Path("/candidate/BetterPullReview.app")
         binary = root / "Contents/MacOS/BetterPullReview"

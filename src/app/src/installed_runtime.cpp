@@ -64,7 +64,11 @@ namespace bpr::app {
 		executable = QString::fromUtf8(buffer.data(), static_cast<qsizetype>(size));
 	#endif
 		const auto directory = QFileInfo{ executable }.canonicalPath();
-	#if defined(__APPLE__)
+	#if defined(BPR_INSTALLED_TOUR_CLI) && defined(__APPLE__)
+		const auto plugins = QDir{ directory }.absoluteFilePath(QStringLiteral("../lib/bpr/plugins"));
+	#elif defined(BPR_INSTALLED_TOUR_CLI) && defined(__linux__)
+		const auto plugins = QDir{ directory }.absoluteFilePath(QStringLiteral("../lib/bpr"));
+	#elif defined(__APPLE__)
 		const auto plugins = QDir{ directory }.absoluteFilePath(QStringLiteral("../PlugIns"));
 	#else
 		const auto plugins = QDir{ directory }.absoluteFilePath(QStringLiteral("plugins"));

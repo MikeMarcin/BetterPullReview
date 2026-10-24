@@ -152,12 +152,11 @@ def check_graph(build: Path, info: dict, revision: str) -> dict:
             require(not re.search(r"Qt(?:Core|Gui|Widgets|Network|6)|/src/adapters/|/src/application/", command), "effect-dependency-in-core-graph")
         if source.name == "installed_runtime.cpp":
             require("BPR_DISTRIBUTION_BUILD" in command, "installed-runtime-not-selected")
-            regions.add("installed-runtime")
+            regions.add("installed-cli-runtime" if "BPR_INSTALLED_TOUR_CLI" in command else "installed-runtime")
         regions.add(relative.parts[1])
         first_party += 1
-    required = {"core", "application", "adapters", "app"}
-    if info.get("layout") != "tour-cli":
-        required.add("installed-runtime")
+    required = {"core", "application", "adapters", "app",
+                "installed-cli-runtime" if info.get("layout") == "tour-cli" else "installed-runtime"}
     require(required.issubset(regions), "incomplete-package-graph")
     return {"first_party_compile_units": first_party, "build_platform": info["platform"]}
 

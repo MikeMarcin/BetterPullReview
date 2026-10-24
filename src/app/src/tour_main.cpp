@@ -1,4 +1,5 @@
 #include "cycle_cli.hpp"
+#include "installed_runtime.hpp"
 #include "tour_cli.hpp"
 #include <QCoreApplication>
 #include <QtLogging>
@@ -49,6 +50,10 @@ int main(int aCount, char** aArguments)
 		}
 	}
 #endif
+	if (!bpr::app::restrict_installed_runtime(aCount, aArguments)) {
+		std::fputs("INSTALLED_RUNTIME_REFUSED\n", stderr);
+		return 1;
+	}
 	// Only while QCoreApplication applies the locale; restored right after.
 	PreviousHandler = qInstallMessageHandler(drop_utf8_switch_notice);
 	QCoreApplication application{ aCount, aArguments };
