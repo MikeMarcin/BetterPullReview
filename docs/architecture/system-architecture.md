@@ -571,6 +571,12 @@ needed. Explicit libc-internal allocation interfaces and direct OS mappings
 retain their own paired release; the native course must establish ownership of
 the ordinary C/C++, Qt and separately loaded module calls it claims.
 
+The composed large-review measurement executable explicitly attaches the selected
+allocator without entering the shipped-program inventory. Its existing memory
+course and limits remain unchanged; glibc/UCRT heap counters cannot be treated
+as complete mimalloc heap measurements. Native process footprint/peak counters
+remain available where the host supplies them.
+
 `BPR_USE_MIMALLOC=OFF` is a development comparison baseline. Distribution
 requires it on. Sanitizer/fuzzer graphs exclude the override and retain toolchain
 allocation; instrumented distribution is refused. `MI_XMALLOC` is forced off,

@@ -475,7 +475,8 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
          "Follow that README to build and replace the three matching data/uc/i18n SONAME73 files beside Qt; no application checkout or signing credentials are needed. "
          "The complete mixed upstream ICU notices are retained here, and ThirdParty/icu-runtime-provenance.json distinguishes the actual hardened source build from Qt's prebuilt ABI inputs.\n"
          if info["platform"] == "Linux" else "") +
-        "KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it. System OS libraries are package dependencies, not redistributed runtime files.\n" +
+        ("KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it.\n" if info.get("layout") != "tour-cli" else "") +
+        "System OS libraries are package dependencies, not redistributed runtime files.\n" +
         ("Standalone CLI layout: executables are in bin/; private libraries are in bin/ on Windows and lib/ on macOS/Linux. Replace the matching xdiff, mimalloc or Qt runtime there; retain the relative plugin layout.\n" if info.get("layout") == "tour-cli" else "") +
         "This evidence does not constitute owner/legal approval to distribute a release. That remains the release-readiness gate.\n", encoding="utf-8")
 
