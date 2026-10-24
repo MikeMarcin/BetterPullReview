@@ -1,0 +1,15 @@
+{
+  "mapping": {
+    "DRAFT-0001": "BPR-1758",
+    "DRAFT-0002": "BPR-1759",
+    "DRAFT-0003": "BPR-1760",
+    "DRAFT-0004": "BPR-1761",
+    "DRAFT-0005": "BPR-1762",
+    "DRAFT-0006": "BPR-1763",
+    "DRAFT-0007": "BPR-1764",
+    "RFC-DRAFT-0028": "RFC-BPR-0093"
+  },
+  "plan_path": "docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json",
+  "schema": "implement-rfc.plan-source.v1",
+  "source_sha256": "9d12f3748473fd4093724dfaa4cf75a6e3737f62142996edb502cedbf5720a85"
+}

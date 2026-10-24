@@ -714,3 +714,11 @@ command as the check, plain names, Codex found as Claude is, a worktree of the
 reviewer's clone by default with the head from the application's own copy, and
 the review skill in each request's brief. Milestones BPR-1748 to AQ9.
 [Import](assets/agent-first-run-setup-v1.LIVE_IMPORT.md).
+
+## Process-wide allocation
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0093](RFC-BPR-0093-process-wide-mimalloc.md) | Process-wide mimalloc for BPR executables | Proposed | None |
+
+[Imported pack](assets/mimalloc-process-wide-v1.LIVE_IMPORT.md), with owner-confirmed process-wide scope. Native and package evidence remains required.

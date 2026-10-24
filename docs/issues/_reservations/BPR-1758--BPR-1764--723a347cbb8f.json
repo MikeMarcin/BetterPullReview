@@ -1,0 +1,16 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1758",
+    "BPR-1759",
+    "BPR-1760",
+    "BPR-1761",
+    "BPR-1762",
+    "BPR-1763",
+    "BPR-1764"
+  ],
+  "reserve_for": "mimalloc-process-wide-v1",
+  "purpose": "Import supplied mimalloc pack",
+  "created": "2026-10-24T18:11:58.310846+00:00",
+  "base": "e82537ad15b32871a8375b6143abe08e16a68b87"
+}

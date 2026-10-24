@@ -1,0 +1,57 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "mimalloc-process-wide-v1",
+  "scope": {
+    "rfcs": ["RFC-DRAFT-0028"],
+    "issues": ["DRAFT-0001", "DRAFT-0002", "DRAFT-0003", "DRAFT-0004", "DRAFT-0005", "DRAFT-0006", "DRAFT-0007"]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "pinned-macos-integration",
+      "outcome": "The pinned allocator runs process-wide in the selected BPR desktop, CLI, update helper and other helpers on native macOS with observable ownership and safe cross-module release.",
+      "work": [{"issue": "DRAFT-0001"}, {"issue": "DRAFT-0002"}],
+      "depends_on": [],
+      "exit_criteria": [
+        "Pinned and offline configure controls reject substitute source and distribution refuses the baseline switch.",
+        "Apple Silicon and Intel native probes demonstrate allocation/free ownership in selected product executables and a signed installed candidate."
+      ],
+      "boundary": "A usable macOS product graph and explicit, testable allocator selection; other native platforms retain their own obligations."
+    },
+    {
+      "id": "windows-integration",
+      "outcome": "Native Windows 11 x64 desktop and selected helpers or CLI use one coherent mimalloc override with the actual CRT and packaged DLLs.",
+      "work": [{"issue": "DRAFT-0003"}],
+      "depends_on": ["pinned-macos-integration"],
+      "exit_criteria": ["Installed native Windows probes show C, C++, Qt/loaded-library interception and safe cross-module release through startup and shutdown."],
+      "boundary": "The Windows process-wide product path, without claiming complete release qualification."
+    },
+    {
+      "id": "linux-integration",
+      "outcome": "Ubuntu 26.04 x64 desktop and selected helpers or CLI use mimalloc on the selected WSL2/WSLg station without injecting it into external child programs.",
+      "work": [{"issue": "DRAFT-0004"}],
+      "depends_on": ["pinned-macos-integration"],
+      "exit_criteria": ["Installed Ubuntu 26.04 WSL2/WSLg probes show C, C++, Qt/loaded-library interception, safe cross-module release and a clean child environment."],
+      "boundary": "The Linux process-wide product path, without claiming complete release qualification."
+    },
+    {
+      "id": "distribution-and-measurement",
+      "outcome": "All selected installers and CLI artifacts carry the verified allocator and matching source/legal inventory, with same-workload performance and memory results.",
+      "work": [{"issue": "DRAFT-0005"}, {"issue": "DRAFT-0006"}],
+      "depends_on": ["windows-integration", "linux-integration"],
+      "exit_criteria": [
+        "Installed runtime closure, notices, SPDX and separate corresponding-source asset agree on the pin; negative package checks reject omissions or extras.",
+        "Composed and sanitizer/fuzzer paths pass their focused checks, and matched Release comparisons plus the unchanged memory course report outcomes and pre-existing failures."
+      ],
+      "boundary": "A distributable candidate and truthful performance record, with no publication or unrelated release/security acceptance."
+    },
+    {
+      "id": "closeout",
+      "outcome": "The RFC has criterion-linked evidence, current documentation and explicit native and release limits.",
+      "work": [{"issue": "DRAFT-0007"}],
+      "depends_on": ["distribution-and-measurement"],
+      "exit_criteria": ["AC01–AC09 are reconciled to direct observations, and documentation and focused integration gates pass."],
+      "boundary": "RFC closeout only; release approval remains with the existing release workflow."
+    }
+  ]
+}
