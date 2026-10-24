@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1758"
 title: "Pin mimalloc and select it for BPR product executables"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0093"]
 depends_on: []
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
