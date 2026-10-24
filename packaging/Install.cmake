@@ -72,6 +72,11 @@ else()
     endif()
     set(bpr_runtime_destination "lib/betterpullreview")
     set_target_properties(app_better_pull_review ${bpr_package_helpers} better_pull_review_xdiff PROPERTIES INSTALL_RPATH "$ORIGIN")
+    if(BPR_BUILD_TOUR_CLI)
+        # The same producer can install the supervisor in Runtime beside its
+        # libraries or in TourCLI's bin/ with libraries in ../lib/.
+        set_target_properties(tool_better_pull_review_agent_supervisor PROPERTIES INSTALL_RPATH "$ORIGIN;$ORIGIN/../lib")
+    endif()
     install(PROGRAMS "${PROJECT_SOURCE_DIR}/packaging/linux/better_pull_review"
         DESTINATION bin COMPONENT Runtime)
     install(FILES "${PROJECT_SOURCE_DIR}/packaging/icons/linux/io.github.MikeMarcin.BetterPullReview.desktop"
