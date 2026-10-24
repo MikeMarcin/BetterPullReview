@@ -719,6 +719,6 @@ the review skill in each request's brief. Milestones BPR-1748 to AQ9.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0093](RFC-BPR-0093-process-wide-mimalloc.md) | Process-wide mimalloc for BPR executables | Proposed | None |
+| [RFC-BPR-0093](RFC-BPR-0093-process-wide-mimalloc.md) | Process-wide mimalloc for BPR executables | In Progress | None |
 
 [Imported pack](assets/mimalloc-process-wide-v1.LIVE_IMPORT.md), with owner-confirmed process-wide scope. Native and package evidence remains required.

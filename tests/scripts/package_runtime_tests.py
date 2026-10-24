@@ -42,11 +42,35 @@ class PackageRuntimeTests(unittest.TestCase):
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})
-        self.assertEqual({item["name"] for item in items}, {"QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "gemoji", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules"})
+        self.assertEqual({item["name"] for item in items}, {"QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting", "SQLite", "Quill", "Glaze", "JetBrains-Mono-NL", "LibArchive", "RE2", "Abseil", "zlib", "utf8proc", "gemoji", "fmt", "sha1collisiondetection", "hacl-star", "rapidfuzz-cpp", "dtl", "git-xdiff", "extra-cmake-modules", "mimalloc"})
         for item in items:
             self.assertTrue(item["url"].startswith("https://"))
             self.assertRegex(item.get("sha256", item.get("sha3_256")), r"^[0-9a-f]{64}$")
         self.assertNotIn("LibArchive", {item["name"] for item in runtime.components({"platform": "Windows"})})
+
+    def test_mimalloc_source_and_notice_match_provider(self):
+        import hashlib
+        item = next(entry for entry in runtime.components({"platform": "Darwin"}) if entry["name"] == "mimalloc")
+        self.assertEqual((item["version"], item["license"]), ("3.5.3", "MIT"))
+        provider = (ROOT / "cmake/BprMimallocProvider.cmake").read_text()
+        self.assertIn(item["url"], provider)
+        self.assertIn(item["sha256"], provider)
+        self.assertIn("mimalloc/LICENSE", runtime.NOTICE_FILES)
+        self.assertIn(hashlib.sha256((ROOT / "third_party/mimalloc/LICENSE").read_bytes()).hexdigest(), provider)
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory)
+            xdiff = root / "Contents/Frameworks/libbpr_xdiff.dylib"
+            xdiff.parent.mkdir(parents=True)
+            xdiff.touch()
+            with self.assertRaisesRegex(ValueError, "private shared library missing: libmimalloc.3.dylib"):
+                runtime.private_libraries(root, "Darwin")
+            allocator = xdiff.with_name("libmimalloc.3.dylib")
+            allocator.symlink_to(xdiff.name)
+            with self.assertRaisesRegex(ValueError, "private shared library missing: libmimalloc.3.dylib"):
+                runtime.private_libraries(root, "Darwin")
+            allocator.unlink()
+            allocator.touch()
+            self.assertEqual(len(runtime.private_libraries(root, "Darwin")), 2)
 
     def test_bundled_code_font_is_pinned_noticed_and_inventoried(self):
         # [[BPR-1270]]. One archive identity in the provider, the release
@@ -129,7 +153,7 @@ class PackageRuntimeTests(unittest.TestCase):
                              f"{path} changed: update its buildInputs digest in packaging/dependencies.json")
         files = {path.relative_to(ROOT).as_posix() for path in retained.rglob("*") if path.is_file() and path.name != "PROVENANCE.md"}
         self.assertEqual(files, {"third_party/" + name for name in notices} | {name for name in inputs if name.startswith("third_party/")})
-        self.assertEqual(runtime.PRIVATE_LIBRARIES, {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib"],
+        self.assertEqual(runtime.PRIVATE_LIBRARIES, {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"],
                                                      "Windows": ["bpr_xdiff.dll"], "Linux": ["libbpr_xdiff.so"]})
         self.assertIn("OUTPUT_NAME bpr_xdiff", provider)
         self.assertRegex((ROOT / "packaging/Install.cmake").read_text(encoding="utf-8"), r"install\(TARGETS better_pull_review_xdiff\b")
@@ -224,7 +248,7 @@ class PackageRuntimeTests(unittest.TestCase):
                          {"packaging/linux_icu.py", "third_party/icu/rebuild/README.md", "LICENSE"})
         for entry in item["buildInputs"]:
             self.assertEqual(runtime.digest(ROOT / entry["path"]), entry["sha256"])
-        self.assertEqual(len(runtime.source_entries(runtime.components({"platform": "Linux"}))), 31)
+        self.assertEqual(len(runtime.source_entries(runtime.components({"platform": "Linux"}))), 32)
         notice = ROOT / "third_party/icu/LICENSE"
         self.assertIn(hashlib.sha256(notice.read_bytes()).hexdigest(), (notice.parent / "PROVENANCE.md").read_text())
         self.assertIn("ICU License - ICU 1.8.1 to ICU 57.1", notice.read_text())

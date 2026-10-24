@@ -77,6 +77,11 @@ function(bpr_configure_mimalloc)
     set(MI_DEBUG_UBSAN OFF)
     set(MI_WIN_REDIRECT ON)
     add_subdirectory("${source}" "${CMAKE_BINARY_DIR}/_bpr/mimalloc" EXCLUDE_FROM_ALL)
+    if(APPLE)
+        # One real, versioned runtime file gives the closed package inventory a
+        # stable load name and avoids shipping producer symlinks.
+        set_target_properties(mimalloc PROPERTIES VERSION 3 SOVERSION 3)
+    endif()
     add_library(BetterPullReview::Mimalloc ALIAS mimalloc)
     set(BPR_MIMALLOC_ACTIVE ON PARENT_SCOPE)
     set(BPR_MIMALLOC_SOURCE_DIR "${source}" PARENT_SCOPE)

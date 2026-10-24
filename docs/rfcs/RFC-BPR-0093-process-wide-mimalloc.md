@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0093"
 title: "Process-wide mimalloc for BetterPullReview executables"
-status: "Proposed"
+status: "In Progress"
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
 ---
 

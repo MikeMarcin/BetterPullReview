@@ -68,3 +68,27 @@ provider/native/integration logs and baseline result. No credentials or personal
 application data are retained there. Current run `mimalloc-20261024`, segment
 `macos-m1`, mandate `r1`; selected recipe `coordinator-implementer` revision 2.
 The durable current frontier is on [[BPR-1764]].
+
+## macOS candidate prerequisite amendment
+
+On 2026-10-24 the coordinator moved only the macOS package prerequisites for
+AC03 into [[BPR-1759]]: the exact shared-runtime producer/deployment inventory,
+MIT notice and pinned corresponding-source entry. This resolves the cycle where
+the native card required an installed candidate before [[BPR-1762]] could start.
+The release script, package-input producer map and closed private-library audit
+are the source basis. The authored outcome and exits are unchanged. Final AC07
+for all platforms and standalone CLI remains on [[BPR-1762]].
+
+The `publish-release` skill was loaded for this preparation. Only its local
+`--prepare-only --skip-tests` route is selected for the unpublished 0.3.2
+candidate. Its ad-hoc signature and relocated launch are development evidence;
+Developer ID, notarization, Gatekeeper and signed-installed AC03 are pending.
+No keychain lookup or Apple submission is part of prepare mode.
+
+The corrected native course at `81ee1b4ef` passes all seven rows in 11.14 seconds.
+The 17-row focused integration passes in 356.72 seconds: allocator rows, real
+CLI entry/Review Cycles, MCP process/terminal behavior, desktop offscreen render,
+update transaction and architecture/core boundary checks and their contracts.
+Documentation's 67 tests and the gate pass. Touched C++ format and tidy 22 pass;
+tidy's initial realloc finding is retained in the transient `tidy.log` and its
+passing correction in `tidy-fixed.log`.

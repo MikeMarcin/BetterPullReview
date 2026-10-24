@@ -18,3 +18,18 @@ update helper and other helpers (AC03). Probe actual C, C++, Qt/loaded-library a
 cross-module release on Apple Silicon and Intel. Check the signed installed
 candidate, startup and shutdown. Include allocator-boundary stress needed by
 AC06; a linked binary or stats report alone is insufficient.
+
+## Candidate prerequisite amendment, 2026-10-24
+
+The coordinator authorized moving only the package prerequisites needed for
+AC03 into this milestone. This card therefore owns the macOS runtime
+producer/deployment declaration, retained MIT notice and source-inventory entry
+needed to prepare a tests-disabled installed candidate through `tools/release.sh`.
+The source basis is `packaging/Install.cmake`'s fixed private-library producer
+map, `packaging/package_runtime.py`'s closed runtime/notice inventory and the
+release script's dependency, signing and relocated-launch checks. Without those
+entries the installed allocator cannot load or pass the package audit.
+Final AC07 for every platform, standalone CLI/source closure, negative package
+qualification and release acceptance remain on [[BPR-1762]]. No criterion or
+milestone exit is waived; signed installed and native Intel evidence stay
+required. `--prepare-only` is an ad-hoc candidate, never signed-install acceptance.

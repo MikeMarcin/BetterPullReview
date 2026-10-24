@@ -48,7 +48,7 @@ RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []
 # its own package, relative to the package root. Git's LGPL xdiff ships only as
 # its own replaceable shared library, as Qt does (RFC-BPR-0082 Q1).
 PRIVATE_LIBRARIES = {
-    "Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib"],
+    "Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"],
     "Windows": ["bpr_xdiff.dll"],
     "Linux": ["libbpr_xdiff.so"],
 }
@@ -56,7 +56,7 @@ PRIVATE_LIBRARIES = {
 # carries whole. [[BPR-1270]]: the bundled code font's OFL and the authors
 # list its copyright line names.
 NOTICE_FILES = (
-    "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
+    "mimalloc/LICENSE", "sqlite/PUBLIC_DOMAIN.md", "quill/LICENSE", "quill/FMT-LICENSE", "glaze/LICENSE",
     "jetbrains-mono/OFL.txt", "jetbrains-mono/AUTHORS.txt", "re2/LICENSE", "abseil/LICENSE", "zlib/LICENSE", "utf8proc/LICENSE.md", "gemoji/LICENSE", "fmt/LICENSE",
     "sha1collisiondetection/LICENSE", "hacl-star/LICENSE", "rapidfuzz-cpp/LICENSE", "dtl/COPYING",
     "git-xdiff/NOTICE", "git-xdiff/LGPL-2.1", "git-xdiff/xhistogram-EDL-1.0.txt",

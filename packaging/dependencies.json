@@ -1,6 +1,7 @@
 {
   "schema": "bpr.release-sources.v1",
   "components": [
+    {"name":"mimalloc","version":"3.5.3","license":"MIT","linkage":"one shared process-wide allocator per selected BPR executable; upstream macOS interpose/zone and native-platform override","url":"https://github.com/microsoft/mimalloc/archive/refs/tags/v3.5.3.tar.gz","sha256":"3b4a15153a59905995f7070296ed604bb5ccc00cabb8b93446931aff77224d47"},
     {"name":"QtBase","version":"6.12.0","license":"LGPL-3.0-only","linkage":"dynamic and bundled third-party code","url":"https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtbase-everywhere-src-6.12.0.tar.xz","sha256":"a951bd163c7b80fc6b8c88d7668fb56abf91c152373e13c10666763238131307"},
     {"name":"QtSvg","version":"6.12.0","license":"LGPL-3.0-only","linkage":"dynamic: the QtSvg library only, no SVG image or icon plugin; RFC-BPR-0084 rasterizes SVG body images with QSvgRenderer","url":"https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtsvg-everywhere-src-6.12.0.tar.xz","sha256":"e4ab39534ec97987b1b9b60ef7f4d3253d5912a69f8c713a01753174a4029331"},
     {"name":"QtImageFormats","version":"6.12.0","license":"LGPL-3.0-only AND BSD-3-Clause","linkage":"dynamic plugin: only imageformats/qwebp, which statically includes the bundled libwebp (BSD-3-Clause; src/3rdparty/libwebp COPYING, PATENTS and AUTHORS retained in the notices); RFC-BPR-0084 WebP body images","url":"https://download.qt.io/archive/qt/6.12/6.12.0/submodules/qtimageformats-everywhere-src-6.12.0.tar.xz","sha256":"0943132b5db8de6b6a7f1d162682173e8763c7ed94e80fd39113292845f67762"},

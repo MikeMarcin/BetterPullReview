@@ -654,6 +654,13 @@ XDIFF_LIBRARY="${BUILD_DIR}/libbpr_xdiff.dylib"
 if [[ ! -f "${STAGED_APP}/Contents/Frameworks/libbpr_xdiff.dylib" ]]; then
     ditto "${XDIFF_LIBRARY}" "${STAGED_APP}/Contents/Frameworks/libbpr_xdiff.dylib"
 fi
+# RFC-BPR-0093: the allocator is a first-party-built shared runtime dependency.
+# Its actual load name is the provider's major-version file, never a symlink.
+MIMALLOC_LIBRARY="${BUILD_DIR}/_bpr/mimalloc/libmimalloc.3.dylib"
+[[ -f "${MIMALLOC_LIBRARY}" && ! -L "${MIMALLOC_LIBRARY}" ]] || fail "The pinned mimalloc shared library is absent: ${MIMALLOC_LIBRARY}"
+if [[ ! -f "${STAGED_APP}/Contents/Frameworks/libmimalloc.3.dylib" ]]; then
+    ditto "${MIMALLOC_LIBRARY}" "${STAGED_APP}/Contents/Frameworks/libmimalloc.3.dylib"
+fi
 verify_plugin_policy "${STAGED_APP}"
 verify_framework_policy "${STAGED_APP}"
 normalize_runtime_rpaths "${STAGED_APP}"
