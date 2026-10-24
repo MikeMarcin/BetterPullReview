@@ -52,7 +52,8 @@ class NativeReleaseTests(unittest.TestCase):
         app, helper = build / ("better_pull_review" + image_suffix), build / ("better_pull_review_agent_supervisor" + image_suffix)
         info.update(app=str(app), helpers=[str(helper)])
         library = build / ("bpr_xdiff.dll" if system == "Windows" else "libbpr_xdiff.so")
-        info["private_libraries"] = {library.name: str(library)}
+        libraries = [build / name for name in runtime.PRIVATE_LIBRARIES[system]]
+        info["private_libraries"] = {path.name: str(path) for path in libraries}
         source = runtime.source_asset_path(build, info, self.revision)
         source.parent.mkdir(parents=True)
         with zipfile.ZipFile(source, "w") as archive:
@@ -73,13 +74,14 @@ class NativeReleaseTests(unittest.TestCase):
                 self.events.append("build")
                 app.write_bytes(b"app")
                 helper.write_bytes(b"helper")
-                library.write_bytes(b"library")
+                for path in libraries:
+                    path.write_bytes(b"library")
                 return
             self.events.append("cpack")
             installed = output / "_CPack_Packages/runtime"
             legal = installed / "ThirdParty"
             legal.mkdir(parents=True)
-            for image in (app, helper, library):
+            for image in (app, helper, *libraries):
                 shutil.copyfile(image, installed / image.name)
             if tamper_library:
                 (installed / library.name).write_bytes(b"substituted library")
@@ -129,7 +131,7 @@ class NativeReleaseTests(unittest.TestCase):
                 paths = release.verify(manifest, "1.2.3", self.revision)
                 self.assertIn(manifest, paths)
                 if generator == "WIX":
-                    self.assertEqual(self.events, ["build", "sign:better_pull_review.exe", "sign:better_pull_review_agent_supervisor.exe", "sign:bpr_xdiff.dll",
+                    self.assertEqual(self.events, ["build", "sign:better_pull_review.exe", "sign:better_pull_review_agent_supervisor.exe", "sign:bpr_xdiff.dll", "sign:mimalloc.dll",
                                                    "cpack", "sign:" + manifest.name.removesuffix(".release.json")])
                 if generator == "RPM":
                     record = json.loads(manifest.read_text())

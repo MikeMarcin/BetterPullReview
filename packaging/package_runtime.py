@@ -52,6 +52,8 @@ PRIVATE_LIBRARIES = {
     "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"],
     "Linux": ["libbpr_xdiff.so"],
 }
+# Upstream bytes retain their producer identity and are never re-signed as BPR.
+PREBUILT_PRIVATE_LIBRARIES = {"Darwin": [], "Windows": ["mimalloc-redirect.dll"], "Linux": []}
 # Retained third_party licence texts every installed THIRD-PARTY-NOTICES.txt
 # carries whole. [[BPR-1270]]: the bundled code font's OFL and the authors
 # list its copyright line names.
@@ -105,7 +107,7 @@ def inputs(build: Path) -> dict:
     return value
 
 
-def private_library_producers(info: dict) -> list[Path]:
+def private_library_producers(info: dict, *, source_built_only: bool = False) -> list[Path]:
     """Private runtime identities come from the fixed runtime declaration.
 
     The Windows redirector is a pinned upstream binary; the PE auditor checks
@@ -124,7 +126,8 @@ def private_library_producers(info: dict) -> list[Path]:
         producer = Path(value)
         if not producer.is_absolute() or producer.name != Path(relative).name or producer.is_symlink():
             raise ValueError("invalid private-library producer path")
-        producers.append(producer)
+        if not source_built_only or relative not in PREBUILT_PRIVATE_LIBRARIES[info["platform"]]:
+            producers.append(producer)
     return producers
 
 
