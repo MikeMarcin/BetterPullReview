@@ -4170,7 +4170,7 @@ namespace {
 			auto transport = discovery_fixture_transport{ true };
 			setup(transport);
 			transport.Search = [](const auto&) {
-				auto items = fixture_array{ };
+				auto items = std::vector<std::string>{ };
 				for (auto number = 5U; number < 22U; ++number) {
 					items.emplace_back(discovery_item(number, "author", "https://ghe.example.invalid/api/v3"));
 				}
