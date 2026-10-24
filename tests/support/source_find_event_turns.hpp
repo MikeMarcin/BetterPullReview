@@ -22,11 +22,14 @@ namespace bpr::tests {
 	}
 
 	/// All of the original public navigation gestures, in their original order.
+	/// Give each gesture its ordinary event turn so its deferred presentation
+	/// does not accumulate into the next query's initial posted-event batch.
 	template <class TTrigger>
 	void dispatch_source_find_navigation(TTrigger aTrigger)
 	{
 		for (auto index = std::size_t{ 0U }; index < source_find_navigation_actions; ++index) {
 			aTrigger();
+			QCoreApplication::processEvents();
 		}
 	}
 }
