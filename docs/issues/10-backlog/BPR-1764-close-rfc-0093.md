@@ -152,3 +152,33 @@ authored outcome, exit and native requirement is preserved.
   authored Mac prerequisite before selecting that independent course; no further
   milestone is selected by this leaf. No attended session/cursor/URL exists for
   this completed objective; the earlier Mac candidate stays retained.
+
+## Active checkpoint — Linux mandate r3
+
+Run `mimalloc-20261024`, segment `linux-m3`, mandate `r3`; sole implementer
+`/root/mimalloc_linux`, source/tracker main at
+`/Users/jaeger/Documents/GitHub/BetterPullReview`. Scheduling amendment
+`758b17a1b` removes only Linux's full-Mac prerequisite, with checked unchanged
+outcome/exit/work. BPR-1761 is claimed at `af7c84025`; BPR-1758 remains its
+accepted provider prerequisite. Mac Intel/signed-installed requirements and
+retained candidate remain pending.
+
+Isolated Ubuntu 26.04 x64 WSL2/WSLg root:
+`/home/mmarcin/bpr-rfc0093-linux-dfzpprt6`, with source, cache, builds and tools
+inside it. The original `/home/mmarcin/BetterPullReview` stays clean and is a
+read-only source of Git objects/pinned Qt. Native source `d105f0703` passes the
+shortest supervisor plus missing-override course after correcting the real
+Linux throwing-new abort: C++ compilation of upstream mimalloc preserves
+`std::bad_alloc`. Its full Debug build is active. Current main also contains
+`f6adc378a`, the Linux standalone CLI xdiff/loader closure prerequisite, not
+yet transferred while that build runs. BPR-1761 and AC05 remain unaccepted.
+
+`build/mimalloc-linux/` holds selection/checkpoint, amendment receipt, native
+root, helper scripts and focused logs. Native logs stay under the isolated
+root. Next: finish Debug build, exercise all product ownership probes, then
+transfer the committed CLI prerequisite while native writers are stopped;
+build/install tests-disabled Runtime and TourCLI and observe actual ELF
+ownership, child cleanliness and composed public paths. Native tooling was
+unpacked only beneath this task root; no system package install, personal data,
+signing, push or publication. No review session/server exists. Main's unrelated
+MASK/NEXT_ID/BPR-1766 edits are preserved and excluded from commits.
