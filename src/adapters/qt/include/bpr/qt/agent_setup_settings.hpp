@@ -38,7 +38,8 @@ namespace bpr::qt {
 		using answer = std::function<void(std::optional<core::agent_entry_refusal>)>;
 		struct dispatch
 		{
-			std::function<void()>                          SetUp;
+			/// Owner look v006: Reset agents…, which asks before it clears.
+			std::function<void()>                          Reset;
 			std::function<void(core::agent_entry, answer)> Add;
 			std::function<void(core::agent_entry, answer)> Update;
 			std::function<void(std::uint32_t)>             Remove;

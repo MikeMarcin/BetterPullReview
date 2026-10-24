@@ -1325,13 +1325,18 @@ namespace {
 		{
 			const auto exec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { "gpt-5", "high" } });
 			expect(exec && exec->Arguments == std::vector<std::string>{ "exec", "--json", "-m", "gpt-5", "-c", "model_reasoning_effort=\"high\"", "-" }, "Codex exec runs the chosen model at the chosen effort");
-			const auto badExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max" } });
-			expect(!badExec && badExec.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort Codex does not take refuses");
+			// Owner look v006: the harness says its levels, so max and ultra
+			// are Codex's to take; only a word that could read as more than
+			// one argument refuses.
+			const auto maxExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max" } });
+			expect(maxExec && maxExec->Arguments[maxExec->Arguments.size() - 2U] == "model_reasoning_effort=\"max\"", "Codex takes max as its catalog lists it");
+			const auto badExec = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .Requested = { std::nullopt, "max\" -c x=\"1" } });
+			expect(!badExec && badExec.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that is not one word refuses");
 			const auto claude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { "opus", "xhigh" } });
 			expect(claude && std::ranges::search(claude->Arguments, std::vector<std::string>{ "--model", "opus", "--effort", "xhigh" }).begin() != claude->Arguments.end(),
 				   "Claude runs the chosen model at the chosen effort");
-			const auto badClaude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { std::nullopt, "minimal" } });
-			expect(!badClaude && badClaude.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort Claude does not take refuses");
+			const auto badClaude = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .Requested = { std::nullopt, "-x" } });
+			expect(!badClaude && badClaude.error() == application::agent_launch_failure::unsupported_runtime_settings, "an effort that reads as an option refuses");
 		}
 		selectedProfile.DefaultSettings.Model = std::string(257, 'x');
 		expect(!application::build_agent_launch(selectedProfile, built_supplement(), reader()), "oversized configured setting refused");

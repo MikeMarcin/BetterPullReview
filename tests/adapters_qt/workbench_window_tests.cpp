@@ -12407,6 +12407,50 @@ namespace {
 
 	/// \brief [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff a line the
 	/// host's core placed outside GitHub's diff says so before Publish, and a
+	/// \brief [[BPR-PENDING-AQ6]], owner look v006 ("I selected a block and it
+	/// still said the line suggestion and then when i clicked away to unselect
+	/// the block thats when the suggestion text updates to block"). The
+	/// Agent tab's selected-lines suggestion follows the code's selection as
+	/// the pointer makes it: during a drag, after it, and after a click that
+	/// leaves one line, each without a further gesture.
+	void test_the_agent_suggestions_follow_the_selection_at_once()
+	{
+		auto  course = line_gesture_course{ false };
+		auto& window = course.Window;
+		course.reset();
+		auto* const agent   = window.agent_tab();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Claude Code";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->refresh();
+		// As the composition reads it: the open file, and the selected lines.
+		agent->set_suggestion_context([&course] {
+			auto       context = qt::agent_suggestion_context{ .OpenFile = QStringLiteral("src/file.cpp") };
+			const auto range   = course.Surface->line_draft_range();
+			if (range && range->first.Side == range->second.Side) {
+				context.Lines = std::pair{ std::min(range->first.Line, range->second.Line) + 1U, std::max(range->first.Line, range->second.Line) + 1U };
+			}
+			return context;
+		});
+		const auto last = [agent] { return agent->suggestions().isEmpty() ? QString{ } : agent->suggestions().back(); };
+		// A drag from line 4 to line 8, a turn at its midpoint first.
+		const auto from = course.right(3U);
+		const auto to   = course.right(7U);
+		course.mouse(from, QEvent::MouseMove, Qt::NoButton, Qt::NoButton);
+		course.mouse(from, QEvent::MouseButtonPress, Qt::LeftButton, Qt::LeftButton);
+		course.mouse(course.right(5U), QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+		expect(last() == QStringLiteral("Explain the selected block (src/file.cpp lines 4–6)"), "while the drag is under way the suggestion names the block so far: " + last().toStdString());
+		course.mouse(to, QEvent::MouseMove, Qt::NoButton, Qt::LeftButton);
+		course.mouse(to, QEvent::MouseButtonRelease, Qt::LeftButton, Qt::NoButton);
+		expect(last() == QStringLiteral("Explain the selected block (src/file.cpp lines 4–8)"), "the moment the block is selected the suggestion names it: " + last().toStdString());
+		// A click on one line leaves that line alone selected, and says so.
+		course.click(course.right(12U));
+		expect(last() == QStringLiteral("Explain src/file.cpp line 13"), "a click that leaves one line selected names that line at once: " + last().toStdString());
+		agent->set_suggestion_context({ });
+	}
+
 	/// comment pending in the review there is held on the comment itself, as
 	/// a suggestion is: Publish as file comment takes the sending buttons'
 	/// place, publishes it, and Finish your review holds it until it leaves.
@@ -14109,6 +14153,38 @@ namespace {
 				expect(agent->run_settings_text() == QStringLiteral("Claude Code · Sonnet 5.5"), "the chip names the chosen model with its version");
 				agent->present_run_settings({ settings });
 			}
+			// Owner look v006: the menu ends with Agent settings…; a harness
+			// being asked says so in Model; opening the menu asks the harness.
+			{
+				auto settingsOpened = 0;
+				auto catalogAsks    = std::vector<std::uint64_t>{ };
+				agent->set_setup_dispatch([&settingsOpened] { ++settingsOpened; });
+				agent->set_catalog_dispatch([&catalogAsks](const std::uint64_t aProfile) { catalogAsks.push_back(aProfile); });
+				auto listing    = settings;
+				listing.Listing = true;
+				agent->present_run_settings({ listing });
+				auto* const menu  = agent->run_settings_button()->menu();
+				const auto  items = menu->actions();
+				expect(!items.isEmpty() && items.back()->objectName() == QStringLiteral("agentRunSettingsOpenSettings") && items.back()->text() == QStringLiteral("Agent settings…"),
+					   "the agent menu ends with Agent settings…");
+				items.back()->trigger();
+				expect(settingsOpened == 1, "which opens Settings › Agents & context");
+				const auto* const models = [&items]() -> QMenu* {
+					for (auto* const item : items) {
+						if (item->menu() != nullptr && item->menu()->objectName() == QStringLiteral("agentRunSettingsModels")) {
+							return item->menu();
+						}
+					}
+					return nullptr;
+				}();
+				expect(models != nullptr && std::ranges::any_of(models->actions(), [](const QAction* aAction) { return aAction->text().startsWith(QStringLiteral("Asking Codex for its models")) && !aAction->isEnabled(); }),
+					   "while the harness is asked, Model says so");
+				emit menu->aboutToShow();
+				expect(!catalogAsks.empty() && catalogAsks.back() == settings.Profile, "opening the menu asks the agent's harness what it offers");
+				agent->set_catalog_dispatch({ });
+				agent->set_setup_dispatch({ });
+				agent->present_run_settings({ settings });
+			}
 			// Owner amendment 2026-10-23: every added agent is in the chip's
 			// menu, and choosing one switches to it.
 			{
@@ -14312,6 +14388,25 @@ namespace {
 			violations += qt::drawer_principle_violations(*agent->findChild<QWidget*>(QString::fromLatin1(name)));
 		}
 		expect(violations.isEmpty(), "the Agent tab keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
+		// Owner look v006 ("I dont think we should have this option to go back
+		// to the wizard, actually we can keep it if it's a "reset agents""):
+		// History offers Reset agents…, which asks first, then clears the
+		// agents and starts the setup again.
+		{
+			agent->adopt_setup(*window.agent_setup(), { });
+			const auto history = agent->history_button()->menu()->actions();
+			const auto named   = [&history](const char* aName) { return std::ranges::any_of(history, [aName](const QAction* aAction) { return aAction->objectName() == QString::fromLatin1(aName); }); };
+			expect(named("agentResetAgentsAction") && !named("agentSetUpAgainAction") && !named("agentChangeRepositoryAction"), "History has Reset agents… and no other way back into the setup");
+			auto resets  = 0;
+			auto confirm = false;
+			agent->set_reset_dispatch([&resets] { ++resets; }, [&confirm] { return confirm; });
+			agent->reset_agents();
+			expect(resets == 0, "declined, nothing is reset");
+			confirm = true;
+			agent->reset_agents();
+			expect(resets == 1 && window.agent_setup()->open_step() == core::setup_step::agent, "confirmed, the agents are reset and the setup opens at Agent");
+			agent->set_reset_dispatch({ });
+		}
 		window.hide();
 	}
 
@@ -22917,6 +23012,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_line_numbers_select_lines", &test_line_numbers_select_lines);
 		runCase("test_a_drag_onto_an_empty_line_takes_it", &test_a_drag_onto_an_empty_line_takes_it);
 		runCase("test_comment_takes_the_selected_lines", &test_comment_takes_the_selected_lines);
+		runCase("test_the_agent_suggestions_follow_the_selection_at_once", &test_the_agent_suggestions_follow_the_selection_at_once);
 		if (!listCases) {
 			std::cout << "workbench-line-draft:pass\n";
 		}

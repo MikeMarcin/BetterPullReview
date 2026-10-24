@@ -2476,7 +2476,10 @@ own default by the model it last reported, owner look v004), an icon alone when 
 narrower than 300 points; its tooltip names the program that runs and the
 model the last answer reported, and its menu lists every agent added in
 Settings › Agents & context, one press to switch, then the agent's own models
-and effort levels or Other…, kept with that agent) and Send (⌘↩), which is
+and effort levels or Other…, kept with that agent, and last Agent settings…;
+owner look v006: the models and levels are the harness's own, Codex's from its
+App Server's `model/list` and Claude Code's levels from its `--help`, asked
+when the tab shows the agent or its menu opens) and Send (⌘↩), which is
 Stop while the agent works. `/model NAME`
 and `/effort LEVEL` (or `default`) in the question field do what the chip
 does without asking anything; `/model` or `/effort` alone opens the chip's
@@ -2512,7 +2515,9 @@ ready" and focuses the question field; its version and workspace and what the
 agent gets (the pull request, base and head, the changes and the named diff,
 the threads, the workspace, the review skill and what it may not do) wait
 under one collapsed disclosure. History
-adds Set up agent… and Change repository folder…. A new window with a saved
+adds Reset agents… (owner look v006): it asks first, then clears every agent
+setting, the clone folders and links and an edited review skill, and the
+setup starts again at Agent; there is no other way back into the setup. A new window with a saved
 agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I
 and the code's context menu "Ask about these lines" open it with the selected
 lines attached and the question field focused. The agent's authority, its

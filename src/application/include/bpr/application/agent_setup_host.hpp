@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,6 +34,10 @@ namespace bpr::application {
 		/// Bounded text for Show details after a failed check: the run's
 		/// outcome name and its last output.
 		std::string CheckDetail;
+		/// Owner look v006. What each added agent's harness said it offers,
+		/// by entry id, once asked; an entry being asked is in `Cataloguing`.
+		std::map<std::uint32_t, agent_harness_catalog> Catalogs;
+		std::vector<std::uint32_t>                     Cataloguing;
 		/// Raised by every published change.
 		std::uint64_t Generation = 0U;
 
@@ -134,6 +139,17 @@ namespace bpr::application {
 		[[nodiscard]] auto set_run_limit(std::uint32_t aMinutes) -> bool;
 		/// \brief Owner look v004: the Agent tab's Suggestions toggle, kept.
 		void set_suggestions_hidden(bool aHidden);
+		/// \brief Owner look v006 ("Codex is totally missing its model
+		/// settings"). Asks an added agent's harness what it offers, once per
+		/// window: a Codex protocol's `model/list` through its own program and
+		/// fixed arguments, or Claude Code's `--help` for its effort levels.
+		/// Nothing is asked of a plain-text harness or an agent already asked.
+		void load_catalog(std::uint32_t aEntry);
+		/// \brief Owner look v006 ("reset agents which clears all settings and
+		/// goes back to the wizard fresh"). Every added agent, its settings and
+		/// the setup's choices go back to their defaults, and the setup starts
+		/// again at Agent; the list is not moved in from the old settings again.
+		void reset();
 		void set_repository_chosen(bool aChosen);
 		/// RFC-BPR-0092 Check it works: the worktree row's result.
 		void set_workspace_check(core::setup_check aCheck);

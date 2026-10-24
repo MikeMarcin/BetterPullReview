@@ -96,15 +96,16 @@ namespace bpr::core {
 		return aModel.empty() || valid_claude_model(aModel);
 	}
 
-	auto valid_agent_effort(const agent_program aProgram, const std::string_view aEffort) noexcept -> bool
+	auto valid_agent_effort(const agent_program /*aProgram*/, const std::string_view aEffort) noexcept -> bool
 	{
-		constexpr auto claude = std::array<std::string_view, 5>{ "low", "medium", "high", "xhigh", "max" };
-		constexpr auto codex  = std::array<std::string_view, 5>{ "minimal", "low", "medium", "high", "xhigh" };
-		switch (aProgram) {
-		case agent_program::claude: return std::ranges::find(claude, aEffort) != claude.end();
-		case agent_program::codex:  return std::ranges::find(codex, aEffort) != codex.end();
-		}
-		return false;
+		return !aEffort.empty() && aEffort.size() <= 16U && std::ranges::all_of(aEffort, [](const char aByte) { return aByte >= 'a' && aByte <= 'z'; });
+	}
+
+	auto known_agent_efforts(const agent_program /*aProgram*/) -> std::vector<std::string>
+	{
+		// Claude Code 2.1 and Codex 0.163 share these five; each harness's own
+		// list replaces them once it has said it.
+		return { "low", "medium", "high", "xhigh", "max" };
 	}
 
 	auto describe(const agent_wrapper_refusal aRefusal) noexcept -> std::string_view

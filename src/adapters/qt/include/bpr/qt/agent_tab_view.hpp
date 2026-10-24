@@ -59,6 +59,8 @@ namespace bpr::qt {
 		std::vector<std::string>                     Efforts;
 		/// Why the settings cannot be chosen, when they cannot.
 		QString Note;
+		/// Owner look v006. The harness is being asked for its models.
+		bool Listing = false;
 	};
 
 	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. One finished
@@ -310,6 +312,14 @@ namespace bpr::qt {
 		/// \brief Owner look v004 ("After save as note it should turn into Go
 		/// to note"): where Go to note goes.
 		void set_note_navigation(agent_note_navigation aNavigate);
+		/// \brief Owner look v006. Where opening the agent menu asks the
+		/// agent's harness what it offers, by the agent's profile.
+		void set_catalog_dispatch(std::function<void(std::uint64_t aProfile)> aDispatch);
+		/// \brief Owner look v006. History's **Reset agents…**: `aConfirm`
+		/// asks first (a warning dialog when none is given), then `aReset`
+		/// clears the agents' settings and the setup starts again at Agent.
+		void set_reset_dispatch(std::function<void()> aReset, std::function<bool()> aConfirm = { });
+		void reset_agents();
 		/// \brief Which files references may name, and where a link to one
 		/// goes; references are links only when both are set.
 		void set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate);
@@ -355,17 +365,21 @@ namespace bpr::qt {
 		std::uint64_t      NextCardId = 1U;
 		/// The findings that arrived during the turn that just ended go
 		/// under its answer.
-		void                         claim_findings(std::size_t aTurn);
-		std::vector<card_entry>      CardEntries;
-		std::optional<std::uint64_t> ClaimedSession;
-		agent_finding_card_dispatch  CardDispatch;
-		agent_answer_note_dispatch   NoteDispatch;
-		agent_note_navigation        NoteNavigate;
-		agent_file_resolver          LineResolve;
-		agent_line_navigation        LineNavigate;
-		QString                      InlineCodeFile;
-		void                         follow_link(const QString& aLink);
-		void                         present_banner();
+		void                               claim_findings(std::size_t aTurn);
+		std::vector<card_entry>            CardEntries;
+		std::optional<std::uint64_t>       ClaimedSession;
+		agent_finding_card_dispatch        CardDispatch;
+		agent_answer_note_dispatch         NoteDispatch;
+		agent_note_navigation              NoteNavigate;
+		std::function<void(std::uint64_t)> CatalogDispatch;
+		bool                               MenuStale = false;
+		std::function<void()>              ResetDispatch;
+		std::function<bool()>              ResetConfirm;
+		agent_file_resolver                LineResolve;
+		agent_line_navigation              LineNavigate;
+		QString                            InlineCodeFile;
+		void                               follow_link(const QString& aLink);
+		void                               present_banner();
 
 		agent_launch_panel&             Launch;
 		side_chat_panel&                Chat;

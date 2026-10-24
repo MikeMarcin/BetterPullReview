@@ -361,7 +361,7 @@ namespace {
 		// is a list with Add agent…, Edit…, Remove and Move up and down.
 		auto programs = qt::agent_programs_panel{ };
 		auto saved    = std::vector<std::string>{ };
-		programs.set_dispatch({ .SetUp = [&saved] { saved.emplace_back("set-up"); },
+		programs.set_dispatch({ .Reset = [&saved] { saved.emplace_back("reset"); },
 								.Add =
 									[&saved](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
 										saved.push_back("add:" + aEntry.Name + (aEntry.Preset ? ":preset" : ":custom"));
@@ -408,8 +408,8 @@ namespace {
 		expect(programs.status()->text().contains(QStringLiteral("already has that name")), "a refused edit says why");
 		programs.up_button()->click();
 		programs.remove_button()->click();
-		programs.findChild<QPushButton*>(QStringLiteral("settingsSetUpAgent"))->click();
-		expect(saved == std::vector<std::string>{ "add:Claude Code:preset", "add:Harness:custom", "update:2:Work Claude", "move:2:-1", "remove:2", "set-up" },
+		programs.findChild<QPushButton*>(QStringLiteral("settingsResetAgents"))->click();
+		expect(saved == std::vector<std::string>{ "add:Claude Code:preset", "add:Harness:custom", "update:2:Work Claude", "move:2:-1", "remove:2", "reset" },
 			   "add, edit, move, remove and Set up agent… are intents");
 		// Owner decision 2026-10-23: the run time limit is off unless chosen.
 		expect(!programs.run_limit_toggle()->isChecked() && !programs.run_limit_minutes()->isEnabled(), "with none set, runs have no time limit");

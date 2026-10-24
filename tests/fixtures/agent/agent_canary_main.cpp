@@ -371,6 +371,18 @@ namespace {
 			}
 			input += line + '\n';
 		}
+		// [[BPR-PENDING-AQ6]], owner look v006. A catalog run's `model/list`
+		// is answered as Codex 0.163 answers it, a notification first, and
+		// the canary then waits for the input to close.
+		if (input.find("\"method\":\"model/list\"") != std::string::npos) {
+			write_partial("{\"method\":\"account/updated\",\"params\":{}}\n"
+						  "{\"id\":1,\"result\":{\"data\":[{\"id\":\"canary-model\",\"model\":\"canary-model\",\"displayName\":\"Canary Model\",\"description\":\"\",\"hidden\":false,"
+						  "\"isDefault\":true,\"defaultReasoningEffort\":\"low\",\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\",\"description\":\"\"},{\"reasoningEffort\":\"max\",\"description\":\"\"}]}],"
+						  "\"nextCursor\":null}}\n");
+			while (std::getline(std::cin, line)) {
+			}
+			std::exit(EXIT_SUCCESS);
+		}
 		write_partial(
 			"{\"id\":1,\"result\":{\"model\":\"canary-reported\",\"reasoningEffort\":\"low\",\"thread\":{\"id\":\"canary-thread\"}}}\n");
 

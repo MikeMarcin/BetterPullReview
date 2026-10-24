@@ -862,7 +862,19 @@ namespace bpr::qt {
 		RunSettings->setMenu(new QMenu{ RunSettings });
 		RunSettings->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 		static_cast<menu_word*>(RunSettings)->Pill = true;
-		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] { present_run_settings_button(); });
+		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] {
+			// Owner look v006: the harness is asked what it offers when the
+			// reviewer opens its menu, once per window.
+			if (const auto* const settings = current_run_settings(); settings != nullptr && CatalogDispatch) {
+				CatalogDispatch(settings->Profile);
+			}
+			present_run_settings_button();
+		});
+		connect(RunSettings->menu(), &QMenu::aboutToHide, this, [this] {
+			if (MenuStale) {
+				QTimer::singleShot(0, this, [this] { present_run_settings_button(); });
+			}
+		});
 		askRow->addWidget(RunSettings);
 		Ask = new QPushButton{ field };
 		Ask->setObjectName(QStringLiteral("agentAsk"));
@@ -982,20 +994,12 @@ namespace bpr::qt {
 		Pages->addWidget(SetupView);
 		SetupView->set_change_observer([this] { refresh(); });
 		HistoryMenu->addSeparator();
-		auto* const again = HistoryMenu->addAction(tr("Set up agent…"));
-		again->setObjectName(QStringLiteral("agentSetUpAgainAction"));
-		connect(again, &QAction::triggered, this, [this] {
-			if (SetupView != nullptr) {
-				SetupView->begin(core::setup_step::agent);
-			}
-		});
-		auto* const folder = HistoryMenu->addAction(tr("Change repository folder…"));
-		folder->setObjectName(QStringLiteral("agentChangeRepositoryAction"));
-		connect(folder, &QAction::triggered, this, [this] {
-			if (SetupView != nullptr) {
-				SetupView->begin(core::setup_step::repository);
-			}
-		});
+		// Owner look v006 ("I dont think we should have this option to go back
+		// to the wizard, actually we can keep it if it's a "reset agents"
+		// which clears all settings and goes back to the wizard fresh").
+		auto* const reset = HistoryMenu->addAction(tr("Reset agents…"));
+		reset->setObjectName(QStringLiteral("agentResetAgentsAction"));
+		connect(reset, &QAction::triggered, this, [this] { reset_agents(); });
 		refresh();
 	}
 
@@ -1072,6 +1076,13 @@ namespace bpr::qt {
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
 		ClearSession->setVisible(!Turns.empty());
 		ClearSession->setEnabled(State != agent_tab_state::working);
+		// Owner look v006: the agent shown is asked what it offers, so its
+		// models are there when its menu opens.
+		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
+			if (const auto profile = Launch.selected_profile()) {
+				CatalogDispatch(profile->value());
+			}
+		}
 		refresh_suggestions();
 		update_turn();
 	}
@@ -1336,6 +1347,35 @@ namespace bpr::qt {
 	}
 
 	void agent_tab_view::set_note_navigation(agent_note_navigation aNavigate) { NoteNavigate = std::move(aNavigate); }
+
+	void agent_tab_view::set_catalog_dispatch(std::function<void(std::uint64_t)> aDispatch) { CatalogDispatch = std::move(aDispatch); }
+
+	void agent_tab_view::set_reset_dispatch(std::function<void()> aReset, std::function<bool()> aConfirm)
+	{
+		ResetDispatch = std::move(aReset);
+		ResetConfirm  = std::move(aConfirm);
+	}
+
+	void agent_tab_view::reset_agents()
+	{
+		if (!panels_alive() || State == agent_tab_state::working || !ResetDispatch) {
+			return;
+		}
+		const auto confirmed = ResetConfirm ? ResetConfirm()
+											: QMessageBox::warning(this, tr("Reset agents?"),
+																   tr("This removes every agent you added and its model, effort and check, the clone folders and the clones linked to repositories, "
+																	  "and your edited review skill (a copy is saved to Downloads first). Notes, drafts and agent conversations stay. Setup then starts again."),
+																   QMessageBox::Reset | QMessageBox::Cancel, QMessageBox::Cancel)
+				== QMessageBox::Reset;
+		if (!confirmed) {
+			return;
+		}
+		ResetDispatch();
+		if (SetupView != nullptr) {
+			SetupView->begin(core::setup_step::agent);
+		}
+		refresh();
+	}
 
 	void agent_tab_view::set_line_links(agent_file_resolver aResolve, agent_line_navigation aNavigate)
 	{
@@ -2193,6 +2233,17 @@ namespace bpr::qt {
 		RunSettingsTip = tip;
 		fit_run_settings();
 		auto* const menu = RunSettings->menu();
+		// A menu open now is rebuilt once it closes, never under the pointer.
+		if (menu->isVisible()) {
+			MenuStale = true;
+			return;
+		}
+		MenuStale = false;
+		// `clear` keeps the Model and Effort menus it made; each rebuild
+		// makes its own, so the old ones go.
+		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
+			submenu->deleteLater();
+		}
 		menu->clear();
 		// Every agent added, one press away; each keeps its own conversation
 		// about this pull request (owner decision 2026-10-23).
@@ -2230,6 +2281,9 @@ namespace bpr::qt {
 				connect(action, &QAction::triggered, this, [apply, aValue] { apply(aValue, std::nullopt); });
 			};
 			add({ }, ranAs.isEmpty() ? tr("Default (the agent's own setting)") : tr("Default (the agent's own; last ran %1)").arg(ranAs));
+			if (settings->Models.empty() && settings->Listing) {
+				models->addAction(tr("Asking %1 for its models…").arg(settings->Agent))->setEnabled(false);
+			}
 			for (const auto& [value, label] : settings->Models) {
 				add(value, label);
 			}
@@ -2263,6 +2317,15 @@ namespace bpr::qt {
 		}
 		menu->addSeparator();
 		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
+		// Owner look v006 ("This model picker dropdown should have a link to
+		// open the agent settings page").
+		auto* const open = menu->addAction(tr("Agent settings…"));
+		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
+		connect(open, &QAction::triggered, this, [this] {
+			if (Setup) {
+				Setup();
+			}
+		});
 	}
 
 	auto agent_tab_view::choose_agent(const std::uint64_t aProfile) -> bool
@@ -2306,7 +2369,9 @@ namespace bpr::qt {
 		if (value == "default") {
 			value.clear();
 		}
-		const auto taken = RunSettingsDispatch && (isModel ? RunSettingsDispatch(settings->Profile, value, std::nullopt) : RunSettingsDispatch(settings->Profile, std::nullopt, value));
+		// An effort is one the harness offers, as its menu lists them.
+		const auto offered = isModel || value.empty() || settings->Efforts.empty() || std::ranges::contains(settings->Efforts, value);
+		const auto taken   = offered && RunSettingsDispatch && (isModel ? RunSettingsDispatch(settings->Profile, value, std::nullopt) : RunSettingsDispatch(settings->Profile, std::nullopt, value));
 		if (!taken) {
 			Notice->setText(isModel ? tr("%1 isn't a model name the agent takes.").arg(words.at(1)) : tr("%1 isn't an effort this agent takes. It takes %2.").arg(words.at(1), QString::fromStdString([&settings] {
 																																									  auto list = std::string{ };

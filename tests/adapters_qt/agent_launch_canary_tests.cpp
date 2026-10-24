@@ -311,6 +311,28 @@ namespace {
 		expect(transcript && transcript->Revisions.size() == 2 && transcript->Revisions.back().Revision.Body.find("canary-complete") != std::string::npos, "durable turn contains validated complete child output");
 	}
 
+	/// [[BPR-PENDING-AQ6]], owner look v006 ("Codex is totally missing its
+	/// model settings"). A catalog run through the real launcher: the App
+	/// Server handshake, `model/list`, the list read past a notification,
+	/// and the input closed so the child exits.
+	void test_a_catalog_run_lists_models_through_a_real_child()
+	{
+		const auto launch = [] {
+			auto built             = application::build_agent_model_catalog_launch(canary_profile(core::agent_protocol::codex_app_server), BPR_AGENT_CANARY_EXECUTABLE, { "--profile=work" },
+																				   [](const std::string&) -> std::optional<std::string> { return std::nullopt; });
+			built.WorkingDirectory = std::filesystem::current_path().string();
+			return built;
+		}();
+		expect(launch.Arguments == std::vector<std::string>{ "--profile=work", "app-server" } && launch.Purpose == application::agent_launch_purpose::model_catalog,
+			   "a catalog run is the agent's fixed arguments, then app-server");
+		auto       launcher = adapters::agent::agent_process_launcher{ };
+		const auto result   = launcher.run(launch, 20'000);
+		const auto models   = application::decode_agent_model_catalog(result);
+		expect(result.Outcome == application::agent_run_outcome::success && models.size() == 1U && models.front().Model == "canary-model" && models.front().DisplayName == "Canary Model"
+				   && models.front().Efforts == std::vector<std::string>{ "low", "max" },
+			   "the real child's own list comes back, its efforts with max");
+	}
+
 	void test_all_four_protocols_stream_partial_frames_under_stderr_pressure()
 	{
 		qputenv("BPR_CANARY_ALLOWED", QByteArray{ "allowed-value" });
@@ -1218,6 +1240,7 @@ try {
 	}
 	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
+	test_a_catalog_run_lists_models_through_a_real_child();
 	test_output_before_input_does_not_stall_the_request();
 	test_private_claim_waits_for_buffered_input_delivery();
 	test_real_child_receives_no_parent_credential_or_context_in_argv();

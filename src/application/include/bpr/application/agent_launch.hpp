@@ -161,6 +161,14 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto permitted() const noexcept -> bool = 0;
 		virtual void               release() noexcept                 = 0;
 	};
+	/// \brief Owner look v006 ([[BPR-PENDING-AQ6]]): what a run is for. A
+	/// catalog run asks a Codex App Server for its models (`model/list`) and
+	/// nothing else: no thread, no turn, no context.
+	enum class agent_launch_purpose : std::uint8_t {
+		conversation,
+		model_catalog,
+	};
+
 	/// \brief What one agent process is started with.
 	struct agent_launch_request
 	{
@@ -187,6 +195,7 @@ namespace bpr::application {
 		/// [[BPR-PENDING-AQ6]]. The profile launched, so an added agent's own
 		/// program and fixed arguments are found for its slot.
 		core::agent_profile_id Profile;
+		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -368,6 +377,9 @@ namespace bpr::application {
 		/// dollars as the decimal it wrote; Claude Code's result frame names
 		/// it `total_cost_usd`.
 		usage_report,
+		/// Owner look v006. A catalog run's `model/list` result, its exact
+		/// bytes; the loop keeps it and closes the input.
+		model_catalog,
 	};
 
 	struct agent_protocol_event
@@ -487,7 +499,7 @@ namespace bpr::application {
 	class agent_protocol_decoder final
 	{
 	public:
-		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false);
+		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation);
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -512,6 +524,7 @@ namespace bpr::application {
 		core::agent_runtime_metadata Metadata;
 		core::agent_protocol         Protocol;
 		bool                         WritingOnly = false;
+		agent_launch_purpose         Purpose     = agent_launch_purpose::conversation;
 		std::string                  Pending;
 		std::size_t                  TotalBytes   = 0U;
 		bool                         Failed       = false;
@@ -578,6 +591,8 @@ namespace bpr::application {
 		/// [[BPR-PENDING-AQ6]]. The turn's cost as the harness reported it, a
 		/// decimal of US dollars; absent when it reported none.
 		std::optional<std::string> ReportedCostUsd;
+		/// Owner look v006. A catalog run's `model/list` result, as written.
+		std::optional<std::string> ModelCatalog;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};
@@ -634,6 +649,54 @@ namespace bpr::application {
 	/// taken as signed in. A signed-in check keeps the version run's first
 	/// word that reads as a version, bounded, or none.
 	[[nodiscard]] auto decode_agent_status(core::setup_agent aAgent, const agent_run_result& aStatus, const agent_run_result& aVersion) -> core::agent_status_check;
+
+	/// \brief Owner look v006 ("Codex is totally missing its model settings.
+	/// And its effort is missing max"). One model a harness offers, as it
+	/// names it, with the reasoning efforts it takes.
+	struct agent_model_option
+	{
+		/// What `--model` (or App Server's `model`) takes.
+		std::string Model;
+		/// What the harness shows, such as "GPT-6.1-Sol".
+		std::string              DisplayName;
+		std::vector<std::string> Efforts;
+		std::string              DefaultEffort;
+		bool                     IsDefault = false;
+
+		auto operator<=>(const agent_model_option&) const = default;
+	};
+
+	/// \brief What a harness says it offers: its models (none when it cannot
+	/// list them) and its effort levels (none when it says none).
+	struct agent_harness_catalog
+	{
+		std::vector<agent_model_option> Models;
+		std::vector<std::string>        Efforts;
+
+		auto operator<=>(const agent_harness_catalog&) const = default;
+	};
+
+	/// \brief The most models, and efforts per model, a catalog keeps.
+	inline constexpr std::size_t maximum_catalog_models  = 64U;
+	inline constexpr std::size_t maximum_catalog_efforts = 16U;
+
+	/// \brief A Codex App Server catalog run of `aProgram`, after `aFixed`:
+	/// `app-server`, then `initialize`, `initialized` and `model/list`. No
+	/// workspace and no context, an empty folder of its own, the profile's
+	/// environment allowlist; as the setup check runs.
+	[[nodiscard]] auto build_agent_model_catalog_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent)
+		-> agent_launch_request;
+	/// \brief The catalog run's models: each listed model not hidden, its
+	/// name, display name, efforts and default, bounded; none when the run
+	/// did not answer.
+	[[nodiscard]] auto decode_agent_model_catalog(const agent_run_result& aResult) -> std::vector<agent_model_option>;
+	/// \brief Claude Code's `--help` run of `aProgram`, after `aFixed`.
+	[[nodiscard]] auto build_agent_help_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent)
+		-> agent_launch_request;
+	/// \brief The effort levels `--help` lists for `--effort`, in its order:
+	/// `--effort <level> ... (low, medium, high, xhigh, max)`; none when it
+	/// lists none.
+	[[nodiscard]] auto decode_agent_help_efforts(const agent_run_result& aResult) -> std::vector<std::string>;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_LAUNCH_HPP

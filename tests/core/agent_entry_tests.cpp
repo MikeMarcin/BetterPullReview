@@ -79,8 +79,8 @@ namespace {
 		many.Arguments = std::vector<std::string>(core::maximum_agent_entry_arguments + 1U, "-v");
 		expect(refused(many) == core::agent_entry_refusal::too_many_arguments, "fixed arguments are bounded");
 		auto effort   = entry;
-		effort.Effort = "minimal";
-		expect(refused(effort) == core::agent_entry_refusal::invalid_effort, "the protocol decides the effort names: Claude takes no minimal");
+		effort.Effort = "very high";
+		expect(refused(effort) == core::agent_entry_refusal::invalid_effort, "an effort is one lowercase word; the harness says which it takes");
 		auto codex   = work("Codex", core::agent_protocol::codex_app_server, { });
 		codex.Effort = "minimal";
 		codex.Model  = "gpt-5";
@@ -127,13 +127,13 @@ namespace {
 		settings.CodexEffort   = "high";
 		settings.ClaudeWrapper = "/opt/work/bin/claude-wrapper";
 		settings.ClaudeModel   = "opus";
-		settings.ClaudeEffort  = "minimal";
+		settings.ClaudeEffort  = "not one";
 		const auto moved       = core::migrate_agent_entries(settings);
 		expect(moved.size() == 2U && moved[0].Name == "Codex" && moved[0].Protocol == core::agent_protocol::codex_jsonl_exec && moved[0].Program == settings.CodexProgram
 				   && moved[0].Effort == "high" && moved[0].Preset == core::setup_agent::codex,
 			   "the chosen Codex comes first, with its program, protocol and effort");
 		expect(moved[1].Name == "Claude Code" && moved[1].Program == settings.ClaudeWrapper && moved[1].Model == "opus" && moved[1].Effort.empty(),
-			   "the Claude wrapper becomes Claude Code's program, and an effort Claude does not take is left at its default");
+			   "the Claude wrapper becomes Claude Code's program, and an effort that is not one word is left at its default");
 		expect(!core::inspect_agent_entries(moved), "the moved list is one that may be kept");
 		expect(core::migrate_agent_entries({ }).empty(), "nothing set up moves to an empty list, so no stock agent appears unasked");
 		auto harness           = core::legacy_agent_settings{ };

@@ -394,10 +394,54 @@ namespace {
 				   && again.state().Preferences.PreferredAgent == again.state().Preferences.Agents.back().Id,
 			   "picking a popular agent in setup adds it to the list and chooses it");
 	}
+
+	/// Owner look v006 ("Codex is totally missing its model settings. And
+	/// its effort is missing max"; "reset agents which clears all settings").
+	void test_harness_catalogs_and_reset()
+	{
+		auto f = fixture{ };
+		f.Host->load();
+		f.settle();
+		f.Host->add_agent({ .Name = "Work Codex", .Protocol = core::agent_protocol::codex_app_server, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } }, true);
+		f.Host->add_agent({ .Name = "Claude Code", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/homebrew/bin/claude" });
+		f.settle();
+		const auto agents = f.state().Preferences.Agents;
+		expect(agents.size() == 2U, "two agents are added");
+		auto listed         = application::agent_run_result{ .Outcome = application::agent_run_outcome::success };
+		listed.ModelCatalog = "{\"data\":[{\"model\":\"gpt-6.1-sol\",\"displayName\":\"GPT-6.1-Sol\",\"hidden\":false,\"isDefault\":true,\"defaultReasoningEffort\":\"low\","
+							  "\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\",\"description\":\"\"},{\"reasoningEffort\":\"max\",\"description\":\"\"}]}]}";
+		f.Process.Answers   = { listed, said(application::agent_run_outcome::success, "  --effort <level>   Effort level\n                     (low, medium, high, xhigh, max)") };
+		const auto before   = f.Process.Requests.size();
+		f.Host->load_catalog(agents[0].Id);
+		expect(f.state().Cataloguing == std::vector<std::uint32_t>{ agents[0].Id }, "while the harness is asked, the projection says so");
+		f.settle();
+		expect(f.Process.Requests.size() == before + 1U && f.Process.Requests.back().Executable == "/opt/work/bin/wrapper"
+				   && f.Process.Requests.back().Arguments == std::vector<std::string>{ "--codex", "app-server" } && f.Process.Requests.back().Purpose == application::agent_launch_purpose::model_catalog,
+			   "a Codex-protocol agent is asked through its own program and fixed arguments");
+		const auto codex = f.state().Catalogs.at(agents[0].Id);
+		expect(codex.Models.size() == 1U && codex.Models.front().DisplayName == "GPT-6.1-Sol" && codex.Efforts == std::vector<std::string>{ "low", "max" } && f.state().Cataloguing.empty(),
+			   "its models and their efforts are the harness's own");
+		f.Host->load_catalog(agents[1].Id);
+		f.settle();
+		expect(f.Process.Requests.back().Arguments == std::vector<std::string>{ "--help" } && f.state().Catalogs.at(agents[1].Id).Efforts == std::vector<std::string>{ "low", "medium", "high", "xhigh", "max" },
+			   "Claude Code's effort levels are read from its own --help");
+		const auto asked = f.Process.Requests.size();
+		f.Host->load_catalog(agents[0].Id);
+		f.settle();
+		expect(f.Process.Requests.size() == asked, "an agent already asked is not asked again in this window");
+
+		expect(f.Host->set_run_limit(30U), "a run limit is set");
+		f.Host->reset();
+		f.settle();
+		expect(f.state().Preferences.Agents.empty() && f.state().Preferences.PreferredAgent == 0U && f.state().Preferences.RunLimitMinutes == 0U && f.state().Preferences.AgentsMoved
+				   && f.state().Catalogs.empty() && f.Store.Stored->Agents.empty() && f.state().Step == core::setup_step::agent,
+			   "Reset agents clears every agent and setting, keeps the list from moving back in, and setup starts at Agent");
+	}
 }
 
 auto main() -> int
 {
+	test_harness_catalogs_and_reset();
 	test_detection_starts_nothing();
 	test_saved_programs_win();
 	test_status_check();

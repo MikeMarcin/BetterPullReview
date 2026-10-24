@@ -11929,6 +11929,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						static_cast<void>(Window->go_to_file_line(aPath, aLine, aBefore));
 					}
 				});
+			// Owner look v006. The agent shown is asked what its harness
+			// offers; Reset agents clears every agent setting and the setup
+			// starts again, leaving notes, drafts and conversations.
+			tab->set_catalog_dispatch([this](const std::uint64_t aProfile) {
+				if (Closing || !AgentSetup) {
+					return;
+				}
+				const auto agents = AgentSetup->projection().Preferences.Agents;
+				if (const auto* const entry = core::entry_of_profile(agents, core::agent_profile_id{ aProfile }); entry != nullptr) {
+					AgentSetup->load_catalog(entry->Id);
+				}
+			});
+			tab->set_reset_dispatch([this] {
+				if (Closing || !AgentSetup) {
+					return;
+				}
+				AgentSetup->reset();
+				// The fresh setup looks for agents again, as Set up did.
+				AgentSetup->restart();
+				if (CloneLinks) {
+					const auto links = CloneLinks->projection().Links;
+					for (const auto& link : links) {
+						CloneLinks->forget(link);
+					}
+					CloneLinks->set_clone_folders({ });
+				}
+				if (ReviewSkill) {
+					const auto skill = ReviewSkill->projection();
+					if (skill.Source != core::review_skill_source::built_in || skill.CopyBaseVersion) {
+						ReviewSkill->use_built_in(true);
+					}
+				}
+			});
 			tab->set_suggestions_observer([this](const bool aShown) {
 				if (!Closing && AgentSetup) {
 					AgentSetup->set_suggestions_hidden(!aShown);
@@ -12037,11 +12070,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					},
 			});
 			Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
-				.SetUp =
+				.Reset =
 					[this] {
-						if (Window != nullptr && AgentSetup) {
-							Window->agent_setup()->begin(core::setup_step::agent);
-							AgentSetup->restart();
+						if (!Closing && Window != nullptr) {
+							Window->agent_tab()->reset_agents();
 						}
 					},
 				// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The list's edits.
@@ -12206,12 +12238,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				settings.Program = program;
 				settings.Model   = entry.Model;
 				settings.Effort  = entry.Effort;
+				// Owner look v006 ("Codex is totally missing its model settings.
+				// And its effort is missing max"): what the harness itself said
+				// it offers, once asked; the known levels until then.
+				const auto  catalogAt = setup.Catalogs.find(entry.Id);
+				const auto* catalog   = catalogAt == setup.Catalogs.end() ? nullptr : &catalogAt->second;
+				settings.Listing      = std::ranges::contains(setup.Cataloguing, entry.Id);
 				switch (core::entry_settings_program(entry.Protocol).value_or(core::agent_program::claude)) {
 				case core::agent_program::claude:
 					settings.Models  = claude_models();
-					settings.Efforts = { "low", "medium", "high", "xhigh", "max" };
+					settings.Efforts = catalog != nullptr && !catalog->Efforts.empty() ? catalog->Efforts : core::known_agent_efforts(core::agent_program::claude);
 					break;
-				case core::agent_program::codex: settings.Efforts = { "minimal", "low", "medium", "high", "xhigh" }; break;
+				case core::agent_program::codex: {
+					settings.Efforts = core::known_agent_efforts(core::agent_program::codex);
+					if (catalog == nullptr) {
+						break;
+					}
+					for (const auto& model : catalog->Models) {
+						settings.Models.emplace_back(model.Model, QString::fromStdString(model.DisplayName));
+					}
+					// The chosen model's levels, else the default model's, else
+					// any model's.
+					const auto chosen = std::ranges::find(catalog->Models, entry.Model, &application::agent_model_option::Model);
+					const auto named  = std::ranges::find(catalog->Models, true, &application::agent_model_option::IsDefault);
+					if (chosen != catalog->Models.end() && !chosen->Efforts.empty()) {
+						settings.Efforts = chosen->Efforts;
+					} else if (entry.Model.empty() && named != catalog->Models.end() && !named->Efforts.empty()) {
+						settings.Efforts = named->Efforts;
+					} else if (!catalog->Efforts.empty()) {
+						settings.Efforts = catalog->Efforts;
+					}
+					break;
+				}
 				}
 				const auto choosable     = core::entry_settings_program(entry.Protocol).has_value();
 				settings.ModelChoosable  = choosable;
@@ -12240,7 +12298,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			claude.Model           = ClaudeModel;
 			claude.Effort          = setup.Preferences.ClaudeEffort;
 			claude.Models          = claude_models();
-			claude.Efforts         = { "low", "medium", "high", "xhigh", "max" };
+			claude.Efforts         = core::known_agent_efforts(core::agent_program::claude);
 			auto codex             = qt::agent_run_settings{ };
 			codex.Agent            = QStringLiteral("Codex");
 			codex.Program          = program(core::setup_agent::codex);
@@ -12248,7 +12306,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			codex.EffortChoosable  = true;
 			codex.Model            = setup.Preferences.CodexModel;
 			codex.Effort           = setup.Preferences.CodexEffort;
-			codex.Efforts          = { "minimal", "low", "medium", "high", "xhigh" };
+			codex.Efforts          = core::known_agent_efforts(core::agent_program::codex);
 			auto appServer         = codex;
 			appServer.Profile      = core::codex_app_server_profile_id.value();
 			auto jsonl             = codex;

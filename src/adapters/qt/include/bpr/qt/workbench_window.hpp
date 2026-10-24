@@ -2512,6 +2512,10 @@ namespace bpr::qt {
 		};
 		std::optional<pending_line_go> PendingLineGo;
 		void                           resume_line_go();
+		/// Owner look v006. The Agent tab's suggestions, read once the
+		/// selection gesture that changed them has finished.
+		QTimer* AgentSuggestionsTimer = nullptr;
+		void    schedule_agent_suggestions();
 		/// [[BPR-1592]]. The tray's header, whose width decides whether its
 		/// tabs show their names.
 		QWidget* TrayHeader = nullptr;

@@ -492,11 +492,12 @@ to Agent** offers the same saved agent first.
 
 ### Running setup again
 
-**Set up agent…** and **Change repository folder…** are in the Agent tab's
-History menu. Settings › Agents & context has **Set up agent…**, and Settings
-› Repositories has the clone folders and linked clones. Each opens the
-setup, or that step, with detection run again and the current choices
-selected.
+Owner look v006 replaced **Set up agent…** and **Change repository
+folder…** with **Reset agents…**, in the Agent tab's History menu and in
+Settings › Agents & context: it asks first, then clears every agent setting,
+the clone folders and links and an edited review skill, and the setup starts
+again at Agent. Settings › Repositories keeps the clone folders and linked
+clones.
 
 ### Boundaries
 
@@ -744,6 +745,21 @@ coordinator, verbatim:
   reveals the line through the comparison's conversation anchor, waiting for
   a long file's geometry as a thread's pick does ([[BPR-1698]]). Command-click
   and a plain click both do it.
+- **Look v006 (Reject).** Models and effort levels are the harness's own: a
+  Codex-protocol agent is asked, through its own program and fixed
+  arguments (the owner's `--codex` wrapper included), `app-server` then
+  `model/list`, and its models are listed by the names Codex shows
+  ("GPT-6.1-Sol"), each with the reasoning efforts it takes (`max` and
+  `ultra` among them); Claude Code's levels are read from its `--help`. They
+  are asked when the Agent tab shows the agent or its menu opens, once per
+  window; until they answer the menu says so and offers the known levels,
+  and Other… stays. An effort is now any one lowercase word, the harness
+  saying which. The agent menu ends with Agent settings…. The selected-lines
+  suggestion follows the code's selection at once, during a drag too: it is
+  read from the panes' own selection once the event that changed it has
+  finished, not from the selected line as a press reports it. Reset agents…
+  replaces the ways back into the setup (see Running setup again); it leaves
+  notes, drafts and agent conversations.
 
 ## Acceptance
 

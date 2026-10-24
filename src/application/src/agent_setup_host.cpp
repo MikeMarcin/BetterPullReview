@@ -458,6 +458,79 @@ namespace bpr::application {
 		}
 	}
 
+	void agent_setup_host::load_catalog(const std::uint32_t aEntry)
+	{
+		auto&       host   = *Implementation;
+		const auto& agents = host.Projection.Preferences.Agents;
+		const auto  found  = std::ranges::find(agents, aEntry, &core::agent_entry::Id);
+		if (found == agents.end() || host.Projection.Catalogs.contains(aEntry) || std::ranges::contains(host.Projection.Cataloguing, aEntry) || host.Dependencies.Process == nullptr) {
+			return;
+		}
+		const auto& entry   = *found;
+		const auto  program = core::entry_settings_program(entry.Protocol);
+		const auto  profile = std::ranges::find(host.Dependencies.Profiles, entry.Protocol, &core::agent_profile::Protocol);
+		if (!program || profile == host.Dependencies.Profiles.end()) {
+			return;
+		}
+		// A preset runs the program setup found; an added agent its own.
+		auto path = entry.Program;
+		if (path.empty()) {
+			const auto agent = core::setup_agent_of(entry.Protocol);
+			const auto row   = std::ranges::find(host.Found, agent, &core::agent_detection::Agent);
+			path             = row == host.Found.end() ? std::string{ } : row->Path;
+		}
+		if (path.empty()) {
+			return;
+		}
+		const auto launch = *program == core::agent_program::codex ? build_agent_model_catalog_launch(*profile, path, entry.Arguments, host.Dependencies.Parent)
+																   : build_agent_help_launch(*profile, path, entry.Arguments, host.Dependencies.Parent);
+		host.Projection.Cataloguing.push_back(aEntry);
+		host.publish();
+		host.off_lane(
+			host.Dependencies.Checks,
+			[process = host.Dependencies.Process, launch, codex = *program == core::agent_program::codex] {
+				const auto ran     = process->run(launch, agent_status_timeout_milliseconds);
+				auto       catalog = agent_harness_catalog{ };
+				if (codex) {
+					catalog.Models = decode_agent_model_catalog(ran);
+					// The efforts any of its models take, in the order listed.
+					for (const auto& model : catalog.Models) {
+						for (const auto& effort : model.Efforts) {
+							if (std::ranges::find(catalog.Efforts, effort) == catalog.Efforts.end() && catalog.Efforts.size() < maximum_catalog_efforts) {
+								catalog.Efforts.push_back(effort);
+							}
+						}
+					}
+				} else {
+					catalog.Efforts = decode_agent_help_efforts(ran);
+				}
+				return catalog;
+			},
+			[self = Implementation, aEntry](agent_harness_catalog aCatalog) {
+				std::erase(self->Projection.Cataloguing, aEntry);
+				self->Projection.Catalogs[aEntry] = std::move(aCatalog);
+				self->publish();
+			});
+	}
+
+	void agent_setup_host::reset()
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Checking) {
+			stop();
+		}
+		// The list stays moved: the old settings are not read into it again.
+		auto fresh                  = agent_setup_preferences{ };
+		fresh.AgentsMoved           = true;
+		host.Projection.Preferences = std::move(fresh);
+		host.Projection.Catalogs.clear();
+		host.Picked.reset();
+		host.reset_checks();
+		host.apply_programs();
+		host.save();
+		host.publish();
+	}
+
 	void agent_setup_host::prefer_agent(const std::uint32_t aId)
 	{
 		auto& host = *Implementation;

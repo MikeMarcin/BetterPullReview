@@ -2681,10 +2681,9 @@ namespace bpr::qt {
 			[this](const std::optional<core::semantic_selection>& aSelection,
 				   const bool                                     aInteractive) {
 				// [[BPR-PENDING-AQ6]], owner decision (a). The Agent tab's
-				// suggestions name the selected lines.
-				if (AgentTab != nullptr) {
-					AgentTab->refresh_suggestions();
-				}
+				// suggestions name the selected lines; read once the gesture
+				// has settled (owner look v006).
+				schedule_agent_suggestions();
 				if (ConversationPanel == nullptr || ComparisonSurface == nullptr) {
 					return;
 				}
@@ -3258,6 +3257,29 @@ namespace bpr::qt {
 		// panels, moved into one layout; the private history is its History.
 		// The panels' own column stays, unseen, for every control not moved.
 		AgentTab = new agent_tab_view{ *AgentPanel, *SideChat, *FindingQueue, *privateTabs->widget(0), agentPage };
+		// Owner look v006 ("I selected a block and it still said the line
+		// suggestion and then when i clicked away ... the suggestion text
+		// updates to block"): the selected lines are the panes' own text
+		// selection, which a drag changes without a new selected line, and a
+		// press reports its line before the pane's selection moves. The
+		// suggestions are read from the panes' selections as they change,
+		// once the event that changed them has finished.
+		AgentSuggestionsTimer = new QTimer{ this };
+		AgentSuggestionsTimer->setSingleShot(true);
+		AgentSuggestionsTimer->setInterval(0);
+		connect(AgentSuggestionsTimer, &QTimer::timeout, this, [this] {
+			if (AgentTab != nullptr) {
+				AgentTab->refresh_suggestions();
+			}
+		});
+		if (ComparisonSurface != nullptr) {
+			for (auto* const pane : { ComparisonSurface->left_pane(), ComparisonSurface->right_pane(), ComparisonSurface->unified_pane() }) {
+				if (pane != nullptr) {
+					connect(pane, &QPlainTextEdit::selectionChanged, this, [this] { schedule_agent_suggestions(); });
+					connect(pane, &QPlainTextEdit::cursorPositionChanged, this, [this] { schedule_agent_suggestions(); });
+				}
+			}
+		}
 		AgentTab->set_setup_dispatch([this] { open_settings(settings_page::agents_and_context); });
 		AgentSetup = new agent_setup_view{ agentPage };
 		AgentSetup->hide();
@@ -8840,6 +8862,13 @@ namespace bpr::qt {
 			return;
 		}
 		QTimer::singleShot(100, this, [this] { resume_line_go(); });
+	}
+
+	void workbench_window::schedule_agent_suggestions()
+	{
+		if (AgentSuggestionsTimer != nullptr) {
+			AgentSuggestionsTimer->start();
+		}
 	}
 
 	void workbench_window::go_to_private_note(const std::uint64_t aId)

@@ -240,4 +240,17 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14): "The first time I open the Agent tab it tells me
     what to do, and I end up asking a question that the agent answers from
     my repository."
-- Pending: the owner's decision.
+- Handed back 2026-10-24: **Q1 Reject**. The owner's note, verbatim (line
+  breaks joined): "Codex is totally missing its model settings. And its
+  effort is missing max. This model picker dropdown should have a link to
+  open the agent settings page. Updating the suggestion text seems either
+  extremely slow or busted. I selected a block and it still said the iine
+  suggestion and then when i clicked away to unselect the block thats when
+  the suggestion text updates to block I dont think we should have this
+  option to go back to the wizard, actually we can keep it if it's a "reset
+  agents" which clears all settings and goes back to the wizard fresh."
+  Their screenshots showed Codex's Model menu holding only Default and
+  Other…, its Effort menu minimal to xhigh, and "Explain the selected block
+  (review.cpp lines 29–35)" offered while one line, 42, was selected.
+- Look v006's host was stopped, its candidate released and its root removed.
+  v007 builds the five notes.

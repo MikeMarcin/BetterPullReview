@@ -239,6 +239,17 @@ and no credential is involved. A pull request's conversation is kept per
 agent (`agent_conversation_key::Agent`), so a follow-up carries only its own
 agent's earlier turns.
 
+**What a harness offers ([[BPR-PENDING-AQ6]], owner look v006).** The setup
+host asks an added agent's harness for its models and effort levels when the
+Agent tab shows that agent or its menu opens, once per window: a Codex
+protocol runs the agent's own program and fixed arguments with `app-server`,
+`initialize`, `initialized` and `model/list`, and closes its input once the
+list is in (`agent_launch_purpose::model_catalog`); Claude Code runs with
+`--help`. Each is a tool-free run like the setup check: an empty folder of its
+own, the profile's environment allowlist, no workspace, no context and the
+check's 15-second bound. BetterPullReview reads no Codex or Claude
+configuration file.
+
 **No run time limit by default ([[BPR-PENDING-AQ6]], owner decision
 2026-10-23).** A run has no time limit unless the reviewer sets one in
 Settings › Agents & context (one limit for every agent, in minutes, kept in

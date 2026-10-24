@@ -25,7 +25,7 @@ namespace bpr::adapters::agent::detail {
 				, Sink{ aSink }
 				, Transport{ aTransport }
 				, Result{ .Session = aRequest.Session, .Run = aRequest.Run }
-				, Decoder{ aRequest.Protocol, aRequest.WritingOnly }
+				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
 				}
@@ -310,6 +310,10 @@ namespace bpr::adapters::agent::detail {
 						}
 					} else if (message.Kind == application::agent_protocol_event_kind::usage_report) {
 						Result.ReportedCostUsd = message.Text;
+					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
+						// Owner look v006: a catalog run ends once its list is in.
+						Result.ModelCatalog = message.Text;
+						Transport.close_input();
 					} else {
 						process_control(message);
 						if (has_cause()) {
@@ -377,7 +381,8 @@ namespace bpr::adapters::agent::detail {
 					record_protocol_failure(trailing.error());
 					return;
 				}
-				if (IsAppServer && AppServerPhase != 2U) {
+				// A catalog run writes one follow-up, a conversation two.
+				if (IsAppServer && AppServerPhase != (Request.Purpose == application::agent_launch_purpose::model_catalog ? 1U : 2U)) {
 					record_protocol_failure(
 						application::agent_protocol_failure::malformed_frame);
 					return;

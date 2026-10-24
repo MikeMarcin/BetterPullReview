@@ -163,14 +163,17 @@ namespace bpr::qt {
 		});
 		connect(RunLimit, &QSpinBox::editingFinished, this, [this] { send_run_limit(); });
 		column->addSpacing(8);
-		auto* const setUp = new quiet_push_button{ tr("Set up agent…"), this };
-		setUp->setObjectName(QStringLiteral("settingsSetUpAgent"));
-		connect(setUp, &QPushButton::clicked, this, [this] {
-			if (Dispatch.SetUp) {
-				Dispatch.SetUp();
+		// Owner look v006: the setup is not entered again except to start
+		// afresh; Reset agents… asks first, then clears every agent setting.
+		auto* const reset = new quiet_push_button{ tr("Reset agents…"), this };
+		reset->setObjectName(QStringLiteral("settingsResetAgents"));
+		reset->setToolTip(tr("Remove every agent and its settings, the clone folders and linked clones, and the edited review skill, then set up again"));
+		connect(reset, &QPushButton::clicked, this, [this] {
+			if (Dispatch.Reset) {
+				Dispatch.Reset();
 			}
 		});
-		column->addWidget(setUp, 0, Qt::AlignLeft);
+		column->addWidget(reset, 0, Qt::AlignLeft);
 		settle_buttons();
 	}
 

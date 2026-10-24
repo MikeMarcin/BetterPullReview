@@ -821,10 +821,68 @@ namespace {
 		expect(result.Outcome == agent_run_outcome::cancelled && deferred.Writes.size() == 2 && held->Releases > 0, "revoked App Server claim permits handshake but no deferred private write");
 	}
 
+	/// Owner look v006 ("Codex is totally missing its model settings"). A
+	/// catalog run asks Codex's App Server for `model/list` after its
+	/// handshake, reads past the notifications Codex 0.163 sends between, and
+	/// closes the input once the list is in. Frames as that Codex wrote them.
+	void test_a_catalog_run_lists_the_harness_models()
+	{
+		auto transport   = fake_transport{ };
+		transport.Output = {
+			{ .Status = agent_protocol_pipe_read_status::data,
+			  .Bytes  = "{\"id\":0,\"result\":{\"userAgent\":\"codex/0.163.0\"}}\n{\"method\":\"remoteControl/status/changed\",\"params\":{}}\n" },
+			{ .Status = agent_protocol_pipe_read_status::no_data },
+			{ .Status = agent_protocol_pipe_read_status::data,
+			  .Bytes  = "{\"method\":\"account/updated\",\"params\":{}}\n"
+						"{\"id\":1,\"result\":{\"data\":["
+						"{\"id\":\"gpt-6.1-sol\",\"model\":\"gpt-6.1-sol\",\"displayName\":\"GPT-6.1-Sol\",\"description\":\"\",\"hidden\":false,\"isDefault\":true,\"defaultReasoningEffort\":\"low\","
+						"\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\",\"description\":\"\"},{\"reasoningEffort\":\"medium\",\"description\":\"\"},{\"reasoningEffort\":\"high\",\"description\":\"\"},"
+						"{\"reasoningEffort\":\"xhigh\",\"description\":\"\"},{\"reasoningEffort\":\"max\",\"description\":\"\"},{\"reasoningEffort\":\"ultra\",\"description\":\"\"}]},"
+						"{\"id\":\"gpt-6-luna\",\"model\":\"gpt-6-luna\",\"displayName\":\"GPT-6-Luna\",\"description\":\"\",\"hidden\":false,\"isDefault\":false,\"defaultReasoningEffort\":\"medium\","
+						"\"supportedReasoningEfforts\":[{\"reasoningEffort\":\"low\",\"description\":\"\"},{\"reasoningEffort\":\"max\",\"description\":\"\"}]},"
+						"{\"id\":\"internal\",\"model\":\"internal\",\"displayName\":\"Internal\",\"description\":\"\",\"hidden\":true,\"isDefault\":false,\"defaultReasoningEffort\":\"low\",\"supportedReasoningEfforts\":[]}"
+						"],\"nextCursor\":null}}\n" },
+			{ .Status = agent_protocol_pipe_read_status::no_data },
+		};
+		transport.Waits   = { { .Status = agent_protocol_wait_status::running }, { .Status = agent_protocol_wait_status::running }, { .Status = agent_protocol_wait_status::exited } };
+		auto catalog      = application::agent_launch_request{ .Protocol = core::agent_protocol::codex_app_server, .Session = core::agent_session_id{ 1U }, .Input = "initialize\n" };
+		catalog.Purpose   = application::agent_launch_purpose::model_catalog;
+		const auto result = run_agent_protocol_loop(catalog, { }, transport);
+		expect(result.Outcome == application::agent_run_outcome::success && result.ModelCatalog.has_value() && result.Events.empty(), "a catalog run succeeds with the list and no output");
+		expect(transport.Writes.size() == 2U && transport.Writes[1U].find("\"method\":\"initialized\"") != std::string::npos && transport.Writes[1U].find("\"method\":\"model/list\"") != std::string::npos
+				   && transport.Writes[1U].find("thread/start") == std::string::npos && transport.CloseInputCount == 1U,
+			   "after the handshake it asks for the models alone, and closes the input once they are in");
+		const auto models = application::decode_agent_model_catalog(result);
+		expect(models.size() == 2U && models[0].Model == "gpt-6.1-sol" && models[0].DisplayName == "GPT-6.1-Sol" && models[0].IsDefault && models[0].DefaultEffort == "low"
+				   && models[0].Efforts == std::vector<std::string>{ "low", "medium", "high", "xhigh", "max", "ultra" } && models[1].Efforts == std::vector<std::string>{ "low", "max" },
+			   "the list is the harness's own: names as it shows them, each model's efforts with max and ultra, hidden models left out");
+		expect_single_termination(transport, "a catalog run terminates once");
+
+		// An answer that is an error lists nothing.
+		auto refused      = fake_transport{ };
+		refused.Output    = { { .Status = agent_protocol_pipe_read_status::data, .Bytes = "{\"id\":0,\"result\":{}}\n" },
+							  { .Status = agent_protocol_pipe_read_status::no_data },
+							  { .Status = agent_protocol_pipe_read_status::data, .Bytes = "{\"id\":1,\"error\":{\"code\":-1,\"message\":\"no\"}}\n" } };
+		const auto failed = run_agent_protocol_loop(catalog, { }, refused);
+		expect(failed.Outcome != application::agent_run_outcome::success && application::decode_agent_model_catalog(failed).empty(), "a refused list offers no models");
+	}
+
+	/// Owner look v006: Claude Code's effort levels as its own `--help` lists them.
+	void test_claude_help_names_its_efforts()
+	{
+		auto help         = application::agent_run_result{ .Outcome = application::agent_run_outcome::success };
+		help.Events       = { { .Text = "  --effort <level>                      Effort level for the current session\n" }, { .Text = "                                        (low, medium, high, xhigh, max)\n" } };
+		const auto levels = application::decode_agent_help_efforts(help);
+		expect(levels == std::vector<std::string>{ "low", "medium", "high", "xhigh", "max" }, "the levels are read from --help, in its order");
+		help.Events = { { .Text = "  --model <model>   Model for the current session (e.g. 'sonnet')\n" } };
+		expect(application::decode_agent_help_efforts(help).empty(), "a help without --effort names none");
+	}
 } // namespace
 
 int main()
 {
+	test_a_catalog_run_lists_the_harness_models();
+	test_claude_help_names_its_efforts();
 	test_complete_assistant_items_and_claims();
 	test_run_metadata_and_input_admission();
 	test_all_write_statuses_are_classified();

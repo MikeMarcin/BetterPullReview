@@ -793,6 +793,41 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 
+		/// \brief Owner look v006. One frame of a catalog run: the
+		/// initialize reply, then the `model/list` reply, whose result's
+		/// bytes are kept; every notification and server request is read
+		/// past.
+		[[nodiscard]] auto decode_app_server_catalog_frame(const std::string_view aFrame, std::uint8_t& aPhase)
+			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
+		{
+			auto parsed = bounded_json_parser{ aFrame }.parse();
+			if (!parsed || parsed->Kind != json_kind::object_value) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			const auto* id = member(*parsed, "id");
+			if (id == nullptr || member(*parsed, "method") != nullptr) {
+				return no_protocol_events();
+			}
+			const auto expected = aPhase == 0U ? std::string_view{ "0" } : aPhase == 2U ? std::string_view{ "1" }
+																						: std::string_view{ };
+			if (id->Kind != json_kind::number_value || expected.empty() || id->Text != expected) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			if (member(*parsed, "error") != nullptr) {
+				return std::unexpected(agent_protocol_failure::remote_failed);
+			}
+			const auto* result = object_member(*parsed, "result");
+			if (result == nullptr) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			if (aPhase == 0U) {
+				aPhase = 1U;
+				return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::initialization_complete } };
+			}
+			aPhase = 6U;
+			return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::model_catalog, .Text = std::string{ aFrame.substr(result->Begin, result->End - result->Begin) } } };
+		}
+
 		[[nodiscard]] auto decode_codex_jsonl_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
@@ -2684,6 +2719,13 @@ namespace bpr::application {
 		if (const auto admitted = admit_agent_input(aRequest); !admitted) {
 			return std::unexpected(admitted.error() == agent_launch_failure::input_too_large ? agent_protocol_failure::input_too_large : agent_protocol_failure::invalid_runtime_metadata);
 		}
+		if (aRequest.Purpose == agent_launch_purpose::model_catalog) {
+			// Owner look v006: the models, and nothing else.
+			if (aControl.Kind == agent_protocol_event_kind::initialization_complete) {
+				return std::string{ "{\"method\":\"initialized\"}\n{\"method\":\"model/list\",\"id\":1,\"params\":{}}\n" };
+			}
+			return std::unexpected(agent_protocol_failure::malformed_frame);
+		}
 		switch (aControl.Kind) {
 		case agent_protocol_event_kind::initialization_complete:
 			return app_server_thread_start(aRequest.Metadata);
@@ -2696,15 +2738,17 @@ namespace bpr::application {
 		}
 		case agent_protocol_event_kind::output:
 		case agent_protocol_event_kind::finding_payload:
-		case agent_protocol_event_kind::usage_report:    break;
+		case agent_protocol_event_kind::usage_report:
+		case agent_protocol_event_kind::model_catalog:   break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
 
 	agent_protocol_decoder::agent_protocol_decoder(
-		const core::agent_protocol aProtocol, bool aWritingOnly)
+		const core::agent_protocol aProtocol, bool aWritingOnly, const agent_launch_purpose aPurpose)
 		: Protocol{ aProtocol }
 		, WritingOnly{ aWritingOnly }
+		, Purpose{ aPurpose }
 	{
 	}
 
@@ -2713,6 +2757,37 @@ namespace bpr::application {
 	{
 		if (Failed) {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
+		}
+		if (Purpose == agent_launch_purpose::model_catalog) {
+			// Owner look v006. A catalog run carries no conversation, so the
+			// causal order its two follow-ups protect does not apply; the
+			// server's notifications are read past.
+			if (Protocol != core::agent_protocol::codex_app_server || aBytes.size() > maximum_agent_stdout_bytes - TotalBytes) {
+				Failed = true;
+				return std::unexpected(agent_protocol_failure::output_too_large);
+			}
+			TotalBytes += aBytes.size();
+			Pending.append(aBytes);
+			auto events = std::vector<agent_protocol_event>{ };
+			for (auto newline = Pending.find('\n'); newline != std::string::npos; newline = Pending.find('\n')) {
+				if (newline > maximum_agent_frame_bytes) {
+					Failed = true;
+					return std::unexpected(agent_protocol_failure::frame_too_large);
+				}
+				const auto frame = Pending.substr(0U, newline);
+				Pending.erase(0U, newline + 1U);
+				auto decoded = decode_app_server_catalog_frame(frame, Phase);
+				if (!decoded) {
+					Failed = true;
+					return std::unexpected(decoded.error());
+				}
+				events.insert(events.end(), std::make_move_iterator(decoded->begin()), std::make_move_iterator(decoded->end()));
+			}
+			if (Pending.size() > maximum_agent_frame_bytes) {
+				Failed = true;
+				return std::unexpected(agent_protocol_failure::frame_too_large);
+			}
+			return events;
 		}
 		if (
 			Protocol == core::agent_protocol::codex_app_server
@@ -3010,6 +3085,125 @@ namespace bpr::application {
 		launches.Status    = std::move(status);
 		launches.Version   = std::move(version);
 		return launches;
+	}
+
+	auto build_agent_model_catalog_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::codex_app_server;
+		request.Purpose    = agent_launch_purpose::model_catalog;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aProgram);
+		request.Arguments  = std::move(aFixed);
+		request.Arguments.emplace_back("app-server");
+		// Not a review: no workspace, no context, an empty folder of its own.
+		request.WritingOnly = true;
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Input       = frame_agent_input(core::agent_protocol::codex_app_server, { });
+		request.Profile     = aProfile.Id;
+		return request;
+	}
+
+	namespace {
+		/// \brief An effort as a harness names it: lowercase letters, a few.
+		[[nodiscard]] auto effort_word(const std::string_view aWord) -> bool
+		{
+			return !aWord.empty() && aWord.size() <= 16U && std::ranges::all_of(aWord, [](const char aByte) { return aByte >= 'a' && aByte <= 'z'; });
+		}
+	} // namespace
+
+	auto decode_agent_model_catalog(const agent_run_result& aResult) -> std::vector<agent_model_option>
+	{
+		auto models = std::vector<agent_model_option>{ };
+		if (aResult.Outcome != agent_run_outcome::success || !aResult.ModelCatalog) {
+			return models;
+		}
+		const auto  parsed = bounded_json_parser{ *aResult.ModelCatalog }.parse();
+		const auto* data   = parsed && parsed->Kind == json_kind::object_value ? member(*parsed, "data") : nullptr;
+		if (data == nullptr || data->Kind != json_kind::array_value) {
+			return models;
+		}
+		for (const auto& item : data->Elements) {
+			if (models.size() >= maximum_catalog_models || item.Kind != json_kind::object_value) {
+				break;
+			}
+			const auto* model    = string_member(item, "model");
+			const auto* name     = string_member(item, "displayName");
+			const auto* hidden   = member(item, "hidden");
+			const auto* chosen   = member(item, "isDefault");
+			const auto* fallback = string_member(item, "defaultReasoningEffort");
+			if (model == nullptr || !core::valid_claude_model(*model) || (hidden != nullptr && hidden->Kind == json_kind::boolean_value && hidden->Boolean)) {
+				continue;
+			}
+			auto option        = agent_model_option{ };
+			option.Model       = *model;
+			option.DisplayName = name != nullptr && !name->empty() && name->size() <= 80U ? *name : *model;
+			option.IsDefault   = chosen != nullptr && chosen->Kind == json_kind::boolean_value && chosen->Boolean;
+			if (fallback != nullptr && effort_word(*fallback)) {
+				option.DefaultEffort = *fallback;
+			}
+			if (const auto* efforts = member(item, "supportedReasoningEfforts"); efforts != nullptr && efforts->Kind == json_kind::array_value) {
+				for (const auto& effort : efforts->Elements) {
+					const auto* word = effort.Kind == json_kind::object_value ? string_member(effort, "reasoningEffort") : nullptr;
+					if (word != nullptr && effort_word(*word) && option.Efforts.size() < maximum_catalog_efforts && std::ranges::find(option.Efforts, *word) == option.Efforts.end()) {
+						option.Efforts.push_back(*word);
+					}
+				}
+			}
+			models.push_back(std::move(option));
+		}
+		return models;
+	}
+
+	auto build_agent_help_launch(const core::agent_profile& aProfile, std::string aProgram, std::vector<std::string> aFixed, const environment_reader& aParent) -> agent_launch_request
+	{
+		auto request       = agent_launch_request{ };
+		request.Protocol   = core::agent_protocol::external_terminal;
+		request.Session    = core::agent_session_id{ 1U };
+		request.Executable = std::move(aProgram);
+		request.Arguments  = std::move(aFixed);
+		request.Arguments.emplace_back("--help");
+		request.WritingOnly = true;
+		request.Environment = materialize_agent_environment(aProfile, aParent);
+		request.Profile     = aProfile.Id;
+		return request;
+	}
+
+	auto decode_agent_help_efforts(const agent_run_result& aResult) -> std::vector<std::string>
+	{
+		auto efforts = std::vector<std::string>{ };
+		if (aResult.Outcome != agent_run_outcome::success) {
+			return efforts;
+		}
+		const auto output = status_output(aResult);
+		const auto option = output.find("--effort");
+		if (option == std::string::npos) {
+			return efforts;
+		}
+		// The levels are the first parenthesised list after the option, on
+		// its line or the next: "(low, medium, high, xhigh, max)".
+		const auto open  = output.find('(', option);
+		const auto close = open == std::string::npos ? std::string::npos : output.find(')', open);
+		if (open == std::string::npos || close == std::string::npos || open - option > 200U) {
+			return efforts;
+		}
+		auto list = std::string_view{ output }.substr(open + 1U, close - open - 1U);
+		while (!list.empty() && efforts.size() < maximum_catalog_efforts) {
+			const auto comma = list.find(',');
+			auto       word  = list.substr(0U, comma);
+			while (!word.empty() && (word.front() == ' ' || word.front() == '\n')) {
+				word.remove_prefix(1U);
+			}
+			while (!word.empty() && (word.back() == ' ' || word.back() == '\n')) {
+				word.remove_suffix(1U);
+			}
+			if (!effort_word(word)) {
+				return { };
+			}
+			efforts.emplace_back(word);
+			list = comma == std::string_view::npos ? std::string_view{ } : list.substr(comma + 1U);
+		}
+		return efforts;
 	}
 
 	auto decode_agent_status(const core::setup_agent aAgent, const agent_run_result& aStatus, const agent_run_result& aVersion) -> core::agent_status_check

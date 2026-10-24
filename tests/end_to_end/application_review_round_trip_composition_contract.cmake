@@ -1,3 +1,15 @@
+# [[BPR-PENDING-AQ6]] reseal (2026-10-24) over the reseal below, linear, on
+# this card's commit. Pinned-scope change, owner look v006: github_application.cpp
+# offers each added agent the models and effort levels its own harness listed
+# (the existing agent setup host's catalog, asked through the existing setup
+# launcher: a Codex protocol's app-server model/list, Claude Code's --help),
+# asks for them when the Agent tab shows the agent or opens its menu, and
+# replaces Set up agent with Reset agents, which resets the existing setup
+# host, forgets the clone links and folders through the existing clone link
+# host, and restores the built-in review skill through the existing skill
+# host. No grant, target, provider, credential, mutation or publication path
+# changes; no new src/app source. Full and manifest pins bind these bytes;
+# mutation 16d135419 stays exact.
 # [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v004: github_application.cpp
 # names Claude Code's models with their versions; gives the Agent tab the pull
@@ -2316,7 +2328,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"897537f6e179b6bd047d701768d01ba81a3cd0fd8ab4bc5dd84a576df3355c88"
+		"01ec48700a8e00f0b76f843abf3f7d53c113dd24f59b3b784513aefb064d744d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2540,7 +2552,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "54be5230b4ee07efa1163dbd192dc863d56db36ff19ceaabcd8a28d720fb53e7"
+        "c852655131ede1de7a9ae1d906976adc820d4b6e53fd4a435155f4f38c131c07"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

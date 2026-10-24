@@ -142,12 +142,18 @@ namespace bpr::core {
 	};
 
 	/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("Not having a model/effort
-	/// picker in this window bothers the hell out of me"). Whether text names
-	/// an effort the agent's own command line takes: Claude Code's `--effort`
-	/// (`low`, `medium`, `high`, `xhigh`, `max`) or Codex's
-	/// `model_reasoning_effort` (`minimal`, `low`, `medium`, `high`, `xhigh`).
-	/// A plain-text harness takes none.
+	/// picker in this window bothers the hell out of me"). Whether text can
+	/// name an effort for the agent's own command line: one lowercase word of
+	/// at most 16 letters, so it is one argument and never an option. Owner
+	/// look v006 ("its effort is missing max"): which words a harness takes
+	/// is the harness's to say (Codex's `model/list`, Claude Code's
+	/// `--help`), not a list kept here.
 	[[nodiscard]] auto valid_agent_effort(agent_program aProgram, std::string_view aEffort) noexcept -> bool;
+
+	/// \brief The effort levels offered before a harness has said its own:
+	/// Claude Code 2.1's `--effort` levels and Codex's reasoning efforts as
+	/// its 0.163 catalog lists them, lowest first.
+	[[nodiscard]] auto known_agent_efforts(agent_program aProgram) -> std::vector<std::string>;
 
 	/// \brief Where a searched-for program was found. One answer for every
 	/// program, so `claude_found_in` keeps its name for the Claude rows.
