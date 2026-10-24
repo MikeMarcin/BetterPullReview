@@ -219,34 +219,6 @@ namespace {
 				 key.File,
 				 surface->selection() };
 	}
-	using reading_facts = std::array<std::uint64_t, 15>;
-	auto reading_snapshot(app::github_application& aOwner, const core::bpr_window_context aContext) -> reading_facts
-	{
-		const auto  identity = github_application_fixture_access::epoch_refresh_identity(aOwner, aContext);
-		const auto* window   = aOwner.window(aContext);
-		if (window == nullptr) {
-			return { 99999U, 99999U, 99999U };
-		}
-		const auto* surface = window->comparison_surface();
-		return { surface->selection() ? surface->selection()->PreferredLine.Line : 99999U,
-				 identity.AcceptedReading && identity.AcceptedReading->Selection ? identity.AcceptedReading->Selection->PreferredLine.Line : 99999U,
-				 identity.ActiveTab && identity.ActiveTab->View.Selection ? identity.ActiveTab->View.Selection->PreferredLine.Line : 99999U,
-				 identity.PendingRestoration, identity.ReadingRestoreUnavailable, identity.ReadingDestination,
-				 identity.TabLoad, identity.TabPresented, identity.DiffRequestMatches, identity.GenerationMatches,
-				 identity.PublicationDisplayed, identity.Closing, surface->statistics().Publications,
-				 identity.TabPending, identity.ComparisonPending };
-	}
-	void report_reading_snapshots(const std::array<std::array<reading_facts, 2>, 3>& aSnapshots, const std::size_t aWindow)
-	{
-		for (std::size_t stage = 0; stage < aSnapshots.size(); ++stage) {
-			std::cerr << "READING_SNAPSHOT stage=" << stage << " window-index=" << aWindow
-					  << " fields=visible,accepted,tab,pending_restore,unavailable,destination,tab_load,tab_presented,request_match,generation_match,displayed,closing,publications,tab_pending,comparison_pending values=";
-			for (const auto value : aSnapshots[stage][aWindow]) {
-				std::cerr << value << ',';
-			}
-			std::cerr << '\n';
-		}
-	}
 	void select_reading(app::github_application& aOwner, core::bpr_window_context aContext, int aRow, bool aCrossUpload = false, bool aEarlyGesture = false)
 	{
 		auto&                                           window = *aOwner.window(aContext);
@@ -515,7 +487,6 @@ auto main(int aArgc, char** aArgv) -> int
 		unavailableReadings = *retained;
 	}
 	std::vector<core::window_review_position>          seededReadings;
-	std::array<std::array<reading_facts, 2>, 3>        readingSnapshots{ };
 	std::optional<application::window_review_snapshot> expectedReadings;
 	std::optional<core::window_review_position>        replacementReading;
 	const auto                                         readingRace = phase == "auth-reading-gesture" || phase == "auth-reading-unchanged" || phase == "auth-reading-home";
@@ -678,8 +649,7 @@ auto main(int aArgc, char** aArgv) -> int
 		expect(firstReading.Comparison != secondReading.Comparison && firstReading.File != secondReading.File
 				   && firstReading.Selection->PreferredLine.Line != secondReading.Selection->PreferredLine.Line,
 			   "independent windows retain distinct cross-upload pairs, files and semantic lines");
-		seededReadings      = { firstReading, secondReading };
-		readingSnapshots[0] = { reading_snapshot(*owner, firstContext), reading_snapshot(*owner, second) };
+		seededReadings = { firstReading, secondReading };
 	} else if (phase == "tabs-edit" || phase == "tabs-restore") {
 		if (phase == "tabs-restore") {
 			const auto& record = expectedReadings->Records[0];
@@ -994,13 +964,7 @@ auto main(int aArgc, char** aArgv) -> int
 			expect(evidence.CredentialRetrieved && evidence.AccountTransportSelected, "remembered binding revalidated through retained vault/account");
 		}
 	}
-	if (phase == "auth-advance") {
-		readingSnapshots[1] = { reading_snapshot(*owner, firstContext), reading_snapshot(*owner, { firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation }) };
-	}
 	capture(*first, phase);
-	if (phase == "auth-advance") {
-		readingSnapshots[2] = { reading_snapshot(*owner, firstContext), reading_snapshot(*owner, { firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation }) };
-	}
 	trigger(*first, "quitProfilesAction");
 	if (phase == "auth-orderly-close-race") {
 		wait_for([&] { return github_application_fixture_access::held_restoration_and_close_callbacks(*owner)[1] == 2U; }, "both window services finish while close callbacks remain held");
@@ -1036,9 +1000,6 @@ auto main(int aArgc, char** aArgv) -> int
 		}
 		for (std::size_t index = 0; index < seededReadings.size(); ++index) {
 			if (retained->Records[index].Position != seededReadings[index]) {
-				if (phase == "auth-advance") {
-					report_reading_snapshots(readingSnapshots, index);
-				}
 				const auto& storedTabs = retained->Records[index].Tabs;
 				if (storedTabs && storedTabs->Active && *storedTabs->Active < storedTabs->Tabs.size()) {
 					const auto& storedView = storedTabs->Tabs[*storedTabs->Active];
