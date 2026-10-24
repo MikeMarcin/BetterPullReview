@@ -4130,7 +4130,10 @@ namespace {
 		return result;
 	}
 
-	[[nodiscard]] auto file_inventory(const std::filesystem::path& aRoot, const inventory_reader aReader = inventory_reader::cached_entry) -> inventory_snapshot
+	// R165 proves cached enumeration timestamps can change with no Git work.
+	// The strict no-write oracle reads current metadata; the control keeps its
+	// explicit cached observations to preserve that counterexample.
+	[[nodiscard]] auto file_inventory(const std::filesystem::path& aRoot, const inventory_reader aReader = inventory_reader::current_handle) -> inventory_snapshot
 	{
 		auto seen  = inventory_snapshot{ };
 		auto error = std::error_code{ };
@@ -4228,11 +4231,11 @@ namespace {
 		static_cast<void>(run_fixture_git(clone / ".git", { "init", "--quiet" }, { }, false));
 		static_cast<void>(run_fixture_git(cache, { "pack-objects", "--revs", (clone / ".git" / "objects" / "pack" / "pack").string() }, base + "\n"));
 		if (aInventoryControl) {
-			const auto cachedBefore       = file_inventory(clone);
-			const auto cachedAfter        = file_inventory(clone);
+			const auto cachedBefore       = file_inventory(clone, inventory_reader::cached_entry);
+			const auto cachedAfter        = file_inventory(clone, inventory_reader::cached_entry);
 			const auto freshBefore        = file_inventory(clone, inventory_reader::current_handle);
 			const auto freshAfter         = file_inventory(clone, inventory_reader::current_handle);
-			const auto cachedAfterHandles = file_inventory(clone);
+			const auto cachedAfterHandles = file_inventory(clone, inventory_reader::cached_entry);
 			std::cout << "GIT_CLONE_INVENTORY_CONTROL cached_equal_without_operation=" << (cachedBefore == cachedAfter)
 					  << " cached_vs_handle_equal_without_operation=" << (cachedBefore == freshBefore)
 					  << " handle_equal_without_operation=" << (freshBefore == freshAfter)
@@ -4242,8 +4245,7 @@ namespace {
 			report_inventory_changes(cachedBefore, cachedAfterHandles, "cached-after-handles-no-operation");
 			require(freshBefore == freshAfter, "current clone metadata stays exact with no adapter operation");
 		}
-		const auto reader      = aInventoryControl ? inventory_reader::current_handle : inventory_reader::cached_entry;
-		const auto cloneBefore = file_inventory(clone, reader);
+		const auto cloneBefore = file_inventory(clone);
 
 		temporary_root workspaceParent{ "git-borrowed-history-workspace-parent" };
 		const auto     authority = workspace_authority();
@@ -4279,11 +4281,11 @@ namespace {
 		require(in_pack(workspace / ".git") == "3", "only the head's commit, tree and new blob are copied: the base's objects are the clone's");
 		require(!std::filesystem::exists(workspace / ".git" / "shallow"), "a complete review's borrowed workspace is not shallow");
 		require(read_text(workspace / ".git" / "config").find("[remote") == std::string::npos, "the workspace has no remote to push to");
-		const auto cloneAfter = file_inventory(clone, reader);
+		const auto cloneAfter = file_inventory(clone);
 		report_inventory_changes(cloneBefore, cloneAfter, "materialization");
 		require(cloneAfter == cloneBefore, "nothing is written to the reviewer's clone");
 		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the borrowed workspace cleans up normally");
-		const auto cloneCleaned = file_inventory(clone, reader);
+		const auto cloneCleaned = file_inventory(clone);
 		report_inventory_changes(cloneBefore, cloneCleaned, "cleanup");
 		require(cloneCleaned == cloneBefore, "cleanup leaves the clone as it was");
 		if (aInventoryControl) {
