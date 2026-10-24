@@ -3701,7 +3701,7 @@ set_tests_properties(application_release_update_look PROPERTIES
     PASS_REGULAR_EXPRESSION "release-update-look:pass")
 
 bpr_add_executable(test_profile_multi_window_public_path profile_multi_window_public_path_tests.cpp)
-target_link_libraries(test_profile_multi_window_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_link_libraries(test_profile_multi_window_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3 BetterPullReview::AdapterSQLite)
 target_compile_definitions(test_profile_multi_window_public_path PRIVATE BPR_BUILD_TESTING=1)
 target_compile_features(test_profile_multi_window_public_path PRIVATE cxx_std_23)
 bpr_enable_hardening(test_profile_multi_window_public_path)

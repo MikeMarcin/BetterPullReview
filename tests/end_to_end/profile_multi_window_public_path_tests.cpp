@@ -1,8 +1,10 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/core/review_ledger.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/conversation_finder.hpp"
@@ -43,6 +45,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QScrollBar>
 #include <QTemporaryDir>
 #include <QThread>
@@ -51,6 +54,7 @@
 
 #include <sqlite3.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -436,6 +440,18 @@ try {
 	expect(snapshotA->Account == snapshotB->Account && snapshotA->Profile == snapshotB->Profile, "both reviews use shared account authority");
 	select_file(*owner, *windowA);
 	select_file(*owner, *windowB);
+	// A displayed comparison precedes its asynchronous material/Seen answer.
+	// Bind the unrelated-review baseline to that exact accepted receipt.
+	wait_for([&] {
+		const auto  comparison = windowB->comparison_surface()->current_result();
+		const auto& receipt    = windowB->review_editor()->shown_receipt();
+		const auto  identity   = app::detail::github_application_fixture_access::epoch_refresh_identity(*owner, second);
+		return comparison && receipt && receipt->File == comparison->Alignment.Key.File
+			&& receipt->Material == core::file_material(comparison->Alignment.Key)
+			&& receipt->Read == core::file_read_state::seen && !identity.TabPending
+			&& app::detail::github_application_fixture_access::review_ledger_settled(*owner, second);
+	},
+			 "second review accepts its own exact material and Seen receipt before the isolation baseline");
 	const auto comparisonA = windowA->comparison_surface()->current_result();
 	const auto comparisonB = windowB->comparison_surface()->current_result();
 	expect(comparisonA->Alignment.Key.PullRequest == snapshotA->PullRequest.PullRequest && comparisonB->Alignment.Key.PullRequest == snapshotB->PullRequest.PullRequest, "each displayed comparison names its accepted PR");
@@ -472,11 +488,37 @@ try {
 	expect(windowA->comparison_surface()->current_result() == comparisonA, "sibling file selection preserved first comparison");
 	capture(*windowA, QStringLiteral("window-a.png"));
 	capture(*windowB, QStringLiteral("window-b.png"));
+	// Delay only B's own public Seen-toggle answer. Its commit completes while
+	// the displayed Seen receipt stays unchanged; A keeps its ordinary lane.
+	const auto ownReceiptB = *windowB->review_editor()->shown_receipt();
+	const auto ownLedgerB  = app::detail::github_application_fixture_access::scaling_evidence(*owner, second).Ledger;
+	expect(app::detail::github_application_fixture_access::hold_review_ledger_terminals(*owner, second, true), "the control holds only the exact second window's ledger answers");
+	auto releaseB = qScopeGuard([&] { static_cast<void>(app::detail::github_application_fixture_access::hold_review_ledger_terminals(*owner, second, false)); });
+	action(*windowB, "markSelectedFileSeenAction")->trigger();
+	wait_for([&] {
+		const auto ledger = app::detail::github_application_fixture_access::scaling_evidence(*owner, second).Ledger;
+		return app::detail::github_application_fixture_access::held_review_ledger_terminals(*owner, second) != 0U
+			&& ledger.PersistenceRequests == ownLedgerB.PersistenceRequests + 1U;
+	},
+			 "second review's own changed Seen receipt reaches the held completion");
+	const auto storedReceipt = [&](const std::int64_t aNumber, const core::file_identity aFile) {
+		auto store = adapters::sqlite::make_review_ledger_store({ root, "github.com", std::to_string(snapshotB->Account.value()), "octo-org/review-repository", aNumber });
+		expect(store.has_value(), "independent storage reader opens the exact fixture PR scope");
+		const auto receipt = (*store)->load(aFile);
+		expect(receipt && receipt->has_value(), "independent storage reader finds the exact scoped file receipt");
+		return **receipt;
+	};
+	auto expectedOwnReceiptB        = ownReceiptB;
+	expectedOwnReceiptB.Read        = core::file_read_state::unread;
+	const auto committedOwnReceiptB = storedReceipt(18, ownReceiptB.File);
+	expect(committedOwnReceiptB == expectedOwnReceiptB && windowB->review_editor()->shown_receipt() == std::optional{ ownReceiptB },
+		   "second review's own durable unread change precedes only its held presentation");
 	const auto unrelatedReceiptB      = windowB->review_editor()->shown_receipt();
 	const auto unrelatedPublicationsB = windowB->comparison_surface()->statistics().Publications;
 	const auto unrelatedLedgerB       = app::detail::github_application_fixture_access::scaling_evidence(*owner, second).Ledger;
 	action(*windowA, "toggleSelectedFileReadAction")->trigger();
-	wait_for([&] { return windowA->review_editor()->shown_receipt() && windowA->review_editor()->shown_receipt()->Read == core::file_read_state::read; }, "first review accepts the public receipt action");
+	wait_for([&] { return windowA->review_editor()->shown_receipt() && windowA->review_editor()->shown_receipt()->Read == core::file_read_state::read
+					   && app::detail::github_application_fixture_access::review_ledger_settled(*owner, first); }, "first review accepts the public receipt action");
 	QApplication::processEvents();
 	if (windowB->review_editor()->shown_receipt() != unrelatedReceiptB
 		|| windowB->comparison_surface()->current_result() != comparisonB
@@ -504,6 +546,22 @@ try {
 			   && windowB->comparison_surface()->current_result() == comparisonB
 			   && windowB->comparison_surface()->selection() == selectionB,
 		   "receipt writes in PR17 do not change PR18's receipt or comparison");
+	const auto afterUnrelatedLedgerB = app::detail::github_application_fixture_access::scaling_evidence(*owner, second).Ledger;
+	expect(afterUnrelatedLedgerB.ReceiptInvalidations == unrelatedLedgerB.ReceiptInvalidations && afterUnrelatedLedgerB.Operations == unrelatedLedgerB.Operations,
+		   "the foreign PR's receipt write schedules no ledger invalidation or storage work in the held window");
+	expect(storedReceipt(18, ownReceiptB.File) == committedOwnReceiptB,
+		   "PR17's public read write preserves PR18's independently read exact durable receipt");
+	const auto acceptedReceiptA = windowA->review_editor()->shown_receipt();
+	expect(storedReceipt(17, acceptedReceiptA->File) == *acceptedReceiptA, "the public read receipt is durable only in PR17's exact storage scope");
+	expect(app::detail::github_application_fixture_access::hold_review_ledger_terminals(*owner, second, false), "the control releases the second window's own ledger answer");
+	releaseB.dismiss();
+	wait_for([&] { return windowB->review_editor()->shown_receipt() == std::optional{ committedOwnReceiptB }
+				   && app::detail::github_application_fixture_access::review_ledger_settled(*owner, second); }, "only the second review's own late receipt becomes accepted after release");
+	expect(windowB->review_editor()->shown_receipt() != unrelatedReceiptB
+			   && windowB->comparison_surface()->current_result() == comparisonB && windowB->comparison_surface()->selection() == selectionB
+			   && windowA->review_editor()->shown_receipt() == acceptedReceiptA && windowA->comparison_surface()->current_result() == comparisonA,
+		   "an own late receipt changes the old receipt baseline while both PR comparisons and the unrelated receipt remain exact");
+	std::cout << "multi-window-own-receipt-ordering:pass\n";
 	// The existing private-note seed writes through A's composed ledger host.
 	// Observe the resulting public overview in another session of the same PR.
 	submit(*windowB, 17);
