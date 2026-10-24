@@ -4651,6 +4651,15 @@ namespace {
 			}
 		}
 		const auto most = std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; });
+		std::cout << "PAINTED_INK fill=" << aMark.format.background().color().name(QColor::HexArgb).toStdString()
+				  << " span=" << aMark.cursor.selectionStart() << ':' << aMark.cursor.selectionEnd()
+				  << " rect=" << begin.left() << ',' << begin.top() << ':' << end.left() << ',' << end.top();
+		for (const auto& [color, count] : counts) {
+			if (count >= 8) {
+				std::cout << ' ' << QColor{ color }.name().toStdString() << '=' << count;
+			}
+		}
+		std::cout << '\n';
 		return most == counts.end() ? QColor{ } : QColor{ most->first };
 	}
 
