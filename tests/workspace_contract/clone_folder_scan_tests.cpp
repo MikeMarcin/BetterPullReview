@@ -15,6 +15,7 @@
 #include <iostream>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -37,16 +38,37 @@ namespace {
 		write_file(aPath / "README.md", "fixture\n");
 	}
 
-	/// Every file and directory under the root with its last write time, so a
-	/// scan that wrote anything shows up.
-	[[nodiscard]] auto inventory(const fs::path& aRoot) -> std::map<std::string, fs::file_time_type>
+	struct inventory_entry
 	{
-		auto seen  = std::map<std::string, fs::file_time_type>{ };
-		auto error = std::error_code{ };
+		fs::file_type      Type;
+		fs::file_time_type Written;
+		auto               operator==(const inventory_entry&) const -> bool = default;
+	};
+
+	/// Every file and directory under the root with its type and last write
+	/// time, so a scan that wrote anything shows up.
+	[[nodiscard]] auto inventory(const fs::path& aRoot, const std::string_view aStage) -> std::map<std::string, inventory_entry>
+	{
+		auto seen        = std::map<std::string, inventory_entry>{ };
+		auto error       = std::error_code{ };
+		auto currentPath = aRoot;
 		for (auto entry = fs::recursive_directory_iterator{ aRoot, fs::directory_options::none, error }; !error && entry != fs::recursive_directory_iterator{ };
 			 entry.increment(error)) {
-			seen[text(entry->path())] = fs::symlink_status(entry->path()).type() == fs::file_type::symlink ? fs::file_time_type{ } : entry->last_write_time();
+			currentPath        = entry->path();
+			const auto type    = fs::symlink_status(currentPath, error).type();
+			auto       written = fs::file_time_type{ };
+			if (!error && type != fs::file_type::symlink) {
+				written = entry->last_write_time(error);
+			}
+			if (error) {
+				break;
+			}
+			seen[text(currentPath)] = { type, written };
 		}
+		if (error) {
+			std::cerr << "CLONE_SCAN_INVENTORY_ERROR stage=" << aStage << " path=" << text(currentPath) << " error=" << error.value() << " message=" << error.message() << '\n';
+		}
+		expect(!error, "the no-write inventory reads every fixture entry");
 		return seen;
 	}
 } // namespace
@@ -71,10 +93,10 @@ try {
 	fs::create_directory_symlink(outside, github / "link-to-folder", linkError);
 	const auto links = !linkError;
 
-	const auto before  = inventory(scratch.path());
+	const auto before  = inventory(scratch.path(), "before");
 	const auto folders = std::vector<std::string>{ text(github), text(src), text(scratch.path() / "missing") };
 	const auto found   = adapters::workspace::scan_clone_folders(folders);
-	const auto after   = inventory(scratch.path());
+	const auto after   = inventory(scratch.path(), "after");
 	auto       paths   = std::vector<std::string>{ };
 	for (const auto& candidate : found) {
 		paths.push_back(candidate.Path);
@@ -102,9 +124,9 @@ try {
 			const auto current = after.find(path);
 			if (remaining != 0U && (current == after.end() || current->second != stamp)) {
 				std::cerr << "CLONE_SCAN_CHANGED path=" << path << " present=" << (current != after.end())
-						  << " before-ticks=" << stamp.time_since_epoch().count();
+						  << " before-type=" << static_cast<int>(stamp.Type) << " before-ticks=" << stamp.Written.time_since_epoch().count();
 				if (current != after.end()) {
-					std::cerr << " after-ticks=" << current->second.time_since_epoch().count();
+					std::cerr << " after-type=" << static_cast<int>(current->second.Type) << " after-ticks=" << current->second.Written.time_since_epoch().count();
 				}
 				std::cerr << '\n';
 				--remaining;
@@ -112,7 +134,7 @@ try {
 		}
 		for (const auto& [path, stamp] : after) {
 			if (remaining != 0U && !before.contains(path)) {
-				std::cerr << "CLONE_SCAN_ADDED path=" << path << " ticks=" << stamp.time_since_epoch().count() << '\n';
+				std::cerr << "CLONE_SCAN_ADDED path=" << path << " type=" << static_cast<int>(stamp.Type) << " ticks=" << stamp.Written.time_since_epoch().count() << '\n';
 				--remaining;
 			}
 		}
