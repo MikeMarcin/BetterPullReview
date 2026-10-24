@@ -625,3 +625,43 @@ actually throws/catches `std::bad_alloc`; its provider test also challenges
 caller C++/architecture settings and inspects compiled architecture flags.
 No source pin or allocation-failure requirement changes. Native focused
 verification and rebuilt CLI/measurement candidates remain pending.
+
+
+### Corrected candidate validation in progress
+
+Source `b449356dd4f9ae81ea3a9792517fe33309d8ecab` fixes the first-configure
+policy issue. The fresh executable/architecture regression passes on native
+Mac, Windows and Linux. All seven Mac product/provider/control rows pass
+again in 22.13 seconds; all seven Windows rows pass in 39.10 seconds.
+The corrected Ubuntu standalone CLI now passes its full source/runtime audit,
+real-process public Cycle course, installed C/C++/Qt and throwing-new/OOM
+observations in both images, exactly one allocator from its installed prefix,
+and missing/extra/relocation/removal controls. A first supervisor-module
+harness loaded the fixture's provider Qt; explicitly loading the installed Qt
+before that external fixture corrects the harness, and loaded origins are now
+asserted. No payload bytes changed during the controls.
+
+Universal Mac standalone CLI source/runtime audit, real-process Cycle course,
+actual runtime-archive expansion/audit/relocation/removal, source binding and
+missing/extra allocator controls pass. Both executable/helper and both private
+libraries contain arm64 and x86_64 slices; only native arm64 execution is
+observed. The ad-hoc seal supplies no signed-install or Intel acceptance.
+
+Corrected Release comparisons remain measurement reports with real budget
+failures, not performance approval. Windows baseline passes all six; mimalloc
+fails the four memory/resource rows. Its initial direct diagnostic profile
+lacked CTest's declared loader environment and exited before main; applying
+the existing inventory environment makes both profiles complete. The source
+workloads/limits are unchanged. Mac/Linux corrected reports supersede their
+first fresh-library candidates; unchanged baseline evidence is reused with
+identical common C++/fixture/toolchain inputs. Final measurements are still
+being collected for the criterion-linked handoff.
+
+Windows standalone CLI preparation reached the exact PE auditor and refused
+`pe-map-symbol-address-mismatch`: its caller omitted the Runtime auditor's
+explicit SDK specimen. Inspection with the already reviewed specimen
+SHA-256 `9fe31df255d17b0339391ff80a71bf2c5d442cc301bd2fe6eeea00b626f10785`
+passes the same bound map guard. The CLI route now forwards explicit
+`--windows-import-library` and `--windows-redist-root` inputs through that
+same guard, with a regression for argument propagation; no map/symbol rule is
+weakened. Native Windows CLI preparation/control checks remain pending.

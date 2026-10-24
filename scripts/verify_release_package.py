@@ -317,7 +317,8 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
 
 
 
-def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source_archive: Path | None = None) -> dict:
+def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source_archive: Path | None = None,
+                   windows_redist_root: Path | None = None, windows_import_library: Path | None = None) -> dict:
     """Audit the selected standalone CLI, retaining the ordinary source/byte guards."""
     require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
     info = runtime.inputs(build, tour_cli=True)
@@ -327,6 +328,9 @@ def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source
     for path in required:
         require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{path.name}")
     evidence = check_file_inventory(root, sbom, revision, info)
+    if windows_import_library is not None:
+        require(info["platform"] == "Windows", "sdk-import-library-requires-windows")
+        evidence["windows_import_metadata_specimen"] = pe_release.import_metadata_specimen(windows_import_library)
     check_dependency_inventory(sbom, info)
     evidence.update(check_graph(build, info, revision))
     source = runtime.installed_source_provenance(root, info, revision)
@@ -346,7 +350,8 @@ def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source
         if qt_symbols:
             table = qt_symbols[0]
         elif info["platform"] == "Windows":
-            table = pe_release.inspect(path, info, None, private_producers=producers)
+            table = pe_release.inspect(path, info, windows_redist_root, private_producers=producers,
+                                       windows_import_library=windows_import_library)
         else:
             table = composition.inspect_symbols(path)
         check_payload(path.read_bytes(), table.symbols)
@@ -371,7 +376,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.tour_cli:
-            evidence = audit_tour_cli(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision, source_archive=args.source_archive)
+            evidence = audit_tour_cli(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision, source_archive=args.source_archive,
+                                      windows_redist_root=args.windows_redist_root, windows_import_library=args.windows_import_library)
         else:
             evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
                          windows_redist_root=args.windows_redist_root, source_archive=args.source_archive,

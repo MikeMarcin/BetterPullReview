@@ -31,6 +31,21 @@ class ReleasePackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "required-packaged-capability-missing:libmimalloc.so.3"):
                     audit.audit_tour_cli(root, root, root / "sbom.spdx.json", "a" * 40)
 
+    def test_standalone_cli_forwards_explicit_windows_producer_inputs(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            sbom = root / "sbom.spdx.json"
+            sbom.write_text("{}")
+            redist, specimen = root / "redist", root / "bcrypt.lib"
+            arguments = ["audit", "--tour-cli", "--build", str(root), "--root", str(root),
+                         "--sbom", str(sbom), "--source-revision", "a" * 40,
+                         "--windows-redist-root", str(redist), "--windows-import-library", str(specimen)]
+            with (patch.object(sys, "argv", arguments), patch.object(audit, "audit_tour_cli", return_value={}) as selected,
+                  patch("builtins.print")):
+                self.assertEqual(audit.main(), 0)
+            self.assertEqual(selected.call_args.kwargs["windows_redist_root"], redist)
+            self.assertEqual(selected.call_args.kwargs["windows_import_library"], specimen)
+
     def test_allocator_probe_cannot_ship_in_the_installed_payload(self):
         with self.assertRaisesRegex(ValueError, "fixture-or-canary-bytes-in-package"):
             audit.check_payload(b"BPR_MIMALLOC_PROBE", ("ordinary_symbol",))

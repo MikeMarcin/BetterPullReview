@@ -338,8 +338,11 @@ an offline ad-hoc seal. Nothing signs for release or publishes.
 Audit an expanded copy through `scripts/verify_release_package.py --tour-cli`
 with `--build`, `--root`, `--sbom`, `--source-revision` and the separate
 `--source-archive`. The auditor binds actual files, selected producers and
-source references, and refuses missing or extra allocator files. Installed
-native loading, signed trust and legal approval remain separate evidence.
+source references, and refuses missing or extra allocator files. On Windows the CLI preparer and auditor accept `--windows-import-library`
+for the same independently reviewed SDK `bcrypt.lib` metadata specimen used
+by the Runtime PE audit; it is not proof of linker selection. The auditor also
+honors `--windows-redist-root`. Installed native loading, signed trust and
+legal approval remain separate evidence.
 `packaging/package.py` continues to build the desktop's Runtime component.
 
 ```sh
