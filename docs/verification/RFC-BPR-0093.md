@@ -92,3 +92,24 @@ update transaction and architecture/core boundary checks and their contracts.
 Documentation's 67 tests and the gate pass. Touched C++ format and tidy 22 pass;
 tidy's initial realloc finding is retained in the transient `tidy.log` and its
 passing correction in `tidy-fixed.log`.
+
+## Final unattended checkpoint, 2026-10-24
+
+Latest product-source commit: `aadf2d91d`. Reconfigured/rebuilt the selected
+Debug product graph and reran all seven allocator rows: pass in 15.90 seconds,
+including exactly one loaded allocator and the real major-version runtime file.
+Package runtime tests: 30 checked, one native-Linux-only case skipped; package
+audit tests: 9 pass; source-asset tests: 24 pass. The initial package test run
+found the expected component/count assertions still describing the old inventory;
+those expectations were updated to include mimalloc, then the suite passed.
+Documentation tests (67), documentation gate, shell syntax, Python compilation
+and `git diff --check` pass. No repeat of unchanged comprehensive integration
+was required after a library output-name/package-inventory change.
+
+Local preparation is blocked at its clean-source preflight: concurrent changes
+to `docs/issues/NEXT_ID` and the BPR-1765 reservation are unrelated and untouched.
+No `local-candidate` app/archive was created; no release signature, Keychain
+lookup or Apple submission occurred in that invocation. Native Intel,
+signed-installed AC03, final AC07 and AC08 remain open. The prerequisite
+amendment is recorded on BPR-1759; no acceptance wording, exit or authored
+milestone dependency was waived. The first milestone remains unaccepted.

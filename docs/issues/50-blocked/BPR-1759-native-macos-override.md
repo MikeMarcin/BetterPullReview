@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1759"
 title: "Verify process-wide mimalloc on native macOS"
-status: "In Progress"
+status: "Blocked"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758"]
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
+blocked_by: "native-macos-candidate"
 ---
 
 # Verify process-wide mimalloc on native macOS
@@ -33,3 +34,25 @@ Final AC07 for every platform, standalone CLI/source closure, negative package
 qualification and release acceptance remain on [[BPR-1762]]. No criterion or
 milestone exit is waived; signed installed and native Intel evidence stay
 required. `--prepare-only` is an ad-hoc candidate, never signed-install acceptance.
+
+## Native evidence and current block
+
+Product source candidate `aadf2d91d` on macOS 26.6.2 arm64, AppleClang 21 and
+Qt 6.12.0: all five actual tests-enabled executables pass C/C++, loaded-module,
+Qt, cross-module, cross-thread, allocation-failure and one-runtime ownership
+checks. The provider/missing-override controls also pass (7/7, 15.90 seconds).
+The prior 17-row integration passes; unchanged product behavior reuses that
+record. Package/runtime/source tests pass (30 with one native-Linux skip, 9,
+and 24 respectively). See [the ledger](../../verification/RFC-BPR-0093.md).
+
+`tools/release.sh --version 0.3.2 --prepare-only --skip-tests --output-dir
+build/mimalloc-m1/local-candidate` refused at the clean-source guard before a
+build, deployment, signing, Keychain lookup or Apple submission. Unrelated
+`docs/issues/NEXT_ID` and reservation
+`docs/issues/_reservations/BPR-1765--BPR-1765--65cc7e762a78.json` appeared
+concurrently; neither belongs to this milestone and both are preserved.
+No installed candidate was produced. After that writer reconciles its files,
+retry the same local preparation from clean committed source. The resulting
+ad-hoc candidate still cannot satisfy signed-installed AC03. Developer ID and
+native Intel evidence require their actual authorized course; this arm64 host
+supplies neither. Do not mark this card or the milestone complete.
