@@ -458,15 +458,18 @@ namespace {
 		clones.Folders = { "/Users/me/src", "/Users/me/Documents/GitHub" };
 		clones.Links   = { application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .PrivateCopy = true } };
 		folders.present(clones);
-		auto* const editor = folders.folders();
+		auto* const editor       = folders.folders();
+		const auto  srcFolder    = QDir::toNativeSeparators(QStringLiteral("/Users/me/src")).toStdString();
+		const auto  gitHubFolder = QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString();
+		const auto  workFolder   = QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString();
 		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
 		editor->list()->setCurrentRow(1);
 		editor->up_button()->click();
-		expect(asked.back() == "set /Users/me/Documents/GitHub /Users/me/src", "Move up reorders the list, which is the order clones are looked for in");
+		expect(asked == std::vector<std::string>{ "set " + gitHubFolder + " " + srcFolder } && editor->folders() == std::vector<std::string>{ gitHubFolder, srcFolder }, "Move up reorders the list, which is the order clones are looked for in");
 		editor->list()->setCurrentRow(1);
 		editor->remove_button()->click();
-		expect(asked.back() == "set /Users/me/Documents/GitHub", "Remove takes the selected folder out");
-		expect(type_row(*editor, QStringLiteral("/Volumes/work")) && asked.back() == "set /Users/me/Documents/GitHub " + QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString(),
+		expect(asked.size() == 2U && asked.back() == "set " + gitHubFolder && editor->folders() == std::vector<std::string>{ gitHubFolder }, "Remove takes the selected folder out");
+		expect(type_row(*editor, QStringLiteral("/Volumes/work")) && asked.size() == 3U && asked.back() == "set " + gitHubFolder + " " + workFolder && editor->folders() == std::vector<std::string>{ gitHubFolder, workFolder },
 			   "New folder adds a typed row at the end");
 		folders.links()->setCurrentRow(0);
 		folders.findChild<QPushButton*>(QStringLiteral("settingsForgetLink"))->click();
