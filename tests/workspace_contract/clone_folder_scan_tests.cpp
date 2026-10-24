@@ -95,6 +95,28 @@ try {
 		expect(std::ranges::none_of(found, [&outside](const core::clone_candidate& aFound) { return aFound.Path.find("linked-clone") != std::string::npos || aFound.Path.find(text(outside)) != std::string::npos; }),
 			   "a link to a clone and a link to a folder are never followed");
 	}
+	if (before != after) {
+		std::cerr << "CLONE_SCAN_INVENTORY before=" << before.size() << " after=" << after.size() << '\n';
+		auto remaining = 8U;
+		for (const auto& [path, stamp] : before) {
+			const auto current = after.find(path);
+			if (remaining != 0U && (current == after.end() || current->second != stamp)) {
+				std::cerr << "CLONE_SCAN_CHANGED path=" << path << " present=" << (current != after.end())
+						  << " before-ticks=" << stamp.time_since_epoch().count();
+				if (current != after.end()) {
+					std::cerr << " after-ticks=" << current->second.time_since_epoch().count();
+				}
+				std::cerr << '\n';
+				--remaining;
+			}
+		}
+		for (const auto& [path, stamp] : after) {
+			if (remaining != 0U && !before.contains(path)) {
+				std::cerr << "CLONE_SCAN_ADDED path=" << path << " ticks=" << stamp.time_since_epoch().count() << '\n';
+				--remaining;
+			}
+		}
+	}
 	expect(before == after, "the scan writes nothing");
 	const auto engine = std::ranges::find(found, text(github / "engine"), &core::clone_candidate::Path);
 	expect(engine != found.end() && engine->Folder == text(github) && engine->Branch == "main", "a candidate names its listed folder and branch");
