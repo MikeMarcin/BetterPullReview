@@ -21,6 +21,7 @@
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <compare>
