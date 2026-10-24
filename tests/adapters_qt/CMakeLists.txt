@@ -2432,6 +2432,29 @@ foreach(bpr_drawer_parts_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-1595]]. RFC-BPR-0085 AC08: every rebuilt drawer surface in the four
+# themes at its narrowest and widest width, at each scale.
+bpr_add_executable(test_better_pull_review_qt_drawer_surfaces_fit_tests drawer_surfaces_fit_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_drawer_surfaces_fit_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_drawer_surfaces_fit_tests)
+bpr_enable_warnings(test_better_pull_review_qt_drawer_surfaces_fit_tests)
+foreach(bpr_drawer_fit_scale IN ITEMS 100 125 200)
+    math(EXPR bpr_drawer_fit_whole "${bpr_drawer_fit_scale} / 100")
+    math(EXPR bpr_drawer_fit_fraction "${bpr_drawer_fit_scale} % 100")
+    bpr_add_network_isolated_test(
+        NAME qt_drawer_surfaces_fit_scale_${bpr_drawer_fit_scale}
+        COMMAND test_better_pull_review_qt_drawer_surfaces_fit_tests
+    )
+    set_tests_properties(
+        qt_drawer_surfaces_fit_scale_${bpr_drawer_fit_scale}
+        PROPERTIES
+            ENVIRONMENT
+                "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_drawer_fit_whole}.${bpr_drawer_fit_fraction}"
+            PASS_REGULAR_EXPRESSION "drawer-surfaces-fit:pass"
+            TIMEOUT 300
+    )
+endforeach()
+
 # RFC-BPR-0089 M1. The Commits tab and the commit filter chip.
 bpr_add_executable(test_better_pull_review_qt_commit_filter_view_tests commit_filter_view_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_commit_filter_view_tests PRIVATE BetterPullReview::AdapterQt)
