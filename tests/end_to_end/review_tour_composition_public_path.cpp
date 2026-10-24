@@ -22,6 +22,7 @@
 #include <QClipboard>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QDir>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
@@ -795,10 +796,21 @@ auto main(int argc, char** argv) -> int
 				   "the writing request names the entry's model with --model");
 			shutdown(*application);
 			application.reset();
-			application    = make();
-			auto* reopened = application->window().agent_programs()->agent_list();
-			wait([&] { return reopened->count() == 1 && reopened->item(0)->text().contains(QString::fromLocal8Bit(argv[2])) && reopened->item(0)->text().contains(QStringLiteral("claude-sonnet-5-5")); },
+			application               = make();
+			auto* const reopenedPanel = application->window().agent_programs();
+			auto*       reopened      = reopenedPanel->agent_list();
+			const auto  shownProgram  = QDir::toNativeSeparators(QString::fromLocal8Bit(argv[2]));
+			wait([&] { return reopened->count() == 1 && reopened->item(0)->text().contains(shownProgram) && reopened->item(0)->text().contains(QStringLiteral("claude-sonnet-5-5")); },
 				 "the entry's program and model survive a restart");
+			std::optional<core::agent_entry> reloadedEntry;
+			reopenedPanel->set_editor([&](const core::agent_entry& aEntry, QWidget*) -> std::optional<core::agent_entry> {
+				reloadedEntry = aEntry;
+				return std::nullopt;
+			});
+			reopened->setCurrentRow(0);
+			reopenedPanel->edit_button()->click();
+			expect(reloadedEntry && reloadedEntry->Program == program && reloadedEntry->Model == model,
+				   "the restarted entry keeps the exact stored program and model independently of native path display");
 			shutdown(*application);
 			std::cout << "review-tour-writing-wrapper:pass\n";
 			return EXIT_SUCCESS;
