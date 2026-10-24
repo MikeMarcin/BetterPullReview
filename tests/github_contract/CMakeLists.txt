@@ -752,6 +752,7 @@ bpr_add_network_isolated_test(
 )
 bpr_add_network_isolated_test(
     NAME live_review_mutation_outdated_reply_recovery
+    WINDOWS_UNCONTAINED
     COMMAND
         test_better_pull_review_live_review_mutation_provider_tests
         --only

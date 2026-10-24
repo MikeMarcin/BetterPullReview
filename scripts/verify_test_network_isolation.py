@@ -213,9 +213,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # merge-base contract; the Windows station has not measured it yet.
     "commit_filter_fixture_contract": "git-reference-parent-denied",
     "sqlite_markdown_image_disk_cache": "ancestor-control-denied",
-    # [[BPR-1749]]. The agent setup store opens under the same retained
-    # ancestor walk as its siblings.
-    "sqlite_agent_setup_storage": "unmeasured (registered on macOS)",
+    # [[BPR-1749]], [[BPR-1694]]. R148 on Windows, 2026-10-24 at
+    # 958a86e963: identical argv/environment/cwd passes uncontained (0.541s),
+    # but contained fails the first load: "a profile with nothing stored
+    # reads defaults" (0.024s). This pin names that observed store refusal.
+    "sqlite_agent_setup_storage": "agent-setup-default-read-refused",
     "workspace_clone_folder_scan": "unmeasured (registered on macOS)",
     # [[BPR-1573]]. Close review's composed course, registered uncontained like
     # application_review_navigation_entry, with its actual Qt-root refusal now
@@ -682,6 +684,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "git_process_contract": "qprocess-named-pipe",
     "git_cache_contract": "qprocess-named-pipe",
     "live_review_mutation_restart_recovery": "dos-volume-name",
+    # [[BPR-1694]]. R148 at 958a86e963 measures only --only
+    # an_outdated_threads_reply_is_bound_to_its_thread: uncontained passes
+    # (0.120s); contained reports RECOVERY_OPEN_FAILURE attempt=1 failure=0
+    # (unavailable), then "persistent recovery store opens for exact scope"
+    # (0.031s). The default in-memory provider suite stays contained.
+    "live_review_mutation_outdated_reply_recovery": "persistent-recovery-open-unavailable",
     "application_agent_invocation_composition_contract": "dos-volume-name",
     "application_agent_invocation_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_launcher_construction_cut_contract": "dos-volume-name",
@@ -712,9 +720,10 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_queue_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_workshop_construction_cut_contract": "dos-volume-name",
-    # [[BPR-1748]]. The positive course with the shipped bare codex found
-    # on its own search PATH; the same composed course as its siblings.
-    "application_agent_finding_codex_found_contract": "unmeasured (registered on macOS)",
+    # [[BPR-1748]], [[BPR-1694]]. R148 at 958a86e963: the exact
+    # codex-found course passes uncontained (4.048s); contained stops before
+    # launch at agent-finding-composition-failure:private-test-root (0.056s).
+    "application_agent_finding_codex_found_contract": "private-test-root-refused",
     "application_agent_invocation_staleness_contract": "dos-volume-name",
     "application_agent_invocation_cleanup_retry_contract": "dos-volume-name",
     "application_agent_invocation_workspace_diagnostic_contract": "dos-volume-name",
