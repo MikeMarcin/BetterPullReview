@@ -31,7 +31,7 @@ Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), wh
 |---|---|---|---|
 | **AC01:** Configure obtains only the pinned v3.5.3 source and licence bytes; offline, substitution and target-collision controls reject wrong inputs. | Provider pin/offline/substitution/collision/extraction controls; [ledger](../../verification/RFC-BPR-0093.md) | Pass | `81ee1b4ef` |
 | **AC02:** Every selected shipped BPR executable has the override in normal and distribution graphs; disabled optional families create no phantom requirement, a core-only graph remains allocator-independent, non-distribution baseline selection works, and distribution refuses it. | All product-target attachment, actual minimal distribution/core/baseline graphs and running baseline CLI; ledger | Pass | `81ee1b4ef` |
-| **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Seven native developer rows plus clean-worktree local bundle, relocated offscreen assessment and full package audit; ledger | Partial: native Intel and signed installed required | `aadf2d91d` |
+| **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Current r4 clean universal app package/source audit, relocated offscreen course, external native-arm ownership in four staged app images and current CLI pair; ledger | Partial: Intel, authorized signed-installed and delivered native Cocoa remain required | `75baca275` app; `df6e8be48` CLI |
 | **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native Windows four-product probes, external installed/CLI pointer and Qt-free observations, actual runtime audit/controls; [ledger](../../verification/RFC-BPR-0093.md#windows-milestone-result--mandate-r2) | Pass: Windows native allocator scope | `0ccf31bc4`, `c5693fd05` |
 | **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native four-product probes; actual installed GDB/Qt/cross-free/OOM, CLI/MCP/XCB public paths, clean child traces and Runtime audit/controls; ledger | Pass: Linux native allocator scope | `0c40cca40` |
 | **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Native boundary/failure rows, fresh-configure executable regression on all three stations, actual ASan/UBSan/libFuzzer corpus/public CLI and paired desktop prune/delete; [final ledger](../../verification/RFC-BPR-0093.md#distribution-result--mandate-r4) | Pass: focused engineering scope | `b449356dd`, `df6e8be48` |
@@ -284,3 +284,29 @@ outcome, work, exit, AC07/AC08 requirement or BPR-1764 dependency changed.
   then dependency-ordered BPR-1764. Preserve every earlier root and raw report.
   Main's unrelated MASK/NEXT_ID/BPR-1766 changes stay excluded. No signing
   credential/keychain lookup, publication, push or desktop capture occurred.
+
+## Latest Mac checkpoint — mandate r4
+
+Run `mimalloc-20261024`, segment `macos-m1-current-r4`, sole leaf
+`/root/mimalloc_m1`; same coordinator-implementer recipe and authored milestone.
+A fresh clean producer `75baca275aa8f052997a231a83ebc7d77d27ab6d` (product/package source `df6e8be48ff17271e2258f0040e4ca87795f44bd`)
+prepared the universal current app at
+`/Users/jaeger/.codex/worktrees/mimalloc-macos-r4/BetterPullReview/build/mimalloc-macos-r4/local-candidate/`.
+The [ledger](../../verification/RFC-BPR-0093.md#current-mac-candidate--mandate-r4)
+binds artifact hashes, public package/source/negative controls, relocated
+assessment and additional native arm64 observations on every selected app
+process and the retained current CLI pair. All payloads remain unchanged.
+
+Source/tracker is retained branch `codex/mimalloc-macos-r4` in `/Users/jaeger/.codex/worktrees/mimalloc-macos-r4/BetterPullReview`;
+transient evidence, reproducible external observer sources and final machine
+checkpoint/observation live in `build/mimalloc-macos-r4/`. Only three docs change.
+Main's unrelated MASK/NEXT_ID/BPR-1766 state and every earlier candidate are
+untouched. All own commands are finished; no review session/server/URL/cursor.
+
+The new evidence completes this permitted unattended round, not M1 or AC03.
+BPR-1759/BPR-1762 and closeout remain incomplete on actual native Intel,
+Developer-ID signed-installed and delivered Cocoa observations. The r4 steering
+continues work without Intel while retaining its criterion. No acceptance exit,
+memory limit, BPR-0967 result, product code or source pin changed. No Keychain,
+Developer ID operation, publication, push or owner desktop operation occurred.
+The coordinator owns integration and the next authorized acceptance round.

@@ -888,3 +888,117 @@ then reconcile AC07/AC09 and BPR-1764. Main's unrelated `.mask.json`,
 `.mask.lock.json`, `docs/issues/NEXT_ID` and BPR-1766 reservation remain untouched
 and excluded. No push, publication, keychain/credential lookup or desktop capture
 occurred in this milestone.
+
+## Current Mac candidate — mandate r4
+
+The coordinator resumed `pinned-macos-integration` under the owner's r4 steering:
+continue agent-capable work without Intel, while retaining the actual Intel
+criterion. This round changes no product source, acceptance criterion, allocator
+pin, memory limit or existing AC08/BPR-0967 result. Sole leaf
+`/root/mimalloc_m1`, run `mimalloc-20261024`, segment `macos-m1-current-r4`,
+recipe `coordinator-implementer` revision 2, mandate `r4`.
+
+A new clean task-owned worktree and branch preserve earlier candidates:
+`/Users/jaeger/.codex/worktrees/mimalloc-macos-r4/BetterPullReview`, `codex/mimalloc-macos-r4`.
+The exact clean producer is `75baca275aa8f052997a231a83ebc7d77d27ab6d` (current product/package source
+`df6e8be48ff17271e2258f0040e4ca87795f44bd`). Source/tracker/runtime facts are bound in
+`build/mimalloc-macos-r4/checkpoint-initial.json` and the final checkpoint.
+Existing MASK locks were deployed offline to this worktree, without an upgrade.
+Main's unrelated `.mask.json`, `.mask.lock.json`, NEXT_ID and BPR-1766 reservation
+remain untouched. The earlier `eb28c0187` local ZIP rehashes unchanged to its
+recorded `9ca6dec7…` digest; no earlier root or candidate was overwritten.
+
+### Current bundle, source and public composition
+
+`tools/release.sh --version 0.3.2 --prepare-only --skip-tests --output-dir
+build/mimalloc-macos-r4/local-candidate` completed from clean source. The app,
+all three selected helpers and allocator contain arm64 and x86_64 slices;
+tests are disabled and distribution Release is selected. There is no phantom
+CLI in this app graph. The existing prepare workflow uses only an offline
+ad-hoc seal. No Developer ID operation, Keychain access, notarization,
+Gatekeeper assessment, publication or owner-desktop operation occurred.
+
+The relocated offscreen assessment clone passed private-profile and production
+bundle-identity checks. The delivered bundle stayed unchanged during assessment,
+fingerprint `2cad684c18797c4f9f3823183e3da8c24e4b37cb48e5f1b5ac67e0162a3e6129`.
+The delivered native Cocoa course remains separate. Full public package audit
+passes with scoped LLVM 22: `RELEASE_PACKAGE_OK`, 52 files, 19 binaries and
+519 first-party compile units, trust `not-assessed`, legal approval `pending`.
+The separate source sidecar passes `RELEASE_SOURCE_ASSET_OK`. Public package
+negative controls reject an omitted allocator with
+`required-packaged-capability-missing:libmimalloc.3.dylib` and an extra allocator
+with `package-file-set-mismatch`; their private copies were removed.
+
+Artifacts are under this worktree's `build/mimalloc-macos-r4/local-candidate/`:
+
+| Artifact | SHA-256 |
+|---|---|
+| `BetterPullReview-0.3.2-macos-universal-local.zip` | `829bec5d595a2634f466df44f2e95b1f37741c4abab1ad342b0527d3afbac7df` |
+| `BetterPullReview-0.3.2-macos-universal-local.spdx.json` | `0ced7b1d336401cd1a21d198026646a89b78d5ebc77cf2bd6f8f940d71104e7d` |
+| `Source-BetterPullReview-0.3.2-macos-universal-corresponding-source.zip` | `fc15e56132603872e35f91fb57142c910558c08fa7e4f1e60261ae4d8b5f75e2` |
+| App image | `fb772279ff5bcc6fa2cc00d9ee4e51c846ce0dfe19f32fdf070a6259210d04bb` |
+| `Contents/Frameworks/libmimalloc.3.dylib` | `2d72e966ed52f2d5c9d3dee7d44425d39165b6e1c89edb7f96aadefade29da83` |
+
+The source sidecar carries the pinned upstream bytes and complete retained MIT
+notice. Producer/source references and SPDX bind this producer; reuse of the
+same third-party source ZIP bytes does not relabel an earlier app candidate.
+
+### Additional native arm64 observations
+
+A small external, non-shipped observer was compiled under
+`build/mimalloc-macos-r4/`. It links no allocator. Only its explicitly launched
+BPR children receive `DYLD_INSERT_LIBRARIES`; it runs before main and exits
+before ordinary GUI or provider startup. The actual payload is never modified.
+Fallback arguments use the existing pre-Qt installed-runtime refusal, so refused
+injection cannot open a desktop window. A standalone program without mimalloc
+fails this same observer with `mi_is_in_heap_region` absent (exit 42), proving
+that the observer does not supply or substitute an allocator.
+
+Every exact staged app process passed the observer: desktop, supervisor, MCP
+helper and update helper. It observes the pinned version, exactly one allocator
+before and after module calls, C/C++ allocation ownership, aligned/array new,
+C ENOMEM/nothrow/throwing-new failure semantics, Qt storage ownership, 4,096
+cross-module iterations, cross-thread release and module shutdown. `dladdr`
+origins must canonically equal the actual candidate's allocator and Qt Core.
+The separate boundary fixture links Qt and never mimalloc. Qt Core is explicitly
+loaded from the candidate for the otherwise Qt-free helper observations; no
+claim is made that those helpers normally link Qt. All 52 bundle file hashes
+remain unchanged. This is external pre-main process evidence, not a claim that
+normal application main or delivered Cocoa was exercised by the observer.
+
+The retained current standalone CLI producer `df6e8be48ff17271e2258f0040e4ca87795f44bd` was observed read-only
+by the same arm64 method, with its own prefix-bound fixture. `bpr` and its
+supervisor pass all ownership/boundary/failure observations, resolve allocator
+and Qt Core from their own private CLI prefix, and all 21 expanded file hashes
+remain unchanged. Their image SHA-256 values are
+`ee17aef047aa33abf705df7b66d628383b423d9b8fb3b0c4666f9d6795822d8c` and
+`8139db91c1eca4867a56789b51890e2ed5eadc3e76ec4bdac4d016d805582426`.
+This supplements the existing CLI public course without relabeling its producer
+as the new app producer or supplying Intel/signed-install evidence.
+
+Without the observer, all four staged executables also reach their expected
+safe invocation refusals: desktop installed-runtime guard, supervisor invalid
+invocation, MCP unexpected argument and update-helper argument count. The exact
+packaged MCP helper passes `audit_terminal_diagnostics.py`: healthy JSON-RPC,
+closed/full pipes, bounded secret-free diagnostics and restored SIGPIPE behavior.
+These direct courses are additional lifecycle evidence, not a whole updater or
+supervisor acceptance matrix.
+
+### Ownership and continuation
+
+All task-owned commands are quiescent; no review server/session/URL/cursor exists.
+Runtime evidence and reproducible external observer sources/commands remain in
+`build/mimalloc-macos-r4/`: prepare/audit logs, artifact/binary identities,
+`installed-observations.json`, `cli-installed-observations.json`,
+`observer-negative.log`, `startup-refusals.json`, MCP terminal course,
+negative package controls, prior-candidate rehash and final checkpoint/observation.
+The external observers are outside every payload and are not product features.
+This branch changes only the three RFC/card/verification documents. Preserve
+the worktree/build/current candidate and all earlier roots for continuation.
+
+BPR-1759, pinned-macos-integration, BPR-1762 and RFC closeout remain incomplete.
+Native Intel, the actual authorized Developer-ID signed-installed course and
+delivered native Cocoa observations remain pending. The r4 instruction permits
+continued work without Intel; it does not waive that exit. No local ad-hoc seal,
+arm64 observation, source audit or archive is substituted for those criteria.
+The coordinator owns integration and the next authorized native/signed round.

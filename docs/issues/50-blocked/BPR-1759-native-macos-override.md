@@ -73,3 +73,23 @@ supply Developer ID, notarization, Gatekeeper, delivered native Cocoa or Intel
 execution evidence. This card remains Blocked on those actual native/signed
 observations; no criterion is waived. The branch/worktree and candidate are
 retained, all own commands are quiescent, and no review server is running.
+
+## Current r4 result
+
+The fresh universal app candidate is `75baca275aa8f052997a231a83ebc7d77d27ab6d` (current product/package code
+`df6e8be48ff17271e2258f0040e4ca87795f44bd`), prepared cleanly in `/Users/jaeger/.codex/worktrees/mimalloc-macos-r4/BetterPullReview` on
+`codex/mimalloc-macos-r4`. Full package/source audits, relocated offscreen public
+assessment and missing/extra allocator controls pass. An external non-shipped
+pre-main observer now passes C/C++/packaged Qt ownership, one allocator,
+cross-module/thread frees and allocation failures in every exact staged app
+image. It also passes on the retained current CLI and supervisor, with each
+private origin asserted and all payload hashes unchanged. The packaged MCP
+public stdio/diagnostic course and safe startup refusals pass. See the ledger's
+current r4 section for exact artifact hashes, scope and reproducible evidence.
+
+No product source changed; earlier candidates and main's unrelated dirty files
+are preserved. The worktree/build/candidate remain retained, all own commands
+are quiescent, and no review session/server exists. This card stays Blocked:
+Intel remains a real criterion despite r4 permitting work without that machine;
+Developer ID/signed-installed and delivered native Cocoa acceptance remain
+pending. No Keychain, release-signing, publication or desktop operation occurred.
