@@ -3993,7 +3993,9 @@ namespace {
 		std::function<wire_response(const github_wire_request&)> Metadata;
 		std::function<wire_response(const github_wire_request&)> Reviews;
 		/// [[BPR-1680]]. Home's batched GraphQL read.
-		std::function<wire_response(const github_wire_request&)> Home;
+		std::function<wire_response(const github_wire_request&)>          Home;
+		std::function<github_wire_completion(const github_wire_request&)> Recovery;
+		std::optional<application::github_provider_error>                 ReviewerFailure;
 
 		auto perform(const github_wire_request& aRequest, std::stop_token) -> github_wire_completion override
 		{
@@ -4007,9 +4009,17 @@ namespace {
 				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Search(aRequest) };
 			}
 			if (aRequest.Wire.Operation == read_operation::list_home_pull_requests) {
-				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent) && aRequest.Wire.Path == "/graphql",
+				expect(std::holds_alternative<core::repository_request_context>(aRequest.Correlation.Parent) && aRequest.Wire.Path.ends_with("/graphql"),
 					   "the batched read is scoped to the repository and goes to GraphQL");
+				if (!Home) {
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = application::github_provider_error{ .Failure = application::github_provider_failure::unavailable } };
+				}
 				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Home(aRequest) };
+			}
+			if (aRequest.Wire.Operation == read_operation::list_review_requests) {
+				expect(Recovery && std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
+					   "the recovered roster is scoped to its exact PR");
+				return Recovery(aRequest);
 			}
 			if (aRequest.Wire.Operation == read_operation::get_pull_request || aRequest.Wire.Operation == read_operation::list_reviews) {
 				expect(std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
@@ -4023,6 +4033,9 @@ namespace {
 			expect(aRequest.Wire.Operation == read_operation::list_requested_reviewers
 					   && std::get<core::pull_request_request_context>(aRequest.Correlation.Parent).Number.value() == semantic.PullRequestNumber,
 				   "discovery issues only the search and each row's requested reviewers");
+			if (ReviewerFailure) {
+				return github_wire_error{ .Correlation = aRequest.Correlation, .Error = *ReviewerFailure };
+			}
 			return github_wire_success{ .Correlation = aRequest.Correlation, .Response = Reviewers(semantic.PullRequestNumber) };
 		}
 
@@ -4038,6 +4051,92 @@ namespace {
 			return std::nullopt;
 		}
 		return std::get<application::github_provider_error>(aResult.error());
+	}
+
+	void test_discovery_reviewer_limit_recovery()
+	{
+		using reason      = application::personal_discovery_reason;
+		const auto anchor = [](const std::uint32_t aNumber = 5U, const std::string_view aRepository = "octo-org/review-repository") {
+			return graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "nameWithOwner", std::string{ aRepository } }, { "p0", fixture_object{ { "number", aNumber }, { "id", "PR_5" }, { "headRefOid", std::string{ head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" } } } } } } } }));
+		};
+		const auto page = [](const std::uint32_t aPage, const bool aViewer, const bool aRepeatActor = false, const bool aChangedHead = false) {
+			const auto first      = aPage == 1U;
+			auto       actor      = fixture_object{ { "__typename", "User" }, { "id", first || aRepeatActor ? "U_other" : "U_viewer" }, { "login", !first && aViewer ? "Octo-Reviewer" : "other" } };
+			auto       connection = fixture_object{
+				{ "totalCount", 2U }, { "pageInfo", fixture_object{ { "hasNextPage", first }, { "endCursor", first ? "next" : "end" } } }, { "nodes", fixture_array{ fixture_object{ { "id", first ? "RR_1" : "RR_2" }, { "asCodeOwner", false }, { "requestedReviewer", actor } } } }
+			};
+			return graphql_answer(fixture_json(fixture_object{ { "data", fixture_object{ { "repository", fixture_object{ { "id", "R_repository" }, { "pullRequest", fixture_object{ { "id", "PR_5" }, { "headRefOid", std::string{ aChangedHead ? base_oid : head_oid } }, { "baseRefOid", std::string{ base_oid } }, { "baseRefName", "main" }, { "reviewRequests", connection } } } } } } } }));
+		};
+		const auto setup = [&](discovery_fixture_transport& aTransport) {
+			aTransport.Search = [](const auto&) { return discovery_search({ discovery_item(5U, "author", "https://ghe.example.invalid/api/v3") }, 1U); };
+			aTransport.Home   = [&](const github_wire_request& aRequest) {
+				expect(aRequest.Wire.Semantic.PullRequestNumbers == std::vector<std::uint32_t>{ 5U }, "recovery anchors exactly one requested PR, not a search result as membership proof");
+				return anchor();
+			};
+			aTransport.Recovery = [&](const github_wire_request& aRequest) -> github_wire_completion {
+				expect((aRequest.Wire.Semantic.Page == 1U && aRequest.Wire.Semantic.ReviewCursor.empty()) || (aRequest.Wire.Semantic.Page == 2U && aRequest.Wire.Semantic.ReviewCursor == "next"), "the roster is exhausted with the returned cursor");
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = page(aRequest.Wire.Semantic.Page, true) };
+			};
+		};
+		for (const auto guard : { 0, 1, 2, 3 }) {
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.Reviewers = [guard](std::uint32_t) {
+				if (guard == 0) {
+					return requested_reviewers_response({ }, 101U);
+				}
+				if (guard == 1) {
+					return success_response(std::string(4U * 1024U * 1024U + 1U, 'x'));
+				}
+				return success_response("{\"users\":[],\"teams\":[" + std::string(40U, '[') + "0" + std::string(40U, ']') + "]}");
+			};
+			if (guard == 3) {
+				transport.ReviewerFailure = application::github_provider_error{ .Failure = application::github_provider_failure::response_limit, .HttpStatus = 200U };
+			}
+			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			expect(result && result->Rows.size() == 1U && result->Rows[0].ReviewersAwaited == 2U && result->Rows[0].Detailed
+					   && transport.count(read_operation::list_requested_reviewers) == 1U && transport.count(read_operation::list_home_pull_requests) == 1U && transport.count(read_operation::list_review_requests) == 2U,
+				   "REST roster record/byte/structural and transport limits recover through complete projected pages; the viewer can be on page two");
+		}
+		{
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 101U); };
+			transport.Recovery  = [&](const github_wire_request& aRequest) -> github_wire_completion {
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = page(aRequest.Wire.Semantic.Page, false) };
+			};
+			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			expect(result && result->Rows.empty(), "a projected roster that does not explicitly name the viewer does not adopt a search hit");
+		}
+		{
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			auto stop           = std::stop_source{ };
+			transport.Reviewers = [&stop](std::uint32_t) { stop.request_stop(); return requested_reviewers_response({ }, 101U); };
+			const auto result   = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), stop.get_token());
+			expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && transport.count(read_operation::list_home_pull_requests) == 0U,
+				   "cancellation at the REST limit prevents recovery network work");
+		}
+		for (const auto bad : { 0, 1, 2, 3, 4 }) {
+			auto transport = discovery_fixture_transport{ true };
+			setup(transport);
+			transport.Reviewers = [](std::uint32_t) { return requested_reviewers_response({ }, 101U); };
+			if (bad == 0 || bad == 1) {
+				transport.Home = [&, bad](const auto&) { return bad == 0 ? anchor(6U) : anchor(5U, "octo-org/other"); };
+			}
+			transport.Recovery = [&, bad](const github_wire_request& aRequest) -> github_wire_completion {
+				if (bad == 4) {
+					auto response = graphql_answer("{\"message\":\"slow down\"}", 403);
+					response.Headers.push_back({ .Name = "Retry-After", .Value = "60" });
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
+				}
+				return github_wire_success{ .Correlation = aRequest.Correlation, .Response = page(aRequest.Wire.Semantic.Page, true, bad == 2, bad == 3 && aRequest.Wire.Semantic.Page == 2U) };
+			};
+			const auto result = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
+			const auto error  = discovery_failure(result);
+			expect(error && (bad == 4 ? error->Failure == application::github_provider_failure::rate_limit && error->RetryAfterSeconds == 60U : error->Failure == application::github_provider_failure::malformed_response),
+				   "wrong repository/number, duplicate actor and changed head fail atomically; recovery rate-limit metadata is not hidden by the original limit");
+		}
 	}
 
 	auto test_personal_discovery_read() -> void
@@ -4257,7 +4356,7 @@ namespace {
 			transport.Reviewers = [bodyLimit](std::uint32_t) { return bodyLimit ? success_response(std::string(4U * 1024U * 1024U + 1U, 'x')) : requested_reviewers_response({ }, 101U); };
 			const auto  result  = perform_personal_discovery_read(transport, enterprise_profile(), discovery_request(reason::requested, application::github_server_contract::ghes_3_18_2022_11_28), { });
 			const auto* error   = result ? nullptr : std::get_if<application::github_provider_error>(&result.error());
-			expect(error && error->Failure == application::github_provider_failure::response_limit && transport.Requests.size() == 2U, "distinct GHES reviewer byte and record guards both produce the observed two-request response-limit signature; it does not identify the private guard");
+			expect(error && error->Failure == application::github_provider_failure::unavailable && transport.Requests.size() == 3U, "a bounded GHES REST roster attempts projected recovery and reports the actual unavailable recovery instead of an empty requested list");
 		}
 
 		const auto failing = [](const int aStatus, const std::string_view aRemaining, const bool aDetail, std::string aBody = "{\"message\":\"no\"}") {
@@ -5157,6 +5256,7 @@ auto main() -> int
 	test_anonymous_review_comments_rate_limit_is_typed();
 	test_anonymous_review_comments_oversized_body_is_refused();
 	test_personal_discovery_read();
+	test_discovery_reviewer_limit_recovery();
 	test_home_draft_metadata_is_an_optional_wire_fact();
 	test_home_change_facts_are_read_with_the_pull_request();
 	test_retained_home_metadata_read();
