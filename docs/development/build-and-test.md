@@ -49,6 +49,26 @@ including CoreTools (`rcc`). On Windows, Qt acquisition needs Git on `PATH`.
 The validated local environment is CMake 4.4.2, AppleClang 16, Ninja,
 Python 3.14 and Qt 6.11.1 on macOS arm64.
 
+## Product allocator
+
+Normal desktop and standalone `bpr` builds select the pinned mimalloc 3.5.3
+shared runtime for each selected shipped BPR executable, including helpers.
+Configure verifies the archive and MIT licence; offline mode requires
+`mimalloc-3.5.3.tar.gz` in `CPM_SOURCE_CACHE`, and rejects modified bytes.
+A core-only graph acquires no mimalloc. For matched development comparisons,
+configure a separate build tree with `-DBPR_USE_MIMALLOC=OFF`; distribution
+refuses that baseline. Sanitizer/fuzzer builds retain their instrumentation
+allocator and exclude the override. Do not set `DYLD_INSERT_LIBRARIES` or
+`LD_PRELOAD` on a shell or an external child to enable the BPR allocator.
+
+On macOS, `ctest --preset dev -R '^mimalloc_' --output-on-failure` exercises
+ownership of C/C++, loaded-module and Qt allocations in each selected product
+image, cross-module frees and allocation-failure behavior. The probe exists
+only with tests enabled and runs before main; ordinary startup/shutdown courses
+remain separate. A development pass does not qualify an Intel host or signed
+installed package. The [RFC](../rfcs/RFC-BPR-0093-process-wide-mimalloc.md)
+retains those required native and package checks.
+
 ## First build
 
 Tests use the project’s locked portable tooling. For a fresh clone, register

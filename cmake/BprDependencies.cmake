@@ -81,6 +81,9 @@ endmacro()
 
 function(bpr_configure_dependencies)
     set(records)
+    if(BPR_MIMALLOC_ACTIVE)
+        list(APPEND records "mimalloc|PINNED_ARCHIVE|BetterPullReview::Mimalloc")
+    endif()
 
     if(BPR_BUILD_QT AND APPLE)
         bpr_configure_release_archive()

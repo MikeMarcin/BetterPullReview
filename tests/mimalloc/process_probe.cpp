@@ -1,0 +1,113 @@
+#include <dlfcn.h>
+
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+#include <new>
+#include <thread>
+
+namespace {
+	using owns_pointer = bool (*)(const void*);
+
+	void require(bool aCondition, const char* aMessage)
+	{
+		if (!aCondition) {
+			std::fprintf(stderr, "MIMALLOC_PROBE_FAIL %s\n", aMessage);
+			std::exit(1);
+		}
+	}
+
+	template <class T>
+	T symbol(void* aModule, const char* aName)
+	{
+		auto result = reinterpret_cast<T>(dlsym(aModule, aName));
+		require(result != nullptr, aName);
+		return result;
+	}
+
+	void check_allocation(owns_pointer aOwns, void* aPointer, const char* aMessage)
+	{
+		require(aPointer != nullptr && aOwns(aPointer), aMessage);
+		std::memset(aPointer, 0x5a, 73);
+	}
+
+	void exercise_boundaries(owns_pointer aOwns, void* aModule)
+	{
+		auto allocate    = symbol<void* (*)(std::size_t)>(aModule, "bpr_module_allocate");
+		auto release     = symbol<void (*)(void*)>(aModule, "bpr_module_release");
+		auto allocateNew = symbol<void* (*)(std::size_t)>(aModule, "bpr_module_new");
+		auto releaseNew  = symbol<void (*)(void*)>(aModule, "bpr_module_delete");
+		auto qtData      = symbol<void* (*)()>(aModule, "bpr_module_qt_data");
+		require(aOwns(qtData()), "loaded Qt QByteArray storage is not owned");
+		for (std::size_t index = 0; index < 4096; ++index) {
+			const auto size       = 73 + (index % 256) * 17;
+			auto*      fromModule = allocate(size);
+			check_allocation(aOwns, fromModule, "module calloc");
+			std::free(fromModule);
+			auto* fromExecutable = std::malloc(size);
+			check_allocation(aOwns, fromExecutable, "executable malloc");
+			release(fromExecutable);
+			auto* moduleNew = allocateNew(size);
+			check_allocation(aOwns, moduleNew, "module new");
+			::operator delete(moduleNew);
+			auto* executableNew = ::operator new(size);
+			check_allocation(aOwns, executableNew, "executable new");
+			releaseNew(executableNew);
+		}
+		auto* crossThread = allocate(16384);
+		check_allocation(aOwns, crossThread, "cross-thread allocation");
+		std::thread worker([crossThread] { std::free(crossThread); });
+		worker.join();
+	}
+
+	void exercise_standard_family(owns_pointer aOwns)
+	{
+		auto* pointer = std::malloc(73);
+		check_allocation(aOwns, pointer, "malloc");
+		pointer = std::realloc(pointer, 16384);
+		check_allocation(aOwns, pointer, "realloc");
+		std::free(pointer);
+		pointer = std::calloc(73, 2);
+		check_allocation(aOwns, pointer, "calloc");
+		std::free(pointer);
+		require(posix_memalign(&pointer, 256, 512) == 0, "posix_memalign");
+		check_allocation(aOwns, pointer, "aligned ownership");
+		require(reinterpret_cast<std::size_t>(pointer) % 256 == 0, "aligned address");
+		std::free(pointer);
+		auto* text = strdup("allocator-boundary");
+		require(text != nullptr && aOwns(text), "strdup");
+		std::free(text);
+		auto* aligned = ::operator new(512, std::align_val_t(256));
+		check_allocation(aOwns, aligned, "aligned new");
+		::operator delete(aligned, std::align_val_t(256));
+		// Volatile prevents folding the overflow request into a compiler warning.
+		volatile auto impossibleSize = std::numeric_limits<std::size_t>::max();
+		errno                        = 0;
+		require(std::malloc(impossibleSize) == nullptr && errno == ENOMEM, "malloc failure semantics");
+		require(::operator new(impossibleSize, std::nothrow) == nullptr, "nothrow failure semantics");
+	}
+
+	// Compiled only into tests-enabled product images. Each course enters the
+	// actual executable's bindings before main; ordinary startup is checked
+	// separately. No allocator hook or diagnostic seam ships in distribution.
+	__attribute__((constructor)) void allocator_probe()
+	{
+		if (std::getenv("BPR_MIMALLOC_PROBE") == nullptr) {
+			return;
+		}
+		auto owns    = symbol<owns_pointer>(RTLD_DEFAULT, "mi_is_in_heap_region");
+		auto version = symbol<int (*)()>(RTLD_DEFAULT, "mi_version");
+		require(version() == 30503, "pinned runtime version");
+		exercise_standard_family(owns);
+		const auto* modulePath = std::getenv("BPR_MIMALLOC_PROBE_MODULE");
+		require(modulePath != nullptr, "missing module path");
+		auto* module = dlopen(modulePath, RTLD_NOW | RTLD_LOCAL);
+		require(module != nullptr, "loaded module");
+		exercise_boundaries(owns, module);
+		require(dlclose(module) == 0, "module shutdown");
+		std::fprintf(stderr, "MIMALLOC_PROBE_PASS C C++ Qt cross-module cross-thread OOM\n");
+		std::exit(0);
+	}
+}

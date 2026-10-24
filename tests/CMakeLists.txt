@@ -1,3 +1,5 @@
+add_subdirectory(mimalloc)
+
 if(BPR_BUILD_TOUR_CLI)
     bpr_add_executable(test_tour_publication_cli application/tour_publication_cli_tests.cpp "${PROJECT_SOURCE_DIR}/src/app/src/review_submission_fixture.cpp")
     target_compile_definitions(test_tour_publication_cli PRIVATE BPR_BUILD_TESTING=1)

@@ -544,6 +544,28 @@ library. Only its verified C translation unit and public header are staged into
 the target's include/source directory; unrelated cache siblings never enter
 the compiler search path.
 
+### Executable allocator composition (RFC-BPR-0093)
+
+The normal product graph selects pinned mimalloc 3.5.3 as one shared allocator
+per shipped BPR process: desktop, optional `bpr`, MCP context helper, process
+supervisor and macOS update helper. `cmake/BprMimallocProvider.cmake` verifies
+the archive and MIT licence and re-extracts from verified bytes on configure.
+Only selected executable targets link it; no core, host or adapter contract
+exposes its API, and a core-only graph acquires no allocator. On macOS the
+shared runtime uses upstream interposition and malloc-zone integration, including
+eligible loaded-library allocations. OS-owned explicit zones and virtual-memory
+APIs retain their own ownership; their allocation/free pairs must stay together.
+BPR sets no preload environment for external Git, `gh` or agent children.
+
+`BPR_USE_MIMALLOC=OFF` is a development comparison baseline. Distribution
+requires it on. Sanitizer/fuzzer graphs exclude the override and retain toolchain
+allocation; instrumented distribution is refused. `MI_XMALLOC` is forced off,
+so adoption introduces no abort-on-allocation-failure mode. macOS pointer
+ownership and cross-module courses are tests-enabled instrumentation of the
+actual product images; signed installed, Intel, Windows and Ubuntu evidence is
+tracked separately in [[BPR-1759]], [[BPR-1760]] and [[BPR-1761]]. Package/source
+closure and performance qualification remain [[BPR-1762]] and [[BPR-1763]].
+
 ### Core implementation inventory
 
 These are current adoption and encapsulation constraints, separate from the

@@ -4,7 +4,9 @@
 /// \details The whole program is one loop over newline-delimited JSON-RPC 2.0
 /// messages on stdin. There is no listener, no outbound socket, no credential,
 /// and no filesystem root beyond the frozen snapshot: the executable links
-/// `BetterPullReview::Core` and the standard library, and nothing else.
+/// `BetterPullReview::Core`, its JSON decoder and the standard library.
+/// Executable composition also selects the process allocator (RFC-BPR-0093);
+/// no allocator API enters the helper adapter contract.
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 
