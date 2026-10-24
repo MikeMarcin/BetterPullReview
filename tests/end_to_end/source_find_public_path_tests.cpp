@@ -47,7 +47,7 @@ namespace {
 			QApplication::processEvents();
 			QThread::msleep(1);
 		}
-		if (!aCondition() && aDiagnostic) {
+		if (aDiagnostic && !aCondition()) {
 			aDiagnostic();
 		}
 		expect(aCondition(), aMessage);
