@@ -737,6 +737,7 @@ include("{ROOT.as_posix()}/packaging/Install.cmake")
             # [[BPR-1485]]. The package's own xdiff library, installed beside it.
             xdiff = stage / "libbpr_xdiff.so"
             xdiff.write_bytes(b"\x7fELF")
+            (stage / "libmimalloc.so.3").write_bytes(b"\x7fELF")
             for name in runtime.PLUGINS["Linux"]:
                 path = qt / "plugins" / name
                 path.parent.mkdir(parents=True, exist_ok=True)

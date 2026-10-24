@@ -564,6 +564,12 @@ retained through `mi_version`; native pointer probes and the import table check
 actual redirection. Static CRT selections are refused. Explicit Windows heap
 and virtual-memory APIs retain their own matching release APIs.
 BPR sets no preload environment for external Git, `gh` or agent children.
+On Linux, the retained first allocator dependency exports the standard allocation
+family to ELF symbol lookup. One `libmimalloc.so.3` is installed as a real file
+beside Runtime images, and under `lib/` for TourCLI. No loader environment is
+needed. Explicit libc-internal allocation interfaces and direct OS mappings
+retain their own paired release; the native course must establish ownership of
+the ordinary C/C++, Qt and separately loaded module calls it claims.
 
 `BPR_USE_MIMALLOC=OFF` is a development comparison baseline. Distribution
 requires it on. Sanitizer/fuzzer graphs exclude the override and retain toolchain

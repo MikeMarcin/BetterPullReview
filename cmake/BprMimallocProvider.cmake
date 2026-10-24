@@ -1,5 +1,6 @@
 include_guard(GLOBAL)
 include("${CMAKE_CURRENT_LIST_DIR}/AitoCpm.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/Hardening.cmake")
 
 # RFC-BPR-0093: allocator ownership belongs to executable composition, never
 # to a core/host/adapter interface. Instrumented graphs retain their allocator.
@@ -82,6 +83,12 @@ function(bpr_configure_mimalloc)
     set(MI_OSX_INTERPOSE ON)
     set(MI_OSX_ZONE ON)
     set(MI_USE_CXX OFF)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # ELF also overrides global new. The C implementation aborts when its
+        # new handler is absent; C++ compilation preserves std::bad_alloc.
+        set(MI_USE_CXX ON)
+        set(MI_NO_USE_CXX OFF)
+    endif()
     set(MI_XMALLOC OFF)
     set(MI_OPT_ARCH OFF)
     set(MI_OPT_SIMD OFF)
@@ -94,6 +101,9 @@ function(bpr_configure_mimalloc)
         # One real, versioned runtime file gives the closed package inventory a
         # stable load name and avoids shipping producer symlinks.
         set_target_properties(mimalloc PROPERTIES VERSION 3 SOVERSION 3)
+    endif()
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        bpr_enable_hardening(mimalloc)
     endif()
     if(MSVC)
         # The installed PE audit binds this source-built DLL to full producer

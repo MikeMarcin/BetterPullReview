@@ -61,7 +61,7 @@ refuses that baseline. Sanitizer/fuzzer builds retain their instrumentation
 allocator and exclude the override. Do not set `DYLD_INSERT_LIBRARIES` or
 `LD_PRELOAD` on a shell or an external child to enable the BPR allocator.
 
-On macOS and native Windows, `ctest --preset dev -R '^mimalloc_' --output-on-failure` exercises
+On macOS, native Windows and Linux, `ctest --preset dev -R '^mimalloc_' --output-on-failure` exercises
 ownership of C/C++, loaded-module and Qt allocations in each selected product
 image, cross-module frees and allocation-failure behavior. The probe exists
 only with tests enabled and runs before main; ordinary startup/shutdown courses
@@ -75,6 +75,12 @@ pinned upstream redirect DLL beside each product executable. Distribution
 installs both, and its audit requires a full producer map for the allocator
 and the independent byte pin for the redirector. Changing only an import
 library cannot prove that Qt or loaded-library calls are intercepted.
+
+Linux uses the ELF dependency and symbol lookup order, with one source-built
+`libmimalloc.so.3` retained before the product's other libraries. Runtime
+installs put the real SONAME file beside the app and helpers; TourCLI puts it
+under `lib/`. These paths require no preload or loader variable at launch.
+The native probe checks actual ownership; a DT_NEEDED entry alone is insufficient.
 
 ## First build
 
