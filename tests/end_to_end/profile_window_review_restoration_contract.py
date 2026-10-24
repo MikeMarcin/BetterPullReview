@@ -64,6 +64,7 @@ def recent(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
+    parser.add_argument("--only-orderly-close-control", action="store_true")
     arguments = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-0709-restart-") as temporary:
         root = Path(temporary).resolve()
@@ -74,6 +75,13 @@ def main():
         # the stores define there.
         os.chmod(root, 0o700)
         make_root_private(root)
+        orderly = root / "orderly-close"
+        make_root_private(orderly)
+        orderly_vault = seed_auth(arguments.application, orderly)
+        run(arguments.application, "auth-orderly-close-race", orderly, orderly_vault)
+        if arguments.only_orderly_close_control:
+            print("PROFILE_ORDERLY_CLOSE_CONTROL_OK")
+            return
         early = root / "early-tab-reading"
         make_root_private(early)
         run(arguments.application, "auth-tab-gesture-seed", early)

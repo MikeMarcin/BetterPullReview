@@ -11,6 +11,9 @@
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/release_update_recovery_dialog.hpp"
 #include "terminal_diagnostics.hpp"
+#if defined(BPR_BUILD_TESTING)
+	#include "github_application_fixture_access.hpp"
+#endif
 #if defined(__APPLE__)
 	#include "bpr/adapters/update/release_update_installation.hpp"
 	#include "bpr/qt/menu_bar_status_item.hpp"
@@ -1656,4 +1659,7 @@ namespace bpr::app {
 	void profile_desktop::quit_for_update(std::function<void(bool)> aPrepared) { Implementation->quit_for_update(std::move(aPrepared)); }
 	auto profile_desktop::is_quiescent() const noexcept -> bool { return Implementation->is_quiescent(); }
 	auto profile_desktop::exit_code() const noexcept -> int { return Implementation->exit_code(); }
+#if defined(BPR_BUILD_TESTING)
+	void detail::github_application_fixture_access::poll_desktop(profile_desktop& aDesktop) { aDesktop.Implementation->poll(); }
+#endif
 }

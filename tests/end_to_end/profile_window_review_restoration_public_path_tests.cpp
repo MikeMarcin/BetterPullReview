@@ -27,6 +27,7 @@
 #include <QPixmap>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTextDocument>
@@ -518,7 +519,7 @@ auto main(int aArgc, char** aArgv) -> int
 	std::optional<application::window_review_snapshot> expectedReadings;
 	std::optional<core::window_review_position>        replacementReading;
 	const auto                                         readingRace = phase == "auth-reading-gesture" || phase == "auth-reading-unchanged" || phase == "auth-reading-home";
-	if (phase == "auth-restore" || phase == "auth-advance" || phase.starts_with("tabs-") || readingRace) {
+	if (phase == "auth-restore" || phase == "auth-advance" || phase == "auth-orderly-close-race" || phase.starts_with("tabs-") || readingRace) {
 		const auto retained = restoration_store(root)->load({ });
 		expect(retained.has_value() && retained->Records.size() == 2U, "restart reads two durable positions");
 		expectedReadings = *retained;
@@ -543,6 +544,16 @@ auto main(int aArgc, char** aArgv) -> int
 																						 [&](auto aResult) { terminal = true; if(aResult) { owner = *aResult; } });
 	wait_for([&] { return terminal; }, "desktop startup finishes");
 	expect(owner != nullptr, "desktop admitted");
+	std::function<void()> releaseRestoration;
+	std::function<void()> releaseCloseCallbacks;
+	const auto            releaseGates = qScopeGuard([&] {
+		if (releaseRestoration) {
+			releaseRestoration();
+		}
+		if (releaseCloseCallbacks) {
+			releaseCloseCallbacks();
+		}
+	});
 	if (phase == "auth-stale" || phase == "auth-home") {
 		github_application_fixture_access::hold_window_read_terminal(*owner, { core::default_bpr_profile_id, core::bpr_window_id{ 1U }, core::bpr_window_generation{ generation } }, true);
 	}
@@ -610,6 +621,30 @@ auto main(int aArgc, char** aArgv) -> int
 		} else {
 			seededReadings = seed_auth(*owner, firstContext, phase == "auth-tab-gesture-seed");
 		}
+	} else if (phase == "auth-orderly-close-race") {
+		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
+		home_lists_recent(*owner, firstContext, { 18, 17 });
+		home_lists_recent(*owner, second, { 18, 17 });
+		resume_recent(*owner, firstContext, 17);
+		accepted(*owner, firstContext, 17);
+		restored_reading(*first, *expectedReadings->Records[0].Position);
+		resume_recent(*owner, second, 18);
+		accepted(*owner, second, 18);
+		auto* sibling = owner->window(second);
+		restored_reading(*sibling, *expectedReadings->Records[1].Position);
+		wait_for([&] { return github_application_fixture_access::restoration_durable(*owner); }, "the close-race baseline is durable");
+		releaseRestoration    = github_application_fixture_access::hold_restoration_terminals(*owner);
+		releaseCloseCallbacks = github_application_fixture_access::hold_window_close_callbacks(*owner);
+		expect(sibling->comparison_surface()->select_conversation_line(core::diff_side::right, 0U), "older public reading starts a save");
+		wait_for([&] { return github_application_fixture_access::held_restoration_and_close_callbacks(*owner)[0] == 1U; }, "the older restoration save completed behind its decision gate");
+		const auto older = restoration_store(root)->load({ });
+		expect(older && older->Records.size() == 2U && older->Records[1].Position && older->Records[1].Position->Selection
+				   && older->Records[1].Position->Selection->PreferredLine.Line == 0U,
+			   "the independent store contains the exact older reading before Quit");
+		expect(sibling->comparison_surface()->select_conversation_line(core::diff_side::right, 1U), "newer public reading is coalesced before immediate Quit");
+		seededReadings = { reading(*first), reading(*sibling) };
+		expect(seededReadings[1].Selection && seededReadings[1].Selection->PreferredLine.Line == 1U, "the latest accepted reading is exact line one");
+		std::cerr << "ORDERLY_CLOSE_CONTROL older_store_line=0 latest_line=1\n";
 	} else if (phase == "auth-advance") {
 		const auto second = core::bpr_window_context{ firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation };
 		// Window 2 read #18 after window 1 read #17, so both windows list #18
@@ -967,6 +1002,15 @@ auto main(int aArgc, char** aArgv) -> int
 		readingSnapshots[2] = { reading_snapshot(*owner, firstContext), reading_snapshot(*owner, { firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation }) };
 	}
 	trigger(*first, "quitProfilesAction");
+	if (phase == "auth-orderly-close-race") {
+		wait_for([&] { return github_application_fixture_access::held_restoration_and_close_callbacks(*owner)[1] == 2U; }, "both window services finish while close callbacks remain held");
+		github_application_fixture_access::poll_desktop(*desktop);
+		std::cerr << "ORDERLY_CLOSE_CONTROL held_closes=2 desktop_poll_driven=1\n";
+		releaseRestoration();
+		releaseCloseCallbacks();
+		releaseRestoration    = { };
+		releaseCloseCallbacks = { };
+	}
 	wait_for([&] { return desktop->is_quiescent(); }, "Quit flushes latest destinations and drains services");
 	desktop.reset();
 	if (replacementReading || readingRace) {
@@ -987,6 +1031,9 @@ auto main(int aArgc, char** aArgv) -> int
 	if (!seededReadings.empty()) {
 		const auto retained = restoration_store(root)->load({ });
 		expect(retained && retained->Records.size() == seededReadings.size(), "Quit drains both reading writes");
+		if (phase == "auth-orderly-close-race") {
+			expect(retained->Records[1].Position == seededReadings[1], "orderly close callbacks preserve the latest coalesced reading");
+		}
 		for (std::size_t index = 0; index < seededReadings.size(); ++index) {
 			if (retained->Records[index].Position != seededReadings[index]) {
 				if (phase == "auth-advance") {

@@ -4327,6 +4327,8 @@ namespace bpr::app {
 		worker_executor                  ReviewSubmissionEffects;
 		qt::event_loop_executor          DecisionLane;
 #if defined(BPR_BUILD_TESTING)
+		gated_review_mutation_decision_executor RestorationDecisionGate{ DecisionLane };
+		gated_review_mutation_decision_executor WindowCloseDecisionGate{ DecisionLane };
 		// A closed window can leave ledger work on this profile's effect lane.
 		// Its test gate survives through that lane's drain, like DecisionLane.
 		std::vector<std::unique_ptr<gated_review_mutation_decision_executor>> ReviewLedgerDecisionGates;
@@ -22278,7 +22280,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			ShutdownComplete = true;
 			if (OnClosed) {
+#if defined(BPR_BUILD_TESTING)
+				Profile->WindowCloseDecisionGate.post(std::exchange(OnClosed, { }));
+#else
 				DecisionLane.post(std::exchange(OnClosed, { }));
+#endif
 			}
 		}
 
@@ -24306,7 +24312,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			hosts.emplace_back(profile.hostname());
 		}
 		Profile->ReviewRestorationStore = std::make_unique<effect_window_review_store>(Profile->ApplicationDataRoot);
-		Profile->ReviewRestoration      = std::make_unique<application::window_review_restoration_host>(Profile->Admission.Authority.profile(), aWindows, std::move(hosts), *Profile->ReviewRestorationStore, Profile->WorkbenchEffects, Profile->DecisionLane, *Profile);
+#if defined(BPR_BUILD_TESTING)
+		auto& restorationDecisions = Profile->RestorationDecisionGate;
+#else
+		auto& restorationDecisions = Profile->DecisionLane;
+#endif
+		Profile->ReviewRestoration = std::make_unique<application::window_review_restoration_host>(Profile->Admission.Authority.profile(), aWindows, std::move(hosts), *Profile->ReviewRestorationStore, Profile->WorkbenchEffects, restorationDecisions, *Profile);
 		Profile->ReviewRestoration->start();
 		return true;
 	}
@@ -37308,6 +37319,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return implementation != nullptr && !implementation->Closing && implementation->ReviewLedgerHost != nullptr
 			&& implementation->ReviewLedgerHost->available().has_value()
 			&& implementation->ReviewLedgerHost->is_quiescent();
+	}
+	auto detail::github_application_fixture_access::hold_restoration_terminals(github_application& aApplication) -> std::function<void()>
+	{
+		auto profile = aApplication.Profile;
+		profile->RestorationDecisionGate.hold();
+		return [profile] { profile->RestorationDecisionGate.release(); };
+	}
+	auto detail::github_application_fixture_access::hold_window_close_callbacks(github_application& aApplication) -> std::function<void()>
+	{
+		auto profile = aApplication.Profile;
+		profile->WindowCloseDecisionGate.hold();
+		return [profile] { profile->WindowCloseDecisionGate.release(); };
+	}
+	auto detail::github_application_fixture_access::held_restoration_and_close_callbacks(const github_application& aApplication) -> std::array<std::size_t, 2>
+	{
+		return { aApplication.Profile->RestorationDecisionGate.pending(), aApplication.Profile->WindowCloseDecisionGate.pending() };
+	}
+	auto detail::github_application_fixture_access::restoration_durable(const github_application& aApplication) -> bool
+	{
+		return aApplication.Profile->ReviewRestoration && aApplication.Profile->ReviewRestoration->durable();
 	}
 
 	auto detail::github_application_fixture_access::hold_review_ledger_terminals(github_application& aApplication, const core::bpr_window_context aContext, const bool aHold) -> bool

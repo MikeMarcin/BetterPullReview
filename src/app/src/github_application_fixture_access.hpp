@@ -1697,6 +1697,13 @@ namespace bpr::app::detail {
 		/// binary.
 		[[nodiscard]] static auto network_isolation_probe() -> bool;
 		[[nodiscard]] static auto start_desktop(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
+		static void               poll_desktop(profile_desktop& aDesktop);
+		/// Profile-owned gates retain the last save answer and close callbacks
+		/// independently while a course drives the real desktop retirement path.
+		[[nodiscard]] static auto hold_restoration_terminals(github_application& aApplication) -> std::function<void()>;
+		[[nodiscard]] static auto hold_window_close_callbacks(github_application& aApplication) -> std::function<void()>;
+		[[nodiscard]] static auto held_restoration_and_close_callbacks(const github_application& aApplication) -> std::array<std::size_t, 2>;
+		[[nodiscard]] static auto restoration_durable(const github_application& aApplication) -> bool;
 		[[nodiscard]] static auto start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
 		[[nodiscard]] static auto start_profile(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] static auto start_profile_public_preview_selection_available(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
