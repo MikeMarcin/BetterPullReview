@@ -30,8 +30,9 @@ namespace {
 			postsAccepted = QMetaObject::invokeMethod(&receiver, [&] {
 				++projections;
 				if (waiting) {
-					// R157's first batch took about 24 seconds. Charge its
-					// 1,000 deferred projections 24 logical milliseconds each.
+					// Model R157's approximately 24-second first batch with
+					// 1,000 queued callbacks, each costing 24 logical ms. The
+					// production batch's event composition was not measured.
 					elapsed += 24;
 				} }, Qt::QueuedConnection) && postsAccepted;
 		});
