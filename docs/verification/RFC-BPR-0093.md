@@ -507,3 +507,99 @@ pending decisions are retained. Run `mimalloc-20261024`, segment
 Sole leaf `/root/mimalloc_distribution` owns this milestone on main; unrelated
 MASK/NEXT_ID/BPR-1766 edits remain excluded. No publication, signing,
 credential/Keychain lookup, push or owner desktop operation is authorized.
+
+
+## Distribution checkpoint — mandate r4
+
+Run `mimalloc-20261024`, segment `distribution-m4`, mandate `r4`; sole leaf
+`/root/mimalloc_distribution`, main source/tracker unchanged. Scheduling/Ready/
+claims are `540b21fa9`, `d69b52bec`, `4dc9a5fc8`, `b9c598728`. BPR-1762 and
+BPR-1763 are In Progress. The benchmark previously kept the toolchain allocator;
+`571f96d45` explicitly attaches the selected allocator without adding a shipped
+product or changing any course/limit. New standalone CLI preparation and public
+source/inventory auditing are `1e269fdd3`, `df3f680a9`, `dce9ff8ce`; native
+validation is still in progress, so these are implementation, not acceptance.
+
+The actual AppleClang instrumented graph excludes mimalloc in both product
+and fuzzer images and links ASan. All seven existing Qt-free corpus rows pass
+under ASan/UBSan (7.39 seconds); the real CLI public-path course passes
+(48.71 seconds in the final focused run). The first extra sanitizer selector
+named an unbuilt workspace bundle executable; it is not a product failure or
+passing coverage. Initial local Release/configure and sanitizer attempts hit
+ENOSPC. Removing only task-owned copied Git-bundle bytes and rebuildable fuzz
+objects recovered capacity; the later Release build and CLI course completed.
+The copied binary and compile-graph identities remain in runtime evidence.
+Package tests pass 31 with one explicit native-Linux skip on Mac, public-auditor
+controls 11, source-asset controls 24, documentation tests 67 and the gate.
+
+### Matched Release measurements so far
+
+These are observations from one matched course per allocator/platform; no
+speedup or universal latency claim follows. Workload source is unchanged from
+`571f96d45`; Linux binary source is that commit, Mac source contents match
+`dce9ff8ce`. Both are Release with the same toolchain, Qt, fixtures, feature
+selection and machine; only `BPR_USE_MIMALLOC` changes. The raw reports retain
+load/scheduling, exact SHA-256, timings and all failures.
+
+| Native course | Baseline | mimalloc |
+|---|---:|---:|
+| Ubuntu process to main / Home | 9.43 / 326.76 ms | 9.65 / 293.14 ms |
+| Ubuntu paged review/Git load | 865.67 ms | 649.25 ms |
+| Ubuntu allocation-profile peak RSS growth | 177.79 MiB | 272.88 MiB |
+| Ubuntu after-destruction RSS growth | 162.43 MiB | 272.12 MiB |
+| Apple Silicon process to main / Home | 20.10 / 459.10 ms | 29.44 / 425.25 ms |
+| Apple Silicon allocation-profile peak footprint growth | 146.38 MiB | 165.77 MiB |
+| Apple Silicon after-destruction footprint growth | 101.88 MiB | 164.73 MiB |
+
+The unchanged six-row Ubuntu selector passes launch/navigation in both.
+Baseline fails loaded-close/resources (2/6); mimalloc additionally fails
+cache-bytes/cache-entries (4/6). Apple Silicon baseline passes all six;
+mimalloc fails loaded-close (1/6) at the unchanged footprint budget. These
+additional failures and retained-memory increases are allocator regressions
+on these candidates, not pre-existing BPR-0967 failures relabeled as fixes.
+Historical BPR-0967 obligations remain separate. No heap trimming or limit
+change was introduced.
+
+The existing separate `--allocation-profile` diagnostic completes for both
+allocators on both platforms and observes released diff/index/window/document
+owners and a drained derived cache at shutdown/destruction. That non-gating
+profile is supplemental; it does not turn failed unchanged budget rows green.
+Linux glibc heap figures are unavailable for mimalloc, and upstream's Mac
+zone `intro_statistics` deliberately returns zero `size_in_use`; zero in the
+raw legacy heap fields is not a measured empty allocator. OS RSS/footprint and
+native lifetime peaks remain reported. The GDB probe directly observes
+mimalloc ownership in the actual Linux measurement image.
+
+### Native installer/source work so far
+
+An unsigned Ubuntu DEB was prepared from the retained exact Linux producer
+`0c40cca40e5d93205d83fd65f76af029ac937347`, then extracted privately with
+`dpkg-deb --extract`. Its full public runtime/source auditor passes. Installer
+SHA-256: `cce54830fafc0de2c4c5aa42879fcc7b5aa7c4deb096c20d52d036a4e1d8ee30`;
+separate source ZIP: `a8cc1eb75de7ffe3a5d20c60416b023953a25aa6903470177abb01a5645e2cf1`.
+Original installed/source candidate hashes remain unchanged.
+
+An unsigned Windows MSI was prepared from the retained exact source
+`c5693fd05e9a673381cae5aa76c355db33e39182`. WiX 5.0.2 extracts the actual
+cabinet; reconstructing its authored INSTALL_ROOT privately passes the full
+public runtime/source/PE audit with bound maps and the existing SDK specimen.
+MSI SHA-256: `bd01bc1a342d3d7957bee173284fa47c12af777f2dd5065cb2b0ae79e95aaa69`.
+No MSI/DEB system installation, registry change, release signing or native trust
+was performed. Offline legal approval remains pending. Existing native/vault/
+crash/security qualification gaps remain open.
+
+### Active ownership and continuation
+
+Local evidence/scripts: `build/mimalloc-distribution/`. New native roots:
+`/home/mmarcin/bpr-rfc0093-distribution-hrxjvs5j` and
+`C:/code/bpr-rfc0093-dist-6165b97d2cea`. The earlier candidate roots are retained;
+the old exact producers supply the new installer staging directories, not a
+new source identity. No source writer owns those earlier trees.
+
+At this checkpoint the native Linux standalone CLI build/preparation, native
+Windows Release measurement build and local universal standalone CLI
+configuration/build are active. No review session/server exists. Main's
+unrelated MASK/NEXT_ID/BPR-1766 edits remain excluded. Next: complete native
+CLI preparation and installed public/omission/extra/removal checks; complete
+Windows matched measurements; reconcile every AC06/AC07/AC08 record. Final
+Mac Intel/signed-installed and all-platform AC07 remain unaccepted.

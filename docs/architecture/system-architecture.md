@@ -573,7 +573,8 @@ the ordinary C/C++, Qt and separately loaded module calls it claims.
 
 The composed large-review measurement executable explicitly attaches the selected
 allocator without entering the shipped-program inventory. Its existing memory
-course and limits remain unchanged; glibc/UCRT heap counters cannot be treated
+course and limits remain unchanged; glibc/UCRT counters and upstream
+mimalloc's zero-reporting Mac zone statistics cannot be treated
 as complete mimalloc heap measurements. Native process footprint/peak counters
 remain available where the host supplies them.
 

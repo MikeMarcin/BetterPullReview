@@ -228,3 +228,17 @@ prerequisite. Strategy remains `coordinator-implementer` revision 2.
   scheduling. Distribution/measurement cards still depend on pending Mac work;
   native Intel/signed-installed acceptance is not waived. Existing BPR-0967,
   native/vault/crash/security gaps and release/source/legal obligations remain.
+
+
+## Active checkpoint — distribution mandate r4
+
+Sole leaf `/root/mimalloc_distribution` owns `distribution-and-measurement`.
+The [ledger](../../verification/RFC-BPR-0093.md#distribution-checkpoint--mandate-r4)
+binds scheduling/claims, source commits, actual DEB/MSI audits, instrumentation
+and matched Linux/Apple-Silicon Release outcomes. Additional allocator memory
+failures are recorded as regressions; no limit changed and no BPR-0967 fix is
+claimed. BPR-1762/1763 remain In Progress while native standalone CLI validation
+and Windows comparisons run. All Mac final acceptance and RFC closeout remain
+pending. Runtime scripts/logs are `build/mimalloc-distribution/`; the new native
+roots and current command ownership are recorded in the ledger. No review
+session/server, signing, publication, push or owner desktop operation exists.
