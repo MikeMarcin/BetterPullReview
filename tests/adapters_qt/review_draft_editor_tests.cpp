@@ -138,9 +138,11 @@ namespace {
 			editor.set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
 			const auto initial = core::revisioned_review_draft{ a_draft("saved comment"), 1, core::review_draft_scope_id{ 9 } };
 			editor.present(initial);
-			auto mark = core::review_pending_mark{ };
-			mark.Path = "review.cpp";
-			mark.Head = core::parse_git_commit_oid("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+			auto mark       = core::review_pending_mark{ };
+			mark.Path       = "review.cpp";
+			const auto head = core::parse_git_commit_oid("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+			expect(head.has_value(), "the pending-mark fixture has a valid head");
+			mark.Head = *head;
 			expect(editor.change_pending(mark) && commands.size() == 1 && commands.front().ChangePending
 					   && core::pending_in_review(*editor.shown_draft()),
 				   "Start a review shows its pending mark before durable acknowledgement");
