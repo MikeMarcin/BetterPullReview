@@ -7,6 +7,8 @@
 #include "bpr/core/source_matcher.hpp"
 #include "bpr/core/source_search.hpp"
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <stop_token>
 #include <string>
@@ -69,6 +71,20 @@ namespace bpr::application {
 	};
 
 	/// \brief Observable lifecycle counters; no query or source content is logged.
+	enum class source_search_worker_stage : std::uint8_t { queued,
+														   effect_entered,
+														   executing,
+														   executed,
+														   validating,
+														   validated,
+														   observing,
+														   observed,
+														   posting,
+														   posted,
+														   post_failed,
+														   decision_entered };
+	[[nodiscard]] auto name(source_search_worker_stage aStage) noexcept -> std::string_view;
+
 	struct source_search_host_counters
 	{
 		std::size_t Admitted           = 0U;
@@ -77,6 +93,14 @@ namespace bpr::application {
 		std::size_t StaleTerminals     = 0U;
 		std::size_t ProjectionFailures = 0U;
 		std::size_t IngressRefusals    = 0U;
+		/// Worker entries, execute/validate/account returns, terminal-post
+		/// attempts/returns/failures, and decision entries. Cancelled or
+		/// throwing execution need not pass every intermediate stage.
+		std::array<std::size_t, 8> Pipeline{ };
+		std::uint64_t              ActiveGeneration = 0U;
+		std::uint64_t              QueuedGeneration = 0U;
+		bool                       ActiveStopped    = false;
+		source_search_worker_stage ActiveStage      = source_search_worker_stage::queued;
 	};
 
 	/// \brief One independent pane or PR search session, bounded to one effect and one latest replacement.

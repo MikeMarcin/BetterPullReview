@@ -25600,10 +25600,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		result.TabPresented              = implementation->TabPresented.has_value();
 		result.Closing                   = implementation->Closing;
 		if (implementation->PaneFind) {
-			const auto counters    = implementation->PaneFind->counters();
-			result.SearchCounters  = { counters.Admitted, counters.Scheduled, counters.Terminals, counters.StaleTerminals, counters.ProjectionFailures, counters.IngressRefusals };
-			result.SearchQuiescent = implementation->PaneFind->is_quiescent();
+			const auto counters           = implementation->PaneFind->counters();
+			result.SearchCounters         = { counters.Admitted, counters.Scheduled, counters.Terminals, counters.StaleTerminals, counters.ProjectionFailures, counters.IngressRefusals };
+			result.SearchQuiescent        = implementation->PaneFind->is_quiescent();
+			result.SearchPipeline         = counters.Pipeline;
+			result.SearchWorkerStage      = application::name(counters.ActiveStage);
+			result.SearchActiveGeneration = counters.ActiveGeneration;
+			result.SearchQueuedGeneration = counters.QueuedGeneration;
+			result.SearchActiveStopped    = counters.ActiveStopped;
+			result.FindExecutionCounts    = implementation->PaneFind->execution_counts();
 		}
+		result.DiffEffectsIdle = implementation->DiffEffects.idle();
+		result.DiffQueuedTasks = implementation->DiffEffects.queued_tasks();
 		if (const auto& publication = implementation->SelectedDiffPublication; publication) {
 			result.DiffRequestMatches   = implementation->SelectedDiffRequest == std::optional{ publication->Request };
 			result.GenerationMatches    = implementation->WorkbenchHost->generation() == publication->Request.Context.Generation;

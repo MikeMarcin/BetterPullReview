@@ -3,6 +3,7 @@
 
 #include "bpr/application/port.hpp"
 
+#include <cstddef>
 #include <memory>
 
 namespace bpr::app {
@@ -29,6 +30,7 @@ namespace bpr::app {
 
 		// Idle means that no task is queued or currently executing.
 		[[nodiscard]] auto idle() const noexcept -> bool;
+		[[nodiscard]] auto queued_tasks() const noexcept -> std::size_t;
 
 	private:
 		class implementation;

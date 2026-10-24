@@ -90,7 +90,15 @@ namespace {
 				<< " host_admitted=" << host.SearchCounters[0] << " host_scheduled=" << host.SearchCounters[1]
 				<< " host_terminals=" << host.SearchCounters[2] << " host_stale=" << host.SearchCounters[3]
 				<< " projection_failures=" << host.SearchCounters[4] << " ingress_refusals=" << host.SearchCounters[5]
-				<< " search_quiet=" << host.SearchQuiescent << " displayed=" << host.PublicationDisplayed << '\n'; });
+				<< " search_quiet=" << host.SearchQuiescent << " displayed=" << host.PublicationDisplayed
+				<< " active_generation=" << host.SearchActiveGeneration << " queued_generation=" << host.SearchQueuedGeneration
+				<< " active_stage=" << host.SearchWorkerStage << " active_stopped=" << host.SearchActiveStopped
+				<< " effect_entered=" << host.SearchPipeline[0] << " execution_returned=" << host.SearchPipeline[1]
+				<< " validation_returned=" << host.SearchPipeline[2] << " observer_returned=" << host.SearchPipeline[3]
+				<< " decision_post_entered=" << host.SearchPipeline[4] << " decision_post_returned=" << host.SearchPipeline[5]
+				<< " decision_post_failed=" << host.SearchPipeline[6] << " decision_entered=" << host.SearchPipeline[7]
+				<< " direct_matching_runs=" << host.FindExecutionCounts[0] << " direct_cached_runs=" << host.FindExecutionCounts[1]
+				<< " diff_effects_idle=" << host.DiffEffectsIdle << " diff_queued_tasks=" << host.DiffQueuedTasks << '\n'; });
 		settle();
 	}
 	/// [[BPR-1503]], [[BPR-1527]]. Find leaves both pane layouts and

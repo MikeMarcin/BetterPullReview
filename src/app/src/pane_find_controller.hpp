@@ -3,7 +3,9 @@
 
 #include "bpr/application/source_search_host.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include <array>
 #include <atomic>
+#include <cstdint>
 #include <mutex>
 
 namespace bpr::app {
@@ -20,6 +22,7 @@ namespace bpr::app {
 		void               observe_scope();
 		[[nodiscard]] auto is_quiescent() const -> bool;
 		[[nodiscard]] auto counters() const -> application::source_search_host_counters;
+		[[nodiscard]] auto execution_counts() const noexcept -> std::array<std::uint64_t, 2>;
 		auto               execute(const application::source_search_work& aWork, std::stop_token aStop) -> application::source_search_execution override;
 		void               publish(const application::source_search_projection& aProjection) override;
 

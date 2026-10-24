@@ -4,6 +4,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/source_search_host.hpp"
 
+#include <array>
 #include <functional>
 #include <memory>
 #include <stdexcept>
@@ -69,7 +70,14 @@ namespace {
 		pane.Effects.drain();
 		search_expect(pane.Execution.Calls.size() == 1U && pane.Execution.Calls.front().Query == "pane\n😀", "immutable exact work reaches off-lane port");
 		search_expect(pane.Host.state().Status == core::source_search_status::searching && pane.Decisions.pending() == 1U && !pane.Host.is_quiescent(), "worker cannot accept or publish inline");
+		const auto awaitingDecision = pane.Host.counters();
+		search_expect(awaitingDecision.ActiveGeneration == pane.Host.state().Pending->Generation
+						  && awaitingDecision.ActiveStage == source_search_worker_stage::posted
+						  && awaitingDecision.Pipeline == std::array<std::size_t, 8>{ 1, 1, 1, 1, 1, 1, 0, 0 },
+					  "a held decision is reported after worker execution and posting, before terminal delivery");
 		pane.Decisions.drain();
+		search_expect(pane.Host.counters().ActiveGeneration == 0U && pane.Host.counters().Pipeline[7] == 1U,
+					  "the current worker stage retires only after its exact decision enters");
 		files.drain();
 		search_expect(pane.Host.state().Summary.Matches == 3U && pane.Host.projection().Query == "pane\n😀" && files.Host.projection().Query == "files", "accepted terminal returns to own session");
 		search_expect(observer->work().size() == 1 && observer->work().front().Kind == core::insights_work_kind::search, "one completed host execution records acquisition plus matching duration without query content");
