@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/source_find_event_turns.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -56,15 +57,13 @@ namespace {
 		auto observation = wait_observation{ .Started = std::chrono::steady_clock::now() };
 		auto timer       = QElapsedTimer{ };
 		timer.start();
-		while (!aCondition() && timer.elapsed() < 20000) {
+		const auto ready                = tests::wait_for_source_find_condition(aCondition, [&] { return timer.elapsed(); }, [&] {
 			const auto started = std::chrono::steady_clock::now();
 			QApplication::processEvents();
 			++observation.Pumps;
 			observation.LongestPumpMicroseconds = std::max(observation.LongestPumpMicroseconds, static_cast<std::int64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count()));
-			QThread::msleep(1);
-		}
+			QThread::msleep(1); });
 		observation.ElapsedMilliseconds = timer.elapsed();
-		const auto ready                = aCondition();
 		if (aDiagnostic && !ready) {
 			aDiagnostic(observation);
 		}
@@ -316,9 +315,7 @@ int main(int aArgc, char** aArgv)
 	tests::window_system_key(window, Qt::Key_F3, Qt::ShiftModifier);
 	previousAction->trigger();
 	expect(bar->projection().Wrapped, "previous wraps with visible/accessibility status");
-	for (int step = 0; step < 1000; ++step) {
-		nextAction->trigger();
-	}
+	tests::dispatch_source_find_navigation([&] { nextAction->trigger(); });
 	expect(bar->projection().Matches == records && surface->current_result() == diff && surface->current_semantic_index() == index, "traversal shares exact records/material/index without replacement");
 	expect(surface->statistics().FindEndpointConversions == conversions, "1,000 traversals perform zero source endpoint conversions");
 	expect(surface->statistics().FindMatchingRuns == scans, "1,000 traversals call no source matcher");
