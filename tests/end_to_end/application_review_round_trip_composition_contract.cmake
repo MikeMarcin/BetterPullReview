@@ -1,3 +1,10 @@
+# BPR-1694 release repair reseal, reviewed 5b0fbf44e..7591bf1e4:
+# github_application.cpp acknowledges a completed local draft edit without
+# selecting its old draft after navigation (exact scope/id/anchor/revision).
+# The editor keeps the current replacement and later unsaved text; each clear
+# retires its obsolete replacement. No provider, credential, grant, mutation
+# admission or publication branch changes; inventory and mutation pin unchanged.
+# Independent critical review is recorded in the external release checkpoint.
 # Coordinator landing reseal (2026-10-24) over the reseal below, rename only:
 # provisional BPR-PENDING-AN and AQ1..AQ9 card references in src/app comments
 # became BPR-1747..BPR-1756. No behavior change; mutation 16d135419 stays exact.
@@ -2338,7 +2345,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"85ca7a585b699f8257c9eec80673a0665fe1b491fac3318162c2294b394304ab"
+		"3f1946dfdda06ad7d2f14deb43bcd180f663080c9bb0db1276cccaf775d75e19"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2569,7 +2576,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "006f54f2531b55d44892960bdf006672ee58497833b5bcb9f794bacb09e0ea9c"
+        "a0685b5676eac316c3f36619693e25ce6822306e72343c94df02d0b17449908f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
