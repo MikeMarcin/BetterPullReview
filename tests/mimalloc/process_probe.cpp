@@ -1,7 +1,8 @@
 #ifdef _WIN32
 	#define NOMINMAX
-	#include <Psapi.h>
 	#include <Windows.h>
+
+	#include <Psapi.h>
 	#include <malloc.h>
 #else
 	#include <dlfcn.h>
