@@ -1812,6 +1812,36 @@ namespace {
 		editor.reapply_draft_action()->trigger();
 		expect(commands.back().Command.Id == committed.Draft.Id && commands.back().Command.Body == "saving while navigating with later text" && commands.back().ExpectedRevision == 2, "return and explicit Reapply target the original durable draft with the exact later text");
 	}
+
+	void test_a_second_clear_also_retires_a_first_save_replacement()
+	{
+		for (const auto reason : { qt::review_draft_editor_clear_reason::selection_cleared,
+								   qt::review_draft_editor_clear_reason::selection_invalidated,
+								   qt::review_draft_editor_clear_reason::composition_retired }) {
+			qt::review_draft_editor                            editor({ }, { });
+			std::vector<core::revisioned_review_draft_command> commands;
+			editor.set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+			auto placeholder     = core::revisioned_review_draft{ a_draft(""), 1, core::review_draft_scope_id{ 9 } };
+			placeholder.Draft.Id = core::review_draft_id{ std::numeric_limits<std::uint64_t>::max() };
+			editor.present(placeholder);
+			editor.body_editor()->setPlainText(QStringLiteral("first saved text"));
+			const auto command = commands.front();
+			auto       next    = placeholder;
+			next.Draft.Id      = core::review_draft_id{ 2 };
+			++next.Draft.Anchor.Line;
+			editor.present(qt::review_draft_editor_clear_reason::selection_cleared);
+			editor.present(next);
+			editor.present(reason);
+			auto committed       = placeholder;
+			committed.Draft.Id   = core::review_draft_id{ 42 };
+			committed.Draft.Body = command.Command.Body;
+			committed.Revision   = 2;
+			editor.acknowledge_materialized(command, committed);
+			expect(!editor.shown_draft() && !editor.rejected_candidate() && editor.body_editor()->isReadOnly()
+					   && !editor.reload_draft_action()->isEnabled() && commands.size() == 1,
+				   "a first-save acknowledgement also cannot reopen a replacement retired by a later clear");
+		}
+	}
 }
 
 auto main(int argc, char** argv) -> int
@@ -1827,6 +1857,7 @@ auto main(int argc, char** argv) -> int
 	test_confirmed_publication_retires_only_matching_candidate();
 	test_revision_conflicts_retain_exact_candidate();
 	test_first_save_rebinds_only_the_runtime_placeholder();
+	test_a_second_clear_also_retires_a_first_save_replacement();
 
 	test_publishing_emits_an_intent_and_changes_nothing();
 	test_typing_emits_a_semantic_edit_and_waits_for_projection();
