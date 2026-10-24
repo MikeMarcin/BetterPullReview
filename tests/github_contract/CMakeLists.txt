@@ -736,6 +736,7 @@ bpr_add_executable(
 	        BetterPullReview::AdapterGitHub
 	        BetterPullReview::AdapterSQLite
 	        BetterPullReview::Application
+	        BetterPullReview::Platform
         Qt6::Core
 )
 target_include_directories(
