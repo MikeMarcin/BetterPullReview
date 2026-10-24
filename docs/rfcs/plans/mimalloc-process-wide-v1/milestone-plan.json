@@ -43,9 +43,7 @@
           "issue": "BPR-1760"
         }
       ],
-      "depends_on": [
-        "pinned-macos-integration"
-      ],
+      "depends_on": [],
       "exit_criteria": [
         "Installed native Windows probes show C, C++, Qt/loaded-library interception and safe cross-module release through startup and shutdown."
       ],

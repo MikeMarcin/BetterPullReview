@@ -178,3 +178,15 @@ existing BPR-0967 limits are not relabeled. No attended session is ready and no
 review server exists. All task-owned commands are finished. Preserve this
 worktree, its branch, build and candidate artifacts for the next engineering
 round; the coordinator owns integration after main's other writer reconciles.
+
+## Independent Windows continuation — mandate r2, 2026-10-24
+
+The owner said, “I'm pretty sure we can keep working without an intel mac.”
+Only Windows' authored scheduling dependency on full macOS milestone acceptance
+is removed; its accepted provider prerequisite [[BPR-1758]] is retained.
+The source basis is the independent Windows provider/CRT route and separate
+AC03/AC04 courses. `check-amendment` passed with only `windows-integration`
+affected and every outcome/work selector/exit preserved. Native Intel and
+signed-installed macOS AC03 remain open, with the existing candidate retained.
+Linux scheduling, final package/source acceptance and measurement remain open.
+Run `mimalloc-20261024`, segment `windows-m2`, mandate `r2`, unchanged recipe.

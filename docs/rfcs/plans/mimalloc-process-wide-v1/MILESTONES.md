@@ -27,7 +27,7 @@ Native Windows 11 x64 desktop and selected helpers or CLI use one coherent mimal
 
 **Work:** `BPR-1760`
 
-**Prerequisites:** pinned-macos-integration
+**Prerequisites:** None
 
 **Completion:**
 
