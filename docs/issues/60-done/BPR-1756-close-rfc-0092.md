@@ -2,22 +2,20 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1756"
 title: "Verify and close RFC-BPR-0092"
-status: "Blocked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 closeout_for: ["RFC-BPR-0092"]
-blocked_by: "rfc-dependency-rfc-bpr-0085"
 depends_on: ["BPR-1748", "BPR-1749", "BPR-1750", "BPR-1751", "BPR-1752", "BPR-1753", "BPR-1754", "BPR-1755"]
 priority: "P2"
 platforms: ["mac","win","linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1747--BPR-1756--f06ad4b55890.json","origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-1747"],"milestone":"RFC-BPR-0092 closeout"}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"270077e655d630ad8afa687046b6bb48bc4f0067","evidence":{"kind":"command","command":"python3 scripts/verify_documentation.py --root .","detail":"Every RFC-BPR-0092 criterion, AC01 to AC14, is recorded in the closeout checklist with its check, result and producing commit, and the checklist passes the gate's verify_closeout_card against the RFC's canonical criteria. The reconciliation's evidence at 08acf5b10 is reused: no RFC-BPR-0092 criterion uses the drawer layout repairs of BPR-PENDING-AR. Its dependency RFC-BPR-0085 is Auto-Verified (BPR-1595), so RFC-BPR-0092 is set to Auto-Verified.","refs":["docs/issues/60-done/BPR-1595-close-rfc-0085.md"]}}]
 ---
 
 # BPR-1756: Verify and close RFC-BPR-0092
 
 The closeout card for [RFC-BPR-0092](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md):
-AC01 to AC14 with the evidence of milestones M1 to M8. When its ID is
-allocated it is renamed to `BPR-<n>-close-rfc-0092.md`; until then the
-documentation gate's closeout rule reads it as a provisional card.
+AC01 to AC14 with the evidence of milestones M1 to M8.
 
 ## Acceptance criteria
 
@@ -44,6 +42,16 @@ RFC base: `2786b5b3afdb016aa79227b056b60a3f86b9fb5f`.
 | **AC12:** An Ask that ends `workspace_unavailable`, `failed_to_start` or `not_signed_in` shows its check's words, not the harness's, with that check's recovery and Check again; no stable code or Git output is visible until Show details. Removing the saved agent's executable leads the next Ask to **Set up again**; History and Settings open the setup with the current choices selected. | `qt_agent_setup_view` and `qt_workbench_window_*` (the check's words, Check again, Show details); BPR-1753 AC2; Reset agents in History and Settings (the owner's look v006 note) | Pass as amended by the owner: workspace_unavailable, failed_to_start and not_signed_in show the check's words with its recovery and Check again, codes only under Show details; a removed executable leads to Set up again; History and Settings offer Reset agents… in place of reopening the setup (look v006: "we can keep it if it's a reset agents which clears all settings and goes back to the wizard fresh") | `a7d0d3768`, `d431745f2` |
 | **AC13:** No credential, token or environment value is read, stored, logged or shown by setup; the saved choices hold only identities, paths and remote names (store inspection and log scan). | `sqlite_agent_setup_storage` (the stored fields: agent names, programs, fixed arguments, models, efforts, folders, links by host, owner, name and remote name), `core_clone_discovery` (user information dropped), `application_agent_setup_host` (checks carry the allowlist only); BPR-1748 AC3, BPR-1749 AC2, BPR-1750 AC1 | Pass: setup reads, stores, logs and shows no credential, token or environment value; the saved choices hold identities, paths, arguments and remote names only | `c3a561778`, `d005bb3ae`, `860bd14f4` |
 | **AC14:** The owner, attended, on a frozen build: "The first time I open the Agent tab it tells me what to do, and I end up asking a question that the agent answers from my repository." | Attended session `17312f2f1e95ac0107fa57bb5a50affe` on the frozen build of `d431745f2`, after looks v001 to v006; BPR-1755 AC1; the accept's two conditions verified in `qt_workbench_window_scale_100` | Pass: the owner accepted (decision 52f55363-457e-4397-ad30-d3962a4b80a6), "Otherwise we're done"; the conditions (suggestions hidden while the agent works, the Agent tab its name alone at full width) are built and tested | `d431745f2`, `08acf5b10` |
+
+## Final closeout record, 2026-10-24
+
+Closed. The one thing holding this card, its dependency RFC-BPR-0085,
+is `Auto-Verified`: [[BPR-1595]] recorded its AC08 once
+[[BPR-PENDING-AR]] repaired the drawer surfaces that clipped. Every
+RFC-BPR-0092 criterion keeps the evidence recorded at the reconciliation
+below, at `08acf5b10`; the repairs since touch no setup, agent, clone or
+review skill path that any criterion uses, and the workbench window rows
+pass again at `270077e65`. RFC-BPR-0092 is set to `Auto-Verified`.
 
 ## Reconciliation, 2026-10-24
 

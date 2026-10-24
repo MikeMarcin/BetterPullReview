@@ -1,10 +1,10 @@
 ---
 id: "RFC-BPR-0085"
 title: "One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: []
-metadata: {"rfc_base_sha":"4317330bad446c4c1577b6d6bf09d458cf8edb9a","mandate_revision":"drawer-design-system-r1","design_card":"BPR-1574","owner_session":"9b6359b5e66fa4d761e1acb025c4697b","milestone_plan":{"id":"drawer-design-system-v1","path":"docs/rfcs/plans/drawer-design-system-v1/milestone-plan.json"}}
+metadata: {"rfc_base_sha":"4317330bad446c4c1577b6d6bf09d458cf8edb9a","mandate_revision":"drawer-design-system-r1","closeout":"BPR-1595 (2026-10-24)","design_card":"BPR-1574","owner_session":"9b6359b5e66fa4d761e1acb025c4697b","milestone_plan":{"id":"drawer-design-system-v1","path":"docs/rfcs/plans/drawer-design-system-v1/milestone-plan.json"}}
 ---
 
 # One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status
@@ -75,8 +75,15 @@ at its narrowest and widest width, at each scale. It finds the same four
 defects in every theme. The Comments drawer's tab row hides Tour and Agent
 at 760 pixels and at a restored 280. At 280 pixels the open review
 summary's labels and the Tour stop's action buttons are cut. In the
-900-pixel window the tour page's On GitHub column runs off the window. The
-RFC stays In Progress until they are fixed.
+900-pixel window the tour page's On GitHub column runs off the window.
+
+Auto-Verified on 2026-10-24: [[BPR-PENDING-AR]] repaired the four defects
+as layout (the tab row takes its new width when the tray is shown, the
+scope in the summary's header yields to the verdict, a stop's actions
+with no room wait behind More, the tour page's side columns give way
+at the window's floor), the AC08 course passes in the four themes at
+the three scales, and [[BPR-1595]] closed the RFC with every criterion
+recorded.
 
 **Amendment, 2026-10-18 ([[BPR-1603]]).** The owner, while [[BPR-1593]] was
 under way: "The notes-on-the-pull-request thing might actually be a good UX

@@ -1,23 +1,24 @@
 ---
 id: "RFC-BPR-0092"
 title: "Set up an agent the first time the Agent tab opens"
-status: "In Progress"
+status: "Auto-Verified"
 area: "BPR"
 depends_on: ["RFC-BPR-0003", "RFC-BPR-0011", "RFC-BPR-0012", "RFC-BPR-0060", "RFC-BPR-0085"]
-metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1747", "revision": "r3 2026-10-22, owner answers Q1-Q9 recorded", "revisions": ["r1: agent, check and ready steps", "r2: the owner's first-run failure, the Repository step and worktrees, the review brief, and owner decisions D1 (an editable review skill) and D2 (clone folders)", "r3: adopted with the owner's answers to Q1-Q9 and BPR-1738's sparse workspace"], "draft": "docs/rfcs/assets/agent-first-run-setup-v1/RFC-DRAFT-0026-agent-first-run-setup.md", "import": "docs/rfcs/assets/agent-first-run-setup-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-1747-agent-setup-v1/index.html", "observed_at": "b69b82c9b", "owner_questions": "Q1-Q9 answered 2026-10-22: Q1 and Q3 in attended session 349862f0cb991e14b6cb57cf80653c5f (closed), Q2 and Q4-Q9 in chat because the page blocked them"}
+metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1747", "closeout": "BPR-1756 (2026-10-24)", "revision": "r3 2026-10-22, owner answers Q1-Q9 recorded", "revisions": ["r1: agent, check and ready steps", "r2: the owner's first-run failure, the Repository step and worktrees, the review brief, and owner decisions D1 (an editable review skill) and D2 (clone folders)", "r3: adopted with the owner's answers to Q1-Q9 and BPR-1738's sparse workspace"], "draft": "docs/rfcs/assets/agent-first-run-setup-v1/RFC-DRAFT-0026-agent-first-run-setup.md", "import": "docs/rfcs/assets/agent-first-run-setup-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-1747-agent-setup-v1/index.html", "observed_at": "b69b82c9b", "owner_questions": "Q1-Q9 answered 2026-10-22: Q1 and Q3 in attended session 349862f0cb991e14b6cb57cf80653c5f (closed), Q2 and Q4-Q9 in chat because the page blocked them"}
 ---
 
 # Set up an agent the first time the Agent tab opens
 
-In Progress, revision r3. Adopted from
+Auto-Verified, revision r3, closed by [[BPR-1756]] on 2026-10-24.
+Adopted from
 [RFC-DRAFT-0026](assets/agent-first-run-setup-v1/RFC-DRAFT-0026-agent-first-run-setup.md)
 ([import record](assets/agent-first-run-setup-v1.LIVE_IMPORT.md)) after the
 owner answered its nine questions and made decisions D1 and D2. Card
 [[BPR-1747]] holds the phase 1 finding; the milestone cards are listed
 under [Milestones](#milestones). Every criterion passes at `08acf5b10` and
 the owner accepted the look (AC14) on 2026-10-24; the closeout card
-[[BPR-1756]] records them and sets this RFC's status once its
-dependency RFC-BPR-0085 is `Auto-Verified`.
+[[BPR-1756]] records them, and set this RFC's status once its
+dependency RFC-BPR-0085 became `Auto-Verified` ([[BPR-1595]]).
 
 ## Problem and grounded current behavior
 
