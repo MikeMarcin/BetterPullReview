@@ -1203,6 +1203,7 @@ namespace bpr::qt {
 		++Members.Statistics.Presentations;
 		Members.ShownDraft.reset();
 		Members.ShownReceipt.reset();
+		Members.Revisioned.Replacement.reset();
 		Members.PublicationStatus.clear();
 		Members.Revisioned.PendingRange.reset();
 		Members.Revisioned.PendingMark.reset();

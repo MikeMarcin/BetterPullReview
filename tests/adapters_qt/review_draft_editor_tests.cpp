@@ -206,6 +206,45 @@ namespace {
 			   "return and explicit Reapply keep the later text on its original draft and accepted revision");
 	}
 
+	void test_a_second_clear_retires_the_waiting_replacement()
+	{
+		for (const auto reason : { qt::review_draft_editor_clear_reason::selection_cleared,
+								   qt::review_draft_editor_clear_reason::selection_invalidated,
+								   qt::review_draft_editor_clear_reason::composition_retired }) {
+			for (const auto laterText : { false, true }) {
+				qt::review_draft_editor                            editor({ }, { });
+				std::vector<core::revisioned_review_draft_command> commands;
+				editor.set_revisioned_dispatch([&](auto aCommand) { commands.push_back(std::move(aCommand)); });
+				const auto initial = core::revisioned_review_draft{ a_draft("saved"), 1, core::review_draft_scope_id{ 9 } };
+				editor.present(initial);
+				editor.body_editor()->setPlainText(QStringLiteral("sent edit"));
+				const auto command = commands.front();
+				if (laterText) {
+					editor.body_editor()->setPlainText(QStringLiteral("later unsent text"));
+				}
+				auto next     = initial;
+				next.Draft.Id = core::review_draft_id{ 2 };
+				++next.Draft.Anchor.Line;
+				next.Draft.Body = "obsolete replacement";
+				editor.present(qt::review_draft_editor_clear_reason::selection_cleared);
+				editor.present(next);
+				editor.present(reason);
+				auto committed       = initial;
+				committed.Revision   = 2;
+				committed.Draft.Body = command.Command.Body;
+				editor.acknowledge(command, committed);
+				expect(!editor.shown_draft() && editor.body_editor()->isReadOnly()
+						   && !editor.reload_draft_action()->isEnabled() && !editor.reapply_draft_action()->isEnabled(),
+					   "an acknowledgement cannot reopen a replacement retired by a later clear");
+				expect(editor.rejected_candidate().has_value() == laterText && commands.size() == 1,
+					   "a retired replacement preserves only text not yet accepted, without dispatching it");
+				if (laterText) {
+					expect(editor.body_text() == "later unsent text", "a second clear keeps unsaved text with the original draft");
+				}
+			}
+		}
+	}
+
 	/// \brief [[BPR-1298]]. A CRLF body written elsewhere keeps its line
 	/// endings through the editor: unedited, typed in, and relabelled by the
 	/// label controls' typed edit and toggle.
@@ -1783,6 +1822,7 @@ auto main(int argc, char** argv) -> int
 	test_own_observation_can_precede_edit_acknowledgement();
 	test_pending_mark_acknowledgement_keeps_the_new_selection();
 	test_navigation_acknowledgement_retains_later_local_text();
+	test_a_second_clear_retires_the_waiting_replacement();
 	test_a_crlf_body_keeps_its_line_endings();
 	test_confirmed_publication_retires_only_matching_candidate();
 	test_revision_conflicts_retain_exact_candidate();
