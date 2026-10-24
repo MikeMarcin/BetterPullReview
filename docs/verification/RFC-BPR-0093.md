@@ -113,3 +113,68 @@ lookup or Apple submission occurred in that invocation. Native Intel,
 signed-installed AC03, final AC07 and AC08 remain open. The prerequisite
 amendment is recorded on BPR-1759; no acceptance wording, exit or authored
 milestone dependency was waived. The first milestone remains unaccepted.
+
+## Clean-worktree continuation, 2026-10-24
+
+The coordinator authorized a task-owned clean worktree to continue while main's
+unrelated NEXT_ID/reservation remain dirty. Source/tracker/runtime root is
+`/Users/jaeger/.codex/worktrees/mimalloc-macos-candidate/BetterPullReview`, branch `codex/mimalloc-macos-candidate`.
+Run `mimalloc-20261024`, segment `macos-m1-clean-worktree`, mandate `r1`.
+The product source candidate is `eb28c0187a49143f5470e4400c2f1b3d0cb03de0`; no product source repair was
+needed. This continuation supersedes the dirty-source blocker for this branch.
+Main and its unrelated allocation files remain untouched.
+
+`tools/release.sh --version 0.3.2 --prepare-only --skip-tests --output-dir
+build/mimalloc-m1/local-candidate` completed successfully from clean source.
+The existing native workflow built universal tests-disabled distribution Release,
+deployed Qt and `libmimalloc.3.dylib`, normalized bundle-relative dependencies,
+created notices/SPDX/separate source ZIP and applied its offline ad-hoc seal.
+No Developer ID operation, Keychain access, notarization, Gatekeeper assessment,
+publication or owner-desktop operation was performed.
+
+The relocated offscreen assessment clone passed private-profile and production
+bundle-identity checks. The delivered bundle stayed byte-identical during that
+assessment (bundle fingerprint
+`6abb5cf7f428ebe9801cca0ada237c1043c4e9b87dea5d7c755e859e4edc6f4f`).
+The delivered Cocoa launch remains separate. Both slices contain the allocator's
+interpose section; that is build evidence and does not supply native Intel proof.
+
+- Full `scripts/verify_release_package.py` audit: `RELEASE_PACKAGE_OK`, 52 files,
+  19 binaries, 519 first-party compile units. Trust is `not-assessed`, legal
+  approval `pending`. The default LLVM 23 `llvm-nm` could not start because its
+  Z3 dylib is absent. Selecting the existing `/opt/homebrew/opt/llvm@22/bin`
+  for this command fixed the tool prerequisite without changing global settings.
+- `packaging/verify_release_sources.py`: `RELEASE_SOURCE_ASSET_OK` for the exact
+  clean producer revision and separate source ZIP, including pinned mimalloc.
+- The public package auditor refuses a private copy missing `libmimalloc.3.dylib`
+  with `required-packaged-capability-missing`; it refuses a copy with an extra
+  allocator dylib with `package-file-set-mismatch`. The original is unchanged.
+  The first local control harness used a noncanonical `/var` root; resolving
+  its temporary root repaired that harness assertion before both controls passed.
+- All selected product images and the allocator have arm64 and x86_64 slices;
+  the tests-only `BPR_MIMALLOC_PROBE` marker is absent from delivered images.
+
+Artifacts are under `build/mimalloc-m1/local-candidate/` in this retained worktree:
+
+| Artifact | SHA-256 |
+|---|---|
+| `BetterPullReview-0.3.2-macos-universal-local.zip` | `9ca6dec76680d7a368314659bdcae3c8e3a93bcddf564f1b8e54cdbebfec9660` |
+| `BetterPullReview-0.3.2-macos-universal-local.spdx.json` | `54815048e932a709072ccee40a2ee9dd1507364f67ed94ff56f6052e0c66c33b` |
+| `Source-BetterPullReview-0.3.2-macos-universal-corresponding-source.zip` | `fc15e56132603872e35f91fb57142c910558c08fa7e4f1e60261ae4d8b5f75e2` |
+| `Contents/MacOS/BetterPullReview` | `cfeb620c9c601a496b0b82e9a4b0750b5064145040938ad624d82074884dfeec` |
+| `Contents/Frameworks/libmimalloc.3.dylib` | `2d72e966ed52f2d5c9d3dee7d44425d39165b6e1c89edb7f96aadefade29da83` |
+
+The first two files are local preparation artifacts; their names do not grant
+release status. Full producer/helper identities and command outputs are retained
+in `build/mimalloc-m1/candidate-identities.json`, `prepare-candidate.log`,
+`package-audit-llvm22.json`, `source-asset-audit.json`,
+`negative-controls-public.json` and `producer-interpose.json`.
+Initial tool/harness failures remain in their separate stderr files.
+
+BPR-1759 and this milestone remain incomplete. Native Intel allocation ownership,
+the authorized Developer-ID/signed-installed course, delivered native Cocoa
+qualification and final all-platform AC07 remain pending. AC08 is untouched;
+existing BPR-0967 limits are not relabeled. No attended session is ready and no
+review server exists. All task-owned commands are finished. Preserve this
+worktree, its branch, build and candidate artifacts for the next engineering
+round; the coordinator owns integration after main's other writer reconciles.

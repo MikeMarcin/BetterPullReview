@@ -31,11 +31,11 @@ Mandate r1: implement the supplied pack, including the owner-confirmed process-w
 |---|---|---|---|
 | **AC01:** Configure obtains only the pinned v3.5.3 source and licence bytes; offline, substitution and target-collision controls reject wrong inputs. | Provider pin/offline/substitution/collision/extraction controls; [ledger](../../verification/RFC-BPR-0093.md) | Pass | `81ee1b4ef` |
 | **AC02:** Every selected shipped BPR executable has the override in normal and distribution graphs; disabled optional families create no phantom requirement, a core-only graph remains allocator-independent, non-distribution baseline selection works, and distribution refuses it. | All product-target attachment, actual minimal distribution/core/baseline graphs and running baseline CLI; ledger | Pass | `81ee1b4ef` |
-| **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Seven native developer rows, five actual arm64 product images; local prepare refused clean-source guard | Partial: native Intel and signed installed required | `aadf2d91d` |
+| **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Seven native developer rows plus clean-worktree local bundle, relocated offscreen assessment and full package audit; ledger | Partial: native Intel and signed installed required | `aadf2d91d` |
 | **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native/public-path/package course required | Pending | — |
 | **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native/public-path/package course required | Pending | — |
 | **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Boundary stress/failure probes, 17 composed checks and instrumentation configure controls | Partial: full sanitizer/fuzzer and other native courses pending | `81ee1b4ef`, `aadf2d91d` |
-| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac runtime/notice/source prerequisites and 30/9/24 package/source controls | Partial: no installed artifact; all-platform final closure pending | `aadf2d91d` |
+| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Mac local bundle/source-sidecar audits and missing/extra allocator controls; ledger | Partial: Mac ad-hoc local artifact; all-platform final closure and trust pending | `aadf2d91d` |
 | **AC08:** Same-workload Release comparisons and the unchanged large-review memory course record candidate identity, native platform, measurements and failures without attributing pre-existing BPR-0967 limits to mimalloc. | Native/public-path/package course required | Pending | — |
 | **AC09:** Architecture, build, package and operator documentation state the actual override scope and limits; focused public-path and documentation checks pass, with all native and release claims tied to their evidence. | Architecture/build documentation, documentation gate/tests and focused integration | Partial: final operator/package/native evidence reconciliation pending | `aadf2d91d` |
 
@@ -77,3 +77,31 @@ the owner's process-wide scope and every authored exit remain unchanged.
   produced and native evidence is outstanding. No authenticated URL is stored.
   Final AC07, performance/memory AC08 and existing BPR-0967 limits remain open;
   no release or security acceptance is claimed.
+
+## Latest checkpoint — clean worktree
+
+Supersedes the dirty-source stopping point above for the task-owned branch.
+Product source `eb28c0187a49143f5470e4400c2f1b3d0cb03de0` produced a local universal tests-disabled bundle,
+ZIP, SPDX and separate source ZIP under
+`/Users/jaeger/.codex/worktrees/mimalloc-macos-candidate/BetterPullReview/build/mimalloc-m1/local-candidate/`.
+The [ledger](../../verification/RFC-BPR-0093.md) binds all artifact hashes,
+commands and acceptance limits. Run `mimalloc-20261024`, segment
+`macos-m1-clean-worktree`, mandate `r1`; same authored milestone and exits.
+
+- **Passed:** credential-free prepare-only course; relocated offscreen assessment
+  with original bundle unchanged; full package audit (52 files, 19 binaries,
+  519 first-party units); exact source-sidecar audit; missing/extra allocator
+  refusal through the public package auditor. Scoped LLVM 22 resolves a broken
+  global LLVM 23 tool dependency. No product source fix was needed.
+- **Still pending:** native Intel ownership, actual authorized signed-installed
+  acceptance and delivered native Cocoa course. BPR-1759 remains Blocked and
+  the milestone remains unaccepted. Final AC07 and AC08 are not closed.
+- **Ownership:** retained branch `codex/mimalloc-macos-candidate`, worktree root
+  `/Users/jaeger/.codex/worktrees/mimalloc-macos-candidate/BetterPullReview`. No other writer owns this branch. All own commands finished;
+  no review server/session exists. Main's unrelated NEXT_ID and reservation
+  are untouched. No push, publication, Developer ID or Keychain operation.
+- **Continuation:** preserve the worktree/build/candidate and runtime checkpoint
+  at `build/mimalloc-m1/checkpoint-final.json` plus `observation-final.json`.
+  Resume the same milestone when native Intel and signing authority/courses
+  can supply the remaining evidence. Integrate this branch's checkpoint only
+  after reconciling main's other writer. The local ad-hoc seal grants no trust.

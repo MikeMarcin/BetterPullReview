@@ -56,3 +56,20 @@ retry the same local preparation from clean committed source. The resulting
 ad-hoc candidate still cannot satisfy signed-installed AC03. Developer ID and
 native Intel evidence require their actual authorized course; this arm64 host
 supplies neither. Do not mark this card or the milestone complete.
+
+## Clean-worktree result
+
+Source `eb28c0187a49143f5470e4400c2f1b3d0cb03de0` in branch `codex/mimalloc-macos-candidate` at
+`/Users/jaeger/.codex/worktrees/mimalloc-macos-candidate/BetterPullReview` produced the credential-free local candidate successfully.
+The dirty-source blocker is cleared in this worktree; main's allocation remains
+untouched. Full package audit passes (52 files, 19 binaries, 519 first-party
+units) using scoped LLVM 22; source-sidecar binding and public missing/extra
+allocator controls pass. The relocated offscreen assessment passed and left the
+delivered bundle unchanged. See the ledger's clean-worktree continuation for
+artifact names, hashes, exact commands, initial tool/harness failures and limits.
+
+This is a tests-disabled, universal, ad-hoc-sealed local bundle. It does not
+supply Developer ID, notarization, Gatekeeper, delivered native Cocoa or Intel
+execution evidence. This card remains Blocked on those actual native/signed
+observations; no criterion is waived. The branch/worktree and candidate are
+retained, all own commands are quiescent, and no review server is running.
