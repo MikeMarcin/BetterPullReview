@@ -93,6 +93,7 @@
         }
       ],
       "depends_on": [
+        "pinned-macos-integration",
         "distribution-and-measurement"
       ],
       "exit_criteria": [

@@ -70,7 +70,7 @@ The RFC has criterion-linked evidence, current documentation and explicit native
 
 **Work:** `BPR-1764`
 
-**Prerequisites:** distribution-and-measurement
+**Prerequisites:** pinned-macos-integration, distribution-and-measurement
 
 **Completion:**
 

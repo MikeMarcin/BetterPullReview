@@ -485,3 +485,25 @@ milestone. Stop at the Linux boundary and return to the coordinator. Native
 Intel/signed-installed Mac and final distribution/measurement/closeout remain
 pending; later cards still retain their Mac prerequisites. No pending Mac
 candidate or acceptance condition was replaced.
+
+## Independent distribution and measurement — mandate r4, 2026-10-24
+
+The owner authorized continued independent work without an Intel Mac.
+[[BPR-1762]] and [[BPR-1763]] now retain the accepted provider/Windows/Linux
+prerequisites without waiting for full Mac acceptance. The distribution
+milestone already depended only on Windows/Linux; the checked plan amendment
+adds an explicit `pinned-macos-integration` prerequisite to final closeout,
+matching [[BPR-1764]]'s unchanged Mac dependency. All authored outcomes, work
+selectors, exits and AC07/AC08 remain intact. Incomplete required Mac evidence
+still prevents the applicable card/milestone and RFC acceptance.
+
+Source basis is the independent platform implementations and installed courses,
+the actual package/source inventory, compatible instrumentation path and
+non-distribution baseline switch. `check-amendment` passed; only closeout's
+prerequisite definition changed. Its receipt remains under
+`build/mimalloc-distribution/`. Prior Mac/Windows/Linux candidates and their
+pending decisions are retained. Run `mimalloc-20261024`, segment
+`distribution-m4`, mandate `r4`, unchanged `coordinator-implementer` revision 2.
+Sole leaf `/root/mimalloc_distribution` owns this milestone on main; unrelated
+MASK/NEXT_ID/BPR-1766 edits remain excluded. No publication, signing,
+credential/Keychain lookup, push or owner desktop operation is authorized.
