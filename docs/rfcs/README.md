@@ -613,7 +613,7 @@ Mandate `inline-markdown-images-r1` adopts RFC-DRAFT-0022 (owner decision 2026-1
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0085](RFC-BPR-0085-drawer-design-system.md) | One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status | Auto-Verified | Closed 2026-10-24 by [BPR-1595](../issues/60-done/BPR-1595-close-rfc-0085.md): the milestones' courses and the owner's accept of every milestone's frozen build; AC08's clipping course in the four themes at three scales after [BPR-PENDING-AR](../issues/60-done/BPR-PENDING-AR-drawer-surfaces-keep-their-words-at-every-width.md)'s layout repairs. Depends on None |
+| [RFC-BPR-0085](RFC-BPR-0085-drawer-design-system.md) | One drawer design system: Notes, Tours, Agent, Compose review and the Overview's Status | Auto-Verified | Closed 2026-10-24 by [BPR-1595](../issues/60-done/BPR-1595-close-rfc-0085.md): the milestones' courses and the owner's accept of every milestone's frozen build; AC08's clipping course in the four themes at three scales after [BPR-1757](../issues/60-done/BPR-1757-drawer-surfaces-keep-their-words-at-every-width.md)'s layout repairs. Depends on None |
 
 Mandate `drawer-design-system-r1` adopts RFC-DRAFT-0023 as decided by the owner in attended session 9b6359b5 (BPR-1574). [Import and provenance](assets/drawers-and-agent-redesign-v1.LIVE_IMPORT.md); [plan](plans/drawer-design-system-v1/milestone-plan.json).
 

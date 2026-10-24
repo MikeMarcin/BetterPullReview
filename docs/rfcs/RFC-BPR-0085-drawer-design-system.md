@@ -77,7 +77,7 @@ at 760 pixels and at a restored 280. At 280 pixels the open review
 summary's labels and the Tour stop's action buttons are cut. In the
 900-pixel window the tour page's On GitHub column runs off the window.
 
-Auto-Verified on 2026-10-24: [[BPR-PENDING-AR]] repaired the four defects
+Auto-Verified on 2026-10-24: [[BPR-1757]] repaired the four defects
 as layout (the tab row takes its new width when the tray is shown, the
 scope in the summary's header yields to the verdict, a stop's actions
 with no room wait behind More, the tour page's side columns give way

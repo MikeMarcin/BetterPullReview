@@ -597,7 +597,7 @@ namespace bpr::qt {
 			return button;
 		}
 
-		/// \brief [[BPR-PENDING-AR]]. A header word that gives up its room
+		/// \brief [[BPR-1757]]. A header word that gives up its room
 		/// before the words beside it: it elides, says itself whole in its
 		/// tooltip while shortened, and shows nothing rather than a lone
 		/// ellipsis. Its text and accessible name stay whole.
@@ -1049,7 +1049,7 @@ namespace bpr::qt {
 		const auto name  = room.height();
 		auto       x     = room.left();
 		const auto tools = room.right() + 1;
-		// [[BPR-PENDING-AR]]. A long name elides before the post's tools
+		// [[BPR-1757]]. A long name elides before the post's tools
 		// and says itself whole in its tooltip.
 		const auto who = QFontMetrics{ bold }.elidedText(Post.Mine ? QStringLiteral("you") : Post.Author, Qt::ElideRight, std::max(0, tools - x));
 		painter.setFont(bold);
@@ -1087,7 +1087,7 @@ namespace bpr::qt {
 				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, Post.Mine ? QStringLiteral("%1 (you)").arg(Post.Author) : Post.Author);
 				return true;
 			}
-			// [[BPR-PENDING-AR]]. A name cut short says itself whole.
+			// [[BPR-1757]]. A name cut short says itself whole.
 			if (const auto room = name_rect(); room.contains(point) && !Post.Mine
 				&& QFontMetrics{ semibold(font()) }.horizontalAdvance(Post.Author) > room.width()) {
 				show_anchored_tooltip(*this, room, Post.Author);
@@ -1283,7 +1283,7 @@ namespace bpr::qt {
 		row->setSpacing(2);
 		const auto& palette = this->palette();
 		if (aCard.Path.isEmpty()) {
-			// [[BPR-PENDING-AR]]. In a narrow drawer the scope gives way to
+			// [[BPR-1757]]. In a narrow drawer the scope gives way to
 			// the verdict, which stays whole.
 			auto* const scope = new yielding_label{ QStringLiteral("Pull request"), header };
 			scope->setObjectName(QStringLiteral("conversationPullRequestHeader"));

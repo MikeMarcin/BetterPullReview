@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1757"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Drawer surfaces fit (RFC-BPR-0085 AC08)",
+  "created": "2026-10-24T04:26:50.316211+00:00",
+  "base": "97e818f9d1519f6f4fcdae4a63633e9d5aaee9b9"
+}

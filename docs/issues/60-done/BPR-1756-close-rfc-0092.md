@@ -9,7 +9,7 @@ depends_on: ["BPR-1748", "BPR-1749", "BPR-1750", "BPR-1751", "BPR-1752", "BPR-17
 priority: "P2"
 platforms: ["mac","win","linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1747--BPR-1756--f06ad4b55890.json","origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-1747"],"milestone":"RFC-BPR-0092 closeout"}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"270077e655d630ad8afa687046b6bb48bc4f0067","evidence":{"kind":"command","command":"python3 scripts/verify_documentation.py --root .","detail":"Every RFC-BPR-0092 criterion, AC01 to AC14, is recorded in the closeout checklist with its check, result and producing commit, and the checklist passes the gate's verify_closeout_card against the RFC's canonical criteria. The reconciliation's evidence at 08acf5b10 is reused: no RFC-BPR-0092 criterion uses the drawer layout repairs of BPR-PENDING-AR. Its dependency RFC-BPR-0085 is Auto-Verified (BPR-1595), so RFC-BPR-0092 is set to Auto-Verified.","refs":["docs/issues/60-done/BPR-1595-close-rfc-0085.md"]}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"270077e655d630ad8afa687046b6bb48bc4f0067","evidence":{"kind":"command","command":"python3 scripts/verify_documentation.py --root .","detail":"Every RFC-BPR-0092 criterion, AC01 to AC14, is recorded in the closeout checklist with its check, result and producing commit, and the checklist passes the gate's verify_closeout_card against the RFC's canonical criteria. The reconciliation's evidence at 08acf5b10 is reused: no RFC-BPR-0092 criterion uses the drawer layout repairs of BPR-1757. Its dependency RFC-BPR-0085 is Auto-Verified (BPR-1595), so RFC-BPR-0092 is set to Auto-Verified.","refs":["docs/issues/60-done/BPR-1595-close-rfc-0085.md"]}}]
 ---
 
 # BPR-1756: Verify and close RFC-BPR-0092
@@ -47,7 +47,7 @@ RFC base: `2786b5b3afdb016aa79227b056b60a3f86b9fb5f`.
 
 Closed. The one thing holding this card, its dependency RFC-BPR-0085,
 is `Auto-Verified`: [[BPR-1595]] recorded its AC08 once
-[[BPR-PENDING-AR]] repaired the drawer surfaces that clipped. Every
+[[BPR-1757]] repaired the drawer surfaces that clipped. Every
 RFC-BPR-0092 criterion keeps the evidence recorded at the reconciliation
 below, at `08acf5b10`; the repairs since touch no setup, agent, clone or
 review skill path that any criterion uses, and the workbench window rows

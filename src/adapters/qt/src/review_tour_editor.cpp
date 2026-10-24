@@ -353,7 +353,7 @@ namespace bpr::qt {
 				const auto right = width() - 30;
 				painter.setFont(font());
 				painter.setPen(Words.isEmpty() ? faint : ink);
-				// [[BPR-PENDING-AR]]. Two lines at most: the first as wrapping
+				// [[BPR-1757]]. Two lines at most: the first as wrapping
 				// lays it out, the rest elided on the second, so a narrow
 				// outline never shows part of a third.
 				const auto room    = std::max(10, right - left);
@@ -570,7 +570,7 @@ namespace bpr::qt {
 		}
 	}
 
-	/// \brief [[BPR-PENDING-AR]]. A stop's actions on one row that keeps to
+	/// \brief [[BPR-1757]]. A stop's actions on one row that keeps to
 	/// the width it is given.
 	///
 	/// \details Its fixed parts (the writing button and More) always show,
@@ -1507,7 +1507,7 @@ namespace bpr::qt {
 			connect(value, &QPushButton::clicked, this, aCallback);
 			return value;
 		};
-		// [[BPR-PENDING-AR]]. The row keeps to the stop's width: in a narrow
+		// [[BPR-1757]]. The row keeps to the stop's width: in a narrow
 		// drawer or page an action with no room waits behind More, which
 		// offers it too, rather than lose its words.
 		StopActions         = new stop_action_row{ StopFields };
@@ -2000,7 +2000,7 @@ namespace bpr::qt {
 		// removing an item's widget deletes it.
 		StopFields->setParent(this);
 		for (int index = 0; index < Outline->count(); ++index) {
-			// [[BPR-PENDING-AR]]. The card is deleted later; until then it
+			// [[BPR-1757]]. The card is deleted later; until then it
 			// must not stand in the page's outline at the route's width.
 			if (auto* const card = Outline->itemWidget(Outline->item(index)); card != nullptr) {
 				card->hide();
@@ -2204,7 +2204,7 @@ namespace bpr::qt {
 
 	void review_tour_editor::fit_page_columns()
 	{
-		// [[BPR-PENDING-AR]]. The outline and On GitHub keep their 290 and
+		// [[BPR-1757]]. The outline and On GitHub keep their 290 and
 		// 360 pixels while the section between them has its own 340. In a
 		// narrower page, down to the window's floor, they give way together
 		// in proportion, to 230 and 290 at the least, so no column runs past

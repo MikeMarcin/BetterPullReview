@@ -8728,7 +8728,7 @@ namespace bpr::qt {
 				tabs->setTabToolTip(index, tip);
 			}
 		}
-		// [[BPR-PENDING-AR]]. A hidden QTabBar only marks its tabs dirty when a
+		// [[BPR-1757]]. A hidden QTabBar only marks its tabs dirty when a
 		// face changes; the header's own sizeHint() query then lays them out,
 		// so the bar's showEvent has nothing left to announce and the header's
 		// grid keeps the old width (the window opens on Overview with the tray
