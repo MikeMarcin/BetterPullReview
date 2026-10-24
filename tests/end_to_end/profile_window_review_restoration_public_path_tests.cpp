@@ -959,15 +959,15 @@ auto main(int aArgc, char** aArgv) -> int
 			expect(evidence.CredentialRetrieved && evidence.AccountTransportSelected, "remembered binding revalidated through retained vault/account");
 		}
 	}
-	capture(*first, phase);
 	if (phase == "auth-advance") {
 		readingSnapshots[1] = { reading_snapshot(*owner, firstContext), reading_snapshot(*owner, { firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation }) };
 	}
-	trigger(*first, "quitProfilesAction");
-	wait_for([&] { return desktop->is_quiescent(); }, "Quit flushes latest destinations and drains services");
+	capture(*first, phase);
 	if (phase == "auth-advance") {
 		readingSnapshots[2] = { reading_snapshot(*owner, firstContext), reading_snapshot(*owner, { firstContext.Profile, core::bpr_window_id{ 2U }, firstContext.Generation }) };
 	}
+	trigger(*first, "quitProfilesAction");
+	wait_for([&] { return desktop->is_quiescent(); }, "Quit flushes latest destinations and drains services");
 	desktop.reset();
 	if (replacementReading || readingRace) {
 		const auto retained = restoration_store(root)->load({ });
