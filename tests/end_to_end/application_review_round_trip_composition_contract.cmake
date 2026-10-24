@@ -1,3 +1,11 @@
+# BPR-1694 release repair reseal after R164/R167 causal shutdown verification:
+# Window quiescence includes its queued close callback's session retirement,
+# so profile draining cannot force-cancel the latest orderly restoration save.
+# Explicit forced cancellation is unchanged. Profile-owned test gates and the
+# guarded desktop poll seam retain the deterministic coalesced-save control.
+# Temporary successful-path reading snapshots are removed at e9e2b9f6c.
+# R164 causal RED/GREEN and R167 corrected native courses pass; full final-source
+# qualification is still required. App inventory and mutation bytes stay exact.
 # BPR-1694 release repair reseal after R158 causal Find verification:
 # Since 7ee592fc, github_application.cpp adds only tests-on decision gates and
 # bounded fixture observations. Ledger gates live through the profile effect
@@ -2352,7 +2360,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+		"722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2583,7 +2591,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "9e16eaea7584eea17b63753ca6688eb1e581c6d49f15ebc16a7782e3700e6c15"
+        "d0f4bc9ad6e57957b6bf746438eebbf25af1e856faba168181acaba51c1a6df8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

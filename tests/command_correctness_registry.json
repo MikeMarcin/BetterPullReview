@@ -1144,7 +1144,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "656d335444b7c0d924b2f2b224d3261cdfb142514066ae9fa7ee8bbfd20ed59a"
+          "sha256": "5604676c38d855fc6bcc5e1618748e46106332be759180682c330c4ccd81384e"
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
@@ -1160,7 +1160,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+          "sha256": "722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1249,7 +1249,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "656d335444b7c0d924b2f2b224d3261cdfb142514066ae9fa7ee8bbfd20ed59a"
+          "sha256": "5604676c38d855fc6bcc5e1618748e46106332be759180682c330c4ccd81384e"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1265,7 +1265,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+          "sha256": "722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1361,7 +1361,7 @@
       "inputs": [
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "656d335444b7c0d924b2f2b224d3261cdfb142514066ae9fa7ee8bbfd20ed59a"
+          "sha256": "5604676c38d855fc6bcc5e1618748e46106332be759180682c330c4ccd81384e"
         },
         {
           "path": "src/app/src/review_submission_fixture.hpp",
@@ -1381,7 +1381,7 @@
         },
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+          "sha256": "722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
         },
         {
           "path": "cmake/BprTestIsolation.cmake",
@@ -1433,11 +1433,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+          "sha256": "722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "656d335444b7c0d924b2f2b224d3261cdfb142514066ae9fa7ee8bbfd20ed59a"
+          "sha256": "5604676c38d855fc6bcc5e1618748e46106332be759180682c330c4ccd81384e"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1481,11 +1481,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+          "sha256": "722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "656d335444b7c0d924b2f2b224d3261cdfb142514066ae9fa7ee8bbfd20ed59a"
+          "sha256": "5604676c38d855fc6bcc5e1618748e46106332be759180682c330c4ccd81384e"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1499,7 +1499,7 @@
     },
     {
       "source": "tests/end_to_end/profile_window_review_restoration_public_path_tests.cpp",
-      "sha256": "fdfab3eab7c34375bb8a5f1eb8f7e6c4b4dc73d89b5cd0c62e87545395dcfbba",
+      "sha256": "df447f3a77c6579c371221264e97b7ec1e67249c0d5559d187057d60a337b6fc",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",
@@ -1508,7 +1508,7 @@
       "unset_environment": [
         "BPR_KEPT_GRANT_CAPTURE_DIR"
       ],
-      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged. BPR-1694 failure diagnostics print only after an existing deadline or durable-position mismatch; they add no process, output artifact, successful-path observation, gesture or timing change. The normal native Windows composed course passes with these diagnostics and both production repairs. Combined-main integration preserves the unique enabled first menu action and failure-only diagnostics; changed app source is only the retained lane/gesture repair over reviewed main. Scheduling, outputs, commands and deadlines remain unchanged. Atomic reading completion changes no command, resource, output or lifetime; ready and selection are accepted before the existing feedback callbacks. BPR-1694 R153 renewal: the exact original-input course passes in both matched serial and concurrent Windows Release modes. Failure-only observations retain the immediate reading-gesture-to-Quit sequence, original subprocess bounds, private roots and locks.",
+      "ownership": "Python owns one contained temporary root and sequential subprocess.run lifetimes with bounded 180-second waits. SQLite connections close; ACL narrowing touches only copied private entries. Native private_data_root and the exact dedicated artifact root own all writes. Existing review_restoration resource excludes the document-tabs course. No NDEBUG, checked-iterator or optimized timing-budget branch. BPR-1694 renewal: the early pending-tab gesture phase uses another child of that same private temporary root and the same bounded sequential subprocess lifetime. Lane-only completion/observation and the exact displayed-material gesture guard add no output, process or shared resource. The named menu action lookup changes no ownership or timing budget. Native Windows reading and tab restart courses pass with these exact bytes; argv, configuration, output, capture refusals and resource locks remain unchanged. BPR-1694 failure diagnostics print only after an existing deadline or durable-position mismatch; they add no process, output artifact, successful-path observation, gesture or timing change. The normal native Windows composed course passes with these diagnostics and both production repairs. Combined-main integration preserves the unique enabled first menu action and failure-only diagnostics; changed app source is only the retained lane/gesture repair over reviewed main. Scheduling, outputs, commands and deadlines remain unchanged. Atomic reading completion changes no command, resource, output or lifetime; ready and selection are accepted before the existing feedback callbacks. BPR-1694 R153 renewal: the exact original-input course passes in both matched serial and concurrent Windows Release modes. Failure-only observations retain the immediate reading-gesture-to-Quit sequence, original subprocess bounds, private roots and locks. BPR-1694 R167 renewal: R159 later exposed an orderly-close ownership race. Window retirement now includes its queued close callback, preserving the latest coalesced save; explicit forced cancellation is unchanged. The profile-owned gates and exact desktop poll seam exercise that ordering in another child of the same private root with sequential bounded subprocesses. R164 compiled causal RED/GREEN and corrected full Mac course, and R167 corrected registered-input Windows bounded/host/full courses pass. These focused results do not claim a fresh concurrent final matrix; private output ownership and all registered commands, configurations, environments, scrubs and locks remain unchanged.",
       "rows": [
         {
           "name": "application_profile_window_review_restoration_public_path",
@@ -1534,11 +1534,11 @@
       "inputs": [
         {
           "path": "src/app/src/github_application.cpp",
-          "sha256": "4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
+          "sha256": "722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
         },
         {
           "path": "src/app/src/github_application_fixture_access.hpp",
-          "sha256": "656d335444b7c0d924b2f2b224d3261cdfb142514066ae9fa7ee8bbfd20ed59a"
+          "sha256": "5604676c38d855fc6bcc5e1618748e46106332be759180682c330c4ccd81384e"
         },
         {
           "path": "tests/support/test_expectation.hpp",
@@ -1550,7 +1550,7 @@
         },
         {
           "path": "tests/end_to_end/profile_window_review_restoration_contract.py",
-          "sha256": "97158b3272a69052f77f92fc4e0cd8521044e841b7fbd07b869ef5ac2c5b9dc9"
+          "sha256": "e5baf18ee0776654430a21ef8f92fc17a41b6e7dde9c335c45dfc46fc3dd067c"
         },
         {
           "path": "tests/end_to_end/bpr_narrow_owner_private.py",
@@ -1563,6 +1563,10 @@
         {
           "path": "scripts/contained_temporary_support.py",
           "sha256": "f0b318eb5a8eade93618ad63a8042f2bb1538555215676e23f88103baea4a10c"
+        },
+        {
+          "path": "src/app/src/profile_desktop.cpp",
+          "sha256": "d43b71e81e526d401a3d081722cac2a08ec3873183311a8c9211f664f26d71af"
         }
       ]
     }
