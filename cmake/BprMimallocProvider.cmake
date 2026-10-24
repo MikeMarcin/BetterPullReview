@@ -98,7 +98,11 @@ function(bpr_configure_mimalloc)
     if(MSVC)
         # The installed PE audit binds this source-built DLL to full producer
         # link evidence. The upstream redirect DLL is separately byte-pinned.
-        target_link_options(mimalloc PRIVATE /MAP)
+        target_compile_options(mimalloc PRIVATE "$<$<CONFIG:Release>:/Zi>")
+        target_link_options(mimalloc PRIVATE /MAP
+            "$<$<CONFIG:Release>:/DEBUG>" "$<$<CONFIG:Release>:/PDBALTPATH:%_PDB%>"
+            "$<$<CONFIG:Release>:/OPT:REF>" "$<$<CONFIG:Release>:/OPT:ICF>"
+            "$<$<CONFIG:Release>:/INCREMENTAL:NO>")
     endif()
     add_library(BetterPullReview::Mimalloc ALIAS mimalloc)
     set(BPR_MIMALLOC_ACTIVE ON PARENT_SCOPE)
