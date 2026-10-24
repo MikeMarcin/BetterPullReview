@@ -168,6 +168,28 @@ class ReleaseSecurityTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
                         pe.map_symbols(producer, producer, windows_import_library=library)
 
+    def test_pinned_sdk_metadata_can_share_the_first_allocator_import_terminator(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            producer, library = root / "app.exe", root / "bcrypt.lib"
+            producer.write_bytes(metadata_image())
+            library.write_bytes(b"synthetic metadata specimen")
+            original = "__NULL_IMPORT_DESCRIPTOR 0000000140002010 bcrypt:bcrypt.dll"
+            replacement = "__NULL_IMPORT_DESCRIPTOR 0000000140002010 mimalloc.dll:mimalloc.dll"
+            text = metadata_map().replace(original, replacement)
+            producer.with_suffix(".map").write_text(text)
+            with metadata_tools(library, "KERNEL32.dll\nmimalloc.dll\n"):
+                self.assertIn(".idata$6", pe.map_symbols(producer, producer, windows_import_library=library))
+                with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                    pe.map_symbols(producer, producer)
+                producer.with_suffix(".map").write_text(text.replace("mimalloc.dll:mimalloc.dll", "other.dll:other.dll"))
+                with self.assertRaisesRegex(ValueError, "symbol-address-mismatch"):
+                    pe.map_symbols(producer, producer, windows_import_library=library)
+            producer.with_suffix(".map").write_text(text)
+            with metadata_tools(library):
+                with self.assertRaisesRegex(ValueError, "allocator-import-evidence-incomplete"):
+                    pe.map_symbols(producer, producer, windows_import_library=library)
+
     def test_discarded_import_actual_import_payload_and_failed_observation_refuse(self):
         with ContainedTemporaryDirectory() as directory:
             root = Path(directory).resolve()

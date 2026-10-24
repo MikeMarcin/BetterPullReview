@@ -106,6 +106,7 @@ def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | 
     section = header["sections"][int(entry[1], 16) - 1]
     require(section["address"] + int(entry[2], 16) == header["entry"], "pe-map-entry-mismatch")
     in_statics, owner_descriptor = False, False
+    allocator_descriptor = False
     imports = None
     for line in text.splitlines():
         if composition.MAP_STATICS_HEADER.fullmatch(line):
@@ -132,7 +133,7 @@ def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | 
         # MSVC retains this SDK static symbol after its DLL-name contribution
         # is discarded. Accept only the reviewed zero-RVA metadata shape, not
         # arbitrary wrapped addresses, import sections or function symbols.
-        discarded_import_name = (proof is not None and in_statics and owner_descriptor
+        discarded_import_name = (proof is not None and in_statics and (owner_descriptor or allocator_descriptor)
                                  and record["name"] == ".idata$6" and not record["flags"].strip()
                                  and record["object"] == BCRYPT_IMPORT_OWNER
                                  and address == header["image_base"] and 0 <= displacement < 2**32
@@ -143,6 +144,8 @@ def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | 
                 output = subprocess.check_output(dependencies.windows_dependency_command(binary), text=True, timeout=30)
                 imports = {name.lower() for name in dependencies.dependency_references(output, "Windows")}
                 require("kernel32.dll" in imports, "pe-sdk-import-evidence-incomplete")
+            if allocator_descriptor and not owner_descriptor:
+                require("mimalloc.dll" in imports, "pe-sdk-allocator-import-evidence-incomplete")
             payload = binary.read_bytes().lower()
             require("bcrypt.dll" not in imports and b"bcrypt.dll" not in payload
                     and "bcrypt.dll".encode("utf-16le") not in payload, "pe-sdk-import-still-referenced")
@@ -153,6 +156,14 @@ def map_symbols(binary: Path, producer: Path, *, windows_import_library: Path | 
         if (record["name"] == "__NULL_IMPORT_DESCRIPTOR" and not record["flags"].strip()
                 and record["object"] == BCRYPT_IMPORT_OWNER):
             owner_descriptor = True
+        # The null import descriptor is a shared COMDAT. Putting the allocator
+        # first can select its terminator while the discarded SDK name still
+        # belongs to bcrypt.lib. Require both this exact mapped data record and
+        # an actual allocator import; all SDK specimen/zero-RVA checks remain.
+        if (record["name"] == "__NULL_IMPORT_DESCRIPTOR" and not record["flags"].strip()
+                and record["object"] == "mimalloc.dll:mimalloc.dll"
+                and section["flags"] & 0x40 and not section["flags"] & 0x20000000):
+            allocator_descriptor = True
     decorated = composition.parse_map_defined_symbols(text)
     undname = shutil.which("undname")
     require(undname is not None, "pe-map-needs-native-undname")
