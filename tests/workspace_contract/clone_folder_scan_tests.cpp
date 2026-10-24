@@ -25,7 +25,8 @@ namespace {
 
 	[[nodiscard]] auto text(const fs::path& aPath) -> std::string
 	{
-		const auto value = aPath.u8string();
+		auto       preferred = aPath;
+		const auto value     = preferred.make_preferred().u8string();
 		return std::string{ reinterpret_cast<const char*>(value.data()), value.size() };
 	}
 
@@ -117,7 +118,7 @@ try {
 	const auto big = adapters::workspace::read_clone(text(github / "big"));
 	expect(big && big->Remotes.empty(), "a config is read only up to its bound");
 
-	const auto existing = adapters::workspace::existing_folders(core::usual_clone_folders(text(root), false));
+	const auto existing = adapters::workspace::existing_folders(core::usual_clone_folders(text(root), fs::path::preferred_separator == '\\'));
 	expect(existing == std::vector<std::string>{ text(root / "Documents/GitHub"), text(root / "src") }, "only usual folders that exist are suggested");
 	std::cout << "clone-folder-scan:pass\n";
 	return EXIT_SUCCESS;
