@@ -22,6 +22,19 @@ spec.loader.exec_module(runtime)
 
 
 class PackageRuntimeTests(unittest.TestCase):
+    def test_standalone_cli_inventory_and_source_asset_are_distinct(self):
+        info = {"platform": "Darwin", "version": "0.3.2", "layout": "tour-cli"}
+        names = {item["name"] for item in runtime.components(info)}
+        self.assertIn("mimalloc", names)
+        self.assertIn("git-xdiff", names)
+        self.assertNotIn("QtSvg", names)
+        self.assertNotIn("KSyntaxHighlighting", names)
+        self.assertNotIn("LibArchive", names)
+        self.assertIn("mimalloc/LICENSE", runtime.notice_files(info))
+        self.assertNotIn("gemoji/LICENSE", runtime.notice_files(info))
+        self.assertEqual(runtime.source_asset_name(info), "Source-BetterPullReview-0.3.2-macos-universal-tour-cli-corresponding-source.zip")
+        self.assertEqual(runtime.legal_root(Path("/payload"), info), Path("/payload/ThirdParty"))
+
     def test_windows_remembers_only_its_per_user_install_directory(self):
         config = (ROOT / "packaging/Install.cmake").read_text()
         self.assertIn('set(CPACK_WIX_INSTALL_SCOPE perUser)', config)

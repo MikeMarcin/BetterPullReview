@@ -3829,3 +3829,19 @@ codesign --verify --deep --strict build/app-release/src/app/BetterPullReview.app
 
 The [private-alpha route](private-alpha.md) defines the intentionally narrow
 delivery scope and the live-Enterprise verification deferral.
+
+
+## Allocator comparison course
+
+RFC-BPR-0093 attaches the composed large-review benchmark to the selected
+product allocator. Ordinary unit tests and other benchmarks retain toolchain
+allocation. Configure a tests-enabled Release tree with
+`BPR_USE_MIMALLOC=ON`, build `bench_better_pull_review_large_review` and run
+the existing launch, responsiveness, resources, loaded-close and cache-byte
+courses. Preserve the reports and exact binary/runtime hashes. Reconfigure the
+same source, toolchain, features and build type with `BPR_USE_MIMALLOC=OFF`,
+relink and repeat on the same hardware without changing fixtures or budgets.
+This baseline is unavailable in distribution graphs. Sanitizer/fuzzer graphs
+exclude both product and measurement overrides so their toolchain owns
+instrumentation. Course misses and BPR-0967's existing memory limits remain
+recorded; adopting an allocator promises no speedup or memory reduction.

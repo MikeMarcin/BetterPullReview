@@ -66,7 +66,10 @@ NOTICE_FILES = (
 
 
 def notice_files(info: dict) -> tuple[str, ...]:
-    return NOTICE_FILES + (("icu/LICENSE",) if info["platform"] == "Linux" else ())
+    files = NOTICE_FILES + (("icu/LICENSE",) if info["platform"] == "Linux" else ())
+    if info.get("layout") == "tour-cli":
+        files = tuple(name for name in files if not name.startswith(("gemoji/", "jetbrains-mono/")))
+    return files
 
 
 def run(*arguments: str | Path, env: dict | None = None) -> str:
@@ -89,17 +92,21 @@ def write_json(path: Path, data: dict) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def inputs(build: Path) -> dict:
-    value = json.loads((build / "_bpr/package-inputs.json").read_text(encoding="utf-8"))
+def inputs(build: Path, *, tour_cli: bool = False) -> dict:
+    filename = "tour-package-inputs.json" if tour_cli else "package-inputs.json"
+    value = json.loads((build / "_bpr" / filename).read_text(encoding="utf-8"))
     cache = (build / "CMakeCache.txt").read_text(encoding="utf-8")
     for setting in ("BUILD_TESTING:BOOL=OFF", "BPR_DISTRIBUTION_BUILD:BOOL=ON", "CMAKE_BUILD_TYPE:STRING=Release"):
         if setting not in cache.splitlines():
             raise ValueError(f"package requires {setting}")
-    if value["schema"] != "bpr.package-inputs.v1" or Path(value["source"]).resolve() != ROOT:
+    schema = "bpr.tour-package-inputs.v1" if tour_cli else "bpr.package-inputs.v1"
+    if value["schema"] != schema or Path(value["source"]).resolve() != ROOT:
         raise ValueError("package build belongs to a different source tree")
     qt_version = next(item["version"] for item in components(value) if item["name"] == "QtBase")
     if value["platform"] != platform.system() or value["qt_version"] != qt_version:
         raise ValueError("native platform and pinned Qt version must match package inputs")
+    if tour_cli and value["platform"] == "Linux":
+        value["target"] = linux_target()
     if value["platform"] == "Windows":
         for producer in private_library_producers(value):
             if not producer.resolve().is_relative_to(build.resolve()):
@@ -117,7 +124,11 @@ def private_library_producers(info: dict, *, source_built_only: bool = False) ->
     File bytes and full native link evidence are checked separately.
     """
     declared = info.get("private_libraries")
-    if not isinstance(declared, dict) or set(declared) != set(PRIVATE_LIBRARIES[info["platform"]]):
+    expected = PRIVATE_LIBRARIES[info["platform"]]
+    if info.get("layout") == "tour-cli":
+        directory = "bin/" if info["platform"] == "Windows" else "lib/"
+        expected = [directory + Path(name).name for name in expected]
+    if not isinstance(declared, dict) or set(declared) != set(expected):
         raise ValueError("private-library producer declaration mismatch; reconfigure the selected build")
     producers = []
     for relative, value in declared.items():
@@ -126,7 +137,7 @@ def private_library_producers(info: dict, *, source_built_only: bool = False) ->
         producer = Path(value)
         if not producer.is_absolute() or producer.name != Path(relative).name or producer.is_symlink():
             raise ValueError("invalid private-library producer path")
-        if not source_built_only or relative not in PREBUILT_PRIVATE_LIBRARIES[info["platform"]]:
+        if not source_built_only or Path(relative).name not in {Path(name).name for name in PREBUILT_PRIVATE_LIBRARIES[info["platform"]]}:
             producers.append(producer)
     return producers
 
@@ -154,7 +165,8 @@ def product_source_info(info: dict, revision: str, clean: bool) -> str:
 
 def components(info: dict) -> list[dict]:
     entries = json.loads((ROOT / "packaging/dependencies.json").read_text(encoding="utf-8"))["components"]
-    return [item for item in entries if info["platform"] in item.get("platforms", [info["platform"]])]
+    omitted = {"QtSvg", "QtImageFormats", "KSyntaxHighlighting", "JetBrains-Mono-NL", "gemoji", "LibArchive", "extra-cmake-modules"} if info.get("layout") == "tour-cli" else set()
+    return [item for item in entries if info["platform"] in item.get("platforms", [info["platform"]]) and item["name"] not in omitted]
 
 
 def upstream_source_name(item: dict) -> str:
@@ -221,7 +233,7 @@ def source_archives(build: Path, info: dict) -> dict[str, Path]:
 
 
 def legal_root(root: Path, info: dict) -> Path:
-    return root / "Contents/Resources/ThirdParty" if info["platform"] == "Darwin" else root / "ThirdParty"
+    return root / "Contents/Resources/ThirdParty" if info["platform"] == "Darwin" and info.get("layout") != "tour-cli" else root / "ThirdParty"
 
 
 def source_asset_name(info: dict) -> str:
@@ -232,7 +244,8 @@ def source_asset_name(info: dict) -> str:
         target = info["target"]
         if target not in LINUX_TARGETS.values():
             raise ValueError("invalid Linux release target")
-    return f"Source-BetterPullReview-{info['version']}-{target}-corresponding-source.zip"
+    suffix = "-tour-cli" if info.get("layout") == "tour-cli" else ""
+    return f"Source-BetterPullReview-{info['version']}-{target}{suffix}-corresponding-source.zip"
 
 
 def source_asset_url(info: dict) -> str:
@@ -370,7 +383,8 @@ def qt_records(info: dict, root: Path) -> dict:
         if len(selected) == previous:
             break
     packages = [item for item in upstream["packages"] if item["SPDXID"] in selected]
-    if not {"Core", "Gui", "Widgets", "Network"}.issubset({item["name"] for item in packages}):
+    required = {"Core", "Network"} if info.get("layout") == "tour-cli" else {"Core", "Gui", "Widgets", "Network"}
+    if not required.issubset({item["name"] for item in packages}):
         raise ValueError("deployed Qt closure cannot be bound to the producer's SBOM")
     return {"upstreamNamespace": upstream["documentNamespace"], "packages": packages,
             "files": [item for item in upstream["files"] if item["SPDXID"] in selected and "BINARY" in item.get("fileTypes", [])],
@@ -394,6 +408,8 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
     for relative in notice_files(info):
         texts.append((relative, (ROOT / "third_party" / relative).read_text(encoding="utf-8")))
     for name in ("QtBase", "QtSvg", "QtImageFormats", "KSyntaxHighlighting"):
+        if name not in archives:
+            continue
         with tarfile.open(archives[name]) as source:
             for member in source.getmembers():
                 if member.isfile() and "/LICENSES/" in member.name and member.size < 1024 * 1024:
@@ -402,27 +418,28 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
                     texts.append((member.name, stream.read().decode("utf-8")))
     # RFC-BPR-0084 Q2. libwebp is compiled into qwebp: its licence, patent
     # grant and authors travel whole.
-    with tarfile.open(archives["QtImageFormats"]) as source:
-        for member in source.getmembers():
-            if member.isfile() and re.search(r"/src/3rdparty/libwebp/(COPYING|PATENTS|AUTHORS)$", member.name):
-                stream = source.extractfile(member)
-                assert stream is not None
-                texts.append((member.name, stream.read().decode("utf-8")))
-    # Preserve every embedded definition/theme's own attribution, including
-    # legacy LGPL/GPL data licenses; never infer all KDE resources are MIT.
-    with tarfile.open(archives["KSyntaxHighlighting"]) as source:
-        for member in source.getmembers():
-            if member.isfile() and any(part in member.name for part in ("/data/syntax/", "/data/themes/", "/src/lib/")) and member.size < 2 * 1024 * 1024:
-                stream = source.extractfile(member)
-                assert stream is not None
-                body = stream.read().decode("utf-8", errors="replace")
-                if member.name.endswith((".xml", ".theme")):
-                    # Complete separately licensed data, not an abbreviated header.
-                    texts.append((member.name, body))
-                elif member.name.endswith((".cpp", ".h")):
-                    texts.append((member.name, body.split("*/", 1)[0] + "*/"))
-    if info["platform"] == "Darwin":
-        texts.append(("LibArchive", (build / "_bpr/LibArchive-NOTICES.txt").read_text()))
+    if info.get("layout") != "tour-cli":
+        with tarfile.open(archives["QtImageFormats"]) as source:
+            for member in source.getmembers():
+                if member.isfile() and re.search(r"/src/3rdparty/libwebp/(COPYING|PATENTS|AUTHORS)$", member.name):
+                    stream = source.extractfile(member)
+                    assert stream is not None
+                    texts.append((member.name, stream.read().decode("utf-8")))
+        # Preserve every embedded definition/theme's own attribution, including
+        # legacy LGPL/GPL data licenses; never infer all KDE resources are MIT.
+        with tarfile.open(archives["KSyntaxHighlighting"]) as source:
+            for member in source.getmembers():
+                if member.isfile() and any(part in member.name for part in ("/data/syntax/", "/data/themes/", "/src/lib/")) and member.size < 2 * 1024 * 1024:
+                    stream = source.extractfile(member)
+                    assert stream is not None
+                    body = stream.read().decode("utf-8", errors="replace")
+                    if member.name.endswith((".xml", ".theme")):
+                        # Complete separately licensed data, not an abbreviated header.
+                        texts.append((member.name, body))
+                    elif member.name.endswith((".cpp", ".h")):
+                        texts.append((member.name, body.split("*/", 1)[0] + "*/"))
+        if info["platform"] == "Darwin":
+            texts.append(("LibArchive", (build / "_bpr/LibArchive-NOTICES.txt").read_text()))
     if info["platform"] == "Windows":
         # Microsoft redistributable terms are supplied by the licensed native
         # toolchain operator, never invented or silently copied from the web.
@@ -458,7 +475,8 @@ def notices(build: Path, info: dict, root: Path, source_archive: Path | None = N
          "Follow that README to build and replace the three matching data/uc/i18n SONAME73 files beside Qt; no application checkout or signing credentials are needed. "
          "The complete mixed upstream ICU notices are retained here, and ThirdParty/icu-runtime-provenance.json distinguishes the actual hardened source build from Qt's prebuilt ABI inputs.\n"
          if info["platform"] == "Linux" else "") +
-        "KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it. System OS libraries are package dependencies, not redistributed runtime files.\n"
+        "KSyntaxHighlighting's MIT engine is statically linked. Individually licensed embedded definitions/themes, their complete source, license texts and attributions accompany it. System OS libraries are package dependencies, not redistributed runtime files.\n" +
+        ("Standalone CLI layout: executables are in bin/; private libraries are in bin/ on Windows and lib/ on macOS/Linux. Replace the matching xdiff, mimalloc or Qt runtime there; retain the relative plugin layout.\n" if info.get("layout") == "tour-cli" else "") +
         "This evidence does not constitute owner/legal approval to distribute a release. That remains the release-readiness gate.\n", encoding="utf-8")
 
 
@@ -730,7 +748,8 @@ def audit(build: Path, info: dict, root: Path, output: Path, source_archive: Pat
                          "sourceInfo": item["linkage"], "checksums": [{"algorithm": "SHA256" if "sha256" in item else "SHA3-256", "checksumValue": item.get("sha256", item.get("sha3_256"))}]})
         relations.append({"spdxElementId": identity, "relationshipType": "BUILD_DEPENDENCY_OF" if item["name"] == "extra-cmake-modules" else "DEPENDENCY_OF", "relatedSpdxElement": package["SPDXID"]})
     if info["platform"] == "Windows":
-        crt_files = sorted(path.name for path in root.iterdir() if CRT.fullmatch(path.name))
+        crt_root = root / "bin" if info.get("layout") == "tour-cli" else root
+        crt_files = sorted(path.name for path in crt_root.iterdir() if CRT.fullmatch(path.name))
         if not crt_files:
             raise ValueError("the native MSVC runtime closure was not recorded")
         packages.append({"SPDXID": "SPDXRef-Microsoft-Visual-C-Runtime", "name": "Microsoft Visual C++ Runtime",

@@ -155,7 +155,10 @@ def check_graph(build: Path, info: dict, revision: str) -> dict:
             regions.add("installed-runtime")
         regions.add(relative.parts[1])
         first_party += 1
-    require({"core", "application", "adapters", "app", "installed-runtime"}.issubset(regions), "incomplete-package-graph")
+    required = {"core", "application", "adapters", "app"}
+    if info.get("layout") != "tour-cli":
+        required.add("installed-runtime")
+    require(required.issubset(regions), "incomplete-package-graph")
     return {"first_party_compile_units": first_party, "build_platform": info["platform"]}
 
 
@@ -174,14 +177,15 @@ def check_data_payload(payload: bytes) -> None:
         require(all(match.group() in permitted for match in re.finditer(pattern, payload.decode("latin-1"))), "secret-shaped-bytes-in-package")
 
 
-def check_dependencies(binary: Path, root: Path, system: str) -> None:
+def check_dependencies(binary: Path, root: Path, system: str, *, tour_cli: bool = False) -> None:
     output = dependencies.dependency_output(binary)
     require(not dependencies.forbidden_dependencies(output, system), "undeclared-runtime-dependency")
     if system != "Darwin":
         # Native Linux deployment already records its ldd closure; PE imports do
         # not encode loaded origins. M8/M9 supply those target-native observations.
         return
-    frameworks = root / "Contents/Frameworks"
+    frameworks = root / ("lib" if tour_cli else "Contents/Frameworks")
+    executable_directory = root / ("bin" if tour_cli else "Contents/MacOS")
     for reference in dependencies.dependency_references(output, system):
         if reference.startswith(("/usr/lib/", "/System/Library/")):
             continue
@@ -190,7 +194,7 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
         elif reference.startswith("@loader_path/"):
             base = binary.parent
         else:
-            base = root / "Contents/MacOS"
+            base = executable_directory
         require(reference.startswith(("@rpath/", "@loader_path/", "@executable_path/")), "untrusted-library-origin")
         resolved = (base / reference.split("/", 1)[1]).resolve()
         require(resolved.is_relative_to(root) and resolved.is_file(), "unresolved-packaged-library")
@@ -199,7 +203,7 @@ def check_dependencies(binary: Path, root: Path, system: str) -> None:
         match = re.search(r"\n\s*path (.+) \(offset", entry)
         require(match is not None, "unreadable-library-search-path")
         origin = match.group(1)
-        base = binary.parent if origin.startswith("@loader_path/") else root / "Contents/MacOS"
+        base = binary.parent if origin.startswith("@loader_path/") else executable_directory
         require(origin.startswith(("@loader_path/", "@executable_path/"))
                 and (base / origin.split("/", 1)[1]).resolve().is_relative_to(root), "untrusted-library-search-path")
 
@@ -213,6 +217,13 @@ def linux_qt_symbol_evidence(binary: Path, root: Path, info: dict) -> tuple[comp
     if info["platform"] != "Linux":
         return None
     relative = binary.relative_to(root).as_posix()
+    library_root = root
+    if info.get("layout") == "tour-cli":
+        library_root = root / "lib"
+        if relative.startswith("lib/bpr/tls/"):
+            relative = "plugins/tls/" + binary.name
+        elif relative.startswith("lib/"):
+            relative = relative[4:]
     library = re.fullmatch(r"libQt6([A-Za-z0-9]+)\.so\.6", relative)
     if library is not None and library[1] in runtime.QT_LIBRARIES:
         producer_relative = "lib/" + relative
@@ -234,7 +245,7 @@ def linux_qt_symbol_evidence(binary: Path, root: Path, info: dict) -> tuple[comp
     with tempfile.TemporaryDirectory(prefix="bpr-qt-symbol-relocation-") as directory:
         relocated = Path(directory) / binary.name
         shutil.copy2(producer, relocated)
-        origin = os.path.relpath(root, binary.parent)
+        origin = os.path.relpath(library_root, binary.parent)
         runtime.run("patchelf", "--set-rpath", "$ORIGIN" if origin == "." else "$ORIGIN/" + origin, relocated)
         require(runtime.digest(relocated) == runtime.digest(binary), "qt-symbol-relocated-digest-mismatch")
     contents = subprocess.check_output(["nm", "-D", "--demangle", str(binary)], text=True)
@@ -305,8 +316,50 @@ def audit(build: Path, root: Path, sbom: Path, revision: str, *, windows_redist_
             "trust": "not-assessed", "license_approval": "pending"}
 
 
+
+def audit_tour_cli(build: Path, root: Path, sbom: Path, revision: str, *, source_archive: Path | None = None) -> dict:
+    """Audit the selected standalone CLI, retaining the ordinary source/byte guards."""
+    require(re.fullmatch(r"[a-f0-9]{40}", revision) is not None, "exact-source-revision-required")
+    info = runtime.inputs(build, tour_cli=True)
+    suffix = ".exe" if info["platform"] == "Windows" else ""
+    required = [root / "bin" / (name + suffix) for name in ("bpr", "better_pull_review_agent_supervisor")]
+    required += [root / name for name in info["private_libraries"]]
+    for path in required:
+        require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{path.name}")
+    evidence = check_file_inventory(root, sbom, revision, info)
+    check_dependency_inventory(sbom, info)
+    evidence.update(check_graph(build, info, revision))
+    source = runtime.installed_source_provenance(root, info, revision)
+    runtime.verify_source_asset(source_archive or sbom.parent / source["asset"]["name"], source)
+    if info["platform"] == "Linux":
+        evidence["qt_companions"] = runtime.verify_linux_qt_companions(build, info, root / "lib")
+    binaries = []
+    producers = tuple(runtime.private_library_producers(info)) if info["platform"] == "Windows" else ()
+    for path in sorted(root.rglob("*")):
+        if path.is_symlink() or not path.is_file():
+            continue
+        with path.open("rb") as stream:
+            magic = stream.read(4)
+        if not magic.startswith(BINARY_MAGICS):
+            continue
+        qt_symbols = linux_qt_symbol_evidence(path, root, info)
+        if qt_symbols:
+            table = qt_symbols[0]
+        elif info["platform"] == "Windows":
+            table = pe_release.inspect(path, info, None, private_producers=producers)
+        else:
+            table = composition.inspect_symbols(path)
+        check_payload(path.read_bytes(), table.symbols)
+        check_dependencies(path, root, info["platform"], tour_cli=True)
+        binaries.append(path.relative_to(root).as_posix())
+    require(all(path.relative_to(root).as_posix() in binaries for path in required), "required-capability-not-a-binary")
+    return {**evidence, "source_revision": revision, "source_asset": source["asset"], "binaries": binaries,
+            "trust": "not-assessed", "license_approval": "pending"}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--tour-cli", action="store_true", help="audit the separately prepared standalone CLI")
     parser.add_argument("--build", required=True, type=Path)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--sbom", required=True, type=Path)
@@ -317,7 +370,10 @@ def main() -> int:
     parser.add_argument("--source-archive", type=Path, help="defaults to the versioned asset beside the SPDX")
     args = parser.parse_args()
     try:
-        evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
+        if args.tour_cli:
+            evidence = audit_tour_cli(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision, source_archive=args.source_archive)
+        else:
+            evidence = audit(args.build.resolve(strict=True), args.root.resolve(strict=True), args.sbom.resolve(strict=True), args.source_revision,
                          windows_redist_root=args.windows_redist_root, source_archive=args.source_archive,
                          windows_import_library=args.windows_import_library)
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, subprocess.SubprocessError, composition.verification_error) as error:

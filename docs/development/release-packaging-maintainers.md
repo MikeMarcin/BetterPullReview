@@ -313,11 +313,34 @@ names ending `-agent-free-automation-off`, which turn both switches off. Each
 inherits its full preset and has its own build directory.
 
 The `tour-cli` preset builds without agent integrations. Its `TourCLI` install
-component (`bpr`, the supervisor and its private Qt) is the agent-free
-command-line package. It is a CMake install component, not a release artifact:
-`packaging/package.py` builds only the desktop's `Runtime` component, and the
-installed `TourCLI` tree carries no notices, SBOM or corresponding-source
-reference.
+component contains `bpr`, the supervisor, xdiff, mimalloc and private Qt Core,
+Network and TLS. A plain CMake component install is a development tree.
+Prepare an unpublished standalone distribution from a clean committed source:
+
+```sh
+cmake --preset macos-release -DBPR_BUILD_TOUR_CLI=ON
+python3 packaging/package_tour_cli.py --build build/macos-release \
+  --output build/tour-cli-artifacts
+```
+
+Use `windows-app-release` or `linux-package` on their native producer, also
+with `BPR_BUILD_TOUR_CLI=ON`. The existing distribution graph remains required;
+the plain `tour-cli` developer preset is not a distribution graph.
+The new output directory contains the installed `runtime/`, its SPDX and MIT
+notice, a separately named versioned `*-tour-cli-corresponding-source.zip`, a
+runtime archive and `preparation.json`. The source asset contains the CLI's
+selected dependencies; desktop-only fonts, images, syntax definitions and the
+Mac updater are excluded. Windows deploys the actual native CRT and requires
+its licensed redistribution notice; Ubuntu replaces Qt's ICU companion with
+the same pinned hardened producer used by Runtime. Mac preparation uses only
+an offline ad-hoc seal. Nothing signs for release or publishes.
+
+Audit an expanded copy through `scripts/verify_release_package.py --tour-cli`
+with `--build`, `--root`, `--sbom`, `--source-revision` and the separate
+`--source-archive`. The auditor binds actual files, selected producers and
+source references, and refuses missing or extra allocator files. Installed
+native loading, signed trust and legal approval remain separate evidence.
+`packaging/package.py` continues to build the desktop's Runtime component.
 
 ```sh
 # macOS, unpublished local preparation of either variant

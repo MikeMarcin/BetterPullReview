@@ -17,6 +17,20 @@ import verify_release_package as audit
 
 
 class ReleasePackageTests(unittest.TestCase):
+    def test_standalone_cli_refuses_a_missing_allocator_before_inventory(self):
+        with ContainedTemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / "bin").mkdir()
+            (root / "lib").mkdir()
+            for name in ("bpr", "better_pull_review_agent_supervisor"):
+                (root / "bin" / name).write_bytes(b"product")
+            (root / "lib/libbpr_xdiff.so").write_bytes(b"library")
+            info = {"platform": "Linux", "layout": "tour-cli", "private_libraries":
+                    {"lib/libbpr_xdiff.so": "producer", "lib/libmimalloc.so.3": "producer"}}
+            with patch.object(audit.runtime, "inputs", return_value=info):
+                with self.assertRaisesRegex(ValueError, "required-packaged-capability-missing:libmimalloc.so.3"):
+                    audit.audit_tour_cli(root, root, root / "sbom.spdx.json", "a" * 40)
+
     def test_allocator_probe_cannot_ship_in_the_installed_payload(self):
         with self.assertRaisesRegex(ValueError, "fixture-or-canary-bytes-in-package"):
             audit.check_payload(b"BPR_MIMALLOC_PROBE", ("ordinary_symbol",))
