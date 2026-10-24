@@ -461,14 +461,19 @@ auto main(int argc, char** argv) -> int
 	auto codexSearch = std::optional<app::detail::claude_search_environment>{ };
 	if (codexFound) {
 		const auto folder = dataRoot / "codex-search";
-		auto       error  = std::error_code{ };
+#if defined(Q_OS_WIN)
+		const auto executable = folder / "codex.exe";
+#else
+		const auto executable = folder / "codex";
+#endif
+		auto error = std::error_code{ };
 		std::filesystem::create_directory(folder, error);
-		std::filesystem::copy_file(agentExecutable, folder / "codex", error);
+		std::filesystem::copy_file(agentExecutable, executable, error);
 		if (error) {
 			report_failure("codex-search-copy", error.message());
 			return EXIT_FAILURE;
 		}
-		std::filesystem::permissions(folder / "codex", std::filesystem::perms::owner_all, error);
+		std::filesystem::permissions(executable, std::filesystem::perms::owner_all, error);
 		codexSearch = app::detail::claude_search_environment{ .PathVariable = folder.string() };
 	}
 
