@@ -290,26 +290,19 @@ namespace bpr::app::detail {
 	/// \brief [[BPR-1198]]. Read-only identities at an epoch refresh boundary.
 	struct epoch_refresh_identity_evidence
 	{
-		std::optional<core::file_identity>          SelectedFile;
-		std::optional<core::document_tab>           ActiveTab;
-		std::optional<core::comparison_pair>        AcceptedComparison;
-		std::optional<core::comparison_pair>        PublishedComparison;
-		std::optional<core::file_identity>          PublishedFile;
-		bool                                        ComparisonPending    = false;
-		bool                                        TabPending           = false;
-		bool                                        TabModality          = false;
-		bool                                        PublicationDisplayed = false;
-		std::optional<core::window_review_position> AcceptedReading;
-		std::array<std::size_t, 6>                  SearchCounters{ };
-		bool                                        SearchQuiescent           = false;
-		bool                                        PendingRestoration        = false;
-		bool                                        ReadingRestoreUnavailable = false;
-		bool                                        ReadingDestination        = false;
-		bool                                        TabLoad                   = false;
-		bool                                        TabPresented              = false;
-		bool                                        DiffRequestMatches        = false;
-		bool                                        GenerationMatches         = false;
-		bool                                        Closing                   = false;
+		std::optional<core::file_identity>   SelectedFile;
+		std::optional<core::document_tab>    ActiveTab;
+		std::optional<core::comparison_pair> AcceptedComparison;
+		std::optional<core::comparison_pair> PublishedComparison;
+		std::optional<core::file_identity>   PublishedFile;
+		bool                                 ComparisonPending    = false;
+		bool                                 TabPending           = false;
+		bool                                 TabModality          = false;
+		bool                                 PublicationDisplayed = false;
+		std::array<std::size_t, 6>           SearchCounters{ };
+		bool                                 SearchQuiescent    = false;
+		bool                                 TabLoad            = false;
+		bool                                 DiffRequestMatches = false;
 	};
 
 	/// \brief [[BPR-1573]]. What the window's composition holds of its review,

@@ -25605,14 +25605,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (const auto* active = tabs.Active ? core::find_tab(tabs, *tabs.Active) : nullptr) {
 			result.ActiveTab = *active;
 		}
-		result.TabPending                = tabs.Pending.has_value();
-		result.AcceptedReading           = implementation->AcceptedReadingPosition;
-		result.PendingRestoration        = implementation->PendingRestoration.has_value();
-		result.ReadingRestoreUnavailable = implementation->ReadingRestoreUnavailable;
-		result.ReadingDestination        = implementation->ReadingDestination.has_value();
-		result.TabLoad                   = implementation->TabLoad.has_value();
-		result.TabPresented              = implementation->TabPresented.has_value();
-		result.Closing                   = implementation->Closing;
+		result.TabPending = tabs.Pending.has_value();
+		result.TabLoad    = implementation->TabLoad.has_value();
 		if (implementation->PaneFind) {
 			const auto counters    = implementation->PaneFind->counters();
 			result.SearchCounters  = { counters.Admitted, counters.Scheduled, counters.Terminals, counters.StaleTerminals, counters.ProjectionFailures, counters.IngressRefusals };
@@ -25620,7 +25614,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		if (const auto& publication = implementation->SelectedDiffPublication; publication) {
 			result.DiffRequestMatches   = implementation->SelectedDiffRequest == std::optional{ publication->Request };
-			result.GenerationMatches    = implementation->WorkbenchHost->generation() == publication->Request.Context.Generation;
 			result.PublishedFile        = publication->Request.File.File;
 			result.PublishedComparison  = publication->Request.Diff.Comparison;
 			const auto* surface         = implementation->Window->comparison_surface();
