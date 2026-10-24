@@ -4651,7 +4651,7 @@ namespace {
 	/// list says and what Qt paints can differ: a foreground-only layer over
 	/// text an earlier selection drew is skipped. The fill is left out; at 2x
 	/// a glyph's solid core outnumbers its antialiased edge.
-	[[nodiscard]] auto painted_ink(const QPlainTextEdit& aPane, const QImage& aImage, const QTextEdit::ExtraSelection& aMark) -> QColor
+	[[nodiscard]] auto painted_ink(const QPlainTextEdit& aPane, const QImage& aImage, const QTextEdit::ExtraSelection& aMark, const QColor& aExpected) -> QColor
 	{
 		auto from = aMark.cursor;
 		from.setPosition(aMark.cursor.selectionStart());
@@ -4662,7 +4662,29 @@ namespace {
 		const auto scale  = aImage.devicePixelRatio();
 		const auto sample = QRect{ QPoint{ static_cast<int>(std::ceil((begin.left() + 1) * scale)), static_cast<int>(std::ceil(begin.top() * scale)) },
 								   QPoint{ static_cast<int>(std::floor(end.left() * scale)) - 1, static_cast<int>(std::floor((begin.bottom() + 1) * scale)) - 1 } };
-		return dominant_glyph_ink(aImage, sample, aMark.format.background().color());
+		const auto result = dominant_glyph_ink(aImage, sample, aMark.format.background().color());
+		if (result != aExpected) {
+			auto       counts = std::map<QRgb, int>{ };
+			const auto area   = sample.intersected(aImage.rect());
+			for (auto y = area.top(); y <= area.bottom(); ++y) {
+				for (auto x = area.left(); x <= area.right(); ++x) {
+					++counts[aImage.pixel(x, y)];
+				}
+			}
+			auto ordered = std::vector<std::pair<QRgb, int>>{ counts.begin(), counts.end() };
+			std::ranges::sort(ordered, [](const auto& aLeft, const auto& aRight) { return aLeft.second > aRight.second; });
+			const auto fill = aMark.format.background().color();
+			std::cerr << "INK_SAMPLE expected=" << aExpected.name(QColor::HexArgb).toStdString() << " exact=" << counts[aExpected.rgb()]
+					  << " fill=" << fill.name(QColor::HexArgb).toStdString() << " fill64=" << static_cast<quint64>(fill.rgba64()) << " ink64=" << static_cast<quint64>(aExpected.rgba64())
+					  << " fill_spec=" << static_cast<int>(fill.spec()) << " ink_spec=" << static_cast<int>(aExpected.spec()) << " image_format=" << static_cast<int>(aImage.format()) << " dpr=" << scale
+					  << " font=" << aPane.font().family().toStdString() << " style=" << aPane.font().styleName().toStdString() << " points=" << aPane.font().pointSizeF() << " weight=" << static_cast<int>(aPane.font().weight())
+					  << " sample=" << sample.x() << ',' << sample.y() << ',' << sample.width() << ',' << sample.height() << " text=" << aMark.cursor.selectedText().toStdString();
+			for (auto index = std::size_t{ 0U }; index < std::min(ordered.size(), std::size_t{ 20U }); ++index) {
+				std::cerr << ' ' << QColor{ ordered[index].first }.name().toStdString() << '=' << ordered[index].second;
+			}
+			std::cerr << '\n';
+		}
+		return result;
 	}
 
 	void test_painted_ink_rejects_wrong_or_absent_glyphs()
@@ -4759,7 +4781,7 @@ namespace {
 					// read at the 200% run and the layer below it.
 					const auto fill    = mark.format.background().color();
 					const auto solid   = image.devicePixelRatio() >= 2.0;
-					const auto painted = solid ? painted_ink(*pane, image, mark) : ink;
+					const auto painted = solid ? painted_ink(*pane, image, mark, ink) : ink;
 					const auto ratio   = core::contrast_ratio_hundredths(qt::to_appearance_color(painted), qt::to_appearance_color(fill));
 					std::cout << "bpr-pending-r " << aName.toStdString() << ' ' << name << " fill=" << fill.name().toStdString() << " layer=" << ink.name().toStdString()
 							  << " painted=" << (solid ? painted.name().toStdString() : std::string{ "unread" }) << " ratio=" << ratio << '\n';
