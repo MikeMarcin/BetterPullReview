@@ -497,7 +497,7 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 
-		/// Holds only review-mutation terminals for deterministic fixture races.
+		/// Holds decision posts for deterministic fixture races.
 		class gated_review_mutation_decision_executor final
 			: public application::decision_executor
 		{
@@ -15462,6 +15462,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			OverviewReceiptsLoading     = false;
 			PendingDefectWrites.clear();
 			ReviewLedgerHost.reset();
+#if defined(BPR_BUILD_TESTING)
+			if (ReviewLedgerDecisionGate) {
+				ReviewLedgerDecisionGate->release();
+			}
+#endif
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				ReviewLedgerAuthority.reset();
@@ -15598,8 +15603,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// ledger's own opening has answered, as it did when that was synchronous.
 			auto privateScope = adapters::sqlite::private_review_configuration{ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest };
 			++ReviewLedgerGeneration;
+#if defined(BPR_BUILD_TESTING)
+			if (ReviewLedgerDecisionGate == nullptr) {
+				ReviewLedgerDecisionGate = std::make_unique<gated_review_mutation_decision_executor>(DecisionLane);
+			}
+			auto& ledgerDecisions = *ReviewLedgerDecisionGate;
+#else
+			auto& ledgerDecisions = DecisionLane;
+#endif
 			ReviewLedgerHost = std::make_unique<application::review_ledger_application_host>(
-				std::move(open), *this, ReviewLedgerStoreEffects, DecisionLane,
+				std::move(open), *this, ReviewLedgerStoreEffects, ledgerDecisions,
 				ledger_answer([this, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
 					open_private_review(std::move(privateReview));
 					review_ledger_opened(aOpened.has_value());
@@ -22379,6 +22392,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
 		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
+		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewLedgerDecisionGate;
 		std::unique_ptr<gated_review_mutation_decision_executor>
 					ReviewMutationDecisionGate;
 		std::size_t EpochPruneIntentDispatchCount  = 0U;
@@ -37275,12 +37289,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_settled(
-		github_application& aApplication) -> bool
+		github_application& aApplication, const std::optional<core::bpr_window_context> aContext) -> bool
 	{
-		const auto* const implementation = aApplication.Implementation.get();
-		return implementation != nullptr && implementation->ReviewLedgerHost != nullptr
+		const auto* implementation = aApplication.Implementation.get();
+		if (aContext) {
+			const auto found = aApplication.Sessions.find(*aContext);
+			implementation   = found == aApplication.Sessions.end() ? nullptr : found->second.get();
+		}
+		return implementation != nullptr && !implementation->Closing && implementation->ReviewLedgerHost != nullptr
 			&& implementation->ReviewLedgerHost->available().has_value()
 			&& implementation->ReviewLedgerHost->is_quiescent();
+	}
+
+	auto detail::github_application_fixture_access::hold_review_ledger_terminals(github_application& aApplication, const core::bpr_window_context aContext, const bool aHold) -> bool
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found == aApplication.Sessions.end() || found->second->Closing || !found->second->ReviewLedgerHost || !found->second->ReviewLedgerDecisionGate) {
+			return false;
+		}
+		auto& gate = *found->second->ReviewLedgerDecisionGate;
+		if (aHold) {
+			gate.hold();
+		} else {
+			gate.release();
+		}
+		return true;
+	}
+
+	auto detail::github_application_fixture_access::held_review_ledger_terminals(const github_application& aApplication, const core::bpr_window_context aContext) -> std::size_t
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		return found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReviewLedgerDecisionGate
+			? found->second->ReviewLedgerDecisionGate->pending()
+			: 0U;
 	}
 
 	namespace {

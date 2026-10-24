@@ -1809,7 +1809,11 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1211]]. Whether this window's review ledger has
 		/// answered its opening and holds no outstanding operation.
 		[[nodiscard]] static auto review_ledger_settled(
-			github_application& aApplication) -> bool;
+			github_application& aApplication, std::optional<core::bpr_window_context> aContext = std::nullopt) -> bool;
+		/// Holds only one exact window's ledger decision posts; sibling
+		/// storage and decision delivery keep running.
+		[[nodiscard]] static auto hold_review_ledger_terminals(github_application& aApplication, core::bpr_window_context aContext, bool aHold) -> bool;
+		[[nodiscard]] static auto held_review_ledger_terminals(const github_application& aApplication, core::bpr_window_context aContext) -> std::size_t;
 		/// \brief [[BPR-1211]]. Holds the profile's review-ledger effect lane:
 		/// operations posted after this queue behind it until the returned
 		/// function releases it, or thirty seconds pass.
