@@ -28,6 +28,10 @@ namespace bpr::application {
 		return "unknown";
 	}
 	namespace {
+		auto steady_nanoseconds() noexcept -> std::int64_t
+		{
+			return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		}
 		auto path_input(std::string_view aInclude, std::string_view aExclude) -> core::source_search_input
 		{
 			const auto include = core::inspect_source_search_query(aInclude);
@@ -144,6 +148,7 @@ namespace bpr::application {
 			bool                                    Posted      = false;
 			bool                                    BadProgress = false;
 			std::atomic<source_search_worker_stage> Stage{ source_search_worker_stage::queued };
+			std::array<std::atomic_int64_t, 4>      Times{ };
 		};
 
 		implementation(decision_executor& aDecisions, effect_executor& aEffects, source_search_execution_port& aExecution, source_search_projection_port& aProjection)
@@ -317,6 +322,7 @@ namespace bpr::application {
 			Turning         = true;
 			auto& aTerminal = aExecution.Terminal;
 			++Counters.Terminals;
+			Counters.LastCompletedGeneration = aJob->Work.Request.Generation;
 			if (aTerminal.Request != aJob->Work.Request) {
 				aTerminal = { aJob->Work.Request, core::source_search_status::failure, { } };
 				aExecution.Matches.reset();
@@ -439,6 +445,7 @@ namespace bpr::application {
 			try {
 				const auto observer = WorkObserver;
 				Effects.post([host, current, observer] {
+					current->Times[0].store(steady_nanoseconds(), std::memory_order_relaxed);
 					host->Pipeline[0].fetch_add(1U, std::memory_order_relaxed);
 					current->Stage.store(source_search_worker_stage::effect_entered, std::memory_order_relaxed);
 					const auto started  = std::chrono::steady_clock::now();
@@ -479,11 +486,14 @@ namespace bpr::application {
 					host->Pipeline[4].fetch_add(1U, std::memory_order_relaxed);
 					current->Stage.store(source_search_worker_stage::posting, std::memory_order_relaxed);
 					try {
+						current->Times[1].store(steady_nanoseconds(), std::memory_order_relaxed);
 						host->Decisions.post([host, current, completion = std::move(terminal)]() mutable {
+							current->Times[3].store(steady_nanoseconds(), std::memory_order_relaxed);
 							host->Pipeline[7].fetch_add(1U, std::memory_order_relaxed);
 							current->Stage.store(source_search_worker_stage::decision_entered, std::memory_order_relaxed);
 							host->complete(current, std::move(completion));
 						});
+						current->Times[2].store(steady_nanoseconds(), std::memory_order_relaxed);
 						host->Pipeline[5].fetch_add(1U, std::memory_order_relaxed);
 						auto expected = source_search_worker_stage::posting;
 						static_cast<void>(current->Stage.compare_exchange_strong(expected, source_search_worker_stage::posted, std::memory_order_relaxed));
@@ -615,6 +625,9 @@ namespace bpr::application {
 			result.Pipeline[index] = Implementation->Pipeline[index].load(std::memory_order_relaxed);
 		}
 		if (Implementation->Active) {
+			for (auto index = std::size_t{ 0U }; index < result.ActiveTimes.size(); ++index) {
+				result.ActiveTimes[index] = Implementation->Active->Times[index].load(std::memory_order_relaxed);
+			}
 			result.ActiveGeneration = Implementation->Active->Work.Request.Generation;
 			result.ActiveStage      = Implementation->Active->Stage.load(std::memory_order_relaxed);
 			result.ActiveStopped    = Implementation->Active->Stop.stop_requested();

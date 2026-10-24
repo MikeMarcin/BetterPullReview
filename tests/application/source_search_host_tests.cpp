@@ -75,9 +75,14 @@ namespace {
 						  && awaitingDecision.ActiveStage == source_search_worker_stage::posted
 						  && awaitingDecision.Pipeline == std::array<std::size_t, 8>{ 1, 1, 1, 1, 1, 1, 0, 0 },
 					  "a held decision is reported after worker execution and posting, before terminal delivery");
+		search_expect(awaitingDecision.ActiveTimes[0] != 0 && awaitingDecision.ActiveTimes[1] >= awaitingDecision.ActiveTimes[0]
+						  && awaitingDecision.ActiveTimes[2] >= awaitingDecision.ActiveTimes[1] && awaitingDecision.ActiveTimes[3] == 0,
+					  "a held decision retains its worker and post times before any decision entry");
 		pane.Decisions.drain();
 		search_expect(pane.Host.counters().ActiveGeneration == 0U && pane.Host.counters().Pipeline[7] == 1U,
 					  "the current worker stage retires only after its exact decision enters");
+		search_expect(pane.Host.counters().LastCompletedGeneration == awaitingDecision.ActiveGeneration,
+					  "the delivered terminal names the exact previously held generation");
 		files.drain();
 		search_expect(pane.Host.state().Summary.Matches == 3U && pane.Host.projection().Query == "pane\n😀" && files.Host.projection().Query == "files", "accepted terminal returns to own session");
 		search_expect(observer->work().size() == 1 && observer->work().front().Kind == core::insights_work_kind::search, "one completed host execution records acquisition plus matching duration without query content");

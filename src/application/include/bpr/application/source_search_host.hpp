@@ -97,10 +97,14 @@ namespace bpr::application {
 		/// attempts/returns/failures, and decision entries. Cancelled or
 		/// throwing execution need not pass every intermediate stage.
 		std::array<std::size_t, 8> Pipeline{ };
-		std::uint64_t              ActiveGeneration = 0U;
-		std::uint64_t              QueuedGeneration = 0U;
-		bool                       ActiveStopped    = false;
-		source_search_worker_stage ActiveStage      = source_search_worker_stage::queued;
+		/// Active job's effect entry, terminal post entry/return, and decision
+		/// entry on steady_clock, in nanoseconds; zero means not yet observed.
+		std::array<std::int64_t, 4> ActiveTimes{ };
+		std::uint64_t               LastCompletedGeneration = 0U;
+		std::uint64_t               ActiveGeneration        = 0U;
+		std::uint64_t               QueuedGeneration        = 0U;
+		bool                        ActiveStopped           = false;
+		source_search_worker_stage  ActiveStage             = source_search_worker_stage::queued;
 	};
 
 	/// \brief One independent pane or PR search session, bounded to one effect and one latest replacement.

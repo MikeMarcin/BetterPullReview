@@ -302,6 +302,8 @@ namespace bpr::app::detail {
 		std::optional<core::window_review_position> AcceptedReading;
 		std::array<std::size_t, 6>                  SearchCounters{ };
 		std::array<std::size_t, 8>                  SearchPipeline{ };
+		std::array<std::int64_t, 4>                 SearchActiveTimes{ };
+		std::uint64_t                               SearchLastCompletedGeneration = 0U;
 		std::array<std::uint64_t, 2>                FindExecutionCounts{ };
 		std::string                                 SearchWorkerStage;
 		std::uint64_t                               SearchActiveGeneration    = 0U;
