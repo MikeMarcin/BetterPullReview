@@ -50,7 +50,7 @@ RUNTIME_DATA = {"Darwin": [], "Windows": ["better_pull_review.rcc"], "Linux": []
 PRIVATE_LIBRARIES = {
     "Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"],
     "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"],
-    "Linux": ["libbpr_xdiff.so"],
+    "Linux": ["libbpr_xdiff.so", "libmimalloc.so.3"],
 }
 # Upstream bytes retain their producer identity and are never re-signed as BPR.
 PREBUILT_PRIVATE_LIBRARIES = {"Darwin": [], "Windows": ["mimalloc-redirect.dll"], "Linux": []}

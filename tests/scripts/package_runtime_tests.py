@@ -154,7 +154,7 @@ class PackageRuntimeTests(unittest.TestCase):
         files = {path.relative_to(ROOT).as_posix() for path in retained.rglob("*") if path.is_file() and path.name != "PROVENANCE.md"}
         self.assertEqual(files, {"third_party/" + name for name in notices} | {name for name in inputs if name.startswith("third_party/")})
         self.assertEqual(runtime.PRIVATE_LIBRARIES, {"Darwin": ["Contents/Frameworks/libbpr_xdiff.dylib", "Contents/Frameworks/libmimalloc.3.dylib"],
-                                                     "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"], "Linux": ["libbpr_xdiff.so"]})
+                                                     "Windows": ["bpr_xdiff.dll", "mimalloc.dll", "mimalloc-redirect.dll"], "Linux": ["libbpr_xdiff.so", "libmimalloc.so.3"]})
         self.assertIn("OUTPUT_NAME bpr_xdiff", provider)
         self.assertRegex((ROOT / "packaging/Install.cmake").read_text(encoding="utf-8"), r"install\(TARGETS better_pull_review_xdiff\b")
 
@@ -460,13 +460,17 @@ add_executable(app_better_pull_review fixture.cpp)
 add_executable(tool_better_pull_review_agent_supervisor fixture.cpp)
 add_library(better_pull_review_xdiff SHARED fixture.cpp)
 set_target_properties(better_pull_review_xdiff PROPERTIES OUTPUT_NAME bpr_xdiff)
+add_library(mimalloc SHARED fixture.cpp)
+set_target_properties(mimalloc PROPERTIES VERSION 3 SOVERSION 3)
+set(BPR_MIMALLOC_ACTIVE ON)
 set(PROJECT_SOURCE_DIR "{ROOT.as_posix()}")
 include("{ROOT.as_posix()}/packaging/Install.cmake")
 ''')
             runtime.run("cmake", "-S", source, "-B", build)
             info = json.loads((build / "_bpr/package-inputs.json").read_text())
             self.assertEqual(info["target"], runtime.linux_target())
-            self.assertEqual(info["private_libraries"], {"libbpr_xdiff.so": str(build / "libbpr_xdiff.so")})
+            self.assertEqual(info["private_libraries"], {"libbpr_xdiff.so": str(build / "libbpr_xdiff.so"),
+                                                         "libmimalloc.so.3": str(build / "libmimalloc.so.3")})
             expected = "DEB" if runtime.linux_baseline()["distribution"][0] == "ubuntu" else "RPM"
             self.assertIn(f'set(CPACK_GENERATOR "{expected}")', (build / "CPackConfig.cmake").read_text())
 

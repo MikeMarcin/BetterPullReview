@@ -62,6 +62,11 @@ if(BPR_BUILD_TOUR_CLI)
         # under its soname, so no symlink can point outside the prefix. The
         # plugin takes Qt Core and Network from the process that loads it.
         set_target_properties(app_bpr PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+        if(BPR_MIMALLOC_ACTIVE)
+            install(FILES "$<TARGET_FILE:mimalloc>" DESTINATION lib
+                RENAME "$<TARGET_SONAME_FILE_NAME:mimalloc>" COMPONENT TourCLI)
+            set_target_properties(tool_better_pull_review_agent_supervisor PROPERTIES INSTALL_RPATH "$ORIGIN/../lib")
+        endif()
         get_target_property(bpr_tour_qt_core Qt6::Core LOCATION)
         get_filename_component(bpr_tour_qt_lib "${bpr_tour_qt_core}" DIRECTORY)
         foreach(bpr_tour_library IN ITEMS Qt6Core Qt6Network icui18n icuuc icudata)

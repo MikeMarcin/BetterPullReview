@@ -6,7 +6,11 @@
 	#include <malloc.h>
 #else
 	#include <dlfcn.h>
-	#include <mach-o/dyld.h>
+	#ifdef __APPLE__
+		#include <mach-o/dyld.h>
+	#else
+		#include <link.h>
+	#endif
 #endif
 
 #include <bit>
@@ -146,12 +150,20 @@ namespace {
 				++count;
 			}
 		}
-#else
+#elif defined(__APPLE__)
 		for (std::uint32_t index = 0; index < _dyld_image_count(); ++index) {
 			if (std::strstr(_dyld_get_image_name(index), "/libmimalloc") != nullptr) {
 				++count;
 			}
 		}
+#else
+		dl_iterate_phdr([](dl_phdr_info* aInfo, std::size_t, void* aContext) {
+			if (std::strstr(aInfo->dlpi_name, "/libmimalloc") != nullptr) {
+				++*static_cast<std::size_t*>(aContext);
+			}
+			return 0;
+		},
+						&count);
 #endif
 		return count;
 	}
