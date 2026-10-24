@@ -1,3 +1,10 @@
+# BPR-1694 release repair reseal after R158 causal Find verification:
+# Since 7ee592fc, github_application.cpp adds only tests-on decision gates and
+# bounded fixture observations. Ledger gates live through the profile effect
+# drain; reopen/reaction controls hold their native answer through the immediate
+# observation and retain later confirmation. Production mutation bytes and the
+# exact app-source inventory stay unchanged. Full/manifest pins bind cleanup
+# e9a9744fc; native final-source qualification remains required.
 # BPR-1694 release repair reseal, reviewed 5b0fbf44e..7591bf1e4:
 # github_application.cpp acknowledges a completed local draft edit without
 # selecting its old draft after navigation (exact scope/id/anchor/revision).
@@ -2345,7 +2352,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"3f1946dfdda06ad7d2f14deb43bcd180f663080c9bb0db1276cccaf775d75e19"
+		"4b2fd70dfd65e17e20b9c01631f9dbee58fbd0ef0972f225ac67f70d00225f60"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2576,7 +2583,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "a0685b5676eac316c3f36619693e25ce6822306e72343c94df02d0b17449908f"
+        "9e16eaea7584eea17b63753ca6688eb1e581c6d49f15ebc16a7782e3700e6c15"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
