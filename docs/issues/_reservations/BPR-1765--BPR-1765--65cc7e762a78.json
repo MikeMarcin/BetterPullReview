@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1765"
+  ],
+  "reserve_for": "v033-debug-timeout-followup",
+  "purpose": "Investigate Windows Debug 2x diff workbench timeout waived for v0.3.3 only",
+  "created": "2026-10-24T18:31:08.279570+00:00",
+  "base": "06275033bbe99b321f0226d19b2f14d25431f500"
+}
