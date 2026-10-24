@@ -775,6 +775,11 @@ namespace bpr::e2e::large_review {
 			phase.PeakWorkbenchRequests = std::max(phase.PeakWorkbenchRequests, work.WorkbenchOutstandingRequests);
 		});
 		bool       ready = false, byteCourseFailed = false;
+		const auto currentReady = [&] {
+			const auto epochStatus = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
+			byteCourseFailed       = byteCourseFailed || (aReport.CacheByteCourse && (epochStatus == core::epoch_status::failed || epochStatus == core::epoch_status::unavailable || epochStatus == core::epoch_status::cancelled));
+			return !byteCourseFailed && aReady();
+		};
 		const auto visible = [&] {
 			if (aVisible && phase.VisibleMs < 0 && aVisible()) {
 				phase.VisibleMs = milliseconds(completion_ns(began, native_schedule_now()));
@@ -782,10 +787,7 @@ namespace bpr::e2e::large_review {
 		};
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
 			visible();
-			ready                  = aReady();
-			const auto epochStatus = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
-			byteCourseFailed       = aReport.CacheByteCourse
-				&& (epochStatus == core::epoch_status::failed || epochStatus == core::epoch_status::unavailable || epochStatus == core::epoch_status::cancelled);
+			ready = currentReady();
 			if (ready || byteCourseFailed || aBudget.elapsed() >= courseClockMs) {
 				loop.quit();
 			}
@@ -794,14 +796,14 @@ namespace bpr::e2e::large_review {
 		aAction();
 		phase.ActionMs = milliseconds(thread_interval_ns(began.Mark, native_schedule_now()));
 		visible();
-		ready = aReady();
+		ready = currentReady();
 		while (!ready && !byteCourseFailed && aBudget.elapsed() < courseClockMs) {
 			readiness.start();
 			loop.exec();
 			// quit() ends this loop after the current native event delivery.
 			// Other callbacks in that delivery can admit work after the timer
 			// saw quiet. Return the current condition, within the same budget.
-			ready = aReady();
+			ready = currentReady();
 		}
 		const auto finished   = native_schedule_now();
 		phase.ElapsedMs       = milliseconds(completion_ns(began, finished));
