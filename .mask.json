@@ -20,7 +20,7 @@
             "source": "agentskills"
           }
         ],
-        "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
+        "commit": "f8e70fd067e16d102fd53c9d4987b0c951bc526b",
         "definition_digest": "sha256:4abf11c2b740f00b35e55ae753326ba7dc1fa593d06be2f75898739158c8d484",
         "repository": "https://github.com/MikeMarcin/AgentSkills.git"
       }
