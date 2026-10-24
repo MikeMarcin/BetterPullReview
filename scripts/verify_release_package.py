@@ -30,7 +30,7 @@ runtime = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(runtime)
 
 FORBIDDEN_BYTES = (*device_inventory.FORBIDDEN_STRINGS, "--test-", "--epoch-fixture-",
-                   "github_application_fixture_access", "BPR_GITHUB_NATIVE_HTTPS_TEST",
+                   "github_application_fixture_access", "BPR_GITHUB_NATIVE_HTTPS_TEST", "BPR_MIMALLOC_PROBE",
                    "BPR_CANARY_SECRET_", "BPR_CANARY_SOURCE_", "BPR_CANARY_COMMENT_")
 FORBIDDEN_SYMBOLS = (*device_inventory.FORBIDDEN_SYMBOLS, "github_application_fixture_access",
                      "make_native_https_transport_for_test")

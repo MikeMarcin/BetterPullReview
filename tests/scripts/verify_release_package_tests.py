@@ -17,6 +17,10 @@ import verify_release_package as audit
 
 
 class ReleasePackageTests(unittest.TestCase):
+    def test_allocator_probe_cannot_ship_in_the_installed_payload(self):
+        with self.assertRaisesRegex(ValueError, "fixture-or-canary-bytes-in-package"):
+            audit.check_payload(b"BPR_MIMALLOC_PROBE", ("ordinary_symbol",))
+
     def test_linux_qt_dynamic_symbols_require_exact_producer_and_relocation(self):
         with ContainedTemporaryDirectory() as directory:
             base = Path(directory).resolve()
