@@ -98,7 +98,7 @@ passing correction in `tidy-fixed.log`.
 Latest product-source commit: `aadf2d91d`. Reconfigured/rebuilt the selected
 Debug product graph and reran all seven allocator rows: pass in 15.90 seconds,
 including exactly one loaded allocator and the real major-version runtime file.
-Package runtime tests: 30 checked, one native-Linux-only case skipped; package
+Package runtime tests: 30 total, 29 passed and one native-Linux-only case skipped; package
 audit tests: 9 pass; source-asset tests: 24 pass. The initial package test run
 found the expected component/count assertions still describing the old inventory;
 those expectations were updated to include mimalloc, then the suite passed.
