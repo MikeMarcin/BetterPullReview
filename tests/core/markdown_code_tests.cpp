@@ -222,7 +222,7 @@ namespace {
 		const auto alone = markdown_suggestion_rows(suggested, std::nullopt);
 		expect(alone.size() == 1U && alone[0].Added && !alone[0].Number && alone[0].ChangedBegin == alone[0].ChangedEnd, "without context, added rows alone");
 	}
-	/// [[BPR-PENDING-AQ6]], owner look v004: the language inline code about
+	/// [[BPR-1753]], owner look v004: the language inline code about
 	/// a change is coloured as.
 	void inline_code_language()
 	{

@@ -1076,7 +1076,7 @@ namespace bpr::qt {
 
 	auto note_button::minimumSizeHint() const -> QSize
 	{
-		// [[BPR-PENDING-AQ6]], owner look v003: a pill is never cut short.
+		// [[BPR-1753]], owner look v003: a pill is never cut short.
 		return Kind == kind::reply_field ? QSize{ 80, sizeHint().height() } : sizeHint();
 	}
 

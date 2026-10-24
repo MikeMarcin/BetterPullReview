@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. The one place a Codex or
+/// \brief [[BPR-1748]], RFC-BPR-0092 Q5. The one place a Codex or
 /// plain-text harness launch is given an absolute program: saved path first,
 /// then the found `codex`, the harness never searched for, without any
 /// process or file.
@@ -158,7 +158,7 @@ namespace {
 		expect(f.Inner.Cancels == 1, "cancel reaches the launcher");
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. An added agent runs
+	/// [[BPR-1753]], owner amendment 2026-10-23. An added agent runs
 	/// its own program with its fixed arguments first; two entries may share
 	/// one wrapper; a gone entry or a refused program starts nothing.
 	void test_added_agents_run_as_their_entries()

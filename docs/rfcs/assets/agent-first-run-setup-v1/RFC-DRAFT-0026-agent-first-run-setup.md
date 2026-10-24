@@ -2,7 +2,7 @@
 id: "RFC-DRAFT-0026"
 title: "Set up an agent the first time the Agent tab opens"
 status: "Proposed"
-metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-PENDING-AN", "revision": "r2 2026-10-22", "revisions": ["r1: agent, check and ready steps", "r2: the owner's first-run failure, the Repository step and worktrees, the review brief, and owner decisions D1 (an editable review skill) and D2 (clone folders)"], "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-PENDING-AN-agent-setup-v1/index.html", "observed_at": "b69b82c9b", "owner_decisions": "D1 and D2 answered in chat 2026-10-22; Q1-Q9 open in a fresh attended-review session (see the card)"}
+metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1747", "revision": "r2 2026-10-22", "revisions": ["r1: agent, check and ready steps", "r2: the owner's first-run failure, the Repository step and worktrees, the review brief, and owner decisions D1 (an editable review skill) and D2 (clone folders)"], "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-1747-agent-setup-v1/index.html", "observed_at": "b69b82c9b", "owner_decisions": "D1 and D2 answered in chat 2026-10-22; Q1-Q9 open in a fresh attended-review session (see the card)"}
 ---
 
 # Set up an agent the first time the Agent tab opens
@@ -16,7 +16,7 @@ The owner, 2026-10-22, verbatim:
 
 Observed on `b69b82c9b`, a tests-on release build rendered offscreen on the
 `conventional-comments-v1` fixture with a fresh profile, light and dark
-([frames](../../../design/BPR-PENDING-AN-agent-setup-v1/index.html#today)):
+([frames](../../../design/BPR-1747-agent-setup-v1/index.html#today)):
 
 - **The tab assumes an agent.** The Agent tab ([[BPR-1594]],
   `src/adapters/qt/src/agent_tab_view.cpp`) shows its `not_set_up` empty
@@ -107,7 +107,7 @@ So the working first-run path today is: install Claude Code, sign in to it
 in a terminal, open a pull request, find "Approved Claude stream JSON" in the
 menu, and Ask, in a workspace that works only while the cache is whole.
 Codex does not work. The design page's
-[table](../../../design/BPR-PENDING-AN-agent-setup-v1/index.html) marks
+[table](../../../design/BPR-1747-agent-setup-v1/index.html) marks
 which steps the app could detect, do or only explain.
 
 The owner's own review skill, relayed by the coordinator, shows what an

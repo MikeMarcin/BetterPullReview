@@ -573,7 +573,7 @@ namespace {
 
 	void sends_through_an_added_agent(const std::filesystem::path& aFixture, const std::filesystem::path& aProfileRoot, const std::filesystem::path& aScratch)
 	{
-		// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: Send to Agent offers
+		// [[BPR-1753]], owner decision 2026-10-23: Send to Agent offers
 		// the agents added to the list, each run as its entry says.
 		const auto project = aScratch / "entry-project";
 		write_file(project / "README.md", "# Wrapped\n");

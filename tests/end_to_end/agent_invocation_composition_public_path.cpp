@@ -1752,7 +1752,7 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 	}
-	// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief, checked for what it
+	// [[BPR-1752]], RFC-BPR-0092. The review brief, checked for what it
 	// must say about this fixture pull request and its workspace, then taken
 	// as sent for the exact comparison of every other field.
 	auto briefSays = false;
@@ -1765,7 +1765,7 @@ auto main(int argc, char** argv) -> int
 			&& field("brief.workspace") == "private_copy" && field("brief.diff") == "git diff " + std::string{ fixture.BaseOid } + "..." + std::string{ fixture.HeadOneOid }
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
 			&& field("brief.skill.version") == "2" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
-			// [[BPR-PENDING-AQ6]], owner decision (b): the first turn about this
+			// [[BPR-1753]], owner decision (b): the first turn about this
 			// pull request carries no earlier one.
 			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0";
 		for (const auto& [name, value] : *actualFields) {

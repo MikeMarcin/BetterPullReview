@@ -432,7 +432,7 @@ namespace bpr::app::detail {
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.
 		std::optional<claude_search_environment> ClaudeSearch;
-		/// [[BPR-PENDING-AQ1]]. Where the shipped bare `codex` is looked for,
+		/// [[BPR-1748]]. Where the shipped bare `codex` is looked for,
 		/// as `ClaudeSearch` is for `claude`. Absent, the application's
 		/// environment and Codex's usual folders are searched, as shipped.
 		std::optional<claude_search_environment> CodexSearch;
@@ -500,7 +500,7 @@ namespace bpr::app::detail {
 		// `main` sets it only for `--attended-launch` outside the automated
 		// test boundary; a test that sets it substitutes the platform launch.
 		bool AttendedWindowBrowser = false;
-		/// [[BPR-PENDING-AQ8]], RFC-BPR-0092. An attended look's Agent tab looks
+		/// [[BPR-1755]], RFC-BPR-0092. An attended look's Agent tab looks
 		/// for this computer's own agents, as a shipped build does, so the
 		/// person can set up and ask their own Claude Code or Codex. `main` sets
 		/// it with `AttendedWindowBrowser`; every automated course keeps its

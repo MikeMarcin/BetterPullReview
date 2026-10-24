@@ -200,7 +200,7 @@ int main(int argc, char** argv)
 				   && card->geometry().top() <= 10 * 20 && card->geometry().bottom() >= 10 * 20,
 			   name + ": a note opens in place beside its line, to write, with the keyboard in it");
 		expect(panel.line_marks(core::diff_side::right)[0].Open, name + ": its line is washed while it is open");
-		// [[BPR-PENDING-AQ6]], owner look v003: the foot holds the actions
+		// [[BPR-1753]], owner look v003: the foot holds the actions
 		// alone, each whole, inside the card.
 		{
 			auto* const draft = card->findChild<QWidget*>(QStringLiteral("privateNoteDraftComment"));

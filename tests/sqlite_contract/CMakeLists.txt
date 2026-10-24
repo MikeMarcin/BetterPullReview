@@ -739,7 +739,7 @@ bpr_enable_warnings(test_insights_storage)
 bpr_add_network_isolated_test(NAME sqlite_insights_storage WINDOWS_UNCONTAINED COMMAND test_insights_storage)
 set_tests_properties(sqlite_insights_storage PROPERTIES ENVIRONMENT "TZ=PST8PDT")
 
-# [[BPR-PENDING-AQ2]]. RFC-BPR-0092's agent setup preferences store.
+# [[BPR-1749]]. RFC-BPR-0092's agent setup preferences store.
 bpr_add_executable(test_agent_setup_storage agent_setup_storage_tests.cpp)
 target_link_libraries(test_agent_setup_storage PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
 bpr_enable_hardening(test_agent_setup_storage)

@@ -1,4 +1,4 @@
-// [[BPR-PENDING-AQ2]], RFC-BPR-0092. A profile's agent setup preferences:
+// [[BPR-1749]], RFC-BPR-0092. A profile's agent setup preferences:
 // defaults before any write, a restart reads them back, refused values are not
 // written, an identity mismatch is refused, and the file is owner-private.
 #include "../support/test_expectation.hpp"
@@ -52,7 +52,7 @@ try {
 	expect(!store->store(control), "a program with a control character is not written");
 	expect(store->load() == none, "a refused write leaves the stored preferences as they were");
 
-	// [[BPR-PENDING-AQ3]]. Clone folders and repository links in the same file.
+	// [[BPR-1750]]. Clone folders and repository links in the same file.
 	auto links = adapters::sqlite::make_clone_link_store(scratch.path());
 	expect(links->load_clone_folders() == std::vector<std::string>{ } && links->load_links() == std::vector<application::repository_link>{ }, "no folders or links at first");
 	const auto folders = std::vector<std::string>{ "/Users/me/Documents/GitHub", "/Users/me/src" };
@@ -86,7 +86,7 @@ try {
 	expect(links->forget_link("github.com", 42U, "bpr-fixtures", "engine") && links->load_links()->size() == 1U, "Forget removes one link");
 	expect(store->load() == none, "the preferences are untouched by links");
 
-	// [[BPR-PENDING-AQ5]]. The edited review skill and its record.
+	// [[BPR-1752]]. The edited review skill and its record.
 	using loaded_skill = std::optional<std::optional<application::stored_review_skill>>;
 	const auto noSkill = loaded_skill{ std::in_place, std::nullopt };
 	auto       skills  = adapters::sqlite::make_review_skill_store(scratch.path());
@@ -104,7 +104,7 @@ try {
 	expect(skills->forget_review_skill() && skills->load_review_skill() == noSkill, "Restore default removes it");
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by the skill");
 
-	// [[BPR-PENDING-AQ6]], owner decision (b). Each pull request's conversation.
+	// [[BPR-1753]], owner decision (b). Each pull request's conversation.
 	using turns       = std::vector<application::agent_conversation_turn>;
 	auto       talks  = adapters::sqlite::make_agent_conversation_store(scratch.path());
 	const auto pull   = application::agent_conversation_key{ .Host = "github.com", .Owner = "MikeMarcin", .Name = "BPR-Test", .Number = 7U };
@@ -126,12 +126,12 @@ try {
 	workCodex.Agent = 2U;
 	expect(talks->store(workCodex, thread) && talks->load(workCodex) == std::optional{ thread } && talks->load(other)->size() == 1U, "each agent keeps its own conversation");
 	expect(!talks->load_agent(other) && talks->store_agent(workCodex) && talks->load_agent(other) == std::optional<std::uint32_t>{ 2U }, "the agent last asked with is kept per pull request");
-	// [[BPR-PENDING-AQ8]]: Reset agents forgets those choices, never a turn.
+	// [[BPR-1755]]: Reset agents forgets those choices, never a turn.
 	expect(talks->forget_agents() && !talks->load_agent(other) && talks->load(workCodex) == std::optional{ thread }, "forgetting the agents' choices keeps every conversation");
 	expect(talks->store_agent(workCodex), "a choice is kept again afterwards");
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by conversations");
 
-	// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agent list.
+	// [[BPR-1753]], owner amendment 2026-10-23. The agent list.
 	auto listed            = *store->load();
 	listed.Agents          = *core::add_agent_entry({ }, { .Name = "Work Claude", .Protocol = core::agent_protocol::claude_stream_json, .Program = "/opt/work/bin/wrapper" });
 	listed.Agents          = *core::add_agent_entry(listed.Agents, { .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex", "--profile=work" }, .Effort = "high", .CheckArguments = { "--codex", "login", "status" } });

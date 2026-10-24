@@ -2680,7 +2680,7 @@ namespace bpr::qt {
 		ComparisonSurface->set_selection_observer(
 			[this](const std::optional<core::semantic_selection>& aSelection,
 				   const bool                                     aInteractive) {
-				// [[BPR-PENDING-AQ6]], owner decision (a). The Agent tab's
+				// [[BPR-1753]], owner decision (a). The Agent tab's
 				// suggestions name the selected lines; read once the gesture
 				// has settled (owner look v006).
 				schedule_agent_suggestions();
@@ -4841,11 +4841,11 @@ namespace bpr::qt {
 		AgentPanel->set_configuration_observer(refresh);
 		// [[BPR-1301]]. Saved for the profile, unlike the choices above, so
 		// it sits apart under its own heading, beside the writing hooks.
-		// [[BPR-PENDING-AQ6]]. Agent setup's saved programs, beside the wrapper.
+		// [[BPR-1753]]. Agent setup's saved programs, beside the wrapper.
 		AgentPrograms = new agent_programs_panel{ agents };
 		column->addSpacing(12);
 		column->addWidget(AgentPrograms);
-		// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: the Claude process
+		// [[BPR-1753]], owner decision 2026-10-23: the Claude process
 		// wrapper and model rows are gone from Settings; their values moved
 		// into the agent list. The panel stays unshown, for the profile's
 		// saved values that move once.
@@ -8656,7 +8656,7 @@ namespace bpr::qt {
 			return;
 		}
 		auto* const tabs = static_cast<tray_tab_bar*>(TrayTabs);
-		// [[BPR-1594]]. Four tabs. [[BPR-PENDING-AQ8]], the owner's accept of
+		// [[BPR-1594]]. Four tabs. [[BPR-1755]], the owner's accept of
 		// look v007 ("Get rid of teh icon on agent when it's full width like
 		// the other tabs do. Only use it for the narrow."): at full width
 		// every tab is its name alone.
@@ -14233,7 +14233,7 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			ConversationPanel->set_code_syntax_dispatch(relay);
 		}
-		// [[BPR-PENDING-AQ6]], owner look v003: the agent's answers' code too.
+		// [[BPR-1753]], owner look v003: the agent's answers' code too.
 		if (AgentTab != nullptr) {
 			AgentTab->set_code_syntax_dispatch(relay);
 		}

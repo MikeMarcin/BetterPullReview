@@ -117,7 +117,7 @@ namespace bpr::qt {
 		/// \brief Asks again for the current body's code, after the holder's
 		/// dispatch became able to answer.
 		void request_code_syntax();
-		/// \brief Owner look v004 ([[BPR-PENDING-AQ6]]): colours the body's
+		/// \brief Owner look v004 ([[BPR-1753]]): colours the body's
 		/// inline code as a file named `aSelector` (`code.cpp`) is coloured,
 		/// through the same dispatch as fenced code. Empty, the default for
 		/// every body that does not ask, leaves inline code plain.

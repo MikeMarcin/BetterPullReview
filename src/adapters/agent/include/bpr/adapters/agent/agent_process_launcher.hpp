@@ -40,7 +40,7 @@ namespace bpr::adapters::agent {
 	/// the home folder `aHome`: what a shipped launch searches.
 	[[nodiscard]] auto locate_claude(std::string_view aPathVariable, std::string_view aHome) -> std::optional<core::claude_search_candidate>;
 
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. The first of
+	/// \brief [[BPR-1748]], RFC-BPR-0092 Q5. The first of
 	/// `core::agent_search_candidates(aProgram, aPathVariable, aUsualFolders,
 	/// this platform)` that `inspect_claude_process_wrapper` accepts, under
 	/// exactly `locate_claude`'s rules: metadata only, nothing run, asked again

@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 owner amendment 2026-10-23 ("I
+/// \brief [[BPR-1753]], RFC-BPR-0092 owner amendment 2026-10-23 ("I
 /// should be able to define more than one custom agent"). The agent list: what
 /// an entry may hold, its edits, the profile slot each entry launches as and
 /// the policy that allows it, and the move from the single Claude wrapper and

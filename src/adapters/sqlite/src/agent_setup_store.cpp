@@ -62,7 +62,7 @@ namespace bpr::adapters::sqlite {
 									"codex_protocol INTEGER NOT NULL CHECK(codex_protocol BETWEEN 0 AND 1),"
 									"codex_program TEXT NOT NULL CHECK(length(CAST(codex_program AS BLOB)) <= 1024),"
 									"harness_program TEXT NOT NULL CHECK(length(CAST(harness_program AS BLOB)) <= 1024)) STRICT")
-				// [[BPR-PENDING-AQ3]]. The listed clone folders, in order, and each
+				// [[BPR-1750]]. The listed clone folders, in order, and each
 				// repository's remembered clone or private copy.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS clone_folders("
@@ -78,14 +78,14 @@ namespace bpr::adapters::sqlite {
 									"remote TEXT NOT NULL CHECK(length(CAST(remote AS BLOB)) <= 1024),"
 									"private_copy INTEGER NOT NULL CHECK(private_copy BETWEEN 0 AND 1),"
 									"PRIMARY KEY(host, repository, owner, name)) STRICT")
-				// [[BPR-PENDING-AQ6]]. The model and effort each agent runs with.
+				// [[BPR-1753]]. The model and effort each agent runs with.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_runtime("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"claude_effort TEXT NOT NULL CHECK(length(CAST(claude_effort AS BLOB)) <= 16),"
 									"codex_model TEXT NOT NULL CHECK(length(CAST(codex_model AS BLOB)) <= 128),"
 									"codex_effort TEXT NOT NULL CHECK(length(CAST(codex_effort AS BLOB)) <= 16)) STRICT")
-				// [[BPR-PENDING-AQ5]]. The profile's edited review skill.
+				// [[BPR-1752]]. The profile's edited review skill.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS review_skill("
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
@@ -93,7 +93,7 @@ namespace bpr::adapters::sqlite {
 									"base_version INTEGER NOT NULL CHECK(base_version BETWEEN 0 AND 4294967295),"
 									"base_digest BLOB NOT NULL CHECK(length(base_digest)=32),"
 									"kept_version INTEGER CHECK(kept_version IS NULL OR kept_version BETWEEN 0 AND 4294967295)) STRICT")
-				// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+				// [[BPR-1753]], owner amendment 2026-10-23. The agents the
 				// reviewer added, in order, and whether the single settings above
 				// were moved into them.
 				|| !detail::execute(db,
@@ -123,7 +123,7 @@ namespace bpr::adapters::sqlite {
 									"singleton INTEGER PRIMARY KEY CHECK(singleton=1),"
 									"moved INTEGER NOT NULL CHECK(moved BETWEEN 0 AND 1),"
 									"preferred INTEGER NOT NULL CHECK(preferred BETWEEN 0 AND 64)) STRICT")
-				// [[BPR-PENDING-AQ6]], owner decision (b). Each pull request's
+				// [[BPR-1753]], owner decision (b). Each pull request's
 				// conversation: when it was last written, and its turns in order.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_conversations("
@@ -179,7 +179,7 @@ namespace bpr::adapters::sqlite {
 			sqlite3_bind_text(aRow, aIndex, aText.data(), static_cast<int>(aText.size()), SQLITE_TRANSIENT);
 		}
 
-		/// [[BPR-PENDING-AQ6]]. An entry's fixed arguments, one per line: an
+		/// [[BPR-1753]]. An entry's fixed arguments, one per line: an
 		/// argument holds no control character, so a line break separates them.
 		[[nodiscard]] auto join_arguments(const std::vector<std::string>& aArguments) -> std::string
 		{
@@ -551,14 +551,14 @@ namespace bpr::adapters::sqlite {
 					loaded.CodexProtocol  = static_cast<core::codex_protocol_choice>(protocol);
 					loaded.CodexProgram   = std::move(*codex);
 					loaded.HarnessProgram = std::move(*harness);
-					// [[BPR-PENDING-AQ6]]. The run settings, when any were saved.
+					// [[BPR-1753]]. The run settings, when any were saved.
 					if (auto runtime = detail::prepare(store->Database.get(), "SELECT claude_effort,codex_model,codex_effort FROM agent_runtime WHERE singleton=1");
 						runtime && sqlite3_step(runtime->Value) == SQLITE_ROW) {
 						loaded.ClaudeEffort = column_text(runtime->Value, 0).value_or(std::string{ });
 						loaded.CodexModel   = column_text(runtime->Value, 1).value_or(std::string{ });
 						loaded.CodexEffort  = column_text(runtime->Value, 2).value_or(std::string{ });
 					}
-					// [[BPR-PENDING-AQ6]]. The agent list, when one was kept; a
+					// [[BPR-1753]]. The agent list, when one was kept; a
 					// list that does not read back whole is none.
 					if (auto list = detail::prepare(store->Database.get(), "SELECT moved,preferred FROM agent_list WHERE singleton=1"); list && sqlite3_step(list->Value) == SQLITE_ROW) {
 						loaded.AgentsMoved    = sqlite3_column_int64(list->Value, 0) == 1;
@@ -636,7 +636,7 @@ namespace bpr::adapters::sqlite {
 		private:
 			std::filesystem::path Root;
 		};
-		/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. Each pull
+		/// [[BPR-1753]], owner decision (b) 2026-10-23. Each pull
 		/// request's conversation, so it survives closing the pull request and
 		/// the application; Clear session stores none.
 		class agent_conversation_store final : public application::agent_conversation_store_port

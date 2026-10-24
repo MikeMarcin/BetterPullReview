@@ -15,7 +15,7 @@
 #include <vector>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AQ6]], owner amendment 2026-10-23 ("I should be
+	/// \brief [[BPR-1753]], owner amendment 2026-10-23 ("I should be
 	/// able to define more than one custom agent"). The bounds of a profile's
 	/// agent list.
 	inline constexpr std::size_t   maximum_agent_entries              = 16U;

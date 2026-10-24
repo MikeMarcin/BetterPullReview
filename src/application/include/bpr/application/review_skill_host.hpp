@@ -13,7 +13,7 @@
 #include <string_view>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092 owner decision D1. The text
+	/// \brief [[BPR-1752]], RFC-BPR-0092 owner decision D1. The text
 	/// of the `bpr-pr-review` skill built into this application, from
 	/// `packaging/agent-skills/bpr-pr-review/SKILL.md`.
 	[[nodiscard]] auto built_in_review_skill() noexcept -> std::string_view;
@@ -87,7 +87,7 @@ namespace bpr::application {
 		std::function<void(const review_skill_projection&)>                 Publish;
 	};
 
-	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092 owner decision D1. The
+	/// \brief [[BPR-1752]], RFC-BPR-0092 owner decision D1. The
 	/// profile's review skill: the built-in default until an edit, then the
 	/// edited copy, which no update changes by itself.
 	///

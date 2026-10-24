@@ -446,7 +446,7 @@ auto main(int argc, char** argv) -> int
 						   && agent->isAncestorOf(window.side_chat()->composer()) && legacyPages != nullptr && !legacyPages->isVisible() && !notes->isVisible(),
 					   "the accepted Agent tab owns the question field; legacy nested pages and Notes are hidden");
 #if defined(BPR_AGENT_INTEGRATIONS)
-				// [[BPR-PENDING-AQ6]], RFC-BPR-0092 AC01. Shown for the first time on
+				// [[BPR-1753]], RFC-BPR-0092 AC01. Shown for the first time on
 				// a fixture with no agent on its search path and no agent chosen, the
 				// tab looks (file metadata only) and shows the setup, not a
 				// conversation; nothing was asked, so nothing ran.

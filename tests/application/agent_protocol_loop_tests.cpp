@@ -766,7 +766,7 @@ namespace {
 		result                 = run(agent_protocol::claude_stream_json, claude);
 		expect(result.Outcome == agent_run_outcome::success && result.AssistantItems == std::vector<std::string>{ "one", "two" }, "Claude keeps assistant blocks once and excludes result summary");
 		expect(!result.ReportedCostUsd, "a result frame that names no cost reports none");
-		// [[BPR-PENDING-AQ6]], owner look v002. The turn's cost, as Claude
+		// [[BPR-1753]], owner look v002. The turn's cost, as Claude
 		// writes it in the result frame, and nothing that is not a plain decimal.
 		fake_transport costed;
 		costed.Output = { { .Status = agent_protocol_pipe_read_status::data,

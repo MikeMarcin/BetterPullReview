@@ -411,7 +411,7 @@ auto main(int argc, char** argv) -> int
 		report_failure("arguments", "expected=<course> <canary>");
 		return EXIT_FAILURE;
 	}
-	// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. The codex-found course is the
+	// [[BPR-1748]], RFC-BPR-0092 Q5. The codex-found course is the
 	// positive course with no fixture executable: the Codex profile names the
 	// shipped bare `codex`, and the only `codex` is the canary, put on the
 	// course's own search PATH under that name. A shipped build that hands the
@@ -525,7 +525,7 @@ auto main(int argc, char** argv) -> int
 	window.home_open_action()->trigger();
 
 	auto* const panel = window.agent_panel();
-	// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. With no program of its
+	// [[BPR-1753]], owner amendment 2026-10-23. With no program of its
 	// own on a built-in profile, the picker offers only the agents added; the
 	// codex-found course adds Codex from Settings, as a reviewer would, and
 	// its launch looks for the shipped bare codex as the entry's own program.

@@ -4056,12 +4056,12 @@ namespace {
 		require(read_text(workspace / "README.md") == "the head's readme\n" && read_text(workspace / "src" / "main.cpp") == "int main() { return 0; }\n",
 				"the workspace holds every file at the head");
 		require(read_text(workspace / ".git" / "shallow") == head + "\n", "the workspace records the head as its shallow boundary");
-		require(made->Workspace.Shallow, "and says it is shallow, for the brief ([[BPR-PENDING-AQ5]])");
+		require(made->Workspace.Shallow, "and says it is shallow, for the brief ([[BPR-1752]])");
 		require(run_fixture_git(workspace / ".git", { "rev-list", "--count", "HEAD" }) == "1",
 				"history in the workspace ends at the head instead of failing at its missing parent");
 		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the snapshot workspace cleans up normally");
 
-		// [[BPR-PENDING-AQ4]]. A linked clone that holds the head's parent ends
+		// [[BPR-1751]]. A linked clone that holds the head's parent ends
 		// the snapshot's shallow boundary: its history is borrowed.
 		const auto clone = root.Path / "clone";
 		std::filesystem::create_directories(clone);
@@ -4078,7 +4078,7 @@ namespace {
 		require(adapter->cleanup_agent_workspace(*borrowed, { }).has_value(), "and it cleans up");
 	}
 
-	/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. A workspace that borrows a linked
+	/// [[BPR-1751]], RFC-BPR-0092 Q7. A workspace that borrows a linked
 	/// clone's history: one alternates line naming the clone's objects, only
 	/// what the clone lacks copied from the cache, nothing written to the clone,
 	/// no remote, and a clone that is not a repository refused.
@@ -4190,7 +4190,7 @@ namespace {
 		require(plain.has_value() && !plain->Workspace.BorrowsHistory && !std::filesystem::exists(std::filesystem::path{ plain->Workspace.Path } / ".git" / "objects" / "info" / "alternates"),
 				"without a clone the workspace is the private copy, as before");
 		require(!plain->Workspace.Shallow && run_fixture_git(std::filesystem::path{ plain->Workspace.Path } / ".git", { "cat-file", "-t", base }) == "commit",
-				"and holds the base, so the brief's diff against it works ([[BPR-PENDING-AQ5]])");
+				"and holds the base, so the brief's diff against it works ([[BPR-1752]])");
 		require(adapter->cleanup_agent_workspace(*plain, { }).has_value(), "and it cleans up");
 	}
 

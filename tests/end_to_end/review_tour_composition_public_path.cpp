@@ -523,7 +523,7 @@ auto main(int argc, char** argv) -> int
 			};
 
 			select_file(window, "review.cpp");
-			// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: Claude Code is an
+			// [[BPR-1753]], owner decision 2026-10-23: Claude Code is an
 			// agent in the list, its program and model on its entry.
 			const auto installedProgram = std::string_view{ argv[3] } != "-" ? std::string{ argv[3] } : std::string{ };
 			const auto installedModel   = argc > 4 ? std::string{ argv[4] } : std::string{ };
@@ -707,7 +707,7 @@ auto main(int argc, char** argv) -> int
 		// supervised launcher and the restricted protocol. The wrapper is
 		// still there after a restart.
 		if (wrapperCourse) {
-			// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Tour writing asks
+			// [[BPR-1753]], owner decision 2026-10-23. Tour writing asks
 			// the agent chosen in the list. Claude Code, added with no program
 			// of its own, runs the claude a launch finds; its own program, saved
 			// on its entry, wins; and its model is passed as --model.

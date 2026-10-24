@@ -1,4 +1,4 @@
-/* BPR-PENDING-AN design round v1, revision 2: first-run agent setup in the Agent tab.
+/* BPR-1747 design round v1, revision 2: first-run agent setup in the Agent tab.
    Static mockups, no product code. Builds on BPR-1574's accepted kit (tokens,
    window chrome, drawer, icons); nothing here adds a hue. Paths, versions and
    commits are examples of what detection would report, not readings of

@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092 M2. The setup host on manual
+/// \brief [[BPR-1749]], RFC-BPR-0092 M2. The setup host on manual
 /// lanes and fake ports: detection starts no process (Q2), the bounded status
 /// check reaches the setup state from scripted answers (Q3 A), Stop and a
 /// timeout end it, and the choice is kept.
@@ -318,7 +318,7 @@ namespace {
 		expect(!ghes.Process.Requests.empty() && ghes.Process.Requests.front().Arguments.front() == "auth", "only the permitted agent is checked");
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The single settings
+	/// [[BPR-1753]], owner amendment 2026-10-23. The single settings
 	/// move into the agent list once; a custom agent is added and chosen, and
 	/// its program and fixed arguments are what setup checks.
 	void test_the_agent_list()

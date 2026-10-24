@@ -26,7 +26,7 @@ class QPushButton;
 class QSpinBox;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092, owner amendment 2026-10-23
+	/// \brief [[BPR-1753]], RFC-BPR-0092, owner amendment 2026-10-23
 	/// ("for the actual settings it should be more like add agent"). Settings ›
 	/// Agents & context: the agents the Agent tab offers, in order, with
 	/// **Add agent…** (Claude Code and Codex when found and not yet added, or a
@@ -94,7 +94,7 @@ namespace bpr::qt {
 		void                               send_run_limit();
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner decision D2). Settings ›
+	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D2). Settings ›
 	/// Repositories: the clone folders and the linked clones.
 	class clone_folders_panel final : public QWidget
 	{
@@ -121,7 +121,7 @@ namespace bpr::qt {
 		QPushButton*                       Forget  = nullptr;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner decision D1). Settings ›
+	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D1). Settings ›
 	/// Agents & context › Review skill: the skill's text, Save, Restore
 	/// default, and a newer default's Compare, Use version N and Keep mine.
 	class review_skill_panel final : public QWidget

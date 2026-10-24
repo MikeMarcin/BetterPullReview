@@ -133,7 +133,7 @@ namespace bpr::core {
 	[[nodiscard]] auto claude_search_candidates(std::string_view aPathVariable, std::span<const std::string> aUsualFolders, agent_wrapper_platform aPlatform)
 		-> std::vector<claude_search_candidate>;
 
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). The
+	/// \brief [[BPR-1748]], RFC-BPR-0092 Q5 (owner, 2026-10-22). The
 	/// programs a launch with no saved path looks for. The plain-text harness
 	/// is not one: it runs only a program path the reviewer chose.
 	enum class agent_program : std::uint8_t {
@@ -141,7 +141,7 @@ namespace bpr::core {
 		codex,
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("Not having a model/effort
+	/// \brief [[BPR-1753]], owner look v002 ("Not having a model/effort
 	/// picker in this window bothers the hell out of me"). Whether text can
 	/// name an effort for the agent's own command line: one lowercase word of
 	/// at most 16 letters, so it is one argument and never an option. Owner
@@ -162,7 +162,7 @@ namespace bpr::core {
 	/// \brief One place to look for a program, in search order.
 	using agent_search_candidate = claude_search_candidate;
 
-	/// \brief [[BPR-PENDING-AQ1]]. The fixed usual install folders a Codex
+	/// \brief [[BPR-1748]]. The fixed usual install folders a Codex
 	/// launch searches after `PATH`, in order.
 	///
 	/// \details As for Claude, a macOS application opened from the Finder gets
@@ -173,7 +173,7 @@ namespace bpr::core {
 	/// runs. A `HOME` folder is left out when `aHome` is not absolute.
 	[[nodiscard]] auto usual_codex_folders(std::string_view aHome, agent_wrapper_platform aPlatform) -> std::vector<std::string>;
 
-	/// \brief [[BPR-PENDING-AQ1]]. The ordered places a launch of `aProgram`
+	/// \brief [[BPR-1748]]. The ordered places a launch of `aProgram`
 	/// with no saved path looks for it: `aPathVariable`'s entries, then
 	/// `aUsualFolders`, under exactly the rules `claude_search_candidates`
 	/// states, with the program's own name (`codex`, or `codex.exe` on

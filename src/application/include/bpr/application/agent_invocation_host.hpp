@@ -70,10 +70,10 @@ namespace bpr::application {
 		bool                               WritingOnly = false;
 		core::agent_setting_facts          RequestedSettings;
 		std::optional<private_run_intent>  PrivateRun;
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. The reviewer's linked clone,
+		/// [[BPR-1751]], RFC-BPR-0092 Q7. The reviewer's linked clone,
 		/// whose history the session's workspace borrows read-only.
 		std::optional<std::filesystem::path> HistoryClone;
-		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("I guess we can keep
+		/// [[BPR-1753]], owner decision 2026-10-23 ("I guess we can keep
 		/// a timeout as an option, but i wouldnt want it on by default for my
 		/// work"): the run's time limit when the reviewer set one; none runs
 		/// until the agent finishes or Stop.
@@ -197,7 +197,7 @@ namespace bpr::application {
 		void shutdown();
 		void retry_cleanup();
 
-		/// \brief [[BPR-PENDING-AQ4]], RFC-BPR-0092 Check it works. Makes the
+		/// \brief [[BPR-1751]], RFC-BPR-0092 Check it works. Makes the
 		/// workspace an Ask on this binding would make, through the same
 		/// workspace port, then removes it, and answers on the decision lane.
 		/// \details No session is admitted and no agent runs: the probe's

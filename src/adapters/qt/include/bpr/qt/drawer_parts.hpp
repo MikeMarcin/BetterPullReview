@@ -105,7 +105,7 @@ namespace bpr::qt {
 		agent,
 		/// [[BPR-1592]]. Two commits joined into a third: the pull request.
 		pull_request,
-		/// [[BPR-PENDING-AQ6]], owner look v003. Two pages, one over the
+		/// [[BPR-1753]], owner look v003. Two pages, one over the
 		/// other: copy.
 		copy,
 		/// A plus: add context.

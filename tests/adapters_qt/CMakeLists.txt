@@ -993,7 +993,7 @@ set_tests_properties(
         TIMEOUT 120
 )
 
-# [[BPR-PENDING-AQ6]]. RFC-BPR-0092: the Agent tab's setup and its Settings rows.
+# [[BPR-1753]]. RFC-BPR-0092: the Agent tab's setup and its Settings rows.
 bpr_add_executable(
     test_better_pull_review_qt_agent_setup_view_tests
     agent_setup_view_tests.cpp

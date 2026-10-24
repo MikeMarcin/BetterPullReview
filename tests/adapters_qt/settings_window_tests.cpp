@@ -471,7 +471,7 @@ namespace {
 		expect(!settings->isVisible(), "Escape in an empty field still closes Settings");
 	}
 
-	/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. The Claude
+	/// \brief [[BPR-1753]], owner decision 2026-10-23. The Claude
 	/// process wrapper and model rows are gone from Agents & context; the
 	/// agent list holds each agent's program, arguments and model, and
 	/// withdrawing the agent surfaces takes the list with them.
@@ -483,7 +483,7 @@ namespace {
 			   "the old Claude wrapper and model rows are not on the page");
 		expect(page->findChild<QListWidget*>(QStringLiteral("settingsAgentList")) != nullptr && page->findChild<QPushButton*>(QStringLiteral("settingsAddAgent")) != nullptr,
 			   "the page is the agent list with Add agent…");
-		// [[BPR-PENDING-AQ6]]. The review skill's Restore default has its own
+		// [[BPR-1753]]. The review skill's Restore default has its own
 		// "Save my copy to Downloads first", and the run limit its toggle;
 		// neither is a sign-in switch.
 		const auto boxes = page->findChildren<QCheckBox*>();

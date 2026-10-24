@@ -311,7 +311,7 @@ namespace {
 		expect(transcript && transcript->Revisions.size() == 2 && transcript->Revisions.back().Revision.Body.find("canary-complete") != std::string::npos, "durable turn contains validated complete child output");
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner look v006 ("Codex is totally missing its
+	/// [[BPR-1753]], owner look v006 ("Codex is totally missing its
 	/// model settings"). A catalog run through the real launcher: the App
 	/// Server handshake, `model/list`, the list read past a notification,
 	/// and the input closed so the child exits.

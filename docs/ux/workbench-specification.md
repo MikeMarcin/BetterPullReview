@@ -2417,7 +2417,7 @@ agent drawers' convention) is the session's title, the pull request's number
 and title, the head its session reads, and two icons: History (Clear session,
 a new session, continuing on an earlier head, the private history and runs,
 and the sessions) and New session, which clears the current agent's thread.
-Below it the conversation is a thread ([[BPR-PENDING-AQ6]], owner looks v002
+Below it the conversation is a thread ([[BPR-1753]], owner looks v002
 and v003): each turn is what was asked, in an outlined bubble with its time
 right-aligned above it, then the agent's reply in its own card: the answer
 as it writes it (its Markdown rendered, fenced code coloured by the shared

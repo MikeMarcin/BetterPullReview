@@ -706,11 +706,11 @@ not claimed. [Import](assets/reactions-and-resolve-v1.LIVE_IMPORT.md).
 
 Drafted 2026-10-22 as RFC-DRAFT-0026 from the owner's request for setup UX
 the first time the Agent tab opens
-([BPR-PENDING-AN](../issues/60-done/BPR-PENDING-AN-set-up-an-agent-the-first-time.md)).
+([BPR-1747](../issues/60-done/BPR-1747-set-up-an-agent-the-first-time.md)).
 Revision r3 records the owner's decisions D1 (the review workflow ships as an
 editable skill) and D2 (a clone folders setting) and answers to Q1 to Q9: a
 four-step setup in the tab, detection when it shows, the agent's status
 command as the check, plain names, Codex found as Claude is, a worktree of the
 reviewer's clone by default with the head from the application's own copy, and
-the review skill in each request's brief. Milestones BPR-PENDING-AQ1 to AQ9.
+the review skill in each request's brief. Milestones BPR-1748 to AQ9.
 [Import](assets/agent-first-run-setup-v1.LIVE_IMPORT.md).

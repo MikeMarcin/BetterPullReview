@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092 owner decision D1 and answer Q9 A.
+/// \brief [[BPR-1752]], RFC-BPR-0092 owner decision D1 and answer Q9 A.
 /// The review skill's front matter, the offer of a newer built-in version, and
 /// the review brief's bounds, without any file but the shipped skill.
 
@@ -39,7 +39,7 @@ namespace {
 		const auto    facts = core::inspect_review_skill(text);
 		expect(!text.empty() && facts.has_value() && facts->Version == 2U && facts->Description.starts_with("Review one GitHub pull request"),
 			   "the shipped bpr-pr-review is a review skill of version 2");
-		// [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23: every review
+		// [[BPR-1753]], owner decision (a) 2026-10-23: every review
 		// prompt answers with a summary, even with no finding; and decision
 		// (b): the conversation so far is the agent's to continue.
 		expect(text.find("brief.conversation") != std::string::npos && text.find("summary") != std::string::npos,
@@ -129,7 +129,7 @@ namespace {
 			   "workspace and status names are stable");
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The conversation so
+	/// [[BPR-1753]], owner decision (b) 2026-10-23. The conversation so
 	/// far rides the brief, newest kept, each side cut, the older counted.
 	void test_brief_conversation()
 	{

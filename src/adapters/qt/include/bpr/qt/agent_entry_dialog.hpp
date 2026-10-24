@@ -15,7 +15,7 @@ class QLineEdit;
 class QPlainTextEdit;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. Adds or edits
+	/// \brief [[BPR-1753]], owner amendment 2026-10-23. Adds or edits
 	/// one agent: its name, the protocol it speaks, its program, its fixed
 	/// arguments one per line, and its default model and effort.
 	///

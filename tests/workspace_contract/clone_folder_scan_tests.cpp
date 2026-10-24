@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 owner decision D2. The clone
+/// \brief [[BPR-1750]], RFC-BPR-0092 owner decision D2. The clone
 /// folder scan over a disposable root on the native filesystem: what it finds
 /// at each depth, what it never follows or reads, and that it writes nothing.
 

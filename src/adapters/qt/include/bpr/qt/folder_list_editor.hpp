@@ -12,7 +12,7 @@ class QListWidget;
 class QToolButton;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("I prefer a UX more like
+	/// \brief [[BPR-1753]], owner look v002 ("I prefer a UX more like
 	/// the visual studio one"). An ordered list of folders edited in place, as
 	/// Visual Studio's folder-list options are.
 	///

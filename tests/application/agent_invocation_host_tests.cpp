@@ -682,7 +682,7 @@ namespace {
 	void test_explicit_settings_cross_the_existing_invocation_host()
 	{
 		const auto hostId = core::git_host_id{ 1 };
-		// [[BPR-PENDING-AQ6]]: Codex exec now takes a model and an effort too,
+		// [[BPR-1753]]: Codex exec now takes a model and an effort too,
 		// so the plain-text harness is the profile that takes neither.
 		for (const auto profileId : { core::codex_app_server_profile_id, core::codex_jsonl_profile_id, core::external_terminal_profile_id }) {
 			auto test = harness{ };
@@ -1670,7 +1670,7 @@ namespace {
 } // namespace
 
 namespace {
-	/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The brief names the workspace that
+	/// [[BPR-1752]], RFC-BPR-0092. The brief names the workspace that
 	/// was actually made: borrowed history, the private copy or a snapshot.
 	void test_the_brief_names_the_workspace_that_was_made()
 	{
@@ -1695,7 +1695,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("I guess we can keep a
+	/// [[BPR-1753]], owner decision 2026-10-23 ("I guess we can keep a
 	/// timeout as an option, but i wouldnt want it on by default for my
 	/// work"). A run is given no time limit unless the request names one.
 	void test_a_run_has_no_time_limit_unless_one_is_set()
@@ -1713,7 +1713,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Check it works. The workspace probe
+	/// [[BPR-1751]], RFC-BPR-0092 Check it works. The workspace probe
 	/// makes and removes the workspace an Ask would make, admits no session,
 	/// starts no process, answers on the decision lane and holds quiescence
 	/// until it does; a failure comes back with its reason.

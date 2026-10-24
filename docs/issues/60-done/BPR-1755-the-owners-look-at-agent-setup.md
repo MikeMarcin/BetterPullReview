@@ -1,17 +1,17 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-PENDING-AQ8"
+id: "BPR-1755"
 title: "A frozen build and the owner's look at agent setup"
 status: "Done"
 rfcs: ["RFC-BPR-0092"]
-depends_on: ["BPR-PENDING-AQ6", "BPR-PENDING-AQ7"]
+depends_on: ["BPR-1753", "BPR-1754"]
 priority: "P2"
 platforms: ["mac"]
-metadata: {"origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-PENDING-AN","BPR-PENDING-AQ4","BPR-PENDING-AQ5"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"077adf53047441a3224b3687ceddf38e","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v002","transport":"serve --tailscale","lifecycle":"v002 handed back (Reject) and stopped"},"previous_sessions":["89855cd96f098cd74e28d271acd60d8a (look v001, handed back, stopped, released)"],"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v002.fwb9a7cz","commit":"f51ae6acf","executable_sha256":"ba4e00b091b96d50baae12381ec20e3fd8ccb82c36e5a3a66f10d61f6e2d2fa9","fixture":"github-com"}}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1747--BPR-1756--f06ad4b55890.json","origin":"RFC-BPR-0092 adoption, 2026-10-22","related_cards":["BPR-1747","BPR-1751","BPR-1752"],"milestone":"RFC-BPR-0092 M8","attended_session":{"id":"077adf53047441a3224b3687ceddf38e","state":"/Users/jaeger/.attended-review-state/bpr0092-look-v002","transport":"serve --tailscale","lifecycle":"v002 handed back (Reject) and stopped"},"previous_sessions":["89855cd96f098cd74e28d271acd60d8a (look v001, handed back, stopped, released)"],"frozen_build":{"root":"/Users/jaeger/bpr0092-agent-setup-v002.fwb9a7cz","commit":"f51ae6acf","executable_sha256":"ba4e00b091b96d50baae12381ec20e3fd8ccb82c36e5a3a66f10d61f6e2d2fa9","fixture":"github-com"}}
 acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "08acf5b1003cc07132eb47c806da627fea62e70e", "evidence": {"kind": "observation", "command": "attended session 17312f2f1e95ac0107fa57bb5a50affe (look v007, frozen build of d431745f2); ctest --test-dir build/rel -R '^qt_workbench_window_scale_100$'", "detail": "RFC AC14: the owner accepted look v007 (decision 52f55363-457e-4397-ad30-d3962a4b80a6) after looks v001 to v006, the setup wizard already accepted in v005: \"Hide suggestions until the the agent is done thinking. Get rid of teh icon on agent when it's full width like the other tabs do. Only use it for the narrow. Otherwise we're done.\" The two conditions are built on the accepted state without another look and verified offscreen: the suggested prompts are hidden while the agent works and return when its turn has finished; at full width the Agent tab is its name alone, its glyph kept for the narrow row. No attended root or session of this card remains.", "refs": ["docs/rfcs/RFC-BPR-0092-agent-first-run-setup.md"]}}]
 ---
 
-# BPR-PENDING-AQ8: A frozen build and the owner's look at agent setup
+# BPR-1755: A frozen build and the owner's look at agent setup
 
 RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#milestones)).
 
@@ -33,7 +33,7 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   `f73f94770`; the launcher's own check reached
   `ATTENDED_PULL_REQUEST_OPENED`. The look opens octo-org/review-repository
   #17 with a fresh profile; an attended launch looks for this Mac's own
-  Claude Code and Codex ([[BPR-PENDING-AQ8]]'s commit), every automated course
+  Claude Code and Codex ([[BPR-1755]]'s commit), every automated course
   keeps its own search path. A stand-in clone of the fixture repository
   (a Git directory with its `origin`, no history) is in the root's
   `clones/review-repository` for the Repository step.
@@ -43,9 +43,9 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   - Q1 (AC1, RFC AC14): "The first time I open the Agent tab it tells me what
     to do, and I end up asking a question that the agent answers from my
     repository."
-  - Q2 ([[BPR-PENDING-AQ4]]'s deviation): keep the workspace borrowing the
+  - Q2 ([[BPR-1751]]'s deviation): keep the workspace borrowing the
     linked clone's history instead of a `git worktree` of it.
-  - Q3 ([[BPR-PENDING-AQ5]]'s deviation): keep the edited skill in the
+  - Q3 ([[BPR-1752]]'s deviation): keep the edited skill in the
     profile's settings store, edited in Settings, without Open in editor
     for now.
 - Handed back 2026-10-22: **Q2 Accept**, **Q3 Accept**, **Q1 Reject**. The
@@ -56,7 +56,7 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
   indication anything happened." Their screenshots showed the ready card
   with its details open, and the working banner at "Approved Claude stream
   JSON is working / Preparing agent invocation" with no further change.
-  [[BPR-PENDING-AQ6]]'s follow-up commit answers each point; look v002
+  [[BPR-1753]]'s follow-up commit answers each point; look v002
   asks Q1 again.
 
 ## Look v002 (2026-10-22)
@@ -64,7 +64,7 @@ RFC-BPR-0092 M8 ([RFC](../../rfcs/RFC-BPR-0092-agent-first-run-setup.md#mileston
 - Look v001's host was stopped, its candidates released and its frozen root
   removed with `freeze_attended_build.py remove`.
 - Frozen from `f51ae6acf` (rebased onto main `b8d2ec6cf`, with
-  [[BPR-PENDING-AQ6]]'s answer to the v001 note); the launcher's own check
+  [[BPR-1753]]'s answer to the v001 note); the launcher's own check
   reached `ATTENDED_PULL_REQUEST_OPENED`. The root's `clones/review-repository`
   is the same stand-in clone.
 - Session `077adf53047441a3224b3687ceddf38e` (fresh, short), served with

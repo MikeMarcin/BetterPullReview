@@ -109,7 +109,7 @@ namespace bpr::application {
 		/// operation it is refused whole, as an operation riding on another
 		/// gesture is.
 		std::optional<core::supplement_feedback_guidance> FeedbackGuidance;
-		/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief, already within
+		/// [[BPR-1752]], RFC-BPR-0092. The review brief, already within
 		/// its bounds (`core::bound_review_brief`); absent for a launch that is
 		/// not a review request. The host sets its workspace kind once the
 		/// workspace is made.
@@ -161,7 +161,7 @@ namespace bpr::application {
 		[[nodiscard]] virtual auto permitted() const noexcept -> bool = 0;
 		virtual void               release() noexcept                 = 0;
 	};
-	/// \brief Owner look v006 ([[BPR-PENDING-AQ6]]): what a run is for. A
+	/// \brief Owner look v006 ([[BPR-1753]]): what a run is for. A
 	/// catalog run asks a Codex App Server for its models (`model/list`) and
 	/// nothing else: no thread, no turn, no context.
 	enum class agent_launch_purpose : std::uint8_t {
@@ -192,7 +192,7 @@ namespace bpr::application {
 		std::optional<core::agent_run_provenance>     AdmittedRun;
 		bool                                          WritingOnly = false;
 		std::shared_ptr<agent_input_claim>            PrivateInputClaim;
-		/// [[BPR-PENDING-AQ6]]. The profile launched, so an added agent's own
+		/// [[BPR-1753]]. The profile launched, so an added agent's own
 		/// program and fixed arguments are found for its slot.
 		core::agent_profile_id Profile;
 		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
@@ -373,7 +373,7 @@ namespace bpr::application {
 		/// undecoded so that the shared loop, rather than the frame reader, is
 		/// the one place a payload becomes findings.
 		finding_payload,
-		/// [[BPR-PENDING-AQ6]]. What the harness says the turn cost, in US
+		/// [[BPR-1753]]. What the harness says the turn cost, in US
 		/// dollars as the decimal it wrote; Claude Code's result frame names
 		/// it `total_cost_usd`.
 		usage_report,
@@ -463,7 +463,7 @@ namespace bpr::application {
 	/// \brief The fence an agent's answer opens its review findings with.
 	inline constexpr std::string_view agent_review_findings_fence = "```bpr-findings";
 
-	/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("Yep build it
+	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
 	/// like that"). The review findings an agent wrote in its answer, as the
 	/// review skill asks: the last block fenced `bpr-findings`, holding a
 	/// `findings` array (or the array alone) of objects with `path`,
@@ -588,7 +588,7 @@ namespace bpr::application {
 		core::agent_runtime_metadata                 Metadata;
 		std::vector<core::agent_provenance_conflict> ProvenanceConflicts;
 		std::vector<std::string>                     AssistantItems;
-		/// [[BPR-PENDING-AQ6]]. The turn's cost as the harness reported it, a
+		/// [[BPR-1753]]. The turn's cost as the harness reported it, a
 		/// decimal of US dollars; absent when it reported none.
 		std::optional<std::string> ReportedCostUsd;
 		/// Owner look v006. A catalog run's `model/list` result, as written.
@@ -620,7 +620,7 @@ namespace bpr::application {
 		const core::agent_revision_binding& aObserved,
 		core::agent_run_id                  aExpectedRun = { }) -> agent_run_result;
 
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092 Q3 A. The two runs of one
+	/// \brief [[BPR-1749]], RFC-BPR-0092 Q3 A. The two runs of one
 	/// setup check: the agent's own status command and its `--version`.
 	struct agent_status_launches
 	{

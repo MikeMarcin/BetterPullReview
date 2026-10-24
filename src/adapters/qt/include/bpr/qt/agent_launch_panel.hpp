@@ -95,7 +95,7 @@ namespace bpr::qt {
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
 		void offer_profiles(std::span<const core::agent_profile> aProfiles);
-		/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. The profile setup saved:
+		/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved:
 		/// selected now when offered, and whenever profiles are offered again.
 		/// Absent, the first offered profile is selected, as before.
 		void prefer_profile(std::optional<core::agent_profile_id> aProfile);
@@ -135,7 +135,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1738]]. Why the last run stopped and what to do,
 		/// in a reviewer's words, when there is more to say than its outcome.
 		[[nodiscard]] auto stop_reason_text() const -> QString;
-		/// \brief [[BPR-PENDING-AQ6]], owner look v001. Where the running
+		/// \brief [[BPR-1753]], owner look v001. Where the running
 		/// request is: its workspace being made, or the agent running.
 		enum class phase : std::uint8_t {
 			idle,
@@ -147,11 +147,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto latest_output_line() const -> QString;
 		/// Called whenever the request's phase, output or end changes.
 		void add_progress_observer(std::function<void()> aObserver);
-		/// [[BPR-PENDING-AQ6]], owner look v002. What the last request's agent
+		/// [[BPR-1753]], owner look v002. What the last request's agent
 		/// reported running: its model, and its cost when the harness said.
 		[[nodiscard]] auto last_reported_model() const -> QString { return LastModel; }
 		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
-		/// [[BPR-PENDING-AQ6]]. How the last request ended, while nothing runs.
+		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
@@ -170,7 +170,7 @@ namespace bpr::qt {
 		std::uint32_t         RunLimitMinutes = 0U;
 		agent_intent_dispatch Dispatch;
 		QComboBox*            ProfileSelector = nullptr;
-		/// [[BPR-PENDING-AQ2]]. Selected whenever it is offered.
+		/// [[BPR-1749]]. Selected whenever it is offered.
 		std::optional<core::agent_profile_id>          PreferredProfile;
 		QAction*                                       StartAction            = nullptr;
 		QAction*                                       CancelAction           = nullptr;

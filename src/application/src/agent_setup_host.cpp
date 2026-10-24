@@ -123,7 +123,7 @@ namespace bpr::application {
 				Dependencies.Effects, [store = Dependencies.Store, preferences = Projection.Preferences] { return store->store(preferences); }, [](bool) { });
 		}
 
-		/// [[BPR-PENDING-AQ6]]. The single settings, moved into the list once.
+		/// [[BPR-1753]]. The single settings, moved into the list once.
 		void move_into_list()
 		{
 			auto& preferences = Projection.Preferences;
@@ -218,7 +218,7 @@ namespace bpr::application {
 			snapshot.Harness = host.Projection.Preferences.HarnessProgram;
 			snapshot.Inspect = host.Dependencies.Inspect;
 			snapshot.Locate  = host.Dependencies.Locate;
-			// [[BPR-PENDING-AQ6]]. A chosen entry with its own program is the
+			// [[BPR-1753]]. A chosen entry with its own program is the
 			// program setup checks for its kind, as a saved wrapper was.
 			if (const auto* const entry = host.preferred_entry(); entry != nullptr && !entry->Program.empty()) {
 				switch (core::setup_agent_of(entry->Protocol)) {
@@ -334,7 +334,7 @@ namespace bpr::application {
 			host.reset_checks();
 		}
 		host.Projection.Preferences.Chosen = aAgent;
-		// [[BPR-PENDING-AQ6]]. Picking a popular agent adds it to the list once
+		// [[BPR-1753]]. Picking a popular agent adds it to the list once
 		// and chooses that entry; a harness is the entry with its program.
 		auto&       preferences = host.Projection.Preferences;
 		const auto* entry       = aAgent == core::setup_agent::plain_text_harness
@@ -608,7 +608,7 @@ namespace bpr::application {
 		}
 		const auto profile = std::ranges::find(host.Dependencies.Profiles, core::setup_profile(agent, host.Projection.Preferences.CodexProtocol), &core::agent_profile::Id);
 		auto       built   = profile == host.Dependencies.Profiles.end() ? std::nullopt : build_agent_status_launches(agent, *profile, path, host.Dependencies.Parent);
-		// [[BPR-PENDING-AQ6]]. The chosen entry's fixed arguments come first,
+		// [[BPR-1753]]. The chosen entry's fixed arguments come first,
 		// as they do at every launch.
 		if (const auto* const entry = host.preferred_entry(); built && entry != nullptr && core::setup_agent_of(entry->Protocol) == agent && !entry->Arguments.empty()) {
 			built->Status.Arguments.insert(built->Status.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());

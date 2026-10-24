@@ -198,7 +198,7 @@ namespace bpr::core {
 				external_terminal_profile_id,
 			};
 		}
-		// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. An agent the
+		// [[BPR-1753]], owner amendment 2026-10-23. An agent the
 		// reviewer added is allowed where its protocol's built-in profile is.
 		for (const auto& slot : agent_entry_profiles()) {
 			const auto builtIn = std::ranges::any_of(built_in_agent_profiles(), [&](const agent_profile& aProfile) {

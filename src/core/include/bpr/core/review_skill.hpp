@@ -10,7 +10,7 @@
 #include <string_view>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092 owner decision D1. The review
+	/// \brief [[BPR-1752]], RFC-BPR-0092 owner decision D1. The review
 	/// skill's name, which a saved copy must keep.
 	inline constexpr std::string_view review_skill_name = "bpr-pr-review";
 	/// \brief The most a review skill's `SKILL.md` may hold.

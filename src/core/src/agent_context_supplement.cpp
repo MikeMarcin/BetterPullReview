@@ -404,7 +404,7 @@ namespace bpr::core {
 			budget -= bytes;
 			brief.Threads.push_back(std::move(thread));
 		}
-		// [[BPR-PENDING-AQ6]]. The newest turns are the ones a follow-up
+		// [[BPR-1753]]. The newest turns are the ones a follow-up
 		// leans on, so the cut falls on the oldest.
 		auto room = maximum_brief_conversation_bytes;
 		auto kept = std::size_t{ 0U };

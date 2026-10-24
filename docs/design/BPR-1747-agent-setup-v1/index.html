@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>BPR-PENDING-AN: setting up an agent the first time</title>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1747: setting up an agent the first time</title>
 <link rel="stylesheet" href="../BPR-1574-drawers-and-agent-v1/kit.css"><link rel="stylesheet" href="setup.css">
 <style>
 .page { max-width:1280px; }
@@ -11,7 +11,7 @@ p.n { color:var(--ink-2); font-size:13.5px; line-height:1.55; max-width:78ch; ma
 <body>
 <div class="page">
 <header class="top"><h1>Setting up an agent the first time</h1><span class="themeswitch chip" role="button" tabindex="0" id="themeBtn">Light / Dark</span></header>
-<p class="lede">Design round v1, revision 2, for BPR-PENDING-AN and RFC-DRAFT-0026 r2. The owner, 2026-10-22: “I think we need some ux for setting up your agent the first time you go to the agent tab. Maybe a little wizard I'm not sure.” Revision 2 adds the Repository step: an agentic review needs the real repository, not just the diff. The first pictures are the real application, rendered offscreen from <code class="c">b69b82c9b</code> on the conventional-comments fixture. The rest are mockups on BPR-1574's accepted drawer kit; paths, versions and commits in them are examples.</p>
+<p class="lede">Design round v1, revision 2, for BPR-1747 and RFC-DRAFT-0026 r2. The owner, 2026-10-22: “I think we need some ux for setting up your agent the first time you go to the agent tab. Maybe a little wizard I'm not sure.” Revision 2 adds the Repository step: an agentic review needs the real repository, not just the diff. The first pictures are the real application, rendered offscreen from <code class="c">b69b82c9b</code> on the conventional-comments fixture. The rest are mockups on BPR-1574's accepted drawer kit; paths, versions and commits in them are examples.</p>
 
 <h2 class="sec" id="today">Today</h2>
 <p class="n">The Agent tab opens straight into a conversation. Its agent list is the four built-in profiles by their protocol names, with <b>Codex App Server</b> chosen first whatever is installed. Nothing is looked for until you press Ask. On this Mac the first Ask ended <b>Finished: failed_to_start</b>: a shipped build passes the bare name <code class="c">codex</code> to a launcher that starts only absolute paths, so Codex cannot start from the shipped profiles on any platform. Claude is searched for, but only Settings › Agents &amp; context says where it was found.</p>

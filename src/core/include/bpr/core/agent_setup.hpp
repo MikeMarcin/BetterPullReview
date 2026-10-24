@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace bpr::core {
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092. The agent a setup row offers,
+	/// \brief [[BPR-1748]], RFC-BPR-0092. The agent a setup row offers,
 	/// as a reviewer names it.
 	///
 	/// \details Owner, 2026-10-22, Q4 accepted: the Agent tab says Claude Code

@@ -965,7 +965,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto tour_page_open() const noexcept -> bool;
 		/// \brief [[BPR-1594]]. The Agent tab, and its two keys' actions.
 		[[nodiscard]] auto agent_tab() const noexcept -> agent_tab_view* { return AgentTab; }
-		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Opens one of
+		/// \brief [[BPR-1753]], owner decision 2026-10-23. Opens one of
 		/// the pull request's files in Review, as choosing it in Files does, for
 		/// a finding card's draft or note at its lines. False when the path is
 		/// not one of the pull request's files now.
@@ -1233,7 +1233,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto writing_hooks() const noexcept -> writing_hooks_panel* { return WritingHooks; }
 		/// [[BPR-1301]]. Settings > Agents & context's Claude process wrapper.
 		[[nodiscard]] auto claude_wrapper() const noexcept -> claude_wrapper_panel* { return ClaudeWrapper; }
-		/// [[BPR-PENDING-AQ6]], RFC-BPR-0092. The Agent tab's setup and its
+		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
 		/// Settings rows; an agent build adopts the setup into the tab.
 		[[nodiscard]] auto agent_setup() const noexcept -> agent_setup_view* { return AgentSetup; }
 		[[nodiscard]] auto agent_programs() const noexcept -> agent_programs_panel* { return AgentPrograms; }

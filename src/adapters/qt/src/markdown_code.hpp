@@ -107,7 +107,7 @@ namespace bpr::qt::detail {
 		/// suggestions are not shown or the body holds the mark.
 		static void prepare(QString& aText, bool aSuggestions);
 
-		/// \brief Owner look v004 ([[BPR-PENDING-AQ6]]): the file name inline
+		/// \brief Owner look v004 ([[BPR-1753]]): the file name inline
 		/// code is classified as, such as `code.cpp`; empty, the default,
 		/// leaves inline code plain. Kept through `clear` and `place`.
 		void               set_inline_selector(std::string aSelector);

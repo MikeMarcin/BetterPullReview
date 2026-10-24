@@ -379,7 +379,7 @@ namespace {
 		use_theme(aView, themes[0]);
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner look v004 ("Not drawing inline comment with
+	/// [[BPR-1753]], owner look v004 ("Not drawing inline comment with
 	/// syntax highlighing"). A body that asks colours its inline code as the
 	/// named file's language, through the same host; a keyboard key and every
 	/// body that does not ask stay plain.

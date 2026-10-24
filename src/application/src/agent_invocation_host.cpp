@@ -761,7 +761,7 @@ namespace bpr::application {
 					return;
 				}
 				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly };
-				// [[BPR-PENDING-AQ5]]. The brief says what the workspace that
+				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.
 				auto framed = std::optional<core::agent_context_supplement>{ };
@@ -955,7 +955,7 @@ namespace bpr::application {
 						// rather than to never learn about.
 						auto payload = std::move(result.Findings);
 						result.Findings.reset();
-						// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A
+						// [[BPR-1753]], owner decision 2026-10-23. A
 						// harness writes its own result frame, so a real agent
 						// returns its review findings in its answer, fenced as
 						// the review skill asks; they are read against this
@@ -1185,7 +1185,7 @@ namespace bpr::application {
 
 		std::atomic_bool   Closing    = false;
 		std::atomic_size_t ActiveJobs = 0U;
-		/// [[BPR-PENDING-AQ4]]. Workspace probes posted and not yet answered.
+		/// [[BPR-1751]]. Workspace probes posted and not yet answered.
 		std::atomic_size_t                     Probes        = 0U;
 		std::atomic_uint64_t                   ProbeSessions = 0U;
 		std::mutex                             GateMutex;

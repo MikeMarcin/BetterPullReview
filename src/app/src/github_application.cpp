@@ -325,7 +325,7 @@ namespace bpr::app {
 
 	namespace {
 #if defined(BPR_AGENT_INTEGRATIONS)
-		/// [[BPR-PENDING-AQ5]], RFC-BPR-0092 D1. Writes the edited review skill
+		/// [[BPR-1752]], RFC-BPR-0092 D1. Writes the edited review skill
 		/// to a new file in Downloads (else Documents or home) before Restore
 		/// default or Use version N removes it, and names the file. Never
 		/// replaces a file that is already there.
@@ -3578,7 +3578,7 @@ namespace bpr::app {
 
 		void offer(const std::span<const core::agent_profile> aProfiles) override
 		{
-			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The picker offers
+			// [[BPR-1753]], owner amendment 2026-10-23. The picker offers
 			// the agents the reviewer added, not every profile the host knows.
 			if (OfferFilter) {
 				const auto offered = OfferFilter(aProfiles);
@@ -8825,7 +8825,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 			auto agentProfiles = core::built_in_agent_profiles();
-			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. Every slot an
+			// [[BPR-1753]], owner amendment 2026-10-23. Every slot an
 			// added agent may launch as, told to every host once.
 			std::ranges::move(core::agent_entry_profiles(), std::back_inserter(agentProfiles));
 			// Stated once and given to both hosts. The chat host asks
@@ -8840,7 +8840,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					core::git_host_id{ 2U },
 					core::built_in_agent_host_kind::explicit_ghes),
 			};
-			// [[BPR-PENDING-AQ2]]. Setup's rows carry the same policy.
+			// [[BPR-1749]]. Setup's rows carry the same policy.
 			AgentPolicies = agentPolicies;
 	#if defined(BPR_BUILD_TESTING)
 			if (ExternalAgentExecutable.has_value()) {
@@ -8885,7 +8885,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (AgentProcessProbe != nullptr) {
 				ClaudeProcess = std::make_unique<application::wrapped_claude_process>(*AgentProcessProbe, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
-				// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. Codex and the plain-text
+				// [[BPR-1748]], RFC-BPR-0092 Q5. Codex and the plain-text
 				// harness get an absolute program here, in front of the Claude
 				// wrapper, so a shipped build starts them.
 				LocatedProcess = std::make_unique<application::located_agent_process>(*ClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
@@ -9345,7 +9345,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						}
 					});
 				});
-			// [[BPR-PENDING-AQ2]], RFC-BPR-0092 M2. The profile's agent setup:
+			// [[BPR-1749]], RFC-BPR-0092 M2. The profile's agent setup:
 			// its saved choice and programs, detection when setup shows (Q2) and
 			// the bounded status check (Q3 A) on a launcher and lane of its own.
 			AgentSetupStore    = adapters::sqlite::make_agent_setup_store(ApplicationDataRoot);
@@ -9373,7 +9373,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 			}
 			AgentSetup->load();
-			// [[BPR-PENDING-AQ3]], RFC-BPR-0092 D2. The profile's clone folders
+			// [[BPR-1750]], RFC-BPR-0092 D2. The profile's clone folders
 			// and each repository's remembered clone, read by metadata alone.
 			CloneLinkStore = adapters::sqlite::make_clone_link_store(ApplicationDataRoot);
 			{
@@ -9393,7 +9393,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			CloneLinks->load();
 			observe_clone_repository();
-			// [[BPR-PENDING-AQ5]], RFC-BPR-0092 D1. The review skill: the
+			// [[BPR-1752]], RFC-BPR-0092 D1. The review skill: the
 			// built-in default until the profile edits it.
 			ReviewSkillStore = adapters::sqlite::make_review_skill_store(ApplicationDataRoot);
 			{
@@ -9411,7 +9411,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));
 			}
 			ReviewSkill->load();
-			// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. One
+			// [[BPR-1753]], owner decision (b) 2026-10-23. One
 			// conversation per pull request, kept with the setup.
 			AgentConversationStore = adapters::sqlite::make_agent_conversation_store(ApplicationDataRoot);
 			{
@@ -11468,7 +11468,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
-		/// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). Finds the
+		/// [[BPR-1748]], RFC-BPR-0092 Q5 (owner, 2026-10-22). Finds the
 		/// `codex` a Codex launch with no saved program runs, exactly as
 		/// `locate_claude` finds `claude`: this application's own `PATH` and
 		/// home folder as they are when asked, and Codex's usual folders.
@@ -11477,7 +11477,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	#if defined(BPR_BUILD_TESTING)
 			// A fixture course finds only what it put on its own search PATH,
 			// never the developer's own `codex`; an attended look is a person's
-			// session and finds theirs ([[BPR-PENDING-AQ8]]).
+			// session and finds theirs ([[BPR-1755]]).
 			if (!AttendedAgentSearch && (CodexSearch || ClaudeSearch || Fixture)) {
 				return [codex = CodexSearch, claude = ClaudeSearch](const core::agent_program aProgram) -> std::optional<core::agent_search_candidate> {
 					const auto& search = aProgram == core::agent_program::codex ? codex : claude;
@@ -11495,7 +11495,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 		}
 
-		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A card's action
+		/// [[BPR-1753]], owner decision 2026-10-23. A card's action
 		/// waiting for its file to open in Review: tried again until the file
 		/// is on screen, then given up with words after about ten seconds.
 		struct pending_card_open
@@ -11530,7 +11530,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
 		}
 
-		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. A private note from
+		/// [[BPR-1753]], owner decision 2026-10-23. A private note from
 		/// the Agent tab: on one line of the shown comparison when `aLine`
 		/// names one, otherwise on the review. It belongs to the review's
 		/// private state, not to any agent session.
@@ -11575,7 +11575,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									  }));
 		}
 
-		/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Add as draft comment,
+		/// [[BPR-1753]], owner decision 2026-10-23. Add as draft comment,
 		/// Save as note and Dismiss on one card. A draft and a note are made
 		/// only at lines of the file on screen; for another file the card says
 		/// to open it first. Nothing is published.
@@ -11651,7 +11651,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. What the picker
+		/// [[BPR-1753]], owner amendment 2026-10-23. What the picker
 		/// offers: each added agent the host offers a slot for, in the list's
 		/// order and under its name; a test's own built-in programs as well.
 		[[nodiscard]] auto offered_agent_profiles() const -> std::vector<core::agent_profile>
@@ -11710,7 +11710,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The pull request
+		/// [[BPR-1753]], owner decision (b) 2026-10-23. The pull request
 		/// now open, for its conversation.
 		void observe_conversation()
 		{
@@ -11771,7 +11771,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
-		/// [[BPR-PENDING-AQ3]], RFC-BPR-0092 D2. The repository of the review
+		/// [[BPR-1750]], RFC-BPR-0092 D2. The repository of the review
 		/// now open, for its remembered clone.
 		void observe_clone_repository()
 		{
@@ -11790,10 +11790,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			CloneLinks->observe_repository(std::move(repository));
 		}
 
-		/// [[BPR-PENDING-AQ2]], RFC-BPR-0092. What setup decided reaches the
+		/// [[BPR-1749]], RFC-BPR-0092. What setup decided reaches the
 		/// window: the saved or chosen agent is the one the Agent tab and Send to
 		/// Agent offer first.
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. The linked clone a review's
+		/// [[BPR-1751]], RFC-BPR-0092 Q7. The linked clone a review's
 		/// workspace borrows history from: the observed repository's serving
 		/// link, never for tool-free writing and never the private copy.
 		[[nodiscard]] auto linked_history_clone(const bool aWritingOnly) const -> std::optional<std::filesystem::path>
@@ -11809,7 +11809,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 														  view.Linked->Path.size() } };
 		}
 
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Check it works. One Check runs the
+		/// [[BPR-1751]], RFC-BPR-0092 Check it works. One Check runs the
 		/// agent's own status command and makes, then removes, the workspace an
 		/// Ask would make for the review on screen.
 		void check_agent_setup()
@@ -11867,7 +11867,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									   });
 		}
 
-		/// [[BPR-PENDING-AQ3]]. A repository with a serving link or the private
+		/// [[BPR-1750]]. A repository with a serving link or the private
 		/// copy has its Repository step done.
 		void present_clone_links(const application::clone_link_projection& aProjection)
 		{
@@ -11881,7 +11881,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_setup_view();
 		}
 
-		/// [[BPR-PENDING-AQ6]], RFC-BPR-0092. The Agent tab's setup and its
+		/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
 		/// Settings rows: every press is a request to the setup, clone link or
 		/// review skill host, and their projections are all the view shows.
 		void compose_agent_setup_view()
@@ -11894,7 +11894,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 				return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
 			});
-			// [[BPR-PENDING-AQ6]], owner decision (b). Each turn that ends is
+			// [[BPR-1753]], owner decision (b). Each turn that ends is
 			// kept for the pull request, and Clear session keeps none.
 			tab->set_thread_observer([this](std::vector<qt::agent_thread_turn> aTurns) {
 				if (Closing || !AgentConversation) {
@@ -12081,7 +12081,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							Window->agent_tab()->reset_agents();
 						}
 					},
-				// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The list's edits.
+				// [[BPR-1753]], owner amendment 2026-10-23. The list's edits.
 				.Add =
 					[this](core::agent_entry aEntry, qt::agent_programs_panel::answer aAnswer) {
 						if (!Closing && AgentSetup) {
@@ -12168,7 +12168,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_setup_view();
 		}
 
-		/// [[BPR-PENDING-AQ6]]. The setup's facts beside the two projections,
+		/// [[BPR-1753]]. The setup's facts beside the two projections,
 		/// and the ready line once it finishes.
 		void present_setup_view()
 		{
@@ -12220,7 +12220,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					   QStringLiteral("Fable 5.1") } };
 		}
 
-		/// [[BPR-PENDING-AQ6]], owner look v002. What each agent runs with, for
+		/// [[BPR-1753]], owner look v002. What each agent runs with, for
 		/// the Agent tab's model and effort control and its /model and /effort.
 		void present_run_settings()
 		{
@@ -12228,7 +12228,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto setup = AgentSetup->projection();
-			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. One per added
+			// [[BPR-1753]], owner amendment 2026-10-23. One per added
 			// agent, from its entry; its protocol says which settings apply.
 			auto shown = std::vector<qt::agent_run_settings>{ };
 			for (const auto& entry : setup.Preferences.Agents) {
@@ -12333,7 +12333,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return false;
 			}
 			const auto preferences = AgentSetup->projection().Preferences;
-			// [[BPR-PENDING-AQ6]]. An added agent keeps its model and effort.
+			// [[BPR-1753]]. An added agent keeps its model and effort.
 			if (const auto* const entry = core::entry_of_profile(preferences.Agents, core::agent_profile_id{ aProfile }); entry != nullptr) {
 				auto edited = *entry;
 				if (aModel) {
@@ -12383,7 +12383,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				found.push_back({ .Agent = row.Agent, .Path = row.Path, .How = row.How });
 			}
 			Window->agent_programs()->present(aProjection.Preferences, std::move(found));
-			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The launches use
+			// [[BPR-1753]], owner amendment 2026-10-23. The launches use
 			// the list as published, and the picker offers it.
 			AgentEntries->set(aProjection.Preferences.Agents);
 			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
@@ -12444,7 +12444,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			return core::writing_digest(key);
 		}
-		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. The agent
+		/// \brief [[BPR-1753]], owner decision 2026-10-23. The agent
 		/// tour writing asks: the one chosen in the Agent tab when it speaks
 		/// Claude Code's stream JSON (tool-free writing needs it), otherwise the
 		/// first added agent that does.
@@ -19169,7 +19169,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					refused();
 					return;
 				}
-				// [[BPR-PENDING-AQ6]]. A finding card stays where it is and
+				// [[BPR-1753]]. A finding card stays where it is and
 				// says Drafted; every other promotion opens the draft.
 				if (done) {
 					done();
@@ -19443,7 +19443,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AgentHost->observe(
 				state.ApplicationSession, authority, observedBinding);
 			if (AgentSetup) {
-				// [[BPR-PENDING-AQ2]]. Setup's rows carry this review's host
+				// [[BPR-1749]]. Setup's rows carry this review's host
 				// policy, the same the agent host decides by.
 				AgentSetup->observe_policy(core::policy_for_host(AgentPolicies, authority.Host));
 			}
@@ -19609,13 +19609,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			observation.CurrentDraft = current_agent_draft_observation();
-			// [[BPR-PENDING-AQ5]], RFC-BPR-0092. A review request carries the
+			// [[BPR-1752]], RFC-BPR-0092. A review request carries the
 			// brief: what the reviewer can read on GitHub about this pull
 			// request, bounded, and the review skill's text (Q9 A). A comment
 			// workshop press and a writing request are not review requests.
 			if (!aWritingOnly && aEntryPoint != core::agent_entry_point::workshop_comment && WindowRead->accepted_snapshot()) {
 				auto brief = application::read_review_brief(*WindowRead->accepted_snapshot(), ReviewSkill ? ReviewSkill->brief_skill() : std::nullopt);
-				// [[BPR-PENDING-AQ6]], owner decision (b). The conversation so
+				// [[BPR-1753]], owner decision (b). The conversation so
 				// far about this pull request, so a follow-up continues it.
 				if (AgentConversation) {
 					const auto earlier = AgentConversation->projection().Turns;
@@ -19759,7 +19759,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aProfile == core::claude_stream_json_profile_id && !requested.Model && !ClaudeModel.empty()) {
 				requested.Model = ClaudeModel;
 			}
-			// [[BPR-PENDING-AQ6]], owner look v002. The model and effort the tab
+			// [[BPR-1753]], owner look v002. The model and effort the tab
 			// shows are the ones this request runs with.
 			if (AgentSetup) {
 				const auto preferences = AgentSetup->projection().Preferences;
@@ -19775,7 +19775,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					}
 				}
 			}
-			// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. An added agent runs
+			// [[BPR-1753]], owner amendment 2026-10-23. An added agent runs
 			// with its own model and effort unless the request names one.
 			if (AgentSetup) {
 				const auto agents = AgentSetup->projection().Preferences.Agents;
@@ -21013,7 +21013,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			SelectedDiffPublication = aPublication;
 #if defined(BPR_AGENT_INTEGRATIONS)
-			// [[BPR-PENDING-AQ6]], owner decision (a): Review <open file path>.
+			// [[BPR-1753]], owner decision (a): Review <open file path>.
 			Window->agent_tab()->refresh_suggestions();
 			present_agent_pull_request();
 #endif
@@ -21828,7 +21828,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				overview->adopt_appearance(*AppearanceProfile);
 			}
 #if defined(BPR_AGENT_INTEGRATIONS)
-			// [[BPR-PENDING-AQ6]], owner look v003. The agent's answers' code in
+			// [[BPR-1753]], owner look v003. The agent's answers' code in
 			// the panes' colours and code font.
 			if (auto* const agent = Window->agent_tab(); agent != nullptr) {
 				agent->adopt_appearance(*AppearanceProfile);
@@ -23159,38 +23159,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// holds the port, so the port outlives it.
 		std::shared_ptr<application::claude_process_wrapper_source> ClaudeWrapperSource = std::make_shared<application::claude_process_wrapper_source>();
 		std::unique_ptr<application::wrapped_claude_process>        ClaudeProcess;
-		/// [[BPR-PENDING-AQ1]]. The Codex and plain-text harness programs this
+		/// [[BPR-1748]]. The Codex and plain-text harness programs this
 		/// window's profile saved, and the port that gives those launches an
 		/// absolute program.
 		std::shared_ptr<application::agent_program_source> AgentProgramSource = std::make_shared<application::agent_program_source>();
-		/// [[BPR-PENDING-AQ2]]. The host policies the agent host decides by,
+		/// [[BPR-1749]]. The host policies the agent host decides by,
 		/// kept so setup's rows carry the same verdicts.
 		std::vector<core::agent_host_policy>                AgentPolicies;
 		std::unique_ptr<application::located_agent_process> LocatedProcess;
 		std::unique_ptr<application::claude_wrapper_editor> ClaudeWrapperEditor;
-		/// [[BPR-PENDING-AQ2]]. The profile's agent setup: its store, the
+		/// [[BPR-1749]]. The profile's agent setup: its store, the
 		/// check's own launcher and lane, and the host. Declared in that order
 		/// so the host goes first.
 		std::unique_ptr<application::agent_setup_store_port>     AgentSetupStore;
 		std::unique_ptr<adapters::agent::agent_process_launcher> AgentSetupLauncher;
 		std::unique_ptr<worker_executor>                         AgentSetupLane;
 		std::unique_ptr<application::agent_setup_host>           AgentSetup;
-		/// [[BPR-PENDING-AQ3]]. Clone folders and links: store, then host.
+		/// [[BPR-1750]]. Clone folders and links: store, then host.
 		std::unique_ptr<application::clone_link_store_port> CloneLinkStore;
 		std::unique_ptr<application::clone_link_host>       CloneLinks;
-		/// [[BPR-PENDING-AQ5]]. The review skill: store, then host.
+		/// [[BPR-1752]]. The review skill: store, then host.
 		std::unique_ptr<application::review_skill_store_port> ReviewSkillStore;
 		std::unique_ptr<application::review_skill_host>       ReviewSkill;
-		/// [[BPR-PENDING-AQ6]]. Each pull request's conversation: store, then host.
+		/// [[BPR-1753]]. Each pull request's conversation: store, then host.
 		std::unique_ptr<application::agent_conversation_store_port> AgentConversationStore;
 		std::unique_ptr<application::agent_conversation_host>       AgentConversation;
-		/// [[BPR-PENDING-AQ4]]. Why the last workspace probe could not make the
+		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;
-		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+		/// [[BPR-1753]], owner amendment 2026-10-23. The agents the
 		/// reviewer added, for the launches, and the process that starts them.
 		std::shared_ptr<application::agent_entry_source>  AgentEntries = std::make_shared<application::agent_entry_source>();
 		std::unique_ptr<application::agent_entry_process> EntryProcess;

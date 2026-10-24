@@ -11,7 +11,7 @@
 #include <vector>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092. What setup keeps for one
+	/// \brief [[BPR-1749]], RFC-BPR-0092. What setup keeps for one
 	/// application profile. Identities and paths only: there is no field a
 	/// credential, token or environment value could occupy.
 	struct agent_setup_preferences
@@ -26,14 +26,14 @@ namespace bpr::application {
 		std::string HarnessProgram;
 		/// Q4: which of Codex's protocols a Codex launch speaks.
 		core::codex_protocol_choice CodexProtocol = core::codex_protocol_choice::app_server;
-		/// [[BPR-PENDING-AQ6]], owner look v002. The effort Claude Code runs at
+		/// [[BPR-1753]], owner look v002. The effort Claude Code runs at
 		/// (`--effort`); empty: Claude's own setting. Claude's model is the
 		/// profile's existing Claude › Model setting.
 		std::string ClaudeEffort;
 		/// The model and reasoning effort Codex runs with; empty: Codex's own.
 		std::string CodexModel;
 		std::string CodexEffort;
-		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+		/// [[BPR-1753]], owner amendment 2026-10-23. The agents the
 		/// reviewer added, in their order; the picker offers these and nothing
 		/// else. `AgentsMoved` says the settings above were moved into the
 		/// list once, so a removed entry does not come back.

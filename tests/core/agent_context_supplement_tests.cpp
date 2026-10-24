@@ -261,13 +261,13 @@ namespace {
 		static_assert(std::is_same_v<decltype(guidanceSource), const core::feedback_guidance_source>);
 		static_assert(std::is_same_v<decltype(guidanceVersion), const std::string>);
 		static_assert(std::is_same_v<decltype(guidanceText), const std::string>);
-		// [[BPR-PENDING-AQ5]]. The brief: what the reviewer can read on GitHub,
+		// [[BPR-1752]]. The brief: what the reviewer can read on GitHub,
 		// the workspace's kind and the review skill's text; no argv,
 		// environment or token.
 		static_assert(std::is_same_v<decltype(brief), const std::optional<core::supplement_brief>>);
 		[[maybe_unused]] const auto& [briefTitle, briefDescription, briefCut, briefBase, briefFiles, briefFilesOmitted, briefThreads, briefThreadsOmitted, briefWorkspace,
 									  briefSkill, briefConversation, briefConversationOmitted] = core::supplement_brief{ };
-		// [[BPR-PENDING-AQ6]]. The conversation so far: questions and answers
+		// [[BPR-1753]]. The conversation so far: questions and answers
 		// as prose, no argv, environment or token.
 		static_assert(std::is_same_v<decltype(briefConversation), const std::vector<core::brief_turn>>);
 		[[maybe_unused]] const auto& [turnAsked, turnAnswered] = core::brief_turn{ };

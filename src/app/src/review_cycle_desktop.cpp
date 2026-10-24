@@ -364,11 +364,11 @@ namespace bpr::app {
 		const auto entryPrograms = aLocatePrograms;
 		SendClaude               = std::make_unique<application::wrapped_claude_process>(*SendLauncher, std::move(aClaudeWrapper), &adapters::agent::inspect_claude_process_wrapper,
 																						 std::move(aLocateClaude));
-		// [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. A Codex or plain-text harness
+		// [[BPR-1748]], RFC-BPR-0092 Q5. A Codex or plain-text harness
 		// send runs the program the window's launches run.
 		SendProcesses = std::make_unique<application::located_agent_process>(*SendClaude, std::move(aPrograms), &adapters::agent::inspect_claude_process_wrapper,
 																			 std::move(aLocatePrograms));
-		// [[BPR-PENDING-AQ6]], owner decision 2026-10-23: an added agent runs
+		// [[BPR-1753]], owner decision 2026-10-23: an added agent runs
 		// its own program with its fixed arguments, as in the Agent tab.
 		SendEntries      = std::make_shared<application::agent_entry_source>();
 		SendEntryProcess = std::make_unique<application::agent_entry_process>(*SendLauncher, *SendProcesses, SendEntries, &adapters::agent::inspect_claude_process_wrapper, std::move(entryClaude), entryPrograms);

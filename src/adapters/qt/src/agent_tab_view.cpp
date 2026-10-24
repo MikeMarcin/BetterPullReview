@@ -672,7 +672,7 @@ namespace bpr::qt {
 		Log->hide();
 		bannerCol->addWidget(Log);
 		contentCol->addWidget(Banner);
-		// [[BPR-PENDING-AQ6]]. The ready line once setup finishes, and what
+		// [[BPR-1753]]. The ready line once setup finishes, and what
 		// the agent gets with each question.
 		ReadyCard = new rounded{ rounded::look::ready, content };
 		ReadyCard->setObjectName(QStringLiteral("agentReadyCard"));
@@ -932,7 +932,7 @@ namespace bpr::qt {
 			connect(action, &QAction::changed, this, again);
 		}
 		connect(profiles, &QComboBox::currentIndexChanged, this, again);
-		// [[BPR-PENDING-AQ6]], owner look v001 ("no indication anything
+		// [[BPR-1753]], owner look v001 ("no indication anything
 		// happened"). The working line follows the request as it moves, with
 		// the time it has taken, so a long run never looks like nothing.
 		Launch.add_progress_observer([this] { progress(); });
@@ -1574,7 +1574,7 @@ namespace bpr::qt {
 		}
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
 		SuggestionsLine->setVisible(Turns.empty());
-		// [[BPR-PENDING-AQ8]], the owner's accept of look v007 ("Hide
+		// [[BPR-1755]], the owner's accept of look v007 ("Hide
 		// suggestions until the the agent is done thinking"): none while a
 		// turn runs; they return when it has finished.
 		Suggestions->setVisible(conversing && SuggestionsMenu->isChecked() && State != agent_tab_state::working);
@@ -1831,7 +1831,7 @@ namespace bpr::qt {
 																	: tr("%1 Your question is kept.").arg(Launch.stop_reason_text()));
 			BannerFirst->setText(tr("Ask again"));
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
-			// [[BPR-PENDING-AQ6]], RFC-BPR-0092 Partly set up. An Ask that ended
+			// [[BPR-1753]], RFC-BPR-0092 Partly set up. An Ask that ended
 			// for a setup reason offers that check again, then the setup's
 			// words, rather than only asking again. The question is kept.
 			if (SetupView != nullptr && CheckAgain

@@ -404,7 +404,7 @@ namespace bpr::qt {
 		Status->setForegroundRole(QPalette::PlaceholderText);
 		Status->hide();
 		column->addWidget(Status);
-		// [[BPR-PENDING-AQ6]], owner look v003 ("The note we saved also has
+		// [[BPR-1753]], owner look v003 ("The note we saved also has
 		// some not great ux at the bottom"): the header's lock already says the
 		// note is private, so the foot holds the actions alone: Delete on the
 		// left, then Discard changes, Draft comment and Save, whole at any

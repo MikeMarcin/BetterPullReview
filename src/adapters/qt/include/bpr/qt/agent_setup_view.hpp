@@ -23,7 +23,7 @@ class QPushButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092. What the reviewer can do in
+	/// \brief [[BPR-1753]], RFC-BPR-0092. What the reviewer can do in
 	/// the setup; each is a request to the host, never an effect here.
 	struct agent_setup_intents
 	{
@@ -42,7 +42,7 @@ namespace bpr::qt {
 		std::function<void()>                         UsePrivateCopy;
 		std::function<void()>                         Check;
 		std::function<void()>                         Stop;
-		/// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. A custom agent the
+		/// [[BPR-1753]], owner amendment 2026-10-23. A custom agent the
 		/// reviewer described in setup: added to the list and chosen.
 		std::function<void(core::agent_entry)> AddCustomAgent;
 	};
@@ -62,7 +62,7 @@ namespace bpr::qt {
 		auto operator<=>(const agent_setup_facts&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 (owner answer Q1 A). The
+	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner answer Q1 A). The
 	/// Agent tab's setup, in place of the conversation: Agent, Repository,
 	/// Check it works, each folding to one line with **Change** once done.
 	///
@@ -126,7 +126,7 @@ namespace bpr::qt {
 		QLabel*                             Intro  = nullptr;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092 Ready. What one review
+	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review
 	/// request's brief holds, in numbers and names, for **What the agent gets**.
 	struct agent_ready_facts
 	{
@@ -146,11 +146,11 @@ namespace bpr::qt {
 	/// \brief **What the agent gets**, one line per part of the brief.
 	[[nodiscard]] auto agent_ready_gets(const agent_ready_facts& aFacts) -> QString;
 
-	/// \brief [[BPR-PENDING-AQ6]]. The words for a workspace that could not be
+	/// \brief [[BPR-1753]]. The words for a workspace that could not be
 	/// made: what happened, then what to do ([[BPR-1738]]).
 	[[nodiscard]] auto workspace_unavailable_words(application::agent_workspace_unavailable_reason aReason) -> QString;
 
-	/// \brief [[BPR-PENDING-AQ6]]. The words for a setup check that failed,
+	/// \brief [[BPR-1753]]. The words for a setup check that failed,
 	/// for the setup and for a later Ask that failed for the same reason.
 	[[nodiscard]] auto setup_failure_words(core::agent_setup_failure aFailure, const QString& aAgent, const QString& aDetail) -> QString;
 

@@ -86,7 +86,7 @@ namespace bpr::core {
 	/// Linguist names and aliases; a leading dot names an extension.
 	[[nodiscard]] auto markdown_code_language_of(std::string_view aInfo) -> markdown_code_language;
 
-	/// \brief [[BPR-PENDING-AQ6]], owner look v004. The file name inline
+	/// \brief [[BPR-1753]], owner look v004. The file name inline
 	/// code about a change is coloured as: the selector of the language most
 	/// of `aPaths` are in, by extension, leaving out prose and data
 	/// (Markdown, JSON, YAML, TOML, INI, XML, reStructuredText, AsciiDoc).

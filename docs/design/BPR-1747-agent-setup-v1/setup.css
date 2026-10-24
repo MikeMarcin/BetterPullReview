@@ -1,4 +1,4 @@
-/* BPR-PENDING-AN design round v1: the setup's own parts, on BPR-1574's kit tokens. */
+/* BPR-1747 design round v1: the setup's own parts, on BPR-1574's kit tokens. */
 .agentbody { position:absolute; inset:0; display:flex; flex-direction:column; overflow:hidden; }
 .setup { padding:14px 14px 0; display:flex; flex-direction:column; gap:10px; flex:1; min-height:0; }
 .setup .st { margin:0; font-size:15px; font-weight:650; color:var(--ink); }

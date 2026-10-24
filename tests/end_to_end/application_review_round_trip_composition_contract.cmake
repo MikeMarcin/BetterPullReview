@@ -1,11 +1,14 @@
-# [[BPR-PENDING-AQ8]] reseal (2026-10-24) over the reseal below, linear, on
+# Coordinator landing reseal (2026-10-24) over the reseal below, rename only:
+# provisional BPR-PENDING-AN and AQ1..AQ9 card references in src/app comments
+# became BPR-1747..BPR-1756. No behavior change; mutation 16d135419 stays exact.
+# [[BPR-1755]] reseal (2026-10-24) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, the owner's accept of look v007:
 # github_application.cpp's Reset agents also asks the existing agent
 # conversation host to forget which agent each pull request was last asked
 # with, keeping every turn. No grant, target, provider, credential, mutation
 # or publication path changes; no new src/app source. Full and manifest pins
 # bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-24) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-24) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v006: github_application.cpp
 # offers each added agent the models and effort levels its own harness listed
 # (the existing agent setup host's catalog, asked through the existing setup
@@ -17,7 +20,7 @@
 # host. No grant, target, provider, credential, mutation or publication path
 # changes; no new src/app source. Full and manifest pins bind these bytes;
 # mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v004: github_application.cpp
 # names Claude Code's models with their versions; gives the Agent tab the pull
 # request's title and the language its inline code is coloured in
@@ -29,7 +32,7 @@
 # with the existing agent setup host. No grant, target, provider, credential,
 # mutation or publication path changes; no new src/app source. Full and
 # manifest pins bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v003 and decisions of
 # 2026-10-23: github_application.cpp gives the Agent tab the profile's code
 # appearance; passes the reviewer's optional run time limit (none by default)
@@ -41,7 +44,7 @@
 # at the line as before. No grant, target, provider, credential, mutation or
 # publication path changes; no new src/app source. Full and manifest pins bind
 # these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner amendment 2026-10-23 (agents
 # are a list) and decision (a session per agent): github_application.cpp
 # tells every host the agent-entry profile slots (core::agent_entry_profiles,
@@ -54,7 +57,7 @@
 # setup's Custom agent to agent_setup_host. No grant, target, provider,
 # credential, mutation or publication path changes; no new src/app source.
 # Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner decision 2026-10-23 ("Yep
 # build it like that"): github_application.cpp takes a finding card's Add as
 # draft comment through the existing private-text promotion into the line's
@@ -64,7 +67,7 @@
 # the existing finding host. Nothing is published; no grant, target,
 # provider, credential, mutation or publication path changes; no new src/app
 # source. Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner decisions (a), (b) and (c) of
 # 2026-10-23: github_application.cpp composes application::agent_conversation_host
 # (a new application source on the decision lane, its store on the existing
@@ -75,7 +78,7 @@
 # prompts read the open file's path and the selected lines. No grant, target,
 # provider, credential, mutation or publication path changes; no new src/app
 # source. Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the reseal below, linear, on
+# [[BPR-1753]] reseal (2026-10-23) over the reseal below, linear, on
 # this card's commit. Pinned-scope change, owner look v002: github_application.cpp
 # presents to the Agent tab what each agent runs with (its program, model and
 # effort, Claude's model being the existing Claude › Model preference) and
@@ -87,7 +90,7 @@
 # -c model_reasoning_effort for Codex exec. No grant, target, provider,
 # credential, mutation or publication path changes; no new src/app source.
 # Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-23) over the rebase reseal below,
+# [[BPR-1753]] reseal (2026-10-23) over the rebase reseal below,
 # linear, on this card's commit. Pinned-scope change, owner look v002:
 # github_application.cpp hands the setup's and Settings' new Visual
 # Studio-style clone-folder list (the whole ordered list after an edit, a
@@ -95,17 +98,17 @@
 # place of adding and removing one folder. No grant, target, provider,
 # credential, mutation or publication path changes; no new src/app source.
 # Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
-# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-PENDING-AQ1 to AQ8)
+# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-1748 to AQ8)
 # rebased onto main ee99318f4 (BPR-1746, whose own notes follow). github_application.cpp
 # holds both lines of work with no overlapping hunk; the per-card notes below
 # name the rebased slices. Full and manifest pins bind these bytes; mutation
 # 16d135419 stays exact.
-# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-PENDING-AQ1 to AQ8)
+# Rebase reseal (2026-10-22): RFC-BPR-0092's lane (BPR-1748 to AQ8)
 # rebased onto main b8d2ec6cf, whose own notes follow. github_application.cpp
 # holds both lines of work with no overlapping hunk; the per-card notes below
 # name the rebased slices. Full and manifest pins bind these bytes; mutation
 # 16d135419 stays exact.
-# [[BPR-PENDING-AQ8]] reseal (2026-10-22) over the BPR-PENDING-AQ6 reseal
+# [[BPR-1755]] reseal (2026-10-22) over the BPR-1753 reseal
 # below, linear, on this card's commit. Pinned-scope change, tests-on only:
 # github_application.cpp's locate_agent_program finds this computer's own
 # agents for an attended look (AttendedAgentSearch, which main.cpp sets with
@@ -115,7 +118,7 @@
 # provider, credential, mutation or publication path changes; no new src/app
 # source. Full and manifest pins bind these bytes; mutation 16d135419 stays
 # exact.
-# [[BPR-PENDING-AQ6]] reseal (2026-10-22) over the rebase reseal below,
+# [[BPR-1753]] reseal (2026-10-22) over the rebase reseal below,
 # linear, on this card's commit. Pinned-scope change, RFC-BPR-0092 M6 (owner
 # answer Q1 A): github_application.cpp, agent builds only, adopts the
 # window's qt::agent_setup_view into the Agent tab and wires its presses, and
@@ -129,7 +132,7 @@
 # accepted snapshot's title, files and threads. No grant, target, provider,
 # credential, mutation or publication path changes; no new src/app source.
 # Full and manifest pins bind these bytes; mutation 16d135419 stays exact.
-# Rebase reseal (2026-10-22): BPR-PENDING-AQ1 to AQ5 rebased onto main
+# Rebase reseal (2026-10-22): BPR-1748 to AQ5 rebased onto main
 # 4e318b625 (BPR-1741's reactions and Resolve conversation, whose notes
 # follow), and their RFC renumbered from RFC-BPR-0091, which main had taken,
 # to RFC-BPR-0092. github_application.cpp holds both lanes' changes with no
@@ -137,7 +140,7 @@
 # identities in comments. The per-card notes below keep their wording with
 # the rebased identities. Full and manifest pins bind these bytes; mutation
 # 16d135419 stays exact.
-# [[BPR-PENDING-AQ5]] reseal (2026-10-22) over the BPR-PENDING-AQ4 reseal
+# [[BPR-1752]] reseal (2026-10-22) over the BPR-1751 reseal
 # below (f4ada43e5), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M5 (owner decision D1, answer Q9 A): github_application.cpp,
 # agent builds only, gives every review request (each entry point but a
@@ -155,7 +158,7 @@
 # provider, credential, mutation or publication path changes; no new src/app
 # source. Full and manifest pins bind these bytes; mutation 16d135419 stays
 # exact.
-# [[BPR-PENDING-AQ4]] reseal (2026-10-22) over the BPR-PENDING-AQ3 reseal
+# [[BPR-1751]] reseal (2026-10-22) over the BPR-1750 reseal
 # below (860bd14f4), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M4 (owner answer Q7 of 2026-10-22): github_application.cpp,
 # agent builds only, gives each agent workspace request the linked clone the
@@ -169,7 +172,7 @@
 # target, provider, credential, mutation or publication path changes; no new
 # src/app source. Full and manifest pins bind these bytes; mutation 16d135419
 # stays exact.
-# [[BPR-PENDING-AQ3]] reseal (2026-10-22) over the BPR-PENDING-AQ2 reseal
+# [[BPR-1750]] reseal (2026-10-22) over the BPR-1749 reseal
 # below (d005bb3ae), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M3 (owner decision D2 of 2026-10-22): github_application.cpp,
 # agent builds only, composes the profile's clone folders and repository
@@ -185,7 +188,7 @@
 # quiescence. No grant, target, provider, credential, mutation or publication
 # path changes; no new src/app source. Full and manifest pins bind these
 # bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ2]] reseal (2026-10-22) over the BPR-PENDING-AQ1 reseal
+# [[BPR-1749]] reseal (2026-10-22) over the BPR-1748 reseal
 # below (c3a561778), linear, on this card's commit. Pinned-scope change,
 # RFC-BPR-0092 M2 (owner answers Q2 and Q3 A of 2026-10-22):
 # github_application.cpp, agent builds only, composes the profile's agent
@@ -204,7 +207,7 @@
 # provider, credential, child environment, mutation or publication path
 # changes; host policy unchanged; no new src/app source. Full and manifest pins
 # bind these bytes; mutation 16d135419 stays exact.
-# [[BPR-PENDING-AQ1]] reseal (2026-10-22) over last matching main 92162efed,
+# [[BPR-1748]] reseal (2026-10-22) over last matching main 92162efed,
 # linear, on this card's commit. Pinned-scope change, RFC-BPR-0092 Q5 (owner,
 # 2026-10-22): github_application.cpp, agent builds only, puts
 # application::located_agent_process in front of the Claude wrapper port, so
@@ -2335,7 +2338,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"7f11dcb437aabd0936711d067506ebfc6d0d54cf4059cf63977a51d4724eaf94"
+		"85ca7a585b699f8257c9eec80673a0665fe1b491fac3318162c2294b394304ab"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2559,7 +2562,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "688ee6bcaf6dbdf70f2416bb7e9014b382c9f65f3af7656fde4c332ab5771c8e"
+        "ca975c86d7206088bf8b4b52d9841768c589ae089b0b482d99a46e5cb0400956"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

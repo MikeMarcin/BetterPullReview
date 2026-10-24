@@ -488,7 +488,7 @@ bpr_enable_warnings(test_better_pull_review_agent_wrapper_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_wrapper COMMAND test_better_pull_review_agent_wrapper_core_tests)
 set_tests_properties(core_agent_wrapper PROPERTIES PASS_REGULAR_EXPRESSION "agent-wrapper-tests:pass")
 
-# [[BPR-PENDING-AQ1]]. RFC-BPR-0092's agent setup: rows, choice, checks, steps.
+# [[BPR-1748]]. RFC-BPR-0092's agent setup: rows, choice, checks, steps.
 bpr_add_executable(test_better_pull_review_agent_setup_core_tests agent_setup_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_setup_core_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_agent_setup_core_tests)
@@ -1324,7 +1324,7 @@ bpr_enable_hardening(test_core_computation_boundaries)
 bpr_enable_warnings(test_core_computation_boundaries)
 bpr_add_network_isolated_test(NAME core_computation_boundaries COMMAND test_core_computation_boundaries)
 
-# [[BPR-PENDING-AQ3]]. RFC-BPR-0092 D2: clone remotes, URLs and matching.
+# [[BPR-1750]]. RFC-BPR-0092 D2: clone remotes, URLs and matching.
 bpr_add_executable(test_better_pull_review_clone_discovery_core_tests clone_discovery_tests.cpp)
 target_link_libraries(test_better_pull_review_clone_discovery_core_tests PRIVATE BetterPullReview::Core)
 bpr_enable_hardening(test_better_pull_review_clone_discovery_core_tests)
@@ -1332,7 +1332,7 @@ bpr_enable_warnings(test_better_pull_review_clone_discovery_core_tests)
 bpr_add_network_isolated_test(NAME core_clone_discovery COMMAND test_better_pull_review_clone_discovery_core_tests)
 set_tests_properties(core_clone_discovery PROPERTIES PASS_REGULAR_EXPRESSION "clone-discovery-tests:pass")
 
-# [[BPR-PENDING-AQ5]]. RFC-BPR-0092 D1 and Q9 A: the review skill's front matter,
+# [[BPR-1752]]. RFC-BPR-0092 D1 and Q9 A: the review skill's front matter,
 # the newer-version offer and the review brief's bounds.
 bpr_add_executable(test_better_pull_review_review_skill_core_tests review_skill_tests.cpp)
 target_link_libraries(test_better_pull_review_review_skill_core_tests PRIVATE BetterPullReview::Core)
@@ -1343,7 +1343,7 @@ bpr_enable_warnings(test_better_pull_review_review_skill_core_tests)
 bpr_add_network_isolated_test(NAME core_review_skill COMMAND test_better_pull_review_review_skill_core_tests)
 set_tests_properties(core_review_skill PROPERTIES PASS_REGULAR_EXPRESSION "review-skill-tests:pass")
 
-# [[BPR-PENDING-AQ6]]. RFC-BPR-0092 owner amendment 2026-10-23: the agent list,
+# [[BPR-1753]]. RFC-BPR-0092 owner amendment 2026-10-23: the agent list,
 # its slots, its edits and the move from the single Claude and Codex settings.
 bpr_add_executable(test_better_pull_review_agent_entry_core_tests agent_entry_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_entry_core_tests PRIVATE BetterPullReview::Core)

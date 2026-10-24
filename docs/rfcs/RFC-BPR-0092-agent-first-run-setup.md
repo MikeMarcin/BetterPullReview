@@ -4,7 +4,7 @@ title: "Set up an agent the first time the Agent tab opens"
 status: "In Progress"
 area: "BPR"
 depends_on: ["RFC-BPR-0003", "RFC-BPR-0011", "RFC-BPR-0012", "RFC-BPR-0060", "RFC-BPR-0085"]
-metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-PENDING-AN", "revision": "r3 2026-10-22, owner answers Q1-Q9 recorded", "revisions": ["r1: agent, check and ready steps", "r2: the owner's first-run failure, the Repository step and worktrees, the review brief, and owner decisions D1 (an editable review skill) and D2 (clone folders)", "r3: adopted with the owner's answers to Q1-Q9 and BPR-1738's sparse workspace"], "draft": "docs/rfcs/assets/agent-first-run-setup-v1/RFC-DRAFT-0026-agent-first-run-setup.md", "import": "docs/rfcs/assets/agent-first-run-setup-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-PENDING-AN-agent-setup-v1/index.html", "observed_at": "b69b82c9b", "owner_questions": "Q1-Q9 answered 2026-10-22: Q1 and Q3 in attended session 349862f0cb991e14b6cb57cf80653c5f (closed), Q2 and Q4-Q9 in chat because the page blocked them"}
+metadata: {"origin": {"date": "2026-10-22", "channel": "owner chat, relayed by the coordinator"}, "card": "BPR-1747", "revision": "r3 2026-10-22, owner answers Q1-Q9 recorded", "revisions": ["r1: agent, check and ready steps", "r2: the owner's first-run failure, the Repository step and worktrees, the review brief, and owner decisions D1 (an editable review skill) and D2 (clone folders)", "r3: adopted with the owner's answers to Q1-Q9 and BPR-1738's sparse workspace"], "draft": "docs/rfcs/assets/agent-first-run-setup-v1/RFC-DRAFT-0026-agent-first-run-setup.md", "import": "docs/rfcs/assets/agent-first-run-setup-v1.LIVE_IMPORT.md", "authoring": "author-rfc; frontend-design:frontend-design loaded for the design frames", "design_frames": "docs/design/BPR-1747-agent-setup-v1/index.html", "observed_at": "b69b82c9b", "owner_questions": "Q1-Q9 answered 2026-10-22: Q1 and Q3 in attended session 349862f0cb991e14b6cb57cf80653c5f (closed), Q2 and Q4-Q9 in chat because the page blocked them"}
 ---
 
 # Set up an agent the first time the Agent tab opens
@@ -13,10 +13,10 @@ In Progress, revision r3. Adopted from
 [RFC-DRAFT-0026](assets/agent-first-run-setup-v1/RFC-DRAFT-0026-agent-first-run-setup.md)
 ([import record](assets/agent-first-run-setup-v1.LIVE_IMPORT.md)) after the
 owner answered its nine questions and made decisions D1 and D2. Card
-[[BPR-PENDING-AN]] holds the phase 1 finding; the milestone cards are listed
+[[BPR-1747]] holds the phase 1 finding; the milestone cards are listed
 under [Milestones](#milestones). Every criterion passes at `08acf5b10` and
 the owner accepted the look (AC14) on 2026-10-24; the closeout card
-[[BPR-PENDING-AQ9]] records them and sets this RFC's status once its
+[[BPR-1756]] records them and sets this RFC's status once its
 dependency RFC-BPR-0085 is `Auto-Verified`.
 
 ## Problem and grounded current behavior
@@ -28,7 +28,7 @@ The owner, 2026-10-22, verbatim:
 
 Observed on `b69b82c9b`, a tests-on release build rendered offscreen on the
 `conventional-comments-v1` fixture with a fresh profile, light and dark
-([frames](../design/BPR-PENDING-AN-agent-setup-v1/index.html#today)):
+([frames](../design/BPR-1747-agent-setup-v1/index.html#today)):
 
 - **The tab assumes an agent.** The Agent tab ([[BPR-1594]],
   `src/adapters/qt/src/agent_tab_view.cpp`) shows its `not_set_up` empty
@@ -128,7 +128,7 @@ So the working first-run path today is: install Claude Code, sign in to it
 in a terminal, open a pull request, find "Approved Claude stream JSON" in the
 menu, and Ask, in a workspace that works only while the cache is whole.
 Codex does not work. The design page's
-[table](../design/BPR-PENDING-AN-agent-setup-v1/index.html) marks
+[table](../design/BPR-1747-agent-setup-v1/index.html) marks
 which steps the app could detect, do or only explain.
 
 The owner's own review skill, relayed by the coordinator, shows what an
@@ -268,8 +268,8 @@ history, branches, tags, LFS files or submodules" for a sparse one.
 With a linked clone, each agent session gets its own worktree of that clone
 at the session's head (Q7 accepted):
 
-> **Implementation note ([[BPR-PENDING-AQ4]], 2026-10-22, accepted by the
-> owner in [[BPR-PENDING-AQ8]]'s look v001, Q2).** Built as the existing private
+> **Implementation note ([[BPR-1751]], 2026-10-22, accepted by the
+> owner in [[BPR-1755]]'s look v001, Q2).** Built as the existing private
 > disposable workspace with the clone's history borrowed through one
 > `objects/info/alternates` line, not as `git worktree add`: a worktree's
 > `.git` file cannot hold the workspace's owner-private marker and journaled
@@ -356,7 +356,7 @@ Every review request carries a brief, as context supplement version three
   the private copy, and that copy's limits;
 - the version-two fields as now, and the review skill's text (D1, Q9 A).
 
-> **Implementation note ([[BPR-PENDING-AQ5]], 2026-10-22).** The brief's
+> **Implementation note ([[BPR-1752]], 2026-10-22).** The brief's
 > lines follow every version-two field and are written only when a brief is
 > present, as the feedback guidance's are: a comment-workshop press and a
 > writing request carry none, and their bytes differ from version two only in
@@ -410,13 +410,13 @@ the reviewer can edit.
   and nothing is written to any harness's configuration. The reviewer's own skills in their harness still load as the
   harness loads them.
 
-> **Implementation note ([[BPR-PENDING-AQ5]], 2026-10-22, accepted by the
-> owner in [[BPR-PENDING-AQ8]]'s look v001, Q2).** The edited copy and its record live in
+> **Implementation note ([[BPR-1752]], 2026-10-22, accepted by the
+> owner in [[BPR-1755]]'s look v001, Q2).** The edited copy and its record live in
 > the profile's `agent-setup.sqlite3` (settings, which resets and purge
 > already cover), not as files under `agent-skills/bpr-pr-review/`: the
 > profile maintenance inventory admits only paths it knows, and a new folder
 > there is purge work of its own. **Open in editor** is therefore not offered
-> yet; the Settings editor ([[BPR-PENDING-AQ6]]) is how the skill is edited.
+> yet; the Settings editor ([[BPR-1753]]) is how the skill is edited.
 > The package ships `SKILL.md` alone, with no references.
 
 ### Check it works
@@ -513,14 +513,14 @@ clones.
   agent and Git adapters own locating, inspecting and running. The widget
   raises intents and performs no file, process, network or settings effect.
 
-  > **Implementation note ([[BPR-PENDING-AQ7]], 2026-10-22).** As built, the
+  > **Implementation note ([[BPR-1754]], 2026-10-22).** As built, the
   > core owns the setup state, rows, policy filtering, matching, the brief's
   > bounds and the skill's front matter and versions; the words for each
   > state and failure are Qt's (the repository's rule that wording lives in
   > Qt), and a status check's bounded output is decoded in the application
   > host with the project's bounded JSON parser, beside the launch that
   > produced it. No Git command runs in the reviewer's clone
-  > ([[BPR-PENDING-AQ4]]). Which step the setup shows open, and whether it is
+  > ([[BPR-1751]]). Which step the setup shows open, and whether it is
   > in place of the conversation, is the view's presentation state, decided
   > from the two hosts' projections.
 - The agent's authority does not grow: no new tool, environment name or
@@ -845,12 +845,12 @@ coordinator, verbatim:
 
 | Milestone | Card | Scope | Acceptance |
 |---|---|---|---|
-| M1 Core setup and agent finding | BPR-PENDING-AQ1 | The setup state, rows, policy filtering, failure words and check decoding in core; the Codex search and program path; the plain-text harness only by a chosen path, so a shipped build starts both | AC02, AC03, AC13 (core share) |
-| M2 Host: detection, check and saved agent | BPR-PENDING-AQ2 | Detection when setup shows, the bounded status check, the saved agent per profile and Send to Agent's default | AC01, AC10 (agent row), AC11 (agent), AC12 (agent) |
-| M3 Clone folders and links | BPR-PENDING-AQ3 | The core's remote URL parsing and matching, the adapter's bounded `.git/config` and `.git/HEAD` reads, the stored clone folders and per-repository links | AC04, AC05 |
-| M4 Agent workspaces on the clone's history | BPR-PENDING-AQ4 | Done as a private workspace borrowing the clone's objects (see [the implementation note](#the-agents-worktree), accepted by the owner in M8's look v001); only what the clone lacks copied from the application's copy; the workspace check row | AC06 and AC07 as noted, AC10 (workspace row) |
-| M5 Brief and review skill | BPR-PENDING-AQ5 | Context supplement version three with its bounds, the built-in `bpr-pr-review` skill, its profile copy and versions (the Settings editor is M6's; see the notes above) | AC08, AC09 |
-| M6 Qt setup in the Agent tab | BPR-PENDING-AQ6 | Every frame's state in the tab, light and dark, the History entries, the partly set up callouts and the Settings rows | AC01, AC11, AC12 |
-| M7 Documentation | BPR-PENDING-AQ7 | Done: the AI agent boundary amendment (Q2) with the agent search, the check, the borrowed history, the brief and the review skill; the Git and epoch model's reviewer's clone; Settings; the workbench specification's setting up state | All, as documented |
-| M8 Frozen build and the owner's look | BPR-PENDING-AQ8 | A frozen build, a short attended session and the owner's look | AC14 |
-| Closeout | BPR-PENDING-AQ9 | Verify every criterion and close the RFC | All |
+| M1 Core setup and agent finding | BPR-1748 | The setup state, rows, policy filtering, failure words and check decoding in core; the Codex search and program path; the plain-text harness only by a chosen path, so a shipped build starts both | AC02, AC03, AC13 (core share) |
+| M2 Host: detection, check and saved agent | BPR-1749 | Detection when setup shows, the bounded status check, the saved agent per profile and Send to Agent's default | AC01, AC10 (agent row), AC11 (agent), AC12 (agent) |
+| M3 Clone folders and links | BPR-1750 | The core's remote URL parsing and matching, the adapter's bounded `.git/config` and `.git/HEAD` reads, the stored clone folders and per-repository links | AC04, AC05 |
+| M4 Agent workspaces on the clone's history | BPR-1751 | Done as a private workspace borrowing the clone's objects (see [the implementation note](#the-agents-worktree), accepted by the owner in M8's look v001); only what the clone lacks copied from the application's copy; the workspace check row | AC06 and AC07 as noted, AC10 (workspace row) |
+| M5 Brief and review skill | BPR-1752 | Context supplement version three with its bounds, the built-in `bpr-pr-review` skill, its profile copy and versions (the Settings editor is M6's; see the notes above) | AC08, AC09 |
+| M6 Qt setup in the Agent tab | BPR-1753 | Every frame's state in the tab, light and dark, the History entries, the partly set up callouts and the Settings rows | AC01, AC11, AC12 |
+| M7 Documentation | BPR-1754 | Done: the AI agent boundary amendment (Q2) with the agent search, the check, the borrowed history, the brief and the review skill; the Git and epoch model's reviewer's clone; Settings; the workbench specification's setting up state | All, as documented |
+| M8 Frozen build and the owner's look | BPR-1755 | A frozen build, a short attended session and the owner's look | AC14 |
+| Closeout | BPR-1756 | Verify every criterion and close the RFC | All |

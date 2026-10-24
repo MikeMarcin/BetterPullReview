@@ -213,7 +213,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # merge-base contract; the Windows station has not measured it yet.
     "commit_filter_fixture_contract": "git-reference-parent-denied",
     "sqlite_markdown_image_disk_cache": "ancestor-control-denied",
-    # [[BPR-PENDING-AQ2]]. The agent setup store opens under the same retained
+    # [[BPR-1749]]. The agent setup store opens under the same retained
     # ancestor walk as its siblings.
     "sqlite_agent_setup_storage": "unmeasured (registered on macOS)",
     "workspace_clone_folder_scan": "unmeasured (registered on macOS)",
@@ -712,7 +712,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_agent_finding_mcp_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_queue_construction_cut_contract": "dos-volume-name",
     "application_agent_finding_workshop_construction_cut_contract": "dos-volume-name",
-    # [[BPR-PENDING-AQ1]]. The positive course with the shipped bare codex found
+    # [[BPR-1748]]. The positive course with the shipped bare codex found
     # on its own search PATH; the same composed course as its siblings.
     "application_agent_finding_codex_found_contract": "unmeasured (registered on macOS)",
     "application_agent_invocation_staleness_contract": "dos-volume-name",

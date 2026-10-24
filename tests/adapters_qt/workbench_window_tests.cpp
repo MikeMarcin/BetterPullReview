@@ -12407,7 +12407,7 @@ namespace {
 
 	/// \brief [[BPR-1735]] (owner, 2026-10-22). On the Whole PR diff a line the
 	/// host's core placed outside GitHub's diff says so before Publish, and a
-	/// \brief [[BPR-PENDING-AQ6]], owner look v006 ("I selected a block and it
+	/// \brief [[BPR-1753]], owner look v006 ("I selected a block and it
 	/// still said the line suggestion and then when i clicked away to unselect
 	/// the block thats when the suggestion text updates to block"). The
 	/// Agent tab's selected-lines suggestion follows the code's selection as
@@ -13886,7 +13886,7 @@ namespace {
 		process_events();
 		agent->refresh();
 
-		// [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23 ("Suggested
+		// [[BPR-1753]], owner decision (a) 2026-10-23 ("Suggested
 		// prompts described that way sound great"). With an empty thread the
 		// suggestions stand above the question field: the pull request, the
 		// open file, what the change could break, and the selected lines.
@@ -13943,7 +13943,7 @@ namespace {
 		auto observedThread = std::vector<qt::agent_thread_turn>{ };
 		agent->set_thread_observer([&observedThread](std::vector<qt::agent_thread_turn> aTurns) { observedThread = std::move(aTurns); });
 
-		// [[BPR-PENDING-AQ6]], owner look v001 ("no indication anything
+		// [[BPR-1753]], owner look v001 ("no indication anything
 		// happened"). The working line follows the request's own projection:
 		// the workspace, then the run with its time and latest line, then a
 		// finished line that says what came of it.
@@ -14231,7 +14231,7 @@ namespace {
 			window.agent_panel()->admit(identity);
 			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
 			process_events();
-			// [[BPR-PENDING-AQ8]], the owner's accept of look v007 ("Hide
+			// [[BPR-1755]], the owner's accept of look v007 ("Hide
 			// suggestions until the the agent is done thinking").
 			auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
 			expect(agent->state() == qt::agent_tab_state::working && suggestionsShown->isHidden() && agent->suggestions_toggle()->isChecked(),
@@ -14887,7 +14887,7 @@ namespace {
 	/// \brief [[BPR-1684]]. The right tray's tabs keep their names for as
 	/// long as the row has room for them. Each tab is as wide as what it
 	/// shows: at full width the Agent tab is its name alone, as the others
-	/// are (the owner's accept of look v007, [[BPR-PENDING-AQ8]]), and
+	/// are (the owner's accept of look v007, [[BPR-1755]]), and
 	/// Comments keeps no room for a count it is not showing. Narrower, the row names the open
 	/// tab beside its glyph and shows the others' glyphs, then glyphs only.
 	/// A tab without its name says it in its tooltip and to accessibility,
@@ -18005,7 +18005,7 @@ namespace {
 		window.hide();
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner look v005 ("The review link in the response
+	/// [[BPR-1753]], owner look v005 ("The review link in the response
 	/// isn't scrolling the window to the line when i cmd click it"). A file
 	/// and line an agent's answer names is a link; Command-click and a plain
 	/// click on it, delivered to the window as the platform delivers them,

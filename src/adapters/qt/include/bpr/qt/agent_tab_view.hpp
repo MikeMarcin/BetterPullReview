@@ -39,7 +39,7 @@ namespace bpr::qt {
 	class side_chat_panel;
 
 	/// \brief [[BPR-1594]]. What the Agent tab says about its agent.
-	/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("I really have no clue
+	/// \brief [[BPR-1753]], owner look v002 ("I really have no clue
 	/// what my agent will be actually doing"). What one agent runs with, for
 	/// the tab's model and effort control.
 	struct agent_run_settings
@@ -63,7 +63,7 @@ namespace bpr::qt {
 		bool Listing = false;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. One finished
+	/// \brief [[BPR-1753]], owner decision (b) 2026-10-23. One finished
 	/// turn of the thread, as it is kept for its pull request and shown again.
 	struct agent_thread_turn
 	{
@@ -83,7 +83,7 @@ namespace bpr::qt {
 	/// any other name is shown as the agent reported it.
 	[[nodiscard]] auto agent_model_display_name(const QString& aModel) -> QString;
 
-	/// \brief [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23. What the
+	/// \brief [[BPR-1753]], owner decision (a) 2026-10-23. What the
 	/// suggested prompts may name: the open file's path, and the selected
 	/// lines, one-based, first and last.
 	struct agent_suggestion_context
@@ -92,7 +92,7 @@ namespace bpr::qt {
 		std::optional<std::pair<std::uint32_t, std::uint32_t>> Lines;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("Yep build it
+	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
 	/// like that"). What a reviewer may do with one finding card; nothing is
 	/// done by itself.
 	enum class agent_finding_card_action : std::uint8_t {
@@ -188,7 +188,7 @@ namespace bpr::qt {
 		/// The last invocation did not finish: what happened, the question
 		/// kept, Ask again and Show the log.
 		stopped,
-		/// [[BPR-PENDING-AQ6]]. The setup is in place of the conversation.
+		/// [[BPR-1753]]. The setup is in place of the conversation.
 		setting_up,
 	};
 
@@ -209,7 +209,7 @@ namespace bpr::qt {
 
 		/// \brief Set up an agent: Settings › Agents & context.
 		void set_setup_dispatch(std::function<void()> aDispatch);
-		/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092. Shows `aSetup` in place
+		/// \brief [[BPR-1753]], RFC-BPR-0092. Shows `aSetup` in place
 		/// of the conversation while it is needed, adds **Set up agent…** and
 		/// **Change repository folder…** to History, and offers **Check
 		/// again** when an Ask ends for a setup reason (`aCheckAgain`).
@@ -245,7 +245,7 @@ namespace bpr::qt {
 		auto               choose_agent(std::uint64_t aProfile) -> bool;
 		[[nodiscard]] auto ready_card() const noexcept -> QWidget* { return ReadyCard; }
 		[[nodiscard]] auto setup_view() const noexcept -> agent_setup_view* { return SetupView; }
-		/// \brief [[BPR-PENDING-AQ6]], owner look v002 ("Is it not meant to
+		/// \brief [[BPR-1753]], owner look v002 ("Is it not meant to
 		/// work like the claude code vscode plugin where it's like a chat
 		/// thread?"). The conversation's turns, oldest first: what was asked
 		/// (or "Review this pull request"), the agent's answer as it streams,
@@ -255,7 +255,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_answer(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_question(std::size_t aTurn) const -> QString;
 		[[nodiscard]] auto turn_footer(std::size_t aTurn) const -> QString;
-		/// \brief [[BPR-PENDING-AQ6]], owner decision (b). Shows a pull
+		/// \brief [[BPR-1753]], owner decision (b). Shows a pull
 		/// request's kept thread in place of the one shown (none: an empty
 		/// thread), and says each finished turn to `set_thread_observer`'s
 		/// observer with the whole thread, so the host keeps it.
@@ -269,7 +269,7 @@ namespace bpr::qt {
 		void               set_clear_confirmation(std::function<bool(std::size_t aTurns)> aConfirm);
 		void               clear_session();
 		[[nodiscard]] auto clear_session_button() const noexcept -> QToolButton* { return ClearSession; }
-		/// \brief [[BPR-PENDING-AQ6]], owner decision (a) 2026-10-23
+		/// \brief [[BPR-1753]], owner decision (a) 2026-10-23
 		/// ("Suggested prompts described that way sound great"). Where the
 		/// suggestions read the open file and the selected lines, and a call
 		/// to read them again when either changes.
@@ -301,7 +301,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto empty_state() const noexcept -> drawer_empty_state* { return Empty; }
 		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return History; }
 		[[nodiscard]] auto finding_cards() const -> std::vector<QWidget*>;
-		/// \brief [[BPR-PENDING-AQ6]], owner decision 2026-10-23. Where a
+		/// \brief [[BPR-1753]], owner decision 2026-10-23. Where a
 		/// card's Add as draft comment, Save as note and Dismiss go, and the
 		/// state the host reports back for the card (`aWhy` with a refusal).
 		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);

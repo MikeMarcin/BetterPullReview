@@ -65,7 +65,7 @@ namespace bpr::application {
 		/// window runs what setup saved.
 		std::shared_ptr<agent_program_source> Programs;
 		environment_reader                    Parent;
-		/// [[BPR-PENDING-AQ6]]. The profile's Claude › Model, moved into the
+		/// [[BPR-1753]]. The profile's Claude › Model, moved into the
 		/// Claude Code entry once.
 		std::function<std::string()>     LegacyClaudeModel;
 		std::vector<core::agent_profile> Profiles;
@@ -78,7 +78,7 @@ namespace bpr::application {
 		agent_setup_sink   Publish;
 	};
 
-	/// \brief [[BPR-PENDING-AQ2]], RFC-BPR-0092 M2. The host half of agent
+	/// \brief [[BPR-1749]], RFC-BPR-0092 M2. The host half of agent
 	/// setup: detection, the bounded status check and the saved choice.
 	///
 	/// \details State lives on the decision lane. Detection (Q2) reads file
@@ -117,7 +117,7 @@ namespace bpr::application {
 		/// adapter inspected it; empty clears it. Answers on the decision lane.
 		void set_program(core::setup_agent aAgent, std::string aPath, std::function<void(std::optional<core::agent_wrapper_refusal>)> aAnswered = { });
 		void set_codex_protocol(core::codex_protocol_choice aChoice);
-		/// \brief [[BPR-PENDING-AQ6]], owner look v002. Saves the model and
+		/// \brief [[BPR-1753]], owner look v002. Saves the model and
 		/// effort a Codex launch runs with, or the effort of a Claude launch
 		/// (Claude's model has its own setting); empty is the agent's own
 		/// default. Text the agent's command line would not take is refused
@@ -125,7 +125,7 @@ namespace bpr::application {
 		[[nodiscard]] auto set_run_settings(core::setup_agent aAgent, std::string aModel, std::string aEffort) -> bool;
 		/// RFC-BPR-0092 Repository: the repository has a linked clone or a
 		/// recorded choice of the private copy.
-		/// \brief [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agent
+		/// \brief [[BPR-1753]], owner amendment 2026-10-23. The agent
 		/// list: add (and, with `aPrefer`, choose it for setup), edit, remove,
 		/// reorder and choose. A refused change answers why and keeps nothing.
 		using agent_entry_answer = std::function<void(std::optional<core::agent_entry_refusal>)>;

@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23 ("Continuous
+/// \brief [[BPR-1753]], owner decision (b) 2026-10-23 ("Continuous
 /// session per PR with an option to clear session"). The conversation host on
 /// manual lanes with a memory store: a pull request's kept turns come back
 /// when it is opened, a turn that ends is kept, Clear session keeps none, a
@@ -188,7 +188,7 @@ namespace {
 		test.Host->open(codex);
 		test.settle();
 		expect(test.Host->projection().Key == std::optional{ claude }, "reopened, the pull request is on the agent it was last asked with");
-		// [[BPR-PENDING-AQ8]]: Reset agents forgets that choice, so the next
+		// [[BPR-1755]]: Reset agents forgets that choice, so the next
 		// opening is on the agent asked for; every turn stays.
 		test.Host->forget_agent_choices();
 		test.settle();

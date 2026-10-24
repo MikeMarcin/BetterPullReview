@@ -7,7 +7,7 @@
 #include <optional>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092. What a review request's brief
+	/// \brief [[BPR-1752]], RFC-BPR-0092. What a review request's brief
 	/// reads from the accepted pull-request snapshot, before its bounds.
 	///
 	/// \details The title, description and base branch; every changed file

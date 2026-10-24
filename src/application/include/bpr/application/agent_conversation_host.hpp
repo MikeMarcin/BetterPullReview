@@ -36,7 +36,7 @@ namespace bpr::application {
 		std::function<void(const agent_conversation_projection&)> Publish;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23 ("Continuous
+	/// \brief [[BPR-1753]], owner decision (b) 2026-10-23 ("Continuous
 	/// session per PR with an option to clear session"). One conversation per
 	/// pull request: the turns the thread shows, kept so a follow-up continues
 	/// them (they ride the next request's brief) and so they come back when the

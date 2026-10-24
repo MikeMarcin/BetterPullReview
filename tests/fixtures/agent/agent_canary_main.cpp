@@ -371,7 +371,7 @@ namespace {
 			}
 			input += line + '\n';
 		}
-		// [[BPR-PENDING-AQ6]], owner look v006. A catalog run's `model/list`
+		// [[BPR-1753]], owner look v006. A catalog run's `model/list`
 		// is answered as Codex 0.163 answers it, a notification first, and
 		// the canary then waits for the input to close.
 		if (input.find("\"method\":\"model/list\"") != std::string::npos) {

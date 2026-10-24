@@ -1000,7 +1000,7 @@ namespace bpr::application {
 				}
 				aPhase      = 2U;
 				auto events = payload_events(aRoot, aFrame);
-				// [[BPR-PENDING-AQ6]]. The turn's cost, when Claude says it: a
+				// [[BPR-1753]]. The turn's cost, when Claude says it: a
 				// plain non-negative decimal only, never a value it did not write.
 				if (const auto* cost = member(aRoot, "total_cost_usd"); cost != nullptr && cost->Kind == json_kind::number_value && !cost->Text.empty() && cost->Text.size() <= 24U
 					&& std::ranges::all_of(cost->Text, [](const char aByte) { return (aByte >= '0' && aByte <= '9') || aByte == '.'; })) {
@@ -1870,7 +1870,7 @@ namespace bpr::application {
 				return *this;
 			}
 		};
-		/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief's wire form, after
+		/// [[BPR-1752]], RFC-BPR-0092. The review brief's wire form, after
 		/// every version-two field. Each collection is counted, and each cut is
 		/// stated, so a reader never has to guess what a missing line meant.
 		template <typename TSink>
@@ -1913,7 +1913,7 @@ namespace bpr::application {
 				}
 			}
 			append_number(aResult, "brief.thread.omitted", aBrief.ThreadsOmitted);
-			// [[BPR-PENDING-AQ6]], owner decision (b). The conversation so far
+			// [[BPR-1753]], owner decision (b). The conversation so far
 			// about this pull request, oldest first, so a follow-up continues it
 			// in whichever harness answers.
 			append_number(aResult, "brief.conversation.count", aBrief.Conversation.size());
@@ -2174,7 +2174,7 @@ namespace bpr::application {
 				append_field(aResult, prefix + ".text", draft.Text);
 			}
 
-			// [[BPR-PENDING-AQ5]]. Written only when present, as the feedback
+			// [[BPR-1752]]. Written only when present, as the feedback
 			// guidance is: a launch that is not a review request adds no line.
 			if (aSupplement.Brief) {
 				encode_brief_into(aResult, *aSupplement.Brief, aSupplement.Session.Binding);
@@ -2255,7 +2255,7 @@ namespace bpr::application {
 			if (aProtocol == core::agent_protocol::codex_app_server) {
 				return true;
 			}
-			// [[BPR-PENDING-AQ6]], owner look v002: Claude Code also takes an
+			// [[BPR-1753]], owner look v002: Claude Code also takes an
 			// effort as `--effort`, and Codex's exec a model and a reasoning
 			// effort, each one argument of a closed vocabulary or a name
 			// `core::valid_claude_model` admits.

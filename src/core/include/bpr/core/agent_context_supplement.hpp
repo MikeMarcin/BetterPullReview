@@ -21,7 +21,7 @@ namespace bpr::core {
 	///
 	/// \details Version two replaces the partial file/defect vocabulary with
 	/// exact receipt, defect-history, selection, and session records. Version
-	/// three ([[BPR-PENDING-AQ5]], RFC-BPR-0092) adds the review brief and the
+	/// three ([[BPR-1752]], RFC-BPR-0092) adds the review brief and the
 	/// review skill's text and changes no version-two field. A reader must
 	/// refuse an unsupported version rather than guessing at field meaning.
 	inline constexpr std::uint32_t agent_supplement_schema_version = 3U;
@@ -167,7 +167,7 @@ namespace bpr::core {
 		auto operator<=>(const supplement_feedback_guidance&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AQ5]], RFC-BPR-0092. The review brief's bounds.
+	/// \brief [[BPR-1752]], RFC-BPR-0092. The review brief's bounds.
 	inline constexpr std::size_t maximum_brief_title_bytes       = 1024U;
 	inline constexpr std::size_t maximum_brief_description_bytes = 16U * 1024U;
 	inline constexpr std::size_t maximum_brief_branch_bytes      = 1024U;
@@ -176,7 +176,7 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_brief_login_bytes       = 256U;
 	/// \brief All the review threads' paths, logins and bodies together.
 	inline constexpr std::size_t maximum_brief_thread_bytes = 64U * 1024U;
-	/// \brief [[BPR-PENDING-AQ6]], owner decision (b) 2026-10-23. The
+	/// \brief [[BPR-1753]], owner decision (b) 2026-10-23. The
 	/// conversation so far: each earlier question and answer is cut to
 	/// `maximum_brief_turn_bytes`, and the turns together, newest kept first,
 	/// stay within `maximum_brief_conversation_bytes`.
@@ -227,7 +227,7 @@ namespace bpr::core {
 		auto operator<=>(const brief_thread&) const = default;
 	};
 
-	/// \brief [[BPR-PENDING-AQ6]]. One earlier turn of the conversation about
+	/// \brief [[BPR-1753]]. One earlier turn of the conversation about
 	/// this pull request: what the reviewer asked and what the agent answered.
 	struct brief_turn
 	{
@@ -355,7 +355,7 @@ namespace bpr::core {
 		/// [[BPR-1091]]. Engaged only beside an engaged `Operation`; a request
 		/// that carries guidance without one is refused whole.
 		std::optional<supplement_feedback_guidance> FeedbackGuidance;
-		/// [[BPR-PENDING-AQ5]]. The review brief; a brief outside its bounds
+		/// [[BPR-1752]]. The review brief; a brief outside its bounds
 		/// refuses the request whole.
 		std::optional<supplement_brief> Brief;
 
@@ -399,7 +399,7 @@ namespace bpr::core {
 		/// [[BPR-1091]]. The review-feedback guidance of a workshop request,
 		/// carried through unchanged; absent for every other launch.
 		std::optional<supplement_feedback_guidance> FeedbackGuidance;
-		/// [[BPR-PENDING-AQ5]]. The review brief, carried through unchanged;
+		/// [[BPR-1752]]. The review brief, carried through unchanged;
 		/// absent for a launch that is not a review request.
 		std::optional<supplement_brief> Brief;
 

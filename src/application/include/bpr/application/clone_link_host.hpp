@@ -16,7 +16,7 @@
 #include <vector>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 owner decision D2. One
+	/// \brief [[BPR-1750]], RFC-BPR-0092 owner decision D2. One
 	/// repository's remembered choice: its linked clone, or the private copy.
 	///
 	/// \details Keyed by the Git host's name and the repository's identity, so
@@ -118,9 +118,9 @@ namespace bpr::application {
 		std::vector<repository_link> Links;
 		bool                         Discovering = false;
 		bool                         Discovered  = false;
-		/// [[BPR-PENDING-AQ6]]. The stored folders and links have been read.
+		/// [[BPR-1753]]. The stored folders and links have been read.
 		bool Loaded = false;
-		/// [[BPR-PENDING-AQ6]]. The repository's link is being checked again;
+		/// [[BPR-1753]]. The repository's link is being checked again;
 		/// until it answers, whether the Repository step is done is unknown.
 		bool          Verifying  = false;
 		std::uint64_t Generation = 0U;
@@ -148,7 +148,7 @@ namespace bpr::application {
 		std::function<void(const clone_link_projection&)> Publish;
 	};
 
-	/// \brief [[BPR-PENDING-AQ3]], RFC-BPR-0092 M3. Finds the reviewer's clone
+	/// \brief [[BPR-1750]], RFC-BPR-0092 M3. Finds the reviewer's clone
 	/// of a review's repository in the listed clone folders and remembers it.
 	///
 	/// \details State on the decision lane; every read on the effect lane,

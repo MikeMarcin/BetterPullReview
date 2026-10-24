@@ -17,7 +17,7 @@
 #include <vector>
 
 namespace bpr::application {
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5. Finds a program a launch
+	/// \brief [[BPR-1748]], RFC-BPR-0092 Q5. Finds a program a launch
 	/// with no saved path runs, by the agent adapter, each time it is asked:
 	/// an absolute path to an executable regular file, or nothing. Nothing here
 	/// reads the environment or touches a file.
@@ -37,7 +37,7 @@ namespace bpr::application {
 	/// program <path>: <reason>" or "Plain-text harness program <path>: ...".
 	[[nodiscard]] auto describe_program_refusal(core::setup_agent aAgent, std::string_view aPath, core::agent_wrapper_refusal aRefusal) -> std::string;
 
-	/// \brief [[BPR-PENDING-AQ1]]. The program paths a window's profile saved
+	/// \brief [[BPR-1748]]. The program paths a window's profile saved
 	/// for Codex and the plain-text harness, written on the decision lane as
 	/// preferences publish and read on whichever lane runs a launch. Claude's
 	/// is the process wrapper, `claude_process_wrapper_source`.
@@ -53,7 +53,7 @@ namespace bpr::application {
 		std::string        PlainText;
 	};
 
-	/// \brief [[BPR-PENDING-AQ1]], RFC-BPR-0092 Q5 (owner, 2026-10-22). The
+	/// \brief [[BPR-1748]], RFC-BPR-0092 Q5 (owner, 2026-10-22). The
 	/// one place a Codex or plain-text harness launch is given an absolute
 	/// program.
 	///
@@ -93,7 +93,7 @@ namespace bpr::application {
 		agent_wrapper_inspector                     Inspect;
 		agent_program_locator                       Locate;
 	};
-	/// \brief [[BPR-PENDING-AQ6]], owner amendment 2026-10-23. The agents the
+	/// \brief [[BPR-1753]], owner amendment 2026-10-23. The agents the
 	/// reviewer added, as setup last published them, for the launches.
 	class agent_entry_source final
 	{

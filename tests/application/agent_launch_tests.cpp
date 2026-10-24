@@ -335,7 +335,7 @@ namespace {
 
 	/// \brief [[BPR-1091]]. Helper off: the press's wire is byte for byte
 	/// what it was before the guidance existed.
-	/// \details [[BPR-PENDING-AQ5]]. Version three changed the `schema` line
+	/// \details [[BPR-1752]]. Version three changed the `schema` line
 	/// and nothing else a press writes: with that one line read as version
 	/// two, the bytes are still the pinned ones.
 	void test_a_press_without_guidance_keeps_its_wire_bytes()
@@ -386,7 +386,7 @@ namespace {
 		expect(at != std::string::npos && encoded.find("feedback_guidance", at + expected.size()) == std::string::npos, "three escaped lines, once, directly after the operation they qualify");
 		auto stripped = encoded;
 		stripped.erase(at + std::string_view{ "workshop_operation\tclarify\n" }.size(), expected.size() - std::string_view{ "workshop_operation\tclarify\n" }.size());
-		// [[BPR-PENDING-AQ5]]. Read as version two, as the press above is.
+		// [[BPR-1752]]. Read as version two, as the press above is.
 		stripped.replace(0U, 9U, "schema\t2\n");
 		expect(hex_digest(stripped) == workshop_press_wire_before_guidance, "and every other byte of the press is the pre-guidance wire");
 
@@ -416,7 +416,7 @@ namespace {
 		}
 	}
 
-	/// [[BPR-PENDING-AQ5]], RFC-BPR-0092. A review request's brief crosses
+	/// [[BPR-1752]], RFC-BPR-0092. A review request's brief crosses
 	/// whole after every version-two field, counted and with its cuts stated;
 	/// a launch without one writes no brief line.
 	void test_the_brief_crosses_after_the_version_two_fields()
@@ -430,7 +430,7 @@ namespace {
 			.Threads     = { { .Path = "src/retry.cpp", .Line = 12U, .Comments = { { .Author = "octo", .Body = "Is this bounded?" } } } },
 			.Workspace   = core::brief_workspace::linked_clone_history,
 			.Skill       = core::brief_review_skill{ .Source = core::review_skill_source::built_in, .Version = 1U, .Text = std::string{ application::built_in_review_skill() } },
-			// [[BPR-PENDING-AQ6]], owner decision (b): the conversation so far.
+			// [[BPR-1753]], owner decision (b): the conversation so far.
 			.Conversation = { { .Asked = "Does this work?", .Answered = "Yes.\nThe loop ends." } },
 		});
 		expect(observed.Brief.has_value(), "the fixture brief is within its bounds");
@@ -477,7 +477,7 @@ namespace {
 		expect(!application::build_agent_context_supplement(oversized, session()), "a brief outside its bounds refuses the build");
 	}
 
-	/// [[BPR-PENDING-AQ6]], owner decision 2026-10-23 ("Yep build it like
+	/// [[BPR-1753]], owner decision 2026-10-23 ("Yep build it like
 	/// that"). The findings a real agent writes in its answer, fenced as the
 	/// review skill asks, become findings the host states the rest of: the
 	/// provider and revisions are the session's, and only a file the snapshot
@@ -1319,7 +1319,7 @@ namespace {
 					   && configured.error() == requested.error(),
 				   "unsupported explicit requested/default settings refuse rather than becoming claims");
 		}
-		// [[BPR-PENDING-AQ6]], owner look v002. Codex's exec takes a model and
+		// [[BPR-1753]], owner look v002. Codex's exec takes a model and
 		// a reasoning effort, and Claude an effort, each as its own argument;
 		// a level outside the agent's own vocabulary refuses.
 		{
@@ -1343,7 +1343,7 @@ namespace {
 	}
 
 	/// [[BPR-1375]]. Claude takes a model as `--model`, and
-	/// ([[BPR-PENDING-AQ6]]) an effort of its own levels as `--effort`: a
+	/// ([[BPR-1753]]) an effort of its own levels as `--effort`: a
 	/// name or level that could read as an option refuses.
 	void test_claude_takes_only_a_model_as_one_argument()
 	{
@@ -1357,7 +1357,7 @@ namespace {
 		const auto fromProfile           = application::build_agent_launch(configured, built_supplement(), reader());
 		expect(fromProfile && std::ranges::find(fromProfile->Arguments, "sonnet") - std::ranges::find(fromProfile->Arguments, "--model") == 1,
 			   "a configured Claude model is passed the same way");
-		// [[BPR-PENDING-AQ6]]: Claude Code 2.1 takes `--effort` too, one of its
+		// [[BPR-1753]]: Claude Code 2.1 takes `--effort` too, one of its
 		// own five levels; anything else still refuses.
 		const auto withEffort = application::build_agent_launch(claude, built_supplement(), reader(), { .Requested = { "claude-sonnet-5-5", "high" } });
 		expect(withEffort && withEffort->Arguments.back() == "high" && withEffort->Arguments[withEffort->Arguments.size() - 2U] == "--effort", "Claude takes its effort as one argument after --effort");

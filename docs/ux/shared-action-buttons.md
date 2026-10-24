@@ -100,7 +100,7 @@ rebase onto `4e318b625`:
 ## Surfaces added by agent setup
 
 [RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md)'s agent setup
-([[BPR-PENDING-AQ6]]) adds these, built on the shared classes from the start:
+([[BPR-1753]]) adds these, built on the shared classes from the start:
 
 | Translation unit | Disposition and controls |
 |---|---|

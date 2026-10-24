@@ -1,5 +1,5 @@
 /// \file
-/// \brief [[BPR-PENDING-AQ6]], RFC-BPR-0092. The Agent tab's setup and its
+/// \brief [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
 /// Settings rows, offscreen: each state's words and actions from the two
 /// projections, the setup showing only once a step is known to be missing,
 /// the ready line once both checks pass, every press an intent, and the
@@ -357,7 +357,7 @@ namespace {
 
 	void test_settings_rows()
 	{
-		// [[BPR-PENDING-AQ6]], owner amendment 2026-10-23: Settings › Agents
+		// [[BPR-1753]], owner amendment 2026-10-23: Settings › Agents
 		// is a list with Add agent…, Edit…, Remove and Move up and down.
 		auto programs = qt::agent_programs_panel{ };
 		auto saved    = std::vector<std::string>{ };

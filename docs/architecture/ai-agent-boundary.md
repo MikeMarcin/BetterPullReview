@@ -207,7 +207,7 @@ first, omissions counted), the workspace's kind (`linked_clone_history`,
 `private_copy` or `private_snapshot`, set once it is made), the diff named
 rather than copied (`git diff BASE...HEAD`, none for a snapshot), and the
 review skill's text. It also carries the conversation so far about the pull
-request ([[BPR-PENDING-AQ6]], owner decision (b), 2026-10-23): the earlier
+request ([[BPR-1753]], owner decision (b), 2026-10-23): the earlier
 questions and answers, oldest first (`brief.conversation.N.asked` and
 `.answered`), each side cut to 8 KiB, the newest 50 turns within 48 KiB and
 the older ones counted (`brief.conversation.omitted`). The application
@@ -222,7 +222,7 @@ version-two field and are written only when present, so a launch without a
 brief differs from version two only in its `schema` line. The agent may still
 read GitHub through its own tools.
 
-**Agents the reviewer adds ([[BPR-PENDING-AQ6]], owner amendment
+**Agents the reviewer adds ([[BPR-1753]], owner amendment
 2026-10-23).** The picker offers only the agents in the profile's list
 (`core::agent_entry`, at most 16, kept in `agent-setup.sqlite3`): each a
 name, a protocol, a program and fixed arguments, with a default model and
@@ -239,7 +239,7 @@ and no credential is involved. A pull request's conversation is kept per
 agent (`agent_conversation_key::Agent`), so a follow-up carries only its own
 agent's earlier turns.
 
-**What a harness offers ([[BPR-PENDING-AQ6]], owner look v006).** The setup
+**What a harness offers ([[BPR-1753]], owner look v006).** The setup
 host asks an added agent's harness for its models and effort levels when the
 Agent tab shows that agent or its menu opens, once per window: a Codex
 protocol runs the agent's own program and fixed arguments with `app-server`,
@@ -250,7 +250,7 @@ own, the profile's environment allowlist, no workspace, no context and the
 check's 15-second bound. BetterPullReview reads no Codex or Claude
 configuration file.
 
-**No run time limit by default ([[BPR-PENDING-AQ6]], owner decision
+**No run time limit by default ([[BPR-1753]], owner decision
 2026-10-23).** A run has no time limit unless the reviewer sets one in
 Settings › Agents & context (one limit for every agent, in minutes, kept in
 `agent-setup.sqlite3`); with none, the launcher is given
@@ -261,7 +261,7 @@ frame bounds are unchanged and are not time limits. A custom agent's setup
 check runs only its program's own check arguments, fixed and without a
 shell, and must exit 0; with none it only inspects the program.
 
-**Findings in the answer ([[BPR-PENDING-AQ6]], owner decision 2026-10-23).**
+**Findings in the answer ([[BPR-1753]], owner decision 2026-10-23).**
 A harness writes its own result frame, so its model cannot add `bprFindings`
 to it. The review skill therefore asks for a block fenced `bpr-findings` at
 the end of a review's answer: a `findings` array of `path`, one-based
@@ -1321,8 +1321,8 @@ none of these four transports has a typed content-self-report field.
 | Protocol | Requested/default settings sent | Reported facts admitted | Unknown facts |
 |---|---|---|---|
 | Codex App Server | `thread/start.params.model`; `turn/start.params.model` and `.effort` | `thread/start.result.model`, `.reasoningEffort`, `.thread.id`; `turn/start.result.turn.id` | Tool version, remote session/run, content-self-report |
-| Codex JSONL exec | Model as `-m NAME` and effort as `-c model_reasoning_effort="LEVEL"` ([[BPR-PENDING-AQ6]]; names `core::valid_claude_model` admits, levels `minimal`, `low`, `medium`, `high`, `xhigh`); others refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
-| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort as `--effort LEVEL` ([[BPR-PENDING-AQ6]]; `low`, `medium`, `high`, `xhigh`, `max`), any other refusing as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model`; the result frame's `total_cost_usd`, a plain decimal only, as the run's reported cost | Effort, remote thread/turn/run, content-self-report |
+| Codex JSONL exec | Model as `-m NAME` and effort as `-c model_reasoning_effort="LEVEL"` ([[BPR-1753]]; names `core::valid_claude_model` admits, levels `minimal`, `low`, `medium`, `high`, `xhigh`); others refuse as `unsupported_runtime_settings` | `thread.started.thread_id` | Model, effort, tool version, other remote IDs, content-self-report |
+| Claude stream JSON | Model as `--model NAME` ([[BPR-1375]]; `core::valid_claude_model` names only); effort as `--effort LEVEL` ([[BPR-1753]]; `low`, `medium`, `high`, `xhigh`, `max`), any other refusing as `unsupported_runtime_settings` | `system/init.session_id`, `.model`, `.claude_code_version`; `assistant.message.model`; the result frame's `total_cost_usd`, a plain decimal only, as the run's reported cost | Effort, remote thread/turn/run, content-self-report |
 | External terminal | Explicit settings refuse as `unsupported_runtime_settings` | None | All runtime facts |
 
 These are field-specific observations, not provider-execution attestation.

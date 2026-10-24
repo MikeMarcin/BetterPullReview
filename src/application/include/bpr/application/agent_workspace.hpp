@@ -69,10 +69,10 @@ namespace bpr::application {
 		/// built from an immutable revision, so it has nothing uncommitted in
 		/// it by construction and reports `clean`.
 		checkout_cleanliness Cleanliness = checkout_cleanliness::clean;
-		/// [[BPR-PENDING-AQ4]]. The workspace borrows its history from the
+		/// [[BPR-1751]]. The workspace borrows its history from the
 		/// reviewer's linked clone.
 		bool BorrowsHistory = false;
-		/// [[BPR-PENDING-AQ5]]. The workspace holds the head without its
+		/// [[BPR-1752]]. The workspace holds the head without its
 		/// history: a sparse review's snapshot whose parents no clone lent.
 		bool Shallow = false;
 
@@ -95,7 +95,7 @@ namespace bpr::application {
 		core::pull_request_authority Authority;
 		core::agent_session          Session;
 		std::filesystem::path        ParentDirectory;
-		/// [[BPR-PENDING-AQ4]], RFC-BPR-0092 Q7. The working tree of the
+		/// [[BPR-1751]], RFC-BPR-0092 Q7. The working tree of the
 		/// reviewer's linked clone whose history the workspace borrows, read
 		/// only, through Git's alternates. Absent: the workspace holds only
 		/// what the application's own copy gives it, as before.

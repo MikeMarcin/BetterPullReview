@@ -208,14 +208,14 @@ namespace bpr::qt {
 	{
 		ProfileSelector->clear();
 		for (const auto& profile : aProfiles) {
-			// [[BPR-PENDING-AQ6]], RFC-BPR-0092 Q4: the menu says the agent's
+			// [[BPR-1753]], RFC-BPR-0092 Q4: the menu says the agent's
 			// plain name, as the setup does.
 			const auto plain = core::plain_name(core::setup_agent_of(profile.Protocol));
 			auto       name  = QString::fromUtf8(plain.data(), static_cast<qsizetype>(plain.size()));
 			if (profile.Protocol == core::agent_protocol::codex_jsonl_exec) {
 				name += QStringLiteral(" (JSONL)");
 			}
-			// [[BPR-PENDING-AQ6]]. An added agent is named as the reviewer named it.
+			// [[BPR-1753]]. An added agent is named as the reviewer named it.
 			if (core::is_agent_entry_profile(profile.Id)) {
 				name = QString::fromStdString(profile.DisplayName);
 			}
