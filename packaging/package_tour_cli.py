@@ -94,7 +94,7 @@ def prepare(build: Path, output: Path, *, windows_import_library: Path | None = 
     import verify_release_package as verifier
     evidence = verifier.audit_tour_cli(build, root, root / 'sbom.spdx.json', revision, source_archive=archive,
                                        windows_import_library=windows_import_library)
-    name = f'BetterPullReview-{info["version"]}-{info["platform"].lower()}-tour-cli.tar.gz'
+    name = runtime.source_asset_name(info).removeprefix("Source-").removesuffix("-corresponding-source.zip") + ".tar.gz"
     payload = output / name
     with tarfile.open(payload, 'w:gz') as stream:
         stream.add(root, arcname='BetterPullReview')
