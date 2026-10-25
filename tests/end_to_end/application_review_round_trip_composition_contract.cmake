@@ -1,3 +1,15 @@
+# [[BPR-1759]] signed-candidate reseal (2026-10-24), 6c998babb..d2b7f6a32.
+# The only changed production-manifest files are installed_runtime.cpp/.hpp
+# in df6e8be48: the existing installed-runtime guard selects the standalone
+# CLI private plugin directory under BPR_INSTALLED_TOUR_CLI on Mac/Linux;
+# its header comment now says Qt. Reviewed canonical-directory equality,
+# cleared ambient selectors and refused code-loading arguments. The desktop
+# branch, source inventory, full application and mutation-host pins are exact.
+# Other src/app commits in this range (df7078277, 06697d93d, f6adc378a,
+# 1e269fdd3) change CMake outside this manifest; df6e8be48 also invokes the
+# existing guard before CLI Qt construction. Native CLI/runtime acceptance
+# remains bound to the RFC-BPR-0093 ledger. Print-only mode is not a check;
+# the positive inventory and every hostile bypass control are run separately.
 # Coordinator landing reseal (2026-10-24) over the reseal below, rename only:
 # provisional BPR-PENDING-AN and AQ1..AQ9 card references in src/app comments
 # became BPR-1747..BPR-1756. No behavior change; mutation 16d135419 stays exact.
@@ -2562,7 +2574,7 @@ function(bpr_verify_app_source_tree app_source_root)
         bpr_production_app_manifest_digest
     )
 	set(bpr_expected_production_app_manifest_digest
-        "ca975c86d7206088bf8b4b52d9841768c589ae089b0b482d99a46e5cb0400956"
+        "698b12c3621d3e119cc2badc6f79b0e9566105d55b341b48478668ba79de57ad"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

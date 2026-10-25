@@ -113,3 +113,20 @@ are quiescent, and no review session/server exists. This card stays Blocked:
 Intel remains a real criterion despite r4 permitting work without that machine;
 Developer ID/signed-installed and delivered native Cocoa acceptance remain
 pending. No Keychain, release-signing, publication or desktop operation occurred.
+
+## Authorized signed continuation — r9
+
+The owner now authorizes local Developer-ID signing and notarization of the
+current committed universal candidate, without a version change, push, tag or
+publication. The clean task branch is `codex/mimalloc-macos-signed-r9`.
+The preflight caught a stale production-manifest pin. Source review of
+`6c998babb..d2b7f6a32` finds only `df6e8be48` changed that manifest's files:
+`installed_runtime.cpp/.hpp` add standalone CLI private plugin directories
+and clarify the comment. The canonical-directory check, ambient-selector
+clearing and forbidden code-loading arguments remain enforced; the desktop
+path, full application digest and mutation-host digest are unchanged. Other
+app-scope commits in the range are `df7078277`, `06697d93d`, `f6adc378a` and
+`1e269fdd3`; their CMake edits lie outside the manifest. The source review
+reseals this one stale pin and retains the initial failure. Its hostile
+controls must pass before the signed build. Native Cocoa judgment remains
+pending; no agent drives or captures the owner's desktop.
