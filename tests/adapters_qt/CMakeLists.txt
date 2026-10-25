@@ -1,3 +1,13 @@
+bpr_add_executable(test_source_find_event_turns source_find_event_turns_tests.cpp)
+target_link_libraries(test_source_find_event_turns PRIVATE Qt6::Widgets)
+target_compile_features(test_source_find_event_turns PRIVATE cxx_std_23)
+bpr_enable_hardening(test_source_find_event_turns)
+bpr_enable_warnings(test_source_find_event_turns)
+bpr_add_network_isolated_test(NAME qt_source_find_event_turns COMMAND test_source_find_event_turns)
+set_tests_properties(qt_source_find_event_turns PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen" TIMEOUT 60
+    PASS_REGULAR_EXPRESSION "SOURCE_FIND_EVENT_TURNS_OK")
+
 bpr_add_executable(
     test_better_pull_review_qt_tests
     foundation_window_tests.cpp

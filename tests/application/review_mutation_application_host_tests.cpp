@@ -894,7 +894,7 @@ namespace {
 			projection,
 			&projection,
 		};
-		for (const auto [line, draft] : { std::pair{ 10U, 91U }, std::pair{ 60U, 92U } }) {
+		for (const auto& [line, draft] : { std::pair{ 10U, 91U }, std::pair{ 60U, 92U } }) {
 			static_cast<void>(host.publish(at(line, draft)));
 			expect(effects.pending() == 1U, "a base line GitHub has no LEFT line for is admitted as a file comment");
 			effects.run_next();

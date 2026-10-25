@@ -22246,10 +22246,14 @@ namespace {
 
 		// Layout: resizable down to its minimum, nothing clipped sideways.
 		const auto initial = page->size();
-		expect(page->isSizeGripEnabled() && page->minimumWidth() < page->width() && page->maximumWidth() > page->width(), "the page is resizable");
-		for (const auto& size : { page->size(), page->minimumSize() }) {
+		expect(page->isSizeGripEnabled() && page->maximumWidth() > page->minimumWidth() && page->maximumHeight() > page->minimumHeight(), "the page is resizable");
+		// A small logical screen can open the page at its minimum. Exercise
+		// both directions instead of requiring unused room in the initial size.
+		const auto expanded = initial + QSize{ page->fontMetrics().horizontalAdvance(QLatin1Char{ 'M' }) * 8, page->fontMetrics().height() * 4 };
+		for (const auto& size : { expanded, page->minimumSize() }) {
 			page->resize(size);
 			process_events();
+			expect(page->size() == size, "the page grows and shrinks to the requested size");
 			auto* const list       = page->list();
 			const auto  titleFloor = list->fontMetrics().horizontalAdvance(QStringLiteral("Previous file"));
 			const auto  fits       = list->columnWidth(0) > titleFloor && list->columnWidth(0) + list->columnWidth(1) <= list->viewport()->width() + 1;

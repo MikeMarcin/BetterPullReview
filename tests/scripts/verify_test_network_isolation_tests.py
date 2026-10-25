@@ -730,6 +730,12 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "owner-private-acl-denied",
                 "git-reference-parent-denied",
                 "msys-runtime-object",
+                # [[BPR-1694]]. Exact R148/R150 Windows pairs pass
+                # uncontained and report these three distinct contained
+                # refusals. The pins name observations, not inferred syscalls.
+                "agent-setup-default-read-refused",
+                "private-test-root-refused",
+                "persistent-recovery-open-unavailable",
             },
         )
 

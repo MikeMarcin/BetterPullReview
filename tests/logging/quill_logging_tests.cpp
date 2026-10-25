@@ -332,6 +332,7 @@ try {
 		expect(log.record({ .GitStep = static_cast<application::git_smart_transport_step>(255U) }) == status::dropped, "unknown Git acquisition step never enters log");
 		expect(log.record({ .TransportFailureSource = static_cast<application::diagnostic_transport_failure_source>(255U) }) == status::dropped, "unknown source never enters log");
 		expect(log.record({ .Operation = application::diagnostic_operation::review_comment, .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 422 }) == status::available, "review comment status survives real logger vocabulary");
+
 		expect(log.record({ .HttpStatus = 600U }) == status::dropped, "invalid HTTP status never enters log");
 		{
 			// [[BPR-1540]]. A review submission left unknown: its reason and
@@ -390,6 +391,13 @@ try {
 			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
 			event.Summary.State = application::diagnostic_summary_state::sanitized;
 			expect(log.record(event) == status::available, "a discovery read's end reaches the real log");
+			for (const auto operation : { application::diagnostic_paged_operation::list_requested_reviewers, application::diagnostic_paged_operation::list_home_pull_requests }) {
+				auto observed           = event;
+				observed.PagedOperation = operation;
+				observed.HttpStatus     = 200U;
+				observed.GithubFailure  = core::github_failure::response_too_large;
+				expect(log.record(observed) == status::available, "a complete discovery diagnosis preserves closed operation and HTTP fields");
+			}
 			auto other            = event;
 			other.Summary.Text[0] = 'X';
 			expect(log.record(other) == status::dropped, "a discovery event whose detail is not its own line never enters the log");
@@ -511,6 +519,7 @@ try {
 	expect(first.find("\"epoch_stage\":\"protocol_acquire\",\"failure_domain\":\"protocol\",\"failure\":\"pack_sink\",\"pack_failure\":\"input_limit\"") != std::string::npos, "fixed protocol and pack failure names persisted");
 	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("\"request\":42,\"http_status\":200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
+	expect(first.find("\"page_operation\":\"ListRequestedReviewers\"") != std::string::npos && first.find("\"page_operation\":\"ListHomePullRequests\"") != std::string::npos, "new discovery operation names survive persistence with the existing redaction checks");
 	expect(first.find("\"op\":\"github.pull_request\",\"outcome\":\"response_received\",\"request\":43,\"http_status\":403") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"rate_limit\",\"pack_failure\":\"none\",\"page_operation\":\"ListPullRequestFiles\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"validation\",\"failure\":\"missing_required_text\"") != std::string::npos

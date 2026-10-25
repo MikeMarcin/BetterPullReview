@@ -1,3 +1,7 @@
+# Mac/Windows reconciliation (2026-10-25): preserve both reviewed branches.
+# Upstream application changes and local standalone CLI installed-runtime guard
+# combine in the production manifest; full application and mutation pins match
+# upstream unchanged. This reseal alone does not establish runtime acceptance.
 # [[BPR-1759]] signed-candidate reseal (2026-10-24), 6c998babb..d2b7f6a32.
 # The only changed production-manifest files are installed_runtime.cpp/.hpp
 # in df6e8be48: the existing installed-runtime guard selects the standalone
@@ -10,6 +14,28 @@
 # existing guard before CLI Qt construction. Native CLI/runtime acceptance
 # remains bound to the RFC-BPR-0093 ledger. Print-only mode is not a check;
 # the positive inventory and every hostile bypass control are run separately.
+# BPR-1694 release repair reseal after R164/R167 causal shutdown verification:
+# Window quiescence includes its queued close callback's session retirement,
+# so profile draining cannot force-cancel the latest orderly restoration save.
+# Explicit forced cancellation is unchanged. Profile-owned test gates and the
+# guarded desktop poll seam retain the deterministic coalesced-save control.
+# Temporary successful-path reading snapshots are removed at e9e2b9f6c.
+# R164 causal RED/GREEN and R167 corrected native courses pass; full final-source
+# qualification is still required. App inventory and mutation bytes stay exact.
+# BPR-1694 release repair reseal after R158 causal Find verification:
+# Since 7ee592fc, github_application.cpp adds only tests-on decision gates and
+# bounded fixture observations. Ledger gates live through the profile effect
+# drain; reopen/reaction controls hold their native answer through the immediate
+# observation and retain later confirmation. Production mutation bytes and the
+# exact app-source inventory stay unchanged. Full/manifest pins bind cleanup
+# e9a9744fc; native final-source qualification remains required.
+# BPR-1694 release repair reseal, reviewed 5b0fbf44e..7591bf1e4:
+# github_application.cpp acknowledges a completed local draft edit without
+# selecting its old draft after navigation (exact scope/id/anchor/revision).
+# The editor keeps the current replacement and later unsaved text; each clear
+# retires its obsolete replacement. No provider, credential, grant, mutation
+# admission or publication branch changes; inventory and mutation pin unchanged.
+# Independent critical review is recorded in the external release checkpoint.
 # Coordinator landing reseal (2026-10-24) over the reseal below, rename only:
 # provisional BPR-PENDING-AN and AQ1..AQ9 card references in src/app comments
 # became BPR-1747..BPR-1756. No behavior change; mutation 16d135419 stays exact.
@@ -2350,7 +2376,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"85ca7a585b699f8257c9eec80673a0665fe1b491fac3318162c2294b394304ab"
+		"722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2573,8 +2599,15 @@ function(bpr_verify_app_source_tree app_source_root)
         "${app_source_root}"
         bpr_production_app_manifest_digest
     )
+# Release v0.3.3 integration review over local main e82537ad1: private_review_workflow retries a
+# select read only when the same context and selected line acquire that line
+# comparison digest from an absent digest. Other binding/line changes and
+# closure refuse; the next attempt has a digest, bounding recovery to one.
+# Manual-executor real-store red/green and both-lane negative controls are
+# in private_draft_restore_tests. No grant, provider, credential, target,
+# mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "698b12c3621d3e119cc2badc6f79b0e9566105d55b341b48478668ba79de57ad"
+        "7eb9ddd1d1d0fc26b6a4f94f411d15ccb62523e89cfc108a62238a31c4dc9d0a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -101,6 +101,9 @@ _PORT_IMPLEMENTATION = re.compile(
     r":\s*public\s+(?:[A-Za-z_][A-Za-z_0-9]*::)*review_mutation_port\b"
 )
 _CONSTRUCTION_CALL = re.compile(rf"\b{CONSTRUCTION_TOKEN}\s*\(")
+_GCC_PROVIDER_TEST_INITIALIZER = re.compile(
+    r"\s*[0-9a-fA-F]+\s+t\s+_GLOBAL__sub_I_live_review_mutation_provider_tests\.cpp\s*"
+)
 
 
 def _sources(root: pathlib.Path) -> list[pathlib.Path]:
@@ -132,11 +135,18 @@ def forbidden_symbols_in(table: str) -> list[str]:
     test object named for the provider it tests carries the forbidden name in
     that path without defining a single symbol. Only record lines are
     searched; the header that names the file is not a symbol (BPR-0431).
+
+    GCC also names a local translation-unit initializer after this test's
+    source file. That exact local-text record names no provider method or
+    factory. Other initializer names and every real provider symbol remain
+    forbidden; this never exempts a binary or the rest of its table.
     """
     return [
         line.strip()
         for line in table.splitlines()
-        if FORBIDDEN_SYMBOL in line and not line.lstrip().startswith("Dump of file")
+        if FORBIDDEN_SYMBOL in line
+        and not line.lstrip().startswith("Dump of file")
+        and _GCC_PROVIDER_TEST_INITIALIZER.fullmatch(line) is None
     ]
 
 

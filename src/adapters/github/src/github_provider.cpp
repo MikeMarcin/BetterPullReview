@@ -67,10 +67,14 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
+				return application::diagnostic_paged_operation::none;
 			case read_operation::search_personal_pull_requests:
+				return application::diagnostic_paged_operation::search_pull_requests;
 			case read_operation::list_requested_reviewers:
-			case read_operation::get_team_membership:
+				return application::diagnostic_paged_operation::list_requested_reviewers;
 			case read_operation::list_home_pull_requests:
+				return application::diagnostic_paged_operation::list_home_pull_requests;
+			case read_operation::get_team_membership:
 			case read_operation::list_reactions:
 				// [[BPR-0988]]. Discovery is not part of a pull request read.
 				return application::diagnostic_paged_operation::none;
@@ -353,6 +357,8 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto perform(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion override
 			{
 				Requests.fetch_add(1U, std::memory_order_relaxed);
+				LastOperation.store(diagnostic_operation_for(aRequest.Wire.Operation), std::memory_order_relaxed);
+				LastStatus.store(0U, std::memory_order_relaxed);
 				// [[BPR-1744]]. Its time in the transport and what kind of
 				// answer it was; a request that throws counts only its time.
 				const auto started = std::chrono::steady_clock::now();
@@ -365,6 +371,7 @@ namespace bpr::adapters::github::detail {
 				auto completion = Inner.perform(aRequest, std::move(aStop));
 				if (const auto* const success = std::get_if<github_wire_success>(&completion)) {
 					const auto status = success->Response.Status;
+					LastStatus.store(status >= 100 && status <= 599 ? static_cast<std::uint16_t>(status) : std::uint16_t{ 0U }, std::memory_order_relaxed);
 					if (status == 403) {
 						Forbidden.fetch_add(1U, std::memory_order_relaxed);
 					} else if (status == 429) {
@@ -372,8 +379,11 @@ namespace bpr::adapters::github::detail {
 					} else if (status >= 500 && status <= 599) {
 						ServerErrors.fetch_add(1U, std::memory_order_relaxed);
 					}
-				} else if (const auto* const error = std::get_if<github_wire_error>(&completion); error != nullptr && error->Error.Failure == application::github_provider_failure::timeout) {
-					Timeouts.fetch_add(1U, std::memory_order_relaxed);
+				} else if (const auto* const error = std::get_if<github_wire_error>(&completion)) {
+					LastStatus.store(error->Error.HttpStatus, std::memory_order_relaxed);
+					if (error->Error.Failure == application::github_provider_failure::timeout) {
+						Timeouts.fetch_add(1U, std::memory_order_relaxed);
+					}
 				}
 				return completion;
 			}
@@ -381,22 +391,26 @@ namespace bpr::adapters::github::detail {
 			/// \brief The answer counts and wire time into `aCost`.
 			void add_to(application::personal_discovery_cost& aCost) const noexcept
 			{
-				aCost.Requests         = requests();
-				aCost.WireMilliseconds = static_cast<std::uint32_t>(std::min<std::uint64_t>(WireMicroseconds.load(std::memory_order_relaxed) / 1000U, std::numeric_limits<std::uint32_t>::max()));
-				aCost.Forbidden        = Forbidden.load(std::memory_order_relaxed);
-				aCost.Throttled        = Throttled.load(std::memory_order_relaxed);
-				aCost.ServerErrors     = ServerErrors.load(std::memory_order_relaxed);
-				aCost.Timeouts         = Timeouts.load(std::memory_order_relaxed);
+				aCost.LastReadOperation = LastOperation.load(std::memory_order_relaxed);
+				aCost.LastHttpStatus    = LastStatus.load(std::memory_order_relaxed);
+				aCost.Requests          = requests();
+				aCost.WireMilliseconds  = static_cast<std::uint32_t>(std::min<std::uint64_t>(WireMicroseconds.load(std::memory_order_relaxed) / 1000U, std::numeric_limits<std::uint32_t>::max()));
+				aCost.Forbidden         = Forbidden.load(std::memory_order_relaxed);
+				aCost.Throttled         = Throttled.load(std::memory_order_relaxed);
+				aCost.ServerErrors      = ServerErrors.load(std::memory_order_relaxed);
+				aCost.Timeouts          = Timeouts.load(std::memory_order_relaxed);
 			}
 
 		private:
-			github_wire_transport_port& Inner;
-			std::atomic<std::uint32_t>  Requests{ 0U };
-			std::atomic<std::uint64_t>  WireMicroseconds{ 0U };
-			std::atomic<std::uint32_t>  Forbidden{ 0U };
-			std::atomic<std::uint32_t>  Throttled{ 0U };
-			std::atomic<std::uint32_t>  ServerErrors{ 0U };
-			std::atomic<std::uint32_t>  Timeouts{ 0U };
+			github_wire_transport_port&                          Inner;
+			std::atomic<std::uint32_t>                           Requests{ 0U };
+			std::atomic<std::uint64_t>                           WireMicroseconds{ 0U };
+			std::atomic<application::diagnostic_paged_operation> LastOperation{ application::diagnostic_paged_operation::none };
+			std::atomic<std::uint16_t>                           LastStatus{ 0U };
+			std::atomic<std::uint32_t>                           Forbidden{ 0U };
+			std::atomic<std::uint32_t>                           Throttled{ 0U };
+			std::atomic<std::uint32_t>                           ServerErrors{ 0U };
+			std::atomic<std::uint32_t>                           Timeouts{ 0U };
 		};
 
 		/// [[BPR-1680]]. Whole milliseconds between two steady instants, saturated.

@@ -736,6 +736,7 @@ bpr_add_executable(
 	        BetterPullReview::AdapterGitHub
 	        BetterPullReview::AdapterSQLite
 	        BetterPullReview::Application
+	        BetterPullReview::Platform
         Qt6::Core
 )
 target_include_directories(
@@ -748,6 +749,19 @@ bpr_enable_warnings(test_better_pull_review_live_review_mutation_provider_tests)
 bpr_add_network_isolated_test(
     NAME live_review_mutation_provider
     COMMAND test_better_pull_review_live_review_mutation_provider_tests
+)
+bpr_add_network_isolated_test(
+    NAME live_review_mutation_outdated_reply_recovery
+    WINDOWS_UNCONTAINED
+    COMMAND
+        test_better_pull_review_live_review_mutation_provider_tests
+        --only
+        an_outdated_threads_reply_is_bound_to_its_thread
+)
+set_tests_properties(
+    live_review_mutation_outdated_reply_recovery
+    PROPERTIES
+        PASS_REGULAR_EXPRESSION "an_outdated_threads_reply_is_bound_to_its_thread:pass"
 )
 bpr_add_network_isolated_test(
     NAME live_review_mutation_restart_recovery

@@ -14,7 +14,7 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 
 def run(application, phase, root, vault=b""):
     generation = (1 if phase.endswith("seed") else
-                  2 if phase == "auth-advance" or phase.startswith("anonymous") or phase == "capability" else
+                  2 if phase in {"auth-advance", "auth-orderly-close-race"} or phase.startswith("anonymous") or phase == "capability" else
                   4 if phase in {"tabs-restore", "auth-close"} else 5 if phase == "auth-verify" else 3)
     result = subprocess.run([application, phase, str(root), str(generation)], input=vault,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -64,6 +64,7 @@ def recent(root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--application", required=True)
+    parser.add_argument("--only-orderly-close-control", action="store_true")
     arguments = parser.parse_args()
     with contained_temporary_directory(prefix="bpr-0709-restart-") as temporary:
         root = Path(temporary).resolve()
@@ -74,6 +75,15 @@ def main():
         # the stores define there.
         os.chmod(root, 0o700)
         make_root_private(root)
+        orderly = root / "orderly-close"
+        make_root_private(orderly)
+        # This control starts directly from the durable seed. The separately
+        # exercised auth-advance course must not become its causal RED verdict.
+        orderly_vault = run(arguments.application, "auth-seed", orderly)
+        run(arguments.application, "auth-orderly-close-race", orderly, orderly_vault)
+        if arguments.only_orderly_close_control:
+            print("PROFILE_ORDERLY_CLOSE_CONTROL_OK")
+            return
         early = root / "early-tab-reading"
         make_root_private(early)
         run(arguments.application, "auth-tab-gesture-seed", early)

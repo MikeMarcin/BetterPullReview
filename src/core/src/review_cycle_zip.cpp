@@ -224,16 +224,15 @@ namespace bpr::core {
 			const auto size = static_cast<std::uint32_t>(member.Bytes.size());
 			const auto name = static_cast<std::uint32_t>(member.Name.size());
 			// [[BPR-1725]]. A member deflate does not shrink stays stored.
-			auto packed  = std::string{ };
-			auto payload = member.Bytes;
-			auto method  = std::uint32_t{ stored };
+			auto packed = std::string{ };
+			auto method = std::uint32_t{ stored };
 			if (aOptions.Deflate) {
 				if (auto compressed = zip_codec::deflate_raw(member.Bytes); compressed && compressed->size() < member.Bytes.size()) {
-					packed  = std::move(*compressed);
-					payload = packed;
-					method  = deflated;
+					packed = std::move(*compressed);
+					method = deflated;
 				}
 			}
+			const auto payload    = method == deflated ? std::string_view{ packed } : std::string_view{ member.Bytes };
 			const auto packedSize = static_cast<std::uint32_t>(payload.size());
 			// Local header: version 2.0, UTF-8 names, the method and the time.
 			put32(archive, local_signature);

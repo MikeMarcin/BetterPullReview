@@ -14,7 +14,7 @@ namespace bpr::application {
 
 		[[nodiscard]] auto refused(const agent_launch_request& aRequest, std::string aMessage) -> agent_run_result
 		{
-			return { .Session = aRequest.Session, .Outcome = agent_run_outcome::failed_to_start, .StandardError = std::move(aMessage) };
+			return { .Session = aRequest.Session, .Outcome = agent_run_outcome::failed_to_start, .StandardError = std::move(aMessage), .Run = aRequest.Run, .Metadata = aRequest.Metadata };
 		}
 	} // namespace
 

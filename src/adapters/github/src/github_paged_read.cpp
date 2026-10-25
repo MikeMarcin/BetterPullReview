@@ -4685,6 +4685,80 @@ namespace bpr::adapters::github::detail {
 			};
 		}
 
+		/// [[BPR-1694]]. REST's singleton roster includes full user/team
+		/// metadata. On its explicit limit failure, use existing projected
+		/// GraphQL reads without relaxing byte, structural or roster bounds.
+		/// One Home alias anchors the exact repository and PR; every roster
+		/// page is then checked against those IDs and the head/base revision.
+		/// Recovery has its own shared 32-request/8-MiB budget, so optional
+		/// summaries cannot consume the capacity needed to verify membership.
+		[[nodiscard]] auto recover_discovery_reviewers(
+			github_wire_transport_port& aTransport, const validated_github_host_profile& aProfile,
+			const application::personal_discovery_request& aRequest, const core::pull_request_request_context& aContext,
+			const server_contract aServer, const std::stop_token aStop, const github_paged_read_limits& aLimits,
+			application::github_rate_limit_state& aRates, shared_home_budget& aBudget)
+			-> std::expected<requested_reviewers, github_paged_read_failure>
+		{
+			auto limits                          = aLimits;
+			limits.MaximumTotalPages             = std::min(limits.MaximumTotalPages, std::size_t{ 10 });
+			limits.MaximumAggregateResponseBytes = std::min(limits.MaximumAggregateResponseBytes, std::size_t{ 8U * 1024U * 1024U });
+			auto repositoryContext               = aRequest.Context;
+			repositoryContext.Repository         = aContext.Repository;
+			production_read_execution anchor{ aTransport, aProfile, repositoryContext, limits, aStop, aRates, aRequest.AuthenticationSession, nullptr, &aBudget };
+			auto                      semantic = semantic_read_request{ .Server = aServer, .Operation = read_operation::list_home_pull_requests, .Owner = aContext.Repository.Owner, .Repository = aContext.Repository.Name };
+			semantic.PullRequestNumbers        = { aContext.Number.value() };
+			const auto page                    = anchor.fetch(semantic);
+			if (!page) {
+				return std::unexpected{ page.error() };
+			}
+			const auto malformed = [&anchor] { return anchor.terminal_failure(application::github_provider_failure::malformed_response); };
+			if (!singleton_complete(*page) || !json_is_object(page->Document) || !graphql_success_envelope(json_object(page->Document))) {
+				return malformed();
+			}
+			const auto data = json_member(json_object(page->Document), "data");
+			if (!json_is_object(data) || !has_exact_keys(json_object(data), { "repository" })) {
+				return malformed();
+			}
+			const auto repositoryValue = json_member(json_object(data), "repository");
+			if (!json_is_object(repositoryValue)) {
+				return malformed();
+			}
+			const auto repository = json_object(repositoryValue);
+			if (!has_exact_keys(repository, { "id", "nameWithOwner", "p0" })
+				|| !nonempty_string(json_member(repository, "id"))
+				|| !bounded_text(text(json_member(repository, "id")), limits.Records.MaximumIdentityBytes)
+				|| !application::detail::ascii_equal_fold(text(json_member(repository, "nameWithOwner")), aContext.Repository.Owner + "/" + aContext.Repository.Name)
+				|| !json_is_object(json_member(repository, "p0"))) {
+				return malformed();
+			}
+			const auto pull = json_object(json_member(repository, "p0"));
+			if (uint32(json_member(pull, "number")) != aContext.Number.value()
+				|| !nonempty_string(json_member(pull, "id"))
+				|| !bounded_text(text(json_member(pull, "id")), limits.Records.MaximumIdentityBytes)
+				|| !hexadecimal_oid(json_member(pull, "headRefOid")) || !hexadecimal_oid(json_member(pull, "baseRefOid"))
+				|| !nonempty_string(json_member(pull, "baseRefName"))
+				|| !bounded_text(text(json_member(pull, "baseRefName")), limits.Records.MaximumIdentityBytes)) {
+				return malformed();
+			}
+			auto snapshot                = application::github_pull_request_snapshot{ };
+			snapshot.Repository.Node     = application::github_node_id{ text(json_member(repository, "id")) };
+			snapshot.PullRequest.Node    = application::github_node_id{ text(json_member(pull, "id")) };
+			snapshot.PullRequest.HeadOid = application::commit_oid{ text(json_member(pull, "headRefOid")) };
+			snapshot.PullRequest.BaseOid = application::commit_oid{ text(json_member(pull, "baseRefOid")) };
+			snapshot.PullRequest.BaseRef = text(json_member(pull, "baseRefName"));
+			production_read_execution execution{ aTransport, aProfile, aContext, limits, aStop, aRates, aRequest.AuthenticationSession, nullptr, &aBudget };
+			if (const auto read = read_pending_requests(execution, aServer, aContext, snapshot, limits); !read) {
+				return std::unexpected{ execution.enrich(read.error()) };
+			}
+			auto result = requested_reviewers{ .Awaited = static_cast<std::uint32_t>(snapshot.ReviewRequests.size()) };
+			for (const auto& request : snapshot.ReviewRequests) {
+				result.NamesViewer = result.NamesViewer
+					|| (request.Kind == application::github_requested_actor_kind::user
+						&& application::detail::ascii_equal_fold(request.Login, aRequest.Viewer.Login));
+			}
+			return result;
+		}
+
 		/// [[BPR-1407]]. A pull request's age, size and comment count. A field
 		/// GitHub leaves out is unknown; one it sends in another shape is refused.
 		[[nodiscard]] auto parse_change_facts(const page_json_object& aObject) -> std::optional<core::queue_change_facts>
@@ -5511,11 +5585,12 @@ namespace bpr::adapters::github::detail {
 				}
 				result.Rows.push_back(std::move(*row));
 			}
-			auto       homeBudget = shared_home_budget{ };
-			auto       details    = std::size_t{ 0U };
-			auto       kept       = std::vector<application::personal_discovery_row>{ };
-			auto       overflow   = false;
-			const auto known      = [&aRequest](const application::personal_discovery_row& aRow) {
+			auto       homeBudget     = shared_home_budget{ };
+			auto       recoveryBudget = shared_home_budget{ };
+			auto       details        = std::size_t{ 0U };
+			auto       kept           = std::vector<application::personal_discovery_row>{ };
+			auto       overflow       = false;
+			const auto known          = [&aRequest](const application::personal_discovery_row& aRow) {
 				return std::ranges::binary_search(aRequest.Known, application::personal_discovery_known{ .Repository = aRow.Repository, .Number = aRow.Number });
 			};
 			for (auto& row : result.Rows) {
@@ -5550,12 +5625,17 @@ namespace bpr::adapters::github::detail {
 					.Page              = 1U,
 					.GraphqlPage       = std::nullopt,
 				});
-				if (!reviewers.has_value()) {
-					return std::unexpected{ reviewers.error() };
-				}
-				const auto parsed = parse_requested_reviewers(*reviewers, aRequest.Viewer.Login, aLimits);
-				if (!parsed.has_value()) {
-					return std::unexpected{ detail.enrich(parsed.error()) };
+				auto                      parsed    = reviewers ? parse_requested_reviewers(*reviewers, aRequest.Viewer.Login, aLimits)
+																: std::expected<requested_reviewers, github_paged_read_failure>{ std::unexpected{ reviewers.error() } };
+				if (!parsed) {
+					const auto* error = std::get_if<application::github_provider_error>(&parsed.error());
+					if (error == nullptr || error->Failure != application::github_provider_failure::response_limit) {
+						return std::unexpected{ detail.enrich(parsed.error()) };
+					}
+					parsed = recover_discovery_reviewers(aTransport, aProfile, aRequest, requested_reviewers_parent(rowContext, row.Number), *server, aStop, aLimits, rates, recoveryBudget);
+					if (!parsed) {
+						return std::unexpected{ parsed.error() };
+					}
 				}
 				// Asked of a team the viewer belongs to is not asked of the
 				// viewer: automatic team-request discovery is a non-goal.
