@@ -17,7 +17,7 @@ The pinned allocator runs process-wide in the selected BPR desktop, CLI, update 
 **Completion:**
 
 - Pinned and offline configure controls reject substitute source and distribution refuses the baseline switch.
-- Apple Silicon and Intel native probes demonstrate allocation/free ownership in selected product executables and a signed installed candidate.
+- Apple Silicon native probes demonstrate allocation/free ownership in selected product executables and a signed installed candidate; universal arm64/x86_64 slices and static override evidence are verified, with no native Intel execution required or claimed.
 
 **Boundary:** A usable macOS product graph and explicit, testable allocator selection; other native platforms retain their own obligations.
 

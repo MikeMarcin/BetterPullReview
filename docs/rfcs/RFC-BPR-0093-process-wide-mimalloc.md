@@ -96,10 +96,12 @@ separately; no fixed speedup or memory saving is required by this adoption.
   and distribution graphs; disabled optional families create no phantom
   requirement, a core-only graph remains allocator-independent,
   non-distribution baseline selection works, and distribution refuses it.
-- **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++
+- **AC03:** Native Apple Silicon macOS courses demonstrate C and C++
   interception, representative Qt/loaded-library interception and safe
   cross-module allocation/free in the desktop and every selected helper/CLI,
-  including a signed installed candidate.
+  including a signed installed candidate. Universal arm64/x86_64 slices and
+  static override evidence are verified; native Intel execution is not
+  required or claimed (owner amendment r5).
 - **AC04:** A native Windows 11 x64 course demonstrates the same behavior for
   the desktop and every selected helper/CLI with the actual CRT and packaged
   DLL closure; startup, shutdown and cross-module frees remain sound.
@@ -120,6 +122,18 @@ separately; no fixed speedup or memory saving is required by this adoption.
 - **AC09:** Architecture, build, package and operator documentation state the
   actual override scope and limits; focused public-path and documentation
   checks pass, with all native and release claims tied to their evidence.
+
+## Owner acceptance amendment — mandate r5, 2026-10-24
+
+The owner explicitly answered “Amend Intel criterion”: accept the verified
+universal binary/static x86_64 evidence and native arm64 observations without
+requiring an Intel run. AC03 and the live macOS milestone/card now express that
+requirement. This is an acceptance amendment, not evidence of native Intel
+execution. The [current candidate and amendment ledger](../verification/RFC-BPR-0093.md#intel-acceptance-amendment--mandate-r5)
+binds the universal app/CLI producers, static proof and native arm64 observations.
+Actual Developer-ID signed-installed and delivered native Cocoa acceptance
+remain pending on [[BPR-1759]]; [[BPR-1762]] and RFC closeout remain incomplete.
+Other criteria and the immutable source pack are unchanged.
 
 ## Proposed work
 

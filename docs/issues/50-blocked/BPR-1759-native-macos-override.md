@@ -16,9 +16,30 @@ blocked_by: "native-macos-candidate"
 
 Implement and observe the macOS override in the selected desktop, CLI,
 update helper and other helpers (AC03). Probe actual C, C++, Qt/loaded-library allocation and
-cross-module release on Apple Silicon and Intel. Check the signed installed
-candidate, startup and shutdown. Include allocator-boundary stress needed by
-AC06; a linked binary or stats report alone is insufficient.
+cross-module release on native Apple Silicon. Verify universal arm64/x86_64
+slices and static override evidence; native Intel execution is not required or
+claimed under owner amendment r5. Check the signed installed candidate, startup
+and shutdown. Include allocator-boundary stress needed by AC06; a linked binary
+or stats report alone is insufficient.
+
+## Current acceptance — mandate r5, 2026-10-24
+
+The owner explicitly answered “Amend Intel criterion”. The verified universal
+app/CLI and native arm64 observations satisfy the amended architecture coverage;
+no native Intel run is required or reported. The current app producer remains
+`75baca275aa8f052997a231a83ebc7d77d27ab6d`, the current CLI/product source
+`df6e8be48ff17271e2258f0040e4ca87795f44bd`. Both slices' dependencies and allocator
+interpose sections were checked read-only again in r5; the
+[ledger](../../verification/RFC-BPR-0093.md#intel-acceptance-amendment--mandate-r5)
+binds exact identities and the owner decision.
+
+This card remains **Blocked** on the actual Developer-ID signed-installed course
+and delivered native Cocoa observations. The offline ad-hoc seal and pre-main
+arm64 observer do not complete those requirements. No new product candidate,
+signing, release, Keychain or owner-desktop operation belongs to this round.
+
+The r1–r4 checkpoints below are historical. Their Intel-pending statements are
+superseded by r5; their candidate identities and observations are preserved.
 
 ## Candidate prerequisite amendment, 2026-10-24
 

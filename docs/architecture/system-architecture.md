@@ -583,8 +583,12 @@ requires it on. Sanitizer/fuzzer graphs exclude the override and retain toolchai
 allocation; instrumented distribution is refused. `MI_XMALLOC` is forced off,
 so adoption introduces no abort-on-allocation-failure mode. macOS pointer
 ownership and cross-module courses are tests-enabled instrumentation of the
-actual product images; signed installed, Intel, Windows and Ubuntu evidence is
-tracked separately in [[BPR-1759]], [[BPR-1760]] and [[BPR-1761]]. Package/source
+actual product images; signed-installed/delivered Cocoa, Windows and Ubuntu
+evidence is tracked separately in [[BPR-1759]], [[BPR-1760]] and [[BPR-1761]].
+Owner amendment r5 accepts universal arm64/x86_64 static proof plus native arm64
+observations for macOS architecture coverage; native Intel execution is neither
+required by RFC-BPR-0093 nor claimed. The actual signed-installed and delivered
+Cocoa courses remain pending. Package/source
 closure and performance qualification remain [[BPR-1762]] and [[BPR-1763]].
 
 ### Core implementation inventory

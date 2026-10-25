@@ -21,6 +21,20 @@ load-path, source digest and release refusal checks; prove removal and reject
 missing or extra runtime files. This is package qualification, not release
 publication or a security-owner vulnerability disposition.
 
+## Current acceptance — mandate r5, 2026-10-24
+
+The owner's “Amend Intel criterion” decision removes native Intel execution
+from macOS AC03 and its milestone/card. Universal arm64/x86_64 static proof and
+the existing native arm64 observations remain bound in the
+[ledger](../../verification/RFC-BPR-0093.md#intel-acceptance-amendment--mandate-r5);
+no native Intel execution is claimed. This card remains **Blocked** on the
+actual Developer-ID signed-installed Mac course and delivered native Cocoa
+acceptance on [[BPR-1759]], with final AC07/AC09 reconciliation still pending.
+Its final dependency and other package/source/trust obligations are unchanged.
+
+The r4 records below retain their historical scope and evidence; r5 supersedes
+their Intel-pending statements only.
+
 ## Scheduling amendment — mandate r4, 2026-10-24
 
 The owner's instruction to keep working without an Intel Mac authorizes the

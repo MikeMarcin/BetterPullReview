@@ -67,7 +67,9 @@ image, cross-module frees and allocation-failure behavior. The probe exists
 only with tests enabled and runs before main; ordinary startup/shutdown courses
 remain separate. A development pass does not qualify an Intel host or signed
 installed package. The [RFC](../rfcs/RFC-BPR-0093-process-wide-mimalloc.md)
-retains those required native and package checks.
+accepts universal arm64/x86_64 static proof plus native arm64 observations under
+owner amendment r5, without requiring or claiming native Intel execution.
+Actual signed-installed and delivered native Cocoa acceptance remain pending.
 
 Windows requires native MSVC x64 with the dynamic CRT; static CRT flags and
 selections are refused. The build copies the source-built allocator DLL and

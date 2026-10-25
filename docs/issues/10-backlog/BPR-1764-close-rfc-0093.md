@@ -19,6 +19,17 @@ documentation (AC09), run the required documentation gate and focused
 integration check, and record remaining platform/release limits. Do not close
 with link-only or developer-build evidence in place of native interception.
 
+## Current mandate r5
+
+The owner explicitly answered “Amend Intel criterion” on 2026-10-24: verified
+universal slices/static x86_64 proof plus native arm64 observations replace the
+native Intel run requirement. No Intel execution is claimed. BPR-1759 and
+BPR-1762 remain Blocked on actual Developer-ID signed-installed and delivered
+native Cocoa acceptance; this card remains Backlog and the RFC In Progress.
+The [r5 ledger](../../verification/RFC-BPR-0093.md#intel-acceptance-amendment--mandate-r5)
+and final checkpoint below control continuation. Earlier r1–r4 checkpoints
+preserve history; r5 supersedes only their Intel-pending statements.
+
 ## Implementation checkpoint
 
 RFC base: `e82537ad15b32871a8375b6143abe08e16a68b87`.
@@ -31,7 +42,7 @@ Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), wh
 |---|---|---|---|
 | **AC01:** Configure obtains only the pinned v3.5.3 source and licence bytes; offline, substitution and target-collision controls reject wrong inputs. | Provider pin/offline/substitution/collision/extraction controls; [ledger](../../verification/RFC-BPR-0093.md) | Pass | `81ee1b4ef` |
 | **AC02:** Every selected shipped BPR executable has the override in normal and distribution graphs; disabled optional families create no phantom requirement, a core-only graph remains allocator-independent, non-distribution baseline selection works, and distribution refuses it. | All product-target attachment, actual minimal distribution/core/baseline graphs and running baseline CLI; ledger | Pass | `81ee1b4ef` |
-| **AC03:** Native Apple Silicon and Intel macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. | Current r4 clean universal app package/source audit, relocated offscreen course, external native-arm ownership in four staged app images and current CLI pair; ledger | Partial: Intel, authorized signed-installed and delivered native Cocoa remain required | `75baca275` app; `df6e8be48` CLI |
+| **AC03:** Native Apple Silicon macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. Universal arm64/x86_64 slices and static override evidence are verified; native Intel execution is not required or claimed (owner amendment r5). | Current r4 clean universal app package/source audit, relocated offscreen course, external native-arm ownership in four staged app images and current CLI pair; r5 static recheck and owner amendment in ledger | Partial: amended architecture coverage satisfied; authorized signed-installed and delivered native Cocoa remain required | `75baca275` app; `df6e8be48` CLI |
 | **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native Windows four-product probes, external installed/CLI pointer and Qt-free observations, actual runtime audit/controls; [ledger](../../verification/RFC-BPR-0093.md#windows-milestone-result--mandate-r2) | Pass: Windows native allocator scope | `0ccf31bc4`, `c5693fd05` |
 | **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native four-product probes; actual installed GDB/Qt/cross-free/OOM, CLI/MCP/XCB public paths, clean child traces and Runtime audit/controls; ledger | Pass: Linux native allocator scope | `0c40cca40` |
 | **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Native boundary/failure rows, fresh-configure executable regression on all three stations, actual ASan/UBSan/libFuzzer corpus/public CLI and paired desktop prune/delete; [final ledger](../../verification/RFC-BPR-0093.md#distribution-result--mandate-r4) | Pass: focused engineering scope | `b449356dd`, `df6e8be48` |
@@ -310,3 +321,50 @@ continues work without Intel while retaining its criterion. No acceptance exit,
 memory limit, BPR-0967 result, product code or source pin changed. No Keychain,
 Developer ID operation, publication, push or owner desktop operation occurred.
 The coordinator owns integration and the next authorized acceptance round.
+
+
+## Latest checkpoint — Intel acceptance amendment, mandate r5
+
+Run `mimalloc-20261024`, segment `macos-intel-amendment-r5`, sole writer
+`/root/mimalloc_intel_amendment`; source/tracker main at
+`/Users/jaeger/Documents/GitHub/BetterPullReview`, entry revision
+`475d506854121c4c707a3a193cc4eb0d08ce0d3f`, immutable RFC base unchanged.
+The owner explicitly answered “Amend Intel criterion”. This bounded round
+completes that acceptance amendment; it does not complete the Mac milestone.
+
+- **Result:** AC03, BPR-1759 and macOS exit 2 accept the verified universal
+  arm64/x86_64 static proof plus native arm64 observations without requiring
+  native Intel execution. No native Intel execution is reported. BPR-1759 and
+  BPR-1762 remain Blocked on actual Developer-ID signed-installed and delivered
+  native Cocoa acceptance. AC03/AC07/AC09 and this closeout remain partial.
+- **Candidates:** app `75baca275aa8f052997a231a83ebc7d77d27ab6d`, CLI/product
+  `df6e8be48ff17271e2258f0040e4ca87795f44bd`, with the original artifact and
+  image hashes in the [ledger](../../verification/RFC-BPR-0093.md#current-mac-candidate--mandate-r4).
+  Both private allocator runtimes and all six selected product images retain
+  their exact hashes. Static per-slice dependencies/interpose and universal
+  headers pass; six recorded native arm64 ownership courses are reused unchanged.
+- **Changed paths:** live RFC and index; live milestone JSON/generated view;
+  BPR-1759, BPR-1762 and this card; verification ledger; system architecture and
+  build guide. No product/package code, immutable pack, source receipt, other
+  criterion, selector, dependency, outcome or memory limit changed.
+- **Checks:** documentation gate and its 67 tests pass; plan check/render and
+  focused requirement/closeout/status/preservation checks pass. `check-amendment`
+  intentionally refuses the changed exit (exit 2, preservation guard), retained
+  as such. The explicit owner requirement amendment supplies the authority;
+  no helper success or new native acceptance is inferred. The old selection's
+  recipe-text fingerprint was stale; the same revision-2 coordinator-implementer
+  strategy is resolved afresh for this quiescent r5 segment and binding.
+- **Ownership/commands:** all task-owned commands are finished. No product
+  process, review session, server, URL or event cursor exists for r5. Current
+  and earlier candidate roots remain protected and retained. Main's unrelated
+  `.mask.json`, `.mask.lock.json`, `docs/issues/NEXT_ID` and BPR-1766 reservation
+  retain their entry hashes and are excluded from the commit. No signing,
+  release, desktop, Keychain, push or publication operation occurred.
+- **Runtime/continuation:** `build/mimalloc-intel-amendment-r5/` holds mandate,
+  before/proposed plans, helper refusal, selection reconciliation, static proof,
+  focused checks, renewed checkpoint/observation and final handoff. The
+  coordinator owns the remaining acceptance round and exact candidate binding:
+  actual authorized signed-installed and delivered native Cocoa evidence, then
+  affected BPR-1762 AC07/AC09 reconciliation and dependency-ordered BPR-1764.
+  Intel is no longer a pending requirement. No signing approval is prepared
+  by this documentary round.

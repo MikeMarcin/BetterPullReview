@@ -1,6 +1,58 @@
 # RFC-BPR-0093 — process-wide mimalloc
 
-## Scope and candidate
+## Intel acceptance amendment — mandate r5
+
+On 2026-10-24 the owner explicitly answered **“Amend Intel criterion”**. The
+coordinator relayed the decision to sole implementer `/root/mimalloc_intel_amendment`:
+accept the verified universal binary/static x86_64 evidence and native arm64
+observations without requiring an Intel run. AC03, BPR-1759 and the live
+`pinned-macos-integration` exit now carry that exact acceptance boundary. No
+native Intel execution occurred or is claimed. This changes acceptance, not
+observations; all other criteria, work selectors, dependencies and the immutable
+source pack remain unchanged.
+
+The source basis is the [current r4 Mac candidate](#current-mac-candidate--mandate-r4):
+app producer `75baca275aa8f052997a231a83ebc7d77d27ab6d`, CLI/product source
+`df6e8be48ff17271e2258f0040e4ca87795f44bd`. Their package audits and external
+native arm64 ownership/boundary observations are retained with their original
+scope. Read-only r5 `lipo -archs` and per-slice `otool -L`/`otool -l` checks
+confirm arm64 and x86_64 in all six selected app/CLI images and both private
+allocator images, each product's allocator dependency and each allocator's
+`__interpose` section. All eight image hashes equal the recorded candidates.
+These static checks do not establish native Intel runtime behavior.
+
+The `check-amendment` helper was run before publication. It correctly refused
+with `amendment must preserve all exit criteria, including pending decisions`
+(exit 2): its refinement contract does not authorize replacing acceptance exits.
+The explicit owner r5 decision separately authorizes that one requirement
+replacement; the refusal is retained, not reported as a passing check. The
+proposed/current plan comparison confirms only the macOS exit changed, with
+plan identity, scope, work, dependencies, other exits and outcomes preserved.
+The current binding is renewed under r5 rather than reusing the old fingerprint.
+
+Documentation gate and all 67 documentation tests pass. The focused consistency
+check confirms exact AC03/closeout agreement, only the authorized macOS exit
+replacement, correct remaining card/RFC states, unchanged immutable source/receipt,
+unrelated-file hashes and retained candidate/artifact hashes. Plan validation and
+regenerated-view comparison pass. Other product behavior reuses its unchanged
+native evidence; this documentation-only round requires no product rebuild.
+
+BPR-1759 and `pinned-macos-integration` remain incomplete on the actual
+Developer-ID signed-installed course and delivered native Cocoa acceptance.
+BPR-1762/AC07/AC09 and BPR-1764/RFC closeout remain pending. No local ad-hoc
+seal, pre-main observer or static proof substitutes for those remaining courses.
+No signing, release, desktop or Keychain operation was performed in r5.
+
+Runtime records are `build/mimalloc-intel-amendment-r5/` in the main source/tracker
+root: mandate, original/proposed plan, guard refusal, renewed selection/binding,
+static proof, focused consistency/preservation checks and final handoff.
+The current and prior candidate roots remain protected and unchanged. No review
+session, event cursor or server is created for this documentary amendment.
+
+Earlier sections below preserve their r1–r4 scope and observations. Any statement
+that Intel execution remains required is historical and superseded by r5 above.
+
+## Historical scope and candidate — mandate r1
 
 Mandate r1 (2026-10-24) implements the supplied pack and the owner's confirmed
 process-wide scope. Source/tracker: `/Users/jaeger/Documents/GitHub/BetterPullReview`,
