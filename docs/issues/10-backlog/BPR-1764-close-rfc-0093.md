@@ -448,3 +448,33 @@ Next: use the explicit diagnostic for attribution while keeping ordinary
 workflow results authoritative. Actual signed Mac qualification and final
 package closeout still require their own candidate and evidence; no delay
 change or automatic purge policy is approved by this follow-up.
+
+## Active checkpoint — cleanup-policy reassessment
+
+The owner asked the same distribution implementer to reassess test cleanup
+semantics, permit test-only collection at completed cleanup boundaries when
+justified, and compare the default allocator empirically. No production hook,
+zero-delay default, threshold change or final acceptance amendment is inferred.
+Source worktree is `/Users/jaeger/.codex/worktrees/mimalloc-cleanup-r7/BetterPullReview`,
+branch `codex/mimalloc-cleanup-r7`, candidate `806df31d2`; runtime is
+`build/mimalloc-cleanup-r7/`. Earlier candidates/worktrees remain unchanged.
+
+The exact original predicate inventory found that failed observations were
+printed before checking but omitted from partial JSON. Stderr reconstruction
+shows active cache/loaded-content footprint and lifetime-peak failures, and one
+Mac resources failure first observed after prune. The candidate retains failed
+samples, adds an opt-in `--allocator-cleanup-collect` comparison for the four
+resource courses, and records pre/post samples, allocator release API/cost and
+per-phase numeric predicates. Numeric failures are retained until the end so
+cleanup can be observed; any active, lifetime-peak or other original numeric
+failure still makes the comparison fail. The original flags retain their gates.
+The native allocator baseline gets its own supported release request; no claim
+that it has an effective zero delay is assumed. Native heap counters which do
+not cover mimalloc are explicitly marked in the predicate records.
+
+Fresh native Mac/Linux builds are active. Next: run matched ordinary/collected
+policies with mimalloc and the toolchain baseline, inspect every predicate,
+check whether any actual row changes verdict, and record ambiguity before any
+acceptance update. BPR-1763 stays terminal reporting acceptance; Mac signed/
+Cocoa/package closeout remains pending under r5. Main's unrelated MASK/NEXT_ID/
+BPR-1766 changes remain untouched; no release/signing/version/push operation.
