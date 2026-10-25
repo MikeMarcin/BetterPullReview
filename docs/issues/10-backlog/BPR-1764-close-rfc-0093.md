@@ -414,3 +414,37 @@ normal close/destruction samples, observe one/five seconds of Qt idle, then
 call `mi_collect(true)` and record the result and cost separately. The unchanged
 real-workflow course and product settings remain authoritative. No production
 hook, trim policy or accepted memory-budget change is authorized by this step.
+
+## Latest checkpoint — diagnostic retention follow-up
+
+Same implementer `/root/mimalloc_distribution`, run `mimalloc-20261024`, segment
+`distribution-retention-followup`, mandate `r5-retention-followup`; owner-r5
+Intel amendment and subsequent diagnostic-only correction preserved. The
+[follow-up ledger](../../verification/RFC-BPR-0093.md#retention-follow-up--benchmark-only-collection)
+binds test producer `1322c71b5` and main integration `fdb7eba8b`/`d217078a2`.
+Only three test paths changed: the benchmark CMake/private capability flag,
+benchmark diagnostic, and actual-call allocation probe. Product/provider/
+package paths are unchanged from `0f799140c`. The rejected product prototype
+was reverted in its isolated branch and never integrated.
+
+Native Mac/Linux manual-collection/default/100/10 ms timelines pass as explicit
+diagnosis; baseline refusal is verified. Default five-second retained growth
+was about 144/283 MiB, then about 44/98 after forced collection (4/5 ms in these
+runs). The unchanged ordinary course remains Mac4/6 and Linux2/6; no manual
+measurement passes that course or changes a limit. The Release malloc probe
+compiler artifact is fixed by observing the actual call, with native7/7 and6/6.
+
+Source/build roots: `/Users/jaeger/.codex/worktrees/mimalloc-retention-r6/BetterPullReview`
+and `/home/mmarcin/bpr-rfc0093-retention-r6/source`; raw observations, exact
+hashes, validation and machine checkpoint are `build/mimalloc-retention-r6/`.
+All prior candidates remain protected. Own native/local commands are quiescent
+at handoff; no review server/session/cursor/URL exists. Main's unrelated MASK,
+NEXT_ID and BPR-1766 receipt remain excluded. BPR-1763 remains terminal reporting
+acceptance; BPR-1762 and final signed-installed/Cocoa/AC07/AC09 closeout remain
+pending. No production policy/hook, source pin, version or release change,
+signing/credential access, publication, push or desktop capture occurred.
+
+Next: use the explicit diagnostic for attribution while keeping ordinary
+workflow results authoritative. Actual signed Mac qualification and final
+package closeout still require their own candidate and evidence; no delay
+change or automatic purge policy is approved by this follow-up.

@@ -93,6 +93,28 @@ no speedup, memory saving or BPR-0967 fix is accepted. glibc/UCRT heap counters
 and the upstream Mac zone's zero live-byte result do not measure the complete
 mimalloc heap; use the recorded native process counters and their limitations.
 
+For allocator-retention attribution, the composed benchmark has an opt-in
+`--allocation-profile-purge` mode. After public close, destruction and the
+normal owner checks, it records Qt idle samples and one explicit
+`mi_collect(true)`. Its JSON and stdout mark it diagnostic-only; normal rows
+retain their original limits and do not purge. No product default or lifecycle
+hook changes. The [retention follow-up](../verification/RFC-BPR-0093.md#retention-follow-up--benchmark-only-collection)
+records the source-backed delay/idle behavior, release measurements and limits.
+Run it with absolute source/build/result paths (on Linux also set
+`QT_STYLE_OVERRIDE=Windows`):
+
+```sh
+QT_QPA_PLATFORM=offscreen python3 -I -S /absolute/source/tests/end_to_end/large_review_course.py \
+  /absolute/evidence/retention.json -- \
+  /absolute/build/tests/end_to_end/better_pull_review_large_review \
+  /absolute/path/to/git /absolute/evidence/retention.json \
+  /absolute/evidence/retention.png --allocation-profile-purge
+```
+
+A baseline or instrumented graph without mimalloc refuses this diagnostic
+with exit 77. Its successful exit measures releasable retention; it does not
+accept the ordinary peak/close/prune memory budgets.
+
 ## First build
 
 Tests use the project’s locked portable tooling. For a fresh clone, register

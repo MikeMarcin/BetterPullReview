@@ -59,3 +59,19 @@ hashes, native conditions, timing/memory values, failed rows, raw record paths
 and heap-counter limitations are in the ledger. No limit or trim behavior
 changed. No native Intel Mac, signed-installed, release or trust acceptance is
 claimed; BPR-1759, BPR-1762 and final BPR-1764 keep those obligations.
+
+## Retention diagnostic follow-up under owner r5
+
+The [follow-up ledger](../../verification/RFC-BPR-0093.md#retention-follow-up--benchmark-only-collection)
+binds a test-only manual-collection mode, real default/100/10 ms idle timelines,
+and unchanged ordinary failures on native Mac/Linux. The owner rejected a
+product zero-delay default: the isolated prototype was reverted and never
+integrated. Main changes only the benchmark and the optimized allocation probe;
+all product/provider/package settings and budgets remain unchanged. Manual
+`mi_collect(true)` runs after owner release and original sampling, reports its
+cost separately, and cannot produce a normal acceptance marker. This augments
+this card's completed reporting, not performance acceptance or a BPR-0967 fix.
+The Release probe's optimized-away impossible malloc call is corrected without
+weakening null/ENOMEM; native Mac/Ubuntu Release rows pass. Owner-r5 no longer
+requires Intel execution; actual signed-installed/Cocoa Mac and final package
+acceptance remain pending on BPR-1759/1762/1764.

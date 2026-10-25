@@ -1054,3 +1054,136 @@ delivered native Cocoa observations remain pending. The r4 instruction permits
 continued work without Intel; it does not waive that exit. No local ad-hoc seal,
 arm64 observation, source audit or archive is substituted for those criteria.
 The coordinator owns integration and the next authorized native/signed round.
+
+## Retention follow-up — benchmark-only collection
+
+The coordinator resumed the distribution implementer after the r4 report. The
+owner then explicitly rejected making purge delay zero a product default merely
+to pass the course, and asked for manual purging in tests. That instruction is
+binding. The isolated product experiment `645a8125b` was reverted in `676ac3b42`
+and never integrated into main. Its interrupted native pipeline is unaccepted.
+Only test changes `551f3906e`/`1322c71b5` were integrated as
+`fdb7eba8b`/`d217078a2`. Production sources, provider/default settings, packaging,
+source pin and version are byte-for-byte unchanged from owner-r5 base
+`0f799140c` (`git diff --quiet` over those paths passes). No production purge
+hook or trim policy was introduced. The r5 Intel amendment remains in force;
+actual signed-installed and delivered Cocoa Mac acceptance remain pending.
+
+### Diagnostic behavior and native evidence
+
+The composed benchmark accepts **`--allocation-profile-purge`** only when its
+selected allocator is mimalloc. It runs the existing public loaded-close and
+owner-release checks, retains the normal destruction samples and original heap
+observation, observes approximately one/five seconds of Qt event-loop idle,
+then calls `mi_collect(true)` once. The report records the forced collection's
+wall duration and a separate `after_forced_allocator_collect` sample. No
+allocator option is set by this code. Normal course flags call no new purge.
+
+This is explicit diagnosis: `Extended.AllocatorCollectDiagnostic=true`,
+`Extended.AllocationProfile=true`, `Extended.BudgetsEnforced=false`, and stdout
+prints `LARGE_REVIEW_ALLOCATOR_PURGE_DIAGNOSTIC_ONLY`, never a loaded-close
+acceptance marker. Earlier samples and lifetime peaks are not reset or rebased.
+A successful diagnostic exit means measurement completed; it cannot make an
+ordinary memory-budget failure pass. The toolchain-allocator baseline actually
+loads no mimalloc and refuses this mode with exit 77 and
+`LARGE_REVIEW_ALLOCATOR_PURGE_UNAVAILABLE`, without writing a report.
+
+Final native reports use test producer `1322c71b5862d781247e9866375c42383da62b73`,
+Release, Qt 6.12.0, the unchanged large-review fixture, Mac arm64 and the approved
+Ubuntu 26.04 x64 WSL2 station. Every tracked diff/index/window/document owner
+releases before the purge. Native counters and the incomplete allocator heap
+counter limitations remain those recorded above. Figures below are process
+footprint growth in MiB; collection time is one observed wall duration, not a
+universal latency promise.
+
+| Platform / per-process experiment | After destruction | ~1 s idle | ~5 s idle | After forced collection | Collection ms |
+|---|---:|---:|---:|---:|---:|
+| Mac, original 1000 ms delay | 144.36 | 144.30 | 144.30 | 43.75 | 3.80 |
+| Mac, diagnostic 100 ms delay | 143.05 | 143.03 | 143.02 | 43.75 | 4.18 |
+| Mac, diagnostic 10 ms delay | 145.63 | 145.61 | 145.59 | 44.08 | 4.33 |
+| Ubuntu, original 1000 ms delay | 283.46 | 283.45 | 283.45 | 97.70 | 5.09 |
+| Ubuntu, diagnostic 100 ms delay | 257.97 | 257.96 | 257.96 | 123.67 | 3.95 |
+| Ubuntu, diagnostic 10 ms delay | 252.68 | 252.67 | 250.60 | 110.74 | 4.53 |
+
+The 100/10 ms settings were supplied only to those benchmark invocations.
+They are not product defaults or recommendations. The main/default row observes
+`AllocatorPurgeDelayMs=1000` and `AllocatorArenaEagerCommit=2` on both hosts.
+Earlier diagnostic rounds remain in the runtime root; their Mac destruction
+values varied around 144–160 MiB and do not establish a fixed bound.
+
+The unmodified six-row default course is retained separately at producer
+`551f3906e`: Mac **4/6** (cache bytes/resources fail), Ubuntu **2/6** (both cache
+rows, loaded close/resources fail). Those failures still report sampled
+footprint budget excess. The later change only moves diagnostic collection
+outside the original heap sampling, renames the shared skip constant, and fixes
+the separate probe call below; its ordinary workload/limits are unchanged.
+The r4 baseline and original Mac 3/6 result remain recorded, including normal
+run-to-run boundary variability. Neither manual collection nor the discarded
+zero-delay experiment is a BPR-0967 fix or an ordinary-workflow pass.
+
+Exact final benchmark/runtime SHA-256:
+
+- Mac: `a975c67a0ecdb21d4346ae8aa0ccba34f6cd11ba125b1c36edc59df676e1a69e` /
+  `90c1974c304ab7b5ba283f603b9c3f9f38a64edd03e9c847b7a2fee54e6a4627`.
+- Ubuntu: `2ab10fbb1184d9d0f9b8f181dd6326dda37aea0812cb3c06c69ca619721b43c6` /
+  `72c4fd05b110d40fb4e49402d2bd39414cf2957017c6e0c144bff606946464ca`.
+
+### Mechanism and decision
+
+The exact pinned v3.5.3 `src/options.c` uses a 1000 ms purge delay and arena
+multiplier four; older prose defaults in its documentation are not this build's
+observed settings. `src/arena.c` schedules eligible arena purges and performs
+them on allocator collection activity. Elapsed time alone is not a background
+purger. A separate debugger observation on the original Linux image found RSS
+unchanged at 320,440 KiB after six seconds idle, then 156,024 KiB after nonforced
+collection and 145,976 KiB after forced collection. The new event-loop timeline
+likewise shows substantial retention at five seconds and release on demand.
+
+Linux's overcommit/eager arena commit and transparent huge pages also affect
+residency. Bounded upstream-option experiments reduced it with lazy arena
+commit or disabled THP. THP disable calls `PR_SET_THP_DISABLE` for the process;
+a standalone diagnostic process confirmed that disable state survives child
+exec (0 before, 1 after setting and in its child). That broader process/child
+policy consequence is unsuitable as an unexamined allocator-only correction. None of these settings was adopted. Zero-delay
+experiments returned pages sooner and generated roughly four/five times as
+many purge operations in the diagnostic profile, but they do not demonstrate
+an actual interactive-workflow benefit or qualify their reuse/page-fault cost.
+
+Manual collection demonstrates a large releasable fraction after the tracked
+owners are gone. It does not prove that every remaining allocation is live or
+leaked, and cannot erase an earlier in-use peak. The benchmark deliberately
+keeps the process alive after fixture-application destruction; full process
+exit returns its address space to the OS. This diagnostic is not evidence that
+production should purge on every close/prune, nor a substitute for a live
+review/reopen/continued-work course. The decision is to keep product policy and
+ordinary budget rows unchanged, and provide this separate attribution tool.
+
+### Probe correction and verification boundary
+
+The resumed Mac Release course exposed `malloc failure semantics` failures.
+The retained pre-prototype Release supervisor failed identically at original,
+zero, 10 and 100 ms delay; this was not introduced by the discarded prototype.
+A small native control showed AppleClang `-O0` returning null/ENOMEM for both
+calls, while `-O3` folded the direct deliberately impossible malloc observation
+(null=false/errno=0) but the opaque actual call returned null/ENOMEM. The probe
+now makes that failure call through a volatile function pointer, retaining the
+same null/ENOMEM requirement and all other ownership/failure checks. No product
+allocation code or failure contract changes. All seven native Mac Release
+rows pass (18.72 seconds); all six native Ubuntu Release rows pass (5.81 seconds).
+Focused exact format/tidy 22 and the native MSVC syntax control pass. The
+first standalone MSVC command duplicated the source's own `NOMINMAX` define;
+removing that harness-only duplication makes the unchanged source pass /W4 /WX.
+These results are recorded in the runtime checkpoint. No Windows manual-purge measurement is claimed.
+
+Runtime: `build/mimalloc-retention-r6/` contains both actual candidate identities,
+all ordinary and diagnostic JSON/logs, option controls, compiler counterexample,
+`final-diagnostic-summary.json`, validation and final checkpoint. Complete native
+Linux evidence is `/home/mmarcin/bpr-rfc0093-retention-r6`. Source/builds are
+retained in `/Users/jaeger/.codex/worktrees/mimalloc-retention-r6/BetterPullReview`
+and that Linux root's `source` worktree. A harness initially placed three Mac
+final diagnostic folders at main's top level; only those own outputs were moved
+into the ignored runtime root and its launcher was corrected. No personal or
+unrelated data was moved. All earlier candidate roots and raw evidence remain.
+BPR-1763 stays terminal reporting acceptance; BPR-1762, signed-installed/Cocoa
+Mac and final AC07/AC09/RFC closeout remain pending. No signing, publication,
+version change, push, owner-desktop access or production hook was performed.
