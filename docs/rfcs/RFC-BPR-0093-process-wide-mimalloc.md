@@ -135,6 +135,34 @@ Actual Developer-ID signed-installed and delivered native Cocoa acceptance
 remain pending on [[BPR-1759]]; [[BPR-1762]] and RFC closeout remain incomplete.
 Other criteria and the immutable source pack are unchanged.
 
+## Owner verification amendment — useful resource tests, 2026-10-24
+
+The owner requires mimalloc and useful passing tests, and directed an audit of
+each affected row's purpose before changing its gates. The bounded follow-up
+did not establish a fair allocator-neutral process-memory envelope. The owner
+therefore authorizes moving only the baseline-calibrated current process footprint
+and its native lifetime-peak pass/fail predicates to explicit telemetry in the four default
+resource CI rows. The original numbers, raw failures and plain benchmark flags
+remain available for legacy qualification; none is retroactively called a pass.
+
+The CI rows retain cache capacities/accounting, exact source and anchors,
+eviction/revisit/supersession, public maintenance/shutdown and owner-release
+assertions. Every observed pressure comparison's diff/index release is checked,
+with a deliberately retained owner as a failing control. Launch, response and
+clock/stall limits are unchanged. Native allocated-heap bounds remain enforced
+where their counter covers the allocator. Mimalloc's uncovered native heap
+observations are explicitly unavailable, rather than zero-byte passes.
+
+This is an amendment to the CI verification policy, not a memory-use reduction
+or proof that arbitrary process/allocated-heap growth is bounded. [[BPR-1768]]
+owns that unqualified risk as a separate follow-up, not a new RFC closeout
+dependency. AC08 remains reporting acceptance: its original unchanged-course
+comparison and actual failures are retained. No plan outcome or exit is removed.
+No product default, automatic collection, CI fixture input or memory limit is
+changed. The [purpose audit and exact native evidence](../verification/RFC-BPR-0093.md#useful-resource-tests--owner-verification-amendment)
+bind the implementation and practical limits. Signed-installed/Cocoa Mac,
+package agreement and final closeout requirements remain pending under r5.
+
 ## Proposed work
 
 Cards [[BPR-1758]], [[BPR-1759]], [[BPR-1760]], [[BPR-1761]], [[BPR-1762]], [[BPR-1763]] and [[BPR-1764]] and the [canonical milestone plan](plans/mimalloc-process-wide-v1/milestone-plan.json) derive

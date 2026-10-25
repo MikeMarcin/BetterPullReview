@@ -99,3 +99,20 @@ This augments reporting acceptance; it is not a BPR-0967 repair. The owner's
 subsequent useful-test/allocator-neutral-gate and supported-option mandate
 continues as a separate evidence-backed investigation, preserving these limits
 and failures. Native signed-installed/Cocoa/package acceptance stays pending.
+
+## Useful-test amendment under owner r5
+
+The owner explicitly authorizes retiring baseline-specific process RSS/peak
+CI predicates if a fair replacement fails the bounded causal investigation.
+The [purpose audit and exact native evidence](../../verification/RFC-BPR-0093.md#useful-resource-tests--owner-verification-amendment)
+records that decision, original limits and every prior failure. No calibrated
+trend metric validated: normal mimalloc variation overlaps a deliberately
+retained-owner baseline fault. Main `64752aa7e` retains all semantic/cache/
+source/lifecycle/latency gates, preserves available native allocated-heap gates,
+marks mimalloc heap unmeasured, and strengthens observed comparison-owner
+release with a genuine failing control. Four resource CTest commands explicitly
+select contracts plus physical telemetry; original plain flags keep physical
+qualification. No product setting or purge hook changes. [[BPR-1768]] owns the
+remaining unqualified memory risk separately. This does not rewrite this
+card's original AC06/AC08 acceptance or turn historical failures into passes.
+Signed-installed/Cocoa Mac and package closeout stay pending.

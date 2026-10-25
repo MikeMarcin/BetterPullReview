@@ -1396,3 +1396,261 @@ its `source` worktree. Mac source/build is
 Earlier candidates and evidence remain protected. Signed-installed/delivered
 Cocoa Mac, BPR-1762 and final RFC closeout remain pending under owner r5.
 No release, signing, credentials, push or owner-desktop operation occurred.
+
+## Useful resource tests — owner verification amendment
+
+The owner requires mimalloc and useful passing tests, and asked whether the
+memory rows protect real user risks or merely encode a particular allocator.
+After the audit and one bounded live reopen investigation, the coordinator
+explicitly authorized retiring only the baseline-specific process RSS/footprint
+and native lifetime-peak pass/fail predicates to telemetry if a fair replacement
+did not validate. No new green trend metric is invented. This amendment changes
+the four default resource CI commands, not their historical outcomes or the
+plain legacy qualification path. AC08 remains a truthful comparison/reporting
+criterion, not a promised speedup, RAM bound or memory saving.
+
+### Purpose audit and disposition
+
+The resource courses are useful. Their exact cache, ownership, source and
+lifecycle checks previously exposed real defects. Their process envelopes were
+calibrated as a native baseline observation plus 10%, rounded to 8 MiB, with
+one run and confirmation (`BPR-0967-station-budgets-2026-10-01.md`). That
+calibration is not an allocator-neutral live-memory contract. BPR-0893/1032
+separated a real approximately 70 MiB Qt per-line retention from freed pages
+kept dirty by malloc. BPR-1371 then observed a 30–44 MiB footprint spread at
+identical live heap, including misses in the original repaired code. BPR-1653
+separately amended Linux byte-pressure RSS from 216 to 240 MiB while retaining
+its 216 MiB allocated-heap ceiling. All that evidence and every original limit
+remain unchanged.
+
+| Course / original path | User risk and retained CI gates | Disposition |
+|---|---|---|
+| Launch; composed path `e9da7abca`, later BPR-1495 launcher | Process/main/Home timing, actual readiness/markers and launch limits | Retain unchanged; no resource envelope was part of this row |
+| Responsiveness; `e9da7abca`, native batching `49aefc1cf`, BPR-0967/1598 | Exact source/render/anchors; real input/navigation/drawer/theme and completion/input limits | Retain unchanged |
+| Resources; prune fix/course `316390ce1` | Public prune/delete remove the exact refs/catalog state, clear projection and derived cache/jobs, release diff/index, preserve required diagnostics | Keep contracts; physical envelope becomes explicit telemetry |
+| Loaded close; `5590d3ff9` | Close a genuinely loaded large comparison; public shutdown, window/doc/diff/index release, retained Git/catalog state | Keep contracts; physical envelope becomes explicit telemetry |
+| Cache entries; `470adea7d` | 65 selections exercise the default 64-entry ceiling, exact source/blobs, oldest eviction and normal-job revisit | Keep and strengthen: track every observed pressure diff/index through destruction |
+| Cache bytes; `1681994af` | Default 64 MiB accounting/eviction before entry pressure, prepared share, exact revisit and held-B/stale-A supersession, retained epochs | Keep and strengthen observed owner release; physical envelope becomes telemetry |
+| Timing control; BPR-0967/1598 | Known synchronous/final/contended 120 ms stalls remain visible; scheduler attribution of 40 ms work remains bounded | Keep clocks; explicitly mark the uncovered heap sub-observation unavailable |
+
+No cache capacity, byte-accounting formula, fixture input, source/anchor,
+eviction/revisit, supersession, cleanup, shutdown or latency limit is weakened.
+The physical limits stay Mac 160/184 MiB, Windows 160/208, Ubuntu 168/240
+(ordinary/cache bytes). The covered allocated-heap cleanup limits remain
+84 MiB while the application lives and 32 after destruction; covered sampled
+heap peaks remain the original per-platform limits, including Linux cache
+bytes at 216 MiB. Only current process footprint and its process-lifetime peak
+cease to decide the four CI contract rows.
+
+### Counter coverage and supported-option observations
+
+Native malloc-zone/UCRT-process-heap/glibc counters exclude mimalloc. A new
+standalone control against the exact pinned runtime allocates and touches
+64 MiB: a main-thread query observes it, but a query while a different live
+thread holds it reports only 40,987,168 bytes until that worker explicitly
+collects, then 67,136,032. `mi_stats_get` is therefore not substituted as a
+qualified all-thread oracle. Pinned `src/arena.c` explicitly assumes the caller
+is the only thread running in that heap when visiting blocks. No concurrent
+heap walking or new production synchronization hook is introduced.
+
+Same-byte upstream-supported option comparisons use test environment settings
+only, with no zero delay, THP disable or process/child global policy. All eight
+separate native response courses pass their existing budgets. These loaded-
+close peaks are MiB before the first cleanup collection:
+
+| Native setting | Mac peak | Ubuntu peak |
+|---|---:|---:|
+| Original defaults | 160.56 | 293.52 |
+| Lazy arena commit | 162.97 | 187.43 |
+| Lazy commit + 100 ms purge delay | 156.36 | 181.82 |
+| Lazy commit + 10 ms purge delay | 158.48 | 176.56 |
+
+Linux improves substantially, but every variant still exceeds the original
+168 MiB envelope. Mac results are near its 160 MiB boundary. This is not a
+reason to choose a default merely to hit a legacy number. No option is adopted;
+product/provider/package sources and defaults remain unchanged. Windows has
+no new option-profile claim. Raw identities/argv/options, complete public-path
+reports, original current/peak samples and response results are under
+`build/mimalloc-memory-r8/option-*` and its `linux/` counterpart.
+
+### Rejected process-memory gates and direct fault control
+
+The first prototype (`4dbbb8981`) recreates full composition in a QApplication
+that production would exit. Its five-cycle initial-variation rule is rejected:
+Linux baseline 90.41→107.03 MiB fails its 5.79 MiB allowance, while mimalloc
+142.73→183.91 passes because its larger initial variation grants 19.99 MiB.
+The rule does not compare the allocators fairly. All raw samples and the
+retained-raster-cache control remain in `stability-*`; the prototype is removed
+from the final source rather than registered as a green test.
+
+The bounded replacement uses the real Home → Close review → open → select-
+large-source path five times within one live application. The initial harness
+left its recording one-shot and timed out; the existing complete repeat-read
+switches correct that, without changing recorded request validation. A final
+loaded-close check also needed to bind the final reopened comparison instead
+of the first. Failed attempts remain separate. These are harness corrections,
+not product-memory evidence or retries to seek a passing scalar.
+
+A predeclared 4 MiB last-three settled range does not validate across the
+allocators. The no-injected-fault mimalloc samples span 6.12 MiB on Mac and
+6.79 on Ubuntu before that final binding check. They are retained rather than
+rerun for a green number. The bounded completion runs only baseline normal
+and the deliberate retained-owner controls, then ends the gate investigation:
+
+| Native allocator / course | Absolute post-collection footprint MiB, five real close/reopen boundaries | Last-three range | Owner result |
+|---|---|---:|---|
+| Mac mimalloc, no injected fault | 125.81, 142.47, 137.81, 143.94, 139.84 | 6.12 | Final release checks unreached after stale owner-binding failure |
+| Mac mimalloc, retained owner | 123.77, 139.11, 142.45, 146.91, 149.83 | 7.38 | Actual completed-owner assertion fails |
+| Mac baseline, normal | 110.25, 115.31, 116.24, 118.14, 118.41 | 2.17 | Every tracked reopened owner releases |
+| Mac baseline, retained owner | 110.02, 117.20, 121.92, 127.55, 130.44 | 8.52 | Actual completed-owner assertion fails |
+| Ubuntu mimalloc, no injected fault | 272.91, 286.30, 283.79, 290.17, 290.57 | 6.79 | Final release checks unreached after stale owner-binding failure |
+| Ubuntu mimalloc, retained owner | 273.12, 286.19, 294.05, 292.15, 302.08 | 9.93 | Actual completed-owner assertion fails |
+| Ubuntu baseline, normal | 142.69, 148.73, 150.05, 150.73, 151.99 | 1.93 | Every tracked reopened owner releases; legacy numeric miss remains |
+| Ubuntu baseline, retained owner | 145.15, 153.52, 157.72, 161.31, 164.26 | 6.54 | Actual completed-owner assertion fails |
+
+A threshold raised to accept the observed 6.79 MiB mimalloc span would hide
+the known 6.54 MiB baseline fault span. These observations do not establish
+absence of another untracked leak; they demonstrate that this scalar is not
+qualified to distinguish the cases. No such metric is adopted. The retained-
+owner control is independently meaningful: it holds actual computed comparison
+objects, and the normal public shutdown/destruction then trips their weak-owner
+release assertion. It does not force a failure by checking a control flag.
+
+### Implemented policy and verification boundary
+
+Candidate `355669cc1f4419acb01c1e139945e84d49200d92` changes only test code:
+
+- Four existing CTest resource rows carry `--resource-contracts` and use the
+  distinct `LARGE_REVIEW_RESOURCE_CONTRACTS_OK` marker. Raw current/peak values,
+  original limits and misses remain; per-predicate `Enforced=false` makes the
+  physical-envelope retirement explicit. Plain original flags still enforce
+  that legacy envelope and can still fail it.
+- Native allocated-heap checks remain gated where covered. Mimalloc and
+  replacement allocator instrumentation get no invalid independent native
+  heap sampler. `NativeHeapCounterCoversAllocator=false`, `Enforced=false`
+  and unset/null `WithinLimit` identify unavailable observations; zero is
+  never treated as allocated-heap acceptance. The timing control retains all
+  clock/stall assertions and reports that sub-observation unmeasured.
+- Every observed cache-pressure diff/index is checked after actual application
+  destruction, including entries between the original first/final probes.
+  `--cache-entries --retain-middle-owner` holds one such middle result outside
+  the cache. The course must fail this new assertion while the ordinary final
+  diff/index owners still release, so the stronger gate is not vacuous.
+
+No production default, core/application/Qt policy, runtime pin, cache limit,
+package or version changes. The real repeated-reopen diagnostic remains an
+opt-in attribution tool, not a new memory gate. [[BPR-1768]] records the
+unqualified process/allocated-heap risk separately and does not claim a leak
+repair or bounded RAM. Native signed-installed/delivered Cocoa Mac, installed
+package/source/trust agreement and final RFC closeout remain pending under r5.
+No release, signing, credentials, push or desktop operation occurred.
+
+### Exact native useful-contract verification
+
+The unchanged C++/CMake producer is `355669cc1`; main integrates its final
+bounded tree as `64752aa7e`. Producer `4585f67aa` adds only the Python summary
+and static manifest inventory corrections; its three C++/CMake blobs match
+`355669cc1` exactly. The revised course does **not** collect on ordinary runs.
+It changes the CI verdict policy explicitly, not allocator behavior.
+
+| Release native station / allocator | Seven registered rows | Four resource owner/covered-heap contracts | Four additional mimalloc public workflows |
+|---|---|---|---|
+| Apple Silicon Mac / baseline | 7/7 | 4/4 | — |
+| Apple Silicon Mac / mimalloc | 7/7 | 4/4 | 4/4 |
+| Ubuntu 26.04 x64 WSL2 / baseline | 7/7 | 4/4 | — |
+| Ubuntu 26.04 x64 WSL2 / mimalloc | 7/7 | 4/4 | 4/4 |
+
+The seven rows are launch, responsiveness, four resource courses and timing
+control. Additional workflows are composed benchmark, active work, prepared
+open and held-provider cancellation. Each cache-entry course records 67 live comparison observations, cache bytes
+records 21, and resources/loaded close each record one. Repeated observations
+may name the same owner; no unique-owner count is claimed. All observed diff/index owners expire after real destruction, every
+original cache/source/shutdown assertion holds, and every available baseline
+allocated-heap predicate passes. Mimalloc allocated-heap observations remain
+explicitly unmeasured. The middle-owner control fails on both hosts at the
+actual owner-release assertion while the original final diff/index probes
+pass. Invalid suffixes cannot bypass a response course.
+
+Observed lifetime-peak growth remains telemetry, in MiB; values above the old
+limit are still misses, even though the new contract row passes:
+
+| Native allocator | Resources | Loaded close | Cache bytes | Cache entries |
+|---|---:|---:|---:|---:|
+| Mac baseline | 144.84 | 148.31 | 198.94 | 103.61 |
+| Mac mimalloc | 161.61 | 164.06 | 191.11 | 106.31 |
+| Ubuntu baseline | 177.17 | 177.82 | 232.47 | 120.48 |
+| Ubuntu mimalloc | 275.86 | 280.21 | 352.30 | 194.88 |
+
+These are original baseline growth readings, not rebased or post-collection
+figures. Mac baseline cache bytes now also misses its 184 MiB physical
+telemetry; that does not erase its historical passing cohort. A separate
+plain legacy mimalloc resources invocation happens to pass on Mac but fails
+on Ubuntu, exactly as its own recorded predicates require. It is not a retry
+of a failed row nor evidence that the observed Mac contract-row misses were
+repaired. Physical variability and allocation/retention remain material.
+
+Same-producer response observations, baseline → mimalloc: Mac composition
+startup 405.36→405.60 ms, large-file selection 385.79→391.12 ms; Ubuntu
+295.29→285.46 and 333.97→337.08 ms. Both full response courses pass unchanged
+limits. These single observations do not establish a speedup or rule out
+other workflow regressions. The earlier options/idle results retain the
+tradeoff: lazy commit can reduce residency on Linux, shorter purge delays do
+not by themselves purge an idle process, and forced release costs/reuse/page
+faults require real-workflow justification. No product option is adopted.
+
+Exact benchmark SHA-256 values:
+
+- Mac baseline `ba204c230f76005e2f320965969662ff4eddb0e732f12039cec40a03e8877b0c`;
+  mimalloc `295e250b9b17dc76ee3d614e11b5d32d109b02fd783c8ad17003de157b8961f9`.
+- Ubuntu baseline `8c3147c89887c486b088279aadc3b905d444a6a17d4fe844ebf2f3d4b8c5d215`;
+  mimalloc `e483068e61431b08a3f5eb103da091c9cf9c784b4cecaceb2372ac0627c0ab3c`.
+
+Runtime hashes remain Mac
+`90c1974c304ab7b5ba283f603b9c3f9f38a64edd03e9c847b7a2fee54e6a4627`
+and Ubuntu `72c4fd05b110d40fb4e49402d2bd39414cf2957017c6e0c144bff606946464ca`.
+No allocator environment overrides or injected loader environment are present.
+Raw identities/images/reports remain in `build/mimalloc-memory-r8/final-*`
+and the task-owned native Linux root; collected Linux records are under
+`build/mimalloc-memory-r8/linux-final/`.
+
+The Python summary now groups by phase **and collection stage**, preserving
+pre/post distinctions. It reports unsupported heap figures as null/unavailable
+and retains raw native counters, policy, enforced misses, telemetry misses and
+owner outcomes, including in brief output. Actual R8 baseline/mimalloc reports
+and four R7 collected reports verify coverage, stage separation and historical
+R7 enforcement. No raw report is rewritten. The static network manifest found
+a missing Mac-only update-helper pending-inventory entry; the correction
+explicitly says unmeasured on Windows. Building the local transport test
+executable resolves its absent-command inventory check; no transport, GitHub
+or credential test is run. The Mac static manifest then passes.
+
+### Windows continuation checkpoint — retained correctness failure
+
+The first exact `355669cc1` Windows 11/MSVC Release cohort is **5/7**, not a
+passing suite. Responsiveness, timing control, entries, loaded close and
+resources pass. Launch fails its unchanged child response predicate
+`theme_light=100.66 ms > 100`; cache bytes reaches the existing correctness
+assertion `stale comparison published while superseding file B remained
+selected`. It has 8 source observations, one supersession with outstanding
+work, and 22 byte-pressure selections. Cleanup/owner assertions are not
+reached for that row. This is not physical-memory telemetry or an accepted
+pass. No BPR-0967 cause is inferred. Additional mimalloc workflows are 3/4:
+composed benchmark, prepared open and provider cancellation pass; active work
+retains an input/drain timing failure.
+
+The first direct Windows owner-control invocation exits before any report
+because its harness omitted the CTest Qt/build binary search paths. That
+empty-log/absent-report attempt is unaccepted and preserved; the corrected
+native environment must run the control. The Mac/Linux controls remain valid.
+A matched Windows baseline is now active, using the same exact producer and
+unchanged course. The coordinator requires one diagnostic exact-candidate
+reproduction after that comparison and a bounded correction if the semantic
+failure reproduces. It must remain a correctness gate. No retry-to-green,
+threshold relaxation or broad design change is authorized by this checkpoint.
+
+The static gate's only C++ findings were two unnecessary temporary shared
+handle copies in the observer. Producer `1fafe3db9` / main `c67f07196` observes
+them by const reference. Format 22 and clang-tidy 22 pass; exact-final focused
+native owner/resource checks are continuing. The full matched cohort above
+remains explicitly bound to `355669cc1`. Current commands/state are in
+`build/mimalloc-memory-r8/mandate.json`; final quiescent handoff is not yet made.

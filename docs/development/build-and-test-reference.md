@@ -3871,10 +3871,49 @@ pre/post native reading if that counter decreases during collection. Per-predica
 marks the inherited native heap-counter blind spot under mimalloc; a zero
 native heap reading cannot certify its allocated bytes.
 
-Ordinary flags and CTest registrations retain their original policy and
-verdicts. The collected variant is a separately reported benchmark policy,
-authorized for this investigation. Making it the normative memory course
-requires an explicit acceptance amendment; no change to AC08, a production
-purge hook/default, or a BPR-0967 resolution is inferred. Exact native results
-and remaining failures are in the
+Plain benchmark flags retain the legacy footprint/peak qualification path.
+The collected variant is separately reported; it does not erase active/peak
+misses. Exact native results and failures remain in the
 [cleanup-policy ledger](../verification/RFC-BPR-0093.md#cleanup-policy-reassessment--completed-boundaries).
+The owner subsequently amended the default CI policy as described below.
+No production purge hook/default or BPR-0967 resolution is inferred.
+
+### Useful resource contracts and memory telemetry
+
+The owner-directed RFC-BPR-0093 audit retains all six public courses. Launch
+and responsiveness keep their clocks, input, exact source/render and completion
+limits. The four resource CTest rows now carry **`--resource-contracts`** and
+print `LARGE_REVIEW_RESOURCE_CONTRACTS_OK`. Their process-footprint/current and
+native lifetime-peak envelopes are explicit telemetry, preserving every old
+scalar, observation and miss. A CI contract pass is not a pass of that legacy
+memory envelope. Invoke the benchmark with the plain original resource flag,
+without this suffix, to enforce the original physical envelope separately.
+
+The resource rows still fail on incorrect cache capacity/accounting, eviction,
+revisit, supersession, source/anchors, public prune/delete, retained Git/catalog
+state, outstanding work or owner release. Every comparison observed through
+the pressure loops is tracked through application destruction. An opt-in
+`--cache-entries --retain-middle-owner` control deliberately keeps a middle
+comparison alive after the ordinary final owners release; it must fail the
+owner assertion. It changes no production path.
+
+Available native allocated-heap bounds remain enforced. The native malloc-zone,
+UCRT process-heap and glibc counters exclude mimalloc, so its independent heap
+sampler is disabled and reports `NativeHeapCounterCoversAllocator=false`.
+A resource predicate includes `CounterCoversAllocator` and `Enforced`;
+`WithinLimit` is unset/null when the observation is unavailable. Zero is not
+heap acceptance. The timing-control row retains every known-stall/clock check
+and explicitly reports its heap sub-observation unmeasured under mimalloc.
+
+The optional `--loaded-close --review-reopen` diagnostic exercises five real
+Home → Close review → reopen → select-large-source cycles in one composition,
+retaining all pre/post collection samples and native peaks. Its
+`--review-reopen-control` counterpart deliberately retains comparison owners
+and fails their release assertion. It is not a calibrated process-memory gate.
+The attempted settled bounds did not distinguish all baseline/mimalloc normal
+workflows from the retained-owner control. Do not interpret these observations
+as a leak repair, a hard RAM bound or a qualified all-thread allocated-heap
+measurement. [BPR-1768](../issues/10-backlog/BPR-1768-qualify-allocator-neutral-memory-regression-evidence.md)
+retains that risk. Product allocator options, cache limits and fixtures are
+unchanged; the [purpose audit](../verification/RFC-BPR-0093.md#useful-resource-tests--owner-verification-amendment)
+records the owner amendment, original limits, failures and native verification.

@@ -516,3 +516,76 @@ That is the next active frontier; no gate redesign is already accepted here.
 Signed-installed/delivered native Cocoa Mac and final package/closeout criteria
 remain pending under r5. Prior candidates and unrelated MASK edits remain
 protected. No review session/server/URL/cursor is active.
+
+### Active useful-test frontier — bounded reopen attempt
+
+New isolated source/branch:
+`/Users/jaeger/.codex/worktrees/mimalloc-memory-r8/BetterPullReview`,
+`codex/mimalloc-memory-r8`; native counterpart
+`/home/mmarcin/bpr-rfc0093-memory-r8/source`. Runtime and current mandate are
+`build/mimalloc-memory-r8/`. R7 source/builds, raw images and candidates are
+preserved. No R8 product or test-policy change is integrated on main.
+
+The original-purpose audit retains all six courses' useful semantic/latency
+claims. Their process envelopes were baseline-allocator observations plus10%,
+rounded8MiB. A pinned-MI64MiB worker-allocation control proves MI statistics
+underreport while another live thread has not collected, so they are not an
+all-thread live-heap oracle. Same-byte lazy/nonzero-delay options improve
+Linux peak293.52→187.43/181.82/176.56MiB but still miss168; all corresponding
+response courses pass. No setting is adopted.
+
+Prototype `4dbbb8981` attempts five full-composition lifecycles in one process.
+It falsifies its initial-variation trend rule: Linux baseline grows less yet
+fails, while MI's larger initial variation grants a larger tolerance. That
+rule is not adopted or tuned to green. Its raw normal/cache-fault controls are
+retained. Keeping QApplication alive across composition recreation also differs
+from production's process exit, so the next bounded prototype `8f9a40aac`
+uses the real Home → Close review → open → select-large-source path within one
+live application. It records absolute pre/post collection footprint and every
+native peak, and has a deliberately retained-comparison-owner control. One
+matched Mac/Linux baseline/MI attempt is active; source/CTest policy remains
+unchanged while it runs.
+
+The coordinator bounds the decision: if no allocator-neutral process-memory
+gate validates across baseline/MI without false positives, retire only the
+baseline-specific RSS/peak predicates to explicit telemetry, retaining all
+semantic/cache/latency gates and the historical failures. Do not invent a green
+trend metric. Remaining unqualified memory risk gets a separate follow-up,
+not a resource-qualification claim. No product purge0/default/hook, release,
+signing, push, credentials or desktop action. Exact command IDs, identities and
+raw paths remain in the runtime mandate/checkpoint; finish commands before
+handoff. Signed-installed/Cocoa/package acceptance remains pending under r5.
+
+### Current useful-test checkpoint — native correctness continuation
+
+This supersedes the earlier active prototype note. Main `64752aa7e` integrates
+the owner-approved useful-test policy; `c67f07196` removes two transient shared
+handle copies found by tidy. Exact C++ producer `355669cc1` has Mac/Linux 7/7
+for both allocators, four additional MI public workflows passing, and genuine
+failing middle-owner controls. Process memory remains unqualified; original
+physical limits/misses remain explicit telemetry and plain legacy commands
+keep qualification. No new trend gate, default setting or product purge hook.
+[[BPR-1768]] is separately allocated by the main helper with committed
+counter/receipt `2b0930053`, preserving unrelated reservations/MASK work.
+
+Windows exact `355669cc1` is 5/7: launch child theme_light100.66ms/100ms and
+cache-byte stale-comparison correctness fail. MI additional workflows are3/4
+(active-work input/drain timing miss). Cache-byte cleanup was not reached;
+this is not a memory pass or a BPR-0967 attribution. A direct owner-control
+attempt omitted registered Qt/build binary search paths and exits before a
+report; its harness failure is preserved, not accepted. Matched Windows
+baseline is active, followed by a corrected control and one bounded exact
+semantic reproduction. The coordinator requires a correction if reproduced,
+keeping that correctness assertion fully enforced. No broad design change.
+
+The [ledger](../../verification/RFC-BPR-0093.md#useful-resource-tests--owner-verification-amendment)
+binds source history, options, failed trend hypotheses, actual comparison
+samples, all old limits and direct controls. Runtime/source roots remain
+`build/mimalloc-memory-r8/`, the task-owned Mac worktree, and
+`/home/mmarcin/bpr-rfc0093-memory-r8/source` plus
+`C:/code/bpr-rfc0093-memory-r8/source`. Earlier candidates remain protected.
+No human session/server/URL/cursor is active. Signed-installed/delivered Cocoa
+Mac, BPR-1762 and final package/source/trust closeout remain pending under r5;
+Intel execution is not required or claimed. No release/signing/version/push,
+credential or desktop action. Finish native commands and record final candidate
+identity, exact results and quiescent ownership before handoff.
