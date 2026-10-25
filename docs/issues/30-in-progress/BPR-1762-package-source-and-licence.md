@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1762"
 title: "Reconcile mimalloc runtime and corresponding source in packages"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758", "BPR-1760", "BPR-1761"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
