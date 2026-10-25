@@ -50,6 +50,14 @@ upgrade/uninstall, vault/crash/privacy/vulnerability/legal approval or release
 publication is inferred. No version bump, push or tag occurred. Earlier
 checkpoint sections below are historical and superseded by this exact result.
 
+## Post-acceptance storage cleanup
+
+Consumed task worktrees/checkouts are removed. The
+[archive ledger](../../verification/RFC-BPR-0093.md#administrative-archive--accepted-pack-cleanup)
+now names current artifact/evidence locations and verified path/hash manifests.
+Accepted candidates and every prior failure retain their identities. This
+administrative cleanup changes no acceptance, memory-risk or release claim.
+
 ## Historical mandate r5
 
 The owner explicitly answered “Amend Intel criterion” on 2026-10-24: verified

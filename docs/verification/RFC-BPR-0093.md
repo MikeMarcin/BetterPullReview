@@ -1,5 +1,56 @@
 # RFC-BPR-0093 — process-wide mimalloc
 
+## Administrative archive — accepted pack cleanup
+
+Accepted closeout `12758d9dc5e94b815f6ec957b354a5ae79cc8830` is unchanged by
+this administrative cleanup. The consumed task worktrees/checkouts are removed
+under the implement-rfc pack lifecycle. Current artifacts and exact evidence now
+live outside every checkout in task-owned archives; earlier paths below record
+original producer locations and must be resolved through the archive manifests.
+No artifact is relabeled, rebuilt or newly accepted by relocation.
+
+| Current material | Archive location |
+|---|---|
+| Local archive and complete path/hash manifest | `/Users/jaeger/.codex/rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/manifest.json` |
+| Eight accepted signed production artifacts, including corresponding source | `/Users/jaeger/.codex/rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/local/mimalloc-macos-signed-r9/build/mimalloc-macos-signed-r9/signed-artifacts/` |
+| Exact accepted production app | `/Users/jaeger/.codex/rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/local/mimalloc-macos-signed-r9/build/mimalloc-macos-signed-r9/installed/BetterPullReview.app` |
+| Signed r10 diagnostic, native identities and post-review evidence | `/Users/jaeger/.codex/rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/main-runtime/mimalloc-post-review-r10/` |
+| Other Mac worktree source snapshots/build evidence | Archive `local/`, keyed by the original named task; each source/state tar and moved file inventory has a verified digest |
+| Original main `build/mimalloc-*` evidence, including R8 failures/BPR-1768 records | Archive `main-runtime/`, retaining original directory names; the standalone CLI source export is a verified tar with its build evidence retained separately |
+| Windows task artifacts, raw courses, source/history archives and manifests | `C:/code/bpr-rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/` |
+| Ubuntu task artifacts, raw courses, source/history archives and manifests | `/home/mmarcin/.local/state/bpr-rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/` |
+
+The complete archive manifest has SHA-256
+`cbc10f9b8a5da00c790a2ef154838749a51d33055ca528e12433dcf9c7a9eb28`. Three Windows roots held native checkouts and two
+held syntax-input exports. Before/after file hashes agree for all moves. The production app, all eight
+artifacts (including source), and the signed diagnostic retain their original
+identities; strict signatures, staples and Gatekeeper pass after relocation.
+Exact committed source/state snapshots and native source/history bundles are
+verified before removal. The two older candidate MASK edits are preserved in
+its snapshot; main's unrelated MASK edits remain untouched. Only this round's
+regenerable diagnostic `.o`/`.a` outputs were discarded, with paths, sizes and
+hashes recorded, to recover disk exhaustion. No accepted payload or raw failure
+record was discarded.
+
+Native shared clones exposed chained Git alternates during cleanup. Existing
+transport/history bundles and remaining task object stores supplied a standalone
+bare archive store; connectivity and source bundles verify. Only task clone
+metadata was repaired, and linked task worktrees were removed before their
+common clone. No owner repository, unrelated checkout or branch was removed.
+The original failures and recovery journal remain in the archive. The new
+root instruction records this observed cleanup hazard.
+
+Seven named local worktrees, five Windows and five Ubuntu task roots are
+removed and Git worktree metadata pruned. The original unrelated 7bc8, 63a6,
+v033 and Claude worktrees remain. No source checkout is retained as evidence;
+source is archived, and bare Git stores have no working tree. Archived build
+commands/helpers retain original absolute paths and are provenance rather than
+ready review sessions. The consumed review session remains stopped with cursor 6
+and its exact verdict in external session state. BPR-1768, all retained memory/
+timing failures and broader native/security/legal/release limits are unchanged.
+No push, tag, version change, publication or owner-desktop operation occurred.
+
+
 ## Post-review reconciliation — round r10
 
 Fresh engineering leaf `/root/mimalloc_post_review`, run `mimalloc-20261024`,

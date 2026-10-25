@@ -95,3 +95,18 @@ access/retention and release approval remain outside this RFC. No version
 change, push, tag or publication is authorized by this closeout. Only the
 implement-rfc, attended-review and publish-release workflows were needed in
 this round; no new visual surface was designed or owner desktop accessed.
+
+## Administrative cleanup after acceptance
+
+All seven named local task worktrees and the five Windows/five Ubuntu task roots
+are now consumed and removed. Their exact source/state archives, native source/
+history bundles, original installed artifacts, complete moved build/evidence
+inventories and hash verification are outside checkouts. Current manifest:
+`/Users/jaeger/.codex/rfc-archives/RFC-BPR-0093-closeout-ehdkjmnz/manifest.json`.
+The [archive ledger](../../../verification/RFC-BPR-0093.md#administrative-archive--accepted-pack-cleanup)
+provides current artifact/native archive locations. The preceding retained-root
+statements are the original handoff, superseded only for storage locations by
+this cleanup. Candidate identities, human verdict, acceptance, raw failures and
+BPR-1768 status remain unchanged. All unrelated worktrees and main MASK edits
+are preserved; task branches remain in Git. No active review host or task command
+is handed off, and no publication is authorized.

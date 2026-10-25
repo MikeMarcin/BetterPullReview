@@ -127,6 +127,11 @@ network, or process effects.
   worktree of the checkout, so `stash pop` can take another agent's work
   (BPR-1332's bisect swapped BPR-1327's uncommitted files). Use WIP commits on
   your own branch.
+- Before removing task checkouts, inspect Git alternates and linked worktrees.
+  A `clone --shared` may borrow from another task clone: preserve or dissociate
+  its reachable objects before removing that object owner, and remove linked
+  worktrees before their common clone. Verify the archived object store and
+  source snapshots first; keep native Git alternates paths LF-terminated.
 - Stop only processes you started, by their process ID. Never `pkill -f` or
   `killall` by pattern: several agents build at once, and BPR-1346's
   `pkill -f "cmake --build --preset dev"` stopped four other agents' builds.
