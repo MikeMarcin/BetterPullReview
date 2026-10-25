@@ -434,8 +434,8 @@ namespace bpr::e2e::large_review {
 
 		void observe(const qt::diff_workbench& aSurface)
 		{
-			const auto diff  = aSurface.current_result();
-			const auto index = aSurface.current_semantic_index();
+			const auto& diff  = aSurface.current_result();
+			const auto& index = aSurface.current_semantic_index();
 			if (!diff || !index) {
 				throw std::runtime_error{ "comparison owner observation requires a live diff and index" };
 			}
