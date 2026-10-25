@@ -1,5 +1,67 @@
 # RFC-BPR-0093 — process-wide mimalloc
 
+## Post-review reconciliation — round r10
+
+Fresh engineering leaf `/root/mimalloc_post_review`, run `mimalloc-20261024`,
+segment `macos-post-review-r10`, mandate `r9-signed-macos-authorized`, preserves
+coordinator-implementer revision 2 and immutable RFC base `e82537ad15b32871a8375b6143abe08e16a68b87`.
+Main source/tracker is `/Users/jaeger/Documents/GitHub/BetterPullReview`.
+No version change, push, tag, publication or owner-desktop operation is included.
+Earlier candidates and unrelated MASK edits remain protected.
+
+### Exact human intake and package reconciliation
+
+The companion confirms session `3a0425eb3756874560105a4cff2b0b64` handed back
+at sequence **6**, with no pending item. Human decision
+`958b2988-5f73-4ebf-beea-cdffa5cbe603` is **Accept**, with no note, saved
+`2026-10-25T06:13:46.695667+00:00`. It applies only to candidate
+`BPR-1759-signed-cocoa-r9`, fingerprint
+`a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5`,
+source `0f42035a1758a33c729317d66d3aaaac0e771fb1` and desktop SHA-256
+`98c0feff5ad5e3b5ead9b8fe25fb02214ea628791dbda5a965c3f29d4b665d92`.
+The delivered Cocoa local-file review, return/reopen and Quit judgment passes;
+it grants no allocator-pointer, memory, security or release acceptance.
+The consumed cursor 6 is durable before dispatch. The companion stopped this
+session's Python host PID 60503 and private Serve PID 60519 after verified
+intake; the candidate, verdict and external session state are retained.
+No capability URL is stored in tracked documentation.
+
+AC07 is reconciled independently of AC03 pointer proof: the r9 signed Mac
+ZIP/DMG/private relocated installation agrees with its 53-file/19-image audit,
+notices/SPDX, separate source ZIP and missing/extra allocator controls. The
+[distribution result](#distribution-result--mandate-r4) binds actual privately
+extracted MSI/DEB and all three standalone CLI archives to their own producers,
+full runtime/source/notice inventories, relocation/removal and negative controls.
+Those unchanged passing observations retain their original identities:
+Mac app `0f42035a1`, Windows `c5693fd05`, Ubuntu `0c40cca40`, CLI `df6e8be48`.
+This completes BPR-1762's package/source scope; ordinary-user install/upgrade/
+uninstall, recipient access/retention, legal and release approval stay separate.
+
+### Signed-process observation frontier
+
+The original external pre-main observer still passes on the retained r4 ad-hoc
+app with C/C++/Qt/module/thread/OOM and one allocator. Against every exact r9
+hardened installed image it produces neither PASS nor FAIL: the images ignore
+the observer injection and reach their normal safe refusals (desktop 1,
+supervisor 125, MCP 1, updater 1). All production file hashes remain unchanged.
+A direct LLDB launch of only the owned signed supervisor is denied by macOS
+(`attach failed: Not allowed to attach to process`); no entitlement, signature
+or platform policy is weakened. These are failed observation routes, not
+allocator failures or passing pointer evidence. Source identity and allocator
+statistics alone are not substituted for the missing signed-process course.
+
+The coordinator authorized a separate tests-enabled signed diagnostic candidate
+using the existing pre-main probe, with no production hook or new entitlement.
+Its source is exact `0f42035a1` in the task-owned diagnostic worktree beneath
+`build/mimalloc-post-review-r10/diagnostic/`. The first configure correctly
+refused tests-enabled distribution mode; the supported development Release graph
+uses native arm64, tests enabled, all five product executables, pinned mimalloc
+and offline verified dependencies. Its build/sign/trust/native result remains
+pending. It is byte-distinct from the reviewed production app, whose Cocoa and
+trust evidence will not be relabeled. Runtime records, initial refusals and
+sanitized review intake are in `build/mimalloc-post-review-r10/`.
+
+
 ## Signed local macOS acceptance — authorized round r9
 
 The owner explicitly authorized Developer-ID signing and notarization for local

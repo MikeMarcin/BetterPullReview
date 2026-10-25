@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1762"
 title: "Reconcile mimalloc runtime and corresponding source in packages"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758", "BPR-1760", "BPR-1761"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC07","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"Exact signed/notarized Mac ZIP/DMG/private relocated install and full 53-file/19-image/519-unit audit; pinned runtime/notices/SPDX/separate-source agreement and omission/extra controls. Retained actual Windows MSI/Ubuntu DEB and all three CLI archive closure, source, relocation/removal and negative controls keep original producers. Human Cocoa acceptance is exact r9 decision only; no release/legal/native uninstall or signed-pointer claim.","ledger":"docs/verification/RFC-BPR-0093.md#post-review-reconciliation--round-r10","producers":{"mac_app":"0f42035a1758a33c729317d66d3aaaac0e771fb1","windows":"c5693fd05e9a673381cae5aa76c355db33e39182","linux":"0c40cca40e5d93205d83fd65f76af029ac937347","cli":"df6e8be48ff17271e2258f0040e4ca87795f44bd"}}}]
 ---
 
 # Reconcile mimalloc runtime and corresponding source in packages
@@ -31,14 +32,20 @@ records exact hashes, Apple receipts, public paths and limitations. Prior native
 Windows/Ubuntu and standalone CLI package/source evidence keeps its original
 producer identity. No release publication or legal approval is inferred.
 
-Final AC07/AC09 reconciliation remains **human-pending** on the delivered Cocoa
-question for [[BPR-1759]]: session `3a0425eb3756874560105a4cff2b0b64`, external
-state `/Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev`,
-candidate `BPR-1759-signed-cocoa-r9`, consumed cursor 3. This card is not Done;
-older unavailable-signed-candidate statements below retain their historical
-scope. Broad suites were skipped for local validation, and native install/
-upgrade/uninstall, vault/crash/vulnerability and distribution approval remain
-separate. No version change, tag, push or publication occurred.
+AC07 is accepted after exact review intake and final evidence reconciliation.
+Human decision `958b2988-5f73-4ebf-beea-cdffa5cbe603` accepts the delivered Cocoa
+criterion for this exact r9 candidate; session `3a0425eb3756874560105a4cff2b0b64`
+is handed back at consumed cursor 6. The
+[post-review ledger](../../verification/RFC-BPR-0093.md#post-review-reconciliation--round-r10)
+records that narrow verdict and keeps native pointer proof on [[BPR-1759]].
+The signed Mac package/source audit combines with unchanged native Windows,
+Ubuntu and three-platform CLI closure/removal/negative-control evidence at
+its original exact producers. This card's package/source scope is complete.
+
+Broad suites were skipped for local Mac validation; ordinary native install/
+upgrade/uninstall, vault/crash/vulnerability, legal recipient access/retention
+and distribution approval remain separate. No version change, tag, push or
+publication occurred. Earlier pending statements below retain historical scope.
 
 ## Historical acceptance — mandate r5, 2026-10-24
 
