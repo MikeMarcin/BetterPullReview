@@ -96,8 +96,8 @@ namespace bpr::e2e::large_review {
 	/// enforced on every platform and configuration.
 	inline constexpr bool OptimizedBuild = std::string_view{ BPR_BENCH_BUILD_CONFIGURATION } != "Debug";
 	// [[BPR-1265]]. The exit code the cache-bytes row reads as Skipped (SKIP_RETURN_CODE).
-	inline constexpr int           cache_bytes_debug_skip_exit_code = 77;
-	inline constexpr std::uint64_t MiB                              = 1024U * 1024U;
+	inline constexpr int           benchmark_skip_exit_code = 77;
+	inline constexpr std::uint64_t MiB                      = 1024U * 1024U;
 #if defined(__APPLE__)
 	inline constexpr bool             PlatformBudgetsEnforced                    = true;
 	inline constexpr std::string_view PlatformLimitBasis                         = "macOS arm64 M4 Pro 48 GiB, Qt 6.11.2, Apple clang 21 Release at 5a26d6b1";
@@ -2299,7 +2299,7 @@ namespace bpr::e2e::large_review {
 		if (!OptimizedBuild && aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes") {
 			std::cout << "LARGE_REVIEW_CACHE_BYTES_SKIPPED: the byte-pressure course runs only in an optimized build; "
 					  << "a " << BPR_BENCH_BUILD_CONFIGURATION << " build is diagnostic only\n";
-			return cache_bytes_debug_skip_exit_code;
+			return benchmark_skip_exit_code;
 		}
 		QTemporaryDir data;
 		if (!data.isValid()) {
@@ -2337,7 +2337,7 @@ namespace bpr::e2e::large_review {
 #if !defined(BPR_BENCH_MIMALLOC)
 		if (report.Extended.AllocatorCollectDiagnostic) {
 			std::cout << "LARGE_REVIEW_ALLOCATOR_PURGE_UNAVAILABLE: selected allocator is not mimalloc\n";
-			return cache_bytes_debug_skip_exit_code;
+			return benchmark_skip_exit_code;
 		}
 #endif
 		report.Extended.AllocationProfile = report.Extended.AllocatorCollectDiagnostic || (aArgc == 5 && std::string_view{ aArgv[4] } == "--allocation-profile");
@@ -3055,9 +3055,6 @@ namespace bpr::e2e::large_review {
 				require(report.DestroyReleasedDiff && report.DestroyReleasedIndex, "closed comparison retains raw diff or prepared index");
 				require(!observeLoadedOwners || (report.DestroyReleasedWindow && report.DestroyReleasedDocuments),
 						"closed application retains the window or large source documents");
-				if (report.Extended.AllocatorCollectDiagnostic) {
-					diagnose_allocator_release(report);
-				}
 			}
 			for (const auto& phase : report.Phases) {
 				if (phase.MaxPulseIntervalMs > report.InputIntervalLimitMs) {
@@ -3065,6 +3062,9 @@ namespace bpr::e2e::large_review {
 				}
 			}
 			report.Extended.Heap = heapSampler.finish();
+			if (report.Extended.AllocatorCollectDiagnostic) {
+				diagnose_allocator_release(report);
+			}
 			if (observeResources) {
 				report.Extended.SampledPeakHeapGrowthLimitBytes = report.CacheByteCourse
 					? PlatformCacheByteHeapGrowthLimitBytes

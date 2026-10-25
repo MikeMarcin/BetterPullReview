@@ -121,8 +121,11 @@ namespace {
 		::operator delete(aligned, std::align_val_t(256));
 		// Volatile prevents folding the overflow request into a compiler warning.
 		volatile auto impossibleSize = std::numeric_limits<std::size_t>::max();
-		errno                        = 0;
-		require(std::malloc(impossibleSize) == nullptr && errno == ENOMEM, "malloc failure semantics");
+		// Observe the actual call. An optimized AppleClang malloc builtin can
+		// fold away this deliberately impossible request and its errno read.
+		auto* volatile allocate = &std::malloc;
+		errno                   = 0;
+		require(allocate(impossibleSize) == nullptr && errno == ENOMEM, "malloc failure semantics");
 		require(::operator new(impossibleSize, std::nothrow) == nullptr, "nothrow failure semantics");
 		bool threwBadAlloc = false;
 		try {
