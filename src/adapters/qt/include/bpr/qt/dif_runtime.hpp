@@ -162,12 +162,15 @@ namespace bpr::qt {
 		auto        pixel_bytes() const -> std::uint64_t;
 		auto        retained_bytes() const -> std::uint64_t;
 		auto        conversion_peak_bytes() const -> std::uint64_t;
+		/// \brief Full-strip destination bytes allocated instead of reusing validated RGBA storage.
+		auto premultiplication_copy_bytes() const -> std::uint64_t;
 
 	private:
 		descriptors            Clips;
 		std::array<QImage, 10> Images;
 		std::uint64_t          Pixels{ 0 };
 		std::uint64_t          Peak{ 0 };
+		std::uint64_t          PremultiplicationCopies{ 0 };
 	};
 
 	/// \brief Accepted generated descriptors in typed runtime order (rest is zero).

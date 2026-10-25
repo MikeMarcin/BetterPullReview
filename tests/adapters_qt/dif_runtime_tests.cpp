@@ -688,11 +688,14 @@ namespace {
 		fixture    input;
 		const auto cache = input.load();
 		expect(cache && input.Loads == 10, "ten strips decode exactly once");
+		expect(cache->premultiplication_copy_bytes() == 0U, "validated Dif strips reuse decoded storage for premultiplication");
 		std::uint64_t pixelBytes = 0;
 		for (std::size_t index = 0; index < 10; ++index) {
 			const auto& clip = cache->clip(index);
 			pixelBytes += static_cast<std::uint64_t>(cache->image(index).sizeInBytes());
 			expect(cache->image(index).format() == QImage::Format_ARGB32_Premultiplied, "one premultiplied representation");
+			const auto straight = QImage::fromData(input.Bytes[index], "PNG");
+			expect(cache->image(index) == straight.convertToFormat(QImage::Format_ARGB32_Premultiplied), "storage reuse preserves every straight-alpha fixture pixel and gutter");
 			dif_sequencer player{ cache };
 			expect(player.start(index, 100), "all ten indices start");
 			for (int frame = 0; frame < clip.Frames; ++frame) {
@@ -743,6 +746,7 @@ namespace {
 		const auto cache = provider.acquire();
 		expect(cache && provider.acquire() == cache && provider.cache_identity() == cache.get(), "compiled resources decode once and share identity");
 		expect(provider.load_attempts() == 1 && provider.decoded_count() == 10 && provider.failure_diagnostic().isEmpty(), "one production decode lifetime");
+		expect(cache->premultiplication_copy_bytes() == 0U, "all production Dif strips reuse validated decoded storage");
 		expect(cache->pixel_bytes() == 23'855'104 && cache->retained_bytes() < 32 * 1024 * 1024 && cache->conversion_peak_bytes() < 40 * 1024 * 1024, "production memory includes all twenty end cells");
 		for (std::size_t index = 0; index < 10; ++index) {
 			expect(cache->source(index, 0).x() == 256 && cache->source(index, cache->clip(index).Frames - 1).right() == cache->image(index).width() - 257, "production rectangles exclude both full-cell gutters");

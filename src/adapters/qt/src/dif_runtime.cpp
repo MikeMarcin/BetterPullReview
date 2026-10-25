@@ -393,9 +393,13 @@ namespace bpr::qt {
 			if (QCryptographicHash::hash(QByteArrayView{ reinterpret_cast<const char*>(decoded.constBits()), decoded.sizeInBytes() }, QCryptographicHash::Sha256) != clip.Sha256) {
 				return { };
 			}
-			auto retained = decoded.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+			const auto* straightPixels = decoded.constBits();
+			auto        retained       = decoded.convertToFormat(QImage::Format_ARGB32_Premultiplied);
 			if (retained.isNull()) {
 				return { };
+			}
+			if (retained.constBits() != straightPixels) {
+				cache->PremultiplicationCopies += static_cast<std::uint64_t>(retained.sizeInBytes());
 			}
 			cache->Images[index] = std::move(retained);
 			cache->Pixels += static_cast<std::uint64_t>(cache->Images[index].sizeInBytes());
@@ -419,6 +423,7 @@ namespace bpr::qt {
 	auto dif_cache::pixel_bytes() const -> std::uint64_t { return Pixels; }
 	auto dif_cache::retained_bytes() const -> std::uint64_t { return Pixels + sizeof(dif_cache) + overhead; }
 	auto dif_cache::conversion_peak_bytes() const -> std::uint64_t { return Peak; }
+	auto dif_cache::premultiplication_copy_bytes() const -> std::uint64_t { return PremultiplicationCopies; }
 
 	namespace {
 		constexpr std::array<std::string_view, 10> production_ids{ "rest", "calm_idle", "greet", "blink", "compare_glance", "consider", "comment_ready", "attention", "acknowledge", "blocked" };
