@@ -141,7 +141,7 @@ namespace bpr::qt {
 		dif_playback Playback{ dif_playback::still };
 		std::size_t  Return{ 0 };
 		QByteArray   Sha256; // SHA-256 of straight RGBA8 rows, excluding no pixels.
-		int          Origin{ 0 }; // Equal transparent leading/trailing margins.
+		int          Origin{ 0 }; // Equal transparent leading/trailing encoded PNG margins.
 	};
 
 	/// \brief Immutable, explicitly shared catalog; creation decodes one injected PNG at a time.
@@ -149,6 +149,8 @@ namespace bpr::qt {
 	/// metadata. The composition-owned loader supplies bounded bytes and does not throw.
 	/// Retained/peak accounting includes a conservative opaque Qt/allocator allowance;
 	/// backend-owned paint caches require separate native measurement.
+	/// Encoded descriptors remain unchanged. Retained images omit validated outer
+	/// transparent margins; source() addresses frames in those retained coordinates.
 	class dif_cache final
 	{
 	public:

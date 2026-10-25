@@ -367,6 +367,7 @@ namespace bpr::qt {
 		for (auto& clip : cache->Clips) {
 			clip.Sha256 = QByteArray{ clip.Sha256.constData(), clip.Sha256.size() };
 		}
+		std::uint64_t fullDecodedPixels = 0;
 		for (std::size_t index = 0; index < aClips.size(); ++index) {
 			const auto& clip = aClips[index];
 			if (aClips[clip.Return].Playback == dif_playback::once) {
@@ -381,8 +382,10 @@ namespace bpr::qt {
 			QImageReader reader{ &buffer, "PNG" };
 			const QSize  size{ 2 * clip.Origin + clip.Frames * clip.Cell + (clip.Frames - 1) * clip.Gutter, clip.Cell };
 			const auto   pixels = static_cast<std::uint64_t>(size.width()) * static_cast<std::uint64_t>(size.height()) * 4;
-			const auto   peak   = cache->Pixels + pixels * 2 + static_cast<std::uint64_t>(bytes.size()) + sizeof(dif_cache) + overhead;
-			if (reader.size() != size || cache->Pixels + pixels > 24 * mib || peak >= 40 * mib) {
+			// Keep admission and conservative peak accounting in full encoded
+			// strip bytes, independently of the smaller retained representation.
+			const auto peak = fullDecodedPixels + pixels * 2 + static_cast<std::uint64_t>(bytes.size()) + sizeof(dif_cache) + overhead;
+			if (reader.size() != size || fullDecodedPixels + pixels > 24 * mib || peak >= 40 * mib) {
 				return { };
 			}
 			auto decoded = reader.read();
@@ -403,7 +406,16 @@ namespace bpr::qt {
 			if (retained.constBits() != straightPixels) {
 				cache->PremultiplicationCopies += static_cast<std::uint64_t>(retained.sizeInBytes());
 			}
+			if (clip.Origin != 0) {
+				// Both end margins passed full pixel/digest validation above.
+				// They are outside every frame; retain an owning interior copy.
+				retained = retained.copy(clip.Origin, 0, retained.width() - 2 * clip.Origin, retained.height());
+				if (retained.isNull()) {
+					return { };
+				}
+			}
 			cache->Images[index] = std::move(retained);
+			fullDecodedPixels += pixels;
 			cache->Pixels += static_cast<std::uint64_t>(cache->Images[index].sizeInBytes());
 			cache->Peak = std::max(cache->Peak, peak);
 		}
@@ -420,7 +432,7 @@ namespace bpr::qt {
 			return { };
 		}
 		const auto& clip = Clips[aClip];
-		return { clip.Origin + aFrame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell };
+		return { aFrame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell };
 	}
 	auto dif_cache::pixel_bytes() const -> std::uint64_t { return Pixels; }
 	auto dif_cache::retained_bytes() const -> std::uint64_t { return Pixels + sizeof(dif_cache) + overhead; }
