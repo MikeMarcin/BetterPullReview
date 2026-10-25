@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1759"
 title: "Verify process-wide mimalloc on native macOS"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758"]
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
-parked_on: "human-review"
 acceptance: [{"criterion":"AC03 universal signed local trust and installed closure","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"All 19 images universal Developer-ID/hardened/timestamped with no entitlements; app and DMG notarized/stapled/Gatekeeper accepted; matching private relocated install; package/source/checksums/negative controls/MCP/headless render pass. Exact ledger signed local macOS r9."}},{"criterion":"AC03 delivered native Cocoa behavior","outcome":"pending","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"artifact","detail":"Fresh session 3a0425eb3756874560105a4cff2b0b64; candidate BPR-1759-signed-cocoa-r9 fingerprint a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5; external state /Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev; initial consumed cursor 3. Owner judges delivered Cocoa through local-file review/reopen/Quit; no human verdict supplied here."}},{"criterion":"AC03/AC06 unchanged implementation native pointer and failure evidence","outcome":"pass","revision":"df6e8be48ff17271e2258f0040e4ca87795f44bd","evidence":{"kind":"observation","detail":"All production/provider/package/version paths match this prior implementation. Its prior r4 native pointer/cross-module/OOM and CLI records retain exact original producer identities. Signed initialization diagnostics are not new pointer proof; no release qualification inferred."}}]
 ---
 
