@@ -764,14 +764,16 @@ namespace {
 		fixture                input;
 		std::array<QImage, 10> paddedSources;
 		for (std::size_t index = 0; index < input.Clips.size(); ++index) {
-			auto&      clip    = input.Clips[index];
-			const auto content = QImage::fromData(input.Bytes[index], "PNG");
-			clip.Origin        = 3;
-			QImage padded{ content.width() + 2 * clip.Origin, content.height(), QImage::Format_ARGB32 };
+			auto& clip  = input.Clips[index];
+			clip.Cell   = 7;
+			clip.Origin = 3;
+			QImage padded{ 2 * clip.Origin + clip.Frames * clip.Cell + (clip.Frames - 1) * clip.Gutter, clip.Cell, QImage::Format_ARGB32 };
 			padded.fill(Qt::transparent);
 			{
 				QPainter painter{ &padded };
-				painter.drawImage(clip.Origin, 0, content);
+				for (int frame = 0; frame < clip.Frames; ++frame) {
+					painter.fillRect(clip.Origin + frame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell, QColor{ frame * 20, static_cast<int>(index) * 20, 80, 128 });
+				}
 			}
 			for (int frame = 0; frame < clip.Frames; ++frame) {
 				const auto firstColumn = clip.Origin + frame * (clip.Cell + clip.Gutter);
