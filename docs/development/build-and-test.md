@@ -69,7 +69,12 @@ remain separate. A development pass does not qualify an Intel host or signed
 installed package. The [RFC](../rfcs/RFC-BPR-0093-process-wide-mimalloc.md)
 accepts universal arm64/x86_64 static proof plus native arm64 observations under
 owner amendment r5, without requiring or claiming native Intel execution.
-Actual signed-installed and delivered native Cocoa acceptance remain pending.
+The [signed Mac course](../verification/RFC-BPR-0093.md#signed-diagnostic-native-result-and-ac03-judgment)
+now passes on a separate installed tests-enabled Developer-ID/hardened diagnostic
+candidate, with no entitlements or production hook. The distinct tests-disabled
+production app has accepted delivered Cocoa behavior and verified trust/closure;
+no direct pointer observation of those exact production bytes is claimed.
+These local RFC courses do not supply release approval.
 
 Windows requires native MSVC x64 with the dynamic CRT; static CRT flags and
 selections are refused. The build copies the source-built allocator DLL and

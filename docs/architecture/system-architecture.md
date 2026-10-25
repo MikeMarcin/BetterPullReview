@@ -582,17 +582,21 @@ remain available where the host supplies them.
 requires it on. Sanitizer/fuzzer graphs exclude the override and retain toolchain
 allocation; instrumented distribution is refused. `MI_XMALLOC` is forced off,
 so adoption introduces no abort-on-allocation-failure mode. macOS pointer
-ownership and cross-module courses are tests-enabled instrumentation of the
-actual product images; signed-installed/delivered Cocoa, Windows and Ubuntu
-evidence is tracked separately in [[BPR-1759]], [[BPR-1760]] and [[BPR-1761]].
-Owner amendment r5 accepts universal arm64/x86_64 static proof plus native arm64
-observations for macOS architecture coverage; native Intel execution is neither
-required by RFC-BPR-0093 nor claimed. The local signed/notarized installed
-trust and package/source course passes at `0f42035a1`; delivered native Cocoa
-judgment remains pending in the [r9 session](../verification/RFC-BPR-0093.md#signed-local-macos-acceptance--authorized-round-r9).
-This is local acceptance with broad release suites skipped, not release approval.
-Final package/source reconciliation and performance reporting remain
-[[BPR-1762]] and [[BPR-1763]].
+ownership and cross-module courses use tests-enabled instrumentation of the
+actual product images; Windows and Ubuntu also have external installed-image
+pointer evidence in [[BPR-1760]] and [[BPR-1761]]. Owner amendment r5 accepts
+universal arm64/x86_64 static proof plus native arm64 observations for macOS;
+native Intel execution is neither required nor claimed. The signed installed
+Mac diagnostic at exact source `0f42035a1` passes all five products' pointer,
+Qt/module/thread/free/failure probes under Developer ID and hardened runtime,
+with empty entitlements and accepted notarization. It keeps the authored tests
+bundle identity and is a separate candidate from the reviewed tests-disabled
+universal production app. That production app has accepted delivered Cocoa
+behavior and verified trust/package closure. No direct pointer observation of
+its exact bytes is claimed. The [post-review ledger](../verification/RFC-BPR-0093.md#post-review-reconciliation--round-r10)
+binds both candidates and their limits. AC07 package/source agreement and AC08
+reporting are recorded in [[BPR-1762]] and [[BPR-1763]]. Broad release suites were
+skipped for local validation; this is RFC acceptance, not release approval.
 
 ### Core implementation inventory
 

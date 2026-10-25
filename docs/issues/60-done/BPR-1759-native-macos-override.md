@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1759"
 title: "Verify process-wide mimalloc on native macOS"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758"]
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
-acceptance: [{"criterion":"AC03 universal signed local trust and installed closure","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"All 19 images universal Developer-ID/hardened/timestamped with no entitlements; app and DMG notarized/stapled/Gatekeeper accepted; matching private relocated install; package/source/checksums/negative controls/MCP/headless render pass. Exact ledger signed local macOS r9."}},{"criterion":"AC03 delivered native Cocoa behavior","outcome":"pending","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"artifact","detail":"Fresh session 3a0425eb3756874560105a4cff2b0b64; candidate BPR-1759-signed-cocoa-r9 fingerprint a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5; external state /Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev; initial consumed cursor 3. Owner judges delivered Cocoa through local-file review/reopen/Quit; no human verdict supplied here."}},{"criterion":"AC03/AC06 unchanged implementation native pointer and failure evidence","outcome":"pass","revision":"df6e8be48ff17271e2258f0040e4ca87795f44bd","evidence":{"kind":"observation","detail":"All production/provider/package/version paths match this prior implementation. Its prior r4 native pointer/cross-module/OOM and CLI records retain exact original producer identities. Signed initialization diagnostics are not new pointer proof; no release qualification inferred."}}]
+acceptance: [{"criterion":"AC03 signed installed native pointer contract","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"Separate native arm64 Release tests-enabled installed diagnostic; all five actual products pass C/C++/Qt/module/thread/OOM/one-runtime; signed no-override control fails; all 22 images Developer ID hardened timestamped no entitlements; Apple accepted fc66d44d-a0ef-4382-abd5-3dbec30bf7f7, staple/Gatekeeper/relocated seal pass. No direct production-byte pointer claim.","candidate":"BPR-1759-signed-diagnostic-r10","fingerprint":"646544c450afff7a8ce6b2a200ac69f78ba08697b8b9609b3e7d7820e8657c1e"}},{"criterion":"AC03 delivered tests-disabled Cocoa behavior and trust/closure","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"Exact human Accept 958b2988-5f73-4ebf-beea-cdffa5cbe603 in session 3a0425eb3756874560105a4cff2b0b64 cursor 6 binds only production fingerprint a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5; r9 signed/notarized universal app/DMG and private closure/source audits retain exact bytes."}},{"criterion":"AC03 amended architecture and native CLI scope","outcome":"pass","revision":"df6e8be48ff17271e2258f0040e4ca87795f44bd","evidence":{"kind":"observation","detail":"Prior native arm64 CLI/private-prefix pointer/public courses retain exact producer; r9 universal arm64/x86_64 static interpose proof and r5 owner amendment satisfy architecture coverage. No native Intel execution claimed."}},{"criterion":"AC06 Mac allocator boundary and failure behavior","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"Five signed diagnostic product probes preserve C ENOMEM, nothrow/throwing new, 4096 cross-module iterations, cross-thread and module shutdown with one pinned allocator; focused prior composed paths reused unchanged; fresh exact tests-disabled production MCP terminal course passes."}}]
 ---
 
 # Verify process-wide mimalloc on native macOS
@@ -22,7 +22,37 @@ claimed under owner amendment r5. Check the signed installed candidate, startup
 and shutdown. Include allocator-boundary stress needed by AC06; a linked binary
 or stats report alone is insufficient.
 
-## Current signed result — authorized round r9
+## Accepted native Mac result — post-review round r10
+
+AC03 is satisfied by the distinct candidate courses recorded in the
+[post-review ledger](../../verification/RFC-BPR-0093.md#signed-diagnostic-native-result-and-ac03-judgment).
+The signed/notarized installed diagnostic at exact source `0f42035a1` runs the
+existing pre-main pointer probe in all five product executables: C/C++/Qt,
+loaded module, 4,096 cross-boundary iterations, cross-thread frees, one pinned
+allocator and ordinary allocation failure all pass. Its signed no-override
+control fails as required. All 22 images retain Developer ID, timestamps,
+hardened runtime and empty entitlements; notarization, staple, Gatekeeper and
+relocated seal checks pass. Its exact identity and limitations are in the ledger.
+
+The separate tests-disabled universal production app's delivered Cocoa review,
+return/reopen and Quit criterion is accepted by human decision
+`958b2988-5f73-4ebf-beea-cdffa5cbe603`, session
+`3a0425eb3756874560105a4cff2b0b64`, consumed cursor 6, exact fingerprint
+`a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5`.
+That verdict remains bound only to its recorded production bytes. No direct
+pointer observation of those bytes is claimed; the signed diagnostic is a
+separate native course, with no production hook or new entitlement. The original
+observer/LLDB refusal records remain retained. Universal static proof plus
+native arm64 meets r5; native Intel execution is not required or claimed.
+
+Source/provider/package behavior is unchanged. Existing tests-disabled public
+and native CLI/private-prefix courses retain their exact producers; AC07 is
+Done on [[BPR-1762]]. Broad release suites, general native installation/removal,
+vault/crash/vulnerability/legal approval and independent memory qualification
+remain outside this acceptance. No version change, push, tag, publication or
+owner-desktop operation occurred. The following checkpoints are historical.
+
+## Historical signed result — authorized round r9
 
 The local Developer-ID signed/notarized universal candidate is now produced and
 verified at `0f42035a1758a33c729317d66d3aaaac0e771fb1`. The

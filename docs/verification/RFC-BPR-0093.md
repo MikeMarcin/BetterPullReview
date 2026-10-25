@@ -52,15 +52,78 @@ statistics alone are not substituted for the missing signed-process course.
 
 The coordinator authorized a separate tests-enabled signed diagnostic candidate
 using the existing pre-main probe, with no production hook or new entitlement.
-Its source is exact `0f42035a1` in the task-owned diagnostic worktree beneath
-`build/mimalloc-post-review-r10/diagnostic/`. The first configure correctly
-refused tests-enabled distribution mode; the supported development Release graph
-uses native arm64, tests enabled, all five product executables, pinned mimalloc
-and offline verified dependencies. Its build/sign/trust/native result remains
-pending. It is byte-distinct from the reviewed production app, whose Cocoa and
-trust evidence will not be relabeled. Runtime records, initial refusals and
-sanitized review intake are in `build/mimalloc-post-review-r10/`.
+Exact source `0f42035a1758a33c729317d66d3aaaac0e771fb1` is retained in the
+task-owned detached worktree `build/mimalloc-post-review-r10/diagnostic/src`;
+its build is `diagnostic/build`. Native arm64 Release, tests enabled and all
+five product executables are selected, with the same pinned allocator and
+offline verified dependencies. The full selected native build passes.
 
+The first configure correctly refused tests-enabled distribution mode. The
+supported development graph keeps its authored `(tests)` display name and
+`io.github.MikeMarcin.BetterPullReview.tests` identifier. Its native package-
+notice attempt correctly refused the absent distribution-only input map;
+no release guard is bypassed and no package qualification is claimed for this
+candidate. Mechanical target/output-name mistakes are retained separately.
+The same pinned third-party notice/source-offer text is retained. Deployment,
+private rpath normalization and signing use the exact committed release helper
+functions; only diagnostic path/identity selectors are supplied.
+
+### Signed diagnostic native result and AC03 judgment
+
+Candidate `BPR-1759-signed-diagnostic-r10` has non-symlink installed-file
+fingerprint `646544c450afff7a8ce6b2a200ac69f78ba08697b8b9609b3e7d7820e8657c1e`
+(SHA-256 of the sorted compact JSON path-to-SHA-256 inventory). All **22 Mach-O
+images** have native arm64, Developer ID team `YTQKP2V2A8`, secure timestamp,
+hardened runtime and empty entitlements. No library-validation, DYLD-environment
+or debugger exception is added. Dependencies/rpaths resolve only inside the
+private app or to system libraries; the boundary module links Qt, never mimalloc.
+Apple submission `fc66d44d-a0ef-4382-abd5-3dbec30bf7f7` is **Accepted**. Staple,
+strict signature and Gatekeeper checks pass before and after private relocated
+installation, and again after the native course.
+
+All five actual signed installed diagnostic product images pass the existing
+`tests/mimalloc/process_probe.cpp` contract before ordinary main: C allocation
+family, global/array/aligned C++ new, loaded Qt QByteArray storage, 4,096
+cross-module iterations, cross-thread release, exactly one allocator, pinned
+version 30503 and C/nothrow/throwing allocation-failure semantics. The signed
+`mimalloc_unattached` control, built with the identical probe and no allocator,
+correctly fails at `mi_is_in_heap_region` (exit 1). No loader injection is used.
+The native probe exits before GUI/provider startup; an invalid Qt platform
+fallback prevents accidental desktop use. No owner desktop is driven/captured.
+All installed file hashes and the seal remain unchanged by the course.
+
+| Signed diagnostic image | SHA-256 |
+|---|---|
+| Desktop `better_pull_review` | `03326b81a029dae63eb867ab25ef8e15c2df600c7cf2cfec86b1554325dff6a8` |
+| `bpr` | `04ef02875b470979174104825a74a4b4d50219c5651a64b66dd11448cfeecb32` |
+| Supervisor | `bcd28b25dc043e71efe930412f878179e3dae236c01337156ac06e9be48fc0ef` |
+| MCP helper | `8f717932ad54062ebc16b28cd5782ad9d7644ef9e5fab343e5dfc8a879afa6f2` |
+| Update helper | `085486e8fd18fbcc8a77a3c6707f6435f37d897c47435c3320ce7e82ec188cd2` |
+| Allocator | `705c56755576a9963742cb951a698d5d76de7b149a6bdbc707c7a02ced0ff066` |
+| Loaded boundary module | `b1e712c04e9d1d8d7c8addc251588a3d766048d5104114a7b4dde75c7198563d` |
+
+This completes AC03 through two precisely distinct courses: the signed installed
+diagnostic demonstrates actual pointer interception and safe release under
+signing/hardening; the reviewed tests-disabled universal production candidate
+demonstrates delivered Cocoa behavior, trust and package closure. Prior r4
+native CLI/private-prefix observations retain their own producer, and r5
+supplies the explicit universal/static architecture acceptance amendment.
+The diagnostic CLI shares this app's private Qt/allocator closure for its signed
+pointer course; it is not a newly qualified signed standalone CLI archive.
+No direct pointer observation of the exact reviewed production bytes is claimed.
+AC03 requires native courses including a signed installed candidate; both courses
+retain their exact scope and identity. Pointer proof comes from the diagnostic
+observation, rather than source identity or allocator statistics.
+No release, native Intel execution, ordinary install/uninstall, legal/security
+or memory qualification follows from the diagnostic result.
+
+Raw commands, logs, identities, receipt, closed dependency observations,
+`native-summary.json`, immutable installed candidate and source/build roots are
+under `build/mimalloc-post-review-r10/diagnostic/`. Sanitized review intake,
+production payload/artifact preservation, passing 13 package-audit controls,
+67 documentation tests and a fresh exact tests-disabled production MCP public
+terminal course are under `build/mimalloc-post-review-r10/`. Every prior
+candidate remains retained with its original identity.
 
 ## Signed local macOS acceptance — authorized round r9
 
