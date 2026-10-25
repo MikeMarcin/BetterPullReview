@@ -1,11 +1,27 @@
 ---
 id: "RFC-BPR-0093"
 title: "Process-wide mimalloc for BetterPullReview executables"
-status: "In Progress"
+status: "Auto-Verified"
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
 ---
 
 # Process-wide mimalloc for BetterPullReview executables
+
+## Accepted result — post-review round r10
+
+The selected executables now use pinned mimalloc 3.5.3 through their platform
+composition and private runtime/package boundaries. All AC01–AC09 and seven
+required cards are reconciled in the [final ledger](../verification/RFC-BPR-0093.md#final-rfc-reconciliation--round-r10).
+Mac acceptance combines a signed installed native pointer diagnostic with the
+separate reviewed tests-disabled production app's Cocoa/trust/closure course;
+each keeps its exact identity and limits. No direct pointer observation of the
+production bytes or native Intel execution is claimed. The original problem and
+proposal below record the pre-adoption context.
+
+This is RFC engineering acceptance. BPR-1768 remains an independent memory
+qualification; actual memory/timing failures, uncovered counters and broader
+native/security/legal/release obligations remain explicit. No release publication
+or version change follows from this closeout.
 
 ## Problem and grounded current behavior
 
@@ -131,8 +147,9 @@ requiring an Intel run. AC03 and the live macOS milestone/card now express that
 requirement. This is an acceptance amendment, not evidence of native Intel
 execution. The [current candidate and amendment ledger](../verification/RFC-BPR-0093.md#intel-acceptance-amendment--mandate-r5)
 binds the universal app/CLI producers, static proof and native arm64 observations.
-Actual Developer-ID signed-installed and delivered native Cocoa acceptance
-remain pending on [[BPR-1759]]; [[BPR-1762]] and RFC closeout remain incomplete.
+The later Developer-ID signed-installed and delivered native Cocoa courses
+are accepted on [[BPR-1759]]; [[BPR-1762]] and final closeout now record their
+completed engineering scope in the post-review ledger.
 Other criteria and the immutable source pack are unchanged.
 
 ## Owner verification amendment — useful resource tests, 2026-10-24
@@ -161,7 +178,8 @@ comparison and actual failures are retained. No plan outcome or exit is removed.
 No product default, automatic collection, CI fixture input or memory limit is
 changed. The [purpose audit and exact native evidence](../verification/RFC-BPR-0093.md#useful-resource-tests--owner-verification-amendment)
 bind the implementation and practical limits. Signed-installed/Cocoa Mac,
-package agreement and final closeout requirements remain pending under r5.
+package agreement and final closeout are now reconciled in the post-review ledger
+without changing those requirements.
 
 ## Proposed work
 

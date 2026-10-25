@@ -67,10 +67,31 @@ finished; review hosts remain stopped and no review server is handed off.
 Main is the sole writer. Other candidate roots, native station evidence and
 unrelated MASK edits stay protected. No owner desktop was driven or captured.
 
-Next: finish BPR-1759 with this exact evidence, reconcile BPR-1764/AC01–AC09,
-run final documentation and scoped board/plan checks, and commit explicit paths.
-BPR-1768 remains an independent Backlog memory qualification, with original
-numerical failures/uncovered heap counters retained. Broad release suites were
-skipped for local acceptance; general native install/upgrade/uninstall, vault,
-crash/privacy, vulnerability, legal access/retention and release approval remain
-outside this RFC. No version change, push, tag or publication is authorized.
+BPR-1759 is Done at `e12ad52ef4efea730409d99fd505ec0063b84712`; BPR-1762 at
+`e71b3349461baeeb6c44d1cbd21a45c87fac54a8`. BPR-1764 reconciles every AC01–AC09
+and closes RFC-BPR-0093 as Auto-Verified, with index synchronized. Accepted
+pinned-Mac and distribution observations pass the preserved plan checker;
+Windows/Linux acceptance keeps the existing direct native evidence. The final
+closeout checkpoint/observation binds the terminal source revision and all
+retained exits. Documentation gate, 67 documentation tests, 13 package-audit
+controls, scoped board validation and fresh exact production MCP public course
+pass. `git diff --check` passes. No source code changed in this round.
+
+Changed tracked paths: BPR-1759/1762/1764 moves and acceptance, RFC/index,
+allocator architecture/build guidance, verification ledger and this checkpoint.
+The source/product trees, all eight original production artifacts and original
+installed app are unchanged. All task-owned commands are finished and only
+retained source/build/candidate/evidence roots remain; no review host or new
+human/native decision is pending for this RFC. The exact terminal commits and
+checks are recorded in `build/mimalloc-post-review-r10/observation-final.json`
+and `checkpoint-final.json`; the coordinator receives their identities.
+
+Continuation is pack-complete: return to the coordinator and preserve all
+candidates/evidence. BPR-1768 remains an independent Backlog memory qualification,
+with original numerical failures/uncovered heap counters and timing misses
+retained. Broad release suites were skipped for local acceptance; general
+native install/upgrade/uninstall, vault, crash/privacy, vulnerability, legal
+access/retention and release approval remain outside this RFC. No version
+change, push, tag or publication is authorized by this closeout. Only the
+implement-rfc, attended-review and publish-release workflows were needed in
+this round; no new visual surface was designed or owner desktop accessed.

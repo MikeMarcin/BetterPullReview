@@ -719,6 +719,6 @@ the review skill in each request's brief. Milestones BPR-1748 to AQ9.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0093](RFC-BPR-0093-process-wide-mimalloc.md) | Process-wide mimalloc for BPR executables | In Progress | None |
+| [RFC-BPR-0093](RFC-BPR-0093-process-wide-mimalloc.md) | Process-wide mimalloc for BPR executables | Auto-Verified | None |
 
 [Imported pack](assets/mimalloc-process-wide-v1.LIVE_IMPORT.md), with owner-confirmed process-wide scope. Owner amendment r5 accepts verified universal/static x86_64 proof and native arm64 observations without requiring or claiming native Intel execution. Signed-installed/delivered Cocoa and final package acceptance remain pending; the RFC stays In Progress.

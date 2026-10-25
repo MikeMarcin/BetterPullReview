@@ -125,6 +125,43 @@ production payload/artifact preservation, passing 13 package-audit controls,
 terminal course are under `build/mimalloc-post-review-r10/`. Every prior
 candidate remains retained with its original identity.
 
+
+### Final RFC reconciliation — round r10
+
+BPR-1759 is Done at `e12ad52ef4efea730409d99fd505ec0063b84712`; BPR-1762 is
+Done at `e71b3349461baeeb6c44d1cbd21a45c87fac54a8`. The remaining closeout
+claims use the actual criteria, not a changed memory/performance requirement.
+The immutable RFC baseline remains `e82537ad15b32871a8375b6143abe08e16a68b87`.
+Production/provider/package/version and probe inputs at this round's main
+candidate match source `0f42035a1`; all earlier unchanged evidence remains
+bound to its original producer, not relabeled as this administrative head.
+
+| Criterion | Accepted direct scope and producing evidence |
+|---|---|
+| AC01 | Pin/licence/offline/substitution/collision/extraction controls at `81ee1b4ef`; provider semantics remain unchanged. |
+| AC02 | Selected normal/distribution/minimal/core/baseline graph and actual baseline CLI observations at `81ee1b4ef`, with later corrected native fresh-configure controls at `b449356dd`; no phantom executable requirement. |
+| AC03 | Above r10 signed installed five-product diagnostic pointer/Qt/module/free/failure proof and signed negative control; distinct r9 production Cocoa Accept/trust/universal closure at `0f42035a1`; retained `df6e8be48` CLI/private-prefix course and explicit r5 architecture amendment. |
+| AC04 | Actual Windows 11 x64 product/CRT/Qt/DLL/private installed/CLI interception and public courses at `0ccf31bc4`/`c5693fd05`, with retained limits. |
+| AC05 | Actual Ubuntu 26.04 WSL2/WSLg installed ELF, Qt/module/free/failure, CLI/MCP/XCB and clean external-child observations at `0c40cca40`. |
+| AC06 | Native boundary/stress/failure courses; actual compatible ASan/UBSan/libFuzzer corpus and CLI; composed maintenance/public paths at `b449356dd`/`df6e8be48`; new signed diagnostic and exact production MCP course supplement unchanged observations. |
+| AC07 | Exact signed Mac artifact/installed/source inventory plus retained actual MSI/DEB and all three CLI archives, full notice/SPDX/separate-source agreement, omission/extra and private removal controls; BPR-1762 accepted above. |
+| AC08 | Original same-workload six-row Release comparison, native identities/conditions, current/peak memory and actual failures at `571f96d45`/`b449356dd`; later useful-test policy is an explicit owner amendment, not a rewritten comparison or memory improvement. |
+| AC09 | Current architecture, build, package and operator scope/limits; passing documentation gate and 67 tests, 13 package-audit controls, exact production MCP public terminal course, retained hostile composition controls and accepted native Cocoa; scoped board/plan checks. |
+
+This completes RFC-BPR-0093's engineering acceptance and authorized closeout.
+The r5/r8 acceptance amendments remain explicit; no new criterion is waived.
+BPR-1768 remains Backlog independently for unqualified process/allocated-heap
+memory risk, and all original numerical/timing misses stay recorded. Broad
+release suites were skipped for local Mac validation. Ordinary-user native
+install/upgrade/uninstall, vault, crash/privacy, vulnerability, legal recipient
+access/retention and release approval remain with their existing owners/workflows.
+Private relocated copies and their removal do not supply those qualifications.
+No version change, tag, push, publication or owner-desktop operation occurred.
+The [r10 checkpoint](../issues/_checkpoints/RFC-BPR-0093-post-review-r10/handoff.md)
+binds commits, exact candidates, quiescent commands and retained roots. Runtime
+`build/mimalloc-post-review-r10/` retains actual checks and the plan observations.
+
+
 ## Signed local macOS acceptance — authorized round r9
 
 The owner explicitly authorized Developer-ID signing and notarization for local
