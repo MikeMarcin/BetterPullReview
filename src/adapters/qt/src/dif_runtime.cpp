@@ -406,6 +406,8 @@ namespace bpr::qt {
 			if (retained.constBits() != straightPixels) {
 				cache->PremultiplicationCopies += static_cast<std::uint64_t>(retained.sizeInBytes());
 			}
+			// An allocating Qt fallback can leave the unused source alive.
+			decoded = QImage{ };
 			if (clip.Origin != 0) {
 				// Both end margins passed full pixel/digest validation above.
 				// They are outside every frame; retain an owning interior copy.
