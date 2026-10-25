@@ -65,3 +65,16 @@ reports, failed harness attempts and decisions are retained in the
   process/child global policy is authorized by this card alone. Any proposed
   default needs representative responsiveness/public-path verification and
   affected native/package evidence. Keep the risk unqualified until then.
+
+## Final useful-test boundary
+
+Native final `e75a78a72` / main `e1d222aab` verifies all four resource contract
+paths on Mac/Windows/Ubuntu, with actual retained-middle-owner failures and
+original plain numerical failures retained separately. These are semantic/
+cache/ownership/source/lifecycle checks. They do not substitute a process-
+memory regression signal or qualify arbitrary live allocations/retained pages.
+The unchanged limits and large MI footprint/peak observations remain in the
+[final ledger](../../verification/RFC-BPR-0093.md#corrected-held-b-barrier-and-final-native-evidence).
+No trend rule or product setting is adopted, and this card stays Backlog.
+The corrected held-B preparation-tail barrier and later bounded Windows close
+pair do not establish a memory-use reduction or explain every timing miss.

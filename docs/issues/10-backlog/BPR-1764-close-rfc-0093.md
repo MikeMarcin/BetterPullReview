@@ -556,7 +556,7 @@ signing, push, credentials or desktop action. Exact command IDs, identities and
 raw paths remain in the runtime mandate/checkpoint; finish commands before
 handoff. Signed-installed/Cocoa/package acceptance remains pending under r5.
 
-### Current useful-test checkpoint — native correctness continuation
+### Intermediate useful-test checkpoint — native correctness continuation
 
 This supersedes the earlier active prototype note. Main `64752aa7e` integrates
 the owner-approved useful-test policy; `c67f07196` removes two transient shared
@@ -589,3 +589,45 @@ Mac, BPR-1762 and final package/source/trust closeout remain pending under r5;
 Intel execution is not required or claimed. No release/signing/version/push,
 credential or desktop action. Finish native commands and record final candidate
 identity, exact results and quiescent ownership before handoff.
+
+### Final useful-test checkpoint — quiescent boundary
+
+The bounded owner amendment is complete. Main source slices `64752aa7e`,
+`c67f07196` and `e1d222aab` match native final producer `e75a78a72` on all five
+test/script paths. The [final ledger](../../verification/RFC-BPR-0093.md#corrected-held-b-barrier-and-final-native-evidence)
+and `build/mimalloc-memory-r8/final-verification-summary.json` bind twelve
+passing final MI resource paths across Mac/Windows/Ubuntu, genuine failing
+middle-owner controls on all three, unchanged plain legacy numerical failures,
+covered Mac/Linux baseline tail passes, exact identities and all raw evidence.
+Heap observations outside native counter coverage remain unmeasured.
+
+Windows's earlier generic stale-comparison failure is traced to the final
+quiescence recheck, with no stale publication and the exact selected B key.
+The existing separately reported preparation tail drains deferred work while
+source observers stay connected; every original correctness predicate stays
+enforced. Mac/Windows/Linux corrected cache-byte courses pass. No product race
+repair is claimed. A single predeclared Windows same-source active-work pair
+passes unchanged limits (baseline 44.2379 ms / MI 47.9343 ms close drain); original
+259.9814 ms close and 100.66/100 ms launch misses remain historical failures with
+unresolved cause. No retry loop or timing waiver.
+
+Format/tidy 22, summary actual-report checks, documentation and scoped board/
+plan checks are the final focused gates. Mac/Linux static manifests pass;
+Windows's registered manifest remains red because contained CMake/CTest exits
+0xC0000142. Direct inventory separately retains three existing unmeasured
+Windows pins; no new exemption or global security approval. All production/
+provider/package paths remain unchanged from `0f799140c`. Earlier native product,
+sanitizer/fuzzer and package observations keep their exact original identities.
+
+[[BPR-1768]] remains Backlog for unqualified process/allocated-heap memory risk,
+independent of final RFC closeout under the explicit bounded mandate. No new
+memory trend gate, limit raise, default option or production purge hook. All
+prior roots/candidates, reservation history and unrelated MASK edits remain.
+Current source/build roots and images stay available; MI graphs are restored,
+all task commands are quiescent, and no review server/session/URL/cursor is
+active. Final runtime `checkpoint-final.json` / `observation-final.json` bind
+this segment to the committed state and retain distribution exit 1 pending,
+exit 2 reporting pass. Next: coordinator handles actual signed-installed/
+delivered Cocoa Mac and source/package/trust reconciliation under r5, then
+BPR-1759/1762/1764. Native Intel execution remains waived, not claimed. No
+release, signing, credentials, version change, push or desktop capture.

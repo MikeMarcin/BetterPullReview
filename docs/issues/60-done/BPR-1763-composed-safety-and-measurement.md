@@ -116,3 +116,17 @@ qualification. No product setting or purge hook changes. [[BPR-1768]] owns the
 remaining unqualified memory risk separately. This does not rewrite this
 card's original AC06/AC08 acceptance or turn historical failures into passes.
 Signed-installed/Cocoa Mac and package closeout stay pending.
+
+Final source `e75a78a72` integrates the separately reported existing preparation
+tail as `e1d222aab`, keeping held-B source observers connected and every final
+predicate enforced. The Windows composite failure reproduces with no stale
+source and only a later false quiescence recheck; deferred preparation is
+observed directly. Twelve final MI resource paths pass across native Mac/
+Windows/Linux, and all three real middle-owner controls fail as intended.
+Mac/Linux covered baseline tails pass. Historical355 timing/semantic failures
+and original numerical limits remain; no mixed trial is called a new passing
+seven-row cohort. The bounded Windows close pair passes at 44.24/47.93 ms for
+baseline/MI while its original 259.98 ms failure stays unresolved. The ledger
+also retains the Windows broader manifest/container/pending-pin gaps. Product,
+provider, package and version paths remain unchanged. This completed amendment
+augments reporting; it grants no RAM bound, leak repair or release approval.

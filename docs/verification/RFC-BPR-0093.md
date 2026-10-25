@@ -1624,7 +1624,7 @@ explicitly says unmeasured on Windows. Building the local transport test
 executable resolves its absent-command inventory check; no transport, GitHub
 or credential test is run. The Mac static manifest then passes.
 
-### Windows continuation checkpoint — retained correctness failure
+### Intermediate Windows checkpoint — retained composite failure
 
 The first exact `355669cc1` Windows 11/MSVC Release cohort is **5/7**, not a
 passing suite. Responsiveness, timing control, entries, loaded close and
@@ -1654,3 +1654,117 @@ them by const reference. Format 22 and clang-tidy 22 pass; exact-final focused
 native owner/resource checks are continuing. The full matched cohort above
 remains explicitly bound to `355669cc1`. Current commands/state are in
 `build/mimalloc-memory-r8/mandate.json`; final quiescent handoff is not yet made.
+
+### Corrected held-B barrier and final native evidence
+
+The Windows `0052566b9` diagnostic reproduces the old composite failure but
+falsifies a stale-publication explanation: target A is epoch 1, `drained=1`,
+`stale=0`, eight source observations, selected B and its exact key both true.
+Only the second `settled()` recheck is false. The original assertion's message
+conflates a later quiescence change with stale source. Neither the source
+observer nor its key/text checks is weakened to resolve it.
+
+Producer `e75a78a723af100fb9a284fe9b24c5347ef1a884`, integrated on main as
+`e1d222aab`, keeps the observers connected through the existing separately
+measured `wait_preparation_tail` before running every original final predicate.
+Source diagnostics confirm work the old epoch-job-only snapshot misses: Mac
+has 14 comparisons preparing with zero epoch jobs; Windows has 11 preparing
+and one preparation epoch job; Ubuntu has seven preparing with zero epoch
+jobs. The full tail drains that deferred work. The observed MI tail costs are
+628.09 ms on Mac and 1315.79 ms on Windows, reported separately from reviewer
+readiness; no input or completion limit changes. No stale source is observed.
+All final predicate bits, exact-source assertions, shutdown and owner checks
+then pass. This is a stronger harness completion boundary, not a product race
+repair, a disabled correctness check, or a performance improvement.
+
+All four exact-final mimalloc resource paths pass on Mac, Windows and Ubuntu.
+Each native final middle-owner control fails at the actual tracked-owner
+assertion with 67 comparison observations while the original final diff/index
+owners release. The first Windows loader-only attempt is superseded by a
+separate corrected harness which applies the registered CTest environment,
+including Qt/build binary search paths; no source or permission exemption is
+needed. Plain legacy resources remains a failing numerical qualification on
+all three final hosts in its own separately preserved invocation. Mac's
+previous passing invocation remains recorded; none is selected as a repair.
+Invalid suffix checks still reject attempts to bypass a response course.
+Mac and Ubuntu also pass the final baseline byte-pressure course with the
+stronger tail, preserving their available native allocated-heap gates.
+
+The original matched Windows `355669cc1` cohort is baseline 7/7 and mimalloc
+5/7; its actual failures are never rewritten. The corrected exact-final cache
+course is a separate positive observation. A single predeclared same-source
+Windows active-work pair completes with both allocators passing: baseline
+close dispatch/drain 5.7239/44.2379 ms, mimalloc 4.0975/47.9343 ms, against the
+unchanged 150 ms drain limit. There is no retry loop. The original 259.9814 ms
+MI close failure remains evidence, as does launch's 100.66/100 ms miss. The
+later pair does not establish their cause, a speedup or universal timing.
+Resource-course wall times are not allocator throughput comparisons: native
+heap sampling is available on the baseline and explicitly unavailable on MI.
+The unsampled response/active-work courses supply the response observations.
+
+Final format 22 and clang-tidy 22 pass. The summary consumer's actual-report
+checks retain R7 collection-stage separation and historical enforcement, and
+represent uncovered heap as unavailable rather than zero-byte acceptance.
+Main's five test/script blobs match the native `e75a78a72` producer exactly.
+Production, provider, package, pin, cache policy and version paths remain
+unchanged from `0f799140c`; prior sanitizer/fuzzer and native product/provider
+checks remain bound to their original exact producers and are reused.
+
+### Manifest boundary, retained risk and handoff
+
+The final Mac/Ubuntu static manifest checks pass; two targeted inventory
+controls still require a pin everywhere and reject an unmeasured Windows pin.
+The registered Windows manifest check remains red. Under its actual container,
+`ctest --version`, CTest JSON enumeration and `cmake --version` all exit
+3221225794 (`0xC0000142`, DLL initialization failure), with no output. This is
+the previously measured CMake-tool initialization class, not evidence that a
+product allocation fails. The identical direct read-only structural verifier
+can enumerate the graph but rejects three existing unmeasured Windows pins:
+`sqlite_agent_setup_storage`, `workspace_clone_folder_scan`, and
+`application_agent_finding_codex_found_contract`. All three are already present
+in base `73877b822`. No container exemption, inventory waiver or security-policy
+change is made. No global native-security or release approval is inferred.
+
+The remaining process/allocated-heap qualification risk stays open on
+[[BPR-1768]], independent of the original RFC closeout under the explicit owner
+mandate. Useful passing ownership/cache/source/lifecycle tests do not bound
+arbitrary MI live allocations, retained pages, process growth or peak memory.
+The large recorded memory cost and every historical limit/miss remain. No
+product option, zero-delay default, forced-purge hook or child-global setting
+is adopted. Signed-installed/delivered Cocoa Mac, source/package/trust agreement
+and final BPR-1759/1762/1764 acceptance stay pending under r5; native Intel
+execution remains waived, not claimed.
+
+Final raw records and identities are in `build/mimalloc-memory-r8/`, its
+`linux-final/` and `windows-final/` collections, `final-e75a78a72/`,
+`supersession-tail-{mimalloc,baseline}/`, `active-close-pair-*`,
+`manifest-diagnosis/`, and `current-mimalloc-image/`. Original failed
+`final-*`, `supersession-trace-mimalloc/` and loader attempts remain separate.
+Additional MI workflow reports are copied after their actual runs into
+`final-mimalloc-public-workflows/`; earlier glob copies made before those runs
+are not their authoritative reports. Graph restores can produce different
+binary hashes; identities remain per run. Restored MI images are separately
+preserved and checked through their public resources course when their hash
+changes, rather than relabeled as the earlier matrix image.
+
+Native roots are `/home/mmarcin/bpr-rfc0093-memory-r8/source` and
+`C:/code/bpr-rfc0093-memory-r8/source`; the Mac source/build remains
+`/Users/jaeger/.codex/worktrees/mimalloc-memory-r8/BetterPullReview`. All earlier
+candidates and roots remain protected. No release, signing, credential lookup,
+push or desktop capture occurs. No attended session/server/URL/cursor is active.
+
+The exact restored/current MI image hashes, each preserved with its runtime and
+checked through public resources when relinking changed its hash, are:
+
+- Mac `b42fcb00b1ac6eaf860f8ac352c60b45c945e3a7c023b9881b6009289bf093de`.
+- Ubuntu `77d6428a4d9d2e78e660f1bf8a44b5432553ab8e5cdec387811fb5e7c31b378a`.
+- Windows `0165d8a0c6b4d42f924911f2bc352328de9d4c0a725bb72ff9c63e81577d802d`.
+
+`final-verification-summary.json` validates all twelve source-bound final MI
+resource paths, three actual retained-owner failures, three separate legacy
+numeric failures, two covered baseline tail courses and the two Windows close
+observations. Each run keeps its actual image identity. The full earlier
+matched seven-row matrix remains bound to `355669cc1`; no mixed set is called
+a new full seven-row passing cohort. The bounded useful-test amendment is
+complete. Distribution exit 1 and final native Mac/package closeout remain
+pending; exit 2 remains completed reporting with historical failures intact.

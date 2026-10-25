@@ -3917,3 +3917,11 @@ measurement. [BPR-1768](../issues/10-backlog/BPR-1768-qualify-allocator-neutral-
 retains that risk. Product allocator options, cache limits and fixtures are
 unchanged; the [purpose audit](../verification/RFC-BPR-0093.md#useful-resource-tests--owner-verification-amendment)
 records the owner amendment, original limits, failures and native verification.
+
+The byte-pressure held-B check retains source observers through the existing
+separate preparation-tail drain before its final exact-source/key/settled
+assertion. An instantaneous epoch-job count of zero can precede deferred
+preparation; that alone is not a stale-source observation. Tail latency stays
+separate from reviewer readiness, and every original correctness and input
+predicate stays enforced. The [final useful-test evidence](../verification/RFC-BPR-0093.md#corrected-held-b-barrier-and-final-native-evidence)
+retains the original Windows failure and exact native correction.
