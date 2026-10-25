@@ -133,5 +133,5 @@
   ],
   "resolver": "mask-lock-v1",
   "schema_version": 1,
-  "selection_digest": "sha256:52dfd6fb1edad9274a54fde85c8ab71271bb263c18b401a976056799d486caf9"
+  "selection_digest": "sha256:d1c945f69076041467752ae189ca48e51e62897bd1c76b99551f8a82c3afd425"
 }
