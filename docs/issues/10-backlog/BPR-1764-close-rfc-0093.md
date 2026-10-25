@@ -368,3 +368,36 @@ completes that acceptance amendment; it does not complete the Mac milestone.
   affected BPR-1762 AC07/AC09 reconciliation and dependency-ordered BPR-1764.
   Intel is no longer a pending requirement. No signing approval is prepared
   by this documentary round.
+
+## Active checkpoint — retention follow-up under r5
+
+The coordinator resumed `/root/mimalloc_distribution` for a causal follow-up to
+BPR-1763's recorded regressions; BPR-1763's terminal reporting acceptance is
+not reopened or converted into a performance claim. The owner r5 Intel
+amendment remains authoritative; signed-installed/native Cocoa Mac and final
+package/closeout criteria remain pending.
+
+New task-owned source worktree/branch:
+`/Users/jaeger/.codex/worktrees/mimalloc-retention-r6/BetterPullReview`,
+`codex/mimalloc-retention-r6`, prototype `645a8125b`. Runtime diagnostics are
+`build/mimalloc-retention-r6/` on main and
+`/home/mmarcin/bpr-rfc0093-retention-r6` on the approved Ubuntu station.
+All prior candidates and raw records are retained. Main's unrelated allocation
+and MASK edits are unchanged.
+
+Same-byte option experiments identify delayed purging and Linux eager arena
+commit/THP residency. Six unchanged Release rows pass on Mac with purge delay
+zero and Linux with zero purge delay plus lazy arena commit. Default controls
+retain failures. A diagnostic Linux six-second idle does not reduce RSS;
+nonforced collection then drops it substantially. No budget, trim behavior,
+core policy or source pin changed in these experiments.
+
+The prototype explicitly calls a private executable-startup option shim,
+retaining operator overrides and selecting prompt purging without collection
+or environment changes. Linux selects the upstream lazy arena-commit default;
+it does not disable process/child THP policy. This is not yet integrated or
+accepted. Fresh Mac provider/default/explicit-option/OOM controls pass. New
+source-owned Mac and Linux builds and direct native courses are active; actual
+package/security checks remain required before any corrective integration.
+The ledger and machine checkpoint will receive the final measured decision.
+No signing, release/version change, push, publication or desktop capture.
