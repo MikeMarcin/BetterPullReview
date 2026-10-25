@@ -204,7 +204,7 @@ namespace bpr::e2e::large_review {
 	};
 	struct resource_sample
 	{
-		std::string   Phase;
+		std::string   Phase, Stage = "ordinary";
 		std::uint64_t ResidentBytes = 0, PhysicalFootprintBytes = 0, LifetimePeakFootprintBytes = 0, LiveHeapBytes = 0, DiffCacheBytes = 0;
 		// Above the course's first (before_application) sample.
 		std::uint64_t FootprintGrowthBytes = 0, LifetimePeakGrowthBytes = 0, LiveHeapGrowthBytes = 0;
@@ -408,25 +408,42 @@ namespace bpr::e2e::large_review {
 		std::map<std::string, double> WallMs;
 	};
 
+	struct resource_budget_observation
+	{
+		std::string   Phase, Stage, Metric;
+		std::uint64_t ValueBytes = 0, LimitBytes = 0;
+		bool          WithinLimit = false, CounterCoversAllocator = true;
+	};
+	struct allocator_release_observation
+	{
+		std::string  Phase, Method;
+		double       WallMs       = 0;
+		std::int64_t ApiResult    = 0;
+		std::size_t  BeforeSample = 0, AfterSample = 0;
+	};
+
 	struct extended_measurement
 	{
-		bool                         AllocationProfile          = false;
-		bool                         AllocatorCollectDiagnostic = false;
-		long                         AllocatorPurgeDelayMs = -1, AllocatorArenaEagerCommit = -1;
-		double                       AllocatorCollectMs = 0;
-		prepared_open_measurement    PreparedOpen;
-		preparation_tail_measurement PreparationTail;
-		live_heap_observation        Heap;
-		std::uint64_t                SampledPeakHeapGrowthLimitBytes = 0;
-		double                       ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
-		double                       QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
-		double                       ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
-		bool                         ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
-		std::string                  MetadataTitle;
-		bool                         ProviderCancelCourse = false, ProviderStopped = false;
-		std::size_t                  ProviderHeldInputs = 0;
-		double                       ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
-		bool                         PathologicalCourse = false, ExactGeneratedSource = false;
+		bool                                       AllocationProfile = false;
+		bool                                       CollectAtCleanup = false, ResourceBudgetFailed = false;
+		std::vector<resource_budget_observation>   ResourceBudgets;
+		std::vector<allocator_release_observation> AllocatorReleases;
+		bool                                       AllocatorCollectDiagnostic = false;
+		long                                       AllocatorPurgeDelayMs = -1, AllocatorArenaEagerCommit = -1;
+		double                                     AllocatorCollectMs = 0;
+		prepared_open_measurement                  PreparedOpen;
+		preparation_tail_measurement               PreparationTail;
+		live_heap_observation                      Heap;
+		std::uint64_t                              SampledPeakHeapGrowthLimitBytes = 0;
+		double                                     ProvisionalCaptureMs = 0, AcceptedCaptureMs = 0;
+		double                                     QApplicationStartupMs = 0, MainToHomeRenderMs = 0, MainToFirstSourceRenderMs = 0;
+		double                                     ProvisionalMetadataRenderMs = 0, AcceptedMetadataRenderMs = 0;
+		bool                                       ProvisionalMetadataObserved = false, AcceptedMetadataObserved = false;
+		std::string                                MetadataTitle;
+		bool                                       ProviderCancelCourse = false, ProviderStopped = false;
+		std::size_t                                ProviderHeldInputs = 0;
+		double                                     ProviderHeldMs = 0, ProviderCancelAckMs = 0, ProviderExitMs = 0;
+		bool                                       PathologicalCourse = false, ExactGeneratedSource = false;
 		// [[BPR-0967]]. BudgetsEnforced is false where no numeric limit is
 		// justified for this platform and configuration; each limit missed
 		// there is named in UnenforcedLimitMisses. KnownInputMisses names the
@@ -582,6 +599,10 @@ namespace bpr::e2e::large_review {
 			return;
 		}
 		if (aReport.Extended.BudgetsEnforced) {
+			if (aReport.Extended.CollectAtCleanup && !aTiming) {
+				aReport.Extended.ResourceBudgetFailed = true;
+				return;
+			}
 			if (aTiming) {
 				throw timing_limit_missed{ aReason };
 			}
@@ -652,13 +673,18 @@ namespace bpr::e2e::large_review {
 		return aSurface.current_result() && aSurface.current_result()->Alignment.Key.File == core::file_identity_of(aPath.toStdString());
 	}
 
-	void sample_resources(benchmark_report& aReport, app::github_application* aApplication, const char* aPhase)
+	[[nodiscard]] auto cleanup_boundary(std::string_view aPhase) -> bool
 	{
-		if (!aReport.ResourceCourse && !aReport.CacheEntryCourse && !aReport.CacheByteCourse) {
-			return;
-		}
+		return aPhase == "after_prune" || aPhase == "after_cache_delete"
+			|| aPhase == "shutdown_drained" || aPhase == "application_destroyed";
+	}
+
+	[[nodiscard]] auto capture_resources(const benchmark_report& aReport, app::github_application* aApplication,
+										 const char* aPhase, const char* aStage) -> resource_sample
+	{
 		resource_sample sample;
 		sample.Phase                      = aPhase;
+		sample.Stage                      = aStage;
 		const auto memory                 = native_process_memory_sample();
 		sample.ResidentBytes              = memory.ResidentBytes;
 		sample.PhysicalFootprintBytes     = memory.FootprintBytes;
@@ -678,35 +704,87 @@ namespace bpr::e2e::large_review {
 			return aValue > aBaseline ? aValue - aBaseline : 0U;
 		};
 		if (!aReport.Resources.empty()) {
-			const auto& baseline        = aReport.Resources.front();
-			sample.FootprintGrowthBytes = growth(sample.PhysicalFootprintBytes, baseline.PhysicalFootprintBytes);
-			// The native peak is process-lifetime, so this is a conservative
-			// upper bound on growth since the before_application sample. It
-			// includes any earlier startup peak above that sampled baseline.
+			const auto& baseline           = aReport.Resources.front();
+			sample.FootprintGrowthBytes    = growth(sample.PhysicalFootprintBytes, baseline.PhysicalFootprintBytes);
 			sample.LifetimePeakGrowthBytes = growth(sample.LifetimePeakFootprintBytes, baseline.PhysicalFootprintBytes);
 			sample.LiveHeapGrowthBytes     = growth(sample.LiveHeapBytes, baseline.LiveHeapBytes);
 		}
-		std::cerr << "resource-sample:" << *glz::write_json(sample) << '\n';
-		if (!aReport.Resources.empty()) {
-			const auto footprintLimit = aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
-																: aReport.SampledFootprintGrowthLimitBytes;
-			require_limit(aReport, aReport.Extended.AllocationProfile || sample.FootprintGrowthBytes <= footprintLimit,
-						  "sampled fixture footprint growth exceeded its platform budget");
-			require_limit(aReport, aReport.Extended.AllocationProfile || sample.LifetimePeakGrowthBytes <= footprintLimit,
-						  "fixture lifetime peak footprint growth exceeded its platform budget");
-			if (sample.Phase == "after_prune" || sample.Phase == "after_cache_delete"
-				|| sample.Phase == "shutdown_drained" || sample.Phase == "application_destroyed") {
-				const auto cleanupLimit = sample.Phase == "application_destroyed"
-					? aReport.DestroyedLiveHeapGrowthLimitBytes
-					: aReport.CleanupLiveHeapGrowthLimitBytes;
-				require_limit(aReport, aReport.Extended.AllocationProfile || sample.LiveHeapGrowthBytes <= cleanupLimit,
-							  std::string{ "cleanup left live heap growth above its platform budget at " } + aPhase);
-				require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
-							&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
-						"completed cleanup retains derived cache or outstanding work");
-			}
+		return sample;
+	}
+
+	void record_resource_budget(benchmark_report& aReport, const resource_sample& aSample,
+								const char* aMetric, std::uint64_t aValue, std::uint64_t aLimit,
+								const char* aReason, bool aHeapCounter = false)
+	{
+#if defined(BPR_BENCH_MIMALLOC)
+		const bool coversAllocator = !aHeapCounter;
+#else
+		static_cast<void>(aHeapCounter);
+		const bool coversAllocator = true;
+#endif
+		resource_budget_observation observation;
+		observation.Phase                  = aSample.Phase;
+		observation.Stage                  = aSample.Stage;
+		observation.Metric                 = aMetric;
+		observation.ValueBytes             = aValue;
+		observation.LimitBytes             = aLimit;
+		observation.WithinLimit            = aValue <= aLimit;
+		observation.CounterCoversAllocator = coversAllocator;
+		aReport.Extended.ResourceBudgets.push_back(observation);
+		require_limit(aReport, aReport.Extended.AllocationProfile || observation.WithinLimit, aReason);
+	}
+
+	void sample_resources(benchmark_report& aReport, app::github_application* aApplication, const char* aPhase)
+	{
+		if (!aReport.ResourceCourse && !aReport.CacheEntryCourse && !aReport.CacheByteCourse) {
+			return;
 		}
-		aReport.Resources.push_back(sample);
+		const bool baselineExists = !aReport.Resources.empty();
+		const bool cleanup        = cleanup_boundary(aPhase);
+		auto       sample         = capture_resources(aReport, aApplication, aPhase,
+													  cleanup && aReport.Extended.CollectAtCleanup ? "cleanup-before-collection" : "ordinary");
+		const auto append         = [&aReport](const resource_sample& aSample) {
+			aReport.Resources.push_back(aSample);
+			std::cerr << "resource-sample:" << *glz::write_json(aSample) << '\n';
+		};
+		append(sample); // Retain the failing observation before any assertion.
+		if (!baselineExists) {
+			return;
+		}
+		if (cleanup) {
+			require(sample.DiffCacheBytes == 0U && sample.DiffCacheEntries == 0U
+						&& sample.DiffJobs == 0U && sample.EpochJobs == 0U,
+					"completed cleanup retains derived cache or outstanding work");
+		}
+		if (cleanup && aReport.Extended.CollectAtCleanup) {
+			allocator_release_observation release;
+			release.Phase        = aPhase;
+			release.BeforeSample = aReport.Resources.size() - 1;
+			QElapsedTimer timer;
+			timer.start();
+			const auto result = native_allocator_release();
+			release.WallMs    = static_cast<double>(timer.nsecsElapsed()) / 1'000'000.0;
+			require(result.Supported, "allocator cleanup collection unavailable");
+			release.Method    = result.Method;
+			release.ApiResult = result.Result;
+			sample            = capture_resources(aReport, aApplication, aPhase, "cleanup-after-collection");
+			append(sample);
+			release.AfterSample = aReport.Resources.size() - 1;
+			aReport.Extended.AllocatorReleases.push_back(release);
+		}
+		const auto footprintLimit = aReport.CacheByteCourse ? aReport.CacheByteFootprintGrowthLimitBytes
+															: aReport.SampledFootprintGrowthLimitBytes;
+		record_resource_budget(aReport, sample, "FootprintGrowthBytes", sample.FootprintGrowthBytes, footprintLimit,
+							   "sampled fixture footprint growth exceeded its platform budget");
+		record_resource_budget(aReport, sample, "LifetimePeakGrowthBytes", sample.LifetimePeakGrowthBytes, footprintLimit,
+							   "fixture lifetime peak footprint growth exceeded its platform budget");
+		if (cleanup) {
+			const auto cleanupLimit = sample.Phase == "application_destroyed"
+				? aReport.DestroyedLiveHeapGrowthLimitBytes
+				: aReport.CleanupLiveHeapGrowthLimitBytes;
+			record_resource_budget(aReport, sample, "LiveHeapGrowthBytes", sample.LiveHeapGrowthBytes, cleanupLimit,
+								   "cleanup left live heap growth above its platform budget", true);
+		}
 	}
 
 	/// \brief Observes idle and forced release after normal close/destruction.
@@ -2280,6 +2358,16 @@ namespace bpr::e2e::large_review {
 	auto run_benchmark(QApplication& aQtApplication, int aArgc, char** aArgv,
 					   const attributed_clock& aMainClock, double aQApplicationStartupMs) -> int
 	{
+		const bool collectedCleanup = aArgc == 6 && std::string_view{ aArgv[5] } == "--allocator-cleanup-collect";
+		if (collectedCleanup) {
+			const auto course = std::string_view{ aArgv[4] };
+			if (course != "--resources" && course != "--loaded-close"
+				&& course != "--cache-entries" && course != "--cache-bytes") {
+				std::cerr << "allocator cleanup collection requires a normal resource course\n";
+				return EXIT_FAILURE;
+			}
+			--aArgc;
+		}
 		if (aArgc == 5 && std::string_view{ aArgv[4] } == "--history-session-race") {
 			if (!app::detail::verify_large_review_history_session_interleaving()) {
 				return EXIT_FAILURE;
@@ -2324,6 +2412,7 @@ namespace bpr::e2e::large_review {
 		const auto& dataRoot = *privateRoot;
 
 		benchmark_report report;
+		report.Extended.CollectAtCleanup = collectedCleanup;
 		// [[BPR-1598]]. The scheduler's share of the whole course, for every
 		// report this course writes.
 		const auto courseBegan   = completion_start{ };
@@ -2344,23 +2433,27 @@ namespace bpr::e2e::large_review {
 		if (report.Extended.AllocatorCollectDiagnostic) {
 			report.Extended.BudgetsEnforced = false;
 		}
-		report.Extended.QApplicationStartupMs                              = aQApplicationStartupMs;
-		report.Extended.ProviderCancelCourse                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--provider-cancel";
-		auto heldRead                                                      = std::make_shared<held_provider_read>();
-		report.ActiveWorkCourse                                            = aArgc == 5 && std::string_view{ aArgv[4] } == "--active-work";
-		report.ResponsivenessCourse                                        = aArgc == 5 && std::string_view{ aArgv[4] } == "--responsiveness";
-		report.Extended.PathologicalCourse                                 = aArgc == 5 && std::string_view{ aArgv[4] } == "--pathological";
-		report.UnavailableCourse                                           = report.Extended.PathologicalCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--unavailable");
-		report.ApproximateCourse                                           = aArgc == 5 && std::string_view{ aArgv[4] } == "--approximate";
-		report.LoadedCloseCourse                                           = report.Extended.AllocationProfile || (aArgc == 5 && std::string_view{ aArgv[4] } == "--loaded-close");
-		report.ResourceCourse                                              = report.LoadedCloseCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--resources");
-		report.HistoryCourse                                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--history";
-		report.CacheByteCourse                                             = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes";
-		report.FirstTabCourse                                              = aArgc == 5 && std::string_view{ aArgv[4] } == "--first-tab";
-		report.Extended.PreparedOpen.Course                                = aArgc == 5 && std::string_view{ aArgv[4] } == "--prepared-open";
-		report.CacheEntryCourse                                            = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-entries";
-		const bool                                     observeResources    = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
-		const bool                                     observeLoadedOwners = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
+		report.Extended.QApplicationStartupMs = aQApplicationStartupMs;
+		report.Extended.ProviderCancelCourse  = aArgc == 5 && std::string_view{ aArgv[4] } == "--provider-cancel";
+		auto heldRead                         = std::make_shared<held_provider_read>();
+		report.ActiveWorkCourse               = aArgc == 5 && std::string_view{ aArgv[4] } == "--active-work";
+		report.ResponsivenessCourse           = aArgc == 5 && std::string_view{ aArgv[4] } == "--responsiveness";
+		report.Extended.PathologicalCourse    = aArgc == 5 && std::string_view{ aArgv[4] } == "--pathological";
+		report.UnavailableCourse              = report.Extended.PathologicalCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--unavailable");
+		report.ApproximateCourse              = aArgc == 5 && std::string_view{ aArgv[4] } == "--approximate";
+		report.LoadedCloseCourse              = report.Extended.AllocationProfile || (aArgc == 5 && std::string_view{ aArgv[4] } == "--loaded-close");
+		report.ResourceCourse                 = report.LoadedCloseCourse || (aArgc == 5 && std::string_view{ aArgv[4] } == "--resources");
+		report.HistoryCourse                  = aArgc == 5 && std::string_view{ aArgv[4] } == "--history";
+		report.CacheByteCourse                = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-bytes";
+		report.FirstTabCourse                 = aArgc == 5 && std::string_view{ aArgv[4] } == "--first-tab";
+		report.Extended.PreparedOpen.Course   = aArgc == 5 && std::string_view{ aArgv[4] } == "--prepared-open";
+		report.CacheEntryCourse               = aArgc == 5 && std::string_view{ aArgv[4] } == "--cache-entries";
+		const bool observeResources           = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
+		const bool observeLoadedOwners        = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
+		if (collectedCleanup && (!observeResources || report.Extended.AllocationProfile)) {
+			std::cerr << "allocator cleanup collection requires a normal resource course\n";
+			return EXIT_FAILURE;
+		}
 		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
 		std::weak_ptr<const core::diff_semantic_index> resourceIndex;
 		QPointer<QWidget>                              resourceWindow;
@@ -3070,8 +3163,15 @@ namespace bpr::e2e::large_review {
 					? PlatformCacheByteHeapGrowthLimitBytes
 					: report.SampledFootprintGrowthLimitBytes;
 				require(report.Extended.Heap.Samples > 1U, "live-heap sampler took no samples");
-				require_limit(report, report.Extended.AllocationProfile || report.Extended.Heap.PeakBytes <= report.Extended.Heap.BaselineBytes + report.Extended.SampledPeakHeapGrowthLimitBytes,
-							  "sampled live-heap peak growth exceeded the platform fixture ceiling");
+				resource_sample wholeCourse;
+				wholeCourse.Phase     = "whole-course";
+				wholeCourse.Stage     = "independent-heap-peak";
+				const auto heapGrowth = report.Extended.Heap.PeakBytes > report.Extended.Heap.BaselineBytes
+					? report.Extended.Heap.PeakBytes - report.Extended.Heap.BaselineBytes
+					: 0U;
+				record_resource_budget(report, wholeCourse, "SampledLiveHeapPeakGrowthBytes", heapGrowth,
+									   report.Extended.SampledPeakHeapGrowthLimitBytes,
+									   "sampled live-heap peak growth exceeded the platform fixture ceiling", true);
 			}
 			if (report.Extended.PathologicalCourse) {
 				for (const auto* name : { "unavailable_file_selection", "binary_file_selection", "supported_file_recovery" }) {
@@ -3113,6 +3213,13 @@ namespace bpr::e2e::large_review {
 						  << std::flush;
 				QThread::sleep(10);
 				return EXIT_SUCCESS;
+			}
+			if (report.Extended.CollectAtCleanup) {
+				std::cout << (report.Extended.ResourceBudgetFailed
+								  ? "LARGE_REVIEW_COLLECTED_CLEANUP_BUDGET_FAILED\n"
+								  : "LARGE_REVIEW_COLLECTED_CLEANUP_OK\n")
+						  << *encoded << '\n';
+				return report.Extended.ResourceBudgetFailed ? EXIT_FAILURE : EXIT_SUCCESS;
 			}
 			std::cout << (report.ActiveWorkCourse ? "LARGE_REVIEW_ACTIVE_WORK_MEASURED\n" : report.ResponsivenessCourse ? "LARGE_REVIEW_RESPONSIVENESS_MEASURED\n"
 							  : report.FirstTabCourse                                                                   ? "FIRST_TAB_COMPARISON_OK\n"

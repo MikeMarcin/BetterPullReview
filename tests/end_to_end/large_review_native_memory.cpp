@@ -9,6 +9,10 @@
 #include <ctime>
 #include <stdexcept>
 
+#if defined(BPR_BENCH_MIMALLOC)
+	#include <mimalloc.h>
+#endif
+
 #if defined(__APPLE__)
 	#include <libproc.h>
 	#include <mach/mach.h>
@@ -31,6 +35,7 @@
 	// windows.h supplies the base types psapi.h assumes are declared.
 	#include <windows.h>
 
+	#include <malloc.h>
 	#include <psapi.h>
 #elif defined(__linux__)
 	#include <malloc.h>
@@ -42,6 +47,23 @@
 #endif
 
 namespace bpr::e2e::large_review {
+	auto native_allocator_release() -> native_allocator_release_result
+	{
+#if defined(BPR_BENCH_MIMALLOC)
+		mi_collect(true);
+		return { .Method = "mi_collect(true)", .Supported = true };
+#elif defined(__APPLE__)
+		const auto result = malloc_zone_pressure_relief(nullptr, 0);
+		return { .Method = "malloc_zone_pressure_relief(all zones)", .Result = static_cast<std::int64_t>(result), .Supported = true };
+#elif defined(__linux__)
+		return { .Method = "malloc_trim(0)", .Result = malloc_trim(0), .Supported = true };
+#elif defined(_WIN32)
+		return { .Method = "_heapmin()", .Result = _heapmin(), .Supported = true };
+#else
+		return { };
+#endif
+	}
+
 	auto native_memory_method() -> const char*
 	{
 #if defined(__APPLE__)

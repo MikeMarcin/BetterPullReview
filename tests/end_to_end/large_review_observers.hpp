@@ -37,6 +37,15 @@ namespace bpr::e2e::large_review {
 	[[nodiscard]] auto native_live_heap_bytes() -> std::uint64_t;
 	[[nodiscard]] auto native_memory_method() -> const char*;
 
+	struct native_allocator_release_result
+	{
+		const char*  Method    = "unavailable";
+		std::int64_t Result    = 0;
+		bool         Supported = false;
+	};
+	/// Requests unused memory from the selected allocator; benchmark use only.
+	[[nodiscard]] auto native_allocator_release() -> native_allocator_release_result;
+
 	/// \brief One reading of the clocks a course interval is attributed with
 	/// ([[BPR-1598]]).
 	/// \details A thread's wall time is its time on a processor, its time
