@@ -587,9 +587,12 @@ actual product images; signed-installed/delivered Cocoa, Windows and Ubuntu
 evidence is tracked separately in [[BPR-1759]], [[BPR-1760]] and [[BPR-1761]].
 Owner amendment r5 accepts universal arm64/x86_64 static proof plus native arm64
 observations for macOS architecture coverage; native Intel execution is neither
-required by RFC-BPR-0093 nor claimed. The actual signed-installed and delivered
-Cocoa courses remain pending. Package/source
-closure and performance qualification remain [[BPR-1762]] and [[BPR-1763]].
+required by RFC-BPR-0093 nor claimed. The local signed/notarized installed
+trust and package/source course passes at `0f42035a1`; delivered native Cocoa
+judgment remains pending in the [r9 session](../verification/RFC-BPR-0093.md#signed-local-macos-acceptance--authorized-round-r9).
+This is local acceptance with broad release suites skipped, not release approval.
+Final package/source reconciliation and performance reporting remain
+[[BPR-1762]] and [[BPR-1763]].
 
 ### Core implementation inventory
 

@@ -2,11 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1759"
 title: "Verify process-wide mimalloc on native macOS"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758"]
 platforms: ["mac"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC03 universal signed local trust and installed closure","outcome":"pass","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"observation","detail":"All 19 images universal Developer-ID/hardened/timestamped with no entitlements; app and DMG notarized/stapled/Gatekeeper accepted; matching private relocated install; package/source/checksums/negative controls/MCP/headless render pass. Exact ledger signed local macOS r9."}},{"criterion":"AC03 delivered native Cocoa behavior","outcome":"pending","revision":"0f42035a1758a33c729317d66d3aaaac0e771fb1","evidence":{"kind":"artifact","detail":"Fresh session 3a0425eb3756874560105a4cff2b0b64; candidate BPR-1759-signed-cocoa-r9 fingerprint a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5; external state /Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev; initial consumed cursor 3. Owner judges delivered Cocoa through local-file review/reopen/Quit; no human verdict supplied here."}},{"criterion":"AC03/AC06 unchanged implementation native pointer and failure evidence","outcome":"pass","revision":"df6e8be48ff17271e2258f0040e4ca87795f44bd","evidence":{"kind":"observation","detail":"All production/provider/package/version paths match this prior implementation. Its prior r4 native pointer/cross-module/OOM and CLI records retain exact original producer identities. Signed initialization diagnostics are not new pointer proof; no release qualification inferred."}}]
 ---
 
 # Verify process-wide mimalloc on native macOS
@@ -21,7 +23,31 @@ claimed under owner amendment r5. Check the signed installed candidate, startup
 and shutdown. Include allocator-boundary stress needed by AC06; a linked binary
 or stats report alone is insufficient.
 
-## Current acceptance — mandate r5, 2026-10-24
+## Current signed result — authorized round r9
+
+The local Developer-ID signed/notarized universal candidate is now produced and
+verified at `0f42035a1758a33c729317d66d3aaaac0e771fb1`. The
+[exact ledger](../../verification/RFC-BPR-0093.md#signed-local-macos-acceptance--authorized-round-r9)
+binds all 19 images, both Apple accepts, strict signatures/hardened runtime,
+staples, Gatekeeper, matching ZIP/DMG/private installation, full package/source
+audit, allocator negative controls and the actual packaged MCP course. The
+headless Home render passes without changing delivery. Broad release suites
+were skipped for this local validation only; no version/push/publication change.
+
+Required delivered native Cocoa behavior remains **human-pending**. Fresh session
+`3a0425eb3756874560105a4cff2b0b64`, external state
+`/Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev`, candidate
+`BPR-1759-signed-cocoa-r9`, initial consumed cursor 3, supplies the frozen signed
+app and one Accept/Reject question. Its launcher checks payload/signature and
+isolates actual macOS Qt profile paths with `HOME` plus `CFFIXED_USER_HOME`;
+no agent opens or captures a Cocoa window. Previous pointer evidence retains
+its exact unchanged-implementation producer; signed runtime diagnostics are not
+relabeled as a new pointer course. Intel execution stays waived under r5.
+Earlier signed/trust-pending statements below are historical and superseded
+only by this exact local result. The coordinator consumes review in the next
+engineering round; this card is not Done.
+
+## Historical acceptance — mandate r5, 2026-10-24
 
 The owner explicitly answered “Amend Intel criterion”. The verified universal
 app/CLI and native arm64 observations satisfy the amended architecture coverage;

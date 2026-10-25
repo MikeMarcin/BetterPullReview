@@ -19,7 +19,25 @@ documentation (AC09), run the required documentation gate and focused
 integration check, and record remaining platform/release limits. Do not close
 with link-only or developer-build evidence in place of native interception.
 
-## Current mandate r5
+## Current signed continuation — authorized round r9
+
+The [r9 ledger](../../verification/RFC-BPR-0093.md#signed-local-macos-acceptance--authorized-round-r9)
+now binds actual Developer-ID/notarized app and DMG, native trust, universal
+static proof, private relocated installed closure, source/notices/SPDX, negative
+allocator controls and headless public rendering at producer `0f42035a1`.
+Production/provider/package paths remain identical to `df6e8be48`; native pointer,
+Windows/Ubuntu, CLI, instrumented and measurement records keep their original
+producers. No version change or publication; skipped broad suites are a local
+validation limitation, and all resource/security/legal gaps remain explicit.
+
+The delivered Cocoa judgment is ready in fresh session
+`3a0425eb3756874560105a4cff2b0b64` at external state
+`/Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev`, candidate
+`BPR-1759-signed-cocoa-r9`, consumed cursor 3. BPR-1759/BPR-1762 remain pending
+until actual intake and next-round engineering reconciliation. This closeout
+card stays Backlog and RFC-BPR-0093 stays In Progress.
+
+## Historical mandate r5
 
 The owner explicitly answered “Amend Intel criterion” on 2026-10-24: verified
 universal slices/static x86_64 proof plus native arm64 observations replace the
@@ -42,13 +60,13 @@ Initial mandate r1 selected pinned-macos-integration (BPR-1758 and BPR-1759), wh
 |---|---|---|---|
 | **AC01:** Configure obtains only the pinned v3.5.3 source and licence bytes; offline, substitution and target-collision controls reject wrong inputs. | Provider pin/offline/substitution/collision/extraction controls; [ledger](../../verification/RFC-BPR-0093.md) | Pass | `81ee1b4ef` |
 | **AC02:** Every selected shipped BPR executable has the override in normal and distribution graphs; disabled optional families create no phantom requirement, a core-only graph remains allocator-independent, non-distribution baseline selection works, and distribution refuses it. | All product-target attachment, actual minimal distribution/core/baseline graphs and running baseline CLI; ledger | Pass | `81ee1b4ef` |
-| **AC03:** Native Apple Silicon macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. Universal arm64/x86_64 slices and static override evidence are verified; native Intel execution is not required or claimed (owner amendment r5). | Current r4 clean universal app package/source audit, relocated offscreen course, external native-arm ownership in four staged app images and current CLI pair; r5 static recheck and owner amendment in ledger | Partial: amended architecture coverage satisfied; authorized signed-installed and delivered native Cocoa remain required | `75baca275` app; `df6e8be48` CLI |
+| **AC03:** Native Apple Silicon macOS courses demonstrate C and C++ interception, representative Qt/loaded-library interception and safe cross-module allocation/free in the desktop and every selected helper/CLI, including a signed installed candidate. Universal arm64/x86_64 slices and static override evidence are verified; native Intel execution is not required or claimed (owner amendment r5). | r9 signed/notarized universal app, native trust and matching relocated closure/public rendering; prior unchanged-implementation pointer and CLI course; r5 architecture amendment; delivered Cocoa session pending | Partial: signed local trust/closure and amended architecture coverage pass; delivered native Cocoa judgment pending in r9 session | `0f42035a1` signed app; `df6e8be48` CLI |
 | **AC04:** A native Windows 11 x64 course demonstrates the same behavior for the desktop and every selected helper/CLI with the actual CRT and packaged DLL closure; startup, shutdown and cross-module frees remain sound. | Native Windows four-product probes, external installed/CLI pointer and Qt-free observations, actual runtime audit/controls; [ledger](../../verification/RFC-BPR-0093.md#windows-milestone-result--mandate-r2) | Pass: Windows native allocator scope | `0ccf31bc4`, `c5693fd05` |
 | **AC05:** An Ubuntu 26.04 x64 course on the selected WSL2/WSLg station demonstrates the same behavior for the desktop and every selected helper/CLI with the installed ELF closure; external child processes do not inherit allocator injection. | Native four-product probes; actual installed GDB/Qt/cross-free/OOM, CLI/MCP/XCB public paths, clean child traces and Runtime audit/controls; ledger | Pass: Linux native allocator scope | `0c40cca40` |
 | **AC06:** Focused composed workflows and an allocator-boundary stress course preserve ordinary behavior and ownership; sanitizer/fuzzer builds use a compatible allocator path and allocation failure does not gain abort mode. | Native boundary/failure rows, fresh-configure executable regression on all three stations, actual ASan/UBSan/libFuzzer corpus/public CLI and paired desktop prune/delete; [final ledger](../../verification/RFC-BPR-0093.md#distribution-result--mandate-r4) | Pass: focused engineering scope | `b449356dd`, `df6e8be48` |
-| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | Actual DEB/MSI private extraction and full audit against retained producers; all three native standalone CLI archives and public source/omission/extra/relocation/removal controls; ledger | Partial: unsigned/ad-hoc closure passes; actual native/signed Mac candidate and final qualification pending on BPR-1759/1762 | `c5693fd05`, `0c40cca40`, `df6e8be48` |
+| **AC07:** Installed macOS, Windows and Ubuntu artifacts, standalone CLI where selected, notices, SPDX and the separate versioned corresponding-source asset agree on the pinned source and actual runtime files; existing release verification rejects a missing or extra mimalloc artifact. | r9 signed Mac ZIP/DMG/relocated install and full source/negative audit; actual DEB/MSI and all three native CLI archives retain their exact public closure/source/removal evidence; ledger | Partial: signed Mac installed/source closure now passes; delivered Cocoa and final reconciliation pending on BPR-1759/1762 | `0f42035a1`, `c5693fd05`, `0c40cca40`, `df6e8be48` |
 | **AC08:** Same-workload Release comparisons and the unchanged large-review memory course record candidate identity, native platform, measurements and failures without attributing pre-existing BPR-0967 limits to mimalloc. | Corrected native matched Release six-row courses, exact hashes/conditions, raw reports and supplemental nongating close diagnostic; ledger | Pass: reporting complete; memory regressions retained, no performance approval or BPR-0967 fix | `571f96d45`, `b449356dd` |
-| **AC09:** Architecture, build, package and operator documentation state the actual override scope and limits; focused public-path and documentation checks pass, with all native and release claims tied to their evidence. | Architecture/build documentation, documentation gate/tests and focused integration | Partial: final operator/package/native evidence reconciliation pending | `aadf2d91d` |
+| **AC09:** Architecture, build, package and operator documentation state the actual override scope and limits; focused public-path and documentation checks pass, with all native and release claims tied to their evidence. | Current architecture/operator and criterion ledger; documentation, hostile composition inventory and exact signed headless public-path gates | Partial: delivered Cocoa intake and final criterion reconciliation pending | `0f42035a1` |
 
 ## Durable handoff — pinned-macos-integration
 

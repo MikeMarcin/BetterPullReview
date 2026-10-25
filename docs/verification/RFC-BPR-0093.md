@@ -1,5 +1,139 @@
 # RFC-BPR-0093 — process-wide mimalloc
 
+## Signed local macOS acceptance — authorized round r9
+
+The owner explicitly authorized Developer-ID signing and notarization for local
+RFC acceptance after the useful-test handoff. This round uses the unchanged
+0.3.2 CMake version solely for local artifact names. No version change, tag,
+push, GitHub release or publication is authorized or performed. Intel execution
+remains waived under r5, and the separate memory-risk follow-up remains open.
+Sole leaf `/root/mimalloc_macos_signed` owns this round on
+`codex/mimalloc-macos-signed-r9`, source/build root
+`/Users/jaeger/.codex/worktrees/mimalloc-macos-signed-r9/BetterPullReview`.
+
+### Source and preflight
+
+Frozen producer `0f42035a1758a33c729317d66d3aaaac0e771fb1` descends from main
+`d2b7f6a3267f781126ab7851c71475e27376ddae`. Every production, provider,
+package, native-tool and version path (`src`, `cmake`, `packaging`, `tools`,
+`CMakeLists.txt`, `CMakePresets.json`) is byte-identical to `df6e8be48`.
+Prior native pointer/cross-module/failure, sanitizer and CLI evidence therefore
+retains its original scope and producer identity; it is not relabeled as a
+new signed-process pointer course.
+
+The early composition inventory check failed its stale production-manifest pin.
+The only changed manifest files since sealed `6c998babb` were
+`df6e8be48`'s `installed_runtime.cpp/.hpp`: CLI-only private plugin paths and
+a comment. Review confirmed canonical-directory equality, cleared ambient
+selectors and forbidden code-loading arguments; desktop, full-application and
+mutation-host pins stay exact. Commit `0f42035a1` records the review and reseal;
+the positive inventory and every hostile bypass control then pass. Initial
+failure is retained. Locked MASK tooling was registered offline without upgrade;
+documentation, all 67 documentation tests and both allocation tests pass.
+The older deployed checkpoint helper refused the newer recipe fingerprint;
+the assigned current helper successfully binds the preserved revision-2 recipe.
+
+### Actual signing, notarization and installed closure
+
+From clean committed source, with scoped LLVM 22 for symbol inspection:
+
+```sh
+tools/release.sh --version 0.3.2 --skip-tests --output-dir /Users/jaeger/.codex/worktrees/mimalloc-macos-signed-r9/BetterPullReview/build/mimalloc-macos-signed-r9/signed-artifacts
+```
+
+Actual exit 0; UTC interval `2026-10-25T05:50:15.280968Z` to
+`2026-10-25T06:04:27.475186Z`, 852.193 seconds. The native workflow builds
+universal Release with tests disabled and distribution/mimalloc enabled,
+deploys the restricted Qt closure, signs and timestamps every image with
+`Developer ID Application: Michael Marcin (YTQKP2V2A8)`, hardened runtime and
+no entitlement keys. All 19 delivered Mach-O images have arm64/x86_64 slices;
+all four product executables depend on the private allocator, whose two slices
+retain `__interpose`. Native execution is arm64 only.
+
+Apple accepted app submission `58d4a0fd-dfea-46b6-ad43-2a4150139c19` and
+DMG submission `6650be98-2cff-4c98-b699-594be6a23fd2`. App/DMG `stapler
+validate`, strict signatures and their respective execute/open Gatekeeper
+assessments pass (`Notarized Developer ID`). The DMG was mounted read-only
+without browsing and detached after private installation. ZIP, mounted DMG
+and relocated installed app have the same complete file hashes. The installed
+copy passes signature, staple and execute assessments again.
+
+The full public package audit passes: **53 files, 19 binaries, 519 first-party
+compile units**. The new file relative to r4 is the stapled
+`Contents/CodeResources`. Runtime closure, retained MIT notice, SPDX and separate
+versioned corresponding-source asset agree; source preflight and all four
+checksum sidecars pass. Public negative controls reject the missing allocator
+(`required-packaged-capability-missing:libmimalloc.3.dylib`) and the extra one
+(`package-file-set-mismatch`). Disposable negative copies are removed. The audit's
+own `trust: not-assessed` and `license_approval: pending` fields are preserved;
+separate native tools above supply this local trust evidence, not legal approval.
+
+| Final local artifact/image | SHA-256 |
+|---|---|
+| `BetterPullReview-0.3.2-macos-universal.dmg` | `4cdf060665ec4c265a374bb51892aee2c2e0e81008fd5f07dc193984d2444cd7` |
+| `BetterPullReview-0.3.2-macos-universal.zip` | `69d4b6b8f75054ec9a76ba0afc20beee9b5133a075715be131ab7a8f1b933ac7` |
+| `BetterPullReview-0.3.2-macos-universal.spdx.json` | `2a5703a96f2d3032337c21c9cc90cdf96e3f27fd57c25273fda52e315c20da3b` |
+| `Source-BetterPullReview-0.3.2-macos-universal-corresponding-source.zip` | `fc15e56132603872e35f91fb57142c910558c08fa7e4f1e60261ae4d8b5f75e2` |
+| Desktop image | `98c0feff5ad5e3b5ead9b8fe25fb02214ea628791dbda5a965c3f29d4b665d92` |
+| Private allocator image | `7581a1b93a92af947f1b0470ad570bbb4383a4da1d3b035fa60ed507f90b4650` |
+
+All eight native outputs remain in `build/mimalloc-macos-signed-r9/signed-artifacts/`.
+The source ZIP's unchanged bytes reflect unchanged pinned third-party material;
+current producer references remain bound to this exact signed artifact set.
+The standalone CLI retains its separately audited r4 producer, not a fictitious
+CLI in this app graph.
+
+### Public behavior and human boundary
+
+The native workflow's relocated signed offscreen clone passes its private-profile
+and production bundle-identity checks without changing delivery. A second
+assessment clone, using the same approved helper functions, produces a readable
+Home render and exits 0 with `PUBLIC_PATH_OK`, `RENDER_OK` and composed-host
+markers. Only that clone receives the assessment-only offscreen plugin and is
+resealed; the original delivered hashes remain unchanged. Both assessment clones
+are removed after their checks. This is headless evidence, not native Cocoa.
+
+The exact installed MCP helper passes the real JSON-RPC, closed/full-pipe and
+bounded diagnostic course. All four signed product images reach their expected
+safe refusals (desktop 1, supervisor 125, MCP 1, updater 1) with process-local
+mimalloc initialization diagnostics. These observations do not substitute
+statistics for pointer proof. The prior unchanged-implementation pointer course
+and this exact signed trust/lifecycle course retain their distinct identities.
+No DYLD injection, debugger entitlement or relaxed hardening is added.
+
+The native Cocoa launcher is ready and checks the frozen delivered hashes and
+signature before starting. A QtCore path probe found that `HOME` alone does not
+isolate macOS `AppLocalDataLocation`; no application profile was opened. The
+corrected launcher sets both `HOME` and `CFFIXED_USER_HOME`, and the exact packaged
+QtCore probe confirms both home/data paths lie under its new task-owned root.
+The launcher records early exits, final exit and payload preservation. It needs
+no account and provides a synthetic local folder for the owner to review/reopen
+and Quit. No agent drives or captures the owner's desktop. The
+`frontend-design` skill and desktop reference were loaded for this presentation
+review; the offscreen image was inspected directly.
+
+Fresh attended session `3a0425eb3756874560105a4cff2b0b64` is ready at external
+state `/Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev`.
+Candidate `BPR-1759-signed-cocoa-r9`, fingerprint
+`a68fe8b3cd8c62f9287c0a8db30529a765947f8bf757641bf7fbab2fe93d5bd5`, asks one
+Accept/Reject judgment about delivered native Cocoa behavior. Initial consumed
+cursor is **3**. Loopback authenticated status returns HTTP 200 with that ready
+candidate; the default private Serve route is active too. Capability URLs remain
+only in external session state. The coordinator owns intake and the next
+engineering round; this leaf interprets no human verdict.
+
+BPR-1759/BPR-1762 remain human-pending, BPR-1764 Backlog and RFC In Progress.
+The broad Release/Debug suites were skipped for this explicitly local validation;
+this is no release approval. Existing memory failures/risk, native vault,
+installation/upgrade/uninstall, crash/privacy, vulnerability and distribution
+legal/recipient-access obligations retain their recorded scope. A private
+relocated copy is not ordinary-user installation or uninstall qualification.
+Raw receipts, identities, commands, render and launcher checks are in
+`build/mimalloc-macos-signed-r9/`. The durable
+[signed-round handoff](../issues/_checkpoints/RFC-BPR-0093-signed-macos-r9/handoff.md)
+accounts for writers, commands, review and continuation. Earlier candidate roots
+and main's unrelated MASK edits are preserved.
+
 ## Intel acceptance amendment — mandate r5
 
 On 2026-10-24 the owner explicitly answered **“Amend Intel criterion”**. The

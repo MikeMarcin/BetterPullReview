@@ -2,11 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1762"
 title: "Reconcile mimalloc runtime and corresponding source in packages"
-status: "Blocked"
+status: "Parked"
 rfcs: ["RFC-BPR-0093"]
 depends_on: ["BPR-1758", "BPR-1760", "BPR-1761"]
 metadata: {"milestone_plan":{"id":"mimalloc-process-wide-v1","path":"docs/rfcs/plans/mimalloc-process-wide-v1/milestone-plan.json"}}
-blocked_by: "native-macos-candidate"
+parked_on: "human-review"
 ---
 
 # Reconcile mimalloc runtime and corresponding source in packages
@@ -21,7 +21,27 @@ load-path, source digest and release refusal checks; prove removal and reject
 missing or extra runtime files. This is package qualification, not release
 publication or a security-owner vulnerability disposition.
 
-## Current acceptance — mandate r5, 2026-10-24
+## Current Mac reconciliation — authorized round r9
+
+The missing local Mac trust/closure course now passes on signed producer
+`0f42035a1758a33c729317d66d3aaaac0e771fb1`: both app and DMG are notarized,
+stapled and Gatekeeper-accepted; private relocated installation matches the
+ZIP/DMG; full 53-file/19-image audit, source binding and allocator omission/extra
+controls pass. The [r9 ledger](../../verification/RFC-BPR-0093.md#signed-local-macos-acceptance--authorized-round-r9)
+records exact hashes, Apple receipts, public paths and limitations. Prior native
+Windows/Ubuntu and standalone CLI package/source evidence keeps its original
+producer identity. No release publication or legal approval is inferred.
+
+Final AC07/AC09 reconciliation remains **human-pending** on the delivered Cocoa
+question for [[BPR-1759]]: session `3a0425eb3756874560105a4cff2b0b64`, external
+state `/Users/jaeger/.codex/attended-review/bpr-mimalloc-signed-r9-k9f02pev`,
+candidate `BPR-1759-signed-cocoa-r9`, consumed cursor 3. This card is not Done;
+older unavailable-signed-candidate statements below retain their historical
+scope. Broad suites were skipped for local validation, and native install/
+upgrade/uninstall, vault/crash/vulnerability and distribution approval remain
+separate. No version change, tag, push or publication occurred.
+
+## Historical acceptance — mandate r5, 2026-10-24
 
 The owner's “Amend Intel criterion” decision removes native Intel execution
 from macOS AC03 and its milestone/card. Universal arm64/x86_64 static proof and
