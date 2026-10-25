@@ -22,6 +22,10 @@
 
 #include <glaze/json.hpp>
 
+#if defined(BPR_BENCH_MIMALLOC)
+	#include <mimalloc.h>
+#endif
+
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -67,6 +71,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace bpr::e2e::large_review {
@@ -405,7 +410,10 @@ namespace bpr::e2e::large_review {
 
 	struct extended_measurement
 	{
-		bool                         AllocationProfile = false;
+		bool                         AllocationProfile          = false;
+		bool                         AllocatorCollectDiagnostic = false;
+		long                         AllocatorPurgeDelayMs = -1, AllocatorArenaEagerCommit = -1;
+		double                       AllocatorCollectMs = 0;
 		prepared_open_measurement    PreparedOpen;
 		preparation_tail_measurement PreparationTail;
 		live_heap_observation        Heap;
@@ -699,6 +707,30 @@ namespace bpr::e2e::large_review {
 			}
 		}
 		aReport.Resources.push_back(sample);
+	}
+
+	/// \brief Observes idle and forced release after normal close/destruction.
+	/// \details Opt-in benchmark diagnosis only. Ordinary workflow samples and
+	/// lifetime peaks remain in the report before this changes allocator state.
+	void diagnose_allocator_release(benchmark_report& aReport)
+	{
+#if defined(BPR_BENCH_MIMALLOC)
+		aReport.Extended.AllocatorPurgeDelayMs     = mi_option_get(mi_option_purge_delay);
+		aReport.Extended.AllocatorArenaEagerCommit = mi_option_get(mi_option_arena_eager_commit);
+		for (const auto& [delayMs, phase] : { std::pair{ 1000, "allocator_idle_1s" }, std::pair{ 4000, "allocator_idle_5s" } }) {
+			QEventLoop idle;
+			QTimer::singleShot(delayMs, &idle, &QEventLoop::quit);
+			idle.exec();
+			sample_resources(aReport, nullptr, phase);
+		}
+		QElapsedTimer timer;
+		timer.start();
+		mi_collect(true);
+		aReport.Extended.AllocatorCollectMs = static_cast<double>(timer.nsecsElapsed()) / 1'000'000.0;
+		sample_resources(aReport, nullptr, "after_forced_allocator_collect");
+#else
+		static_cast<void>(aReport);
+#endif
 	}
 
 	void confirm_fixture_maintenance(QAction& aAction, const QString& aDialogName)
@@ -2255,7 +2287,7 @@ namespace bpr::e2e::large_review {
 			std::cout << "LARGE_REVIEW_HISTORY_SESSION_RACE_OK\n";
 			return EXIT_SUCCESS;
 		}
-		if (aArgc != 4 && (aArgc != 5 || (std::string_view{ aArgv[4] } != "--unavailable" && std::string_view{ aArgv[4] } != "--approximate" && std::string_view{ aArgv[4] } != "--resources" && std::string_view{ aArgv[4] } != "--history" && std::string_view{ aArgv[4] } != "--loaded-close" && std::string_view{ aArgv[4] } != "--cache-entries" && std::string_view{ aArgv[4] } != "--cache-bytes" && std::string_view{ aArgv[4] } != "--first-tab" && std::string_view{ aArgv[4] } != "--prepared-open" && std::string_view{ aArgv[4] } != "--timing-control" && std::string_view{ aArgv[4] } != "--responsiveness" && std::string_view{ aArgv[4] } != "--active-work" && std::string_view{ aArgv[4] } != "--pathological" && std::string_view{ aArgv[4] } != "--provider-cancel" && std::string_view{ aArgv[4] } != "--allocation-profile"))) {
+		if (aArgc != 4 && (aArgc != 5 || (std::string_view{ aArgv[4] } != "--unavailable" && std::string_view{ aArgv[4] } != "--approximate" && std::string_view{ aArgv[4] } != "--resources" && std::string_view{ aArgv[4] } != "--history" && std::string_view{ aArgv[4] } != "--loaded-close" && std::string_view{ aArgv[4] } != "--cache-entries" && std::string_view{ aArgv[4] } != "--cache-bytes" && std::string_view{ aArgv[4] } != "--first-tab" && std::string_view{ aArgv[4] } != "--prepared-open" && std::string_view{ aArgv[4] } != "--timing-control" && std::string_view{ aArgv[4] } != "--responsiveness" && std::string_view{ aArgv[4] } != "--active-work" && std::string_view{ aArgv[4] } != "--pathological" && std::string_view{ aArgv[4] } != "--provider-cancel" && std::string_view{ aArgv[4] } != "--allocation-profile" && std::string_view{ aArgv[4] } != "--allocation-profile-purge"))) {
 			return EXIT_FAILURE;
 		}
 		// [[BPR-1265]]. The byte-pressure course runs only in an optimized
@@ -2301,7 +2333,17 @@ namespace bpr::e2e::large_review {
 			report.Extended.Schedule.CourseThreadWaitMs  = milliseconds(static_cast<std::int64_t>(increase(courseBegan.Mark.ThreadWaitNs, now.ThreadWaitNs)));
 			report.Extended.Schedule.CourseProcessWaitMs = milliseconds(static_cast<std::int64_t>(increase(courseBegan.ProcessWaitNs, native_process_wait_ns())));
 		};
-		report.Extended.AllocationProfile                                  = aArgc == 5 && std::string_view{ aArgv[4] } == "--allocation-profile";
+		report.Extended.AllocatorCollectDiagnostic = aArgc == 5 && std::string_view{ aArgv[4] } == "--allocation-profile-purge";
+#if !defined(BPR_BENCH_MIMALLOC)
+		if (report.Extended.AllocatorCollectDiagnostic) {
+			std::cout << "LARGE_REVIEW_ALLOCATOR_PURGE_UNAVAILABLE: selected allocator is not mimalloc\n";
+			return cache_bytes_debug_skip_exit_code;
+		}
+#endif
+		report.Extended.AllocationProfile = report.Extended.AllocatorCollectDiagnostic || (aArgc == 5 && std::string_view{ aArgv[4] } == "--allocation-profile");
+		if (report.Extended.AllocatorCollectDiagnostic) {
+			report.Extended.BudgetsEnforced = false;
+		}
 		report.Extended.QApplicationStartupMs                              = aQApplicationStartupMs;
 		report.Extended.ProviderCancelCourse                               = aArgc == 5 && std::string_view{ aArgv[4] } == "--provider-cancel";
 		auto heldRead                                                      = std::make_shared<held_provider_read>();
@@ -3013,6 +3055,9 @@ namespace bpr::e2e::large_review {
 				require(report.DestroyReleasedDiff && report.DestroyReleasedIndex, "closed comparison retains raw diff or prepared index");
 				require(!observeLoadedOwners || (report.DestroyReleasedWindow && report.DestroyReleasedDocuments),
 						"closed application retains the window or large source documents");
+				if (report.Extended.AllocatorCollectDiagnostic) {
+					diagnose_allocator_release(report);
+				}
 			}
 			for (const auto& phase : report.Phases) {
 				if (phase.MaxPulseIntervalMs > report.InputIntervalLimitMs) {
@@ -3064,7 +3109,7 @@ namespace bpr::e2e::large_review {
 				// but instrumentation overhead cannot pass/fail native budgets.
 				// Allow a bounded external no-content allocation-history capture
 				// after application destruction. Never print an acceptance marker.
-				std::cout << "LARGE_REVIEW_ALLOCATION_CAPTURE_READY\n"
+				std::cout << (report.Extended.AllocatorCollectDiagnostic ? "LARGE_REVIEW_ALLOCATOR_PURGE_DIAGNOSTIC_ONLY\n" : "LARGE_REVIEW_ALLOCATION_CAPTURE_READY\n")
 						  << std::flush;
 				QThread::sleep(10);
 				return EXIT_SUCCESS;
