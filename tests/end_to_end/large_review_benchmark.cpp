@@ -1777,13 +1777,31 @@ namespace bpr::e2e::large_review {
 		expectedB.LeftBlob  = core::parse_git_blob_oid(foundB->base.oid);
 		expectedB.RightBlob = core::parse_git_blob_oid(foundB->head.oid);
 		bool       holdingB = false, stalePublication = false;
-		const auto observeB = [&](QTextDocument* aDocument, const QString& aFirstLine) {
+		const auto adoptionsBeforeB = surface.statistics().SemanticIndexAdoptions;
+		const auto observeB         = [&](QTextDocument* aDocument, const QString& aFirstLine) {
 			if (!holdingB) {
 				return;
 			}
 			++aReport.ByteHeldSourceObservations;
-			stalePublication = stalePublication || (surface.current_result() && surface.current_result()->Alignment.Key != expectedB)
-				|| (!aDocument->isEmpty() && aDocument->firstBlock().text() != aFirstLine);
+			const auto& result      = surface.current_result();
+			const bool  keyMatches  = !result || result->Alignment.Key == expectedB;
+			const bool  textMatches = aDocument->isEmpty() || aDocument->firstBlock().text() == aFirstLine;
+			if (!stalePublication && (!keyMatches || !textMatches)) {
+				std::cerr << "LARGE_REVIEW_HELD_B_MISMATCH: key_matches=" << keyMatches
+						  << " text_matches=" << textMatches << " result_present=" << static_cast<bool>(result)
+						  << " adoptions_before=" << adoptionsBeforeB << " adoptions_now=" << surface.statistics().SemanticIndexAdoptions
+						  << " empty=" << aDocument->isEmpty() << " first_line=" << aDocument->firstBlock().text().left(100).toStdString();
+				if (result) {
+					const auto& key = result->Alignment.Key;
+					std::cerr << " file_matches=" << (key.File == expectedB.File)
+							  << " left_anchor_matches=" << (key.LeftAnchor == expectedB.LeftAnchor)
+							  << " right_anchor_matches=" << (key.RightAnchor == expectedB.RightAnchor)
+							  << " left_blob_matches=" << (key.LeftBlob == expectedB.LeftBlob)
+							  << " right_blob_matches=" << (key.RightBlob == expectedB.RightBlob);
+				}
+				std::cerr << '\n';
+			}
+			stalePublication = stalePublication || !keyMatches || !textMatches;
 		};
 		QObject    observationLifetime;
 		const auto leftObservation  = QObject::connect(surface.left_pane()->document(), &QTextDocument::contentsChanged, &observationLifetime, [&] {
@@ -1796,6 +1814,10 @@ namespace bpr::e2e::large_review {
 		supersede.setInterval(1);
 		QObject::connect(&supersede, &QTimer::timeout, &window, [&] {
 			if (!holdingB && access::diff_work_evidence(aApplication).OutstandingJobs != 0U) {
+				const auto& context = surface.current_context();
+				std::cerr << "LARGE_REVIEW_HELD_B_ADMISSION: context_present=" << context.has_value()
+						  << " target_a_matches=" << (context && context->Key == *firstKey)
+						  << " context_right_epoch=" << (context ? context->Key.RightAnchor.Epoch.value() : -1) << '\n';
 				holdingB = true;
 				++aReport.ByteSupersessionsWithWork;
 				select_file(window, source_path(100));
@@ -1806,8 +1828,23 @@ namespace bpr::e2e::large_review {
 			select_epoch(controls, 1, core::comparison_side::right);
 			supersede.start(); }, [&] { return stalePublication || (holdingB && selected(surface, source_path(100)) && settled()); });
 		supersede.stop();
+		if (drainedB && !stalePublication) {
+			// Reviewer readiness can precede a deferred preparation round.
+			// Keep observing B until that separately reported tail is drained;
+			// a later false settled() is not evidence of a stale publication.
+			const auto work = access::diff_work_evidence(aApplication);
+			std::cerr << "LARGE_REVIEW_HELD_B_PREPARATION: epoch_jobs=" << work.EpochOutstandingJobs
+					  << " reviewer_jobs=" << work.EpochReviewerJobs << " preparation_jobs=" << work.EpochPreparationJobs
+					  << " pending=" << work.PreparationPending << " in_flight=" << work.PreparationsInFlight
+					  << " preparing=" << work.Preparing << '\n';
+			wait_preparation_tail(aApplication, aBudget, aReport, "cache_byte_supersession_held_b");
+		}
 		QObject::disconnect(leftObservation);
 		QObject::disconnect(rightObservation);
+		std::cerr << "LARGE_REVIEW_HELD_B_PREDICATES: drained=" << drainedB << " stale=" << stalePublication
+				  << " observations=" << aReport.ByteHeldSourceObservations << " selected=" << selected(surface, source_path(100))
+				  << " key_matches=" << (surface.current_result() && surface.current_result()->Alignment.Key == expectedB)
+				  << " settled=" << settled() << '\n';
 		require(drainedB && !stalePublication && aReport.ByteHeldSourceObservations != 0U
 					&& selected(surface, source_path(100)) && surface.current_result()->Alignment.Key == expectedB && settled(),
 				"stale comparison published while superseding file B remained selected");
