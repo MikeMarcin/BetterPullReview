@@ -18,8 +18,10 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
+#include <fmt/format.h>
 #include <glaze/json.hpp>
 
 #if defined(BPR_BENCH_MIMALLOC)
@@ -65,6 +67,7 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -410,9 +413,10 @@ namespace bpr::e2e::large_review {
 
 	struct resource_budget_observation
 	{
-		std::string   Phase, Stage, Metric;
-		std::uint64_t ValueBytes = 0, LimitBytes = 0;
-		bool          WithinLimit = false, CounterCoversAllocator = true;
+		std::string         Phase, Stage, Metric;
+		std::uint64_t       ValueBytes = 0, LimitBytes = 0;
+		std::optional<bool> WithinLimit;
+		bool                Enforced = false, CounterCoversAllocator = true;
 	};
 	struct allocator_release_observation
 	{
@@ -422,10 +426,33 @@ namespace bpr::e2e::large_review {
 		std::size_t  BeforeSample = 0, AfterSample = 0;
 	};
 
+	struct comparison_owner_tracker
+	{
+		std::vector<std::weak_ptr<const core::computed_file_diff>>  Diffs;
+		std::vector<std::weak_ptr<const core::diff_semantic_index>> Indexes;
+		std::shared_ptr<const core::computed_file_diff>             RetainedControl;
+
+		void observe(const qt::diff_workbench& aSurface)
+		{
+			const auto diff  = aSurface.current_result();
+			const auto index = aSurface.current_semantic_index();
+			if (!diff || !index) {
+				throw std::runtime_error{ "comparison owner observation requires a live diff and index" };
+			}
+			Diffs.push_back(diff);
+			Indexes.push_back(index);
+		}
+	};
+
 	struct extended_measurement
 	{
 		bool                                       AllocationProfile = false;
+		bool                                       ResourceContracts = false, RetainedPressureOwnerControl = false;
+		bool                                       NativeHeapCounterCoversAllocator = native_live_heap_covers_allocator();
+		std::size_t                                ObservedComparisonOwners         = 0;
+		bool                                       OwnerReleaseChecked = false, ObservedDiffOwnersReleased = false, ObservedIndexOwnersReleased = false;
 		bool                                       CollectAtCleanup = false, ResourceBudgetFailed = false;
+		bool                                       ReviewReopenDiagnostic = false, RetainedReviewOwnerControl = false, ReopenOwnersReleased = false;
 		std::vector<resource_budget_observation>   ResourceBudgets;
 		std::vector<allocator_release_observation> AllocatorReleases;
 		bool                                       AllocatorCollectDiagnostic = false;
@@ -561,7 +588,7 @@ namespace bpr::e2e::large_review {
 		std::size_t                    PeakConversationRootsDuringSelections = 0;
 		std::uint64_t                  DiffCacheBytes                        = 0;
 		bool                           ExactLargeSource = false, ExactFinalSource = false, Rendered = false, ShutdownComplete = false;
-		std::string                    TimingScope = "BuildConfiguration identifies the measured configuration; Debug is diagnostic only. 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS input-delivery clock is observed. The separate held-provider course observes continuous fixture entry, stop-token callback and provider exit on a steady clock; it models waiting work, not CPU occupancy. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. Every timed figure a limit reads is attributed (BPR-1598): its wall time less the time spent runnable while another process held the processors, never below a processor time load does not inflate and never above the wall time. A GUI-thread interval (a pulse gap, a dispatch, a queued input) subtracts that thread's own wait and is floored by its own processor time, so a stall it spends working or blocked counts in full; a completion (a phase, a drain, a startup) subtracts every thread's wait and is floored by the busiest thread's processor time, a lower bound on its quiet-machine time. Extended.Schedule.Method says how each platform measures the waits; the wall readings stay beside them (Phases' Wall fields, Extended.Schedule.WallMs). The independent 1 ms all-zone live-heap sampler reports a lower-bound peak and its largest sample interval/cost; it cannot exclude unsampled peaks. No cross-platform latency budget.";
+		std::string                    TimingScope = "BuildConfiguration identifies the measured configuration; Debug is diagnostic only. 5 ms event-loop timer plus the final interval through readiness. MaxPulseIntervalMs includes synchronous-ready work; P95 uses delivered pulses only. Outstanding jobs are sampled admitted work through decision delivery (including deferred ingress/local terminals), not continuous worker or CPU occupancy. Active-work keys record queue-to-event-filter delivery and queue-to-next-tick verified selection; no OS input-delivery clock is observed. The separate held-provider course observes continuous fixture entry, stop-token callback and provider exit on a steady clock; it models waiting work, not CPU occupancy. Active close measures the public close through whole-application quiescence, not stop-token acknowledgement. Measurement input gaps span consecutive 1 ms timer callbacks after native batching has started; initial publication delay remains in the phase timer. Wheel batch is measured after classification settles. CompositionStartupMs excludes process and QApplication launch. Responsiveness phase readiness includes synchronous QWidget rendering but excludes image encoding/writes; this is not display-compositor presentation or OS input-delivery latency. InputBudgetFailures retain unmet 100 ms phases; successful measurement does not accept them. Every timed figure a limit reads is attributed (BPR-1598): its wall time less the time spent runnable while another process held the processors, never below a processor time load does not inflate and never above the wall time. A GUI-thread interval (a pulse gap, a dispatch, a queued input) subtracts that thread's own wait and is floored by its own processor time, so a stall it spends working or blocked counts in full; a completion (a phase, a drain, a startup) subtracts every thread's wait and is floored by the busiest thread's processor time, a lower bound on its quiet-machine time. Extended.Schedule.Method says how each platform measures the waits; the wall readings stay beside them (Phases' Wall fields, Extended.Schedule.WallMs). Where NativeHeapCounterCoversAllocator is true, the independent native live-heap sampler reports a lower-bound peak and its largest sample interval/cost; it cannot exclude unsampled peaks. Replacement-allocator heap observations are unavailable, never zero-byte passes. No cross-platform latency budget.";
 	};
 
 	void require(bool aCondition, const char* aReason)
@@ -716,22 +743,31 @@ namespace bpr::e2e::large_review {
 								const char* aMetric, std::uint64_t aValue, std::uint64_t aLimit,
 								const char* aReason, bool aHeapCounter = false)
 	{
-#if defined(BPR_BENCH_MIMALLOC)
-		const bool coversAllocator = !aHeapCounter;
-#else
-		static_cast<void>(aHeapCounter);
-		const bool coversAllocator = true;
-#endif
+		const bool                  coversAllocator = !aHeapCounter || native_live_heap_covers_allocator();
+		const bool                  metricSelected  = aHeapCounter || !aReport.Extended.ResourceContracts;
+		const bool                  within          = aValue <= aLimit;
 		resource_budget_observation observation;
 		observation.Phase                  = aSample.Phase;
 		observation.Stage                  = aSample.Stage;
 		observation.Metric                 = aMetric;
 		observation.ValueBytes             = aValue;
 		observation.LimitBytes             = aLimit;
-		observation.WithinLimit            = aValue <= aLimit;
 		observation.CounterCoversAllocator = coversAllocator;
+		observation.Enforced               = coversAllocator && metricSelected && aReport.Extended.BudgetsEnforced && !aReport.Extended.AllocationProfile;
+		if (coversAllocator) {
+			observation.WithinLimit = within;
+		}
 		aReport.Extended.ResourceBudgets.push_back(observation);
-		require_limit(aReport, aReport.Extended.AllocationProfile || observation.WithinLimit, aReason);
+		if (!coversAllocator) {
+			return;
+		}
+		if (!metricSelected) {
+			if (!within && !aReport.Extended.AllocationProfile) {
+				aReport.Extended.UnenforcedLimitMisses.push_back(fmt::format("{}: {} (legacy footprint telemetry)", aSample.Phase, aMetric));
+			}
+			return;
+		}
+		require_limit(aReport, aReport.Extended.AllocationProfile || within, aReason);
 	}
 
 	void sample_resources(benchmark_report& aReport, app::github_application* aApplication, const char* aPhase)
@@ -1286,7 +1322,7 @@ namespace bpr::e2e::large_review {
 	}
 
 	void run_cache_entries(app::github_application& aApplication, const fixture_manifest& aManifest,
-						   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+						   benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage, comparison_owner_tracker& aOwners)
 	{
 		auto&      window  = aApplication.window();
 		auto&      surface = *window.comparison_surface();
@@ -1322,6 +1358,10 @@ namespace bpr::e2e::large_review {
 						[&] { return selected(surface, source_path(file)); }),
 					"entry-pressure selection timed out");
 			verify(file);
+			aOwners.observe(surface);
+			if (aReport.Extended.RetainedPressureOwnerControl && index == limits.CacheEntries / 2U) {
+				aOwners.RetainedControl = surface.current_result();
+			}
 			// [[BPR-1327]]. The reviewer's own entries; prepared ones give way.
 			const auto work = access::diff_work_evidence(aApplication);
 			require(work.PreparedEntries <= application::prepared_entry_capacity(limits) && work.CacheEntries <= limits.CacheEntries,
@@ -1347,6 +1387,7 @@ namespace bpr::e2e::large_review {
 		require(aReport.EntryEvictedDiff && aReport.EntryEvictedIndex, "entry eviction still retains the oldest raw diff or prepared index");
 		require(measure_wait(aApplication, aBudget, aReport, "cache_entry_revisit", [&] { select_file(window, source_path(100)); }, [&] { return ready(100); }), "evicted file revisit timed out");
 		verify(100);
+		aOwners.observe(surface);
 		aReport.EntryRevisitExact = aReport.Phases.back().PulsesWithDiffWork != 0U;
 		require(aReport.EntryRevisitExact, "evicted comparison did not run the normal diff materialization job");
 		const auto work = access::diff_work_evidence(aApplication);
@@ -1604,7 +1645,7 @@ namespace bpr::e2e::large_review {
 	}
 
 	void run_cache_bytes(app::github_application& aApplication, const fixture_manifest& aManifest,
-						 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage)
+						 benchmark_report& aReport, QElapsedTimer& aBudget, const char* aImage, comparison_owner_tracker& aOwners)
 	{
 		auto&      window   = aApplication.window();
 		auto&      surface  = *window.comparison_surface();
@@ -1683,6 +1724,7 @@ namespace bpr::e2e::large_review {
 					select_epoch(controls, ordinal, core::comparison_side::right);
 				} }, [&] { return ready(ordinal); }), "byte-pressure large selection timed out");
 			verify(ordinal);
+			aOwners.observe(surface);
 			if (ordinal == 1) {
 				report_tab_comparison(aApplication, "cache-after-file");
 			}
@@ -2361,12 +2403,22 @@ namespace bpr::e2e::large_review {
 	auto run_benchmark(QApplication& aQtApplication, int aArgc, char** aArgv,
 					   const attributed_clock& aMainClock, double aQApplicationStartupMs) -> int
 	{
-		const bool collectedCleanup = aArgc == 6 && std::string_view{ aArgv[5] } == "--allocator-cleanup-collect";
-		if (collectedCleanup) {
+		const bool retainedPressureOwner = aArgc == 6 && std::string_view{ aArgv[5] } == "--retain-middle-owner";
+		const bool resourceContracts     = retainedPressureOwner || (aArgc == 6 && std::string_view{ aArgv[5] } == "--resource-contracts");
+		if (retainedPressureOwner && std::string_view{ aArgv[4] } != "--cache-entries") {
+			return EXIT_FAILURE;
+		}
+		const bool reopenControl    = aArgc == 6 && std::string_view{ aArgv[5] } == "--review-reopen-control";
+		const bool reopenDiagnostic = reopenControl || (aArgc == 6 && std::string_view{ aArgv[5] } == "--review-reopen");
+		const bool collectedCleanup = reopenDiagnostic || (aArgc == 6 && std::string_view{ aArgv[5] } == "--allocator-cleanup-collect");
+		if (reopenDiagnostic && std::string_view{ aArgv[4] } != "--loaded-close") {
+			return EXIT_FAILURE;
+		}
+		if (collectedCleanup || resourceContracts) {
 			const auto course = std::string_view{ aArgv[4] };
 			if (course != "--resources" && course != "--loaded-close"
 				&& course != "--cache-entries" && course != "--cache-bytes") {
-				std::cerr << "allocator cleanup collection requires a normal resource course\n";
+				std::cerr << "resource policy requires a normal resource course\n";
 				return EXIT_FAILURE;
 			}
 			--aArgc;
@@ -2415,7 +2467,11 @@ namespace bpr::e2e::large_review {
 		const auto& dataRoot = *privateRoot;
 
 		benchmark_report report;
-		report.Extended.CollectAtCleanup = collectedCleanup;
+		report.Extended.CollectAtCleanup             = collectedCleanup;
+		report.Extended.ResourceContracts            = resourceContracts;
+		report.Extended.RetainedPressureOwnerControl = retainedPressureOwner;
+		report.Extended.ReviewReopenDiagnostic       = reopenDiagnostic;
+		report.Extended.RetainedReviewOwnerControl   = reopenControl;
 		// [[BPR-1598]]. The scheduler's share of the whole course, for every
 		// report this course writes.
 		const auto courseBegan   = completion_start{ };
@@ -2454,33 +2510,39 @@ namespace bpr::e2e::large_review {
 		const bool observeResources           = report.ResourceCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		const bool observeLoadedOwners        = report.LoadedCloseCourse || report.CacheEntryCourse || report.CacheByteCourse;
 		if (collectedCleanup && (!observeResources || report.Extended.AllocationProfile)) {
-			std::cerr << "allocator cleanup collection requires a normal resource course\n";
+			std::cerr << "resource policy requires a normal resource course\n";
 			return EXIT_FAILURE;
 		}
-		std::weak_ptr<const core::computed_file_diff>  resourceDiff;
-		std::weak_ptr<const core::diff_semantic_index> resourceIndex;
-		QPointer<QWidget>                              resourceWindow;
-		QPointer<QTextDocument>                        resourceLeftDocument, resourceRightDocument;
-		std::optional<core::review_epoch_id>           closeTarget;
-		std::optional<core::file_comparison_key>       closeComparison;
-		std::unique_ptr<app::github_application>       application;
-		live_heap_sampler                              heapSampler{ observeResources };
+		std::weak_ptr<const core::computed_file_diff>                resourceDiff;
+		std::weak_ptr<const core::diff_semantic_index>               resourceIndex;
+		QPointer<QWidget>                                            resourceWindow;
+		QPointer<QTextDocument>                                      resourceLeftDocument, resourceRightDocument;
+		std::optional<core::review_epoch_id>                         closeTarget;
+		std::optional<core::file_comparison_key>                     closeComparison;
+		comparison_owner_tracker                                     comparisonOwners;
+		std::vector<std::weak_ptr<const core::computed_file_diff>>   reopenedDiffs;
+		std::vector<std::weak_ptr<const core::diff_semantic_index>>  reopenedIndexes;
+		std::vector<std::shared_ptr<const core::computed_file_diff>> retainedReviewOwners;
+		std::unique_ptr<app::github_application>                     application;
+		live_heap_sampler                                            heapSampler{ observeResources };
 		try {
 			std::ifstream     input{ std::filesystem::path{ BPR_LARGE_REVIEW_FIXTURE_ROOT } / "manifest.json" };
 			const std::string bytes{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 			fixture_manifest  manifest;
 			require(!glz::read<glz::opts{ .error_on_unknown_keys = false }>(manifest, bytes) && manifest.schema == "bpr.large-review-fixture.v1" && manifest.heads.size() == 32U, "stored manifest");
-			report.Base                       = manifest.base;
-			report.Head                       = (report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse) ? manifest.heads.front() : manifest.heads.back();
-			report.PackBytes                  = manifest.pack_bytes;
-			report.Platform                   = QSysInfo::prettyProductName().toStdString();
-			report.Architecture               = QSysInfo::currentCpuArchitecture().toStdString();
-			report.QtVersion                  = qVersion();
-			report.Style                      = QApplication::style()->objectName().toStdString();
-			report.BuildConfiguration         = BPR_BENCH_BUILD_CONFIGURATION;
-			report.LogicalProcessors          = QThread::idealThreadCount();
-			auto fixtureOptions               = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ aArgv[1] } };
-			fixtureOptions.LargeReviewHistory = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
+			report.Base                           = manifest.base;
+			report.Head                           = (report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse) ? manifest.heads.front() : manifest.heads.back();
+			report.PackBytes                      = manifest.pack_bytes;
+			report.Platform                       = QSysInfo::prettyProductName().toStdString();
+			report.Architecture                   = QSysInfo::currentCpuArchitecture().toStdString();
+			report.QtVersion                      = qVersion();
+			report.Style                          = QApplication::style()->objectName().toStdString();
+			report.BuildConfiguration             = BPR_BENCH_BUILD_CONFIGURATION;
+			report.LogicalProcessors              = QThread::idealThreadCount();
+			auto fixtureOptions                   = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .GitExecutable = std::filesystem::path{ aArgv[1] } };
+			fixtureOptions.LargeReviewHistory     = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
+			fixtureOptions.RepeatReadSessions     = reopenDiagnostic;
+			fixtureOptions.LargeReviewRepeatReads = reopenDiagnostic;
 			if (report.Extended.ProviderCancelCourse) {
 				fixtureOptions.BeforeFilesPage = [heldRead](std::stop_token aStop) { heldRead->wait(aStop); };
 			}
@@ -2569,20 +2631,24 @@ namespace bpr::e2e::large_review {
 							&& (!native_schedule_wait_measured() || light.MaxPulseIntervalMs < 100.0),
 						"contended phase charged the scheduler's wait to 40 ms of GUI-thread work");
 #if BPR_LARGE_REVIEW_NATIVE_MEMORY
-				live_heap_sampler heapControl{ true };
-				{
-					const auto     storage = std::make_unique<char[]>(32U * 1024U * 1024U);
-					volatile char* touched = storage.get();
-					for (std::size_t offset = 0; offset < 32U * 1024U * 1024U; offset += 4096U) {
-						touched[offset] = 1;
+				if (native_live_heap_covers_allocator()) {
+					live_heap_sampler heapControl{ true };
+					{
+						const auto     storage = std::make_unique<char[]>(32U * 1024U * 1024U);
+						volatile char* touched = storage.get();
+						for (std::size_t offset = 0; offset < 32U * 1024U * 1024U; offset += 4096U) {
+							touched[offset] = 1;
+						}
+						QThread::msleep(50);
 					}
-					QThread::msleep(50);
+					const auto heapObservation = heapControl.finish();
+					std::cerr << "heap-control:" << *glz::write_json(heapObservation) << '\n';
+					require(heapObservation.Samples > 1U && heapObservation.PeakBytes >= heapObservation.BaselineBytes + 32U * 1024U * 1024U
+								&& heapObservation.FinalBytes + 16U * 1024U * 1024U < heapObservation.PeakBytes,
+							"independent heap sampler missed held allocation or release");
+				} else {
+					std::cerr << "LARGE_REVIEW_LIVE_HEAP_UNMEASURED: selected allocator is outside native counter coverage\n";
 				}
-				const auto heapObservation = heapControl.finish();
-				std::cerr << "heap-control:" << *glz::write_json(heapObservation) << '\n';
-				require(heapObservation.Samples > 1U && heapObservation.PeakBytes >= heapObservation.BaselineBytes + 32U * 1024U * 1024U
-							&& heapObservation.FinalBytes + 16U * 1024U * 1024U < heapObservation.PeakBytes,
-						"independent heap sampler missed held allocation or release");
 #endif
 				std::cout << "LARGE_REVIEW_TIMING_CONTROL_OK\n";
 				return EXIT_SUCCESS;
@@ -2679,9 +2745,9 @@ namespace bpr::e2e::large_review {
 			} else if (report.Extended.PreparedOpen.Course) {
 				run_prepared_open(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.CacheByteCourse) {
-				run_cache_bytes(*application, manifest, report, budget, aArgv[3]);
+				run_cache_bytes(*application, manifest, report, budget, aArgv[3], comparisonOwners);
 			} else if (report.CacheEntryCourse) {
-				run_cache_entries(*application, manifest, report, budget, aArgv[3]);
+				run_cache_entries(*application, manifest, report, budget, aArgv[3], comparisonOwners);
 			} else if (report.HistoryCourse) {
 				run_history(*application, manifest, report, budget, aArgv[3]);
 			} else if (report.UnavailableCourse) {
@@ -2936,6 +3002,7 @@ namespace bpr::e2e::large_review {
 				if (report.ResourceCourse) {
 					resourceDiff  = surface.current_result();
 					resourceIndex = surface.current_semantic_index();
+					comparisonOwners.observe(surface);
 				}
 				report.ExactLargeSource = true;
 				report.MatrixCells      = surface.current_result()->MatrixCellsConsumed;
@@ -3075,10 +3142,55 @@ namespace bpr::e2e::large_review {
 				report.DeleteReleasedIndex = resourceIndex.expired();
 				sample_resources(report, application.get(), "after_cache_delete");
 			}
+			if (reopenDiagnostic) {
+				for (int cycle = 0; cycle < 5; ++cycle) {
+					reopenedDiffs.push_back(surface.current_result());
+					reopenedIndexes.push_back(surface.current_semantic_index());
+					if (reopenControl) {
+						retainedReviewOwners.push_back(surface.current_result());
+					}
+					const auto closePhase = fmt::format("review_close_{}", cycle + 1);
+					window.home_action()->trigger();
+					require(window.home_landing() && window.home_landing()->close_button()->isVisible(), "Close review action is visible");
+					require(measure_wait(*application, budget, report, closePhase.c_str(), [&] { window.home_landing()->close_button()->click(); }, [&] {
+						const auto closed = access::close_review(*application);
+						return !closed.ReadHoldsPullRequest && !closed.SnapshotHeld && !closed.ReadingDestination && !closed.TabDestination
+							&& closed.Tabs == 0U && !closed.LedgerComposed && window.showing_home() && quiet(*application)
+							&& access::diff_work_evidence(*application).EpochOutstandingJobs == 0U; }), "public Close review did not release its reading state");
+					const auto phase  = fmt::format("review_closed_{}", cycle + 1);
+					const auto before = capture_resources(report, application.get(), phase.c_str(), "reopen-before-collection");
+					report.Resources.push_back(before);
+					allocator_release_observation release;
+					release.Phase        = phase;
+					release.BeforeSample = report.Resources.size() - 1U;
+					QElapsedTimer collect;
+					collect.start();
+					const auto result = native_allocator_release();
+					release.WallMs    = static_cast<double>(collect.nsecsElapsed()) / 1'000'000.0;
+					require(result.Supported, "review-reopen collection unavailable");
+					release.Method    = result.Method;
+					release.ApiResult = result.Result;
+					const auto after  = capture_resources(report, application.get(), phase.c_str(), "reopen-after-collection");
+					report.Resources.push_back(after);
+					release.AfterSample = report.Resources.size() - 1U;
+					report.Extended.AllocatorReleases.push_back(release);
+					std::cerr << "review-reopen-sample:" << *glz::write_json(before) << '\n'
+							  << "review-reopen-sample:" << *glz::write_json(after) << '\n';
+					const auto openPhase = fmt::format("review_reopen_{}", cycle + 1);
+					window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/large-review#17"));
+					require(measure_wait(*application, budget, report, openPhase.c_str(), [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && application->status().EpochStatus == core::epoch_status::ready
+																																				   && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "public review reopen timed out");
+					enter_review(*application, report, budget);
+					const auto selectPhase = fmt::format("reopened_large_source_{}", cycle + 1);
+					require(measure_wait(*application, budget, report, selectPhase.c_str(), [&] { select_file(window, QStringLiteral("large/comparison.cpp")); }, [&] { return selected(surface, QStringLiteral("large/comparison.cpp")) && quiet(*application); }), "reopened large comparison timed out");
+					verify_large(surface, manifest);
+				}
+			}
 			if (observeLoadedOwners) {
-				if (report.CacheEntryCourse || report.CacheByteCourse) {
+				if (report.CacheEntryCourse || report.CacheByteCourse || reopenDiagnostic) {
 					resourceDiff  = surface.current_result();
 					resourceIndex = surface.current_semantic_index();
+					comparisonOwners.observe(surface);
 				}
 				const auto& key                 = surface.current_result()->Alignment.Key;
 				closeComparison                 = key;
@@ -3143,6 +3255,16 @@ namespace bpr::e2e::large_review {
 					report.DestroyReleasedDocuments = resourceLeftDocument.isNull() && resourceRightDocument.isNull();
 				}
 				sample_resources(report, nullptr, "application_destroyed");
+				report.Extended.OwnerReleaseChecked         = true;
+				report.Extended.ObservedComparisonOwners    = comparisonOwners.Diffs.size();
+				report.Extended.ObservedDiffOwnersReleased  = std::ranges::all_of(comparisonOwners.Diffs, [](const auto& aOwner) { return aOwner.expired(); });
+				report.Extended.ObservedIndexOwnersReleased = std::ranges::all_of(comparisonOwners.Indexes, [](const auto& aOwner) { return aOwner.expired(); });
+				if (reopenDiagnostic) {
+					report.Extended.ReopenOwnersReleased = std::ranges::all_of(reopenedDiffs, [](const auto& aOwner) { return aOwner.expired(); })
+						&& std::ranges::all_of(reopenedIndexes, [](const auto& aOwner) { return aOwner.expired(); });
+					require(report.Extended.ReopenOwnersReleased, "Close/reopen retained a completed comparison owner");
+				}
+				require(report.Extended.ObservedDiffOwnersReleased && report.Extended.ObservedIndexOwnersReleased, "resource cleanup retains an observed comparison owner");
 				std::cerr << "resource-verdict:" << *glz::write_json(report) << '\n';
 				if (report.ResourceCourse && !report.LoadedCloseCourse) {
 					require(report.PruneReleasedDiff && report.PruneReleasedIndex && report.PruneClearedProjection && report.DeleteReleasedDiff && report.DeleteReleasedIndex,
@@ -3165,7 +3287,7 @@ namespace bpr::e2e::large_review {
 				report.Extended.SampledPeakHeapGrowthLimitBytes = report.CacheByteCourse
 					? PlatformCacheByteHeapGrowthLimitBytes
 					: report.SampledFootprintGrowthLimitBytes;
-				require(report.Extended.Heap.Samples > 1U, "live-heap sampler took no samples");
+				require(!native_live_heap_covers_allocator() || report.Extended.Heap.Samples > 1U, "live-heap sampler took no samples");
 				resource_sample wholeCourse;
 				wholeCourse.Phase     = "whole-course";
 				wholeCourse.Stage     = "independent-heap-peak";
@@ -3215,6 +3337,11 @@ namespace bpr::e2e::large_review {
 				std::cout << (report.Extended.AllocatorCollectDiagnostic ? "LARGE_REVIEW_ALLOCATOR_PURGE_DIAGNOSTIC_ONLY\n" : "LARGE_REVIEW_ALLOCATION_CAPTURE_READY\n")
 						  << std::flush;
 				QThread::sleep(10);
+				return EXIT_SUCCESS;
+			}
+			if (resourceContracts) {
+				std::cout << "LARGE_REVIEW_RESOURCE_CONTRACTS_OK\n"
+						  << *encoded << '\n';
 				return EXIT_SUCCESS;
 			}
 			if (report.Extended.CollectAtCleanup) {

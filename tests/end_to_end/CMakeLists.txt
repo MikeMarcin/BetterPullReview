@@ -1187,7 +1187,7 @@ if(UNIX AND NOT APPLE)
 endif()
 
 bpr_add_executable(bench_better_pull_review_large_review large_review_benchmark.cpp large_review_native_memory.cpp)
-target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullReview::Composition glaze::glaze)
+target_link_libraries(bench_better_pull_review_large_review PRIVATE BetterPullReview::Composition BetterPullReview::Fmt glaze::glaze)
 bpr_attach_selected_allocator(bench_better_pull_review_large_review)
 if(BPR_MIMALLOC_ACTIVE)
     target_compile_definitions(bench_better_pull_review_large_review PRIVATE BPR_BENCH_MIMALLOC=1)
@@ -1300,11 +1300,12 @@ set_tests_properties(application_first_tab_comparison PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
     PASS_REGULAR_EXPRESSION "FIRST_TAB_COMPARISON_OK")
 
-# [[BPR-0967]]. Measurements and exact public outcomes on every platform. The
-# numeric limits are justified by optimized Mac measurements alone, so on
-# Windows and Linux the benchmark reports them (`BudgetsEnforced: false`,
-# `UnenforcedLimitMisses`) and enforces only the exact outcomes. The Windows
-# rows run uncontained for the reason [[BPR-0874]] records above.
+# RFC-BPR-0093 owner useful-test amendment: resource rows retain cache,
+# ownership, source and lifecycle contracts. Baseline-calibrated process
+# footprint/peak envelopes remain explicit telemetry; native allocated-heap
+# gates apply only where the counter covers the selected allocator. Plain
+# benchmark flags retain the legacy physical-envelope qualification path.
+# Launch/response limits and Windows containment stay unchanged.
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(
         NAME application_large_review_responsiveness
@@ -1374,13 +1375,13 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-bytes.png"
-            --cache-bytes)
+            --cache-bytes --resource-contracts)
     # [[BPR-1265]]. The byte-pressure course runs only in an optimized build; a
     # Debug build exits 77 with LARGE_REVIEW_CACHE_BYTES_SKIPPED and its reason,
     # and the row reports Skipped rather than a pass.
     set_tests_properties(application_large_review_cache_bytes PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 900
-        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_BYTES_OK"
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESOURCE_CONTRACTS_OK"
         SKIP_RETURN_CODE 77)
     # [[BPR-0967]]. Contained on Windows: measured 2026-10-02, it passes inside
     # the container (LARGE_REVIEW_HISTORY_SESSION_RACE_OK); it opens no data root.
@@ -1403,10 +1404,10 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-entries.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-cache-entries.png"
-            --cache-entries)
+            --cache-entries --resource-contracts)
     set_tests_properties(application_large_review_cache_entries PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 240
-        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_CACHE_ENTRIES_OK")
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESOURCE_CONTRACTS_OK")
     # [[BPR-1327]]. Opening files with preparation off, then on, in one window:
     # every prepared open must be answered by its prepared comparison. [[BPR-1369]]
     # Judged by work: each unprepared open reads its comparison's blobs and no
@@ -1434,10 +1435,10 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-loaded-close.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-loaded-close.png"
-            --loaded-close)
+            --loaded-close --resource-contracts)
     set_tests_properties(application_large_review_loaded_close PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
-        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_LOADED_CLOSE_OK")
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESOURCE_CONTRACTS_OK")
     bpr_add_network_isolated_test(
         NAME application_large_review_history
         WINDOWS_UNCONTAINED
@@ -1462,10 +1463,10 @@ if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
             $<TARGET_FILE:Git::Git>
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-resources.json"
             "${CMAKE_CURRENT_BINARY_DIR}/large-review-resources.png"
-            --resources)
+            --resources --resource-contracts)
     set_tests_properties(application_large_review_resources PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" RUN_SERIAL TRUE TIMEOUT 120
-        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESOURCES_OK")
+        PASS_REGULAR_EXPRESSION "LARGE_REVIEW_RESOURCE_CONTRACTS_OK")
 endif()
 
 # [[BPR-0967]]. Windows row timeouts for the large-review courses. A Windows

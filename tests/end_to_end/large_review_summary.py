@@ -147,7 +147,9 @@ def course(report):
         for budget in report.get("CompletionBudgets", [])
     ]
     keep["Phases"] = phases(report.get("Phases", []))
-    keep["Resources"] = resources(report.get("Resources", []))
+    extended = report.get("Extended", {})
+    coverage = heap_coverage(extended)
+    keep["Resources"] = resources(report.get("Resources", []), coverage)
     inputs = report.get("ActiveInputs", [])
     if inputs:
         keep["ActiveInputs"] = {
@@ -156,13 +158,15 @@ def course(report):
             "max_delivered_ms": rounded(max(item["DeliveredAfterMs"] for item in inputs)),
             "max_applied_ms": rounded(max(item["AppliedAfterMs"] for item in inputs)),
         }
-    extended = report.get("Extended", {})
     heap = extended.get("Heap", {})
-    if heap.get("Samples"):
+    if heap:
         keep["Heap"] = {
-            "BaselineMiB": round(heap["BaselineBytes"] / MIB, 3),
-            "PeakGrowthMiB": round((heap["PeakBytes"] - heap["BaselineBytes"]) / MIB, 3),
-            "FinalGrowthMiB": round((heap["FinalBytes"] - heap["BaselineBytes"]) / MIB, 3),
+            "CounterCoversAllocator": coverage,
+            "Status": "measured" if coverage is True else "unavailable" if coverage is False else "unreported",
+            "BaselineMiB": round(heap["BaselineBytes"] / MIB, 3) if coverage is True else None,
+            "PeakGrowthMiB": round((heap["PeakBytes"] - heap["BaselineBytes"]) / MIB, 3) if coverage is True else None,
+            "FinalGrowthMiB": round((heap["FinalBytes"] - heap["BaselineBytes"]) / MIB, 3) if coverage is True else None,
+            "RawNativeCounter": heap,
             "Samples": heap["Samples"],
             "MaxSampleIntervalMs": rounded(heap["MaxSampleIntervalMs"]),
             "MaxSampleCostMs": rounded(heap["MaxSampleCostMs"]),
@@ -184,27 +188,64 @@ def course(report):
             "ProviderHeldMs", "ProviderCancelAckMs", "ProviderExitMs", "ProviderStopped",
             "BudgetsEnforced", "UnenforcedLimitMisses", "MemoryMethod", "Failure",
             "WaitExpiry", "LimitBasis", "KnownInputMisses", "CourseClockScale",
+            "ResourceContracts", "NativeHeapCounterCoversAllocator", "OwnerReleaseChecked",
+            "ObservedComparisonOwners", "ObservedDiffOwnersReleased", "ObservedIndexOwnersReleased",
+            "CollectAtCleanup", "ReviewReopenDiagnostic", "ReopenOwnersReleased",
         )
         if key in extended
     }
+    budgets = [{**item, "Enforced": budget_enforcement(extended, item)}
+               for item in extended.get("ResourceBudgets", [])]
+    if budgets:
+        keep["ResourceBudgetSummary"] = {
+            "Enforced": sum(item["Enforced"] is True for item in budgets),
+            "EnforcedMisses": [item for item in budgets if item.get("Enforced") and item.get("WithinLimit") is False],
+            "TelemetryMisses": [item for item in budgets if item["Enforced"] is False and item.get("WithinLimit") is False],
+            "UnknownEnforcement": sum(item["Enforced"] is None for item in budgets),
+            "Unmeasured": sum(item.get("CounterCoversAllocator") is False for item in budgets),
+        }
     return keep
 
 
-def resources(samples):
-    """One row per sample phase in MiB; a numbered family keeps its count and
-    the maximum of each figure."""
+def budget_enforcement(extended, item):
+    if "Enforced" in item:
+        return item["Enforced"]
+    # Preserve the original R7 legacy gate, before per-predicate policy was
+    # recorded. Unknown older reports must not become telemetry by omission.
+    if "BudgetsEnforced" in extended and "CounterCoversAllocator" in item:
+        return extended["BudgetsEnforced"] and item["CounterCoversAllocator"] and not extended.get("AllocationProfile", False)
+    return None
+
+
+def heap_coverage(extended):
+    """Never infer coverage from a native counter returning zero. R7 reports
+    carried it per budget before R8 added the explicit course field."""
+    coverage = extended.get("NativeHeapCounterCoversAllocator")
+    if isinstance(coverage, bool):
+        return coverage
+    reported = {item["CounterCoversAllocator"] for item in extended.get("ResourceBudgets", [])
+                if item.get("Metric") == "LiveHeapGrowthBytes" and "CounterCoversAllocator" in item}
+    return reported.pop() if len(reported) == 1 else None
+
+
+def resources(samples, heap_coverage):
+    """One row per phase family and collection stage in MiB. Preserve raw
+    native counters, but qualify heap figures by actual allocator coverage."""
     families = {}
     for sample in samples:
-        families.setdefault(re.sub(r"_\d+$", "_N", sample["Phase"]), []).append(sample)
+        key = (re.sub(r"_\d+$", "_N", sample["Phase"]), sample.get("Stage", "ordinary"))
+        families.setdefault(key, []).append(sample)
     result = []
-    for name, members in families.items():
+    for (name, stage), members in families.items():
         def most(key, members=members):
             return round(max(member[key] for member in members) / MIB, 3)
         result.append({
-            "Phase": name, "Count": len(members),
+            "Phase": name, "Stage": stage, "Count": len(members),
             "FootprintGrowthMiB": most("FootprintGrowthBytes"),
             "LifetimePeakGrowthMiB": most("LifetimePeakGrowthBytes"),
-            "LiveHeapGrowthMiB": most("LiveHeapGrowthBytes"),
+            "LiveHeapGrowthMiB": most("LiveHeapGrowthBytes") if heap_coverage is True else None,
+            "NativeHeapCounterCoversAllocator": heap_coverage,
+            "RawNativeLiveHeapGrowthMiB": most("LiveHeapGrowthBytes"),
             "FootprintMiB": most("PhysicalFootprintBytes"),
             "ResidentMiB": most("ResidentBytes"),
             "DiffCacheMiB": most("DiffCacheBytes"),
@@ -278,7 +319,9 @@ def main():
                 for key in ("CompletionBudgets", "Phases", "Resources", "Extended", "Heap", "ActiveInputs"):
                     entry.pop(key, None)
                 extended = report.get("Extended", {})
-                kept = ("BudgetsEnforced", "UnenforcedLimitMisses", "Failure", "WaitExpiry", "CourseClockScale")
+                kept = ("BudgetsEnforced", "UnenforcedLimitMisses", "Failure", "WaitExpiry", "CourseClockScale",
+                        "ResourceContracts", "NativeHeapCounterCoversAllocator", "OwnerReleaseChecked",
+                        "ObservedComparisonOwners", "ObservedDiffOwnersReleased", "ObservedIndexOwnersReleased")
                 entry.update({key: extended[key] for key in kept if key in extended})
         except (json.JSONDecodeError, KeyError, TypeError) as error:
             entry["unreadable"] = repr(error)

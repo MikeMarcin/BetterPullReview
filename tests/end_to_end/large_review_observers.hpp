@@ -36,6 +36,22 @@ namespace bpr::e2e::large_review {
 	/// mmapped chunks on Linux. Zero where no method exists.
 	[[nodiscard]] auto native_live_heap_bytes() -> std::uint64_t;
 	[[nodiscard]] auto native_memory_method() -> const char*;
+	/// Native zone/UCRT/glibc counters exclude replacement allocators. An
+	/// unavailable observation must not turn a zero into a passing heap bound.
+	[[nodiscard]] constexpr auto native_live_heap_covers_allocator() -> bool
+	{
+#if defined(BPR_BENCH_MIMALLOC) || defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+		return false;
+#elif defined(__has_feature)
+	#if __has_feature(address_sanitizer) || __has_feature(leak_sanitizer) || __has_feature(thread_sanitizer)
+		return false;
+	#else
+		return BPR_LARGE_REVIEW_NATIVE_MEMORY != 0;
+	#endif
+#else
+		return BPR_LARGE_REVIEW_NATIVE_MEMORY != 0;
+#endif
+	}
 
 	struct native_allocator_release_result
 	{
@@ -103,7 +119,7 @@ namespace bpr::e2e::large_review {
 		explicit live_heap_sampler(bool aEnabled)
 		{
 #if BPR_LARGE_REVIEW_NATIVE_MEMORY
-			if (aEnabled) {
+			if (aEnabled && native_live_heap_covers_allocator()) {
 				Observation.BaselineBytes = current_bytes();
 				Observation.PeakBytes     = Observation.BaselineBytes;
 				Worker                    = std::jthread{ [this](std::stop_token aStop) { sample(aStop); } };
