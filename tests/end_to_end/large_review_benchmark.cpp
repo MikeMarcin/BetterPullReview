@@ -739,11 +739,12 @@ namespace bpr::e2e::large_review {
 		if (!aReport.ResourceCourse && !aReport.CacheEntryCourse && !aReport.CacheByteCourse) {
 			return;
 		}
-		const bool baselineExists = !aReport.Resources.empty();
-		const bool cleanup        = cleanup_boundary(aPhase);
-		auto       sample         = capture_resources(aReport, aApplication, aPhase,
-													  cleanup && aReport.Extended.CollectAtCleanup ? "cleanup-before-collection" : "ordinary");
-		const auto append         = [&aReport](const resource_sample& aSample) {
+		const bool baselineExists       = !aReport.Resources.empty();
+		const bool cleanup              = cleanup_boundary(aPhase);
+		auto       sample               = capture_resources(aReport, aApplication, aPhase,
+															cleanup && aReport.Extended.CollectAtCleanup ? "cleanup-before-collection" : "ordinary");
+		const auto beforeCollectionPeak = sample.LifetimePeakGrowthBytes;
+		const auto append               = [&aReport](const resource_sample& aSample) {
 			aReport.Resources.push_back(aSample);
 			std::cerr << "resource-sample:" << *glz::write_json(aSample) << '\n';
 		};
@@ -776,7 +777,9 @@ namespace bpr::e2e::large_review {
 															: aReport.SampledFootprintGrowthLimitBytes;
 		record_resource_budget(aReport, sample, "FootprintGrowthBytes", sample.FootprintGrowthBytes, footprintLimit,
 							   "sampled fixture footprint growth exceeded its platform budget");
-		record_resource_budget(aReport, sample, "LifetimePeakGrowthBytes", sample.LifetimePeakGrowthBytes, footprintLimit,
+		// Linux VmHWM fell slightly across two forced collections. Keep both
+		// raw samples, and never let a lower post-collection reading hide a miss.
+		record_resource_budget(aReport, sample, "LifetimePeakGrowthBytes", std::max(beforeCollectionPeak, sample.LifetimePeakGrowthBytes), footprintLimit,
 							   "fixture lifetime peak footprint growth exceeded its platform budget");
 		if (cleanup) {
 			const auto cleanupLimit = sample.Phase == "application_destroyed"
