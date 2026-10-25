@@ -394,7 +394,9 @@ namespace bpr::qt {
 				return { };
 			}
 			const auto* straightPixels = decoded.constBits();
-			auto        retained       = decoded.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+			// Validation is complete; let Qt consume the unique 32-bit strip
+			// instead of keeping it alive beside a second full-size image.
+			auto retained = std::move(decoded).convertToFormat(QImage::Format_ARGB32_Premultiplied);
 			if (retained.isNull()) {
 				return { };
 			}
