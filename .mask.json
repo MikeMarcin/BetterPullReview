@@ -18,10 +18,14 @@
           {
             "id": "implement-rfc",
             "source": "agentskills"
+          },
+          {
+            "id": "remote-station",
+            "source": "agentskills"
           }
         ],
-        "commit": "f8e70fd067e16d102fd53c9d4987b0c951bc526b",
-        "definition_digest": "sha256:4abf11c2b740f00b35e55ae753326ba7dc1fa593d06be2f75898739158c8d484",
+        "commit": "e0b729ca1e8f68a2015aab9062e6af61579b09eb",
+        "definition_digest": "sha256:c7d8bd2001499727fa475026632901ffbf192cfefa70eaf171b026cb6e4fc0f1",
         "repository": "https://github.com/MikeMarcin/AgentSkills.git"
       }
     },
@@ -78,6 +82,13 @@
     },
     {
       "id": "pr-tour",
+      "source": "agentskills"
+    },
+    {
+      "id": "remote-station",
+      "introduced_by": [
+        "bundle:agentskills/rfc"
+      ],
       "source": "agentskills"
     },
     {
