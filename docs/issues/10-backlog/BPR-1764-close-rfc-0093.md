@@ -401,3 +401,16 @@ source-owned Mac and Linux builds and direct native courses are active; actual
 package/security checks remain required before any corrective integration.
 The ledger and machine checkpoint will receive the final measured decision.
 No signing, release/version change, push, publication or desktop capture.
+
+### Owner correction — diagnostic collection only
+
+The owner explicitly rejected setting product purge delay to zero merely to
+pass a course, and asked whether tests can trigger a manual purge. No product
+prototype was integrated into main. The isolated prototype `645a8125b` was
+reverted in `676ac3b42`; its unfinished native runner and tidy were interrupted
+by their exact task-owned PIDs. Its partial results are unaccepted evidence.
+The current correction is limited to an opt-in benchmark diagnostic: retain
+normal close/destruction samples, observe one/five seconds of Qt idle, then
+call `mi_collect(true)` and record the result and cost separately. The unchanged
+real-workflow course and product settings remain authoritative. No production
+hook, trim policy or accepted memory-budget change is authorized by this step.
