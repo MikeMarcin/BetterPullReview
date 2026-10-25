@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1768"
+  ],
+  "reserve_for": "mimalloc-memory-qualification",
+  "purpose": "Owner-directed follow-up for unqualified allocator-neutral process/heap memory regression evidence after RFC-BPR-0093 useful-test audit",
+  "created": "2026-10-25T04:17:13.413877+00:00",
+  "base": "73877b822700dac1fa15c2d46eb44dcbc58f8af6"
+}
