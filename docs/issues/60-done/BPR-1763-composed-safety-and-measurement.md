@@ -75,3 +75,27 @@ The Release probe's optimized-away impossible malloc call is corrected without
 weakening null/ENOMEM; native Mac/Ubuntu Release rows pass. Owner-r5 no longer
 requires Intel execution; actual signed-installed/Cocoa Mac and final package
 acceptance remain pending on BPR-1759/1762/1764.
+
+
+## Cleanup-policy reassessment under owner r5
+
+The [completed-boundary comparison](../../verification/RFC-BPR-0093.md#cleanup-policy-reassessment--completed-boundaries)
+adds a test-only opt-in policy with enforced original active/peak limits,
+pre/post cleanup samples, native baseline release APIs and collection latency.
+All original flags remain authoritative. Full Mac baseline/mimalloc ordinary
+results are 6/6 and 3/6; their collected counterparts are 6/6 and 4/6. Ubuntu
+stays 4/6 and 2/6 under either policy. The one Mac resources verdict change
+cannot be attributed solely to collection because its pre-collection peak
+was already lower. Final focused Mac proof drops prune current growth
+162.33→119.69 MiB while retaining the failed 162.34 MiB lifetime peak against
+160. Linux also retains active/peak and some cleanup-current failures.
+Neither baseline behavior nor allocator heap coverage is assumed.
+
+Test producers `806df31d2`/`84a177214` integrate as `c6be37f34`/`42f0ea86b`.
+Raw failed samples are now retained in partial JSON. A lower post-collection
+Linux native-peak reading cannot hide the larger pre-collection reading.
+No product default/hook, budget, fixture, package or CTest registration changes.
+This augments reporting acceptance; it is not a BPR-0967 repair. The owner's
+subsequent useful-test/allocator-neutral-gate and supported-option mandate
+continues as a separate evidence-backed investigation, preserving these limits
+and failures. Native signed-installed/Cocoa/package acceptance stays pending.

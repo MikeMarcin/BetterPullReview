@@ -1187,3 +1187,212 @@ unrelated data was moved. All earlier candidate roots and raw evidence remain.
 BPR-1763 stays terminal reporting acceptance; BPR-1762, signed-installed/Cocoa
 Mac and final AC07/AC09/RFC closeout remain pending. No signing, publication,
 version change, push, owner-desktop access or production hook was performed.
+
+
+## Cleanup-policy reassessment — completed boundaries
+
+The owner asked for an empirical reassessment of test-only collection at
+completed cleanup boundaries, with the same limits and every active/peak
+failure preserved. The owner suggested that default allocators might behave
+like zero-delay purging; that is a hypothesis to measure, not an assumed
+property. This follow-up authorizes the separately reported comparison below.
+It does not amend AC08's unchanged-course requirement or make collection a
+production policy. The rejected zero-delay product prototype remains reverted.
+
+### Exact predicates and the original failures
+
+The six rows are launch, responsiveness, cache bytes, cache entries, loaded
+close and resources. Launch/responsiveness gate their own public-path and
+latency observations, without resource sampling. The four resource rows gate
+sampled process-footprint growth and process-lifetime peak growth at every
+sample: Mac 160 MiB / Ubuntu 168 MiB, except cache bytes at 184 / 240 MiB.
+Completed cleanup additionally requires live-heap growth at most 84 MiB,
+then 32 MiB after application destruction, and zero derived-cache bytes,
+entries and outstanding diff/epoch jobs. A separate sampled live-heap peak
+limit spans the whole course (160 / 168 MiB; cache bytes 184 / 216 MiB).
+Ownership, exact source, preserved Git/catalog data and public shutdown remain
+independent assertions. Collection cannot reset any active sample or peak.
+
+An audit found that an ordinary failure's sample was printed to stderr before
+the limit check but appended to partial JSON only afterward. Reconstructing
+that missing sample from the retained log gives this exact original inventory.
+Values are current / lifetime-peak growth in MiB at the first failed sample;
+all original raw reports and logs are retained.
+
+| Original pair / row | First failure phase | Current / lifetime peak | Limit |
+|---|---|---:|---:|
+| Mac mimalloc cache bytes | `cache_byte_selection_16` (active) | 187.11 / 187.14 | 184 |
+| Mac mimalloc resources | `after_prune` (cleanup) | 164.84 / 164.86 | 160 |
+| Ubuntu baseline loaded close | `large_file_ready` (active) | 171.89 / 171.89 | 168 |
+| Ubuntu baseline resources | `large_file_ready` (active) | 171.64 / 171.64 | 168 |
+| Ubuntu mimalloc cache bytes | `cache_byte_selection_1` (active) | 293.95 / 293.95 | 240 |
+| Ubuntu mimalloc cache entries | `review_loaded` (active) | 193.12 / 193.12 | 168 |
+| Ubuntu mimalloc loaded close | `review_loaded` (active) | 190.45 / 190.45 | 168 |
+| Ubuntu mimalloc resources | `review_loaded` (active) | 188.78 / 188.78 | 168 |
+
+The original Mac baseline passes 6/6, Mac mimalloc passes 4/6 and Ubuntu
+baseline/mimalloc pass 4/6 and 2/6 respectively. Mac mimalloc cache entries and
+loaded close already complete cleanup. The first Mac resources miss is indeed
+at cleanup, so checking current footprint after explicit collection is a
+reasonable alternative policy to test. Its process-lifetime peak also exceeds
+the existing ceiling and cannot be erased by collection. Other listed misses
+occur before cleanup. Ordinary first-failure behavior means unvisited later
+predicates were not measured, not passed. Exact raw references and reconstructed
+samples are `build/mimalloc-cleanup-r7/original-predicate-inventory.json`.
+
+### Candidate comparison policy
+
+Test producer `806df31d2e517b27702a416c8046f0a0b8625ddf` changes only the
+large-review benchmark, native observer and observer header. Ordinary flags
+retain their assertions and now preserve a failing sample in partial JSON.
+The opt-in `--allocator-cleanup-collect` suffix accepts only the four resource
+courses and is not added to CTest registrations. It collects only after the
+existing prune/delete/shutdown/destruction boundary has completed and derived
+cache/job counters are zero. Raw before/after samples, their indices, API
+result and collection wall duration are retained. The canonical cleanup
+current-footprint/live-heap observation is the post-collection sample; every
+ordinary active footprint, lifetime peak and whole-course heap peak remains
+subject to the original limit. Numeric misses are latched until the completed
+course exits 1, permitting later cleanup observations; structural failures
+still stop the course. Budgets remain enforced, unlike the earlier allocation
+profile diagnostic. No native peak is reset or baseline moved.
+
+Each allocator gets a supported best-effort request: `mi_collect(true)`,
+`malloc_zone_pressure_relief(nullptr, 0)` on the Mac baseline, or
+`malloc_trim(0)` on glibc. These APIs differ in reach and return type. Pinned
+mimalloc `src/theap.c` collects the calling thread's pages and visits arenas
+with forced purge; it does not promise to collect every live thread's pages.
+The Mac SDK says NULL examines all zones and a zero goal requests maximal
+relief. The comparison reports these actual effects rather than treating the
+baseline as implicitly zero-delay. A Windows `_heapmin()` implementation
+passes native MSVC /W4 /WX syntax checks, but no Windows runtime collection
+measurement is claimed here.
+
+The inherited native live-heap counters (malloc zones / glibc mallinfo2) do not
+cover mimalloc. Predicate records explicitly mark that lack of coverage;
+a zero reading does not establish zero allocated heap. Process footprint and
+native lifetime peak still cover the process. This follow-up neither silently
+substitutes heap statistics nor certifies the unmeasured heap bounds.
+
+### Native matched results and decision
+
+The full pair at producer `806df31d2` uses the same native M4 Pro/48 GiB
+macOS arm64 and Ubuntu 26.04 WSL2 x64 stations, Qt 6.12.0, Release toolchains,
+feature/fixture inputs and thresholds recorded above. Each allocator first
+runs the original six registered rows, then the four collected variants.
+Mimalloc option/injection environment variables are absent. Dependency output
+confirms mimalloc present only in the selected allocator graph. Exact benchmark
+and runtime bytes are retained before relinking the baseline; both trees are
+restored to mimalloc afterward. Runs are serial on each station.
+
+`O/C` below means ordinary / collected, in separate processes. Launch and
+responsiveness have no collected variant and retain their ordinary verdict.
+These are measured numeric/structural outcomes; mimalloc's uncovered native
+heap counters still cannot establish its true allocated-heap bounds.
+
+| Native pair | Launch | Response | Cache bytes O/C | Cache entries O/C | Loaded close O/C | Resources O/C |
+|---|---|---|---|---|---|---|
+| Mac baseline | pass | pass | pass/pass | pass/pass | pass/pass | pass/pass |
+| Mac mimalloc | pass | pass | fail/fail | pass/pass | fail/fail | fail/pass |
+| Ubuntu baseline | pass | pass | pass/pass | pass/pass | fail/fail | fail/fail |
+| Ubuntu mimalloc | pass | pass | fail/fail | fail/fail | fail/fail | fail/fail |
+
+The new ordinary Mac mimalloc misses are cache bytes at
+`cache_byte_selection_17` (184.19 current / 184.22 peak against 184 MiB),
+loaded close at `before_loaded_close` (161.98 / 161.98 against 160), and
+resources at `after_prune` (164.47 / 164.48 against 160). The collected Mac
+cache-byte/loaded-close rows still fail active values of 189.86 / 163.61 MiB
+and their retained peaks. The collected resources process has an already-lower
+first pre-collection prune sample, 148.73 MiB with peak 157.41. Its pass does
+not prove that collection caused the ordinary-to-collected verdict change;
+process-to-process variability preceded the first collection. No retry-until-
+pass or retrospective relabeling is used.
+
+Every Ubuntu mimalloc collected row still fails active current/peak limits:
+cache bytes at selection 1 (283.35 against 240), and cache entries / loaded
+close / resources at review load (192.12 / 188.31 / 188.27 against 168).
+Current growth also remains excessive after collection at cache-entry shutdown
+(174.78), loaded-close shutdown (185.20), and resources prune/delete/shutdown
+(235.29 / 237.89 / 196.84 MiB). The baseline's two resource rows still fail
+active/peak limits, separately from mimalloc's additional failures.
+
+Representative resources observations in MiB, preserving every raw sample:
+
+| Native allocator / boundary | Before collection | After collection | Collection ms |
+|---|---:|---:|---:|
+| Mac baseline, prune | 105.22 | 105.22 | <0.001 |
+| Mac mimalloc, prune | 148.73 | 117.08 | 1.930 |
+| Ubuntu baseline, prune | 173.14 | 117.23 | 3.156 |
+| Ubuntu mimalloc, prune | 272.16 | 235.29 | 1.464 |
+| Mac baseline, destroyed | 110.38 | 110.38 | 0.001 |
+| Mac mimalloc, destroyed | 91.08 | 44.08 | 2.988 |
+| Ubuntu baseline, destroyed | 100.14 | 63.54 | 3.631 |
+| Ubuntu mimalloc, destroyed | 196.66 | 129.91 | 2.206 |
+
+All ten Mac baseline requests report zero bytes released and no measured
+footprint change. All ten glibc baseline requests return 1 and reduce current
+RSS. These observations do not establish any default allocator's purge-delay
+setting. In particular, the Linux baseline also has substantial releasable
+memory at the completed boundary. Mimalloc collection releases a large fraction
+but does not make every cleanup current-memory predicate pass on Linux, and
+cannot erase the active or lifetime-peak failures on either host.
+
+Forty completed collection boundaries across sixteen variants retain both
+samples, zero cache/job counts, successful shutdown and destroyed diff/index
+owners. Loaded-close/cache variants also release the window/documents. Every
+numeric miss agrees with the exit verdict. The native heap-counter coverage
+flag remains false for mimalloc rather than treating zero as heap acceptance.
+
+### Peak-preserving correction and exact verification
+
+Linux raw `VmHWM` growth decreases across two observed requests: loaded-close
+shutdown 271.5078 to 271.3438 MiB and resources prune 272.1641 to 271.1406.
+No counter-reset API was called. The final producer
+`84a1772145bfda3c127fe1772a9f1bb21a7fea2b` conservatively uses the larger
+pre/post native peak for that boundary's peak predicate and retains both raw
+readings. Earlier active failures remain latched. Re-evaluating all forty raw
+pairs with this stronger guard changes no full-matrix row verdict.
+
+Focused exact-final-source courses retain a useful Mac counterexample:
+ordinary resources happens to pass (largest observed peak 159.88 MiB), while
+the separately launched collected resources process reaches 162.33 current /
+162.34 peak before prune collection. Collection reduces current growth to
+119.69 MiB and later destruction to 44.11, but the original 160 MiB lifetime-
+peak gate correctly fails. Final collected loaded close also fails its active
+161.97 MiB and peak. Final Ubuntu ordinary resources and both collected
+resources/loaded-close fail their numeric limits while the collected courses
+complete every ownership/cleanup assertion. No failing row is relabeled.
+
+The full-matrix benchmark SHA-256 values are:
+
+- Mac mimalloc `ce0fd423d8caa9ded598de8766a6318ce60c3325d72bf2b37f8449da467ffed1`;
+  baseline `ccc1eb5977244dd8887f480520a9ea0f5e9128a7698e02f2bddc5f94b938a0cc`.
+- Ubuntu mimalloc `ddc63e1414ad06ecf93f42061523aba24384338fc7d34b57e98be364fb1ed1e9`;
+  baseline `e0a94e1bdf6c26b080f7251c6df0bca04a40bf8210175f23dcedc13ed01d6326`.
+
+Final focused benchmark SHA-256: Mac
+`04dded40c19aa057926746417b3262a805e91c68b2e7b8cbb5202d20db044b20`,
+Ubuntu `9672fe27db71c9357df80acb0c87a3db88db9173cade34b069f6091b99cd02bb`.
+Both cohorts use the unchanged runtime hashes from the preceding follow-up:
+Mac `90c1974c304ab7b5ba283f603b9c3f9f38a64edd03e9c847b7a2fee54e6a4627`,
+Ubuntu `72c4fd05b110d40fb4e49402d2bd39414cf2957017c6e0c144bff606946464ca`.
+
+The bounded test change is integrated as `c6be37f34` / `42f0ea86b`. No
+production source, option, pin, package, version or CTest registration changed.
+The opt-in comparison is a useful allocator-release policy with real numeric
+verdicts; it is not sufficient to repair these legacy whole-row failures.
+AC08's original comparison/reporting acceptance and all historical failures
+remain intact. Any normative gate redesign needs its own explicit owner
+amendment and risk justification. The owner's subsequent instruction to audit
+whether the tests are useful and make mimalloc pass authorizes that next
+investigation; it does not retroactively turn this cohort into passes.
+
+Runtime `build/mimalloc-cleanup-r7/` holds the full inventory, identities,
+ordinary/collected JSON and logs, `final-comparison-summary.json`, final
+`peak-guard/` native courses, control logs and validation. Native Linux records
+also remain in `/home/mmarcin/bpr-rfc0093-cleanup-r7`; the source/build tree is
+its `source` worktree. Mac source/build is
+`/Users/jaeger/.codex/worktrees/mimalloc-cleanup-r7/BetterPullReview`.
+Earlier candidates and evidence remain protected. Signed-installed/delivered
+Cocoa Mac, BPR-1762 and final RFC closeout remain pending under owner r5.
+No release, signing, credentials, push or owner-desktop operation occurred.

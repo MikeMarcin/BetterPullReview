@@ -478,3 +478,41 @@ check whether any actual row changes verdict, and record ambiguity before any
 acceptance update. BPR-1763 stays terminal reporting acceptance; Mac signed/
 Cocoa/package closeout remains pending under r5. Main's unrelated MASK/NEXT_ID/
 BPR-1766 changes remain untouched; no release/signing/version/push operation.
+
+## Latest checkpoint — completed-boundary comparison and useful-test mandate
+
+The same implementer completed the owner-directed R7 cleanup comparison and
+integrated only test paths as `c6be37f34` / `42f0ea86b`; exact test producers
+are `806df31d2` / `84a177214`. The
+[ledger](../../verification/RFC-BPR-0093.md#cleanup-policy-reassessment--completed-boundaries)
+binds all six ordinary rows and four collected variants for native Mac/Linux
+and both allocators, all raw pre/post samples, original limits, native API
+results/costs, exact images and real failures. A pre-collection peak guard
+prevents a lower post-collection Linux VmHWM reading from hiding a miss.
+Mac MSVC-independent native builds, Linux builds and Windows native-memory
+syntax checks pass. Exact format/tidy 22 pass; the collected failures retain
+successful ownership/cleanup assertions and correct exit codes. Ordinary flags
+call no collection. No product default or hook changed.
+
+The full matrix's observed Mac resources fail→pass cannot be attributed solely
+to collection: its pre-collection peak was already lower. Final exact-source
+Mac proof instead reduces current prune growth 162.33→119.69 MiB while its
+162.34 MiB lifetime peak correctly fails the 160 MiB limit. Ubuntu retains
+active/peak failures and some post-collection current-memory failures. Native
+heap counters do not cover mimalloc; zero is not heap acceptance. R7 raw data,
+validation and native identities are in `build/mimalloc-cleanup-r7/` and the
+approved station root `/home/mmarcin/bpr-rfc0093-cleanup-r7`.
+
+The owner then expanded the continuing mandate: BPR uses mimalloc and must
+pass useful tests. Audit each affected row's original purpose/history and
+user-visible risk; distinguish ownership/cache bounds, active/peak footprint,
+cleanup footprint and timing. Recommend retain/redefine/retire with evidence,
+then implement a defensible allocator-neutral or separately calibrated gate
+if warranted, preserving historical limits and failures without a silent
+waiver. Evaluate realistic upstream-supported options without zero purge delay
+or child-process global side effects, and verify responsiveness plus a real
+public workflow before adopting any product default. No release/signing/push.
+That is the next active frontier; no gate redesign is already accepted here.
+Signed-installed/delivered native Cocoa Mac and final package/closeout criteria
+remain pending under r5. Prior candidates and unrelated MASK edits remain
+protected. No review session/server/URL/cursor is active.

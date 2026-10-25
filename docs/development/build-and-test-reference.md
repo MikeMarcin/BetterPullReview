@@ -3845,3 +3845,36 @@ This baseline is unavailable in distribution graphs. Sanitizer/fuzzer graphs
 exclude both product and measurement overrides so their toolchain owns
 instrumentation. Course misses and BPR-0967's existing memory limits remain
 recorded; adopting an allocator promises no speedup or memory reduction.
+
+An opt-in **`--allocator-cleanup-collect`** suffix compares allocator release
+at completed cleanup boundaries. Pass it after exactly one of `--resources`,
+`--loaded-close`, `--cache-entries` or `--cache-bytes` to the existing benchmark
+argv. It preserves the original limits, active samples and process-lifetime
+peak. It records both samples and release latency at `after_prune`,
+`after_cache_delete`, `shutdown_drained` and `application_destroyed`, where
+that course reaches them. Derived cache/job counts must already be zero.
+The test requests `mi_collect(true)` for mimalloc, macOS
+`malloc_zone_pressure_relief(nullptr, 0)` or glibc `malloc_trim(0)` for the
+native baseline; the Windows implementation uses `_heapmin()` but has only
+syntax verification in this follow-up. These APIs request unused-page release;
+their reach and result types differ. The report names the actual API.
+
+Unlike `--allocation-profile-purge`, this comparison keeps
+`Extended.BudgetsEnforced=true`. Cleanup current-footprint/live-heap predicates
+use the post-collection sample. Every original active/peak predicate still
+gates; numeric misses accumulate so subsequent cleanup can be measured, then
+produce exit 1 and `LARGE_REVIEW_COLLECTED_CLEANUP_BUDGET_FAILED`. Other failures
+still stop immediately. A passing measured comparison prints
+`LARGE_REVIEW_COLLECTED_CLEANUP_OK`. Raw pre-collection values and native
+lifetime peaks remain in the report. The peak predicate retains the larger
+pre/post native reading if that counter decreases during collection. Per-predicate `CounterCoversAllocator`
+marks the inherited native heap-counter blind spot under mimalloc; a zero
+native heap reading cannot certify its allocated bytes.
+
+Ordinary flags and CTest registrations retain their original policy and
+verdicts. The collected variant is a separately reported benchmark policy,
+authorized for this investigation. Making it the normative memory course
+requires an explicit acceptance amendment; no change to AC08, a production
+purge hook/default, or a BPR-0967 resolution is inferred. Exact native results
+and remaining failures are in the
+[cleanup-policy ledger](../verification/RFC-BPR-0093.md#cleanup-policy-reassessment--completed-boundaries).
