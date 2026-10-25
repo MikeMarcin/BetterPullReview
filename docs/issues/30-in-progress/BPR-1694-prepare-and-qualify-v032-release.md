@@ -1,7 +1,7 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1694"
-title: "Prepare and qualify the coordinated v0.3.2 release"
+title: "Prepare and qualify the coordinated v0.3.3 full release"
 status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
@@ -10,7 +10,7 @@ platforms: ["mac", "win", "linux"]
 metadata: {"mandate":"release-v032-owner-request-20261021","baseline":"111235987772e808f4fae26383925759985b3041","execution_strategy":"direct","milestone_plan":{"id":"release-v032","path":"docs/rfcs/plans/release-v032/milestone-plan.json"},"external_state":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
 ---
 
-# Prepare and qualify v0.3.2
+# Prepare and qualify v0.3.3
 
 The owner requested `$publish-release v0.3.2 if there are fixes to be made make us an implementer`.
 This card owns source preparation, reproduced blocker repairs and exact-candidate
@@ -21,7 +21,7 @@ security, native installation or trust acceptance.
 
 ## Acceptance
 
-- AC1: Prepare grounded user-facing notes and version 0.3.2; commit one clean common candidate and preserve unrelated work.
+- AC1: Prepare grounded user-facing notes and version 0.3.3; commit one clean common candidate and preserve unrelated work.
 - AC2: Reconcile native jobs before dispatch; qualify the exact committed candidate with comprehensive native Release and Debug, retaining failures and configured skips. Repair reproduced blockers in explicit committed slices without weakening gates.
 - AC3: Prepare and audit complete binary, corresponding-source, SPDX, checksum, provenance and native-signature sets through the existing release tools and approved producer configuration. Keep required human/security/legal decisions explicit and use short attended review or wizard handoffs when needed.
 - AC4: Publish only a qualified, authorized exact candidate through the existing publisher; verify remote state and downloaded bytes/native trust. Preserve unfinished obligations and external continuation state if prerequisites prevent publication.
@@ -523,3 +523,136 @@ the committed draft-repair base also passes the corrected legacy account
 course (42.21 seconds), menu parity (0.68 seconds) and contained About (0.27
 seconds). These focused results prepare the next common candidate, rather
 than qualifying an artifact or closing the retained startup-time failure.
+
+
+## Published prerelease and authorized full-release version
+
+The owner accepted incomplete test qualification for the macOS v0.3.2
+prerelease. It was published at `20ee6d72a8b675a669c34a4705b29efad279b6e2`
+with eight assets after fresh Developer ID, Apple notarization, Gatekeeper,
+package/source/SPDX and anonymous-download/native-trust checks. The stable
+Latest remained v0.3.1. Source, digests, tag and published bytes stay immutable.
+The owner then requested the full coordinated release and explicitly selected
+v0.3.3 for the corrected binaries on 2026-10-22. The existing plan/card identity
+and external phase ledger preserve the original request and its elapsed time.
+The full release still requires its own complete native and artifact results;
+the prerelease test limitation does not supply a full-release PASS.
+
+## Enterprise probe terminal and current-head fixture barrier
+
+The complete Windows Release gate at the prerelease source selected 803 rows:
+801 passed and two failed. The enterprise preview probe stopped at the first
+mode publication: a native diagnostic recorded signed-out mode, no refusal and
+one publication immediately before shutdown; shutdown then closed the mode.
+The queued policy refusal had not yet landed. The self-test now waits for the
+typed enterprise policy refusal or explicit unavailable terminal before ending.
+It preserves the original zero-request/header/vault/sign-in predicates and the
+existing time budget. The native comparison reaches refusal at publication two;
+this corrects the verifier's premature shutdown, with no host-policy change.
+
+The review course's reveal helper caches an earlier file gesture. A buffered
+native observation after a push recorded that it had returned `shown` while
+the displayed comparison did not match the newly accepted head and no current
+publication was displayed. The course now waits for the actual displayed,
+accepted comparison before selecting the head line. It retains every original
+Comment, draft body, refusal, exact submission and scale assertion. This proves
+and repairs a stale fixture barrier; the earlier full-gate failure's exact
+line was not recorded, so the observation is not claimed as its sole cause.
+
+The exact two-file, non-instrumented fix candidate passes seven focused native
+Windows rows: unavailable preview (1.07 s), enabled preview (1.08 s), release
+selection (0.86 s), GHES refusal (0.85 s), and review submission at 100%, 125%
+and 200% (17.76, 17.97 and 18.88 s). Each row requires a selected test. The
+source seal for this corrected review course is renewed; no unrelated stale
+family is admitted. These are focused engineering results, not full native
+qualification of v0.3.3. Original failures and the failed diagnostic compilation
+are retained externally, without converting wrapper success into test success.
+
+The normal-application content seal initially rejects the changed entry point.
+The reviewed delta changes only the automated enterprise probe's terminal wait;
+it introduces no effect, provider routing or mutation bypass. The full
+`github_application.cpp` digest remains `777150d62bc2b381c740dd1ef150be933290577732c54c6693d7778fc5ce7f2c`.
+The existing mutation inventory is unchanged. The application manifest seal is
+renewed for this exact entry-point delta; the cheap direct-bypass counterexample
+method is required again before final native dispatch.
+
+
+### GHES Home diagnostic follow-up
+
+The owner reported Home refresh failure on GHES in the published prerelease.
+The anonymized diagnostic classifies requested discovery as
+`response_too_large`, including reads that sent two requests. This is not an
+HTTP status or proof of a particular size guard: synthetic GHES courses show
+that an oversized reviewer response and excessive reviewer records both produce
+that same signature. The private server's actual guard remains unconfirmed.
+
+Discovery now retains its last attempted closed operation and observed HTTP
+status with its existing bounded cost observation, and the host preserves those
+fields and any typed transport-failure source in the existing diagnostic event.
+No host, repository, login, URL, response body or credential is added. Unknown
+HTTP values remain zero; existing privacy validation is retained. This is
+investigation support, not a claim that the GHES failure has been fixed.
+
+Windows focused provider and Home-host courses passed with the diagnostic
+propagation assertions. The real logger course passed after its new fixture
+supplied the required sanitized discovery diagnosis; the privacy guard was not
+relaxed. The synthetic paged-read characterization also passed. Managed
+clang-format and clang-tidy 22 checks passed after correcting two test parameter
+names. Native qualification and source/artifact binding for a later candidate
+remain separate.
+
+The earlier Windows cache-byte full-course failure remains recorded. Six
+instrumented focused runs and a rebuilt uninstrumented focused run passed,
+without reproducing it. The course now distinguishes stale-key and stale-text
+observations and prints its compound predicate's state only on failure; its
+work, bounds and assertions remain unchanged. A passing rerun is not described
+as a root-cause fix. Stable publication still requires the remaining native
+qualification and GHES investigation disposition.
+
+
+### Owner amendment: integrate landed main and repair GHES without another diagnostic handoff
+
+The owner directed the next full release to include all changes landed on main
+and to attempt a grounded Home refresh repair from the supplied diagnostic,
+without making another round of diagnostic builds and human feedback a release
+prerequisite. The integrated local-main input is
+`e82537ad15b32871a8375b6143abe08e16a68b87`; canonical public remote main
+remains the immutable v0.3.2 source at integration time. The source merge keeps
+the release's narrow draft binding repair, GCC 15 build corrections and bounded
+last-operation/status observations alongside main's new request-cost metrics,
+features and drawer fixes. It does not turn prior native failures into passes.
+
+The production application manifest is resealed for the integrated main source
+plus the already reviewed release entry-point and private-draft binding changes.
+The full application digest matches main; the mutation branch digest is unchanged.
+The reviewed command-owned fixture retains main's additions and the release's
+stronger current-comparison wait, so its ownership digest is renewed for that
+merged file. The direct-bypass counterexample check passes; full native gates
+and artifact qualification remain separate.
+
+
+### Bounded Home requested-reviewer recovery candidate
+
+The owner-supplied 0.3.3 diagnostic narrows both observed failures to
+`ListRequestedReviewers`, HTTP 200, after thirteen aggregate requests in the
+requested-discovery read. It does not identify the precise private size guard.
+The REST singleton returns full user/team metadata and has no documented paging
+parameters. Raising global byte, JSON or actor limits would not be justified.
+
+The repair retries no oversized REST payload. Only its typed response-limit
+failure selects the existing projected GraphQL Home query for one exact PR,
+then the existing fully exhausted review-request connection. Exact repository
+name/node, PR number/node and head/base identities bind every page. Direct user
+membership still has to name the viewer; matching team slugs, hidden actors,
+partial pages and a search hit alone establish no membership. The additional
+recovery work is bounded across one discovery read at 32 requests and 8 MiB;
+per-page, structural and existing connection limits stay unchanged. Ordinary
+REST failures do not recover, and recovery failures preserve their actual typed
+cause, rate observations and retry delay.
+
+Regression candidates cover each bounded REST guard, a viewer on the second
+full GraphQL page, wrong identity/revision, duplicate actors, configured page
+exhaustion, the shared recovery budget, team-only results, cancellation,
+authentication and malformed-REST refusal, and recovery throttling. Formatting
+and whitespace checks pass. Native build and test results are supplied through
+the parent-owned producer and remain pending until actually observed.

@@ -537,12 +537,25 @@ operations outside the recorded snapshot manifest:
   for at most 30 rows of one answer, under the row's own repository. An
   authored row takes its awaited reviewer count from it; a requested row is
   kept only when the users it lists include the viewer, so a team-only request
-  is not discovered. A row the refresh's retained read already read in full
+  is not discovered. Only an explicit REST response-limit failure (including
+  bounded body/JSON/record or transport limits) may recover through the existing
+  projected GraphQL reads: one single-number `ListHomePullRequests` alias
+  establishes the exact repository name, node and PR number/node/head/base;
+  `ListReviewRequests` then exhausts the roster against that identity. Its
+  existing 100-record pages, ten-page/1,000-request ceiling, duplicate detection
+  and cursor/total checks remain. A discovery read shares at most 32 additional
+  recovery requests and 8 MiB across all its rows, independently of optional
+  summary work; no per-page or JSON bound is raised. Partial recovery is never
+  accepted. Authentication, permission, malformed responses and other ordinary
+  REST failures do not trigger recovery; a failed recovery returns its actual
+  typed failure, rate state and retry delay. No search result alone proves the
+  viewer is a directly requested user. A row the refresh's retained read already read in full
   ([[BPR-1680]]) is returned `Reused` with no detail read.
 
 - `ListHomePullRequests` ([[BPR-1680]]): `POST {graphql}` with
   `query ListHomePullRequests($owner,$name){repository{id nameWithOwner p0:pullRequest(number:N){...HomePullRequest} ...}}`
-  for two to ten retained pull requests of one repository, the numbers
+  for two to ten retained pull requests of one repository (or one exact
+  pull request solely to anchor bounded requested-reviewer recovery), the numbers
   literals of the document (`semantic_read_request::PullRequestNumbers`,
   ascending) and the variables exactly `owner` and `name`. The
   `HomePullRequest` fragment asks for the title, draft and state, head and
@@ -566,7 +579,9 @@ else, and refuses both under any other parent; the requested-reviewers read runs
 context. Native HTTPS correlates both against the exact account credential as
 it does a pull request read, and an anonymous authority refuses both as
 identity operations. The search bills the `search` rate resource and the
-detail read `core`. Any failed request fails the whole answer, a search whose
+detail read `core`; projected recovery bills `graphql`. An unrecovered failed
+request fails the whole answer; the narrow resource-limit recovery above never
+turns a failure into an empty roster. A search whose
 repository qualifier GitHub refuses (422) is reported as lost access, and
 nothing in an answer is a snapshot, a file, a commit, a thread or a diff.
 

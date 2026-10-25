@@ -4626,12 +4626,41 @@ namespace {
 		}
 	}
 
+	/// \brief Reads the dominant glyph ink, excluding the rasterized background.
+	[[nodiscard]] auto dominant_glyph_ink(const QImage& aImage, const QRect& aSample, const QColor& aFill) -> QColor
+	{
+		auto       counts = std::map<QRgb, int>{ };
+		const auto sample = aSample.intersected(aImage.rect());
+		for (auto y = sample.top(); y <= sample.bottom(); ++y) {
+			for (auto x = sample.left(); x <= sample.right(); ++x) {
+				const auto pixel = aImage.pixel(x, y);
+				// The raster's 8-bit conversion can differ from QColor::rgb()
+				// by one channel step. Those background pixels are not glyphs.
+				if (std::abs(qRed(pixel) - aFill.red()) > 1 || std::abs(qGreen(pixel) - aFill.green()) > 1 || std::abs(qBlue(pixel) - aFill.blue()) > 1) {
+					++counts[pixel];
+				}
+			}
+		}
+		// A solid core and a subpixel edge can have equal support. Prefer the
+		// colour farther from the fill, not the map's incidental RGB order:
+		// antialiasing moves the glyph's channels toward the background.
+		const auto most = std::ranges::max_element(counts, { }, [&aFill](const auto& aEntry) {
+			const auto color = QColor{ aEntry.first };
+			const auto red   = color.red() - aFill.red();
+			const auto green = color.green() - aFill.green();
+			const auto blue  = color.blue() - aFill.blue();
+			return std::pair{ aEntry.second, red * red + green * green + blue * blue };
+		});
+		return most == counts.end() ? QColor{ } : QColor{ most->first };
+	}
+
 	/// \brief The colour most of a mark's glyph pixels are painted in.
 	///
 	/// \details Read from the pane's own rendering, because what a selection
 	/// list says and what Qt paints can differ: a foreground-only layer over
 	/// text an earlier selection drew is skipped. The fill is left out; at 2x
-	/// a glyph's solid core outnumbers its antialiased edge.
+	/// a glyph's solid core outnumbers its antialiased edge or wins a tie by
+	/// standing farther from the background.
 	[[nodiscard]] auto painted_ink(const QPlainTextEdit& aPane, const QImage& aImage, const QTextEdit::ExtraSelection& aMark) -> QColor
 	{
 		auto from = aMark.cursor;
@@ -4641,17 +4670,55 @@ namespace {
 		const auto begin  = aPane.cursorRect(from);
 		const auto end    = aPane.cursorRect(to);
 		const auto scale  = aImage.devicePixelRatio();
-		const auto fill   = aMark.format.background().color().rgb();
-		auto       counts = std::map<QRgb, int>{ };
-		for (auto y = static_cast<int>(std::ceil(begin.top() * scale)); y < static_cast<int>(std::floor((begin.bottom() + 1) * scale)); ++y) {
-			for (auto x = static_cast<int>(std::ceil((begin.left() + 1) * scale)); x < static_cast<int>(std::floor(end.left() * scale)); ++x) {
-				if (x >= 0 && y >= 0 && x < aImage.width() && y < aImage.height() && aImage.pixel(x, y) != fill) {
-					++counts[aImage.pixel(x, y)];
-				}
+		const auto sample = QRect{ QPoint{ static_cast<int>(std::ceil((begin.left() + 1) * scale)), static_cast<int>(std::ceil(begin.top() * scale)) },
+								   QPoint{ static_cast<int>(std::floor(end.left() * scale)) - 1, static_cast<int>(std::floor((begin.bottom() + 1) * scale)) - 1 } };
+		return dominant_glyph_ink(aImage, sample, aMark.format.background().color());
+	}
+
+	void test_painted_ink_rejects_wrong_or_absent_glyphs()
+	{
+		const auto fill  = QColor{ 0x9e, 0xff, 0xb5 };
+		const auto ink   = QColor{ 0x55, 0x5e, 0x69 };
+		const auto wrong = QColor{ 0x1f, 0x23, 0x28 };
+		auto       image = QImage{ 8, 8, QImage::Format_ARGB32 };
+		image.fill(QColor{ 0x9d, 0xff, 0xb5 });
+		expect(!dominant_glyph_ink(image, image.rect(), fill).isValid(), "rounded background without glyphs is not ink");
+		for (auto y = 2; y < 6; ++y) {
+			for (auto x = 2; x < 6; ++x) {
+				image.setPixelColor(x, y, ink);
 			}
 		}
-		const auto most = std::ranges::max_element(counts, { }, [](const auto& aEntry) { return aEntry.second; });
-		return most == counts.end() ? QColor{ } : QColor{ most->first };
+		expect(dominant_glyph_ink(image, image.rect(), fill) == ink, "solid glyphs survive a more numerous quantized background");
+		for (auto y = 2; y < 6; ++y) {
+			for (auto x = 2; x < 6; ++x) {
+				image.setPixelColor(x, y, wrong);
+			}
+		}
+		expect(dominant_glyph_ink(image, image.rect(), fill) == wrong, "normal ink cannot pass as the expected syntax ink");
+		image.setPixelColor(2, 2, ink);
+		expect(dominant_glyph_ink(image, image.rect(), fill) == wrong, "one expected pixel cannot hide a wrong foreground layer");
+		expect(!dominant_glyph_ink(image, QRect{ 30, 30, 8, 8 }, fill).isValid(), "a clipped sample cannot report an ink colour");
+		expect(!dominant_glyph_ink(image, QRect{ }, fill).isValid(), "nor can an empty sample");
+
+		const auto darkFill = QColor{ 0x10, 0x4a, 0x17 };
+		const auto darkInk  = QColor{ 0x66, 0xb5, 0x59 };
+		image               = QImage{ 24, 1, QImage::Format_ARGB32 };
+		image.fill(darkFill);
+		for (auto x = 0; x < 11; ++x) {
+			image.setPixelColor(x, 0, darkInk);
+			image.setPixelColor(x + 11, 0, QColor{ 0x66, 0xb5, 0x57 });
+		}
+		expect(dominant_glyph_ink(image, image.rect(), darkFill) == darkInk, "an equally frequent subpixel edge cannot displace the opaque glyph core");
+		const auto wrongDark = QColor{ 0xc9, 0xd1, 0xd9 };
+		for (auto x = 11; x < 22; ++x) {
+			image.setPixelColor(x, 0, wrongDark);
+		}
+		expect(dominant_glyph_ink(image, image.rect(), darkFill) == wrongDark, "equally frequent wrong normal ink is not hidden by a syntax-coloured core");
+		const auto wrongMuted = QColor{ 0x45, 0x90, 0x3b };
+		for (auto x = 11; x < 23; ++x) {
+			image.setPixelColor(x, 0, wrongMuted);
+		}
+		expect(dominant_glyph_ink(image, image.rect(), darkFill) == wrongMuted, "more frequent wrong ink wins even when the expected ink stands farther from the fill");
 	}
 
 	/// [[BPR-1709]]. The owner: "On dark theme intra-line highlights on
@@ -6343,6 +6410,7 @@ auto main(int argc, char** argv) -> int
 	test_the_panes_scroll_past_their_end_and_the_bar_agrees();
 	test_selected_rows_derive_their_intraline_fill();
 	test_dark_intraline_preserves_readable_syntax_hues();
+	test_painted_ink_rejects_wrong_or_absent_glyphs();
 	test_dark_intraline_keeps_a_comment_green();
 	test_line_details_keeps_the_syntax_colours_under_a_selection();
 	test_group_selection_washes_every_line();

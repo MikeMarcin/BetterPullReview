@@ -1,10 +1,20 @@
 # Remote Stations
 
 Machine setup for running BetterPullReview RFC work across computers without
-mixing project, platform, or branch context. The contract a session follows
-lives in `.agents/skills/implement-rfc/references/remote-routing.md`; this
-document is the operator-facing half: what to provision on each machine and
-how to launch it.
+mixing project, platform, or branch context. The station contract (identity,
+writer lease, launch, status and takeover) lives in the MASK-installed
+remote-station skill, `.agents/skills/remote-station/references/station-contract.md`
+and `station-control.md`; what an RFC session may be sent lives in
+`.agents/skills/implement-rfc/references/remote-routing.md`. This document is
+the operator-facing half: what to provision on each machine and how to launch
+it.
+
+`scripts/launch_remote_station.py` forwards to the remote-station skill's
+entry script, binding it to this checkout. Station configuration is
+`.mask/skill-config/remote-station/station.json`; edit it, not the skill, to
+add a workstream. The skill's `scripts/install_command.py --bin-dir DIR` can
+also install a version-free `launch_remote_station` command that runs the
+current checkout's own pinned skill.
 
 ## Station management and hook removal (2026-10-11)
 
@@ -14,16 +24,19 @@ station prompt, tool or Stop guard. Reload project hooks in the host after
 pulling this change. The old hooks are not a security boundary, and their
 turn-admission and retired-endpoint fences no longer apply in this consumer.
 
-Use the existing project script from this checkout:
+Use the project script from this checkout:
 
 ```sh
 python3 scripts/launch_remote_station.py status --json
 python3 scripts/launch_remote_station.py status --observe-runtime --json
 python3 scripts/launch_remote_station.py takeover --json
+python3 scripts/launch_remote_station.py hooks status
+python3 scripts/launch_remote_station.py hooks off --dry-run
 ```
 
-Use `py -3` in native Windows. Status is observational and starts no runtime.
-Takeover transfers ownership to a replacement chat/local mode and may stop the
+Use `py -3` in native Windows. Status and `hooks status` are observational
+and start no runtime. Takeover with no options means `--mode local
+--stop-previous`; the skill applies that default. Takeover transfers ownership to a replacement chat/local mode and may stop the
 previous writer; continuing the current station needs no takeover. If its
 automatic stop adapter is unavailable, follow its reported manual steps and
 retry with `takeover --confirm-runtime-stopped --json` only after observing the
@@ -33,8 +46,7 @@ identity or alter MASK's state. Explicit launches still acquire the writer lease
 agents must reconcile actual writers before conflicting checkout work.
 
 Shared-source policy and further hook controls are tracked in AgentSkills
-ASK-0105. This consumer change uses the existing pinned status/takeover helper
-and requires no skill upgrade or source publication.
+ASK-0105.
 
 ## The shape
 
@@ -42,7 +54,7 @@ One **station** per workstream checkout per machine. One foreground supervisor
 holds the checkout's writer lease and exposes that same durable station through
 two provider endpoints with one deterministic name: a Claude Remote Control
 session and a persistent Codex task reachable through Codex Managed Remote.
-Workstreams are declared in `.agents/skills/implement-rfc/config/project.json`:
+Workstreams are declared in `.mask/skill-config/remote-station/station.json`:
 `main` is the integrator, and `win`, `linux`, and `mac` are platform-bound
 verification lanes on `windows-lane`, `linux-lane`, and `mac-lane`. The
 **project integrator** — the session on whichever host you are driving — is
@@ -214,12 +226,12 @@ authoritative everywhere else, and the station file is authoritative always.
    `.remote-station.json` (keeping its durable `station_id` across
    relaunches), provisions the persistent Codex task, and starts the Claude
    server under the exclusive writer lease — `station_lease.py` in the
-   skill — so a second writer in the same checkout is denied mechanically.
+   remote-station skill — so a second writer in the same checkout is denied mechanically.
    `--pair-codex` prints a Codex Remote pairing code on Unix hosts; native
    Windows pairs through Codex Desktop. `--no-server` is the deprecated
    direct-Codex path that writes the station file only. The
    `scripts/launch_remote_station.py` at the repository root forwards to the
-   skill's launcher.
+   remote-station skill's `scripts/launch_remote_station.py`.
 
 5. **Driving.** Every station server appears at claude.ai/code and in the
    mobile app; driving one directly from your phone is normal operation. The

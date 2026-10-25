@@ -1,0 +1,25 @@
+{
+  "schema": "remote-station.config.v1",
+  "project": "betterpullreview",
+  "display_name": "BetterPullReview",
+  "origin_repo_name": "BetterPullReview",
+  "session_prefix": "bpr",
+  "station_registry_doc": "docs/development/remote-stations.md",
+  "workstreams": {
+    "main": {
+      "branch": "main"
+    },
+    "win": {
+      "branch": "windows-lane",
+      "platform": "win"
+    },
+    "linux": {
+      "branch": "linux-lane",
+      "platform": "linux"
+    },
+    "mac": {
+      "branch": "mac-lane",
+      "platform": "mac"
+    }
+  }
+}

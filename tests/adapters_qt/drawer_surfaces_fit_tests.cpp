@@ -436,7 +436,7 @@ namespace {
 	{
 		for (const auto& [mode, name] : themes) {
 			auto profile = profile_for(mode);
-			for (const auto [width, how] : { std::pair{ 280U, reached::restored }, std::pair{ 280U, reached::dragged }, std::pair{ 760U, reached::restored }, std::pair{ 760U, reached::dragged } }) {
+			for (const auto& [width, how] : { std::pair{ 280U, reached::restored }, std::pair{ 280U, reached::dragged }, std::pair{ 760U, reached::restored }, std::pair{ 760U, reached::dragged } }) {
 				qt::workbench_window window;
 				open_review(window, profile, width == 280U ? 1'280 : 1'920, width, how);
 				auto* const drawer = window.conversations_drawer();

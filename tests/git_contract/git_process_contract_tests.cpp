@@ -10,6 +10,7 @@
 #if defined(_WIN32)
 	#include <fcntl.h>
 	#include <io.h>
+	#include <windows.h>
 #endif
 #include <QDir>
 #include <QFileInfo>
@@ -4082,16 +4083,112 @@ namespace {
 	/// clone's history: one alternates line naming the clone's objects, only
 	/// what the clone lacks copied from the cache, nothing written to the clone,
 	/// no remote, and a clone that is not a repository refused.
-	[[nodiscard]] auto file_inventory(const std::filesystem::path& aRoot) -> std::vector<std::string>
+	struct inventory_entry
 	{
-		auto seen  = std::vector<std::string>{ };
-		auto error = std::error_code{ };
-		for (auto entry = std::filesystem::recursive_directory_iterator{ aRoot, error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
-			const auto size = entry->is_regular_file() ? std::to_string(entry->file_size()) : std::string{ "dir" };
-			seen.push_back(entry->path().string() + ":" + size + ":" + std::to_string(static_cast<long long>(entry->last_write_time().time_since_epoch().count())));
+		std::filesystem::file_type Type;
+		std::uintmax_t             Bytes;
+		std::int64_t               Written;
+		auto                       operator==(const inventory_entry&) const -> bool = default;
+	};
+	using inventory_snapshot = std::map<std::string, inventory_entry>;
+	enum class inventory_reader { cached_entry,
+								  current_handle };
+
+	[[nodiscard]] auto current_inventory_entry(const std::filesystem::path& aPath, const std::filesystem::file_type aType, std::error_code& aError) -> inventory_entry
+	{
+		auto result = inventory_entry{ aType, 0U, 0 };
+#if defined(_WIN32)
+		const auto handle = ::CreateFileW(aPath.c_str(), FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+										  nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+		if (handle == INVALID_HANDLE_VALUE) {
+			aError = std::error_code{ static_cast<int>(::GetLastError()), std::system_category() };
+			return result;
 		}
-		std::ranges::sort(seen);
+		auto       basic    = FILE_BASIC_INFO{ };
+		auto       standard = FILE_STANDARD_INFO{ };
+		const auto read     = ::GetFileInformationByHandleEx(handle, FileBasicInfo, &basic, static_cast<DWORD>(sizeof(basic)))
+			&& ::GetFileInformationByHandleEx(handle, FileStandardInfo, &standard, static_cast<DWORD>(sizeof(standard)));
+		const auto failure = read ? ERROR_SUCCESS : ::GetLastError();
+		const auto closed  = ::CloseHandle(handle);
+		if (!read) {
+			aError = std::error_code{ static_cast<int>(failure), std::system_category() };
+		} else if (!closed) {
+			aError = std::error_code{ static_cast<int>(::GetLastError()), std::system_category() };
+		} else if (standard.EndOfFile.QuadPart < 0) {
+			aError = std::make_error_code(std::errc::invalid_argument);
+		} else {
+			aError.clear();
+			result.Written = basic.LastWriteTime.QuadPart;
+			result.Bytes   = aType == std::filesystem::file_type::regular ? static_cast<std::uintmax_t>(standard.EndOfFile.QuadPart) : 0U;
+		}
+#else
+		result.Written = static_cast<std::int64_t>(std::filesystem::last_write_time(aPath, aError).time_since_epoch().count());
+		if (!aError && aType == std::filesystem::file_type::regular) {
+			result.Bytes = std::filesystem::file_size(aPath, aError);
+		}
+#endif
+		return result;
+	}
+
+	// R165 proves cached enumeration timestamps can change with no Git work.
+	// The strict no-write oracle reads current metadata; the control keeps its
+	// explicit cached observations to preserve that counterexample.
+	[[nodiscard]] auto file_inventory(const std::filesystem::path& aRoot, const inventory_reader aReader = inventory_reader::current_handle) -> inventory_snapshot
+	{
+		auto seen  = inventory_snapshot{ };
+		auto error = std::error_code{ };
+		auto path  = aRoot;
+		for (auto entry = std::filesystem::recursive_directory_iterator{ aRoot, error }; !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+			path                   = entry->path();
+			const auto type        = std::filesystem::symlink_status(path, error).type();
+			auto       observation = inventory_entry{ type, 0U, 0 };
+			if (!error && aReader == inventory_reader::current_handle) {
+				observation = current_inventory_entry(path, type, error);
+			} else if (!error) {
+				if (entry->is_regular_file(error) && !error) {
+					observation.Bytes = entry->file_size(error);
+				}
+				if (!error) {
+					observation.Written = static_cast<std::int64_t>(entry->last_write_time(error).time_since_epoch().count());
+				}
+			}
+			if (error) {
+				break;
+			}
+			seen.emplace(path.string(), observation);
+		}
+		if (error) {
+			std::cerr << "GIT_CLONE_INVENTORY_ERROR path=" << path.string() << " error=" << error.value() << '\n';
+		}
+		require(!error, "the reviewer-clone inventory reads every fixture entry");
 		return seen;
+	}
+
+	void report_inventory_changes(const inventory_snapshot& aBefore, const inventory_snapshot& aAfter, const std::string_view aStage)
+	{
+		if (aBefore == aAfter) {
+			return;
+		}
+		std::cerr << "GIT_CLONE_INVENTORY stage=" << aStage << " before=" << aBefore.size() << " after=" << aAfter.size() << '\n';
+		auto remaining = 8U;
+		for (const auto& [path, old] : aBefore) {
+			const auto current = aAfter.find(path);
+			if (remaining != 0U && (current == aAfter.end() || current->second != old)) {
+				std::cerr << "GIT_CLONE_CHANGED path=" << path << " present=" << (current != aAfter.end())
+						  << " before-type=" << static_cast<int>(old.Type) << " before-size=" << old.Bytes << " before-ticks=" << old.Written;
+				if (current != aAfter.end()) {
+					std::cerr << " after-type=" << static_cast<int>(current->second.Type) << " after-size=" << current->second.Bytes << " after-ticks=" << current->second.Written;
+				}
+				std::cerr << '\n';
+				--remaining;
+			}
+		}
+		for (const auto& [path, entry] : aAfter) {
+			if (remaining != 0U && !aBefore.contains(path)) {
+				std::cerr << "GIT_CLONE_ADDED path=" << path << " type=" << static_cast<int>(entry.Type) << " size=" << entry.Bytes << " ticks=" << entry.Written << '\n';
+				--remaining;
+			}
+		}
 	}
 
 	/// The objects in a repository's own packs, from `count-objects -v`,
@@ -4112,7 +4209,7 @@ namespace {
 		return at == std::string::npos ? std::string{ } : counted.substr(at + 9U, counted.find('\n', at) - at - 9U);
 	}
 
-	auto run_borrowed_history_workspace_contract() -> void
+	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false) -> void
 	{
 		temporary_root root{ "git-borrowed-history-workspace" };
 		auto           adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, root.Path);
@@ -4133,6 +4230,21 @@ namespace {
 		std::filesystem::create_directories(clone);
 		static_cast<void>(run_fixture_git(clone / ".git", { "init", "--quiet" }, { }, false));
 		static_cast<void>(run_fixture_git(cache, { "pack-objects", "--revs", (clone / ".git" / "objects" / "pack" / "pack").string() }, base + "\n"));
+		if (aInventoryControl) {
+			const auto cachedBefore       = file_inventory(clone, inventory_reader::cached_entry);
+			const auto cachedAfter        = file_inventory(clone, inventory_reader::cached_entry);
+			const auto freshBefore        = file_inventory(clone, inventory_reader::current_handle);
+			const auto freshAfter         = file_inventory(clone, inventory_reader::current_handle);
+			const auto cachedAfterHandles = file_inventory(clone, inventory_reader::cached_entry);
+			std::cout << "GIT_CLONE_INVENTORY_CONTROL cached_equal_without_operation=" << (cachedBefore == cachedAfter)
+					  << " cached_vs_handle_equal_without_operation=" << (cachedBefore == freshBefore)
+					  << " handle_equal_without_operation=" << (freshBefore == freshAfter)
+					  << " cached_equal_after_handles_without_operation=" << (cachedBefore == cachedAfterHandles) << '\n';
+			report_inventory_changes(cachedBefore, cachedAfter, "cached-no-operation");
+			report_inventory_changes(cachedBefore, freshBefore, "cached-vs-handle-no-operation");
+			report_inventory_changes(cachedBefore, cachedAfterHandles, "cached-after-handles-no-operation");
+			require(freshBefore == freshAfter, "current clone metadata stays exact with no adapter operation");
+		}
 		const auto cloneBefore = file_inventory(clone);
 
 		temporary_root workspaceParent{ "git-borrowed-history-workspace-parent" };
@@ -4169,9 +4281,32 @@ namespace {
 		require(in_pack(workspace / ".git") == "3", "only the head's commit, tree and new blob are copied: the base's objects are the clone's");
 		require(!std::filesystem::exists(workspace / ".git" / "shallow"), "a complete review's borrowed workspace is not shallow");
 		require(read_text(workspace / ".git" / "config").find("[remote") == std::string::npos, "the workspace has no remote to push to");
-		require(file_inventory(clone) == cloneBefore, "nothing is written to the reviewer's clone");
+		const auto cloneAfter = file_inventory(clone);
+		report_inventory_changes(cloneBefore, cloneAfter, "materialization");
+		require(cloneAfter == cloneBefore, "nothing is written to the reviewer's clone");
 		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the borrowed workspace cleans up normally");
-		require(file_inventory(clone) == cloneBefore, "cleanup leaves the clone as it was");
+		const auto cloneCleaned = file_inventory(clone);
+		report_inventory_changes(cloneBefore, cloneCleaned, "cleanup");
+		require(cloneCleaned == cloneBefore, "cleanup leaves the clone as it was");
+		if (aInventoryControl) {
+			std::cout << "GIT_CLONE_INVENTORY_CONTROL handle_equal_across_materialization_and_cleanup=1\n";
+			const auto negative = root.Path / "inventory-negative";
+			std::filesystem::create_directory(negative);
+			const auto file = negative / "original";
+			write_text(file, "a");
+			const auto originalTime = std::filesystem::last_write_time(file);
+			const auto beforeWrite  = file_inventory(negative, inventory_reader::current_handle);
+			write_text(file, "longer");
+			std::filesystem::last_write_time(file, originalTime);
+			require(file_inventory(negative, inventory_reader::current_handle) != beforeWrite, "current inventory detects a size write even with the original timestamp");
+			write_text(file, "a");
+			std::filesystem::last_write_time(file, originalTime - std::chrono::hours{ 1 });
+			require(file_inventory(negative, inventory_reader::current_handle) != beforeWrite, "current inventory detects a timestamp write at the original size");
+			const auto beforeAdd = file_inventory(negative, inventory_reader::current_handle);
+			write_text(negative / "added", "added");
+			require(file_inventory(negative, inventory_reader::current_handle) != beforeAdd, "current inventory detects an added entry");
+			std::cout << "GIT_CLONE_INVENTORY_CONTROL size_write_detected=1 timestamp_write_detected=1 added_name_detected=1\n";
+		}
 
 		// The clone already holds the head: nothing is copied at all.
 		static_cast<void>(run_fixture_git(cache, { "pack-objects", "--revs", (clone / ".git" / "objects" / "pack" / "pack").string() }, head + "\n"));
@@ -4578,6 +4713,12 @@ try {
 		return fake_git(arguments, executablePath);
 	}
 	QCoreApplication application{ argc, argv };
+
+	if (argc == 2 && std::string_view{ argv[1] } == "--borrowed-history-inventory-control") {
+		run_borrowed_history_workspace_contract(true);
+		std::cout << "GIT_BORROWED_HISTORY_INVENTORY_CONTROL_OK\n";
+		return 0;
+	}
 
 	run_real_git_contract();
 	run_comparison_base_contract();

@@ -38,6 +38,8 @@ __pycache__/
 /.claude/skills/grill-rfc
 /.agents/skills/grill-me
 /.claude/skills/grill-me
+/.agents/skills/remote-station
+/.claude/skills/remote-station
 /.claude/agents/rfc-*.md
 /.codex/agents/rfc-*.toml
 /.mask/bootstrap-retired/

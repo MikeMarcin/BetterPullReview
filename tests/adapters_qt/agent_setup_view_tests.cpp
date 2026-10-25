@@ -279,15 +279,21 @@ namespace {
 		expect(path->text() == QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")) && add->isEnabled(), "the folder found is the line's text, and Add can be pressed at once");
 		add->click();
 		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString(), "Add adds the prefilled folder in one press");
+		const auto acceptedFolderIntent = test.Intents.back();
+		const auto acceptedIntentCount  = test.Intents.size();
 		path->clear();
 		expect(!add->isEnabled(), "an empty line waits for a path");
 		path->setText(QStringLiteral("work/clones"));
 		add->click();
-		expect(test.Intents.back() == "folder:/Users/me/Documents/GitHub" && test.View.findChild<QLabel*>(QStringLiteral("agentSetupFolderStatus"))->text().contains(QStringLiteral("full path")),
+		expect(test.Intents.size() == acceptedIntentCount && test.Intents.back() == acceptedFolderIntent && test.View.findChild<QLabel*>(QStringLiteral("agentSetupFolderStatus"))->text().contains(QStringLiteral("full path")),
 			   "a relative path is refused with what to write");
 		path->setText(QStringLiteral("~/src"));
 		add->click();
-		expect(test.Intents.back() == "folder:" + QDir::toNativeSeparators(QDir::homePath() + QStringLiteral("/src")).toStdString(), "~ is the home folder, and Add adds the folder");
+		const auto homeFolderIntent = "folder:" + QDir::toNativeSeparators(QDir{ QDir::homePath() }.filePath(QStringLiteral("src"))).toStdString();
+		if (test.Intents.back() != homeFolderIntent) {
+			std::cerr << "HOME_FOLDER_INTENT actual=" << test.Intents.back() << " expected=" << homeFolderIntent << '\n';
+		}
+		expect(test.Intents.size() == acceptedIntentCount + 1U && test.Intents.back() == homeFolderIntent, "~ is the home folder, and Add adds the folder");
 		render(test.View, QStringLiteral("nofolders"));
 
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
@@ -452,15 +458,18 @@ namespace {
 		clones.Folders = { "/Users/me/src", "/Users/me/Documents/GitHub" };
 		clones.Links   = { application::repository_link{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine", .PrivateCopy = true } };
 		folders.present(clones);
-		auto* const editor = folders.folders();
+		auto* const editor       = folders.folders();
+		const auto  srcFolder    = QDir::toNativeSeparators(QStringLiteral("/Users/me/src")).toStdString();
+		const auto  gitHubFolder = QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString();
+		const auto  workFolder   = QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString();
 		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
 		editor->list()->setCurrentRow(1);
 		editor->up_button()->click();
-		expect(asked.back() == "set /Users/me/Documents/GitHub /Users/me/src", "Move up reorders the list, which is the order clones are looked for in");
+		expect(asked == std::vector<std::string>{ "set " + gitHubFolder + " " + srcFolder } && editor->folders() == std::vector<std::string>{ gitHubFolder, srcFolder }, "Move up reorders the list, which is the order clones are looked for in");
 		editor->list()->setCurrentRow(1);
 		editor->remove_button()->click();
-		expect(asked.back() == "set /Users/me/Documents/GitHub", "Remove takes the selected folder out");
-		expect(type_row(*editor, QStringLiteral("/Volumes/work")) && asked.back() == "set /Users/me/Documents/GitHub " + QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString(),
+		expect(asked.size() == 2U && asked.back() == "set " + gitHubFolder && editor->folders() == std::vector<std::string>{ gitHubFolder }, "Remove takes the selected folder out");
+		expect(type_row(*editor, QStringLiteral("/Volumes/work")) && asked.size() == 3U && asked.back() == "set " + gitHubFolder + " " + workFolder && editor->folders() == std::vector<std::string>{ gitHubFolder, workFolder },
 			   "New folder adds a typed row at the end");
 		folders.links()->setCurrentRow(0);
 		folders.findChild<QPushButton*>(QStringLiteral("settingsForgetLink"))->click();

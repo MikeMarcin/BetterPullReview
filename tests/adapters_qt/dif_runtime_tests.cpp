@@ -10,6 +10,7 @@
 #include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
 #include <QPointer>
 #include <QResource>
 #include <QSysInfo>
@@ -40,6 +41,25 @@ namespace {
 	{
 		aImage.convertTo(QImage::Format_RGBA8888);
 		return QCryptographicHash::hash(QByteArrayView{ reinterpret_cast<const char*>(aImage.constBits()), aImage.sizeInBytes() }, QCryptographicHash::Sha256);
+	}
+	auto png_bytes(const QImage& aImage) -> QByteArray
+	{
+		QByteArray bytes;
+		QBuffer    buffer{ &bytes };
+		buffer.open(QIODevice::WriteOnly);
+		expect(aImage.save(&buffer, "PNG"), "padded fixture PNG encodes");
+		return bytes;
+	}
+	auto render_frame(const QImage& aImage, const QRect& aSource, int aExtent) -> QImage
+	{
+		QImage result{ aExtent, aExtent, QImage::Format_ARGB32_Premultiplied };
+		result.fill(QColor{ 37, 53, 71 });
+		{
+			QPainter painter{ &result };
+			// Match dif_widget::paintEvent's ordinary drawImage settings.
+			painter.drawImage(result.rect(), aImage, aSource);
+		}
+		return result;
 	}
 	struct fixture final
 	{
@@ -688,11 +708,14 @@ namespace {
 		fixture    input;
 		const auto cache = input.load();
 		expect(cache && input.Loads == 10, "ten strips decode exactly once");
+		expect(cache->premultiplication_copy_bytes() == 0U, "validated Dif strips reuse decoded storage for premultiplication");
 		std::uint64_t pixelBytes = 0;
 		for (std::size_t index = 0; index < 10; ++index) {
 			const auto& clip = cache->clip(index);
 			pixelBytes += static_cast<std::uint64_t>(cache->image(index).sizeInBytes());
 			expect(cache->image(index).format() == QImage::Format_ARGB32_Premultiplied, "one premultiplied representation");
+			const auto straight = QImage::fromData(input.Bytes[index], "PNG");
+			expect(cache->image(index) == straight.convertToFormat(QImage::Format_ARGB32_Premultiplied), "storage reuse preserves every straight-alpha fixture pixel and gutter");
 			dif_sequencer player{ cache };
 			expect(player.start(index, 100), "all ten indices start");
 			for (int frame = 0; frame < clip.Frames; ++frame) {
@@ -736,6 +759,92 @@ namespace {
 		expect(!input.load(), "digest mismatch refused");
 		std::cout << "fixture pixels=" << cache->pixel_bytes() << " accounted-retained=" << cache->retained_bytes() << " conversion-peak=" << cache->conversion_peak_bytes() << '\n';
 	}
+	void test_retained_end_margins_and_source_admission()
+	{
+		fixture                input;
+		std::array<QImage, 10> paddedSources;
+		for (std::size_t index = 0; index < input.Clips.size(); ++index) {
+			auto& clip  = input.Clips[index];
+			clip.Cell   = 7;
+			clip.Origin = 3;
+			QImage padded{ 2 * clip.Origin + clip.Frames * clip.Cell + (clip.Frames - 1) * clip.Gutter, clip.Cell, QImage::Format_ARGB32 };
+			padded.fill(Qt::transparent);
+			{
+				QPainter painter{ &padded };
+				for (int frame = 0; frame < clip.Frames; ++frame) {
+					painter.fillRect(clip.Origin + frame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell, QColor{ frame * 20, static_cast<int>(index) * 20, 80, 128 });
+				}
+			}
+			for (int frame = 0; frame < clip.Frames; ++frame) {
+				const auto firstColumn = clip.Origin + frame * (clip.Cell + clip.Gutter);
+				for (int row = 0; row < clip.Cell; ++row) {
+					padded.setPixelColor(firstColumn, row, QColor{ 255, 17, 41, 255 });
+					padded.setPixelColor(firstColumn + clip.Cell - 1, row, QColor{ 13, 211, 239, 127 });
+				}
+			}
+			input.Bytes[index]   = png_bytes(padded);
+			clip.Sha256          = rgba_digest(padded);
+			paddedSources[index] = std::move(padded);
+		}
+		const auto cache = input.load();
+		expect(cache && input.Loads == 10, "padded source strips decode once");
+		expect(cache->image(0).width() == input.Clips[0].Cell, "validated transparent end cells consume no retained pixel storage");
+		for (std::size_t index = 0; index < input.Clips.size(); ++index) {
+			const auto& clip      = input.Clips[index];
+			const auto  reference = paddedSources[index].convertToFormat(QImage::Format_ARGB32_Premultiplied);
+			expect(cache->clip(index).Origin == clip.Origin && cache->clip(index).Sha256 == clip.Sha256, "encoded origin and digest remain unchanged");
+			expect(cache->image(index) == reference.copy(clip.Origin, 0, reference.width() - 2 * clip.Origin, clip.Cell), "every retained cell and inner gutter equals the validated interior");
+			for (int frame = 0; frame < clip.Frames; ++frame) {
+				const QRect encodedSource{ clip.Origin + frame * (clip.Cell + clip.Gutter), 0, clip.Cell, clip.Cell };
+				expect(cache->source(index, frame) == encodedSource.translated(-clip.Origin, 0), "frame rectangles address retained interior coordinates");
+				for (const int extent : { 96, 120, 192 }) {
+					expect(render_frame(cache->image(index), cache->source(index, frame), extent) == render_frame(reference, encodedSource, extent), "opaque and translucent frame edges render exactly as the padded source at every scale");
+				}
+			}
+		}
+		for (const int column : { 0, paddedSources[0].width() - 1 }) {
+			auto bad = paddedSources[0].copy();
+			bad.setPixelColor(column, 0, Qt::red);
+			const auto bytes = png_bytes(bad);
+			auto       clips = input.Clips;
+			clips[0].Sha256  = rgba_digest(bad);
+			expect(!dif_cache::create(clips, [&](std::size_t aIndex) { return aIndex == 0 ? bytes : input.Bytes[aIndex]; }), "both omitted end cells are still validated despite a matching digest");
+		}
+
+		QImage wide{ 3 * 512, 512, QImage::Format_ARGB32 };
+		wide.fill(Qt::transparent);
+		{
+			QPainter painter{ &wide };
+			painter.fillRect(512, 0, 512, 512, Qt::red);
+		}
+		const auto             bytes  = png_bytes(wide);
+		const auto             digest = rgba_digest(wide);
+		dif_cache::descriptors clips;
+		for (auto& clip : clips) {
+			clip.Frames = 1;
+			clip.Cell   = 512;
+			clip.Origin = 512;
+			clip.Sha256 = digest;
+		}
+		int loads = 0;
+		expect(!dif_cache::create(clips, [&](std::size_t) { ++loads; return bytes; }) && loads == 9, "full decoded source above24MiB refuses even when retained interiors would fit");
+
+		fixture transient;
+		auto&   large = transient.Clips[1];
+		large.Frames  = 3;
+		large.Cell    = 1024;
+		large.Origin  = 1024;
+		large.Gutter  = 0;
+		QImage largest{ 5 * 1024, 1024, QImage::Format_ARGB32 };
+		largest.fill(Qt::transparent);
+		{
+			QPainter painter{ &largest };
+			painter.fillRect(1024, 0, 3 * 1024, 1024, Qt::red);
+		}
+		large.Sha256       = rgba_digest(largest);
+		transient.Bytes[1] = png_bytes(largest);
+		expect(!transient.load() && transient.Loads == 2, "two full source strips preserve the40MiB transient refusal before decoding");
+	}
 	void test_production_home()
 	{
 		dif_catalog_provider provider;
@@ -743,15 +852,29 @@ namespace {
 		const auto cache = provider.acquire();
 		expect(cache && provider.acquire() == cache && provider.cache_identity() == cache.get(), "compiled resources decode once and share identity");
 		expect(provider.load_attempts() == 1 && provider.decoded_count() == 10 && provider.failure_diagnostic().isEmpty(), "one production decode lifetime");
-		expect(cache->pixel_bytes() == 23'855'104 && cache->retained_bytes() < 32 * 1024 * 1024 && cache->conversion_peak_bytes() < 40 * 1024 * 1024, "production memory includes all twenty end cells");
-		for (std::size_t index = 0; index < 10; ++index) {
-			expect(cache->source(index, 0).x() == 256 && cache->source(index, cache->clip(index).Frames - 1).right() == cache->image(index).width() - 257, "production rectangles exclude both full-cell gutters");
-		}
+		expect(cache->premultiplication_copy_bytes() == 0U, "all production Dif strips reuse validated decoded storage");
 		const auto productionLoader = [](std::size_t aIndex) {
 			const std::array names{ "rest", "calm-idle", "greet", "blink", "compare-glance", "consider", "comment-ready", "attention", "acknowledge", "blocked" };
 			const QResource  resource{ QStringLiteral(":/bpr/dif/dif-") + QString::fromLatin1(names.at(aIndex)) + QStringLiteral(".png") };
 			return QByteArray{ reinterpret_cast<const char*>(resource.data()), resource.size() };
 		};
+		std::uint64_t fullSourceBytes = 0;
+		for (std::size_t index = 0; index < 10; ++index) {
+			const auto& clip      = cache->clip(index);
+			const auto  source    = QImage::fromData(productionLoader(index), "PNG");
+			const auto  reference = source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+			fullSourceBytes += static_cast<std::uint64_t>(source.sizeInBytes());
+			expect(cache->source(index, 0).x() == 0 && cache->source(index, clip.Frames - 1).right() == cache->image(index).width() - 1, "retained production rectangles omit only both full-cell end gutters");
+			expect(cache->image(index) == reference.copy(clip.Origin, 0, reference.width() - 2 * clip.Origin, clip.Cell), "every production interior pixel equals the validated padded source");
+			for (int frame = 0; frame < clip.Frames; ++frame) {
+				const QRect encodedSource{ clip.Origin + frame * clip.Cell, 0, clip.Cell, clip.Cell };
+				for (const int extent : { 96, 120, 192 }) {
+					expect(render_frame(cache->image(index), cache->source(index, frame), extent) == render_frame(reference, encodedSource, extent), "every production frame renders identically to its padded source at every scale");
+				}
+			}
+		}
+		expect(fullSourceBytes == 23'855'104 && cache->pixel_bytes() == 18'612'224 && fullSourceBytes - cache->pixel_bytes() == 5'242'880, "all twenty source end cells are validated without retaining their transparent pixels");
+		expect(cache->retained_bytes() < 32 * 1024 * 1024 && cache->conversion_peak_bytes() < 40 * 1024 * 1024, "production retained and full-source transient ceilings remain unchanged");
 		auto malformed         = production_dif_catalog();
 		malformed[0].Sha256[0] = malformed[0].Sha256[0] == 'x' ? 'y' : 'x';
 		expect(!dif_cache::create(malformed, productionLoader), "decoded RGBA digest mismatch refuses production catalog");
@@ -978,6 +1101,7 @@ int main(int argc, char** argv)
 		return EXIT_SUCCESS;
 	}
 	test_catalog_and_playback();
+	test_retained_end_margins_and_source_admission();
 	test_contextual_cue_router_uses_accepted_identity_and_bounded_latches();
 	test_contextual_cue_router_rejects_stale_and_conflicting_facts();
 	test_widget_lifecycle();

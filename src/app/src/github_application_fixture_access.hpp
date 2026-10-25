@@ -21,6 +21,7 @@
 #include "bpr/core/document_tabs.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <compare>
@@ -298,6 +299,10 @@ namespace bpr::app::detail {
 		bool                                 TabPending           = false;
 		bool                                 TabModality          = false;
 		bool                                 PublicationDisplayed = false;
+		std::array<std::size_t, 6>           SearchCounters{ };
+		bool                                 SearchQuiescent    = false;
+		bool                                 TabLoad            = false;
+		bool                                 DiffRequestMatches = false;
 	};
 
 	/// \brief [[BPR-1573]]. What the window's composition holds of its review,
@@ -1685,6 +1690,13 @@ namespace bpr::app::detail {
 		/// binary.
 		[[nodiscard]] static auto network_isolation_probe() -> bool;
 		[[nodiscard]] static auto start_desktop(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
+		static void               poll_desktop(profile_desktop& aDesktop);
+		/// Profile-owned gates retain the last save answer and close callbacks
+		/// independently while a course drives the real desktop retirement path.
+		[[nodiscard]] static auto hold_restoration_terminals(github_application& aApplication) -> std::function<void()>;
+		[[nodiscard]] static auto hold_window_close_callbacks(github_application& aApplication) -> std::function<void()>;
+		[[nodiscard]] static auto held_restoration_and_close_callbacks(const github_application& aApplication) -> std::array<std::size_t, 2>;
+		[[nodiscard]] static auto restoration_durable(const github_application& aApplication) -> bool;
 		[[nodiscard]] static auto start_desktop_public_preview_selection_available(github_application_config aConfig, profile_desktop_startup_completion aCompletion) -> std::unique_ptr<profile_desktop>;
 		[[nodiscard]] static auto start_profile(github_public_path_fixture aFixture, github_public_path_fixture_options aOptions, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
 		[[nodiscard]] static auto start_profile_public_preview_selection_available(github_application_config aConfig, github_application_startup_completion aCompletion) -> std::unique_ptr<github_application_startup>;
@@ -1775,7 +1787,7 @@ namespace bpr::app::detail {
 			github_application& aApplication) -> bool;
 		/// \brief Observes the exact host, tab and displayed-publication identities.
 		[[nodiscard]] static auto epoch_refresh_identity(
-			const github_application& aApplication) -> epoch_refresh_identity_evidence;
+			const github_application& aApplication, std::optional<core::bpr_window_context> aContext = std::nullopt) -> epoch_refresh_identity_evidence;
 		/// \brief [[BPR-1573]]. The review the window's composition holds.
 		[[nodiscard]] static auto close_review(
 			const github_application& aApplication) -> close_review_evidence;
@@ -1797,7 +1809,11 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1211]]. Whether this window's review ledger has
 		/// answered its opening and holds no outstanding operation.
 		[[nodiscard]] static auto review_ledger_settled(
-			github_application& aApplication) -> bool;
+			github_application& aApplication, std::optional<core::bpr_window_context> aContext = std::nullopt) -> bool;
+		/// Holds only one exact window's ledger decision posts; sibling
+		/// storage and decision delivery keep running.
+		[[nodiscard]] static auto hold_review_ledger_terminals(github_application& aApplication, core::bpr_window_context aContext, bool aHold) -> bool;
+		[[nodiscard]] static auto held_review_ledger_terminals(const github_application& aApplication, core::bpr_window_context aContext) -> std::size_t;
 		/// \brief [[BPR-1211]]. Holds the profile's review-ledger effect lane:
 		/// operations posted after this queue behind it until the returned
 		/// function releases it, or thirty seconds pass.

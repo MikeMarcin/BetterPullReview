@@ -101,14 +101,32 @@ namespace {
 		auto& window = aApp.window();
 		window.close_review_sheet();
 		window.choose_modality(qt::review_modality::review);
-		auto revealed = app::detail::fixture_file_reveal_result::pending;
-		if (!e2e::wait_until_plain([&] { revealed = access::reveal_fixture_file(aApp, "review.cpp"); return revealed == app::detail::fixture_file_reveal_result::shown; }, e2e::default_queue_budget)) {
-			std::cerr << "review-submission-composition: review.cpp reveal " << static_cast<int>(revealed) << " status=" << window.github_status_text() << '\n';
-			throw std::runtime_error{ "review.cpp is shown in Review" };
-		}
+		// The reveal helper remembers its earlier file gesture. After a push,
+		// that is not evidence that the new head's comparison has arrived.
+		wait([&] {
+			if (access::reveal_fixture_file(aApp, "review.cpp") != app::detail::fixture_file_reveal_result::shown) {
+				return false;
+			}
+			const auto current = access::epoch_refresh_identity(aApp);
+			return current.PublicationDisplayed && current.AcceptedComparison
+				&& current.PublishedComparison == current.AcceptedComparison;
+		},
+			 "review.cpp's current-head comparison is shown in Review");
 		wait([&] { return window.comparison_surface()->select_conversation_line(core::diff_side::right, aLine); }, "a head line of review.cpp is selected");
 		if (!e2e::wait_until_plain([&] { return window.comment_action()->isEnabled(); }, e2e::default_queue_budget)) {
-			std::cerr << "review-submission-composition: line " << aLine << " comment action: " << window.comment_action()->toolTip().toStdString() << '\n';
+			const auto* const draftEditor = window.review_editor();
+			const auto&       draft       = draftEditor->shown_draft();
+			const auto        selection   = window.comparison_surface()->selection();
+			const auto        current     = access::epoch_refresh_identity(aApp);
+			std::cerr << "review-submission-composition: line " << aLine << " comment action: " << window.comment_action()->toolTip().toStdString()
+					  << " selected=" << selection.has_value() << " selected_line=" << (selection ? selection->PreferredLine.Line : 0U)
+					  << " editor_draft=" << draft.has_value() << " readonly=" << draftEditor->body_editor()->isReadOnly()
+					  << " editor_anchor=" << (draft && selection && draft->Anchor == selection->PreferredLine)
+					  << " draft_state=" << (draft ? static_cast<int>(draft->State) : -1)
+					  << " reload=" << draftEditor->reload_draft_action()->isEnabled() << " reapply=" << draftEditor->reapply_draft_action()->isEnabled()
+					  << " candidate=" << draftEditor->rejected_candidate().has_value()
+					  << " displayed=" << current.PublicationDisplayed << " comparison_pending=" << current.ComparisonPending
+					  << " tab_pending=" << current.TabPending << " pair_match=" << (current.PublishedComparison == current.AcceptedComparison) << '\n';
 			throw std::runtime_error{ "Comment is offered on the current head line" };
 		}
 		window.comment_action()->trigger();

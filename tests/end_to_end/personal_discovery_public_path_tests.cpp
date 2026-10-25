@@ -1055,8 +1055,12 @@ try {
 	// [[BPR-1681]]. The restarted session's first refresh finds the
 	// three saved repositories besides the fixture's own unreadable.
 	otherRepositoriesRefused->store(true);
-	owner->begin_shutdown();
-	wait_for([&] { return owner->status().ShutdownComplete; }, "the profile's work drains before teardown");
+	// A restart observes the last arrangement only after public Quit drains
+	// its write. Forced shutdown deliberately cancels unfinished stores.
+	auto* const quit = windowA->findChild<QAction*>(QStringLiteral("quitProfilesAction"));
+	expect(quit && quit->isEnabled(), "public Quit is available before the persistence restart");
+	quit->trigger();
+	wait_for([&] { return desktop->is_quiescent(); }, "public Quit drains the profile before teardown");
 	auto retiredDesktop = QPointer<qt::profile_management_window>{ desktop->management_window() };
 	expect(retiredDesktop, "desktop retirement has a lifetime witness");
 	desktop.reset();

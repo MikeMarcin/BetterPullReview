@@ -9,7 +9,7 @@
   "milestones": [
     {
       "id": "qualified-publication",
-      "outcome": "One committed v0.3.2 candidate passes the selected coordinated native qualification and exact-artifact obligations, and is published with verified downloads only when authorized and ready.",
+      "outcome": "One committed v0.3.3 candidate passes the selected coordinated native qualification and exact-artifact obligations, and is published with verified downloads only when authorized and ready.",
       "work": [
         {
           "issue": "BPR-1694",

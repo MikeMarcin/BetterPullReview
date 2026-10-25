@@ -2115,8 +2115,9 @@ namespace {
 		expect(fixture.item(17) && fixture.item(17)->Ignored, "a restored ignore marks its row");
 		expect(!fixture.Queue.ignored().contains(ref(19)) && fixture.Queue.ignored().contains(foreign),
 			   "a restored ignore of a closed record is pruned; one with no record is kept");
+		const auto expectedPrune = std::vector<core::home_ignore_delta>{ { .Ref = ref(19), .Change = core::home_ignore_change::pruned_closed } };
 		expect(!fixture.Store.IgnoreWrites.empty()
-				   && fixture.Store.IgnoreWrites.back() == std::vector<core::home_ignore_delta>{ { .Ref = ref(19), .Change = core::home_ignore_change::pruned_closed } },
+				   && fixture.Store.IgnoreWrites.back() == expectedPrune,
 			   "the prune is written as a closed prune");
 
 		fixture.Discovery.adopt(discovery_session());
@@ -2202,7 +2203,7 @@ namespace {
 		};
 		fixture.Clock.Now += 2;
 		answer(provider.rows({ row(5U) }), { .Requests = 4U, .WaitMilliseconds = 3U, .RunMilliseconds = 900U, .CredentialMilliseconds = 60U, .WireMilliseconds = 700U, .Throttled = 1U, .ServerErrors = 1U });
-		answer(provider.failure(application::github_provider_failure::permission), { .Requests = 1U, .WaitMilliseconds = 7U, .RunMilliseconds = 400U, .CredentialMilliseconds = 50U, .WireMilliseconds = 300U, .Forbidden = 1U, .Timeouts = 1U });
+		answer(provider.failure(application::github_provider_failure::permission), { .Requests = 1U, .WaitMilliseconds = 7U, .RunMilliseconds = 400U, .CredentialMilliseconds = 50U, .WireMilliseconds = 300U, .Forbidden = 1U, .Timeouts = 1U, .LastReadOperation = application::diagnostic_paged_operation::list_requested_reviewers, .LastHttpStatus = 403U });
 		answer(provider.rows({ }), { .Requests = 1U, .RunMilliseconds = 300U });
 		answer(provider.rows({ }), { .Requests = 1U, .RunMilliseconds = 200U });
 		const auto& events = fixture.Diagnostics.Events;
@@ -2221,6 +2222,7 @@ namespace {
 		expect(lines[4].Read == 3U && lines[5].Read == 2U && events[5].Outcome == application::diagnostic_outcome::failed
 				   && events[5].GithubFailure == application::diagnostic_github_failure{ core::github_failure::permission },
 			   "a failed read ends failed with its failure");
+		expect(events[5].PagedOperation == application::diagnostic_paged_operation::list_requested_reviewers && events[5].HttpStatus == 403U, "discovery preserves only the typed last operation and observed HTTP status");
 		expect(lines[6].Read == 4U && lines[7].Read == 3U && lines[8].Read == 4U, "the later reads start as earlier ones end");
 		expect(lines[9] == core::discovery_diagnosis{ .Scope = scope::refresh, .Refresh = 1U, .State = state::stale, .Repositories = 2U, .Reads = 4U, .Failed = 1U, .Requests = 7U, .WaitMilliseconds = 10U, .RunMilliseconds = 2'000U, .CredentialMilliseconds = 110U, .WireMilliseconds = 1'000U, .Forbidden = 1U, .Throttled = 1U, .ServerErrors = 1U, .Timeouts = 1U }
 				   && events[9].Outcome == application::diagnostic_outcome::succeeded,

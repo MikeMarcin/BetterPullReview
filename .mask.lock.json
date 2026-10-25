@@ -66,12 +66,12 @@
       "source": "agentskills"
     },
     {
-      "commit": "c85be25596b5c981107e8b09af27ee52119bd8bf",
+      "commit": "ac9c2e9e16851e9e37c17902011f3c87d9c3d147",
       "git_object_format": "sha1",
       "id": "implement-rfc",
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/implement-rfc",
-      "payload_digest": "sha256:b7438ea8baa198a49315f2ab7b482c9da1d1d12ef4f013c005f5da070bb171b9",
+      "payload_digest": "sha256:96505b1615cf367eed06153717f8dea0c2f22a51e5aad15fc5080a8e9f928588",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
@@ -85,6 +85,19 @@
       "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
       "path": "skills/pr-tour",
       "payload_digest": "sha256:77c79519881dbcfe19f88360b4f63dd8b2f8e1a3559725f0785a9c4bdd56fbd3",
+      "repository": "https://github.com/MikeMarcin/AgentSkills.git",
+      "selector": {
+        "ref": "refs/heads/main"
+      },
+      "source": "agentskills"
+    },
+    {
+      "commit": "ac9c2e9e16851e9e37c17902011f3c87d9c3d147",
+      "git_object_format": "sha1",
+      "id": "remote-station",
+      "metadata_digest": "sha256:74234e98afe7498fb5daf1f36ac2d78acc339464f950703b8c019892f982b90b",
+      "path": "skills/remote-station",
+      "payload_digest": "sha256:9c6817f0cc054779db6ad618b30682d6901e2f58695a707ed7d119e88d9a515a",
       "repository": "https://github.com/MikeMarcin/AgentSkills.git",
       "selector": {
         "ref": "refs/heads/main"
@@ -120,5 +133,5 @@
   ],
   "resolver": "mask-lock-v1",
   "schema_version": 1,
-  "selection_digest": "sha256:c6e43bdc16b258b29dcfd3db6f7ce92a33ce5f691ef37f902a733aac4b8944a7"
+  "selection_digest": "sha256:d1c945f69076041467752ae189ca48e51e62897bd1c76b99551f8a82c3afd425"
 }

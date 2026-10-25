@@ -497,7 +497,7 @@ namespace bpr::app {
 #endif
 #if defined(BPR_BUILD_TESTING)
 
-		/// Holds only review-mutation terminals for deterministic fixture races.
+		/// Holds decision posts for deterministic fixture races.
 		class gated_review_mutation_decision_executor final
 			: public application::decision_executor
 		{
@@ -4322,10 +4322,17 @@ namespace bpr::app {
 		worker_executor ReviewLedgerEffects;
 		/// [[BPR-1254]]. The lane above, each task under `ReviewLedgerFile`;
 		/// the one every ledger host is given.
-		exclusive_file_effect_executor                      ReviewLedgerStoreEffects{ ReviewLedgerEffects, ReviewLedgerFile };
-		private_review_recovery_registry                    PrivateRecovery;
-		worker_executor                                     ReviewSubmissionEffects;
-		qt::event_loop_executor                             DecisionLane;
+		exclusive_file_effect_executor   ReviewLedgerStoreEffects{ ReviewLedgerEffects, ReviewLedgerFile };
+		private_review_recovery_registry PrivateRecovery;
+		worker_executor                  ReviewSubmissionEffects;
+		qt::event_loop_executor          DecisionLane;
+#if defined(BPR_BUILD_TESTING)
+		gated_review_mutation_decision_executor RestorationDecisionGate{ DecisionLane };
+		gated_review_mutation_decision_executor WindowCloseDecisionGate{ DecisionLane };
+		// A closed window can leave ledger work on this profile's effect lane.
+		// Its test gate survives through that lane's drain, like DecisionLane.
+		std::vector<std::unique_ptr<gated_review_mutation_decision_executor>> ReviewLedgerDecisionGates;
+#endif
 		std::shared_ptr<application::github_read_admission> ReadAdmission = std::make_shared<application::github_read_admission>();
 		/// [[BPR-1447]]. Feedback body digests on platform crypto, taken on the
 		/// provider's thread for every window's reads. Stateless, and outlives
@@ -14964,6 +14971,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			Window->review_editor()->acknowledge(aRevisionedCommand, *aOutcome.Accepted);
+			// A durable edit can finish after another line was selected. Keep
+			// its acknowledgement, without selecting that earlier draft again.
+			if (aCommand.Kind == core::review_draft_command_kind::edit
+				&& (!ReviewDraft || aOutcome.Accepted->Scope != DraftScope
+					|| ReviewDraft->Id != aOutcome.Accepted->Draft.Id
+					|| ReviewDraft->Anchor != aOutcome.Accepted->Draft.Anchor
+					|| ReviewDraftRevision > aOutcome.Accepted->Revision)) {
+				Window->accept_dif_draft(aRevisionedCommand, *aOutcome.Accepted);
+				refresh_agent_private_context_choices();
+				return;
+			}
 			accept_shared_draft(*aOutcome.Accepted);
 			if (aRevisionedCommand.ChangeReplyTarget && aRevisionedCommand.ReplyToThread) {
 				Window->review_editor()->describe_reply_target(QStringLiteral("Replying in this thread"));
@@ -15451,6 +15469,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			OverviewReceiptsLoading     = false;
 			PendingDefectWrites.clear();
 			ReviewLedgerHost.reset();
+#if defined(BPR_BUILD_TESTING)
+			if (ReviewLedgerDecisionGate) {
+				ReviewLedgerDecisionGate->release();
+			}
+#endif
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				ReviewLedgerAuthority.reset();
@@ -15587,8 +15610,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// ledger's own opening has answered, as it did when that was synchronous.
 			auto privateScope = adapters::sqlite::private_review_configuration{ .Ledger = { .StorageRoot = ApplicationDataRoot, .Host = std::string{ aHandoff.Hostname.value() }, .Account = std::to_string(aHandoff.Account.value()), .Repository = aHandoff.Locator.Owner + "/" + aHandoff.Locator.Name, .PullRequest = static_cast<std::int64_t>(aHandoff.Number.value()) }, .Profile = DraftWindow.Profile, .Host = aHandoff.Host, .Account = aHandoff.Account, .Repository = aHandoff.Repository, .PullRequest = aHandoff.PullRequest };
 			++ReviewLedgerGeneration;
+#if defined(BPR_BUILD_TESTING)
+			if (ReviewLedgerDecisionGate == nullptr) {
+				Profile->ReviewLedgerDecisionGates.push_back(std::make_unique<gated_review_mutation_decision_executor>(DecisionLane));
+				ReviewLedgerDecisionGate = Profile->ReviewLedgerDecisionGates.back().get();
+			}
+			auto& ledgerDecisions = *ReviewLedgerDecisionGate;
+#else
+			auto& ledgerDecisions = DecisionLane;
+#endif
 			ReviewLedgerHost = std::make_unique<application::review_ledger_application_host>(
-				std::move(open), *this, ReviewLedgerStoreEffects, DecisionLane,
+				std::move(open), *this, ReviewLedgerStoreEffects, ledgerDecisions,
 				ledger_answer([this, privateReview = std::move(privateScope)](const std::expected<void, application::ledger_store_failure>& aOpened) mutable {
 					open_private_review(std::move(privateReview));
 					review_ledger_opened(aOpened.has_value());
@@ -22032,6 +22064,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ReviewSubmissionDecisionGate) {
 				ReviewSubmissionDecisionGate->release();
 			}
+			if (ReviewLedgerDecisionGate) {
+				ReviewLedgerDecisionGate->release();
+			}
 #endif
 			if (ReviewSubmission) {
 				ReviewSubmission->shutdown();
@@ -22245,7 +22280,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			ShutdownComplete = true;
 			if (OnClosed) {
+#if defined(BPR_BUILD_TESTING)
+				Profile->WindowCloseDecisionGate.post(std::exchange(OnClosed, { }));
+#else
 				DecisionLane.post(std::exchange(OnClosed, { }));
+#endif
 			}
 		}
 
@@ -22368,6 +22407,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::Fixture)&                Fixture                = Profile->Fixture;
 		decltype(github_profile_runtime::ReviewSubmissionServer)& ReviewSubmissionServer = Profile->ReviewSubmissionServer;
 		std::unique_ptr<gated_review_mutation_decision_executor>  ReviewSubmissionDecisionGate;
+		gated_review_mutation_decision_executor*                  ReviewLedgerDecisionGate = nullptr;
 		std::unique_ptr<gated_review_mutation_decision_executor>
 					ReviewMutationDecisionGate;
 		std::size_t EpochPruneIntentDispatchCount  = 0U;
@@ -24272,7 +24312,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			hosts.emplace_back(profile.hostname());
 		}
 		Profile->ReviewRestorationStore = std::make_unique<effect_window_review_store>(Profile->ApplicationDataRoot);
-		Profile->ReviewRestoration      = std::make_unique<application::window_review_restoration_host>(Profile->Admission.Authority.profile(), aWindows, std::move(hosts), *Profile->ReviewRestorationStore, Profile->WorkbenchEffects, Profile->DecisionLane, *Profile);
+#if defined(BPR_BUILD_TESTING)
+		auto& restorationDecisions = Profile->RestorationDecisionGate;
+#else
+		auto& restorationDecisions = Profile->DecisionLane;
+#endif
+		Profile->ReviewRestoration = std::make_unique<application::window_review_restoration_host>(Profile->Admission.Authority.profile(), aWindows, std::move(hosts), *Profile->ReviewRestorationStore, Profile->WorkbenchEffects, restorationDecisions, *Profile);
 		Profile->ReviewRestoration->start();
 		return true;
 	}
@@ -24304,7 +24349,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	auto github_application::window_quiescent(core::bpr_window_context aContext) const noexcept -> bool
 	{
 		const auto found = Sessions.find(aContext);
-		return found == Sessions.end() || found->second->ShutdownComplete;
+		// The queued close callback still folds cleanup results and retires the
+		// session. Profile shutdown must not force that orderly window while
+		// this ownership handoff is pending.
+		return found == Sessions.end();
 	}
 	auto github_application::windows() const -> std::vector<core::bpr_window_context>
 	{
@@ -25535,10 +25583,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 
 	auto detail::github_application_fixture_access::epoch_refresh_identity(
-		const github_application& aApplication) -> epoch_refresh_identity_evidence
+		const github_application& aApplication, const std::optional<core::bpr_window_context> aContext) -> epoch_refresh_identity_evidence
 	{
-		auto              result         = epoch_refresh_identity_evidence{ };
-		const auto* const implementation = aApplication.Implementation.get();
+		auto        result         = epoch_refresh_identity_evidence{ };
+		const auto* implementation = aApplication.Implementation.get();
+		if (aContext) {
+			const auto found = aApplication.Sessions.find(*aContext);
+			implementation   = found == aApplication.Sessions.end() ? nullptr : found->second.get();
+		}
 		if (implementation == nullptr || implementation->Window == nullptr
 			|| implementation->WorkbenchHost == nullptr
 			|| implementation->EpochHost == nullptr || implementation->TabHost == nullptr) {
@@ -25554,7 +25606,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			result.ActiveTab = *active;
 		}
 		result.TabPending = tabs.Pending.has_value();
+		result.TabLoad    = implementation->TabLoad.has_value();
+		if (implementation->PaneFind) {
+			const auto counters    = implementation->PaneFind->counters();
+			result.SearchCounters  = { counters.Admitted, counters.Scheduled, counters.Terminals, counters.StaleTerminals, counters.ProjectionFailures, counters.IngressRefusals };
+			result.SearchQuiescent = implementation->PaneFind->is_quiescent();
+		}
 		if (const auto& publication = implementation->SelectedDiffPublication; publication) {
+			result.DiffRequestMatches   = implementation->SelectedDiffRequest == std::optional{ publication->Request };
 			result.PublishedFile        = publication->Request.File.File;
 			result.PublishedComparison  = publication->Request.Diff.Comparison;
 			const auto* surface         = implementation->Window->comparison_surface();
@@ -32266,8 +32325,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (reopen == nullptr || !reopen->isEnabled() || reopen->text() != QStringLiteral("Unresolve conversation")) {
 				return fail("no-unresolve-conversation");
 			}
+			auto* const gate = implementation->ReviewMutationDecisionGate.get();
+			if (gate == nullptr) {
+				return fail("no-reopen-decision-gate");
+			}
+			gate->hold();
+			const auto release = qScopeGuard([gate] { gate->release(); });
 			reopen->click();
-			QCoreApplication::processEvents();
+			// Observe the synchronous gesture before its native terminal can
+			// clear Pending. The next phase still requires confirmed reopening.
 			const auto shown                 = std::ranges::find(cards->cards(), std::string{ threadIdentity }, &qt::thread_card::Id);
 			probe.Evidence.ReopenShownAtOnce = shown != cards->cards().end() && !shown->Resolved && shown->ResolutionPending;
 			if (!probe.Evidence.ReopenShownAtOnce) {
@@ -32309,8 +32375,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (chip == nullptr || !chip->isEnabled()) {
 				return fail("no-thumbs-up-chip");
 			}
+			auto* const gate = implementation->ReviewMutationDecisionGate.get();
+			if (gate == nullptr) {
+				return fail("no-reaction-decision-gate");
+			}
+			gate->hold();
+			const auto release = qScopeGuard([gate] { gate->release(); });
 			chip->click();
-			QCoreApplication::processEvents();
+			// Keep the native answer behind this immediate observation. The
+			// next phase still requires the confirmed reaction and no Pending.
 			const auto        now        = cards->reactions_of(post);
 			const auto* const pending    = now ? core::find_reaction_group(*now, core::reaction_content::thumbs_up) : nullptr;
 			probe.Evidence.ReactionShown = pending != nullptr && pending->Count == 3U && pending->ViewerReacted && pending->Pending;
@@ -37232,12 +37305,59 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 	}
 
 	auto detail::github_application_fixture_access::review_ledger_settled(
-		github_application& aApplication) -> bool
+		github_application& aApplication, const std::optional<core::bpr_window_context> aContext) -> bool
 	{
-		const auto* const implementation = aApplication.Implementation.get();
-		return implementation != nullptr && implementation->ReviewLedgerHost != nullptr
+		const auto* implementation = aApplication.Implementation.get();
+		if (aContext) {
+			const auto found = aApplication.Sessions.find(*aContext);
+			implementation   = found == aApplication.Sessions.end() ? nullptr : found->second.get();
+		}
+		return implementation != nullptr && !implementation->Closing && implementation->ReviewLedgerHost != nullptr
 			&& implementation->ReviewLedgerHost->available().has_value()
 			&& implementation->ReviewLedgerHost->is_quiescent();
+	}
+	auto detail::github_application_fixture_access::hold_restoration_terminals(github_application& aApplication) -> std::function<void()>
+	{
+		auto profile = aApplication.Profile;
+		profile->RestorationDecisionGate.hold();
+		return [profile] { profile->RestorationDecisionGate.release(); };
+	}
+	auto detail::github_application_fixture_access::hold_window_close_callbacks(github_application& aApplication) -> std::function<void()>
+	{
+		auto profile = aApplication.Profile;
+		profile->WindowCloseDecisionGate.hold();
+		return [profile] { profile->WindowCloseDecisionGate.release(); };
+	}
+	auto detail::github_application_fixture_access::held_restoration_and_close_callbacks(const github_application& aApplication) -> std::array<std::size_t, 2>
+	{
+		return { aApplication.Profile->RestorationDecisionGate.pending(), aApplication.Profile->WindowCloseDecisionGate.pending() };
+	}
+	auto detail::github_application_fixture_access::restoration_durable(const github_application& aApplication) -> bool
+	{
+		return aApplication.Profile->ReviewRestoration && aApplication.Profile->ReviewRestoration->durable();
+	}
+
+	auto detail::github_application_fixture_access::hold_review_ledger_terminals(github_application& aApplication, const core::bpr_window_context aContext, const bool aHold) -> bool
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		if (found == aApplication.Sessions.end() || found->second->Closing || !found->second->ReviewLedgerHost || !found->second->ReviewLedgerDecisionGate) {
+			return false;
+		}
+		auto& gate = *found->second->ReviewLedgerDecisionGate;
+		if (aHold) {
+			gate.hold();
+		} else {
+			gate.release();
+		}
+		return true;
+	}
+
+	auto detail::github_application_fixture_access::held_review_ledger_terminals(const github_application& aApplication, const core::bpr_window_context aContext) -> std::size_t
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		return found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReviewLedgerDecisionGate
+			? found->second->ReviewLedgerDecisionGate->pending()
+			: 0U;
 	}
 
 	namespace {

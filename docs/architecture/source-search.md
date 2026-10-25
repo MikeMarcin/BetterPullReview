@@ -335,7 +335,9 @@ wash/outline covers only actual source fragments; explicit Copy of the current
 occurrence yields its original source bytes. An EOF hit with no actual line
 never invents a comment anchor. Semantic selection and visibility use the
 existing shared controller, with deferred reveals bound to the still-current
-match and cancelled by later reading gestures.
+match and cancelled by later reading gestures. The native selection keeps its
+caret at the first displayed fragment, which the target pane reveals horizontally;
+a match wider than the pane therefore keeps its beginning and caret in view.
 
 The native model indexes decorations by document position with prefix ends;
 painting visits visible candidates. Scroll-track painting uses sorted fractions

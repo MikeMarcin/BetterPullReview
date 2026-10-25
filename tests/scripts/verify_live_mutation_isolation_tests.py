@@ -164,6 +164,36 @@ class ForbiddenSymbolTests(unittest.TestCase):
         self.assertEqual(len(found), 1)
         self.assertIn(FORBIDDEN_SYMBOL, found[0])
 
+    def test_gcc_local_initializer_names_the_test_file(self) -> None:
+        observed = "0000000000047c40 t _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp"
+        self.assertEqual(forbidden_symbols_in(CLEAN_TABLE + "\n" + observed), [])
+
+    def test_test_file_initializer_does_not_hide_a_real_provider(self) -> None:
+        observed = "0000000000047c40 t _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp"
+        self.assertEqual(
+            forbidden_symbols_in(observed + "\n" + LIVE_PROVIDER_TABLE),
+            forbidden_symbols_in(LIVE_PROVIDER_TABLE),
+        )
+        self.assertEqual(len(forbidden_symbols_in(observed + "\n" + LIVE_PROVIDER_TABLE)), 1)
+
+    def test_other_provider_records_remain_forbidden(self) -> None:
+        records = (
+            "0000000000047c40 T _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp",
+            "0000000000047c40 W _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp",
+            "0000000000047c40 t _GLOBAL__sub_I_live_review_mutation_provider.cpp",
+            "0000000000047c40 t _GLOBAL__sub_D_live_review_mutation_provider_tests.cpp",
+            "0000000000047c40 t _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp.clone.0",
+            "0000000000047c40 t _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp_extra",
+            "unknown t _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp",
+            "t _GLOBAL__sub_I_live_review_mutation_provider_tests.cpp",
+            "0000000000047c40 t _ZN3bpr8adapters6github29live_review_mutation_provider6submitEv",
+            "0000000000047c40 T bpr::adapters::github::make_live_review_mutation_provider()",
+            "0000000000047c40 V vtable for bpr::adapters::github::live_review_mutation_provider",
+        )
+        for record in records:
+            with self.subTest(record=record):
+                self.assertEqual(forbidden_symbols_in(record), [record])
+
     def test_the_positive_control_symbol_is_present_in_a_real_table(self) -> None:
         # If this were absent the guard would be reading an empty or stripped
         # table and its silence would mean nothing.

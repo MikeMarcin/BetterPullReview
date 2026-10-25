@@ -923,7 +923,12 @@ namespace bpr::e2e::large_review {
 			phase.PeakEpochJobs         = std::max(phase.PeakEpochJobs, work.EpochOutstandingJobs);
 			phase.PeakWorkbenchRequests = std::max(phase.PeakWorkbenchRequests, work.WorkbenchOutstandingRequests);
 		});
-		bool       ready   = false;
+		bool       ready = false, byteCourseFailed = false;
+		const auto currentReady = [&] {
+			const auto epochStatus = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
+			byteCourseFailed       = byteCourseFailed || (aReport.CacheByteCourse && (epochStatus == core::epoch_status::failed || epochStatus == core::epoch_status::unavailable || epochStatus == core::epoch_status::cancelled));
+			return !byteCourseFailed && aReady();
+		};
 		const auto visible = [&] {
 			if (aVisible && phase.VisibleMs < 0 && aVisible()) {
 				phase.VisibleMs = milliseconds(completion_ns(began, native_schedule_now()));
@@ -931,10 +936,7 @@ namespace bpr::e2e::large_review {
 		};
 		QObject::connect(&readiness, &QTimer::timeout, &loop, [&] {
 			visible();
-			ready                       = aReady();
-			const auto epochStatus      = aReport.CacheByteCourse ? aApplication.status().EpochStatus : core::epoch_status::inactive;
-			const auto byteCourseFailed = aReport.CacheByteCourse
-				&& (epochStatus == core::epoch_status::failed || epochStatus == core::epoch_status::unavailable || epochStatus == core::epoch_status::cancelled);
+			ready = currentReady();
 			if (ready || byteCourseFailed || aBudget.elapsed() >= courseClockMs) {
 				loop.quit();
 			}
@@ -943,10 +945,14 @@ namespace bpr::e2e::large_review {
 		aAction();
 		phase.ActionMs = milliseconds(thread_interval_ns(began.Mark, native_schedule_now()));
 		visible();
-		ready = aReady();
-		if (!ready && aBudget.elapsed() < courseClockMs) {
+		ready = currentReady();
+		while (!ready && !byteCourseFailed && aBudget.elapsed() < courseClockMs) {
 			readiness.start();
 			loop.exec();
+			// quit() ends this loop after the current native event delivery.
+			// Other callbacks in that delivery can admit work after the timer
+			// saw quiet. Return the current condition, within the same budget.
+			ready = currentReady();
 		}
 		const auto finished   = native_schedule_now();
 		phase.ElapsedMs       = milliseconds(completion_ns(began, finished));
@@ -1777,6 +1783,7 @@ namespace bpr::e2e::large_review {
 		expectedB.LeftBlob  = core::parse_git_blob_oid(foundB->base.oid);
 		expectedB.RightBlob = core::parse_git_blob_oid(foundB->head.oid);
 		bool       holdingB = false, stalePublication = false;
+		bool       staleKeyObserved = false, staleTextObserved = false;
 		const auto adoptionsBeforeB = surface.statistics().SemanticIndexAdoptions;
 		const auto observeB         = [&](QTextDocument* aDocument, const QString& aFirstLine) {
 			if (!holdingB) {
@@ -1801,7 +1808,9 @@ namespace bpr::e2e::large_review {
 				}
 				std::cerr << '\n';
 			}
-			stalePublication = stalePublication || !keyMatches || !textMatches;
+			staleKeyObserved = staleKeyObserved || !keyMatches;
+			staleTextObserved = staleTextObserved || !textMatches;
+			stalePublication = stalePublication || staleKeyObserved || staleTextObserved;
 		};
 		QObject    observationLifetime;
 		const auto leftObservation  = QObject::connect(surface.left_pane()->document(), &QTextDocument::contentsChanged, &observationLifetime, [&] {
@@ -1841,13 +1850,13 @@ namespace bpr::e2e::large_review {
 		}
 		QObject::disconnect(leftObservation);
 		QObject::disconnect(rightObservation);
-		std::cerr << "LARGE_REVIEW_HELD_B_PREDICATES: drained=" << drainedB << " stale=" << stalePublication
-				  << " observations=" << aReport.ByteHeldSourceObservations << " selected=" << selected(surface, source_path(100))
-				  << " key_matches=" << (surface.current_result() && surface.current_result()->Alignment.Key == expectedB)
-				  << " settled=" << settled() << '\n';
-		require(drainedB && !stalePublication && aReport.ByteHeldSourceObservations != 0U
-					&& selected(surface, source_path(100)) && surface.current_result()->Alignment.Key == expectedB && settled(),
-				"stale comparison published while superseding file B remained selected");
+		const auto heldPassed = drainedB && !stalePublication && aReport.ByteHeldSourceObservations != 0U
+			&& selected(surface, source_path(100)) && surface.current_result()->Alignment.Key == expectedB && settled();
+		if (!heldPassed) {
+			std::cerr << "CACHE_BYTE_HELD_FAILURE drained=" << drainedB << " stale_key=" << staleKeyObserved << " stale_text=" << staleTextObserved
+					  << " observations=" << aReport.ByteHeldSourceObservations << " selected=" << selected(surface, source_path(100)) << " settled=" << settled() << "\n";
+		}
+		require(heldPassed, "stale comparison published while superseding file B remained selected");
 		for (int line = 0; line < 8; ++line) {
 			const auto common = QStringLiteral("// synthetic source 0100 line %1").arg(line + 1);
 			require(surface.left_pane()->document()->findBlockByNumber(line).text() == (line == 0 ? QStringLiteral("int fixture_0100 = 0;") : common)

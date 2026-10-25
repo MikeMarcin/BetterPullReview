@@ -342,11 +342,15 @@ int main(int aArgc, char** aArgv)
 		const auto originIndex = strip->index_of(origin);
 		const auto addedIndex  = strip->index_of(active()->Id);
 		expect(originIndex && addedIndex && *addedIndex == *originIndex + 1 && strip->tabs()[static_cast<std::size_t>(*originIndex)].Path == QStringLiteral("src/other.cpp") && active()->Path == QStringLiteral("src/find.cpp"), "the new tab follows the one it came from, which keeps its file");
-		auto* const pane   = surface->right_pane();
-		const auto  cursor = pane->cursorRect();
-		std::cout << "NEW_TAB_REVEAL block=" << pane->textCursor().blockNumber() << " cursor=" << cursor.top() << " viewport=" << pane->viewport()->height() << '\n'
-				  << std::flush;
-		expect(pane->textCursor().selectedText() == QStringLiteral("offscreen needle") && pane->viewport()->rect().contains(cursor.center()), "the result's line is in view in the new tab");
+		auto* const pane    = surface->right_pane();
+		const auto  cursor  = pane->cursorRect();
+		const auto  visible = pane->textCursor().selectedText() == QStringLiteral("offscreen needle") && pane->viewport()->rect().contains(cursor.center());
+		if (!visible) {
+			std::cerr << "NEW_TAB_REVEAL block=" << pane->textCursor().blockNumber() << " cursor=" << cursor.top() << " x=" << cursor.left() << " cursor_width=" << cursor.width() << " viewport_width=" << pane->viewport()->width()
+					  << " selected=" << pane->textCursor().selectedText().toStdString() << " horizontal=" << pane->horizontalScrollBar()->value()
+					  << " viewport=" << pane->viewport()->height() << '\n';
+		}
+		expect(visible, "the result's line is in view in the new tab");
 		expect(surface->selection() && surface->selection()->PreferredLine.Side == core::diff_side::right && surface->selection()->PreferredLine.Line == 1102U && window.focusWidget() == pane, "the new tab reads the right side at the result's line, with the window's keyboard there");
 		expect(panel->projection().Matches == results && panel->projection().Statistics.Scans == scans, "the results stay and nothing is searched again");
 		expect(panel->projection().CurrentMatch == std::optional<std::uint32_t>{ 1U }, "the opened result is the current one");

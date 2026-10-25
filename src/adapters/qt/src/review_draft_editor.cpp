@@ -859,9 +859,7 @@ namespace bpr::qt {
 	void review_draft_editor::acknowledge(const core::revisioned_review_draft_command& aCommand, const core::revisioned_review_draft& aAccepted)
 	{
 		auto& state = Members.Revisioned;
-		if (!state.Dispatch || !state.Candidate || !state.Accepted
-			|| (!(state.Selected && !state.Replacement)
-				&& (!state.Replacement || *state.Replacement != aAccepted))) {
+		if (!state.Dispatch || !state.Candidate || !state.Accepted) {
 			return;
 		}
 		const auto& candidate = *state.Candidate;
@@ -871,8 +869,33 @@ namespace bpr::qt {
 			|| candidate.ChangePending != aCommand.ChangePending || candidate.Pending != aCommand.Pending
 			|| aCommand.Command.Kind != core::review_draft_command_kind::edit || aCommand.ChangeReplyTarget
 			|| aAccepted.Scope != aCommand.Scope || aAccepted.Draft.Id != aCommand.Command.Id || aAccepted.Draft.Body != aCommand.Command.Body
+			|| aAccepted.Draft.Anchor != state.Accepted->Draft.Anchor
+			|| (aCommand.ChangeRange && aAccepted.Draft.StartLine != aCommand.StartLine)
+			|| (aCommand.ChangePending && aAccepted.Draft.InReview != aCommand.Pending)
 			|| aAccepted.Revision < aCommand.ExpectedRevision || aAccepted.Revision - aCommand.ExpectedRevision > 1
 			|| state.Accepted->Scope != aAccepted.Scope || state.Accepted->Draft.Id != aAccepted.Draft.Id || state.Accepted->Revision > aAccepted.Revision) {
+			return;
+		}
+		if (!state.Selected || state.Replacement) {
+			// The save belongs to the line left behind. It settles only the
+			// exact accepted text; a later local edit stays with its own draft.
+			state.Accepted                    = aAccepted;
+			state.Candidate->ExpectedRevision = aAccepted.Revision;
+			state.Candidate->Command.Body     = body_text();
+			settle_in_flight();
+			if (body_text() != aAccepted.Draft.Body || state.PendingRange || state.PendingMark) {
+				state.Conflict = true;
+				refresh_enablement();
+				return;
+			}
+			state.Candidate.reset();
+			state.Conflict = false;
+			Members.MutationStatus->clear();
+			if (const auto replacement = std::exchange(state.Replacement, std::nullopt)) {
+				present(*replacement);
+			} else {
+				refresh_enablement();
+			}
 			return;
 		}
 		state.Candidate.reset();
@@ -1180,6 +1203,7 @@ namespace bpr::qt {
 		++Members.Statistics.Presentations;
 		Members.ShownDraft.reset();
 		Members.ShownReceipt.reset();
+		Members.Revisioned.Replacement.reset();
 		Members.PublicationStatus.clear();
 		Members.Revisioned.PendingRange.reset();
 		Members.Revisioned.PendingMark.reset();
