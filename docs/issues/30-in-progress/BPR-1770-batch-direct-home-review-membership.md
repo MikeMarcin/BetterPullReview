@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1770"
 title: "Batch direct Home review membership and explain refresh work"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
