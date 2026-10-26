@@ -19,20 +19,20 @@ Read diffs, keep private notes, and follow changes across review rounds.
 ## Install
 
 The [latest release](https://github.com/MikeMarcin/BetterPullReview/releases/latest)
-is **v0.3.1**. Downloads and corresponding source are publicly available.
+is **v0.3.4**. Downloads and corresponding source are publicly available.
 
 | Platform | Installer |
 |---|---|
-| macOS 14.4+ · Apple Silicon and Intel | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-macos-universal.dmg) |
-| Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-windows-x64.msi) |
-| Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.1/BetterPullReview-0.3.1-linux-ubuntu-26.04-x64.deb) |
+| macOS 14.4+ · Apple Silicon and Intel | [Download DMG](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.4/BetterPullReview-0.3.4-macos-universal.dmg) |
+| Windows · x64 | [Download MSI](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.4/BetterPullReview-0.3.4-windows-x64.msi) |
+| Ubuntu 26.04 · x64 | [Download DEB](https://github.com/MikeMarcin/BetterPullReview/releases/download/v0.3.4/BetterPullReview-0.3.4-linux-ubuntu-26.04-x64.deb) |
 
 Tested on Windows 11 and Ubuntu 26.04 (WSL2). Other Windows and Linux versions
 may work but are untested.
 
 On macOS, open the DMG and copy the app to `~/Applications`. On Windows, run
 the per-user MSI installer. On Ubuntu, follow the release's
-[signature verification steps](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1#linux-signature-verification)
+[signature verification steps](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.4#linux-signature-verification)
 before installing the DEB with your package manager.
 
 Install Git 2.39+ for pull-request history and comparisons. Optional GitHub CLI
@@ -42,11 +42,11 @@ system dependencies and signature checks. Windows and Linux use manual updates;
 eligible signed macOS installations can use **Check for Updates…**.
 
 > [!WARNING]
-> v0.3.1 is a stable release, but native installation, authentication, vault,
+> v0.3.4 is a stable release, but native installation, authentication, vault,
 > accessibility, removal, crash-privacy and vulnerability qualification remain
-> incomplete. Ubuntu also exceeds the large-review memory-growth test limit.
-> The [release notes](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.1#known-limitations)
-> record the evidence, gaps and accepted release exception.
+> incomplete.
+> The [release notes](https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.3.4#known-limitations)
+> record the evidence, gaps and accepted release exceptions.
 
 ## Quick start
 

@@ -1,5 +1,23 @@
 # RFC-BPR-0038 qualification ledger
 
+## v0.3.4 publication and permanent Debug timing policy, 2026-10-26
+
+[Release results](release-v034-results.md) record stable Latest v0.3.4 at
+`be4fe79d8abbc8f438b25bbb76bbd16ab6d0a795`, all 28 anonymous downloaded
+assets matching producer bytes and fresh native trust/source audits on all
+three selected platforms. The results retain actual failures, recoveries,
+configured skips, eight Ubuntu Debug performance omissions, the four-file
+licensing/test source bridge, raw vulnerability failures and remaining gaps.
+Native Intel Mac qualification was explicitly omitted by the owner.
+
+The owner made Debug performance timings permanently nongating; the
+[standing policy](../development/release-test-profiles.md#standing-debug-performance-policy)
+and [decision](../issues/_checkpoints/RFC-BPR-0038/owner-debug-performance-policy-20261026.json)
+have no per-release expiry. This changes timing acceptance only. RFC-BPR-0038,
+its native installation/vault/crash/privacy and vulnerability gaps, and existing
+blocked cards remain open. No historical FAIL is relabeled as PASS.
+
+
 ## Owner matrix confirmation, 2026-10-23
 
 [BPR-1743](../issues/60-done/BPR-1743-confirm-or-withdraw-the-october-16-qualification-matrix-amendment.md)

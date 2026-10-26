@@ -1,0 +1,9 @@
+{
+  "recordedUtc": "2026-10-26T17:07:45.569352+00:00",
+  "ownerInstruction": "From now and until the end of time I won't care about debug timings, we dont even have to run those in debug.",
+  "scope": "Standing policy with no release/version expiry: Debug performance timings are not release gates; timing-only Debug qualification courses may be omitted. Mixed courses retain functional coverage, timing misses remain recorded when observed and need no repeated waiver request. Preserve bounded execution/hang detection and functional failure handling. Optimized Release timings, compilation and artifact/source/security/signature/trust remain required.",
+  "schema": "bpr.owner-debug-performance-policy.v1",
+  "expiry": null,
+  "supersedes": "Per-release Debug timing-budget acceptance requirements; historical failures retain their actual results.",
+  "documentation": "docs/development/release-test-profiles.md#standing-debug-performance-policy"
+}

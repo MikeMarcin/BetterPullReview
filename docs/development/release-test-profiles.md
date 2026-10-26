@@ -14,6 +14,54 @@ resource evidence; the exception for published v0.3.1 is not extended. Signing,
 notarization, native trust/installation, legal/source approval, M8/M9, vault,
 crash/privacy and vulnerability obligations retain their separate boundaries.
 
+## Standing Debug performance policy
+
+On 2026-10-26 the owner made Debug performance timings permanently nongating:
+"From now and until the end of time I won't care about debug timings, we dont
+even have to run those in debug." This supersedes earlier requirements to accept
+Debug timing budgets, including comprehensive-release descriptions. It does not
+expire with a release and does not require another waiver when a Debug timing
+assertion recurs.
+
+Use Release for performance acceptance. Dedicated performance courses may be
+omitted in Debug. The current explicit omission set is:
+
+- `application_large_review_history`
+- `application_large_review_launch`
+- `application_large_review_responsiveness`
+- `application_large_review_active_work`
+- `application_large_review_pathological`
+- `application_large_review_prepared_open`
+- `core_diff_compute_benchmark`
+- `application_source_pr_search_performance`
+
+The existing runner supports that bounded selection without changing test bodies:
+
+```sh
+python3 scripts/run_test_suite.py --preset dev --profile comprehensive --change-scope ownership --tests-regex '^(?!(application_large_review_(history|launch|responsiveness|active_work|pathological|prepared_open)|core_diff_compute_benchmark|application_source_pr_search_performance)$).*'
+```
+
+Use `windows-dev` on Windows. `--tests-regex` filters the validated manifest with
+Python's regular expression syntax; the runner constructs CTest's positive row
+selection itself. Tooling preflight still runs. Preserve `selection.json`, its
+exact configured/selected/omitted names and actual results. This is comprehensive
+functional selection with declared Debug performance omissions, not an all-graph
+Debug PASS. New rows remain selected unless explicitly classified and omitted;
+there is no duration or directory heuristic. A performance course's functional
+preconditions do not receive Debug coverage credit when the course is omitted;
+its complete Release course and separate Debug functional controls retain their
+own identities.
+
+Mixed functional courses can contain timing-sensitive assertions. Keep their
+actual failures and any unreached checks, classify the exact timing predicate,
+and continue without a performance repair, rerun or approval request. A short
+watchdog that cuts off slow Debug functional work may be increased for one
+bounded semantic completion course, preserving the original deadline failure and
+the exact command/environment change. Actual hangs and functional failures are
+not timing acceptance. Optimized Release timings, memory/resource acceptance,
+compilation, artifacts/source/legal, signing, notarization, security and native
+trust remain separate obligations.
+
 ## Select the route
 
 Use the tests-enabled Release preset (`qualification-release` on macOS/Linux,

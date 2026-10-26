@@ -136,6 +136,21 @@ network, or process effects.
   `killall` by pattern: several agents build at once, and BPR-1346's
   `pkill -f "cmake --build --preset dev"` stopped four other agents' builds.
 - Commit each completed issue slice intentionally.
+- Debug performance timings are permanently nongating. On 2026-10-26 the owner
+  instructed: "From now and until the end of time I won't care about debug
+  timings, we dont even have to run those in debug." Omit dedicated timing and
+  performance courses from Debug release qualification; record their exact
+  names and omissions without passing or Debug functional coverage credit.
+  Keep Debug functional checks. A timing-sensitive assertion in a mixed course
+  does not block a release or require another waiver; retain its actual failure
+  and unreached checks. If a short execution budget cuts off a functional
+  course, a larger bounded Debug watchdog may be used to finish its semantic
+  checks. Actual hangs and functional failures still require investigation.
+  Optimized Release timing, memory/resource, compilation, source/legal,
+  security, signing, notarization and native trust requirements are separate.
+  This policy has no per-release expiry and does not require a new permission
+  request when Debug timing misses recur.
+
 - For release work, use the existing `publish-release` skill and package paths.
   Bind the separate versioned corresponding-source asset as well as the binary,
   SPDX and installed notices; an offline audit is not trust or release approval.
