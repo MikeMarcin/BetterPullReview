@@ -1,0 +1,27 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "home-requested-repairs-20261026",
+  "scope": {
+    "issues": [
+      "BPR-1770"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "direct-membership",
+      "outcome": "Home discovers direct review requests with bounded membership batches and explainable safe diagnostics; export wording is exact.",
+      "work": [
+        {
+          "issue": "BPR-1770"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC1 through AC5 on BPR-1770 pass against the exact candidate with request-count and export evidence."
+      ],
+      "boundary": "Return after intentional commits, tracker completion and command quiescence; no push, release or installation."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

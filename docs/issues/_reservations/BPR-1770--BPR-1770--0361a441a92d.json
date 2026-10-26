@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1770"
+  ],
+  "reserve_for": "home-requested-repairs-20261026",
+  "purpose": "Direct requested-review membership batching, safe diagnostics and verbose-log wording",
+  "created": "2026-10-26T10:48:27.735112+00:00",
+  "base": "e6e69cc2c6a429209ac3462579a4cb685855fa86"
+}
