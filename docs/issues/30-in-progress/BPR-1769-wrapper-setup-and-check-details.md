@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1769"
 title: "Check a corporate Claude wrapper without requiring a Claude login and expose setup diagnostics"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"
