@@ -136,7 +136,9 @@ def lint(package, capabilities):
             problems.append(f"{reference.name} is not a small reference")
     if sum(len(read(d).encode()) for d in documents(package)) > 24576:
         problems.append("the whole package is not thin")
-    extra = [str(p.relative_to(package)) for p in package.rglob("*") if p.is_file() and p not in documents(package)]
+    # The shared package carries its redistribution licence alongside the instructions.
+    allowed = {*documents(package), package / "LICENSE"}
+    extra = [str(p.relative_to(package)) for p in package.rglob("*") if p.is_file() and p not in allowed]
     if extra:
         problems.append(f"the package carries more than instructions: {extra}")
     linked = set(re.findall(r"\]\((references/[^)]+)\)", read(skill_md)))
