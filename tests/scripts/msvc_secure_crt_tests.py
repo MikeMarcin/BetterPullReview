@@ -7,8 +7,9 @@ way compiles everywhere except on the Windows lane, which is the only place
 the failure is seen (BPR-0519 twice in one day). The two accepted spellings
 are the ones the tree already uses: a scoped `#pragma warning(disable : 4996)`
 around exactly the read, or a `_dupenv_s` branch under `_MSC_VER` with the
-`std::getenv` read in its `#else`. A file that is never built on Windows is
-allowlisted by name with the reason.
+`std::getenv` read in its `#else`. A Win32 `GetEnvironmentVariableA` branch
+with the portable read in its `#else` is also accepted. A file that is never
+built on Windows is allowlisted by name with the reason.
 
 Owned by BPR-0519.
 """
@@ -49,6 +50,10 @@ def spelled_for_msvc(lines: list[str], index: int) -> bool:
         return True
     # A `_dupenv_s` branch guarded on `_MSC_VER` whose `#else` holds this read.
     if "_MSC_VER" in text and "_dupenv_s" in text and re.search(r"^\s*#\s*else\b", text, re.M):
+        return True
+    # The probe uses Win32 directly; only its POSIX #else reads std::getenv.
+    if ("#ifdef _WIN32" in text and "GetEnvironmentVariableA(" in text
+            and re.search(r"^\s*#\s*else\b[^#]*$", text, re.M)):
         return True
     return False
 
@@ -101,6 +106,11 @@ class MsvcSecureCrtTests(unittest.TestCase):
             "\tconst char* const value = std::getenv(aName);",
         ]
         self.assertTrue(spelled_for_msvc(branched, 5))
+        win32 = ["#ifdef _WIN32", "GetEnvironmentVariableA(name, nullptr, 0);",
+                 "#else", "const auto* value = std::getenv(name);"]
+        self.assertTrue(spelled_for_msvc(win32, 3))
+        self.assertFalse(spelled_for_msvc([*win32[:2], "#endif", win32[3]], 3))
+        self.assertFalse(spelled_for_msvc([win32[0], win32[3]], 1))
         bare = ["\tconst auto* value = std::getenv(name);"]
         self.assertFalse(spelled_for_msvc(bare, 0))
 

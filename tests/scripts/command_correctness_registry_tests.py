@@ -126,15 +126,32 @@ set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
     def test_python_driver_binds_source_binary_configuration_and_private_output(self):
         registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
         family = next(item for item in registry["families"] if item["source"].endswith("/profile_window_review_restoration_public_path_tests.cpp"))
+        # Exercise declaration semantics on a current, private fixture. A stale
+        # production input must remain serial; this test does not renew its seal.
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for item in [{"path": family["source"]}, *family["inputs"]]:
+                target = root / item["path"]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((ROOT / item["path"]).read_bytes())
+                digest = hashlib.sha256(target.read_bytes()).hexdigest()
+                if "sha256" in item:
+                    item["sha256"] = digest
+                else:
+                    family["sha256"] = digest
+            (root / "tests/command_correctness_registry.json").write_text(json.dumps(registry))
+            self.check_python_driver_declaration(root, family)
+
+    def check_python_driver_declaration(self, root, family):
         candidate = family["rows"][0]
         directory = Path("/build/tests/end_to_end")
         props = {"WORKING_DIRECTORY": directory.as_posix(),
                  "ENVIRONMENT": ["QT_SCALE_FACTOR=1.0", "BPR_REVIEW_RESTORATION_ARTIFACT_ROOT=/build/bpr0710-restoration-artifacts"],
                  "ENVIRONMENT_MODIFICATION": [f"{key}=unset:" for key in family["unset_environment"]]}
         row = {"name": candidate["name"], "config": "Release", "command": ["/tools/python.exe",
-               (ROOT / "tests/end_to_end/profile_window_review_restoration_contract.py").as_posix(),
+               (root / "tests/end_to_end/profile_window_review_restoration_contract.py").as_posix(),
                "--application", "/build/tests/end_to_end/Release/profile_window_review_restoration_public_path.exe"]}
-        suite.validate_command_owned_row(row, props)
+        suite.validate_command_owned_row(row, props, root)
         for kind in ("driver", "binary", "configuration", "output", "capture"):
             bad_row, bad_props = copy.deepcopy(row), copy.deepcopy(props)
             if kind == "driver": bad_row["command"][1] = "/other/driver.py"
@@ -143,7 +160,7 @@ set_property(TEST one PROPERTY BPR_LOGICAL_COMMAND "worker;--correctness")
             if kind == "output": bad_props["ENVIRONMENT"][-1] += "-shared"
             if kind == "capture": bad_props["ENVIRONMENT_MODIFICATION"] = []
             with self.subTest(kind=kind), self.assertRaises(ValueError):
-                suite.validate_command_owned_row(bad_row, bad_props)
+                suite.validate_command_owned_row(bad_row, bad_props, root)
 
     def test_source_or_argv_drift_remains_serial_and_optional_output_is_unset(self):
         result, row = self.configure_registry()

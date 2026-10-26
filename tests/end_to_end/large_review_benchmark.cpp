@@ -1808,9 +1808,9 @@ namespace bpr::e2e::large_review {
 				}
 				std::cerr << '\n';
 			}
-			staleKeyObserved = staleKeyObserved || !keyMatches;
+			staleKeyObserved  = staleKeyObserved || !keyMatches;
 			staleTextObserved = staleTextObserved || !textMatches;
-			stalePublication = stalePublication || staleKeyObserved || staleTextObserved;
+			stalePublication  = stalePublication || staleKeyObserved || staleTextObserved;
 		};
 		QObject    observationLifetime;
 		const auto leftObservation  = QObject::connect(surface.left_pane()->document(), &QTextDocument::contentsChanged, &observationLifetime, [&] {

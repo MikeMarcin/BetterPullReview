@@ -736,6 +736,9 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "agent-setup-default-read-refused",
                 "private-test-root-refused",
                 "persistent-recovery-open-unavailable",
+                # RFC-BPR-0093 measured native loader refusals.
+                "cmake-dll-initialization",
+                "qt-dll-initialization",
             },
         )
 
