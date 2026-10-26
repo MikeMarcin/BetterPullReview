@@ -187,11 +187,21 @@ class RegistrationInventoryTests(unittest.TestCase):
         with contained_temporary_directory() as directory:
             root = pathlib.Path(directory) / "build" / "checkout"
             write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
-            for excluded in (".git", "build", "_build", "tests/build"):
+            for excluded in (".git", "build", "_build", "tests/build", ".mask/sessions"):
                 write(root, f"{excluded}/CMakeLists.txt", "add_test(NAME generated COMMAND x)\n")
             self.assertEqual(
                 registration_inventory(root), ([RAW_REGISTRATION_OWNER], 0, 0, 0)
             )
+
+    def test_only_the_root_runtime_session_directory_is_excluded(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = pathlib.Path(directory)
+            write(root, RAW_REGISTRATION_OWNER, "add_test(NAME x COMMAND y)\n")
+            for rogue in (".mask/skill-config/CMakeLists.txt", "tests/.mask/sessions/CMakeLists.txt"):
+                write(root, rogue, "add_test(NAME bypass COMMAND x)\n")
+            raw, _, _, _ = registration_inventory(root)
+            self.assertIn(".mask/skill-config/CMakeLists.txt", raw)
+            self.assertIn("tests/.mask/sessions/CMakeLists.txt", raw)
 
     def test_rogue_raw_registration_is_visible(self) -> None:
         with contained_temporary_directory() as directory:

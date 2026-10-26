@@ -1271,6 +1271,7 @@ def cmake_sources(root: pathlib.Path) -> list[pathlib.Path]:
             name
             for name in directories
             if name not in {".git", "build", "_build"}
+            and (base / name).relative_to(root).parts != (".mask", "sessions")
             and not (base / name / ".git").exists()
         ]
         for name in files:
