@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1769"
+  ],
+  "reserve_for": "wrapper-setup-20261026",
+  "purpose": "Repair wrapper setup authentication and reachable check diagnostics",
+  "created": "2026-10-26T08:54:12.067011+00:00",
+  "base": "447adb28fd3c1044a5adb74f70d2ed0569218d04"
+}
