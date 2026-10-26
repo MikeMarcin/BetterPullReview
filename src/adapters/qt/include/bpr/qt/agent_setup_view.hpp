@@ -28,8 +28,9 @@ namespace bpr::qt {
 	struct agent_setup_intents
 	{
 		std::function<void(core::setup_agent)> Choose;
-		/// Look again for agents, or for clones in the clone folders.
-		std::function<void()> LookAgain;
+		/// Step-specific metadata searches, neither reruns a check.
+		std::function<void()> FindAgents;
+		std::function<void()> FindClones;
 		std::function<void()> OpenSettings;
 		std::function<void()> OpenRepositorySettings;
 		/// Opens the agent's install page in the browser, through the host,
@@ -119,11 +120,13 @@ namespace bpr::qt {
 		std::optional<core::setup_step>     Editing;
 		std::optional<core::setup_agent>    Picked;
 		std::optional<std::string>          PickedClone;
-		core::setup_step                    Open   = core::setup_step::agent;
-		bool                                Active = false;
-		bool                                Ready  = false;
-		QVBoxLayout*                        Steps  = nullptr;
-		QLabel*                             Intro  = nullptr;
+		core::setup_step                    Open             = core::setup_step::agent;
+		bool                                Active           = false;
+		bool                                Ready            = false;
+		bool                                AgentDetailsOpen = false;
+		bool                                WorkspaceLogOpen = false;
+		QVBoxLayout*                        Steps            = nullptr;
+		QLabel*                             Intro            = nullptr;
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review

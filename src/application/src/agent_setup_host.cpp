@@ -23,19 +23,23 @@ namespace bpr::application {
 
 		[[nodiscard]] auto detail_of(const agent_run_result& aResult) -> std::string
 		{
-			auto text = std::string{ name(aResult.Outcome) };
+			auto outcome = std::string{ name(aResult.Outcome) };
 			if (aResult.ExitCode) {
-				text += " (exit " + std::to_string(*aResult.ExitCode) + ")";
+				outcome += " (exit " + std::to_string(*aResult.ExitCode) + ")";
 			}
+			auto output = std::string{ };
 			for (const auto& event : aResult.Events) {
-				text += '\n';
-				text += event.Text;
+				output += '\n';
+				output += bounded(event.Text);
+				output = bounded(std::move(output));
 			}
 			if (!aResult.StandardError.empty()) {
-				text += '\n';
-				text += aResult.StandardError;
+				output += "\nstderr:\n";
+				output += bounded(aResult.StandardError);
+				output = bounded(std::move(output));
 			}
-			return bounded(std::move(text));
+			const auto available = maximum_agent_check_detail_bytes - outcome.size();
+			return outcome + output.substr(output.size() > available ? output.size() - available : 0U);
 		}
 
 		/// What a check run that did not answer means for the agent row.
@@ -100,10 +104,15 @@ namespace bpr::application {
 
 		void publish()
 		{
-			auto& state         = Projection.State;
-			state.Rows          = core::agent_setup_rows(Found, Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
-			const auto saved    = Picked ? Picked : Projection.Preferences.Chosen;
-			state.Chosen        = core::choose_setup_agent(state.Rows, saved);
+			auto& state              = Projection.State;
+			state.Rows               = core::agent_setup_rows(Found, Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
+			const auto saved         = Picked ? Picked : Projection.Preferences.Chosen;
+			state.Chosen             = core::choose_setup_agent(state.Rows, saved);
+			const auto* const row    = chosen_row();
+			const auto* const entry  = preferred_entry();
+			Projection.ChecksSignIn  = row != nullptr && row->Agent != core::setup_agent::plain_text_harness && (entry == nullptr || entry->Preset.has_value());
+			Projection.ChecksWrapper = row != nullptr && row->Agent == core::setup_agent::claude_code && row->How == core::agent_found_how::saved_program
+				&& (entry == nullptr || entry->Preset);
 			Projection.Searched = core::searched_setup_agents(Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
 			Projection.Step     = core::current_setup_step(state);
 			++Projection.Generation;
@@ -151,7 +160,14 @@ namespace bpr::application {
 		{
 			const auto& agents = Projection.Preferences.Agents;
 			const auto  found  = std::ranges::find(agents, Projection.Preferences.PreferredAgent, &core::agent_entry::Id);
-			return Projection.Preferences.PreferredAgent == 0U || found == agents.end() ? nullptr : &*found;
+			if (Projection.Preferences.PreferredAgent != 0U && found != agents.end()) {
+				return &*found;
+			}
+			// [[BPR-1769]]. Detection can choose the sole installed agent
+			// before a preferred entry was saved (including a migrated wrapper).
+			// Its existing preset is still the effective program and arguments.
+			const auto chosen = Projection.State.Chosen ? Projection.State.Chosen : Projection.Preferences.Chosen;
+			return chosen ? core::find_preset_entry(agents, *chosen) : nullptr;
 		}
 
 		void apply_programs()
@@ -188,9 +204,14 @@ namespace bpr::application {
 			Projection.Checking         = false;
 			Projection.State.AgentCheck = std::move(aCheck);
 			Projection.CheckDetail      = Projection.State.AgentCheck.State == core::setup_check_state::passed ? std::string{ } : std::move(aDetail);
-			if (Projection.State.AgentCheck.State == core::setup_check_state::passed && Projection.Preferences.Chosen != aAgent) {
-				Projection.Preferences.Chosen = aAgent;
-				save();
+			if (Projection.State.AgentCheck.State == core::setup_check_state::passed) {
+				const auto* const entry     = preferred_entry();
+				const auto        preferred = entry != nullptr ? entry->Id : Projection.Preferences.PreferredAgent;
+				if (Projection.Preferences.Chosen != aAgent || Projection.Preferences.PreferredAgent != preferred) {
+					Projection.Preferences.Chosen         = aAgent;
+					Projection.Preferences.PreferredAgent = preferred;
+					save();
+				}
 			}
 			publish();
 		}
@@ -212,12 +233,19 @@ namespace bpr::application {
 			// Assigned member by member: GCC's optimized build reports a
 			// designated-initializer temporary's defaulted strings as
 			// maybe-uninitialized once it is moved.
-			auto snapshot    = inputs{ };
-			snapshot.Wrapper = host.Dependencies.ClaudeWrapper ? host.Dependencies.ClaudeWrapper->current() : std::string{ };
-			snapshot.Codex   = host.Projection.Preferences.CodexProgram;
-			snapshot.Harness = host.Projection.Preferences.HarnessProgram;
-			snapshot.Inspect = host.Dependencies.Inspect;
-			snapshot.Locate  = host.Dependencies.Locate;
+			auto snapshot = inputs{ };
+			// [[BPR-1769]]. The legacy wrapper is an input to migration
+			// only. Once moved, the canonical list (including an empty reset
+			// list) decides whether a saved wrapper exists.
+			const auto* const claude = core::find_preset_entry(host.Projection.Preferences.Agents, core::setup_agent::claude_code);
+			snapshot.Wrapper         = host.Projection.Preferences.AgentsMoved
+				? (claude != nullptr ? claude->Program : std::string{ })
+				: host.Dependencies.ClaudeWrapper ? host.Dependencies.ClaudeWrapper->current()
+												  : std::string{ };
+			snapshot.Codex           = host.Projection.Preferences.CodexProgram;
+			snapshot.Harness         = host.Projection.Preferences.HarnessProgram;
+			snapshot.Inspect         = host.Dependencies.Inspect;
+			snapshot.Locate          = host.Dependencies.Locate;
 			// [[BPR-1753]]. A chosen entry with its own program is the
 			// program setup checks for its kind, as a saved wrapper was.
 			if (const auto* const entry = host.preferred_entry(); entry != nullptr && !entry->Program.empty()) {
@@ -305,9 +333,16 @@ namespace bpr::application {
 				if (aLoaded && valid(*aLoaded)) {
 					self->Projection.Preferences = std::move(*aLoaded);
 				}
+				const auto searched = self->Projection.Detecting || self->Projection.Detected;
 				self->move_into_list();
 				self->apply_programs();
-				self->publish();
+				if (searched) {
+					// A first look may have snapshotted the legacy/default values
+					// while this read was pending. Only loaded settings may land.
+					self->detect();
+				} else {
+					self->publish();
+				}
 			});
 	}
 
@@ -387,9 +422,10 @@ namespace bpr::application {
 
 	void agent_setup_host::update_agent(core::agent_entry aEntry, agent_entry_answer aAnswered)
 	{
-		auto&      host      = *Implementation;
-		const auto preferred = host.Projection.Preferences.PreferredAgent == aEntry.Id;
-		auto       updated   = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
+		auto&             host      = *Implementation;
+		const auto* const current   = host.preferred_entry();
+		const auto        preferred = current != nullptr && current->Id == aEntry.Id;
+		auto              updated   = core::update_agent_entry(host.Projection.Preferences.Agents, std::move(aEntry));
 		if (!updated) {
 			if (aAnswered) {
 				aAnswered(updated.error());
@@ -397,6 +433,13 @@ namespace bpr::application {
 			return;
 		}
 		host.Projection.Preferences.Agents = std::move(*updated);
+		if (preferred) {
+			host.CheckStop.request_stop();
+			if (host.Projection.Checking && host.Dependencies.Process != nullptr) {
+				host.Dependencies.Process->cancel();
+			}
+			host.reset_checks();
+		}
 		host.save();
 		host.publish();
 		if (preferred) {
@@ -523,6 +566,11 @@ namespace bpr::application {
 		auto fresh                  = agent_setup_preferences{ };
 		fresh.AgentsMoved           = true;
 		host.Projection.Preferences = std::move(fresh);
+		++host.DetectGeneration;
+		host.Found.clear();
+		host.Projection.Detecting = false;
+		host.Projection.Detected  = false;
+		host.Projection.WorkspaceDetail.clear();
 		host.Projection.Catalogs.clear();
 		host.Picked.reset();
 		host.reset_checks();
@@ -751,13 +799,15 @@ namespace bpr::application {
 		host.publish();
 	}
 
-	void agent_setup_host::set_workspace_check(core::setup_check aCheck)
+	void agent_setup_host::set_workspace_check(core::setup_check aCheck, std::string aDetail)
 	{
 		auto& host = *Implementation;
-		if (host.Projection.State.WorkspaceCheck == aCheck) {
+		aDetail    = aCheck.State == core::setup_check_state::failed ? bounded(std::move(aDetail)) : std::string{ };
+		if (host.Projection.State.WorkspaceCheck == aCheck && host.Projection.WorkspaceDetail == aDetail) {
 			return;
 		}
 		host.Projection.State.WorkspaceCheck = std::move(aCheck);
+		host.Projection.WorkspaceDetail      = std::move(aDetail);
 		host.publish();
 	}
 
@@ -766,6 +816,7 @@ namespace bpr::application {
 		auto& host = *Implementation;
 		host.reset_checks();
 		host.Projection.State.WorkspaceCheck = { };
+		host.Projection.WorkspaceDetail.clear();
 		host.detect();
 	}
 

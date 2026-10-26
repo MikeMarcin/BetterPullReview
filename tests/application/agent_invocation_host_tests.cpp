@@ -1734,6 +1734,12 @@ namespace {
 				   && test.Workspaces.LastRequest->Session.Id.value() >= (std::uint64_t{ 1U } << 63U) && test.Workspaces.LastRequest->ParentDirectory == test.Workspaces.LastCleanup->ParentDirectory,
 			   "it carries the linked clone and a reserved session identity");
 		expect(test.Projection.Finished.empty(), "no session finishes: none was admitted");
+		auto cancellation = std::stop_source{ };
+		answer.reset();
+		test.Host.probe_workspace(core::application_session_id{ 1U }, authority(hostId), binding(hostId), std::nullopt, [&answer](auto aProbed) { answer = std::move(aProbed); }, cancellation.get_token());
+		cancellation.request_stop();
+		test.settle();
+		expect(answer && !answer->has_value() && answer->error().Code == application::agent_workspace_failure::cancelled && test.Workspaces.Cleanups == 1U && test.Host.is_quiescent(), "Stop reaches a pending workspace probe's own token and settles it without leaking a workspace");
 
 		test.Workspaces.MaterializationFailure = application::agent_workspace_error{ application::agent_workspace_failure::unavailable, "no head",
 																					 application::agent_workspace_unavailable_reason::download_failed };

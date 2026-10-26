@@ -1,10 +1,12 @@
 #include <algorithm>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 #if defined(_WIN32)
@@ -15,8 +17,6 @@
 
 	#include <tlhelp32.h>
 
-	#include <chrono>
-	#include <thread>
 #else
 	#include <csignal>
 	#include <unistd.h>
@@ -88,6 +88,20 @@ auto main(int argc, char** argv) -> int
 			return std::string_view{ aArgument } == aExpected;
 		});
 	};
+	// [[BPR-1769]]. A releasable local checkpoint lets the composed setup
+	// prove that workspace progress outlives the independent agent check.
+	const auto hold = executable.parent_path() / ".bpr-hold-workspace";
+	if (hasArgument("pack-objects") && std::filesystem::is_regular_file(hold)) {
+		auto waiting = std::ofstream{ executable.parent_path() / ".bpr-workspace-waiting" };
+		waiting << "waiting";
+		waiting.close();
+		for (auto attempt = 0; attempt < 2'000 && std::filesystem::is_regular_file(hold); ++attempt) {
+			std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+		}
+		if (std::filesystem::is_regular_file(hold)) {
+			return 126;
+		}
+	}
 	if (
 		hasArgument("pack-objects") && hasArgument("--revs")
 		&& std::filesystem::is_regular_file(

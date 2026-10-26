@@ -638,6 +638,44 @@ auto main(int argc, char** argv) -> int
 		sideEffect.flush();
 	}
 
+	// [[BPR-1769]]. The owner's wrapper reports Bedrock as pretty JSON;
+	// its fixed --no-extra-output argument suppresses a non-JSON banner.
+	if (has_argument(argc, argv, "auth")) {
+		const auto root = std::filesystem::path{ argv[0] }.parent_path();
+		const auto hold = root / ".bpr-hold-agent-status";
+		if (std::filesystem::is_regular_file(hold)) {
+			auto waiting = std::ofstream{ root / ".bpr-agent-status-waiting" };
+			waiting << "waiting";
+			waiting.close();
+			for (auto attempt = 0; attempt < 2'000 && std::filesystem::is_regular_file(hold); ++attempt) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+			}
+			if (std::filesystem::is_regular_file(hold)) {
+				return 126;
+			}
+		}
+		if (!has_argument(argc, argv, "--no-extra-output")) {
+			std::cout << "Corporate wrapper fixture banner\n";
+		}
+		std::cout << R"({
+  "loggedIn": true,
+  "authMethod": "third_party",
+  "apiProvider": "bedrock",
+  "analyticsDisabled": true,
+  "projectsDirectory": "/home/fixture/.claude/projects",
+  "configDirectory": "/home/fixture/.claude"
+})" << '\n';
+		return EXIT_SUCCESS;
+	}
+	if (has_argument(argc, argv, "--version")) {
+		std::cout << "1.2.3 (wrapper fixture)\n";
+		return EXIT_SUCCESS;
+	}
+	if (has_argument(argc, argv, "--help")) {
+		std::cout << "Wrapper fixture help\n  --effort <level> (low, high)\n";
+		return EXIT_SUCCESS;
+	}
+
 	const auto protocol = selected_protocol(argc, argv);
 	ToolFreeLaunch      = has_argument(argc, argv, "--disallowedTools");
 #if defined(_WIN32)

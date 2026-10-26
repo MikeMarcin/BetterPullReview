@@ -45,6 +45,24 @@ environment allowlist, no review context and a 15-second bound, and then makes
 and removes the workspace an Ask would make (below). It sends no question, no
 code and no model request.
 
+[[BPR-1769]] keeps the effective saved entry's program and fixed arguments
+for both check commands, even when detection chose a migrated preset before
+its preferred entry was saved. Claude's third-party Bedrock status JSON is
+accepted through the same strict `loggedIn` field; it does not require a
+normal Claude account or validate the corporate network/SSO session itself.
+Custom agents only prove program availability or their own configured check,
+and the UI says so. Both agent and workspace work remain visibly busy until
+settled. Stop cancels the workspace probe through its own token, cleanup still
+runs, and choosing the private-copy fallback retries directly. Each failed row
+has its own bounded local plain-text disclosure; Git's log is adapter-redacted.
+These outputs are not automatically logged, exported or copied.
+
+After the old settings have migrated, the canonical agent entries are the
+only saved-wrapper authority. Reset clears that list and the legacy wrapper
+and model fields, preventing the old wrapper returning without its arguments.
+The Agent and Repository steps offer their own metadata rescans; the Check
+step offers only check/recovery controls.
+
 Initial protocols:
 
 ```text
@@ -130,8 +148,9 @@ launcher starts as it is; with no wrapper saved the launch searches for it
   saved wrapper always wins: nothing is searched, and a refused wrapper never
   falls back to the found `claude`. A request that already names its program
   by path is not searched for.
-- **Sign-in is Claude's.** BetterPullReview has no agent sign-in prompt or
-  check, so it offers no "don't prompt to sign in" switch (owner, 2026-10-06,
+- **Sign-in is Claude's.** BetterPullReview asks the preset agent's own
+  status command during setup, but has no agent sign-in prompt and offers
+  no "don't prompt to sign in" switch (owner, 2026-10-06,
   "Accept (no switch)"); the page says in one line that sign-in is left to
   Claude and the wrapper. Tool-free writing uses the same sign-in as every
   other Claude request: the person's own Claude account, read by Claude

@@ -15,7 +15,9 @@
 #include "bpr/adapters/agent/agent_process_launcher.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_program_resolution.hpp"
+#include "bpr/application/agent_setup_host.hpp"
 #include "bpr/application/claude_process_wrapper.hpp"
+#include "bpr/application/manual_executor.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 
 #include <QCoreApplication>
@@ -533,6 +535,54 @@ namespace {
 			   "a codex removed before the launch ends the request as not found");
 	}
 
+	void test_wrapper_setup_through_the_launcher(const std::filesystem::path& aRoot)
+	{
+		const auto wrapper = copy_canary(aRoot, "setup-corporate-wrapper");
+		auto       source  = std::make_shared<application::claude_process_wrapper_source>();
+		source->set(text(wrapper));
+		auto launcher = adapters::agent::agent_process_launcher{ };
+		auto lane     = application::manual_executor{ };
+		auto host     = application::agent_setup_host{ application::agent_setup_dependencies{
+			.Process       = &launcher,
+			.Inspect       = &adapters::agent::inspect_claude_process_wrapper,
+			.ClaudeWrapper = source,
+			.Parent        = parent,
+			.Profiles      = core::built_in_agent_profiles(),
+			.Effects       = &lane,
+			.Checks        = &lane,
+			.Decision      = &lane,
+		} };
+		// First prove the observed pretty JSON survives the real supervisor
+		// and plain-line capture, while an unsuppressed banner stays unreadable.
+		auto launches = application::build_agent_status_launches(core::setup_agent::claude_code, core::built_in_agent_profiles().at(2U), text(wrapper), parent);
+		expect(launches.has_value(), "the observed wrapper status command builds");
+		const auto banner = launcher.run(launches->Status, application::agent_status_timeout_milliseconds);
+		expect(application::decode_agent_status(core::setup_agent::claude_code, banner, { }).Status == core::agent_status::unreadable,
+			   "non-JSON wrapper output is never accepted as authenticated");
+		launches->Status.Arguments.insert(launches->Status.Arguments.begin(), "--no-extra-output");
+		const auto pretty = launcher.run(launches->Status, application::agent_status_timeout_milliseconds);
+		expect(pretty.Events.size() >= 8U && application::decode_agent_status(core::setup_agent::claude_code, pretty, { }).Status == core::agent_status::signed_in,
+			   "the owner's multiline Bedrock status traverses the real supervisor and strict decoder");
+		auto entry      = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, text(wrapper));
+		entry.Arguments = { "--no-extra-output" };
+		host.add_agent(std::move(entry));
+		host.observe_policy(core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com));
+		host.detect();
+		lane.drain();
+		host.check();
+		lane.drain();
+		expect(host.projection().ChecksWrapper && host.projection().State.AgentCheck.State == core::setup_check_state::passed
+				   && host.projection().State.AgentCheck.Version == "1.2.3",
+			   "the setup host keeps the auto-chosen wrapper's fixed argument through real status and version runs");
+		std::filesystem::remove(wrapper);
+		host.check();
+		lane.drain();
+		expect(host.projection().State.AgentCheck.State == core::setup_check_state::failed && !host.projection().CheckDetail.empty(), "a wrapper removed before the actual launch fails with details");
+		host.shutdown();
+		lane.drain();
+		expect(host.is_quiescent(), "wrapper setup leaves no outstanding process or completion");
+	}
+
 	void test_other_harnesses_unchanged(const std::filesystem::path& aRoot)
 	{
 		const auto wrapper = copy_canary(aRoot, "ignored-wrapper");
@@ -567,6 +617,7 @@ try {
 	test_unix_script_wrapper(root);
 #endif
 	test_launch_recheck(root);
+	test_wrapper_setup_through_the_launcher(root);
 	test_other_harnesses_unchanged(root);
 	test_path_search_on_real_files(root);
 	test_found_claude_through_the_launcher(root);

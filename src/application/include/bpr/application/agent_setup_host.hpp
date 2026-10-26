@@ -31,9 +31,17 @@ namespace bpr::application {
 		bool Detected  = false;
 		bool Detecting = false;
 		bool Checking  = false;
+		/// The chosen preset uses a saved Claude wrapper, whose own status
+		/// command reports sign-in for its configured provider.
+		bool ChecksWrapper = false;
+		/// Only preset Claude/Codex checks actually ask for sign-in status.
+		bool ChecksSignIn = true;
 		/// Bounded text for Show details after a failed check: the run's
 		/// outcome name and its last output.
 		std::string CheckDetail;
+		/// Bounded, adapter-redacted workspace diagnostic text, local to this
+		/// setup window and separate from the agent's output.
+		std::string WorkspaceDetail;
 		/// Owner look v006. What each added agent's harness said it offers,
 		/// by entry id, once asked; an entry being asked is in `Cataloguing`.
 		std::map<std::uint32_t, agent_harness_catalog> Catalogs;
@@ -152,7 +160,7 @@ namespace bpr::application {
 		void reset();
 		void set_repository_chosen(bool aChosen);
 		/// RFC-BPR-0092 Check it works: the worktree row's result.
-		void set_workspace_check(core::setup_check aCheck);
+		void set_workspace_check(core::setup_check aCheck, std::string aDetail = { });
 		/// Asks for setup again: the chosen agent stays selected, the checks
 		/// start over and detection runs again.
 		void restart();

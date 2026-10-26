@@ -1,5 +1,6 @@
 #include "bpr/qt/agent_setup_view.hpp"
 
+#include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QApplication>
@@ -14,6 +15,8 @@
 #include <QLineEdit>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QScrollArea>
@@ -280,6 +283,39 @@ namespace bpr::qt {
 			return code;
 		}
 
+		/// Local output is a literal, read-only disclosure, never rich text,
+		/// an automatic clipboard copy or an application diagnostic record.
+		void append_check_details(QVBoxLayout& aBody, const QString& aTitle, const QString& aName, const std::string& aDetail, bool& aOpen)
+		{
+			auto* const parent = aBody.parentWidget();
+			auto* const toggle = new disclosure_button{ parent };
+			toggle->setObjectName(aName);
+			toggle->setText(aTitle);
+			toggle->setAccessibleName(aTitle);
+			toggle->setChecked(aOpen);
+			aBody.addWidget(toggle);
+			auto* const content = new QWidget{ parent };
+			auto* const body    = new QVBoxLayout{ content };
+			body->setContentsMargins(0, 0, 0, 0);
+			auto* const note = words(QObject::tr("Local output may include account or network details. Check it before sharing."), content);
+			body->addWidget(note);
+			auto* const output = new QPlainTextEdit{ content };
+			output->setObjectName(aName + QStringLiteral("Text"));
+			output->setAccessibleName(aTitle);
+			output->setReadOnly(true);
+			output->setFont(code_font(parent->font()));
+			output->setPlainText(aDetail.empty() ? QObject::tr("No process output was returned.") : text_of(aDetail));
+			output->setMinimumHeight(96);
+			output->setMaximumHeight(144);
+			body->addWidget(output);
+			content->setVisible(aOpen);
+			aBody.addWidget(content);
+			QObject::connect(toggle, &QToolButton::toggled, content, [content, open = &aOpen](const bool aChecked) {
+				*open = aChecked;
+				content->setVisible(aChecked);
+			});
+		}
+
 		/// \brief A flat button drawn in the palette's link colour, read at
 		/// each paint so it follows light and dark.
 		class link_push final : public QPushButton
@@ -425,14 +461,6 @@ namespace bpr::qt {
 		footer->setObjectName(QStringLiteral("agentSetupFooter"));
 		auto* const row = new QHBoxLayout{ footer };
 		row->setContentsMargins(12, 6, 12, 8);
-		auto* const again = link_button(tr("Look again"), footer, QStringLiteral("agentSetupLookAgain"));
-		again->setToolTip(tr("Look again for agents and for clones in your clone folders. Nothing runs."));
-		connect(again, &QPushButton::clicked, this, [this] {
-			if (Intents.LookAgain) {
-				Intents.LookAgain();
-			}
-		});
-		row->addWidget(again);
 		row->addStretch(1);
 		auto* const settings = link_button(tr("Agent settings"), footer, QStringLiteral("agentSetupSettings"));
 		connect(settings, &QPushButton::clicked, this, [this] {
@@ -451,6 +479,12 @@ namespace bpr::qt {
 
 	void agent_setup_view::present(const application::agent_setup_projection& aSetup, const application::clone_link_projection& aClones, const agent_setup_facts& aFacts)
 	{
+		if (Setup.CheckDetail != aSetup.CheckDetail || aSetup.State.AgentCheck.State != core::setup_check_state::failed) {
+			AgentDetailsOpen = false;
+		}
+		if (Setup.WorkspaceDetail != aSetup.WorkspaceDetail || aSetup.State.WorkspaceCheck.State != core::setup_check_state::failed) {
+			WorkspaceLogOpen = false;
+		}
 		Setup  = aSetup;
 		Clones = aClones;
 		Facts  = aFacts;
@@ -529,7 +563,8 @@ namespace bpr::qt {
 	auto agent_setup_view::ready_text() const -> QString
 	{
 		const auto& version  = Setup.State.AgentCheck.Version;
-		const auto  signedIn = version.empty() ? tr("Signed in.") : tr("Signed in, version %1.").arg(text_of(version));
+		const auto  signedIn = !Setup.ChecksSignIn ? tr("Program check passed.") : version.empty() ? tr("Signed in.")
+																								   : tr("Signed in, version %1.").arg(text_of(version));
 		auto        where    = workspace_words();
 		if (!where.isEmpty()) {
 			where[0] = where[0].toUpper();
@@ -627,8 +662,8 @@ namespace bpr::qt {
 					Editing = target;
 					Picked.reset();
 					PickedClone.reset();
-					if (target == core::setup_step::repository && Intents.LookAgain) {
-						Intents.LookAgain();
+					if (target == core::setup_step::repository && Intents.FindClones) {
+						Intents.FindClones();
 					}
 					rebuild();
 				});
@@ -644,8 +679,8 @@ namespace bpr::qt {
 						Editing.reset();
 					} else {
 						Editing = target;
-						if (target == core::setup_step::repository && Intents.LookAgain) {
-							Intents.LookAgain();
+						if (target == core::setup_step::repository && Intents.FindClones) {
+							Intents.FindClones();
 						}
 					}
 					Picked.reset();
@@ -665,6 +700,18 @@ namespace bpr::qt {
 				case core::setup_step::repository: build_repository(*bodyColumn); break;
 				case core::setup_step::check:      build_check(*bodyColumn); break;
 				case core::setup_step::ready:      break;
+				}
+				if (item.Step == core::setup_step::agent || item.Step == core::setup_step::repository) {
+					const auto  agents = item.Step == core::setup_step::agent;
+					auto* const rescan = link_button(agents ? tr("Find agents again") : tr("Find matching clones"), body,
+													 agents ? QStringLiteral("agentSetupFindAgents") : QStringLiteral("agentSetupFindClones"));
+					rescan->setAccessibleName(rescan->text());
+					rescan->setToolTip(agents ? tr("Search this computer for agent programs again. No agent runs.")
+											  : tr("Search your clone folders for this repository again. No Git command runs."));
+					rescan->setEnabled(agents ? !Setup.Detecting : !Clones.Discovering && !Clones.Verifying);
+					const auto dispatch = agents ? Intents.FindAgents : Intents.FindClones;
+					connect(rescan, &QPushButton::clicked, this, [dispatch] { if (dispatch) { dispatch(); } });
+					bodyColumn->addWidget(rescan, 0, Qt::AlignLeft);
 				}
 				blockColumn->addWidget(body);
 			}
@@ -992,12 +1039,16 @@ namespace bpr::qt {
 
 	void agent_setup_view::build_check(QVBoxLayout& aBody)
 	{
-		auto* const parent = aBody.parentWidget();
-		const auto  agent  = Setup.State.Chosen.value_or(core::setup_agent::claude_code);
-		const auto  name   = plain(agent);
-		auto* const intro  = muted(tr("Before your first question, BetterPullReview runs %1, which sends no question and no code, and makes the agent's workspace once.")
-									   .arg(agent == core::setup_agent::plain_text_harness ? tr("your harness with --version") : status_command(agent)),
-								   parent);
+		auto* const parent    = aBody.parentWidget();
+		const auto  agent     = Setup.State.Chosen.value_or(core::setup_agent::claude_code);
+		const auto  name      = name_for(agent);
+		const auto  introText = !Setup.ChecksSignIn
+			? tr("BetterPullReview checks your program and runs its configured check, if any, then makes the workspace once. This does not check sign-in. No question or code is sent.")
+			: Setup.ChecksWrapper
+			? tr("BetterPullReview asks your Claude process wrapper for auth status --json and --version, using its saved arguments, and makes the workspace once. Sign-in is reported by your wrapper for its configured provider. No question or code is sent.")
+			: tr("Before your first question, BetterPullReview runs %1, which sends no question and no code, and makes the agent's workspace once.")
+				  .arg(agent == core::setup_agent::plain_text_harness ? tr("your harness with --version") : status_command(agent));
+		auto* const intro     = words(introText, parent);
 		aBody.addWidget(intro);
 		auto* const card = new choice_card{ parent };
 		card->setObjectName(QStringLiteral("agentSetupCheckRows"));
@@ -1036,7 +1087,9 @@ namespace bpr::qt {
 			line->addWidget(label, 1);
 			rows->addLayout(line);
 		};
-		row(Setup.State.AgentCheck, tr("%1 is signed in").arg(name), QStringLiteral("agentSetupAgentCheck"));
+		row(Setup.State.AgentCheck, !Setup.ChecksSignIn ? tr("%1 is available").arg(name) : Setup.ChecksWrapper ? tr("Claude process wrapper reports signed in")
+																												: tr("%1 is signed in").arg(name),
+			QStringLiteral("agentSetupAgentCheck"));
 		auto where = workspace_words();
 		if (!where.isEmpty()) {
 			where[0] = where[0].toUpper();
@@ -1065,14 +1118,17 @@ namespace bpr::qt {
 				line->addStretch(1);
 				aBody.addLayout(line);
 			}
+			append_check_details(aBody, tr("Show details"), QStringLiteral("agentSetupShowDetails"), Setup.CheckDetail, AgentDetailsOpen);
 		}
 		if (failed(Setup.State.WorkspaceCheck)) {
 			auto* const why = words(Facts.WorkspaceReason ? workspace_unavailable_words(*Facts.WorkspaceReason) : setup_failure_words(core::agent_setup_failure::workspace_unavailable, name, { }), parent);
 			why->setObjectName(QStringLiteral("agentSetupWorkspaceFailure"));
 			aBody.addWidget(why);
+			append_check_details(aBody, tr("Show the log"), QStringLiteral("agentSetupShowWorkspaceLog"), Setup.WorkspaceDetail, WorkspaceLogOpen);
 		}
-		auto* const buttons = new QHBoxLayout{ };
-		if (Setup.Checking) {
+		auto* const buttons          = new QHBoxLayout{ };
+		const auto  workspaceRunning = Setup.State.WorkspaceCheck.State == core::setup_check_state::running;
+		if (Setup.Checking || workspaceRunning) {
 			auto* const stop = new quiet_push_button{ tr("Stop"), parent };
 			stop->setObjectName(QStringLiteral("agentSetupStop"));
 			connect(stop, &QPushButton::clicked, this, [this] {
@@ -1081,7 +1137,17 @@ namespace bpr::qt {
 				}
 			});
 			buttons->addWidget(stop);
-			buttons->addWidget(muted(tr("Checking…"), parent));
+			auto* const progress = new QProgressBar{ parent };
+			progress->setObjectName(QStringLiteral("agentSetupProgress"));
+			progress->setRange(0, 0);
+			progress->setTextVisible(false);
+			progress->setMaximumWidth(64);
+			const auto status = Setup.Checking && workspaceRunning ? tr("Checking agent and preparing workspace…")
+				: Setup.Checking                                   ? tr("Checking agent…")
+																   : tr("Preparing workspace…");
+			progress->setAccessibleName(status);
+			buttons->addWidget(progress);
+			buttons->addWidget(words(status, parent));
 		} else {
 			const auto  ran   = Setup.State.AgentCheck.State != core::setup_check_state::not_run || Setup.State.WorkspaceCheck.State != core::setup_check_state::not_run;
 			auto* const check = primary_button(ran ? tr("Check again") : tr("Check"), parent, QStringLiteral("agentSetupCheck"));

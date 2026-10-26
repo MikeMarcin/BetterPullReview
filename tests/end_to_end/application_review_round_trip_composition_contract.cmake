@@ -1,3 +1,11 @@
+# [[BPR-1769]] setup-repair reseal (2026-10-26), over 447adb28f.
+# github_application.cpp only changes agent setup: canonical migrated wrapper
+# authority/reset, exact saved-entry use, separate bounded workspace details,
+# busy/Stop and direct private-copy retry, and contextual metadata searches.
+# The supervised agent probe receives its own cancellation token; ordinary
+# credential/provider/mutation/grant/publication paths and source inventory
+# are unchanged. Mutation pin stays 16d135419. Public setup plus the existing
+# agent invocation composition and architecture checks qualify these bytes.
 # Mac/Windows reconciliation (2026-10-25): preserve both reviewed branches.
 # Upstream application changes and local standalone CLI installed-runtime guard
 # combine in the production manifest; full application and mutation pins match
@@ -2376,7 +2384,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"722f5885fcde6974433684eb224a91b6426d8ef71e8fd2fc7c451efce6493ceb"
+		"226a0907042225bfbc3886bbbe262a6007f1abd95a914fffdac7101d38ca3a4d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2607,7 +2615,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "7eb9ddd1d1d0fc26b6a4f94f411d15ccb62523e89cfc108a62238a31c4dc9d0a"
+        "d9ed56a91051d0f079d389695eea53fb2da97082ce4fe53cd8ee90b3ca01a85a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

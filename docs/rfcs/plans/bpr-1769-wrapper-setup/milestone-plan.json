@@ -20,7 +20,9 @@
         "AC1: Verify wrapper availability and retain strict ordinary-agent and custom check behavior.",
         "AC2: Present separate working agent and workspace diagnostic disclosures with fresh bounded literal output.",
         "AC3: Demonstrate regression, focused real-process/Qt/composed checks and rendered evidence; pass formatting and documentation gates.",
-        "Commit the accepted repair and tracker state; record limitations and quiescent command ownership."
+        "Commit the accepted repair and tracker state; record limitations and quiescent command ownership.",
+        "AC4: Reset removes canonical and legacy agent settings without resurrecting a wrapper, including after restart, while preserving unrelated state.",
+        "AC5: Busy state, cancellation and direct private-copy retry reflect both independent checks; contextual rescans and custom availability labels are truthful."
       ],
       "boundary": "Stop after this bounded repair is accepted and committed; do not publish or claim live Bedrock SSO validation."
     }

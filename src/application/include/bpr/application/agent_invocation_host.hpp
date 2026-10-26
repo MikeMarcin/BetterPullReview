@@ -205,7 +205,7 @@ namespace bpr::application {
 		/// It counts toward quiescence until it answers.
 		using workspace_probe_answer = std::function<void(std::expected<prepared_workspace, agent_workspace_error>)>;
 		void probe_workspace(core::application_session_id aApplicationSession, core::pull_request_authority aAuthority, core::agent_revision_binding aBinding,
-							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer);
+							 std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer, std::stop_token aStop = { });
 
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		[[nodiscard]] auto statistics() const noexcept

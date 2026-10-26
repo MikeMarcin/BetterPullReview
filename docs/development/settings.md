@@ -58,11 +58,18 @@ only. Private context is sent only when you select it.
 
 The first time you open the Agent tab, it sets up an agent in place of the
 conversation: the agent, the repository's clone and one check, then the
-question field. **Reset agents…** (here, and in the Agent tab's History menu)
+question field. Agent and Repository have their own **Find agents again** and
+**Find matching clones** actions; these read metadata and do not retry a check.
+Check it works shows progress until both the agent and workspace finish, and
+**Stop** cancels outstanding workspace work too. A failed agent has **Show
+details**; a failed workspace has **Show the log**, each a local plain-text
+disclosure. A custom program check says available, not signed in. **Use a
+private copy for now** retries immediately; a private copy may still need the
+same head download. **Reset agents…** (here, and in the Agent tab's History menu)
 asks first, then removes every agent and its settings, the clone folders and
 linked clones, and an edited review skill (saved to Downloads first),
-forgets which agent each pull request was last asked with, and starts the
-setup again; notes, drafts and agent conversations stay (owner look v006). See the [workbench specification](../ux/workbench-specification.md).
+forgets which agent each pull request was last asked with, clears the legacy
+wrapper/model migration fields, and starts the setup again; notes, drafts and agent conversations stay (owner look v006). See the [workbench specification](../ux/workbench-specification.md).
 
 Under **Agents & context**:
 

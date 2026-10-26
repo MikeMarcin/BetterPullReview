@@ -2,7 +2,11 @@
 #include "public_path_poll.hpp"
 
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/dif_runtime.hpp"
@@ -16,18 +20,21 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QEventLoop>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
 
@@ -543,7 +550,8 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto course              = std::string_view{ argv[1] };
-	const auto workspaceDiagnostic = course == "workspace-diagnostic";
+	const auto setupWrapper        = course == "setup-wrapper";
+	const auto workspaceDiagnostic = course == "workspace-diagnostic" || setupWrapper;
 	const auto crashMaterializing  = course == "crash-materializing-init" || course == "crash-materializing-checkout" || course == "cancel-materializing-checkout";
 	if (
 		(workspaceDiagnostic && argc != 4)
@@ -650,12 +658,11 @@ auto main(int argc, char** argv) -> int
 	auto externalExecutable = std::filesystem::path{ argv[2] };
 	if (
 		course == "cancellation" || course == "staleness"
-		|| course == "cleanup-retry" || course == "crash-running") {
-		const auto mode = course == "crash-running" ? "crash-descendant-wait"
-			: course == "cancellation"
-			? "descendant-wait"
-			: course == "staleness" ? "stale-wait"
-									: "cleanup-retry-wait";
+		|| course == "cleanup-retry" || course == "crash-running" || setupWrapper) {
+		const auto mode = setupWrapper ? "setup-corporate-wrapper" : course == "crash-running" ? "crash-descendant-wait"
+			: course == "cancellation"                                                         ? "descendant-wait"
+			: course == "staleness"                                                            ? "stale-wait"
+																							   : "cleanup-retry-wait";
 		// The copy keeps the source's extension: the canary re-spawns itself
 		// through the CRT on Windows, which appends ".exe" to an
 		// extensionless name and then cannot find the file this copy
@@ -678,6 +685,42 @@ auto main(int argc, char** argv) -> int
 			std::filesystem::perm_options::replace,
 			copyError);
 		if (copyError) {
+			return EXIT_FAILURE;
+		}
+	}
+	if (setupWrapper) {
+		auto preferences        = application::agent_setup_preferences{ };
+		preferences.Chosen      = core::setup_agent::claude_code;
+		preferences.AgentsMoved = true;
+		auto entry              = core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { });
+		entry.Id                = 1U;
+		entry.Program           = externalExecutable.string();
+		entry.Arguments         = { "--no-extra-output" };
+		preferences.Agents.push_back(std::move(entry));
+		preferences.PreferredAgent = 0U;
+		auto store                 = adapters::sqlite::make_agent_setup_store(dataRoot);
+		if (!store || !store->store(preferences)) {
+			return EXIT_FAILURE;
+		}
+		const auto clones = dataRoot / "clones";
+		const auto git    = clones / "review-repository" / ".git";
+		std::filesystem::create_directories(git / "objects" / "info");
+		std::filesystem::create_directories(git / "refs" / "heads");
+		{
+			auto config = std::ofstream{ git / "config" };
+			config << "[core]\nrepositoryformatversion = 0\nbare = false\n[remote \"origin\"]\nurl = https://github.com/octo-org/review-repository.git\n";
+			auto head = std::ofstream{ git / "HEAD" };
+			head << "ref: refs/heads/main\n";
+		}
+		if (!adapters::sqlite::make_clone_link_store(dataRoot)->store_clone_folders(std::vector<std::string>{ clones.string() })) {
+			return EXIT_FAILURE;
+		}
+		auto legacy                 = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = dataRoot });
+		auto previous               = application::workbench_profile_preferences{ };
+		previous.ClaudeWrapper      = externalExecutable.string();
+		previous.ClaudeModel        = "fixture-model";
+		previous.Behaviour.MarkRead = application::review_mark_read_behaviour::when_fully_seen;
+		if (!legacy || !(*legacy)->store_preferences(previous, { })) {
 			return EXIT_FAILURE;
 		}
 	}
@@ -816,6 +859,152 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 		std::cout << "agent-invocation-" << course << ":pass\n";
+		return EXIT_SUCCESS;
+	}
+
+	if (setupWrapper) {
+		window.choose_modality(qt::review_modality::review);
+		if (!window.ai_tools_action()->isChecked()) {
+			window.ai_tools_action()->trigger();
+		}
+		window.tray_tabs()->setCurrentIndex(3);
+		auto* const setup  = window.agent_setup();
+		const auto  button = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
+		if (!wait_until([&] { return button(QStringLiteral("agentSetupFindClones")) != nullptr; })) {
+			return fail(*application, "wrapper-setup-clone-search", setup->step_text().toStdString());
+		}
+		button(QStringLiteral("agentSetupFindClones"))->click();
+		if (!wait_until([&] { return setup->isVisible() && button(QStringLiteral("agentSetupUseClone")) != nullptr && button(QStringLiteral("agentSetupUseClone"))->isEnabled(); })) {
+			return fail(*application, "wrapper-setup-repository", setup->step_text().toStdString());
+		}
+		button(QStringLiteral("agentSetupUseClone"))->click();
+		if (!wait_until([&] { return button(QStringLiteral("agentSetupCheck")) != nullptr; })) {
+			return fail(*application, "wrapper-setup-check");
+		}
+		const auto gitRoot       = diagnosticGit->parent_path();
+		const auto agentHold     = externalExecutable.parent_path() / ".bpr-hold-agent-status";
+		const auto workspaceHold = gitRoot / ".bpr-hold-workspace";
+		const auto touch         = [](const std::filesystem::path& aPath) { auto marker = std::ofstream{ aPath }; marker << "hold"; };
+		touch(agentHold);
+		touch(workspaceHold);
+		touch(gitRoot / workspace_failure_marker);
+		button(QStringLiteral("agentSetupCheck"))->click();
+		if (!wait_until([&] { return std::filesystem::is_regular_file(externalExecutable.parent_path() / ".bpr-agent-status-waiting")
+								  && std::filesystem::is_regular_file(gitRoot / ".bpr-workspace-waiting"); }, extended_agent_budget)
+			|| !setup->step_text().contains(QStringLiteral("Checking agent and preparing workspace")) || button(QStringLiteral("agentSetupCheck")) != nullptr) {
+			return fail(*application, "wrapper-setup-both-busy");
+		}
+		std::filesystem::remove(workspaceHold);
+		if (!wait_until([&] { return setup->findChild<QToolButton*>(QStringLiteral("agentSetupShowWorkspaceLog")) != nullptr; })
+			|| !setup->step_text().contains(QStringLiteral("Checking agent")) || button(QStringLiteral("agentSetupCheck")) != nullptr) {
+			return fail(*application, "wrapper-setup-agent-still-busy");
+		}
+		std::filesystem::remove(agentHold);
+		if (!wait_until([&] { return button(QStringLiteral("agentSetupCheckPrivateCopy")) != nullptr; })) {
+			return fail(*application, "wrapper-setup-fallback");
+		}
+		std::filesystem::remove(gitRoot / workspace_failure_marker);
+		std::filesystem::remove(gitRoot / ".bpr-workspace-waiting");
+		touch(workspaceHold);
+		button(QStringLiteral("agentSetupCheckPrivateCopy"))->click();
+		if (!wait_until([&] { return std::filesystem::is_regular_file(gitRoot / ".bpr-workspace-waiting") && setup->step_text().contains(QStringLiteral("Preparing workspace")); }, extended_agent_budget)
+			|| button(QStringLiteral("agentSetupCheck")) != nullptr) {
+			return fail(*application, "wrapper-setup-fallback-retries-with-workspace-progress");
+		}
+		// Stop reaches the workspace's token, and retry remains unavailable
+		// until that cancelled materialization has settled and cleaned up.
+		button(QStringLiteral("agentSetupStop"))->click();
+		std::filesystem::remove(workspaceHold);
+		if (!wait_until([&] { return button(QStringLiteral("agentSetupCheck")) != nullptr; }, extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-stop-settles");
+		}
+		button(QStringLiteral("agentSetupCheck"))->click();
+		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-ready");
+		}
+		// The wrapper reports third-party Bedrock sign-in as pretty JSON,
+		// and needs its saved --no-extra-output argument for a readable answer.
+		// Successful setup saves this same entry for subsequent requests.
+		if (!wait_until([&] {
+				const auto checked = adapters::sqlite::make_agent_setup_store(dataRoot)->load();
+				return checked && checked->PreferredAgent == 1U && !checked->Agents.empty()
+					&& checked->Agents.front().Arguments == std::vector<std::string>{ "--no-extra-output" };
+			})) {
+			return fail(*application, "wrapper-setup-exact-entry");
+		}
+		std::filesystem::remove(externalExecutable);
+		{
+			auto marker = std::ofstream{ diagnosticGit->parent_path() / workspace_failure_marker };
+			marker << "fail the workspace after the successful setup check\n";
+			if (!marker) {
+				return fail(*application, "wrapper-setup-diagnostic-marker");
+			}
+		}
+		setup->begin(core::setup_step::check);
+		button(QStringLiteral("agentSetupCheck"))->click();
+		if (!wait_until([&] {
+				return setup->findChild<QToolButton*>(QStringLiteral("agentSetupShowDetails")) != nullptr
+					&& setup->findChild<QToolButton*>(QStringLiteral("agentSetupShowWorkspaceLog")) != nullptr;
+			},
+						extended_agent_budget)) {
+			return fail(*application, "wrapper-setup-diagnostics");
+		}
+		setup->findChild<QToolButton*>(QStringLiteral("agentSetupShowDetails"))->click();
+		setup->findChild<QToolButton*>(QStringLiteral("agentSetupShowWorkspaceLog"))->click();
+		if (!wait_until([&] {
+				const auto output = setup->findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowDetailsText"));
+				const auto log    = setup->findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowWorkspaceLogText"));
+				const auto labels = setup->findChildren<QLabel*>();
+				return output != nullptr && log != nullptr && output->height() >= output->minimumHeight() && log->height() >= log->minimumHeight()
+					&& std::ranges::all_of(labels, [setup](const QLabel* aLabel) {
+						   return !aLabel->isVisibleTo(setup) || !aLabel->wordWrap() || aLabel->height() >= aLabel->heightForWidth(aLabel->width());
+					   });
+			})) {
+			return fail(*application, "wrapper-setup-readable-layout");
+		}
+		auto* const agentOutput     = setup->findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowDetailsText"));
+		auto* const workspaceOutput = setup->findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowWorkspaceLogText"));
+		if (agentOutput == nullptr || workspaceOutput == nullptr || !agentOutput->isVisibleTo(setup) || !workspaceOutput->isVisibleTo(setup)
+			|| !agentOutput->toPlainText().contains(QStringLiteral("failed_to_start"))
+			|| workspaceOutput->toPlainText() != QString::fromUtf8(redacted_git_diagnostic.data(), static_cast<qsizetype>(redacted_git_diagnostic.size()))) {
+			return fail(*application, "wrapper-setup-diagnostic-content");
+		}
+		const auto renderRoot = qEnvironmentVariable("BPR_SETUP_RENDER_DIR");
+		if (!renderRoot.isEmpty()) {
+			QDir{ }.mkpath(renderRoot);
+			if (!window.grab().save(renderRoot + QStringLiteral("/composed-wrapper-details.png"))) {
+				return fail(*application, "wrapper-setup-render");
+			}
+		}
+		// Exercise the real reset action and its confirmation, then read the
+		// durable settings: no legacy fallback may survive the canonical reset.
+		auto* const reset = window.findChild<QAction*>(QStringLiteral("agentResetAgentsAction"));
+		if (reset == nullptr) {
+			return fail(*application, "wrapper-setup-reset-action");
+		}
+		QTimer::singleShot(0, &window, [] {
+			for (auto* const widget : QApplication::topLevelWidgets()) {
+				if (auto* const question = qobject_cast<QMessageBox*>(widget); question != nullptr && question->standardButtons().testFlag(QMessageBox::Reset)) {
+					question->button(QMessageBox::Reset)->click();
+				}
+			}
+		});
+		reset->trigger();
+		if (!wait_until([&] {
+				auto       legacy = adapters::sqlite::make_workbench_defaults_store({ .StorageRoot = dataRoot });
+				const auto kept   = legacy ? (*legacy)->load_preferences({ }) : application::workbench_settings_result<application::workbench_profile_preferences>{ std::unexpected{ application::workbench_settings_error{ } } };
+				const auto fresh  = adapters::sqlite::make_agent_setup_store(dataRoot)->load();
+				return kept && kept->ClaudeWrapper.empty() && kept->ClaudeModel.empty()
+					&& kept->Behaviour.MarkRead == application::review_mark_read_behaviour::when_fully_seen
+					&& fresh && fresh->Agents.empty() && fresh->AgentsMoved && setup->step_text().contains(QStringLiteral("No agent found"));
+			})) {
+			return fail(*application, "wrapper-setup-durable-reset");
+		}
+		const auto noPublication = app::detail::github_application_fixture_access::review_mutation_evidence(*application).Submissions == 0U;
+		if (!shutdown(*application) || !noPublication) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-invocation-setup-wrapper:pass\n";
 		return EXIT_SUCCESS;
 	}
 

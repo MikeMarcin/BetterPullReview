@@ -242,6 +242,102 @@ namespace {
 		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::timed_out, "a run past its bound fails the check as timed out");
 	}
 
+	void test_auto_chosen_wrapper_keeps_its_entry()
+	{
+		auto f = fixture{ };
+		f.Wrapper->set("/opt/corp/bedrock-wrapper");
+		f.Host->load();
+		f.Host->detect();
+		f.settle();
+		auto entry      = f.state().Preferences.Agents.front();
+		entry.Arguments = { "--no-extra-output" };
+		f.Host->update_agent(entry);
+		f.settle();
+		expect(f.state().Preferences.PreferredAgent == 0U, "a migrated auto-chosen wrapper can have no saved preferred entry yet");
+		f.Process.Answers = { said(application::agent_run_outcome::success,
+								   R"({
+  "loggedIn": true,
+  "authMethod": "third_party",
+  "apiProvider": "bedrock",
+  "analyticsDisabled": true,
+  "projectsDirectory": "/home/fixture/.claude/projects",
+  "configDirectory": "/home/fixture/.claude"
+})"),
+							  said(application::agent_run_outcome::success, "2.1.296 (Claude Code)") };
+		f.Host->check();
+		f.settle();
+		expect(f.Process.Requests.size() == 2U && f.Process.Requests.front().Executable == entry.Program
+				   && f.Process.Requests.front().Arguments == std::vector<std::string>{ "--no-extra-output", "auth", "status", "--json" },
+			   "an auto-chosen migrated wrapper keeps its saved entry's fixed arguments for the status check");
+		expect(f.Process.Requests.back().Arguments == std::vector<std::string>{ "--no-extra-output", "--version" }, "the version check keeps the same fixed arguments");
+		expect(f.state().ChecksWrapper && f.state().State.AgentCheck.State == setup_check_state::passed && f.state().State.AgentCheck.Version == "2.1.296", "the owner's pretty third-party Bedrock status is accepted without a normal Claude login");
+		expect(f.state().Preferences.PreferredAgent == entry.Id && f.Store.Stored->PreferredAgent == entry.Id, "successful setup saves the exact checked entry for subsequent launches");
+
+		entry.Program = "/opt/corp/second-wrapper";
+		f.Host->update_agent(entry);
+		f.settle();
+		f.Process.Answers = { said(application::agent_run_outcome::success, "Welcome!") };
+		f.Host->check();
+		f.settle();
+		expect(f.Process.Requests.back().Executable == entry.Program && f.Process.Requests.back().Arguments == std::vector<std::string>{ "--no-extra-output", "auth", "status", "--json" }, "an updated effective entry's program and arguments are checked");
+		expect(f.state().State.AgentCheck.Failure == core::agent_setup_failure::status_unreadable, "a wrapper's unreadable response is still never accepted as signed in");
+	}
+
+	void test_reset_does_not_resurrect_legacy_wrapper()
+	{
+		auto f = fixture{ };
+		f.Wrapper->set("/opt/corp/legacy-wrapper");
+		f.Host->load();
+		f.Host->detect();
+		f.settle();
+		expect(f.state().State.Rows.front().Path == "/opt/corp/legacy-wrapper", "the legacy wrapper migrates into the canonical list once");
+		auto entry      = f.state().Preferences.Agents.front();
+		entry.Arguments = { "--no-extra-output" };
+		f.Host->update_agent(entry);
+		f.settle();
+		f.Host->reset();
+		f.Host->restart();
+		f.settle();
+		expect(f.state().Preferences.Agents.empty() && f.state().Preferences.AgentsMoved && f.state().State.Rows.front().Path == f.Claude->Path
+				   && f.state().State.Rows.front().How != core::agent_found_how::saved_program,
+			   "Reset detects ordinary Claude without resurrecting the legacy wrapper after dropping its fixed args");
+		const auto saved = f.Store.Stored;
+		f.Host->shutdown();
+		auto next = fixture{ };
+		next.Wrapper->set("/opt/corp/legacy-wrapper");
+		next.Store.Stored = saved;
+		next.Host->load();
+		next.Host->detect();
+		next.settle();
+		expect(next.state().Preferences.Agents.empty() && next.state().State.Rows.front().Path == next.Claude->Path, "a new host over the persisted reset never reimports or rediscovers the old wrapper");
+	}
+
+	void test_setup_details_are_bounded_and_separate()
+	{
+		auto f = fixture{ };
+		f.Host->load();
+		f.Host->detect();
+		f.settle();
+		auto result          = said(application::agent_run_outcome::nonzero_exit, std::string(8U * 1024U, 'x') + " last stdout", 7);
+		result.StandardError = "SSO fixture expired";
+		f.Process.Answers    = { result };
+		f.Host->check();
+		f.settle();
+		expect(f.state().CheckDetail.size() <= application::maximum_agent_check_detail_bytes && f.state().CheckDetail.starts_with("nonzero_exit (exit 7)")
+				   && f.state().CheckDetail.ends_with("SSO fixture expired"),
+			   "bounded agent output retains the outcome, exit code and final error");
+		const auto agentDetail = f.state().CheckDetail;
+		f.Host->set_workspace_check(core::fail_check(core::agent_setup_failure::workspace_unavailable), std::string(8U * 1024U, 'g') + " Git fixture failed");
+		expect(f.state().WorkspaceDetail.size() == application::maximum_agent_check_detail_bytes && f.state().WorkspaceDetail.ends_with("Git fixture failed")
+				   && f.state().CheckDetail == agentDetail,
+			   "bounded workspace log is separate from the agent's diagnostic");
+		f.Host->set_workspace_check({ .State = setup_check_state::running });
+		expect(f.state().WorkspaceDetail.empty(), "a new workspace check clears old output");
+		f.Host->restart();
+		expect(f.state().CheckDetail.empty() && f.state().WorkspaceDetail.empty(), "restart clears both details");
+		f.settle();
+	}
+
 	void test_codex_and_stop()
 	{
 		auto f   = fixture{ };
@@ -365,6 +461,7 @@ namespace {
 		again.settle();
 		expect(again.Process.Requests.empty() && again.state().State.AgentCheck.State == setup_check_state::passed && again.Inspected.back() == "/opt/work/bin/wrapper",
 			   "a custom agent with no check of its own passes once its program can be launched, running nothing");
+		expect(!again.state().ChecksSignIn, "the projection distinguishes program availability from authentication");
 		auto own           = again.state().Preferences.Agents.front();
 		own.CheckArguments = { "--codex", "login", "status" };
 		again.Host->update_agent(own);
@@ -445,6 +542,9 @@ auto main() -> int
 	test_detection_starts_nothing();
 	test_saved_programs_win();
 	test_status_check();
+	test_auto_chosen_wrapper_keeps_its_entry();
+	test_reset_does_not_resurrect_legacy_wrapper();
+	test_setup_details_are_bounded_and_separate();
 	test_codex_and_stop();
 	test_choice_and_steps();
 	test_the_agent_list();

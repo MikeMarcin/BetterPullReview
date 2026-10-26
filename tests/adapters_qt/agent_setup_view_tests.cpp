@@ -26,6 +26,7 @@
 #include <QMouseEvent>
 #include <QPalette>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSpinBox>
@@ -139,7 +140,8 @@ namespace {
 			Clones.Repository = application::clone_repository{ .Host = "github.com", .Repository = 7U, .Owner = "bpr-fixtures", .Name = "engine" };
 			View.set_intents(qt::agent_setup_intents{
 				.Choose                 = [this](const core::setup_agent aAgent) { Intents.push_back("choose:" + std::string{ core::stable_name(aAgent) }); },
-				.LookAgain              = [this] { Intents.emplace_back("look-again"); },
+				.FindAgents             = [this] { Intents.emplace_back("find-agents"); },
+				.FindClones             = [this] { Intents.emplace_back("find-clones"); },
 				.OpenSettings           = [this] { Intents.emplace_back("settings"); },
 				.OpenRepositorySettings = [this] { Intents.emplace_back("repository-settings"); },
 				.OpenInstallPage        = [this](const core::setup_agent aAgent) { Intents.push_back("install:" + std::string{ core::stable_name(aAgent) }); },
@@ -195,6 +197,9 @@ namespace {
 		auto test = fixture{ };
 		test.show();
 		expect(test.View.needed() && test.View.open_step() == core::setup_step::agent, "with no agent the setup shows its Agent step");
+		expect(test.button(QStringLiteral("agentSetupFindAgents")) != nullptr && test.button(QStringLiteral("agentSetupFindClones")) == nullptr && test.button(QStringLiteral("agentSetupLookAgain")) == nullptr, "the Agent step owns its specific rescan; no generic footer search remains");
+		test.button(QStringLiteral("agentSetupFindAgents"))->click();
+		expect(test.Intents.back() == "find-agents", "Find agents again only requests agent discovery");
 		expect(test.text().contains(QStringLiteral("No agent found on this computer")) && test.text().contains(QStringLiteral("Claude Code and Codex")), "it says none was found and what it looked for");
 		test.button(QStringLiteral("agentSetupInstallClaude"))->click();
 		test.button(QStringLiteral("agentSetupInstallCodex"))->click();
@@ -204,7 +209,7 @@ namespace {
 			return core::agent_entry{ .Name = "Work Codex", .Protocol = core::agent_protocol::codex_jsonl_exec, .Program = "/opt/work/bin/wrapper", .Arguments = { "--codex" } };
 		});
 		test.button(QStringLiteral("agentSetupCustomAgent"))->click();
-		expect(test.Intents == std::vector<std::string>{ "install:claude_code", "install:codex", "custom:Work Codex:/opt/work/bin/wrapper:--codex" }, "Install and Custom agent… are intents");
+		expect(test.Intents == std::vector<std::string>{ "find-agents", "install:claude_code", "install:codex", "custom:Work Codex:/opt/work/bin/wrapper:--codex" }, "Install and Custom agent… are intents");
 		render(test.View, QStringLiteral("none"));
 	}
 
@@ -327,6 +332,7 @@ namespace {
 		test.Setup.State.RepositoryChosen = true;
 		test.show();
 		expect(test.View.needed() && test.View.open_step() == core::setup_step::check, "once begun, the setup stays until it is checked");
+		expect(test.button(QStringLiteral("agentSetupFindAgents")) == nullptr && test.button(QStringLiteral("agentSetupFindClones")) == nullptr, "Check it works offers no discovery action");
 		expect(test.text().contains(QStringLiteral("claude auth status")) && test.text().contains(QStringLiteral("Claude Code is signed in")) && test.text().contains(QStringLiteral("at 7f3a9c1")),
 			   "Check it works names the command it runs and its two rows");
 		test.button(QStringLiteral("agentSetupCheck"))->click();
@@ -343,22 +349,82 @@ namespace {
 		expect(!test.text().contains(QStringLiteral("not_signed_in")) && !test.text().contains(QStringLiteral("workspace_unavailable")), "no stable code is shown");
 		render(test.View, QStringLiteral("signin"));
 
-		test.Setup.Checking = true;
+		test.Setup.CheckDetail     = "nonzero_exit (exit 7)\nstderr:\nSSO fixture expired <a href=\"https://example.invalid\">literal</a>";
+		test.Setup.WorkspaceDetail = "fatal: fixture download failed from <redacted-url>";
 		test.show();
+		auto* details   = test.View.findChild<QToolButton*>(QStringLiteral("agentSetupShowDetails"));
+		auto* log       = test.View.findChild<QToolButton*>(QStringLiteral("agentSetupShowWorkspaceLog"));
+		auto* output    = test.View.findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowDetailsText"));
+		auto* gitOutput = test.View.findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowWorkspaceLogText"));
+		expect(details != nullptr && log != nullptr && output != nullptr && gitOutput != nullptr, "both promised diagnostics controls exist");
+		expect(!output->isVisibleTo(&test.View) && !gitOutput->isVisibleTo(&test.View) && details->focusPolicy() != Qt::NoFocus && !details->accessibleName().isEmpty(), "diagnostics start collapsed and are keyboard-accessible");
+		details->setFocus();
+		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+		QApplication::sendEvent(details, &press);
+		QApplication::sendEvent(details, &release);
+		log->click();
+		QApplication::processEvents();
+		expect(output->isVisibleTo(&test.View) && output->isReadOnly() && output->toPlainText().toStdString() == test.Setup.CheckDetail, "Space opens literal selectable read-only agent details");
+		expect(gitOutput->isVisibleTo(&test.View) && gitOutput->toPlainText().toStdString() == test.Setup.WorkspaceDetail, "the workspace disclosure opens its own log");
+		test.show();
+		expect(test.View.findChild<QToolButton*>(QStringLiteral("agentSetupShowDetails"))->isChecked(), "an unchanged projection preserves the open disclosure");
+		render(test.View, QStringLiteral("check-details"));
+		test.Setup.ChecksWrapper    = true;
+		test.Setup.State.AgentCheck = core::fail_check(core::agent_setup_failure::status_unreadable);
+		test.show();
+		expect(test.text().contains(QStringLiteral("Claude process wrapper reports signed in")) && test.text().contains(QStringLiteral("Sign-in is reported by your wrapper for its configured provider"))
+				   && !test.text().contains(QStringLiteral("Claude Code is signed in")),
+			   "a wrapper check names the source of sign-in and its saved arguments");
+		render(test.View, QStringLiteral("wrapper-check-details"));
+
+		test.Setup.Checking = true;
+		test.Setup.CheckDetail.clear();
+		test.Setup.WorkspaceDetail.clear();
+		test.Setup.State.AgentCheck     = { .State = core::setup_check_state::running };
+		test.Setup.State.WorkspaceCheck = { .State = core::setup_check_state::running };
+		test.show();
+		expect(test.View.findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowDetailsText")) == nullptr
+				   && test.View.findChild<QPlainTextEdit*>(QStringLiteral("agentSetupShowWorkspaceLogText")) == nullptr,
+			   "a fresh check removes old diagnostic controls and text");
 		test.button(QStringLiteral("agentSetupStop"))->click();
 		expect(test.Intents.back() == "stop", "a running check can be stopped");
+		test.Setup.Checking         = false;
+		test.Setup.State.AgentCheck = { .State = core::setup_check_state::passed };
+		test.show();
+		expect(test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupProgress")) != nullptr && test.text().contains(QStringLiteral("Preparing workspace"))
+				   && test.button(QStringLiteral("agentSetupCheck")) == nullptr,
+			   "finishing the agent check leaves visible busy feedback while the workspace is still running");
+		render(test.View, QStringLiteral("workspace-busy"));
+		test.Setup.Checking             = true;
+		test.Setup.State.AgentCheck     = { .State = core::setup_check_state::running };
+		test.Setup.State.WorkspaceCheck = { .State = core::setup_check_state::passed };
+		test.show();
+		expect(test.text().contains(QStringLiteral("Checking agent")) && test.button(QStringLiteral("agentSetupCheck")) == nullptr, "finishing the workspace first keeps the agent's busy feedback");
 		test.Setup.Checking             = false;
 		test.Setup.State.AgentCheck     = { .State = core::setup_check_state::passed, .Version = "2.1.296" };
 		test.Setup.State.WorkspaceCheck = { .State = core::setup_check_state::passed };
 		test.show();
 		expect(!test.View.needed() && test.View.take_ready() && !test.View.take_ready(), "both checks passed: the setup gives way, once, to the ready line");
 		expect(test.View.ready_title() == QStringLiteral("Claude Code is ready") && test.View.ready_text().contains(QStringLiteral("version 2.1.296")), "the ready line names the agent and version");
+		test.Setup.ChecksSignIn = false;
+		test.View.begin(core::setup_step::check);
+		test.show();
+		expect(!test.View.ready_text().contains(QStringLiteral("Signed in")) && test.View.ready_text().contains(QStringLiteral("Program check passed"))
+				   && test.text().contains(QStringLiteral("is available")),
+			   "a custom program check and ready line never assert authentication");
+		test.Setup.ChecksSignIn = true;
+
 		const auto gets = qt::agent_ready_gets({ .Repository = "bpr-fixtures/engine", .Number = 22U, .Title = "Clamp device scale", .BaseBranch = "main", .Base = "51d2dad", .Head = "7f3a9c1", .Files = 18U, .Threads = 6U, .Unresolved = 2U, .Clone = "/Users/me/Documents/GitHub/engine" });
 		expect(gets.contains(QStringLiteral("bpr-fixtures/engine #22")) && gets.contains(QStringLiteral("git diff 51d2dad...7f3a9c1")) && gets.contains(QStringLiteral("6 review threads, 2 unresolved")),
 			   "What the agent gets states the brief");
 
 		test.View.begin(core::setup_step::repository);
 		expect(test.View.needed() && test.View.open_step() == core::setup_step::repository, "Change repository folder… opens that step again");
+		expect(test.button(QStringLiteral("agentSetupFindClones")) != nullptr && test.button(QStringLiteral("agentSetupFindAgents")) == nullptr, "the Repository step owns only its clone search");
+		test.button(QStringLiteral("agentSetupFindClones"))->click();
+		expect(test.Intents.back() == "find-clones", "Find matching clones only requests clone discovery");
+		render(test.View, QStringLiteral("repository-rescan"));
 	}
 
 	void test_settings_rows()

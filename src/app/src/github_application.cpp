@@ -9319,7 +9319,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #if defined(BPR_AGENT_INTEGRATIONS)
 					// [[BPR-1301]]. The next Claude launch reads what this
 					// profile has just published, and so does the row.
-					ClaudeWrapperSource->set(aPreferences.ClaudeWrapper);
+					ClaudeWrapperSource->set(AgentSetup && AgentSetup->projection().Preferences.AgentsMoved ? std::string{ } : aPreferences.ClaudeWrapper);
 					Window->claude_wrapper()->present(aPreferences.ClaudeWrapper);
 					// [[BPR-1375]]. The next Claude request names this model.
 					ClaudeModel = aPreferences.ClaudeModel;
@@ -11821,7 +11821,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// Ask would make for the review on screen.
 		void check_agent_setup()
 		{
-			if (Closing || !AgentSetup) {
+			if (Closing || !AgentSetup || AgentSetup->projection().Checking || AgentSetup->projection().State.WorkspaceCheck.State == core::setup_check_state::running) {
 				return;
 			}
 			AgentSetup->check();
@@ -11833,9 +11833,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || !AgentSetup) {
 				return;
 			}
-			const auto failed = [this](const std::optional<application::agent_workspace_unavailable_reason> aReason) {
+			const auto failed = [this](const std::optional<application::agent_workspace_unavailable_reason> aReason, std::string aDetail = { }) {
 				LastWorkspaceProbeReason = aReason;
-				AgentSetup->set_workspace_check(core::fail_check(core::agent_setup_failure::workspace_unavailable));
+				AgentSetup->set_workspace_check(core::fail_check(core::agent_setup_failure::workspace_unavailable), std::move(aDetail));
 			};
 			if (AgentHost == nullptr || EpochHost == nullptr || !AgentReview) {
 				failed(std::nullopt);
@@ -11858,11 +11858,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.LeftEpoch   = comparison.Left.Identity.Epoch,
 				.RightEpoch  = comparison.Right.Identity.Epoch,
 			};
+			AgentSetupWorkspaceStop = std::stop_source{ };
+			const auto generation   = ++AgentSetupWorkspaceGeneration;
+			const auto stop         = AgentSetupWorkspaceStop.get_token();
 			LastWorkspaceProbeReason.reset();
 			AgentSetup->set_workspace_check({ .State = core::setup_check_state::running });
-			AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false),
-									   [this, failed](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
-										   if (Closing || !AgentSetup) {
+			AgentHost->probe_workspace(state.ApplicationSession, authority, std::move(binding), linked_history_clone(false), [this, failed, stop, generation](std::expected<application::prepared_workspace, application::agent_workspace_error> aProbed) {
+										   if (Closing || !AgentSetup || generation != AgentSetupWorkspaceGeneration) {
+											   return;
+										   }
+										   if (stop.stop_requested()) {
+											   LastWorkspaceProbeReason.reset();
+											   AgentSetup->set_workspace_check({ });
 											   return;
 										   }
 										   if (aProbed) {
@@ -11870,8 +11877,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 											   AgentSetup->set_workspace_check({ .State = core::setup_check_state::passed });
 											   return;
 										   }
-										   failed(aProbed.error().Code == application::agent_workspace_failure::unavailable ? std::optional{ aProbed.error().Reason } : std::nullopt);
-									   });
+										   failed(aProbed.error().Code == application::agent_workspace_failure::unavailable ? std::optional{ aProbed.error().Reason } : std::nullopt, aProbed.error().Detail); }, stop);
 		}
 
 		/// [[BPR-1750]]. A repository with a serving link or the private
@@ -11952,6 +11958,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (Closing || !AgentSetup) {
 					return;
 				}
+				AgentSetupWorkspaceStop.request_stop();
+				++AgentSetupWorkspaceGeneration;
+				// [[BPR-1769]]. The old preferences are migration inputs, not
+				// a second agent list. Reset clears them durably as well.
+				static_cast<void>(Profile->WorkbenchPreferences->apply_claude_wrapper({ }));
+				static_cast<void>(Profile->WorkbenchPreferences->apply_claude_model({ }));
 				AgentSetup->reset();
 				// The fresh setup looks for agents again, as Set up did.
 				AgentSetup->restart();
@@ -12015,18 +12027,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							AgentSetup->choose(aAgent);
 						}
 					},
-				.LookAgain =
-					[this] {
-						if (Closing) {
-							return;
-						}
-						if (AgentSetup) {
-							AgentSetup->detect();
-						}
-						if (CloneLinks) {
-							CloneLinks->look_again();
-						}
-					},
+				.FindAgents             = [this] { if (!Closing && AgentSetup) { AgentSetup->detect(); } },
+				.FindClones             = [this] { if (!Closing && CloneLinks) { CloneLinks->look_again(); } },
 				.OpenSettings           = [this] { Window->open_settings(qt::settings_page::agents_and_context); },
 				.OpenRepositorySettings = [this] { Window->open_settings(qt::settings_page::repositories); },
 				.OpenInstallPage =
@@ -12059,14 +12061,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					},
 				.UsePrivateCopy =
 					[this] {
-						if (!Closing && CloneLinks) {
+						if (!Closing && CloneLinks && AgentSetup) {
+							const auto retry = AgentSetup->projection().State.WorkspaceCheck.State == core::setup_check_state::failed;
 							CloneLinks->use_private_copy();
+							const auto linked = CloneLinks->projection().Linked;
+							if (retry && linked && linked->PrivateCopy) {
+								check_agent_setup();
+							}
 						}
 					},
 				.Check = [this] { check_agent_setup(); },
 				.Stop =
 					[this] {
 						if (!Closing && AgentSetup) {
+							AgentSetupWorkspaceStop.request_stop();
 							AgentSetup->stop();
 						}
 					},
@@ -12393,6 +12401,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1753]], owner amendment 2026-10-23. The launches use
 			// the list as published, and the picker offers it.
 			AgentEntries->set(aProjection.Preferences.Agents);
+			if (aProjection.Preferences.AgentsMoved) {
+				// Canonical entries name their program. A legacy fallback must
+				// neither replace one nor resurrect a wrapper after Reset.
+				ClaudeWrapperSource->set({ });
+			}
 			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
 			Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
 			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
@@ -22038,6 +22051,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (ClaudeWrapperEditor) {
 				ClaudeWrapperEditor->shutdown();
 			}
+			AgentSetupWorkspaceStop.request_stop();
 			if (AgentSetup) {
 				AgentSetup->shutdown();
 			}
@@ -23227,6 +23241,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
+		std::stop_source                                               AgentSetupWorkspaceStop;
+		std::uint64_t                                                  AgentSetupWorkspaceGeneration = 0U;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

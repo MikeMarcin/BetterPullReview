@@ -1302,7 +1302,7 @@ set_tests_properties(application_first_tab_comparison PROPERTIES
 
 # RFC-BPR-0093 owner useful-test amendment: resource rows retain cache,
 # ownership, source and lifecycle contracts. Baseline-calibrated process
-# footprint/peak envelopes remain explicit telemetry; native allocated-heap
+# footprint/peak envelopes remain explicit measurements; native allocated-heap
 # gates apply only where the counter covers the selected allocator. Plain
 # benchmark flags retain the legacy physical-envelope qualification path.
 # Launch/response limits and Windows containment stay unchanged.
@@ -1797,6 +1797,7 @@ foreach(
 				"-DBPR_APPLICATION=$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
 				"-DBPR_APPLICATION_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/agent_invocation_composition_public_path.cpp"
 				"-DBPR_CANARY=$<TARGET_FILE:test_better_pull_review_agent_canary>"
+				"-DBPR_GIT_WRAPPER=$<TARGET_FILE:test_better_pull_review_git_diagnostic_wrapper>"
 				"-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/agent-invocation-composition-contract"
 				-P
 				"${CMAKE_CURRENT_SOURCE_DIR}/application_agent_invocation_composition_contract.cmake"

@@ -422,6 +422,20 @@ the reviewer can edit.
 
 ### Check it works
 
+> **Follow-up [[BPR-1769]] (2026-10-26).** The reported corporate Bedrock
+> wrapper answers the existing auth-status command; its pretty JSON is valid.
+> Setup must retain the effective saved program and fixed arguments when it
+> auto-selects a migrated preset, and save that exact checked entry. The
+> canonical migrated list governs detection and launch; Reset also clears
+> the old wrapper/model migration fields. Custom checks are availability,
+> never an invented sign-in result. Failed rows disclose separate bounded
+> literal output; progress lasts until both checks settle, Stop reaches the
+> workspace, and the private-copy fallback retries directly. Metadata rescan
+> actions belong to Agent and Repository, not a pinned Check-step footer.
+> Historical acceptance above is unchanged; the new card records repair
+> evidence and the unverified corporate workspace failure.
+
+
 One explicit **Check** proves the two things a first question needs, each a
 row with its own result:
 

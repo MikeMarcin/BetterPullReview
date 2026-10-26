@@ -1287,10 +1287,10 @@ namespace bpr::application {
 	}
 
 	void agent_invocation_host::probe_workspace(const core::application_session_id aApplicationSession, core::pull_request_authority aAuthority,
-												core::agent_revision_binding aBinding, std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer)
+												core::agent_revision_binding aBinding, std::optional<std::filesystem::path> aHistoryClone, workspace_probe_answer aAnswer, std::stop_token aStop)
 	{
 		const auto host = Implementation;
-		if (host->Closing.load(std::memory_order_acquire)) {
+		if (host->Closing.load(std::memory_order_acquire) || aStop.stop_requested()) {
 			if (aAnswer) {
 				aAnswer(std::unexpected(agent_workspace_error{ agent_workspace_failure::cancelled }));
 			}
@@ -1309,7 +1309,7 @@ namespace bpr::application {
 		request.HistoryClone       = std::move(aHistoryClone);
 		++host->Probes;
 		try {
-			host->Effects.post([weak = std::weak_ptr{ host }, probe = std::move(request), answer = std::move(aAnswer)]() mutable {
+			host->Effects.post([weak = std::weak_ptr{ host }, probe = std::move(request), answer = std::move(aAnswer), stop = std::move(aStop)]() mutable {
 				auto self = weak.lock();
 				if (!self) {
 					return;
@@ -1321,7 +1321,7 @@ namespace bpr::application {
 				auto guard  = implementation::callback_guard{ self };
 				auto result = std::expected<prepared_workspace, agent_workspace_error>{ std::unexpected(agent_workspace_error{ agent_workspace_failure::invalid_request }) };
 				try {
-					auto made = self->Workspaces.materialize_agent_workspace(probe, { });
+					auto made = self->Workspaces.materialize_agent_workspace(probe, stop);
 					if (made) {
 						result = made->Workspace;
 						static_cast<void>(self->Workspaces.cleanup_agent_workspace(*made, { }));

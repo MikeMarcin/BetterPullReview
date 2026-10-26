@@ -1,6 +1,7 @@
 if(
     NOT DEFINED BPR_APPLICATION
     OR NOT DEFINED BPR_APPLICATION_SOURCE
+    OR NOT DEFINED BPR_GIT_WRAPPER
     OR NOT DEFINED BPR_CANARY
     OR NOT DEFINED BPR_ROOT
 )
@@ -79,6 +80,19 @@ string(FIND "${reopen_output}" "${reopen_marker}" reopen_marker_position)
 string(FIND "${reopen_output}" "${seed_marker}" reopen_seed_position)
 if(reopen_marker_position EQUAL -1 OR NOT reopen_seed_position EQUAL -1)
     message(FATAL_ERROR "agent invocation reopen emitted no distinct reopen proof")
+endif()
+
+# [[BPR-1769]]. Real first-run UI, saved preset wrapper, supervised
+# availability, workspace preparation, and independent failing-row disclosures.
+execute_process(
+    COMMAND "${BPR_APPLICATION}" setup-wrapper "${BPR_CANARY}" "${BPR_GIT_WRAPPER}"
+    RESULT_VARIABLE setup_result
+    OUTPUT_VARIABLE setup_output
+    ERROR_VARIABLE setup_error
+)
+message("${setup_output}")
+if(NOT setup_result EQUAL 0 OR NOT setup_output MATCHES "agent-invocation-setup-wrapper:pass")
+    message(FATAL_ERROR "wrapper setup public path failed: ${setup_error}")
 endif()
 
 message("AGENT_INVOCATION_COMPOSITION_CONTRACT_OK")
