@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1771"
+  ],
+  "reserve_for": "release-v034",
+  "purpose": "Record permanent Debug timing policy and retained v0.3.4 evidence",
+  "created": "2026-10-26T21:02:57.332912+00:00",
+  "base": "661d2d0f678e2f18aef1d44c23c7cdee4edd3b3e"
+}
