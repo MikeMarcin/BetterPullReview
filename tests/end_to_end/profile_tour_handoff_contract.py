@@ -144,7 +144,11 @@ def main():
                 return bpr("assist", "complete", "--ticket", ticket, "--result", "-", data=answer.encode())
             hooks = subprocess.run([args.tour_application, "tour", "hooks", "show", "--profile", "1", "--json",
                                     "--data-root", str(root)], capture_output=True, timeout=60)
-            assert hooks.returncode == 0 and len(json.loads(hooks.stdout)["data"]["hooks"]) == 4, hooks.stdout
+            assert hooks.returncode == 0, hooks.stdout
+            listed = json.loads(hooks.stdout)["data"]["hooks"]
+            assert [hook["name"] for hook in listed] == ["problem", "solution", "outline", "comment", "feedback"], hooks.stdout
+            assert all(hook["active"] for hook in listed[:4]) and listed[4]["active"] is False, hooks.stdout
+            assert listed[4]["version"] == "review-feedback-v1" and listed[4]["customized"] is False, hooks.stdout
             assert ask("compose \u4e2d", "COMPOSING") == "COMPOSING"
             busy = bpr("assist", "context", "--hook", "problem", "--field", "problem", "--quote", "world")
             assert busy.returncode == 4 and code(busy) == "editor_busy", busy.stdout
